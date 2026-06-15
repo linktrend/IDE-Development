@@ -1,0 +1,185 @@
+entries:
+  - id: state-index
+    path: .cursor/state/INDEX.yaml
+    purpose: Progressive-disclosure index for the canonical execution state layer shared across doctrine, runtime, workflows, contracts, commands, and agents.
+    when_to_read:
+      - when entering the state directory directly
+      - when a task needs state semantics before reading state documents
+    dependencies:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/runtime/INDEX.yaml
+      - .cursor/workflows/INDEX.yaml
+      - .cursor/contracts/INDEX.yaml
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - reviewers
+      - integrators
+      - orchestrators
+    status: active
+    tags:
+      - state
+      - navigation
+      - index
+
+  - id: state-readme
+    path: .cursor/state/README.md
+    purpose: Lightweight navigation note for the state layer and its relationship to other specification layers.
+    when_to_read:
+      - when entering the state directory directly
+      - when a runtime needs a short overview before loading a state document
+    dependencies:
+      - state-index
+    consumers:
+      - human operators
+      - AI runtimes
+    status: active
+    tags:
+      - state
+      - navigation
+      - readme
+
+  - id: state-model
+    path: .cursor/state/STATE-MODEL.md
+    purpose: Canonical shared state model for intent, program, module, phase, issue, proof, review, and integration artifacts.
+    when_to_read:
+      - when defining shared state semantics
+      - when a layer needs the authoritative state vocabulary
+    dependencies:
+      - .cursor/execution/CANONICAL-LAWS.md
+      - .cursor/runtime/STATE-MODEL.md
+      - .cursor/contracts/STATE-CONTRACT.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - workflows
+      - commands
+      - agents
+    status: active
+    tags:
+      - state
+      - canonical
+      - model
+
+  - id: state-transitions
+    path: .cursor/state/STATE-TRANSITIONS.md
+    purpose: Defines allowed and invalid state transitions across work units and layers.
+    when_to_read:
+      - when validating progression or regression
+      - when checking whether a transition is legal
+    dependencies:
+      - state-model
+    consumers:
+      - human operators
+      - AI runtimes
+      - reviewers
+      - integrators
+      - orchestrators
+    status: active
+    tags:
+      - state
+      - transitions
+      - canonical
+
+  - id: ready-states
+    path: .cursor/state/READY-STATES.md
+    purpose: Defines ready conditions for all supported work units and clarifies how readiness is computed.
+    when_to_read:
+      - when deciding whether work may start
+      - when checking stage entry readiness
+    dependencies:
+      - state-model
+      - .cursor/runtime/DEPENDENCY-RESOLUTION.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - orchestrators
+    status: active
+    tags:
+      - state
+      - readiness
+      - canonical
+
+  - id: blocked-states
+    path: .cursor/state/BLOCKED-STATES.md
+    purpose: Defines blocked conditions and the evidence required when work cannot proceed.
+    when_to_read:
+      - when work stops progressing
+      - when distinguishing genuine block from unfinished work
+    dependencies:
+      - state-model
+      - .cursor/contracts/VALIDATION-CONTRACT.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - reviewers
+      - orchestrators
+    status: active
+    tags:
+      - state
+      - blocked
+      - canonical
+
+  - id: failure-states
+    path: .cursor/state/FAILURE-STATES.md
+    purpose: Defines how failures are represented without introducing automation-specific semantics.
+    when_to_read:
+      - when work, proof, review, or integration fails
+      - when deciding whether failure becomes rework or blocked state
+    dependencies:
+      - state-model
+      - state-transitions
+    consumers:
+      - human operators
+      - AI runtimes
+      - reviewers
+      - integrators
+    status: active
+    tags:
+      - state
+      - failure
+      - canonical
+
+  - id: retry-states
+    path: .cursor/state/RETRY-STATES.md
+    purpose: Defines when retries are permitted and how retry transitions preserve state history and ownership.
+    when_to_read:
+      - when resolving blockers or failed reviews
+      - when deciding whether work may re-enter execution
+    dependencies:
+      - state-model
+      - failure-states
+    consumers:
+      - human operators
+      - AI runtimes
+      - reviewers
+      - integrators
+      - orchestrators
+    status: active
+    tags:
+      - state
+      - retry
+      - canonical
+
+  - id: terminal-states
+    path: .cursor/state/TERMINAL-STATES.md
+    purpose: Defines terminal completion and terminal non-completion states for all supported work units.
+    when_to_read:
+      - when deciding whether work is truly complete
+      - when deciding whether a workflow or runtime may stop
+    dependencies:
+      - state-model
+      - state-transitions
+    consumers:
+      - human operators
+      - AI runtimes
+      - reviewers
+      - integrators
+      - planners
+    status: active
+    tags:
+      - state
+      - terminal
+      - canonical
