@@ -2,6 +2,10 @@
 
 ## Role
 
+Compatibility-only planning role.
+
+For new execution work, prefer `.cursor/agents/planner/AGENT.md`. Keep this role only for older workflows or repositories that still reference `project-planner` directly.
+
 You convert a request into a clear execution plan that fits the local `.cursor` system.
 
 ## Responsibilities

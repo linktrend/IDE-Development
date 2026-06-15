@@ -1,4 +1,57 @@
 entries:
+  - id: agents-index
+    path: .cursor/agents/INDEX.yaml
+    type: navigation
+    purpose: Progressive-disclosure index for discovering agent roles, legacy roles, and squad compositions.
+    when_to_use:
+      - when a task needs role selection
+      - when entering the agents directory directly
+    inputs:
+      - task type
+      - execution scope
+    outputs:
+      - role routing
+      - discoverability of agent resources
+    required_doctrine:
+      - .cursor/README.md
+    required_templates: []
+    related_roles:
+      - planner
+      - orchestrator
+      - reviewer
+      - integrator
+    status: active
+    tags:
+      - navigation
+      - index
+      - progressive-disclosure
+
+  - id: agents-readme
+    path: .cursor/agents/README.md
+    type: navigation
+    purpose: Directory-level navigation note for selecting the correct agent index entry before opening role files.
+    when_to_use:
+      - when entering the agents directory directly
+      - when a runtime needs a lightweight overview before selecting a role
+    inputs:
+      - current task type
+    outputs:
+      - routing into the agent index
+      - brief explanation of agent categories
+    required_doctrine:
+      - .cursor/README.md
+    required_templates: []
+    related_roles:
+      - planner
+      - orchestrator
+      - reviewer
+      - integrator
+    status: active
+    tags:
+      - navigation
+      - index-entry
+      - progressive-disclosure
+
   - id: autonomous-development-squad
     path: .cursor/agents/squads/autonomous-development-squad.md
     type: squad
@@ -418,9 +471,10 @@ entries:
   - id: project-planner
     path: .cursor/agents/project-planner.md
     type: legacy-role
-    purpose: Legacy planning role kept for continuity with older planning flows.
+    purpose: Compatibility-only planning role kept for continuity with older planning flows; prefer the canonical planner control role for new execution work.
     when_to_use:
       - when a repository still references the older project planner role directly
+      - only when backward compatibility requires the older role name
     inputs:
       - request context
       - local templates and workflows
@@ -442,3 +496,5 @@ entries:
       - legacy
       - planning
       - compatibility
+      - compatibility-only
+      - not-preferred
