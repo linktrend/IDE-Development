@@ -1,0 +1,123 @@
+entries:
+  - id: runtime-index
+    path: .cursor/runtime/INDEX.yaml
+    purpose: Progressive-disclosure index for the runtime specification layer that explains how doctrine is carried out in practice.
+    when_to_read:
+      - when entering the runtime directory directly
+      - when a task needs runtime-behavior selection before reading runtime specifications
+    dependencies:
+      - .cursor/execution/INDEX.yaml
+    consumers:
+      - human operators
+      - AI runtimes
+      - reviewers
+      - integrators
+    status: active
+    tags:
+      - runtime
+      - navigation
+      - index
+
+  - id: runtime-readme
+    path: .cursor/runtime/README.md
+    purpose: Lightweight navigation note for the runtime directory and its relationship to the execution doctrine.
+    when_to_read:
+      - when entering the runtime directory directly
+      - when a runtime needs a short overview before loading specific runtime specifications
+    dependencies:
+      - runtime-index
+    consumers:
+      - human operators
+      - AI runtimes
+    status: active
+    tags:
+      - runtime
+      - navigation
+      - readme
+
+  - id: runtime-core
+    path: .cursor/runtime/RUNTIME.md
+    purpose: Defines the responsibilities and boundaries of the runtime layer that executes artifacts using the doctrine.
+    when_to_read:
+      - when defining what the runtime is allowed and required to do
+      - when selecting runtime responsibilities
+    dependencies:
+      - .cursor/execution/CANONICAL-LAWS.md
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - orchestrators
+    status: active
+    tags:
+      - runtime
+      - responsibilities
+      - core
+
+  - id: runtime-state-model
+    path: .cursor/runtime/STATE-MODEL.md
+    purpose: Defines runtime state transitions, issue lifecycle, failure states, and retry behavior.
+    when_to_read:
+      - when evaluating state transitions
+      - when deciding how blocked, failed, retried, or completed work should be represented
+    dependencies:
+      - runtime-core
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/templates/INTEGRATION.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - reviewers
+      - integrators
+    status: active
+    tags:
+      - runtime
+      - state
+      - lifecycle
+
+  - id: runtime-execution-loop
+    path: .cursor/runtime/EXECUTION-LOOP.md
+    purpose: Defines the step-by-step runtime loop for loading work, selecting ready issues, executing them, and continuing until completion or genuine block.
+    when_to_read:
+      - when implementing or following runtime execution behavior
+      - when a user asks to complete a module or execute work recursively
+    dependencies:
+      - runtime-core
+      - runtime-state-model
+      - .cursor/execution/AUTONOMOUS-MODULE-EXECUTION.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - orchestrators
+    status: active
+    tags:
+      - runtime
+      - loop
+      - execution
+
+  - id: runtime-dependency-resolution
+    path: .cursor/runtime/DEPENDENCY-RESOLUTION.md
+    purpose: Defines how dependencies, readiness, concurrency, and downstream recomputation are handled at runtime.
+    when_to_read:
+      - when deciding whether work is ready
+      - when evaluating safe concurrency
+      - when recomputing readiness after integration
+    dependencies:
+      - runtime-core
+      - runtime-state-model
+      - .cursor/templates/ISSUE.md
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - orchestrators
+      - reviewers
+      - integrators
+    status: active
+    tags:
+      - runtime
+      - dependencies
+      - concurrency
