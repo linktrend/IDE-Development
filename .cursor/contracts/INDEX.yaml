@@ -1,0 +1,169 @@
+entries:
+  - id: contracts-index
+    path: .cursor/contracts/INDEX.yaml
+    purpose: Progressive-disclosure index for the contract specification layer governing handoffs between workflow stages and runtimes.
+    when_to_read:
+      - when entering the contracts directory directly
+      - when a task needs contract selection before reading contract specifications
+    dependencies:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/runtime/INDEX.yaml
+      - .cursor/workflows/INDEX.yaml
+      - .cursor/templates/INDEX.yaml
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - reviewers
+      - integrators
+    status: active
+    tags:
+      - contracts
+      - navigation
+      - index
+
+  - id: contracts-readme
+    path: .cursor/contracts/README.md
+    purpose: Lightweight navigation note for understanding the contract layer before opening specific contract specifications.
+    when_to_read:
+      - when entering the contracts directory directly
+      - when a runtime needs a short overview before loading contract documents
+    dependencies:
+      - contracts-index
+    consumers:
+      - human operators
+      - AI runtimes
+    status: active
+    tags:
+      - contracts
+      - navigation
+      - readme
+
+  - id: contract-model
+    path: .cursor/contracts/CONTRACT-MODEL.md
+    purpose: Canonical contract model defining universal handoff rules, producer-consumer relationships, ownership, and invariants.
+    when_to_read:
+      - when defining contract behavior across the system
+      - when deciding how handoffs between stages should be governed
+    dependencies:
+      - .cursor/workflows/WORKFLOW-MODEL.md
+      - .cursor/runtime/RUNTIME.md
+      - .cursor/execution/CANONICAL-LAWS.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - orchestrators
+      - reviewers
+      - integrators
+    status: active
+    tags:
+      - contracts
+      - canonical
+      - model
+
+  - id: input-contract
+    path: .cursor/contracts/INPUT-CONTRACT.md
+    purpose: Defines what each work unit must receive before it can be validly consumed by the next workflow or runtime stage.
+    when_to_read:
+      - when validating stage entry conditions
+      - when checking whether an artifact can be consumed safely
+    dependencies:
+      - contract-model
+      - .cursor/templates/INDEX.yaml
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - orchestrators
+    status: active
+    tags:
+      - contracts
+      - canonical
+      - input
+
+  - id: output-contract
+    path: .cursor/contracts/OUTPUT-CONTRACT.md
+    purpose: Defines the outputs each work unit must produce before it can hand work to the next stage.
+    when_to_read:
+      - when validating stage completion
+      - when checking whether a handoff is contract-complete
+    dependencies:
+      - contract-model
+      - .cursor/templates/INDEX.yaml
+    consumers:
+      - human operators
+      - AI runtimes
+      - reviewers
+      - integrators
+    status: active
+    tags:
+      - contracts
+      - canonical
+      - output
+
+  - id: state-contract
+    path: .cursor/contracts/STATE-CONTRACT.md
+    purpose: Defines valid state changes, ownership expectations, and state invariants across the work lifecycle.
+    when_to_read:
+      - when validating state transitions
+      - when determining whether work may advance, retreat, or block
+    dependencies:
+      - contract-model
+      - .cursor/runtime/STATE-MODEL.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - reviewers
+      - integrators
+      - orchestrators
+    status: active
+    tags:
+      - contracts
+      - canonical
+      - state
+
+  - id: side-effect-contract
+    path: .cursor/contracts/SIDE-EFFECT-CONTRACT.md
+    purpose: Defines allowed, required, and forbidden side effects for handoffs between work units and workflow stages.
+    when_to_read:
+      - when evaluating whether a stage changed the system correctly
+      - when checking downstream effects and roll-up behavior
+    dependencies:
+      - contract-model
+      - .cursor/runtime/DEPENDENCY-RESOLUTION.md
+      - .cursor/workflows/WORKFLOW-MODEL.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - orchestrators
+      - integrators
+    status: active
+    tags:
+      - contracts
+      - canonical
+      - side-effects
+
+  - id: validation-contract
+    path: .cursor/contracts/VALIDATION-CONTRACT.md
+    purpose: Defines validation requirements, invariants, and ownership rules that determine whether a handoff is valid.
+    when_to_read:
+      - when evaluating contract compliance
+      - when deciding whether a handoff may proceed
+    dependencies:
+      - contract-model
+      - input-contract
+      - output-contract
+      - state-contract
+      - side-effect-contract
+    consumers:
+      - human operators
+      - AI runtimes
+      - reviewers
+      - integrators
+      - planners
+    status: active
+    tags:
+      - contracts
+      - canonical
+      - validation
