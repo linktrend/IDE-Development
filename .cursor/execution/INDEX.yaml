@@ -1,4 +1,23 @@
 entries:
+  - id: execution-index
+    path: .cursor/execution/INDEX.yaml
+    purpose: Progressive-disclosure index for the execution doctrine and runtime model.
+    when_to_read:
+      - when entering the execution directory directly
+      - when a task needs doctrine selection before reading execution files
+    dependencies: []
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - reviewers
+      - integrators
+    status: active
+    tags:
+      - navigation
+      - index
+      - execution
+
   - id: canonical-laws
     path: .cursor/execution/CANONICAL-LAWS.md
     purpose: Durable, tool-independent execution laws for autonomous work.

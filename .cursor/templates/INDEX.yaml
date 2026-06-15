@@ -1,4 +1,41 @@
 entries:
+  - id: templates-index
+    path: .cursor/templates/INDEX.yaml
+    purpose: Progressive-disclosure index for canonical execution templates, pre-execution artifacts, governance artifacts, and compatibility templates.
+    when_to_use:
+      - when a task needs artifact selection
+      - when entering the templates directory directly
+    required_by: []
+    related_templates:
+      - intent-template
+      - program-template
+      - module-template
+      - phase-template
+      - issue-template
+      - proof-template
+      - review-template
+      - integration-template
+    status: active
+    tags:
+      - navigation
+      - index
+      - progressive-disclosure
+
+  - id: templates-readme
+    path: .cursor/templates/README.md
+    purpose: Lightweight navigation note for understanding the template directory before selecting a specific artifact.
+    when_to_use:
+      - when entering the templates directory directly
+      - when a runtime needs a minimal explanation before opening a template
+    required_by: []
+    related_templates:
+      - templates-index
+    status: active
+    tags:
+      - navigation
+      - readme
+      - progressive-disclosure
+
   - id: program-template
     path: .cursor/templates/PROGRAM.md
     purpose: Canonical artifact for defining a program, its modules, global constraints, and program definition of done.
@@ -144,11 +181,28 @@ entries:
     related_templates:
       - program-template
       - review-template
-    status: active
+    status: pre-execution
     tags:
       - pre-execution
       - validation
-      - active
+      - canonical-pre-execution
+
+  - id: intent-verdict-support
+    path: .cursor/templates/INTENT-VERDICT.json
+    purpose: Compatibility-oriented machine-readable support artifact for recording intent verdict status outside the canonical markdown intent artifact.
+    when_to_use:
+      - only when a runtime or integration needs a compact machine-readable intent verdict
+      - when backward compatibility requires a JSON verdict payload
+    required_by: []
+    related_templates:
+      - intent-template
+      - program-template
+    status: compatibility
+    tags:
+      - compatibility
+      - support
+      - machine-readable
+      - intent
 
   - id: council-summary-template
     path: .cursor/templates/COUNCIL-SUMMARY.md
@@ -163,7 +217,7 @@ entries:
       - review-template
       - proof-template
       - integration-template
-    status: active
+    status: optional
     tags:
       - governance
       - optional
