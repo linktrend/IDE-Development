@@ -7,3 +7,5 @@ The active system lives in [.cursor/](/Users/linktrend-macbook/Projects/IDE Deve
 This repository is used to synchronize the shared development setup across the MacBook, Mac Mini, and future machines.
 
 GitHub is the source of truth: [linktrend/IDE-Development](https://github.com/linktrend/IDE-Development).
+
+Machine setup and update guidance: [SETUP.md](/Users/linktrend-macbook/Projects/IDE Development/SETUP.md).
