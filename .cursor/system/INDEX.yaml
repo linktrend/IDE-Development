@@ -1,0 +1,183 @@
+entries:
+  - id: system-index
+    path: .cursor/system/INDEX.yaml
+    purpose: Progressive-disclosure index for the top-level system assembly layer.
+    when_to_read:
+      - when entering the system directory directly
+      - when a task needs the full assembled operating model before reading individual system documents
+    dependencies:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/templates/INDEX.yaml
+      - .cursor/agents/INDEX.yaml
+      - .cursor/commands/INDEX.yaml
+      - .cursor/runtime/INDEX.yaml
+      - .cursor/workflows/INDEX.yaml
+      - .cursor/contracts/INDEX.yaml
+      - .cursor/state/INDEX.yaml
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - reviewers
+      - integrators
+      - maintainers
+    status: active
+    tags:
+      - system
+      - navigation
+      - index
+
+  - id: system-readme
+    path: .cursor/system/README.md
+    purpose: Lightweight navigation note for the system assembly layer and its relationship to the full .cursor stack.
+    when_to_read:
+      - when entering the system directory directly
+      - when a runtime needs a short overview before loading system assembly documents
+    dependencies:
+      - system-index
+    consumers:
+      - human operators
+      - AI runtimes
+    status: active
+    tags:
+      - system
+      - navigation
+      - readme
+
+  - id: system-architecture
+    path: .cursor/system/SYSTEM-ARCHITECTURE.md
+    purpose: Defines the full assembled .cursor operating system and how the major layers interact.
+    when_to_read:
+      - when defining or reviewing the complete system architecture
+      - when a runtime needs the full top-level model
+    dependencies:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/templates/INDEX.yaml
+      - .cursor/runtime/INDEX.yaml
+      - .cursor/workflows/INDEX.yaml
+      - .cursor/contracts/INDEX.yaml
+      - .cursor/state/INDEX.yaml
+    consumers:
+      - human operators
+      - AI runtimes
+      - maintainers
+    status: active
+    tags:
+      - system
+      - architecture
+      - canonical
+
+  - id: layer-model
+    path: .cursor/system/LAYER-MODEL.md
+    purpose: Defines the canonical layer stack and dependency relationships between layers.
+    when_to_read:
+      - when deciding which layer owns a concern
+      - when checking layer boundaries
+    dependencies:
+      - system-architecture
+    consumers:
+      - human operators
+      - AI runtimes
+      - maintainers
+    status: active
+    tags:
+      - system
+      - layers
+      - canonical
+
+  - id: execution-map
+    path: .cursor/system/EXECUTION-MAP.md
+    purpose: Maps end-to-end execution flow across doctrine, artifacts, commands, runtime, workflows, contracts, and state.
+    when_to_read:
+      - when tracing how work moves through the full system
+      - when a user asks how execution actually happens
+    dependencies:
+      - system-architecture
+      - layer-model
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - orchestrators
+    status: active
+    tags:
+      - system
+      - execution
+      - map
+
+  - id: responsibility-matrix
+    path: .cursor/system/RESPONSIBILITY-MATRIX.md
+    purpose: Defines ownership boundaries and responsibilities across layers without turning any layer into the control structure improperly.
+    when_to_read:
+      - when checking which layer owns a behavior or decision
+      - when resolving layer overlap
+    dependencies:
+      - system-architecture
+      - layer-model
+    consumers:
+      - human operators
+      - AI runtimes
+      - maintainers
+    status: active
+    tags:
+      - system
+      - responsibilities
+      - matrix
+
+  - id: compatibility-matrix
+    path: .cursor/system/COMPATIBILITY-MATRIX.md
+    purpose: Defines what is canonical, compatibility-only, optional, or legacy across the assembled system.
+    when_to_read:
+      - when deciding whether an asset is primary or compatibility-scoped
+      - when evaluating extension or cleanup work
+    dependencies:
+      - system-architecture
+      - layer-model
+    consumers:
+      - human operators
+      - AI runtimes
+      - maintainers
+    status: active
+    tags:
+      - system
+      - compatibility
+      - matrix
+
+  - id: extension-model
+    path: .cursor/system/EXTENSION-MODEL.md
+    purpose: Defines safe extension points for future growth without changing the core assembled operating model.
+    when_to_read:
+      - when considering additions or extensions to the system
+      - when checking whether a new concept belongs in an existing layer
+    dependencies:
+      - system-architecture
+      - layer-model
+    consumers:
+      - human operators
+      - AI runtimes
+      - maintainers
+    status: active
+    tags:
+      - system
+      - extension
+      - model
+
+  - id: v1-build-order
+    path: .cursor/system/V1-BUILD-ORDER.md
+    purpose: Defines the assembled layer order and release sequence for v1.0 readiness.
+    when_to_read:
+      - when validating whether the system is assembled in the correct order
+      - when preparing for v1.0 release
+    dependencies:
+      - system-architecture
+      - layer-model
+      - compatibility-matrix
+    consumers:
+      - human operators
+      - AI runtimes
+      - maintainers
+    status: active
+    tags:
+      - system
+      - build-order
+      - release
