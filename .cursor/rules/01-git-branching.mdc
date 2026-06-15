@@ -1,0 +1,36 @@
+---
+alwaysApply: false
+globs: "**/*"
+---
+
+# Git Branching
+
+This rule is the local branching standard for the shared `.cursor` system and aligned product work.
+
+## Integration branch
+
+- **`development`** is the integration branch for factory and integrator merges.
+
+## Branch prefixes
+
+| Prefix | Use | Merge target |
+|--------|-----|--------------|
+| `issue/<id>-<slug>` | One branch per governed issue | **`development`** (Integrator only) |
+| `dev/<machine><ide>` | Optional ad-hoc IDE work per host SOP | **`development`** via PR |
+| Promotion | `development` → `staging` → `main` | **Principal** for `staging` and `main` |
+
+## Promotion flow
+
+```
+issue/* or dev/*  →  PR to development  →  Integrator merges issue branches when merge-ready
+development       →  PR to staging      →  Principal
+staging           →  PR to main         →  Principal
+```
+
+- **Integrator** automation merges only into **`development`**.
+- **Principal** approves promotion **`development` → `staging` → `main`**.
+- Allowed PR sources into `development` are enforced in `.github/workflows/branch-source-policy.yml`.
+
+## Commit messages
+
+Conventional commits: `type(scope): summary` — details in the factory rule.

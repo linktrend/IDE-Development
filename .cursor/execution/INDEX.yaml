@@ -1,0 +1,59 @@
+entries:
+  - id: canonical-laws
+    path: .cursor/execution/CANONICAL-LAWS.md
+    purpose: Durable, tool-independent execution laws for autonomous work.
+    when_to_read:
+      - before designing or revising execution artifacts
+      - when judging readiness, completion, or gate behavior
+      - when a task asks how work should progress
+    dependencies: []
+    consumers:
+      - human operators
+      - AI runtimes
+      - reviewers
+      - integrators
+    status: active
+    tags:
+      - doctrine
+      - execution
+      - laws
+
+  - id: minimum-runtime-model
+    path: .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    purpose: Compact operational model for hierarchy, states, dependencies, gates, proof, review, integration, and release.
+    when_to_read:
+      - when implementing or using the execution artifact layer
+      - when deciding how autonomous work should progress
+      - when working with program, module, phase, issue, proof, review, or integration artifacts
+    dependencies:
+      - canonical-laws
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - reviewers
+      - integrators
+    status: active
+    tags:
+      - runtime
+      - execution
+      - model
+
+  - id: autonomous-module-execution
+    path: .cursor/execution/AUTONOMOUS-MODULE-EXECUTION.md
+    purpose: Expected recursive runtime behavior for completing a module from artifacts alone.
+    when_to_read:
+      - when asked to complete a module
+      - when translating doctrine into runtime behavior
+      - when recursively traversing module, phase, and issue artifacts
+    dependencies:
+      - canonical-laws
+      - minimum-runtime-model
+    consumers:
+      - human operators
+      - AI runtimes
+    status: active
+    tags:
+      - execution
+      - module
+      - runtime-behavior

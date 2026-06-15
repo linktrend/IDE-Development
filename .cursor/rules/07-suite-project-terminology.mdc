@@ -1,0 +1,136 @@
+---
+description: Canonical LiNKaios Suite/Project/Phase terminology, capability integrations, and Mission→Project migration phase tracking (A/B done; C/D outstanding).
+alwaysApply: true
+---
+
+# Suite, Project, Phase Terminology (Approved 2026-05)
+
+Principal-approved vocabulary for LiNKaios project/process surfaces and integrations. **Do not reintroduce legacy names in new user-facing work.**
+
+## LiNKaios hierarchy (user-facing)
+
+| Level | Term | Was (legacy) | Meaning |
+|-------|------|--------------|---------|
+| 1 | **Suite** | Module (catalogue) | Subscribed product package (LinkSites, LiNKapps, …) |
+| 2 | **Module** | Process / project type | Vendor-published recipe inside a suite (phases, issues, assignees) |
+| 3 | **Project** | Project (was often “Mission” in code) | Tenant-created live work: one or more modules, once or continuous |
+| 4 | **Phase** | Workflow | Stage group inside a module — a “mini workflow” within the module |
+| 5 | **Issue** | Issue | Governed task (input/output contracts) |
+| 6 | **Assignee** | Execution | Who runs the issue: LiNKbot, Automation, or Human |
+| 7 | **Run** | (new standard) | One pass through project modules (continuous mode); maps to Plane **Cycle** in sync |
+
+**Run once vs continuous:** Once = single end-to-end progress; Continuous = repeated **Runs** (no parallel runs in MVO).
+
+## Capabilities (not “connectors” in LiNKaios UI)
+
+In LiNKaios, integrations to external software (Plane, Odoo, Zulip, n8n, etc.) are **Capabilities**, governed by LinkSkills leases. Code paths may say `capability-connectors/`; user-facing copy says **Capabilities**.
+
+| Capability (examples) | Software | MVO posture |
+|----------------------|----------|-------------|
+| `cap.plane.execution_tracking` | Plane (self-hosted) | mock/shadow; live writes future |
+| `cap.crm.odoo_shadow` | Odoo CRM | mock/shadow; connector exists |
+| `cap.accounting.odoo_shadow` | Odoo Accounting | mock/shadow; connector exists |
+| `cap.zulip.run_messaging` | Zulip | governed messaging |
+| LiNKautowork / n8n | Automations | executions via capability leases |
+
+Do not ask Principal to “invent” Odoo integration — use existing capability contracts; extend modes (live) when approved.
+
+## Backend “kitchen” systems (do not duplicate in LiNKaios)
+
+| System | Role | LiNKaios must not |
+|--------|------|-------------------|
+| **Plane** (self-hosted) | Project/task board, cycles, assignees | Rebuild kanban, full issue editing |
+| **Odoo** (CRM + accounting) | CRM records, invoices, ledger | Mirror full CRM/accounting UI |
+| **n8n** (self-hosted, LiNKautowork) | Deterministic automations | Call n8n “workflows” in UI — use **Automation** |
+| **Zulip** | LiNKbot communication | Rebuild chat |
+
+## External terminology mapping
+
+| LiNKaios | Plane (self-hosted) | Odoo | n8n | Zulip |
+|----------|---------------------|------|-----|-------|
+| Suite | *(none)* | App (do not confuse with LiNKaios Module) | — | — |
+| Module | **Module** (work group in project) | — | — | — |
+| Project | **Project** | Project (when linked) | — | **Stream** (one stream per LiNKaios project) |
+| Phase | Epic or ordered work items under Plane module | — | Internal graph grouping | **Topic** (sub-threads inside project stream) |
+| Issue | Work item | Task (when linked) | — | Referenced in topic messages |
+| Assignee | Plane user (one service user per LiNKbot role) | — | Automation executor | — |
+| Run | **Cycle** | — | Execution (internal) | — |
+
+**Plane assignees (MVO):** One Plane user per LiNKbot role. Human-required steps: **Open in Plane** on issue row.
+
+**Zulip (approved):** One **stream per LiNKaios Project**; **topics** inside that stream for sub-threads (phases, issues, operator threads).
+
+**n8n (approved):** User-facing label **Automation**. **Phase** is LiNKaios module stage groups only.
+
+## Routes and navigation (approved)
+
+| Was | Now |
+|-----|-----|
+| `/modules/…` | **`/suites/…`** (with redirects from legacy paths during transition) |
+| Nav “Modules” | **“Suites”** |
+| My Modules | **My Suites** (when renamed in UI) |
+| Marketplace under modules | **`/suites/marketplace`** (or equivalent) |
+
+## UI surfaces (approved)
+
+| Surface | Content |
+|---------|---------|
+| **My Suites → [Suite] → Modules** tab | Vendor **module catalogue** tree only: Module → Phase → Issue → Assignee (template) |
+| **My Suites → [Suite] → Projects** tab | Compact active **projects** → project detail page |
+| **Projects → All Projects** | One row per project; **Open LiNKaios project** OR **Open Plane**; sync as indicator |
+| **Project detail page** | Single source of truth: progress, Plane snapshot, live tree, outputs/traces |
+
+Do **not** put active project trees on the suite **Modules** catalogue tab.
+
+## Plane capability defaults (approved — studio-provided for MVO)
+
+**Ownership:** Plane is **bundled with LiNKaios** as the default project-management system for licensees. Customers do **not** supply Plane URL/API keys in MVO. Studio ops store Plane connection secrets in **Google Secret Manager**; LiNKaios reads them at runtime via the **`cap.plane.execution_tracking`** capability.
+
+**Future:** A licensee bringing their own Plane (or another PM system) is a **later capability/lease** — not MVO tenant settings.
+
+**Bootstrap on project launch (Option A):** Create an **empty Plane project**, then programmatically add Plane modules (LiNKaios modules), issues, and cycles (Runs) from suite templates.
+
+**Customer Settings → API/secrets:** For **customer-owned** integrations only (their CRM keys, etc.) — **not** for studio-provided Plane in MVO.
+
+## Forbidden in new user-facing copy
+
+- **Mission** — use **Project**
+- **Execution** (level label) — use **Assignee**
+- **Workflow** for LiNKaios phase groups — use **Phase**
+- **Workflow** for n8n in UI — use **Automation**
+- **Process** for vendor templates — use **Module**
+- **Module** for LinkSites product — use **Suite**
+- **Cycle** in LiNKaios UI — use **Run**
+- **Connector** in LiNKaios UI — use **Capability**
+
+Legacy symbols (`missionId`, `MissionRecord`, old `/modules/` routes) may persist until migration phases C/D complete.
+
+---
+
+## Mission → Project migration (TRACKING — do not forget)
+
+| Phase | Scope | Status |
+|-------|--------|--------|
+| **A** | User-visible copy: Mission → **Project** | **DONE** — mandatory for all new/changed UI |
+| **B** | Routes (`/suites/`), breadcrumbs, component names | **DONE** — mandatory for suite/project wave |
+| **C** | TypeScript/API aliases (`MissionRecord` → `ProjectRecord`, `ModuleCatalogueItem` → `SuiteCatalogueItem`, etc.) | **IN PROGRESS** — canonical types added; deprecated aliases retained |
+| **D** | Database columns, RPC names, webhooks, kernel | **MIGRATIONS READY** — apply `033_linkaios_project_terminology.sql` and `034_linkguard_schema_alias.sql` |
+
+### Agent rules
+
+1. Never add new user-facing **Mission**.
+2. Do not assume backend migration is complete.
+3. First implementation wave: UI + routes + TS surface renames (A, B, start C); plan D explicitly.
+4. Do not close migration until **C** and **D** are done with proof.
+
+---
+
+## Remaining implementation flags (non-blocking)
+
+| Item | Default for build |
+|------|-------------------|
+| Legacy `/modules/*` redirects | 302 to `/suites/*` until links updated |
+| `my-modules` route | Rename to `my-suites` with redirect |
+| Tab order on suite profile | Overview · **Modules** · **Projects** · Outputs · … |
+
+No open Principal decisions remain for terminology or integration posture. Proceed to implementation when instructed.

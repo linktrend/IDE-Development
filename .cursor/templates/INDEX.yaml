@@ -1,0 +1,202 @@
+entries:
+  - id: program-template
+    path: .cursor/templates/PROGRAM.md
+    purpose: Canonical artifact for defining a program, its modules, global constraints, and program definition of done.
+    when_to_use:
+      - when creating a new body of work
+      - when establishing program-level scope and release criteria
+      - when defining top-level progressive disclosure for module execution
+    required_by:
+      - module-template
+      - autonomous module execution
+    related_templates:
+      - module-template
+      - integration-template
+    status: active
+    tags:
+      - execution
+      - program
+      - planning
+      - canonical
+
+  - id: module-template
+    path: .cursor/templates/MODULE.md
+    purpose: Canonical artifact for defining a module, its phases, scope, and module definition of done.
+    when_to_use:
+      - when defining a module that should be executable autonomously
+      - when a runtime needs a module entrypoint for recursive execution
+    required_by:
+      - phase-template
+      - issue-template
+    related_templates:
+      - program-template
+      - phase-template
+    status: active
+    tags:
+      - execution
+      - module
+      - canonical
+
+  - id: phase-template
+    path: .cursor/templates/PHASE.md
+    purpose: Canonical artifact for defining a phase as a checkpointed grouping of issues.
+    when_to_use:
+      - when a module needs explicit checkpointing or grouped issue execution
+      - when issue groups need local entry or exit criteria
+    required_by:
+      - issue-template
+    related_templates:
+      - module-template
+      - issue-template
+    status: active
+    tags:
+      - execution
+      - phase
+      - canonical
+
+  - id: issue-template
+    path: .cursor/templates/ISSUE.md
+    purpose: Canonical artifact for the atomic executable unit, including scope, dependencies, proof, review, and integration requirements.
+    when_to_use:
+      - for every autonomous unit of execution
+      - whenever readiness, proof, review, and integration must be computed explicitly
+    required_by:
+      - proof-template
+      - review-template
+      - integration-template
+    related_templates:
+      - phase-template
+      - proof-template
+      - review-template
+      - integration-template
+    status: active
+    tags:
+      - execution
+      - issue
+      - atomic-unit
+      - canonical
+
+  - id: proof-template
+    path: .cursor/templates/PROOF.md
+    purpose: Canonical artifact for recording evidence that work satisfies acceptance criteria.
+    when_to_use:
+      - after issue execution
+      - when phase, module, or program completion needs evidence
+    required_by:
+      - review-template
+    related_templates:
+      - issue-template
+      - review-template
+    status: active
+    tags:
+      - execution
+      - proof
+      - evidence
+      - canonical
+
+  - id: review-template
+    path: .cursor/templates/REVIEW.md
+    purpose: Canonical artifact for independent evaluation of proof and completion claims.
+    when_to_use:
+      - after proof submission
+      - when deciding pass, fail, or blocked outcomes
+      - for mandatory issue, module, and program or release review
+    required_by:
+      - integration-template
+    related_templates:
+      - issue-template
+      - proof-template
+      - integration-template
+    status: active
+    tags:
+      - execution
+      - review
+      - gate
+      - canonical
+
+  - id: integration-template
+    path: .cursor/templates/INTEGRATION.md
+    purpose: Canonical artifact for recording that reviewed work has been incorporated into the active line and that downstream readiness may be recomputed.
+    when_to_use:
+      - after passing review
+      - when issue completion must affect downstream execution
+    required_by: []
+    related_templates:
+      - issue-template
+      - proof-template
+      - review-template
+      - program-template
+    status: active
+    tags:
+      - execution
+      - integration
+      - completion
+      - canonical
+
+  - id: intent-template
+    path: .cursor/templates/INTENT.md
+    purpose: Pre-program validation artifact for deciding whether an idea should become an executable program.
+    when_to_use:
+      - before creating PROGRAM.md
+      - when evaluating scope, value, assumptions, constraints, and go or no-go logic
+    required_by:
+      - program-template
+    related_templates:
+      - program-template
+      - review-template
+    status: active
+    tags:
+      - pre-execution
+      - validation
+      - active
+
+  - id: council-summary-template
+    path: .cursor/templates/COUNCIL-SUMMARY.md
+    purpose: Optional high-level review or escalation artifact for module, program, release, architecture, or major blocker review.
+    when_to_use:
+      - for module review when a high-level summary is needed
+      - for program or release review
+      - for major architectural disputes
+      - for major quality or scope blockers
+    required_by: []
+    related_templates:
+      - review-template
+      - proof-template
+      - integration-template
+    status: active
+    tags:
+      - governance
+      - optional
+      - escalation
+      - optional-governance
+
+  - id: agent-report-template
+    path: .cursor/templates/AGENT-REPORT.md
+    purpose: Compatibility summary artifact that references canonical proof, review, and integration artifacts without replacing them.
+    when_to_use:
+      - only when a runtime or repository still expects a compact execution summary
+    required_by: []
+    related_templates:
+      - proof-template
+      - review-template
+      - integration-template
+    status: compatibility
+    tags:
+      - compatibility
+      - summary
+      - compatibility-only
+
+  - id: module-readme-template
+    path: .cursor/templates/MODULE-README.md
+    purpose: Compatibility-only lightweight module summary for repositories that still expect a separate module readme alongside MODULE.md.
+    when_to_use:
+      - only when a repository explicitly expects a separate lightweight module summary
+    required_by: []
+    related_templates:
+      - module-template
+    status: compatibility
+    tags:
+      - compatibility
+      - module
+      - orientation
+      - compatibility-only

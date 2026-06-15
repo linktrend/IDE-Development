@@ -1,0 +1,299 @@
+entries:
+  - id: plan-program
+    path: .cursor/commands/plan-program.md
+    purpose: Preferred command wrapper for turning validated intent into a program artifact and initial module structure.
+    when_to_use:
+      - when planning a new program
+      - when a user says "Plan this program"
+    underlying_prompt: .cursor/prompts/execution/PLAN-PROGRAM.md
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/CANONICAL-LAWS.md
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    required_templates:
+      - .cursor/templates/INTENT.md
+      - .cursor/templates/PROGRAM.md
+      - .cursor/templates/MODULE.md
+    required_agents:
+      - planner
+      - product-owner
+      - technical-lead
+    expected_output:
+      - validated or revised intent
+      - program artifact
+      - explicit blockers if program creation is not ready
+    status: active
+    tags:
+      - command
+      - planning
+      - preferred
+
+  - id: plan-module
+    path: .cursor/commands/plan-module.md
+    purpose: Preferred command wrapper for decomposing a module into phases and issues suitable for autonomous execution.
+    when_to_use:
+      - when planning a module
+      - when a user says "Plan this module"
+    underlying_prompt: .cursor/prompts/execution/PLAN-MODULE.md
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+      - .cursor/execution/AUTONOMOUS-MODULE-EXECUTION.md
+    required_templates:
+      - .cursor/templates/MODULE.md
+      - .cursor/templates/PHASE.md
+      - .cursor/templates/ISSUE.md
+    required_agents:
+      - planner
+      - product-owner
+      - technical-lead
+    expected_output:
+      - module artifact
+      - phase artifacts
+      - issue artifacts with dependencies and acceptance criteria
+    status: active
+    tags:
+      - command
+      - planning
+      - module
+      - preferred
+
+  - id: complete-module
+    path: .cursor/commands/complete-module.md
+    purpose: Preferred command wrapper for recursive module execution through readiness, proof, review, and integration.
+    when_to_use:
+      - when executing a module to completion
+      - when a user says "Complete this module"
+    underlying_prompt: .cursor/prompts/execution/COMPLETE-MODULE.md
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+      - .cursor/execution/AUTONOMOUS-MODULE-EXECUTION.md
+    required_templates:
+      - .cursor/templates/MODULE.md
+      - .cursor/templates/PHASE.md
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/templates/INTEGRATION.md
+    required_agents:
+      - orchestrator
+      - reviewer
+      - integrator
+      - technical-lead
+    expected_output:
+      - completed module or explicit blocked state
+      - issue proof, review, and integration artifacts
+      - module-level review and integration where applicable
+    status: active
+    tags:
+      - command
+      - execution
+      - module
+      - preferred
+
+  - id: execute-issue
+    path: .cursor/commands/execute-issue.md
+    purpose: Preferred command wrapper for atomic issue execution up to mandatory review handoff.
+    when_to_use:
+      - when executing a single ready issue
+      - when a user says "Execute this issue"
+    underlying_prompt: .cursor/prompts/execution/EXECUTE-ISSUE.md
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    required_templates:
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/templates/INTEGRATION.md
+    required_agents:
+      - frontend-developer
+      - backend-developer
+      - ui-ux-designer
+      - qa-automation-engineer
+    expected_output:
+      - executed issue work
+      - proof artifact
+      - state transition to review_ready or blocked
+    status: active
+    tags:
+      - command
+      - execution
+      - issue
+      - preferred
+
+  - id: review-issue
+    path: .cursor/commands/review-issue.md
+    purpose: Preferred command wrapper for independent issue review against proof and acceptance criteria.
+    when_to_use:
+      - when an issue reaches review_ready
+      - when a user says "Review this issue"
+    underlying_prompt: .cursor/prompts/execution/REVIEW-ISSUE.md
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/CANONICAL-LAWS.md
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    required_templates:
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+    required_agents:
+      - reviewer
+      - qa-automation-engineer
+      - technical-lead
+    expected_output:
+      - review verdict
+      - findings and next action
+    status: active
+    tags:
+      - command
+      - review
+      - issue
+      - preferred
+
+  - id: integrate-issue
+    path: .cursor/commands/integrate-issue.md
+    purpose: Preferred command wrapper for recording accepted issue work as integrated and recomputing downstream readiness.
+    when_to_use:
+      - after a passing issue review
+      - when a user says "Integrate this issue"
+    underlying_prompt: .cursor/prompts/execution/INTEGRATE-ISSUE.md
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    required_templates:
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/templates/INTEGRATION.md
+    required_agents:
+      - integrator
+      - orchestrator
+      - technical-lead
+    expected_output:
+      - integration artifact
+      - downstream readiness effects
+    status: active
+    tags:
+      - command
+      - integration
+      - issue
+      - preferred
+
+  - id: linkdev-go
+    path: .cursor/commands/linkdev-go.md
+    purpose: Legacy compatibility command for older planning flows.
+    when_to_use:
+      - only when an existing workflow explicitly references linkdev-go
+    underlying_prompt: .cursor/prompts/planner/ROLE.md
+    required_doctrine:
+      - .cursor/README.md
+    required_templates:
+      - .cursor/templates/INTENT.md
+      - .cursor/templates/PROGRAM.md
+      - .cursor/templates/ISSUE.md
+    required_agents:
+      - project-planner
+    expected_output:
+      - legacy planning flow output
+    status: compatibility-only
+    tags:
+      - command
+      - legacy
+      - compatibility-only
+      - not-preferred
+
+  - id: linkdev-dispatch
+    path: .cursor/commands/linkdev-dispatch.md
+    purpose: Legacy compatibility command retained for older dispatch flows.
+    when_to_use:
+      - only when an existing workflow explicitly references linkdev-dispatch
+    underlying_prompt: .cursor/prompts/setup/DISPATCH-INSTALL.md
+    required_doctrine:
+      - .cursor/README.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - legacy dispatch setup behavior
+    status: compatibility-only
+    tags:
+      - command
+      - legacy
+      - compatibility-only
+      - not-preferred
+
+  - id: linkdev-ui-automations
+    path: .cursor/commands/linkdev-ui-automations.md
+    purpose: Legacy compatibility command retained for older UI automation flows.
+    when_to_use:
+      - only when an existing workflow explicitly references linkdev-ui-automations
+    underlying_prompt: .cursor/prompts/setup/DISPATCH-INSTALL.md
+    required_doctrine:
+      - .cursor/README.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - legacy setup behavior
+    status: compatibility-only
+    tags:
+      - command
+      - legacy
+      - compatibility-only
+      - not-preferred
+
+  - id: linkdev-wire-post-dispatch
+    path: .cursor/commands/linkdev-wire-post-dispatch.md
+    purpose: Legacy compatibility command retained for older post-dispatch wiring.
+    when_to_use:
+      - only when an existing workflow explicitly references linkdev-wire-post-dispatch
+    underlying_prompt: .cursor/prompts/setup/WIRE-POST-DISPATCH.md
+    required_doctrine:
+      - .cursor/README.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - legacy post-dispatch wiring behavior
+    status: compatibility-only
+    tags:
+      - command
+      - legacy
+      - compatibility-only
+      - not-preferred
+
+  - id: linkdev-wire-post-ui
+    path: .cursor/commands/linkdev-wire-post-ui.md
+    purpose: Legacy compatibility command retained for older post-UI wiring.
+    when_to_use:
+      - only when an existing workflow explicitly references linkdev-wire-post-ui
+    underlying_prompt: .cursor/prompts/setup/WIRE-POST-DISPATCH.md
+    required_doctrine:
+      - .cursor/README.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - legacy post-ui wiring behavior
+    status: compatibility-only
+    tags:
+      - command
+      - legacy
+      - compatibility-only
+      - not-preferred
+
+  - id: wire-linkdev
+    path: .cursor/commands/wire-linkdev.md
+    purpose: Legacy compatibility command retained for older wire flows.
+    when_to_use:
+      - only when an existing workflow explicitly references wire-linkdev
+    underlying_prompt: .cursor/prompts/setup/WIRE.md
+    required_doctrine:
+      - .cursor/README.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - legacy wiring behavior
+    status: compatibility-only
+    tags:
+      - command
+      - legacy
+      - compatibility-only
+      - not-preferred

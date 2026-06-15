@@ -1,0 +1,57 @@
+---
+description: MVO scope and stubbing rules.
+alwaysApply: true
+---
+
+# MVO Scope And Stubbing
+
+**LiNKtrend System = LiNKaios.** MVO is the full company operating system — **LiNKaios Client + LiNKtrend Admin** — plus one complete **LinkSites** end-to-end run for one lead.
+
+## LinkSites commercial loop (required)
+
+One lead must flow through:
+
+1. **Lead discovery** — governed online search (e.g. Google Maps or Principal-approved provider)
+2. **Qualification** — business type and industry identified
+3. **Template selection** — industry template from LiNKsites (external repo)
+4. **Build** — custom copy, media, and style within template
+5. **Publish** — live site on Payload CMS with temp URL `businessname.linktrend.media`
+6. **Outreach** — contact lead to sell website + hosting (governed send; Principal approval gates apply to protected sends)
+7. **Close or recycle** — subscribe path (domain/transfer) or archive site for next matching lead
+
+Partial demos (preview without publish, publish without outreach, CSV-only leads as sole proof) do **not** count as MVO complete.
+
+## Required infrastructure (non-negotiable)
+
+- **Supabase** — auth, Postgres, RLS, brain/kernel schemas
+- **Zulip** — governed project messaging
+- **Plane** — execution tracking (studio-provided for MVO)
+- **LiNKbot**, **LinkSkills**, **LiNKautowork**, **LiNKbrain**, **LiNKguard** — wired on every meaningful step
+
+## Governance proof (every side-effecting step)
+
+- LinkSkills capability lease/run
+- LiNKautowork workflow run (deterministic steps)
+- LiNKbrain event/audit/memory write
+- LiNKaios trace/status visibility (Client; Admin where applicable)
+- LiNKguard session cleanup on bot runs
+
+## Acceptable stubs
+
+Stubs are allowed only when the scope and proof expectations are documented explicitly in the local planning or contract artifacts for the work. Mock or shadow modes for individual capability backends are acceptable during development if lease, audit, memory, and trace artifacts are still produced.
+
+Do **not** treat seed CSV, local-only preview, local CRM/Plane tables, or draft-only outreach as substitutes for MVO completion.
+
+## Unacceptable stubs
+
+- no audit event
+- no capability lease
+- no memory/event write
+- no trace/status visibility
+- fake success without proof
+- skipping publish, outreach, or recycle/close stages
+- treating Zulip, Plane, or Supabase as optional for MVO
+
+## Out of MVO scope
+
+LinkApps, LEXOS, and other suites beyond LinkSites until MVO ships.

@@ -1,0 +1,42 @@
+---
+description: Service-boundary rules for the LiNKtrend ecosystem.
+alwaysApply: true
+---
+
+# Ecosystem Boundaries
+
+**MVO posture:** LiNKtrend System ships as LiNKaios Client + LiNKtrend Admin with one full LinkSites lead-to-outreach loop. Supabase, Zulip, and Plane are required for MVO and are not optional stubs. LinkSites product code may live in an external suite repository, while this system owns orchestration, leases, traces, and shared development guidance.
+
+LiNKaios is the organizational execution control plane. It owns tenant/module/work/role/bot orchestration, UI, dashboards, work contracts, routing, approvals, and system-level governance.
+
+LiNKbrain is the institutional memory and learning plane. It owns the event ledger, memory objects, audit union, context assembly, retrieval, and benchmark/learning pipelines.
+
+LinkSkills is the capability governance plane. It owns capability connector catalog, capability leases, side-effect permissions, approvals, run ledger, idempotency, kill switches, skills, tools, scripts, and skill certification.
+
+LiNKautowork is the deterministic workflow execution plane. It owns n8n gateway, workflow templates, workflow runs, deterministic execution audit, and workflow promotion candidates.
+
+LiNKbot is the role-bound AI employee runtime plane. It owns runtime adapters, role definitions, fleet/session surfaces, persona/session/reasoning packaging, and mission-aware communication profiles, but does not own canonical memory, canonical skills, secrets, deterministic workflows, or final audit.
+
+LiNKguard is the worker security and cleanup sidecar formerly known as PRISM Defender. It owns worker residue cleanup, filesystem cleanup policy, runtime guardrails, sidecar heartbeat, and cleanup audit hooks. It integrates with LiNKbot and LiNKbrain but does not own skills, memory, or mission authority.
+
+No service should absorb another service's responsibility.
+
+Suites describe tenant-enabled business or operational product packages. Capability connectors provide reusable software/tool connections. Do not call these connector surfaces "capability plugins" in new docs or prompts. LiNKbot performs judgment work. LiNKautowork performs deterministic automation. LinkSkills grants permissions and skills. LiNKbrain remembers. LiNKaios coordinates.
+
+If an agent does not know the intended workflow for a module, capability workflow, or module-connector combination, it must stop and ask before implementing. Do not invent business workflows, software schemas, chart-of-accounts, CRM stages, Payload content models, Odoo records, or similar domain configuration based on assumptions.
+
+When preparing a capability connector, build only the governed connector surface under `LiNKskills/capability-connectors/`: configuration, authentication boundary, capability contract, lease/audit hooks, idempotency, mode flags, and communication path between the external software and LiNKaios, a module, or a LiNKbot. Do not define the internal business setup of the connected software unless explicitly assigned. Prefer copying/adapting existing completed schemas or configs from the source repo when the user says they already exist.
+
+Tenant-enabled business packages live under `suites/`, not the retired `plugins/vertical` path. LinkSites, LiNKapps, Linktrend Media, and LEXOS practice areas are suites. LEXOS is a suite family; `suites/lexos/litigation` is the first active practice area.
+
+Each active suite must have one canonical workflow map in its suite folder. The suite folder defines the stage order, dependencies, roles, capability connector requirements, LiNKbrain events, Plane task shape, UI surfaces, and completion criteria. LiNKautowork, LiNKbot, LinkSkills, LiNKbrain, and external repos implement or provide the machinery, but they must not be the only place where the suite workflow is understandable.
+
+Native channel implementations from bot engines stay in those engines. This repo owns LiNKbot communication profiles, mission context, tenant routing, and audit mapping. Temporary channel gaps such as Zulip can live under `LiNKbot/communications/temporary-gateways/` until native engine support is adopted and verified.
+
+When in doubt, route through contracts:
+
+- memory/context/audit → LiNKbrain
+- capability/action permission → LinkSkills
+- deterministic workflow → LiNKautowork
+- reasoning/session/channel profile → LiNKbot
+- tenant/work/module/dashboard → LiNKaios

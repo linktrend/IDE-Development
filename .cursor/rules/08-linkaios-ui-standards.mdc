@@ -1,0 +1,108 @@
+---
+description: LiNKaios UI standards for shell, tables, status surfaces, and forms.
+alwaysApply: false
+---
+
+# LiNKaios UI Standards
+
+Use existing host-repository UI components and patterns before creating new ones.
+
+The goal is functional clarity, traceability, and consistency rather than ornamental redesign.
+
+## General Principles
+
+- prefer existing components over parallel implementations
+- keep one clear pattern per surface type
+- favor operator clarity over decorative copy
+- keep labels readable and explicit
+
+## Shell Chrome
+
+Every shell page should have:
+
+1. one breadcrumb row
+2. one page header
+3. one clear content area
+
+Do not duplicate page titles, subtitles, or breadcrumb trails inside page content.
+
+## Title Case
+
+Use Title Case for:
+
+- page titles
+- section headings
+- form labels
+- table headers
+- tab labels
+
+Do not use all caps or CSS tricks to fake hierarchy.
+
+## No Hint Panels
+
+Do not add explanatory essays, helper banners, or redundant intro cards unless the user explicitly asks for them.
+
+The UI should communicate through structure, labels, and affordances.
+
+## Tables
+
+Use structured table patterns for columnar data.
+
+When building or revising a table, read:
+
+- `.cursor/skills/data-table/SKILL.md`
+
+Rules:
+
+- keep headers aligned with cells
+- avoid horizontal scroll where possible
+- use explicit column labels
+- do not mix feed and table interaction models
+
+## Action Queues
+
+Use feed-style rows for inboxes, alerts, and attention-driven lists.
+
+When building or revising an action queue, read:
+
+- `.cursor/skills/action-queue/SKILL.md`
+
+Rules:
+
+- three visible text lines per row
+- one action means whole-row click
+- multiple actions move to a right-side action rail
+
+## Status Surfaces
+
+Use one consistent status-pill language within a surface group.
+
+Rules:
+
+- sentence case labels
+- limited tone vocabulary
+- equal visual weight inside the same group
+
+## Summary Cards
+
+Summary cards should:
+
+- expose one clear metric
+- keep titles short
+- avoid redundant descriptive copy
+- align cleanly within a grid
+
+## Forms
+
+Use shared stacked-label form patterns.
+
+When building or revising personal or contact-data forms, read:
+
+- `.cursor/skills/personal-information-forms/SKILL.md`
+
+Rules:
+
+- labels above controls
+- clear required state
+- inline validation where useful
+- do not hand-roll repeated name, address, or phone patterns

@@ -1,0 +1,444 @@
+entries:
+  - id: autonomous-development-squad
+    path: .cursor/agents/squads/autonomous-development-squad.md
+    type: squad
+    purpose: Defines the minimum multi-role operating model for autonomous program, module, phase, and issue execution.
+    when_to_use:
+      - when a user asks to complete a module
+      - when execution must continue recursively until complete or genuinely blocked
+      - when multiple specialist roles must coordinate through artifact gates
+    inputs:
+      - program artifacts
+      - module artifacts
+      - phase artifacts
+      - issue, proof, review, and integration artifacts
+    outputs:
+      - coordinated execution behavior
+      - explicit handoffs between planning, execution, review, and integration
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/CANONICAL-LAWS.md
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+      - .cursor/execution/AUTONOMOUS-MODULE-EXECUTION.md
+    required_templates:
+      - .cursor/templates/PROGRAM.md
+      - .cursor/templates/MODULE.md
+      - .cursor/templates/PHASE.md
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/templates/INTEGRATION.md
+    related_roles:
+      - planner
+      - orchestrator
+      - reviewer
+      - integrator
+      - product-owner
+      - technical-lead
+      - ui-ux-designer
+      - frontend-developer
+      - backend-developer
+      - qa-automation-engineer
+    status: active
+    tags:
+      - squad
+      - execution
+      - coordination
+
+  - id: planner
+    path: .cursor/agents/planner/AGENT.md
+    type: control-role
+    purpose: Converts intent into executable program, module, phase, and issue structure without claiming execution is complete.
+    when_to_use:
+      - when a user asks to plan a program
+      - when a module needs artifact decomposition before execution
+    inputs:
+      - intent artifacts
+      - doctrine files
+      - existing program or module context
+    outputs:
+      - program, module, phase, or issue planning artifacts
+      - explicit scope, dependencies, and blockers
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/CANONICAL-LAWS.md
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    required_templates:
+      - .cursor/templates/INTENT.md
+      - .cursor/templates/PROGRAM.md
+      - .cursor/templates/MODULE.md
+      - .cursor/templates/PHASE.md
+      - .cursor/templates/ISSUE.md
+    related_roles:
+      - product-owner
+      - technical-lead
+      - orchestrator
+    status: active
+    tags:
+      - planning
+      - control
+
+  - id: orchestrator
+    path: .cursor/agents/orchestrator/AGENT.md
+    type: control-role
+    purpose: Computes readiness, sequencing, and safe concurrency from artifact dependencies and gate state.
+    when_to_use:
+      - when a user asks to complete a module
+      - when ready issues must be selected
+      - when blocked versus executable work must be distinguished
+    inputs:
+      - module artifacts
+      - phase artifacts
+      - issue artifacts
+      - proof, review, and integration status
+    outputs:
+      - ready-work set
+      - execution ordering
+      - blocker and dependency decisions
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+      - .cursor/execution/AUTONOMOUS-MODULE-EXECUTION.md
+    required_templates:
+      - .cursor/templates/MODULE.md
+      - .cursor/templates/PHASE.md
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/templates/INTEGRATION.md
+    related_roles:
+      - planner
+      - reviewer
+      - integrator
+      - technical-lead
+    status: active
+    tags:
+      - orchestration
+      - dependencies
+      - gates
+
+  - id: reviewer
+    path: .cursor/agents/reviewer/AGENT.md
+    type: control-role
+    purpose: Performs independent gate review and rejects vacuous completion.
+    when_to_use:
+      - when an issue reaches review_ready
+      - when a module or program completion claim needs review
+    inputs:
+      - subject artifacts
+      - proof artifacts
+      - acceptance and definition-of-done criteria
+    outputs:
+      - review verdicts
+      - findings
+      - rework or escalation decisions
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/CANONICAL-LAWS.md
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    required_templates:
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/MODULE.md
+      - .cursor/templates/PROGRAM.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+    related_roles:
+      - orchestrator
+      - integrator
+      - qa-automation-engineer
+      - technical-lead
+    status: active
+    tags:
+      - review
+      - gates
+      - quality
+
+  - id: integrator
+    path: .cursor/agents/integrator/AGENT.md
+    type: control-role
+    purpose: Records passing work as integrated and recomputes downstream readiness.
+    when_to_use:
+      - after a passing issue review
+      - when a module or program state changes due to accepted work
+    inputs:
+      - subject artifacts
+      - passing review artifacts
+      - current dependency graph
+    outputs:
+      - integration artifacts
+      - downstream readiness updates
+      - explicit final-state roll-up
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+      - .cursor/execution/AUTONOMOUS-MODULE-EXECUTION.md
+    required_templates:
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/MODULE.md
+      - .cursor/templates/PROGRAM.md
+      - .cursor/templates/INTEGRATION.md
+      - .cursor/templates/REVIEW.md
+    related_roles:
+      - orchestrator
+      - reviewer
+      - technical-lead
+    status: active
+    tags:
+      - integration
+      - roll-up
+      - control
+
+  - id: product-owner
+    path: .cursor/agents/product-owner/AGENT.md
+    type: delivery-role
+    purpose: Owns value, scope, priorities, and acceptance clarity from intent through module completion.
+    when_to_use:
+      - when goals, scope, priorities, or acceptance criteria are ambiguous
+      - when program or module planning needs product direction
+    inputs:
+      - intent artifacts
+      - program and module artifacts
+      - issue acceptance criteria
+    outputs:
+      - clarified objectives
+      - scope decisions
+      - acceptance and priority guidance
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/CANONICAL-LAWS.md
+    required_templates:
+      - .cursor/templates/INTENT.md
+      - .cursor/templates/PROGRAM.md
+      - .cursor/templates/MODULE.md
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/REVIEW.md
+    related_roles:
+      - planner
+      - technical-lead
+      - ui-ux-designer
+    status: active
+    tags:
+      - product
+      - scope
+      - acceptance
+
+  - id: technical-lead
+    path: .cursor/agents/technical-lead/AGENT.md
+    type: delivery-role
+    purpose: Owns technical coherence, dependency-safe design, and definition-of-done feasibility.
+    when_to_use:
+      - when execution needs architecture or implementation direction
+      - when dependency ordering or interface boundaries are unclear
+    inputs:
+      - program, module, phase, and issue artifacts
+      - proof and review findings
+    outputs:
+      - technical decisions
+      - interface and sequencing guidance
+      - escalation on architecture risks
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/CANONICAL-LAWS.md
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    required_templates:
+      - .cursor/templates/PROGRAM.md
+      - .cursor/templates/MODULE.md
+      - .cursor/templates/PHASE.md
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/templates/INTEGRATION.md
+    related_roles:
+      - planner
+      - orchestrator
+      - backend-developer
+      - frontend-developer
+      - qa-automation-engineer
+    status: active
+    tags:
+      - technical
+      - architecture
+      - coherence
+
+  - id: ui-ux-designer
+    path: .cursor/agents/ui-ux-designer/AGENT.md
+    type: delivery-role
+    purpose: Defines user flows, interaction behavior, and interface acceptance criteria for user-facing work.
+    when_to_use:
+      - when a module or issue affects user-facing behavior
+      - when interaction requirements must be specified before implementation
+    inputs:
+      - module and issue artifacts
+      - product goals and constraints
+    outputs:
+      - interaction decisions
+      - UX acceptance criteria
+      - design-related proof inputs
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/CANONICAL-LAWS.md
+    required_templates:
+      - .cursor/templates/MODULE.md
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+    related_roles:
+      - product-owner
+      - frontend-developer
+      - qa-automation-engineer
+    status: active
+    tags:
+      - design
+      - ux
+      - interface
+
+  - id: frontend-developer
+    path: .cursor/agents/frontend-developer/AGENT.md
+    type: delivery-role
+    purpose: Executes client-side issues and produces concrete proof for user-facing implementation work.
+    when_to_use:
+      - when an issue changes UI behavior, presentation, or client-side logic
+    inputs:
+      - issue artifacts
+      - module and phase context
+      - design and technical constraints
+    outputs:
+      - implemented issue work
+      - proof artifacts
+      - explicit blockers when work is not ready
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    required_templates:
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/templates/INTEGRATION.md
+    related_roles:
+      - technical-lead
+      - ui-ux-designer
+      - qa-automation-engineer
+      - reviewer
+    status: active
+    tags:
+      - frontend
+      - implementation
+
+  - id: backend-developer
+    path: .cursor/agents/backend-developer/AGENT.md
+    type: delivery-role
+    purpose: Executes server-side, API, schema, and integration issues and produces concrete proof.
+    when_to_use:
+      - when an issue changes backend behavior, contracts, data models, or infrastructure-facing logic
+    inputs:
+      - issue artifacts
+      - module and phase context
+      - technical constraints
+    outputs:
+      - implemented issue work
+      - proof artifacts
+      - explicit blockers when work is not ready
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    required_templates:
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/templates/INTEGRATION.md
+    related_roles:
+      - technical-lead
+      - frontend-developer
+      - qa-automation-engineer
+      - reviewer
+    status: active
+    tags:
+      - backend
+      - implementation
+
+  - id: qa-automation-engineer
+    path: .cursor/agents/qa-automation-engineer/AGENT.md
+    type: delivery-role
+    purpose: Strengthens proof quality, validation coverage, and testable completion claims.
+    when_to_use:
+      - when acceptance criteria need verification strategy
+      - when proof quality or regression risk is material
+    inputs:
+      - issue, module, and proof artifacts
+      - acceptance criteria
+      - implementation outputs
+    outputs:
+      - validation evidence
+      - quality findings
+      - review input
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/CANONICAL-LAWS.md
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    required_templates:
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/templates/INTEGRATION.md
+    related_roles:
+      - reviewer
+      - frontend-developer
+      - backend-developer
+      - technical-lead
+    status: active
+    tags:
+      - qa
+      - validation
+      - evidence
+
+  - id: architect-integrator
+    path: .cursor/agents/architect-integrator.md
+    type: legacy-role
+    purpose: Legacy structural stewardship role for maintaining coherence across the shared .cursor system.
+    when_to_use:
+      - when the .cursor system itself needs architectural review
+    inputs:
+      - local .cursor structure
+      - relevant workflow, template, and prompt files
+    outputs:
+      - structural recommendations
+      - system-level edits when explicitly requested
+    required_doctrine:
+      - .cursor/README.md
+    required_templates: []
+    related_roles:
+      - technical-lead
+      - integrator
+    status: compatibility
+    tags:
+      - legacy
+      - system
+      - compatibility
+
+  - id: project-planner
+    path: .cursor/agents/project-planner.md
+    type: legacy-role
+    purpose: Legacy planning role kept for continuity with older planning flows.
+    when_to_use:
+      - when a repository still references the older project planner role directly
+    inputs:
+      - request context
+      - local templates and workflows
+    outputs:
+      - scoped plan
+      - initial execution breakdown
+    required_doctrine:
+      - .cursor/README.md
+      - .cursor/templates/INDEX.yaml
+    required_templates:
+      - .cursor/templates/INTENT.md
+      - .cursor/templates/PROGRAM.md
+      - .cursor/templates/ISSUE.md
+    related_roles:
+      - planner
+      - product-owner
+    status: compatibility
+    tags:
+      - legacy
+      - planning
+      - compatibility
