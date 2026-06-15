@@ -1,0 +1,200 @@
+entries:
+  - id: bootstrap-index
+    path: .cursor/bootstrap/INDEX.yaml
+    purpose: Progressive-disclosure index for the canonical bootstrap layer used to adopt the .cursor system and begin safe day-to-day operation.
+    when_to_read:
+      - when entering the bootstrap directory directly
+      - when a human or AI runtime needs the startup path from zero
+    dependencies:
+      - .cursor/README.md
+      - .cursor/system/INDEX.yaml
+      - .cursor/commands/INDEX.yaml
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+      - maintainers
+    status: active
+    tags:
+      - bootstrap
+      - navigation
+      - index
+
+  - id: bootstrap-readme
+    path: .cursor/bootstrap/README.md
+    purpose: Lightweight navigation note for choosing the correct bootstrap document without scanning the whole system.
+    when_to_read:
+      - when entering the bootstrap directory directly
+      - when a runtime needs a short overview before loading a startup document
+    dependencies:
+      - bootstrap-index
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - bootstrap
+      - navigation
+      - readme
+
+  - id: start-here
+    path: .cursor/bootstrap/START-HERE.md
+    purpose: Canonical top-level entrypoint for a new human or AI session that needs the minimum safe read order.
+    when_to_read:
+      - at the beginning of any fresh repository or fresh session
+      - when unsure where to start
+    dependencies:
+      - .cursor/README.md
+      - .cursor/execution/INDEX.yaml
+      - .cursor/templates/INDEX.yaml
+      - .cursor/commands/INDEX.yaml
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - bootstrap
+      - startup
+      - canonical
+
+  - id: quickstart
+    path: .cursor/bootstrap/QUICKSTART.md
+    purpose: Fast-path guide for getting from zero context to first useful execution without reading the full bootstrap layer.
+    when_to_read:
+      - when speed matters and scope is already known
+      - when a returning operator needs a concise refresher
+    dependencies:
+      - start-here
+      - .cursor/commands/INDEX.yaml
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - bootstrap
+      - quickstart
+      - canonical
+
+  - id: project-bootstrap
+    path: .cursor/bootstrap/PROJECT-BOOTSTRAP.md
+    purpose: Defines how a new repository or project adopts the .cursor system and reaches a minimum viable working state.
+    when_to_read:
+      - when starting work in a fresh repository
+      - when deciding the minimum artifact set for new project adoption
+    dependencies:
+      - start-here
+      - .cursor/templates/INTENT.md
+      - .cursor/templates/PROGRAM.md
+      - .cursor/templates/MODULE.md
+    consumers:
+      - human operators
+      - product owners
+      - planners
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - bootstrap
+      - project
+      - adoption
+
+  - id: module-bootstrap
+    path: .cursor/bootstrap/MODULE-BOOTSTRAP.md
+    purpose: Defines how to start a new module using the canonical module, phase, and issue artifacts.
+    when_to_read:
+      - when a user says "Plan this module"
+      - when a module must be prepared for autonomous execution
+    dependencies:
+      - start-here
+      - .cursor/templates/MODULE.md
+      - .cursor/templates/PHASE.md
+      - .cursor/templates/ISSUE.md
+      - .cursor/commands/plan-module.md
+    consumers:
+      - human operators
+      - planners
+      - orchestrators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - bootstrap
+      - module
+      - planning
+
+  - id: issue-bootstrap
+    path: .cursor/bootstrap/ISSUE-BOOTSTRAP.md
+    purpose: Defines the minimum conditions for an issue to become executable and how an operator or AI runtime starts atomic work safely.
+    when_to_read:
+      - when a user says "Execute this issue"
+      - when validating issue readiness and required handoff artifacts
+    dependencies:
+      - start-here
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/templates/INTEGRATION.md
+      - .cursor/commands/execute-issue.md
+    consumers:
+      - human operators
+      - implementers
+      - reviewers
+      - integrators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - bootstrap
+      - issue
+      - execution
+
+  - id: session-startup
+    path: .cursor/bootstrap/SESSION-STARTUP.md
+    purpose: Defines the canonical startup responsibilities for a working session regardless of whether the operator is human or AI-assisted.
+    when_to_read:
+      - at the beginning of an execution session
+      - before planning, module work, or issue work begins
+    dependencies:
+      - start-here
+      - .cursor/state/INDEX.yaml
+      - .cursor/workflows/INDEX.yaml
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - bootstrap
+      - session
+      - startup
+
+  - id: session-shutdown
+    path: .cursor/bootstrap/SESSION-SHUTDOWN.md
+    purpose: Defines the canonical shutdown responsibilities for ending a session without losing state, proof, review context, or blockers.
+    when_to_read:
+      - before ending a working session
+      - when handing work back to a human or another runtime
+    dependencies:
+      - session-startup
+      - .cursor/state/TERMINAL-STATES.md
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - bootstrap
+      - session
+      - shutdown
