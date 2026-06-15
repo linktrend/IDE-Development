@@ -1,0 +1,108 @@
+entries:
+  - id: examples-index
+    path: .cursor/examples/INDEX.yaml
+    purpose: Progressive-disclosure index for canonical end-to-end examples that demonstrate how the full .cursor system is used in practice.
+    when_to_read:
+      - when entering the examples directory directly
+      - when a human or runtime needs a concrete reference before creating real artifacts
+    dependencies:
+      - .cursor/README.md
+      - .cursor/system/INDEX.yaml
+      - .cursor/commands/INDEX.yaml
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - reviewers
+      - integrators
+    status: active
+    tags:
+      - examples
+      - navigation
+      - index
+
+  - id: examples-readme
+    path: .cursor/examples/README.md
+    purpose: Lightweight guide for choosing the right canonical example and reading it with progressive disclosure.
+    when_to_read:
+      - when entering the examples directory directly
+      - when deciding which example best matches current work
+    dependencies:
+      - examples-index
+    consumers:
+      - human operators
+      - AI runtimes
+    status: active
+    tags:
+      - examples
+      - navigation
+      - readme
+
+  - id: example-simple-feature
+    path: .cursor/examples/EXAMPLE-SIMPLE-FEATURE
+    purpose: Canonical example showing a small feature from intent through integration using one module, one phase, and one issue.
+    when_to_read:
+      - when teaching the minimum end-to-end lifecycle
+      - when work resembles a small additive feature
+    dependencies:
+      - .cursor/templates/INDEX.yaml
+      - .cursor/commands/INDEX.yaml
+      - .cursor/workflows/INDEX.yaml
+      - .cursor/state/INDEX.yaml
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - implementers
+    status: active
+    tags:
+      - examples
+      - feature
+      - canonical
+      - end-to-end
+
+  - id: example-bugfix
+    path: .cursor/examples/EXAMPLE-BUGFIX
+    purpose: Canonical example showing a focused bugfix lifecycle with proof centered on reproduced and resolved behavior.
+    when_to_read:
+      - when work is a defect correction rather than net-new capability
+      - when validating how bug evidence moves through proof and review
+    dependencies:
+      - .cursor/templates/INDEX.yaml
+      - .cursor/commands/INDEX.yaml
+      - .cursor/workflows/INDEX.yaml
+      - .cursor/state/INDEX.yaml
+    consumers:
+      - human operators
+      - AI runtimes
+      - reviewers
+      - integrators
+    status: active
+    tags:
+      - examples
+      - bugfix
+      - canonical
+      - end-to-end
+
+  - id: example-module
+    path: .cursor/examples/EXAMPLE-MODULE
+    purpose: Canonical example showing a module-oriented slice where multiple issue concerns are summarized into a compact end-to-end teaching artifact set.
+    when_to_read:
+      - when preparing real module work
+      - when the user says "Complete this module"
+    dependencies:
+      - .cursor/templates/INDEX.yaml
+      - .cursor/commands/INDEX.yaml
+      - .cursor/workflows/INDEX.yaml
+      - .cursor/runtime/INDEX.yaml
+    consumers:
+      - human operators
+      - AI runtimes
+      - orchestrators
+      - technical leads
+    status: active
+    tags:
+      - examples
+      - module
+      - canonical
+      - end-to-end
