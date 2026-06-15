@@ -1,0 +1,196 @@
+entries:
+  - id: workflows-index
+    path: .cursor/workflows/INDEX.yaml
+    purpose: Progressive-disclosure index for canonical workflow specifications and retained legacy workflow notes.
+    when_to_read:
+      - when entering the workflows directory directly
+      - when a task needs workflow selection before reading workflow documents
+    dependencies:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/runtime/INDEX.yaml
+      - .cursor/templates/INDEX.yaml
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - reviewers
+      - integrators
+    status: active
+    tags:
+      - workflow
+      - navigation
+      - index
+
+  - id: workflows-readme
+    path: .cursor/workflows/README.md
+    purpose: Lightweight navigation note for choosing the appropriate workflow specification.
+    when_to_read:
+      - when entering the workflows directory directly
+      - when a runtime needs a short overview before opening a workflow document
+    dependencies:
+      - workflows-index
+    consumers:
+      - human operators
+      - AI runtimes
+    status: active
+    tags:
+      - workflow
+      - navigation
+      - readme
+
+  - id: workflow-model
+    path: .cursor/workflows/WORKFLOW-MODEL.md
+    purpose: Canonical workflow model connecting intent, execution artifacts, runtime behavior, review, and integration into one lifecycle.
+    when_to_read:
+      - when defining overall workflow behavior
+      - when deciding how lifecycle stages connect
+    dependencies:
+      - .cursor/execution/CANONICAL-LAWS.md
+      - .cursor/runtime/RUNTIME.md
+      - .cursor/templates/INDEX.yaml
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - orchestrators
+    status: active
+    tags:
+      - workflow
+      - canonical
+      - lifecycle
+
+  - id: program-workflow
+    path: .cursor/workflows/PROGRAM-WORKFLOW.md
+    purpose: Defines the workflow for moving from intent into program structure and on toward executable module work.
+    when_to_read:
+      - when creating or revising a program
+      - when validating program-level entry and exit conditions
+    dependencies:
+      - workflow-model
+      - .cursor/templates/INTENT.md
+      - .cursor/templates/PROGRAM.md
+      - .cursor/templates/MODULE.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - product owners
+    status: active
+    tags:
+      - workflow
+      - canonical
+      - program
+
+  - id: module-workflow
+    path: .cursor/workflows/MODULE-WORKFLOW.md
+    purpose: Defines the workflow for reducing module scope into phases, issues, and completion conditions.
+    when_to_read:
+      - when preparing or completing a module
+      - when translating module scope into executable issue work
+    dependencies:
+      - workflow-model
+      - .cursor/templates/MODULE.md
+      - .cursor/templates/PHASE.md
+      - .cursor/templates/ISSUE.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - planners
+      - orchestrators
+    status: active
+    tags:
+      - workflow
+      - canonical
+      - module
+
+  - id: issue-workflow
+    path: .cursor/workflows/ISSUE-WORKFLOW.md
+    purpose: Defines the atomic execution workflow from ready issue through proof production.
+    when_to_read:
+      - when executing an issue
+      - when verifying issue entry and exit conditions
+    dependencies:
+      - workflow-model
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/runtime/STATE-MODEL.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - implementers
+      - orchestrators
+    status: active
+    tags:
+      - workflow
+      - canonical
+      - issue
+
+  - id: review-workflow
+    path: .cursor/workflows/REVIEW-WORKFLOW.md
+    purpose: Defines the workflow for evaluating proof, issuing review outcomes, and returning work for rework or progression.
+    when_to_read:
+      - when work reaches review_ready
+      - when performing issue, module, or program review
+    dependencies:
+      - workflow-model
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/runtime/STATE-MODEL.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - reviewers
+    status: active
+    tags:
+      - workflow
+      - canonical
+      - review
+
+  - id: integration-workflow
+    path: .cursor/workflows/INTEGRATION-WORKFLOW.md
+    purpose: Defines the workflow for integrating passing work, causing state progression, and recomputing downstream readiness.
+    when_to_read:
+      - after passing review
+      - when evaluating downstream effects and completion roll-up
+    dependencies:
+      - workflow-model
+      - .cursor/templates/INTEGRATION.md
+      - .cursor/runtime/DEPENDENCY-RESOLUTION.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - integrators
+      - orchestrators
+    status: active
+    tags:
+      - workflow
+      - canonical
+      - integration
+
+  - id: dispatch-v2
+    path: .cursor/workflows/dispatch-v2.md
+    purpose: Legacy workflow note retained for compatibility with older dispatch-oriented operating patterns.
+    when_to_read:
+      - only when an older workflow or repository explicitly references dispatch-v2
+    dependencies: []
+    consumers:
+      - human operators
+    status: compatibility
+    tags:
+      - workflow
+      - legacy
+      - compatibility-only
+
+  - id: planning-lifecycle
+    path: .cursor/workflows/planning-lifecycle.md
+    purpose: Legacy workflow note retained for compatibility with older planning-oriented operating patterns.
+    when_to_read:
+      - only when an older workflow or repository explicitly references planning-lifecycle
+    dependencies: []
+    consumers:
+      - human operators
+    status: compatibility
+    tags:
+      - workflow
+      - legacy
+      - compatibility-only
