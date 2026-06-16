@@ -1,0 +1,61 @@
+entries:
+  - id: cursor-adapter-index
+    path: .cursor/INDEX.yaml
+    purpose: Adapter index for the Cursor compatibility runtime surface.
+    when_to_read:
+      - when entering .cursor directly
+      - when a runtime needs to understand the relationship between .cursor and core
+    dependencies:
+      - .cursor/README.md
+      - .cursor/rules/00-linkdev-bootstrap.mdc
+      - core/
+    consumers:
+      - Cursor
+      - Codex
+      - Claude
+      - human operators
+    status: active
+    tags:
+      - adapter
+      - compatibility
+      - navigation
+
+  - id: cursor-readme
+    path: .cursor/README.md
+    purpose: Primary human-readable entrypoint for the Cursor compatibility runtime surface.
+    when_to_read:
+      - before reading deeper .cursor layers
+      - when using the system through existing .cursor paths
+    dependencies:
+      - .cursor/INDEX.yaml
+      - .cursor/import-core.md
+    consumers:
+      - Cursor
+      - Codex
+      - Claude
+      - human operators
+    status: active
+    tags:
+      - adapter
+      - readme
+      - compatibility
+
+  - id: import-core
+    path: .cursor/import-core.md
+    purpose: Explains how the .cursor compatibility surface maps to the canonical core knowledge asset.
+    when_to_read:
+      - when maintaining the packaging layout
+      - when validating backward compatibility
+    dependencies:
+      - .cursor/README.md
+      - core/reports/V1.0.1-MIGRATION.md
+    consumers:
+      - maintainers
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - adapter
+      - packaging
+      - migration

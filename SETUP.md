@@ -4,7 +4,7 @@
 
 This repository contains the shared AI development core used across Cursor, Codex, and future tools.
 
-The active system lives in `.cursor/`. GitHub is the source of truth.
+The canonical knowledge asset lives in `core/`. The compatibility runtime surface remains in `.cursor/`. GitHub is the source of truth.
 
 ## Clone On Another Machine
 
@@ -17,7 +17,7 @@ git clone https://github.com/linktrend/IDE-Development.git "IDE Development"
 cd "IDE Development"
 ```
 
-After cloning, use this repository as the primary working copy of the shared `.cursor` system on that machine.
+After cloning, use this repository as the primary working copy of the shared development core on that machine.
 
 ## Mac Mini Setup
 
@@ -74,8 +74,8 @@ If other root files are intentionally changed, stage them explicitly rather than
 
 ## Warning
 
-- Do not copy `.cursor` manually into many repositories.
+- Do not copy `core/` or `.cursor/` manually into many repositories.
 - Use Git and this repository as the source of truth.
 - Make major changes in small commits.
 - Run `git status` before letting Codex modify the system.
-- Avoid maintaining duplicated `.cursor` systems across multiple repos when they are meant to share the same core.
+- Avoid maintaining duplicated compatibility surfaces across multiple repos when they are meant to share the same core.

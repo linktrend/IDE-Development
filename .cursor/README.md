@@ -1,6 +1,10 @@
 # AI Factory Core for Cursor
 
-This `.cursor/` directory is the active source of truth for the shared development system used across the workspace.
+This `.cursor/` directory is the compatibility runtime surface for the shared development system used across the workspace.
+
+The canonical portable knowledge asset now lives in `../core/`.
+
+This adapter layer exists so existing `.cursor/...` paths, bootstrap behavior, rules, prompts, commands, templates, and examples continue to function without semantic change.
 
 For a fresh repository or first-time operator, the recommended startup path is:
 
@@ -9,7 +13,7 @@ For a fresh repository or first-time operator, the recommended startup path is:
 3. if the work is greenfield or materially ambiguous, route into `discovery/INDEX.yaml`
 4. only then continue into intent, doctrine, templates, commands, or deeper layers as directed
 
-It is intentionally self-contained:
+It remains operationally self-contained from the perspective of existing `.cursor/...` consumers:
 
 - rules define operating constraints and standards
 - execution defines doctrine and runtime semantics for autonomous work
@@ -23,11 +27,13 @@ It is intentionally self-contained:
 
 `LiNKdev` is legacy source material only. It is not a required runtime dependency for this system.
 
+`core/` is canonical storage. `.cursor/` is the compatibility runtime surface.
+
 ## Directory Map
 
 | Path | Purpose |
 |------|---------|
-| `rules/` | Always-on and situational rules |
+| `rules/` | Always-on and situational rules kept under `.cursor/` |
 | `bootstrap/` | Canonical onboarding, startup, and shutdown sequence |
 | `discovery/` | Optional pre-intent discovery and interview guidance for greenfield or ambiguous work |
 | `execution/` | Canonical execution doctrine and runtime model |
@@ -38,7 +44,7 @@ It is intentionally self-contained:
 | `workflows/` | End-to-end process definitions |
 | `checklists/` | Verification and readiness checklists |
 | `commands/` | Preferred execution command wrappers plus retained legacy compatibility commands |
-| `mcp.json` | Local machine MCP configuration |
+| `mcp.json` | Local machine MCP configuration kept under `.cursor/` |
 
 ## Operating Model
 
@@ -95,3 +101,5 @@ For fresh repositories, do not skip the bootstrap layer. It is the intended brid
 ## Compatibility
 
 Some command names still include `linkdev` for continuity with older workflows. Their implementation now lives entirely in this repository.
+
+The `.cursor/...` paths remain valid by design. Existing repositories that consume the shared system through `.cursor/` should continue functioning without modification.

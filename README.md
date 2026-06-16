@@ -2,7 +2,14 @@
 
 This repository contains the global AI development core used across Cursor, Codex, and future tools.
 
-The active system lives in [.cursor/](/Users/linktrend-macbook/Projects/IDE Development/.cursor/README.md). It includes execution doctrine, templates, agents, prompts, commands, skills, workflows, and checklists.
+The canonical knowledge asset now lives in [core/](/Users/linktrend-macbook/Projects/IDE%20Development/core). The compatibility runtime surface for existing Cursor-oriented consumers remains in [.cursor/](/Users/linktrend-macbook/Projects/IDE%20Development/.cursor/README.md).
+
+Repository structure:
+
+- [core/](/Users/linktrend-macbook/Projects/IDE%20Development/core): canonical portable knowledge asset
+- [.cursor/](/Users/linktrend-macbook/Projects/IDE%20Development/.cursor/README.md): compatibility runtime surface and Cursor-specific adapter layer
+- [codex/](/Users/linktrend-macbook/Projects/IDE%20Development/codex): Codex entrypoints and consumption guidance
+- [claude/](/Users/linktrend-macbook/Projects/IDE%20Development/claude): Claude entrypoints and consumption guidance
 
 This repository is used to synchronize the shared development setup across the MacBook, Mac Mini, and future machines.
 
