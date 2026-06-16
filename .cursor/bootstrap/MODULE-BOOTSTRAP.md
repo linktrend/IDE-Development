@@ -24,6 +24,11 @@ Additional artifacts appear later during execution:
 - `REVIEW.md`
 - `INTEGRATION.md`
 
+Additional completion expectation:
+
+- module completion is not fully satisfied by issue completion alone
+- the module must also satisfy its module definition of done and mandatory module review requirements
+
 ## Startup Sequence
 
 1. read `.cursor/commands/plan-module.md`
@@ -52,6 +57,14 @@ Module bootstrap is successful when:
 - issues exist
 - dependencies are explicit
 - at least one issue can be identified as `ready` or `blocked` for a stated reason
+
+## Module Completion Expectation
+
+When the module later moves from planning into execution:
+
+- issue-level work still completes through `PROOF.md -> REVIEW.md -> INTEGRATION.md`
+- module-level completion must also be evaluated explicitly against `MODULE.md`
+- if routine work does not naturally make module-level review obvious, the operator should record how module completion was judged rather than assuming issue completion is sufficient
 
 ## Runtime-Specific Startup Flows
 
@@ -83,3 +96,4 @@ Before ending module bootstrap:
 - record which issue is first executable
 - record why non-ready issues are not ready
 - leave the next execution command obvious
+- leave module-level completion expectations obvious enough that a later operator does not confuse issue completion with full module completion

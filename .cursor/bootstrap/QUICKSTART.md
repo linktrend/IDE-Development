@@ -5,17 +5,18 @@ Use this file when the task is already clear and you want the shortest safe rout
 ## Fast Path
 
 1. Read `.cursor/README.md`
-2. Read `.cursor/commands/INDEX.yaml`
-3. Select the preferred command:
+2. Read `.cursor/bootstrap/START-HERE.md`
+3. Read `.cursor/commands/INDEX.yaml`
+4. Select the preferred command:
    - `plan-program`
    - `plan-module`
    - `complete-module`
    - `execute-issue`
    - `review-issue`
    - `integrate-issue`
-4. Read only the doctrine and templates required by that command
-5. Open the target artifact tree
-6. Start work only when readiness is explicit
+5. Read only the doctrine and templates required by that command
+6. Open the target artifact tree
+7. Start work only when readiness is explicit
 
 ## Short Routing Table
 

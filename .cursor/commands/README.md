@@ -1,6 +1,6 @@
 # Commands
 
-This directory contains thin command wrappers that route into local prompts.
+This directory contains command wrappers that provide a short operational summary and then route into local prompts.
 
 Preferred commands for new work are:
 

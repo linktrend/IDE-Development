@@ -2,7 +2,9 @@
 
 This directory defines the canonical onboarding and startup sequence for adopting and using the `.cursor` system from zero.
 
-Read `INDEX.yaml` first.
+For fresh repositories and first-time operators, read `START-HERE.md` first.
+
+Read `INDEX.yaml` when you need the full bootstrap map or are entering the directory directly.
 
 Preferred bootstrap documents for new work are:
 
