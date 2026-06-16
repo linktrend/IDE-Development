@@ -13,4 +13,6 @@ Preferred workflow specifications for new work are:
 - `REVIEW-WORKFLOW.md`
 - `INTEGRATION-WORKFLOW.md`
 
+Session opening and session closure behavior are defined in `.cursor/session/` and connect back into these workflows rather than replacing them.
+
 Older workflow notes remain for compatibility where still needed.

@@ -19,3 +19,5 @@ Current compatibility status:
 - `linkdev-ui-automations` and `linkdev-wire-post-ui` are retained as deprecated compatibility aliases
 
 Future work should use the newer execution command layer and its doctrine-driven prompts.
+
+Natural-language session start and session end behavior is handled through `.cursor/session/` and bootstrap routing, not through an additional command family.

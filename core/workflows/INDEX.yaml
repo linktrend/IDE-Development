@@ -9,6 +9,7 @@ entries:
       - .cursor/execution/INDEX.yaml
       - .cursor/runtime/INDEX.yaml
       - .cursor/templates/INDEX.yaml
+      - .cursor/session/INDEX.yaml
     consumers:
       - human operators
       - AI runtimes
@@ -48,6 +49,7 @@ entries:
       - .cursor/execution/CANONICAL-LAWS.md
       - .cursor/runtime/RUNTIME.md
       - .cursor/templates/INDEX.yaml
+      - .cursor/session/SESSION-LIFECYCLE.md
     consumers:
       - human operators
       - AI runtimes

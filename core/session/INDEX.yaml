@@ -1,0 +1,135 @@
+entries:
+  - id: session-index
+    path: .cursor/session/INDEX.yaml
+    purpose: Progressive-disclosure index for the canonical session lifecycle capability, including start-of-session recovery, end-of-session closure, and handoff reporting.
+    when_to_read:
+      - when a user says "Let's continue", "Resume work", or equivalent
+      - when a user says "That's it for today", "End the day", or equivalent
+      - when entering the session directory directly
+    dependencies:
+      - .cursor/bootstrap/SESSION-STARTUP.md
+      - .cursor/bootstrap/SESSION-SHUTDOWN.md
+      - .cursor/workflows/INDEX.yaml
+      - .cursor/runtime/INDEX.yaml
+      - .cursor/state/INDEX.yaml
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+      - maintainers
+    status: active
+    tags:
+      - session
+      - lifecycle
+      - navigation
+      - canonical
+
+  - id: session-readme
+    path: .cursor/session/README.md
+    purpose: Lightweight overview of the session lifecycle capability and when to load start, end, or handoff documents.
+    when_to_read:
+      - when entering the session directory directly
+      - when a runtime needs a short overview before loading a session procedure
+    dependencies:
+      - session-index
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - session
+      - navigation
+      - readme
+
+  - id: session-lifecycle
+    path: .cursor/session/SESSION-LIFECYCLE.md
+    purpose: Canonical session lifecycle model connecting natural-language session start and end requests to bootstrap, runtime, workflow, and handoff behavior.
+    when_to_read:
+      - when defining or validating session lifecycle behavior
+      - when wiring natural-language start and end requests into the existing operating model
+    dependencies:
+      - .cursor/bootstrap/SESSION-STARTUP.md
+      - .cursor/bootstrap/SESSION-SHUTDOWN.md
+      - .cursor/workflows/WORKFLOW-MODEL.md
+      - .cursor/runtime/RUNTIME.md
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+      - maintainers
+    status: active
+    tags:
+      - session
+      - lifecycle
+      - canonical
+
+  - id: session-start
+    path: .cursor/session/SESSION-START.md
+    purpose: Defines the operational behavior for natural-language session start and resume requests.
+    when_to_read:
+      - when a user says "Let's continue", "Continue development", "Pick up where we left off", or "Resume work"
+    dependencies:
+      - session-lifecycle
+      - .cursor/bootstrap/SESSION-STARTUP.md
+      - .cursor/runtime/DEPENDENCY-RESOLUTION.md
+      - .cursor/workflows/MODULE-WORKFLOW.md
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - session
+      - start
+      - resume
+      - operational
+
+  - id: session-end
+    path: .cursor/session/SESSION-END.md
+    purpose: Defines the operational behavior for natural-language session end requests, including repository review, commit, push, and handoff creation.
+    when_to_read:
+      - when a user says "That's it for today", "I'm done for today", "End the day", or "Calling it a day"
+    dependencies:
+      - session-lifecycle
+      - .cursor/bootstrap/SESSION-SHUTDOWN.md
+      - .cursor/session/HANDOFF-REPORT.md
+      - .cursor/state/TERMINAL-STATES.md
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - session
+      - end
+      - handoff
+      - operational
+
+  - id: handoff-report
+    path: .cursor/session/HANDOFF-REPORT.md
+    purpose: Defines the canonical handoff report structure stored under docs/handoff/YYYY-MM-DD.md so the next session can reconstruct context safely.
+    when_to_read:
+      - when producing or reading end-of-session handoff artifacts
+      - when validating session continuity
+    dependencies:
+      - session-lifecycle
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/templates/INTEGRATION.md
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - session
+      - handoff
+      - artifact
+      - continuity

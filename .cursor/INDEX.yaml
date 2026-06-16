@@ -8,6 +8,7 @@ entries:
     dependencies:
       - .cursor/README.md
       - .cursor/rules/00-linkdev-bootstrap.mdc
+      - .cursor/session/INDEX.yaml
       - core/
     consumers:
       - Cursor
@@ -59,3 +60,23 @@ entries:
       - adapter
       - packaging
       - migration
+
+  - id: session-adapter
+    path: .cursor/session/INDEX.yaml
+    purpose: Routes session start, resume, shutdown, and handoff behavior through the compatibility runtime surface.
+    when_to_read:
+      - when a natural-language session start or end request is received
+      - when validating session continuity behavior from .cursor paths
+    dependencies:
+      - .cursor/bootstrap/SESSION-STARTUP.md
+      - .cursor/bootstrap/SESSION-SHUTDOWN.md
+    consumers:
+      - Cursor
+      - Codex
+      - Claude
+      - human operators
+    status: active
+    tags:
+      - adapter
+      - session
+      - continuity

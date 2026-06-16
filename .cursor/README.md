@@ -24,6 +24,7 @@ It remains operationally self-contained from the perspective of existing `.curso
 - workflows describe multi-step operating patterns
 - checklists provide verification gates
 - commands provide preferred execution wrappers and retained legacy compatibility entrypoints
+- session defines natural-language session start, resume, shutdown, and handoff behavior
 
 `LiNKdev` is legacy source material only. It is not a required runtime dependency for this system.
 
@@ -44,6 +45,7 @@ It remains operationally self-contained from the perspective of existing `.curso
 | `workflows/` | End-to-end process definitions |
 | `checklists/` | Verification and readiness checklists |
 | `commands/` | Preferred execution command wrappers plus retained legacy compatibility commands |
+| `session/` | Session lifecycle guidance for resume, close-out, and handoff behavior |
 | `mcp.json` | Local machine MCP configuration kept under `.cursor/` |
 
 ## Operating Model
@@ -61,10 +63,11 @@ It remains operationally self-contained from the perspective of existing `.curso
 8. Use `templates/INDEX.yaml` to select the minimum artifact needed.
 9. Use `agents/INDEX.yaml` when the task needs a role, control function, or squad composition.
 10. Use `commands/INDEX.yaml` when the task begins from a command-style invocation.
-11. Read `skills/SKILLS_CATALOG.md` before opening individual skills.
-12. Open only the prompt, template, checklist, workflow, skill, agent, or command file required for the task.
-13. Prefer revising existing assets over creating parallel copies.
-14. Keep the system simple, modular, and maintainable.
+11. Use `session/INDEX.yaml` when the task is a natural-language resume or close-out request.
+12. Read `skills/SKILLS_CATALOG.md` before opening individual skills.
+13. Open only the prompt, template, checklist, workflow, skill, agent, command, or session file required for the task.
+14. Prefer revising existing assets over creating parallel copies.
+15. Keep the system simple, modular, and maintainable.
 
 ## First Path
 
@@ -75,6 +78,8 @@ For most first-time use, the safest path is:
 3. `commands/INDEX.yaml`
 4. the one preferred command wrapper that matches the task
 5. only the doctrine, templates, workflows, state, and contracts required by that command
+
+For session resume or close-out requests, insert `session/INDEX.yaml` before selecting the next operational path.
 
 ## Optional Discovery
 

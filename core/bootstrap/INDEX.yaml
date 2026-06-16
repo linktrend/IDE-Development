@@ -10,6 +10,7 @@ entries:
       - .cursor/system/INDEX.yaml
       - .cursor/commands/INDEX.yaml
       - .cursor/discovery/INDEX.yaml
+      - .cursor/session/INDEX.yaml
     consumers:
       - human operators
       - Cursor
@@ -53,6 +54,7 @@ entries:
       - .cursor/execution/INDEX.yaml
       - .cursor/templates/INDEX.yaml
       - .cursor/commands/INDEX.yaml
+      - .cursor/session/INDEX.yaml
     consumers:
       - human operators
       - Cursor
@@ -172,6 +174,7 @@ entries:
       - .cursor/discovery/INDEX.yaml
       - .cursor/state/INDEX.yaml
       - .cursor/workflows/INDEX.yaml
+      - .cursor/session/INDEX.yaml
     consumers:
       - human operators
       - Cursor
@@ -192,6 +195,7 @@ entries:
     dependencies:
       - session-startup
       - .cursor/state/TERMINAL-STATES.md
+      - .cursor/session/HANDOFF-REPORT.md
     consumers:
       - human operators
       - Cursor

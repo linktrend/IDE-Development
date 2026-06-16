@@ -14,6 +14,7 @@ The workflow layer must:
 4. define the expected side effects of each stage
 5. preserve issue as the atomic execution unit
 6. preserve proof, review, and integration as distinct completion stages
+7. preserve session start and session end as operational wrappers around the existing lifecycle rather than as a separate execution model
 
 ## Workflow Boundaries
 
@@ -29,6 +30,10 @@ The workflow layer must not:
 The canonical lifecycle is:
 
 `Intent -> Program -> Module -> Phase -> Issue -> Proof -> Review -> Integration -> Complete`
+
+Session start and session end sit around this lifecycle as repository-level continuity behavior:
+
+`Session Start -> existing lifecycle -> Session End`
 
 ## Stage Relationships
 
@@ -97,6 +102,7 @@ Disallowed workflow side effects include:
 - hidden sequencing outside artifacts
 - implicit completion without proof
 - direct jumps from execution to done
+- session closure that skips repository review, handoff, or git hygiene
 
 ## Read Next
 
@@ -105,3 +111,4 @@ Disallowed workflow side effects include:
 3. `ISSUE-WORKFLOW.md`
 4. `REVIEW-WORKFLOW.md`
 5. `INTEGRATION-WORKFLOW.md`
+6. `.cursor/session/SESSION-LIFECYCLE.md`
