@@ -9,12 +9,13 @@ Allow a human or AI runtime to resume or begin work with minimum context, explic
 ## Session Startup Sequence
 
 1. read `.cursor/README.md`
-2. determine the active work level: intent, program, module, or issue
-3. read the nearest bootstrap document for that level
-4. read the relevant command wrapper
-5. read only the doctrine, state, workflow, and template files required by that command
-6. inspect the active artifact tree
-7. identify the next executable or decision-ready unit
+2. determine whether the active work is discovery, intent, program, module, or issue level
+3. if the work is greenfield or materially ambiguous, read `.cursor/discovery/INDEX.yaml`
+4. read the nearest bootstrap document for the active level
+5. read the relevant command wrapper
+6. read only the doctrine, state, workflow, and template files required by that command
+7. inspect the active artifact tree
+8. identify the next executable or decision-ready unit
 
 ## Minimum Session Inputs
 
@@ -26,9 +27,16 @@ Allow a human or AI runtime to resume or begin work with minimum context, explic
 ## Startup Responsibilities
 
 - confirm what is already in progress
+- decide whether the session needs discovery before intent
 - avoid re-planning already-planned work unless artifacts are inadequate
 - compute readiness from artifacts rather than memory
 - keep context loading narrow
+
+Default session paths:
+
+- greenfield or ambiguous: `DISCOVERY -> INTERVIEW -> INTENT`
+- routine planning: `INTENT -> PROGRAM/MODULE`
+- bugfix or atomic work: `ISSUE`
 
 ## Runtime-Specific Startup Flows
 

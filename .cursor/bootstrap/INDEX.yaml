@@ -9,6 +9,7 @@ entries:
       - .cursor/README.md
       - .cursor/system/INDEX.yaml
       - .cursor/commands/INDEX.yaml
+      - .cursor/discovery/INDEX.yaml
     consumers:
       - human operators
       - Cursor
@@ -48,6 +49,7 @@ entries:
       - when unsure where to start
     dependencies:
       - .cursor/README.md
+      - .cursor/discovery/INDEX.yaml
       - .cursor/execution/INDEX.yaml
       - .cursor/templates/INDEX.yaml
       - .cursor/commands/INDEX.yaml
@@ -90,6 +92,7 @@ entries:
       - when deciding the minimum artifact set for new project adoption
     dependencies:
       - start-here
+      - .cursor/discovery/INDEX.yaml
       - .cursor/templates/INTENT.md
       - .cursor/templates/PROGRAM.md
       - .cursor/templates/MODULE.md
@@ -166,6 +169,7 @@ entries:
       - before planning, module work, or issue work begins
     dependencies:
       - start-here
+      - .cursor/discovery/INDEX.yaml
       - .cursor/state/INDEX.yaml
       - .cursor/workflows/INDEX.yaml
     consumers:

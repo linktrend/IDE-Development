@@ -6,7 +6,8 @@ For a fresh repository or first-time operator, the recommended startup path is:
 
 1. read this file
 2. then immediately read `bootstrap/START-HERE.md`
-3. only then continue into doctrine, templates, commands, or deeper layers as directed
+3. if the work is greenfield or materially ambiguous, route into `discovery/INDEX.yaml`
+4. only then continue into intent, doctrine, templates, commands, or deeper layers as directed
 
 It is intentionally self-contained:
 
@@ -28,6 +29,7 @@ It is intentionally self-contained:
 |------|---------|
 | `rules/` | Always-on and situational rules |
 | `bootstrap/` | Canonical onboarding, startup, and shutdown sequence |
+| `discovery/` | Optional pre-intent discovery and interview guidance for greenfield or ambiguous work |
 | `execution/` | Canonical execution doctrine and runtime model |
 | `skills/` | Local skills catalog and focused skill documents |
 | `prompts/` | Reusable execution prompts for setup, planning, and execution |
@@ -42,29 +44,39 @@ It is intentionally self-contained:
 
 1. Read this file first.
 2. If the repository or session is fresh, read `bootstrap/START-HERE.md` next.
-3. Use `bootstrap/QUICKSTART.md` only when the work level is already obvious.
-4. Read `rules/00-linkdev-bootstrap.mdc`, then any other applicable rules.
-5. For program, module, phase, issue, proof, review, and integration work, read `execution/INDEX.yaml`.
-6. Use the execution doctrine files as the governing model:
+3. If the work is greenfield, ambiguous, or under-specified, read `discovery/INDEX.yaml` before `INTENT.md`.
+4. Use `bootstrap/QUICKSTART.md` only when the work level is already obvious.
+5. Read `rules/00-linkdev-bootstrap.mdc`, then any other applicable rules.
+6. For program, module, phase, issue, proof, review, and integration work, read `execution/INDEX.yaml`.
+7. Use the execution doctrine files as the governing model:
    - `execution/CANONICAL-LAWS.md`
    - `execution/MINIMUM-RUNTIME-MODEL.md`
    - `execution/AUTONOMOUS-MODULE-EXECUTION.md`
-7. Use `templates/INDEX.yaml` to select the minimum artifact needed.
-8. Use `agents/INDEX.yaml` when the task needs a role, control function, or squad composition.
-9. Use `commands/INDEX.yaml` when the task begins from a command-style invocation.
-10. Read `skills/SKILLS_CATALOG.md` before opening individual skills.
-11. Open only the prompt, template, checklist, workflow, skill, agent, or command file required for the task.
-12. Prefer revising existing assets over creating parallel copies.
-13. Keep the system simple, modular, and maintainable.
+8. Use `templates/INDEX.yaml` to select the minimum artifact needed.
+9. Use `agents/INDEX.yaml` when the task needs a role, control function, or squad composition.
+10. Use `commands/INDEX.yaml` when the task begins from a command-style invocation.
+11. Read `skills/SKILLS_CATALOG.md` before opening individual skills.
+12. Open only the prompt, template, checklist, workflow, skill, agent, or command file required for the task.
+13. Prefer revising existing assets over creating parallel copies.
+14. Keep the system simple, modular, and maintainable.
 
 ## First Path
 
 For most first-time use, the safest path is:
 
 1. `bootstrap/START-HERE.md`
-2. `commands/INDEX.yaml`
-3. the one preferred command wrapper that matches the task
-4. only the doctrine, templates, workflows, state, and contracts required by that command
+2. `discovery/INDEX.yaml` only if the work is greenfield or ambiguous
+3. `commands/INDEX.yaml`
+4. the one preferred command wrapper that matches the task
+5. only the doctrine, templates, workflows, state, and contracts required by that command
+
+## Optional Discovery
+
+Use discovery only when needed.
+
+- greenfield or ambiguous work: `DISCOVERY -> INTERVIEW -> INTENT`
+- routine new work: `INTENT`
+- bugfix or atomic operational work: `ISSUE`
 
 ## Execution Doctrine
 

@@ -1,0 +1,145 @@
+entries:
+  - id: discovery-index
+    path: .cursor/discovery/INDEX.yaml
+    purpose: Progressive-disclosure index for the optional discovery and interview layer used before intent formation in greenfield or ambiguous work.
+    when_to_read:
+      - when a repository or request is new and under-specified
+      - when entering the discovery directory directly
+      - when an operator suspects they are filling in requirements by guesswork
+    dependencies:
+      - .cursor/README.md
+      - .cursor/bootstrap/START-HERE.md
+      - .cursor/templates/INTENT.md
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+      - planners
+      - product owners
+    status: active
+    tags:
+      - discovery
+      - navigation
+      - index
+
+  - id: discovery-readme
+    path: .cursor/discovery/README.md
+    purpose: Lightweight guide for selecting the right discovery document before deeper questioning begins.
+    when_to_read:
+      - when entering the discovery directory directly
+      - when a runtime needs a quick overview before starting discovery
+    dependencies:
+      - discovery-index
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - discovery
+      - navigation
+      - readme
+
+  - id: discovery-core
+    path: .cursor/discovery/DISCOVERY.md
+    purpose: Defines when discovery is required, optional, or should be skipped, and how discovery feeds into intent rather than replacing it.
+    when_to_read:
+      - when deciding whether greenfield or ambiguous work should begin with discovery
+      - when deciding whether discovery may be skipped
+    dependencies:
+      - .cursor/templates/INTENT.md
+      - .cursor/execution/CANONICAL-LAWS.md
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+      - planners
+    status: active
+    tags:
+      - discovery
+      - optional
+      - canonical
+
+  - id: interview-model
+    path: .cursor/discovery/INTERVIEW.md
+    purpose: Defines the optional interview process that uses one question at a time and stops when uncertainty is reduced enough to write intent responsibly.
+    when_to_read:
+      - when discovery is active
+      - when a live user is available and the ask is ambiguous
+    dependencies:
+      - discovery-core
+      - .cursor/discovery/CONFIDENCE-THRESHOLDS.md
+      - .cursor/discovery/QUESTIONING-GUIDELINES.md
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - discovery
+      - interview
+      - questioning
+
+  - id: questioning-guidelines
+    path: .cursor/discovery/QUESTIONING-GUIDELINES.md
+    purpose: Defines the practical questioning style for discovery, including one-question-at-a-time behavior and anti-assumption discipline.
+    when_to_read:
+      - when an operator is about to ask discovery questions
+      - when discovery quality is degrading into speculation or option-dumping
+    dependencies:
+      - interview-model
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - discovery
+      - questioning
+      - guidelines
+
+  - id: confidence-thresholds
+    path: .cursor/discovery/CONFIDENCE-THRESHOLDS.md
+    purpose: Defines how confidence is used honestly during discovery and when questioning should continue or stop.
+    when_to_read:
+      - when an operator needs to judge whether enough has been learned to write intent
+      - when confidence numbers risk becoming empty signals
+    dependencies:
+      - interview-model
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - discovery
+      - confidence
+      - thresholds
+
+  - id: anti-rationalization
+    path: .cursor/discovery/ANTI-RATIONALIZATION.md
+    purpose: Defines the lightweight anti-rationalization rules that prevent discovery from collapsing into guessing or premature planning.
+    when_to_read:
+      - when discovery is being skipped for the wrong reasons
+      - when assumptions are being mistaken for readiness
+    dependencies:
+      - discovery-core
+      - interview-model
+      - .cursor/execution/CANONICAL-LAWS.md
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+      - planners
+    status: active
+    tags:
+      - discovery
+      - anti-rationalization
+      - discipline

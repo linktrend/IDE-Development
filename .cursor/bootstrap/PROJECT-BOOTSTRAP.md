@@ -10,16 +10,19 @@ Make a new repository executable under the canonical operating model without req
 
 1. confirm `.cursor/` is the local source of truth for the repository
 2. read `.cursor/README.md`
-3. read `.cursor/execution/INDEX.yaml`
-4. read `.cursor/templates/INDEX.yaml`
-5. determine whether work begins with intent or with an existing approved objective
-6. create or confirm the minimum required artifacts
-7. choose the correct preferred command wrapper
+3. determine whether the repository is greenfield, routine, or already execution-ready
+4. if the work is greenfield or materially ambiguous, read `.cursor/discovery/INDEX.yaml`
+5. read `.cursor/execution/INDEX.yaml`
+6. read `.cursor/templates/INDEX.yaml`
+7. determine whether work begins with discovery, intent, or with an existing approved objective
+8. create or confirm the minimum required artifacts
+9. choose the correct preferred command wrapper
 
 ## Minimum Required Artifacts
 
 For a new project:
 
+- optional discovery and interview work if the objective is still ambiguous
 - `INTENT.md` if the objective still needs go or no-go validation
 - `PROGRAM.md` once intent is accepted or explicitly overridden
 - at least one `MODULE.md` for executable work
@@ -43,9 +46,16 @@ A new repository can start safely when it has:
 ## Startup Responsibilities
 
 - establish repository scope and objective
+- decide whether discovery is needed before intent
 - decide whether program creation is valid yet
 - avoid creating modules before objective boundaries are clear
 - preserve progressive disclosure by reading only the nearest artifacts
+
+Recommended startup paths:
+
+- greenfield or ambiguous: `DISCOVERY -> INTERVIEW -> INTENT`
+- routine new work: `INTENT`
+- already-structured module work: `MODULE`
 
 ## Shutdown Responsibilities
 
@@ -54,18 +64,19 @@ Before stopping project bootstrap work:
 - record whether the repository is intent-ready, program-ready, or module-ready
 - leave the next required artifact obvious
 - record blockers instead of leaving partial structure unexplained
+- if discovery was used, leave the resulting assumptions and reduced uncertainty explicit
 
 ## Runtime-Specific Startup Flows
 
 ### Human
 
 - inspect the repository objective
-- decide whether to start with intent or program structure
+- decide whether to start with discovery, intent, or program structure
 - create only the minimum needed artifacts
 
 ### Cursor
 
-- read `.cursor/README.md`, then the command index
+- read `.cursor/README.md`, then discovery only if ambiguity is real
 - route into `plan-program` or `plan-module`
 - create the minimum artifact set required by the chosen command
 

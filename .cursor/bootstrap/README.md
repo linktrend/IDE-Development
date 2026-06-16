@@ -16,4 +16,6 @@ Preferred bootstrap documents for new work are:
 - `SESSION-STARTUP.md` for session opening responsibilities
 - `SESSION-SHUTDOWN.md` for session closure responsibilities
 
+If the work is greenfield or materially ambiguous, the bootstrap path should route into `.cursor/discovery/` before `INTENT.md`.
+
 This layer is implementation-free. It routes into the existing doctrine, templates, commands, workflows, contracts, and state model rather than replacing them.
