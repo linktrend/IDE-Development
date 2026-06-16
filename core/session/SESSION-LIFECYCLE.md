@@ -34,6 +34,8 @@ Session lifecycle is an operational capability layered on top of:
 
 It does not replace execution doctrine or create a new top-level execution lifecycle.
 
+Workspace adoption remains a separate one-time capability under `.cursor/workspace/`. Session lifecycle continues to govern daily resume and close-out behavior after adoption is complete.
+
 ## Active Repository Rule
 
 The active repository is the repository whose files the current chat can see.

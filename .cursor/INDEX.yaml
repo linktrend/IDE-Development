@@ -9,6 +9,7 @@ entries:
       - .cursor/README.md
       - .cursor/rules/00-linkdev-bootstrap.mdc
       - .cursor/session/INDEX.yaml
+      - .cursor/workspace/INDEX.yaml
       - core/
     consumers:
       - Cursor
@@ -80,3 +81,23 @@ entries:
       - adapter
       - session
       - continuity
+
+  - id: workspace-adapter
+    path: .cursor/workspace/INDEX.yaml
+    purpose: Routes one-time workspace adoption, legacy cleanup, and consumer repository wiring through the compatibility runtime surface.
+    when_to_read:
+      - when a natural-language workspace adoption request is received
+      - when validating workspace-level installation behavior from .cursor paths
+    dependencies:
+      - .cursor/bootstrap/PROJECT-BOOTSTRAP.md
+      - .cursor/session/INDEX.yaml
+    consumers:
+      - Cursor
+      - Codex
+      - Claude
+      - human operators
+    status: active
+    tags:
+      - adapter
+      - workspace
+      - adoption

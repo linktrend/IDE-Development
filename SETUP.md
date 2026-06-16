@@ -6,6 +6,11 @@ This repository contains the shared AI development core used across Cursor, Code
 
 The canonical knowledge asset lives in `core/`. The compatibility runtime surface remains in `.cursor/`. GitHub is the source of truth.
 
+The repository also supports:
+
+- session lifecycle for daily resume and close-out behavior
+- workspace adoption for one-time installation into an existing `Projects/` workspace
+
 ## Clone On Another Machine
 
 Recommended target location:
@@ -18,6 +23,8 @@ cd "IDE Development"
 ```
 
 After cloning, use this repository as the primary working copy of the shared development core on that machine.
+
+If the machine already has a `Projects/` workspace containing other repositories, the next step can be workspace adoption so those repositories consume this shared `.cursor` runtime surface.
 
 ## Mac Mini Setup
 
@@ -45,6 +52,26 @@ Before using or editing the system on any machine:
 git pull
 git status
 ```
+
+## Workspace Adoption
+
+After cloning `IDE Development` into a `Projects/` folder, an existing workspace can be adopted through the workspace lifecycle capability.
+
+Natural-language triggers include:
+
+- `Install the system into this workspace.`
+- `Adopt this workspace.`
+- `Wire this workspace.`
+
+Operational result:
+
+- `IDE Development/core` remains canonical knowledge
+- `IDE Development/.cursor` remains the shared compatibility runtime surface
+- each consumer repository receives a `.cursor` symlink pointing to `../IDE Development/.cursor`
+
+Workspace adoption is one-time.
+
+Session lifecycle remains the daily operational behavior after adoption.
 
 ## Make Changes Safely
 

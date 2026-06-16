@@ -21,3 +21,5 @@ Current compatibility status:
 Future work should use the newer execution command layer and its doctrine-driven prompts.
 
 Natural-language session start and session end behavior is handled through `.cursor/session/` and bootstrap routing, not through an additional command family.
+
+Natural-language workspace adoption behavior is handled through `.cursor/workspace/` and bootstrap routing, not through an additional command family.

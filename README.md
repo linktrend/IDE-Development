@@ -11,6 +11,11 @@ Repository structure:
 - [codex/](/Users/linktrend-macbook/Projects/IDE%20Development/codex): Codex entrypoints and consumption guidance
 - [claude/](/Users/linktrend-macbook/Projects/IDE%20Development/claude): Claude entrypoints and consumption guidance
 
+Operational capabilities now include:
+
+- session lifecycle for natural-language resume and close-out behavior
+- workspace adoption for one-time installation into an existing multi-repository workspace
+
 This repository is used to synchronize the shared development setup across the MacBook, Mac Mini, and future machines.
 
 GitHub is the source of truth: [linktrend/IDE-Development](https://github.com/linktrend/IDE-Development).

@@ -6,6 +6,8 @@ This document defines how a fresh repository adopts the `.cursor` system and rea
 
 Make a new repository executable under the canonical operating model without requiring scripts or hidden setup.
 
+For an existing multi-repository workspace that already contains `IDE Development`, use `.cursor/workspace/INDEX.yaml` for one-time workspace adoption before treating each repository as independently bootstrapped.
+
 ## Adoption Sequence
 
 1. confirm `.cursor/` is the local source of truth for the repository
@@ -56,6 +58,7 @@ Recommended startup paths:
 - greenfield or ambiguous: `DISCOVERY -> INTERVIEW -> INTENT`
 - routine new work: `INTENT`
 - already-structured module work: `MODULE`
+- existing multi-repository workspace: `WORKSPACE ADOPTION -> normal repository/session behavior`
 
 ## Shutdown Responsibilities
 

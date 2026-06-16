@@ -11,6 +11,7 @@ entries:
       - .cursor/commands/INDEX.yaml
       - .cursor/discovery/INDEX.yaml
       - .cursor/session/INDEX.yaml
+      - .cursor/workspace/INDEX.yaml
     consumers:
       - human operators
       - Cursor
@@ -55,6 +56,7 @@ entries:
       - .cursor/templates/INDEX.yaml
       - .cursor/commands/INDEX.yaml
       - .cursor/session/INDEX.yaml
+      - .cursor/workspace/INDEX.yaml
     consumers:
       - human operators
       - Cursor
@@ -95,6 +97,7 @@ entries:
     dependencies:
       - start-here
       - .cursor/discovery/INDEX.yaml
+      - .cursor/workspace/INDEX.yaml
       - .cursor/templates/INTENT.md
       - .cursor/templates/PROGRAM.md
       - .cursor/templates/MODULE.md

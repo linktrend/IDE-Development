@@ -13,4 +13,9 @@ Preferred documents are:
 - `SESSION-END.md` for close-out behavior
 - `HANDOFF-REPORT.md` for the handoff artifact contract
 
+Workspace adoption is separate from daily session behavior.
+
+- workspace adoption: one-time installation and wiring
+- session lifecycle: ongoing start-of-day and end-of-day behavior
+
 This layer extends existing bootstrap, runtime, workflow, state, and repository hygiene behavior. It does not introduce a new command family.

@@ -18,7 +18,8 @@ Reach a safe operational starting point without scanning the entire `.cursor` sy
    - `ISSUE-BOOTSTRAP.md`
    - `SESSION-STARTUP.md`
 6. if the task is a natural-language resume or close-out request, also read `.cursor/session/INDEX.yaml`
-7. only then read the doctrine and template indexes required by that task
+7. if the task is a natural-language workspace adoption request, also read `.cursor/workspace/INDEX.yaml`
+8. only then read the doctrine and template indexes required by that task
 
 Do not begin by scanning the deeper execution layers. Use the bootstrap decision path first.
 
@@ -29,6 +30,7 @@ Do not begin by scanning the deeper execution layers. Use the bootstrap decision
 - if the user is executing one atomic work unit, read `ISSUE-BOOTSTRAP.md`
 - if the repository already contains active artifacts and work is resuming, read `SESSION-STARTUP.md`
 - if the user says `Let's continue`, `Resume work`, `That's it for today`, or equivalent, read `.cursor/session/INDEX.yaml`
+- if the user says `Install the system into this workspace`, `Adopt this workspace`, or `Wire this workspace`, read `.cursor/workspace/INDEX.yaml`
 
 After choosing the task path:
 

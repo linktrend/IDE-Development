@@ -25,6 +25,7 @@ It remains operationally self-contained from the perspective of existing `.curso
 - checklists provide verification gates
 - commands provide preferred execution wrappers and retained legacy compatibility entrypoints
 - session defines natural-language session start, resume, shutdown, and handoff behavior
+- workspace defines one-time workspace adoption and consumer repository wiring behavior
 
 `LiNKdev` is legacy source material only. It is not a required runtime dependency for this system.
 
@@ -46,6 +47,7 @@ It remains operationally self-contained from the perspective of existing `.curso
 | `checklists/` | Verification and readiness checklists |
 | `commands/` | Preferred execution command wrappers plus retained legacy compatibility commands |
 | `session/` | Session lifecycle guidance for resume, close-out, and handoff behavior |
+| `workspace/` | One-time workspace adoption, cleanup, and repository wiring behavior |
 | `mcp.json` | Local machine MCP configuration kept under `.cursor/` |
 
 ## Operating Model
@@ -64,10 +66,11 @@ It remains operationally self-contained from the perspective of existing `.curso
 9. Use `agents/INDEX.yaml` when the task needs a role, control function, or squad composition.
 10. Use `commands/INDEX.yaml` when the task begins from a command-style invocation.
 11. Use `session/INDEX.yaml` when the task is a natural-language resume or close-out request.
-12. Read `skills/SKILLS_CATALOG.md` before opening individual skills.
-13. Open only the prompt, template, checklist, workflow, skill, agent, command, or session file required for the task.
-14. Prefer revising existing assets over creating parallel copies.
-15. Keep the system simple, modular, and maintainable.
+12. Use `workspace/INDEX.yaml` when the task is a one-time workspace adoption request.
+13. Read `skills/SKILLS_CATALOG.md` before opening individual skills.
+14. Open only the prompt, template, checklist, workflow, skill, agent, command, session, or workspace file required for the task.
+15. Prefer revising existing assets over creating parallel copies.
+16. Keep the system simple, modular, and maintainable.
 
 ## First Path
 
@@ -80,6 +83,8 @@ For most first-time use, the safest path is:
 5. only the doctrine, templates, workflows, state, and contracts required by that command
 
 For session resume or close-out requests, insert `session/INDEX.yaml` before selecting the next operational path.
+
+For one-time workspace adoption requests, insert `workspace/INDEX.yaml` before selecting the adoption path.
 
 ## Optional Discovery
 

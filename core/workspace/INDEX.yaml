@@ -1,0 +1,155 @@
+entries:
+  - id: workspace-index
+    path: .cursor/workspace/INDEX.yaml
+    purpose: Progressive-disclosure index for one-time workspace adoption, repository discovery, legacy cleanup, consumer wiring, and adoption reporting.
+    when_to_read:
+      - when a user says "Install the system into this workspace", "Adopt this workspace", or "Wire this workspace"
+      - when entering the workspace directory directly
+      - when validating multi-repository workspace adoption behavior
+    dependencies:
+      - .cursor/bootstrap/START-HERE.md
+      - .cursor/bootstrap/PROJECT-BOOTSTRAP.md
+      - .cursor/session/INDEX.yaml
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+      - maintainers
+    status: active
+    tags:
+      - workspace
+      - adoption
+      - navigation
+      - canonical
+
+  - id: workspace-readme
+    path: .cursor/workspace/README.md
+    purpose: Lightweight overview of the workspace adoption capability and how it differs from daily session behavior.
+    when_to_read:
+      - when entering the workspace directory directly
+      - when a runtime needs a short overview before loading workspace adoption procedures
+    dependencies:
+      - workspace-index
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - workspace
+      - navigation
+      - readme
+
+  - id: workspace-adoption
+    path: .cursor/workspace/WORKSPACE-ADOPTION.md
+    purpose: Canonical operational model for one-time adoption of an existing multi-repository workspace into the shared IDE-Development runtime.
+    when_to_read:
+      - when defining or validating workspace adoption behavior
+      - when a natural-language workspace adoption request is received
+    dependencies:
+      - .cursor/bootstrap/PROJECT-BOOTSTRAP.md
+      - .cursor/workspace/WORKSPACE-DISCOVERY.md
+      - .cursor/workspace/REPO-WIRING.md
+      - .cursor/workspace/LEGACY-CLEANUP.md
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+      - maintainers
+    status: active
+    tags:
+      - workspace
+      - adoption
+      - operational
+      - canonical
+
+  - id: workspace-discovery
+    path: .cursor/workspace/WORKSPACE-DISCOVERY.md
+    purpose: Defines how repositories are discovered in the current workspace and how the IDE Development system repository is excluded from consumer adoption.
+    when_to_read:
+      - when identifying repositories inside a multi-repository workspace
+      - when validating the active workspace model
+    dependencies:
+      - workspace-adoption
+      - .cursor/bootstrap/START-HERE.md
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+    status: active
+    tags:
+      - workspace
+      - discovery
+      - repositories
+
+  - id: repo-wiring
+    path: .cursor/workspace/REPO-WIRING.md
+    purpose: Defines how consumer repositories are wired to the shared runtime surface through .cursor symlinks that resolve back into IDE Development and core.
+    when_to_read:
+      - when creating or validating consumer repository wiring
+      - when checking symlink integrity and backward compatibility
+    dependencies:
+      - workspace-adoption
+      - .cursor/import-core.md
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+      - maintainers
+    status: active
+    tags:
+      - workspace
+      - wiring
+      - symlink
+      - compatibility
+
+  - id: legacy-cleanup
+    path: .cursor/workspace/LEGACY-CLEANUP.md
+    purpose: Defines how existing .cursor folders, legacy LiNKdev remnants, obsolete adapters, and uncertain artifacts are reviewed, preserved, backed up, or replaced during workspace adoption.
+    when_to_read:
+      - when legacy repository state must be inspected before wiring
+      - when deciding what can be safely replaced versus preserved
+    dependencies:
+      - workspace-adoption
+      - .cursor/session/HANDOFF-REPORT.md
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+      - maintainers
+    status: active
+    tags:
+      - workspace
+      - cleanup
+      - legacy
+      - safety
+
+  - id: workspace-report
+    path: .cursor/workspace/WORKSPACE-REPORT.md
+    purpose: Defines the canonical adoption report for recording discovery results, cleanup decisions, repository wiring, backups, and rollback inputs.
+    when_to_read:
+      - when producing a workspace adoption report
+      - when reviewing one-time workspace installation results
+    dependencies:
+      - workspace-adoption
+      - .cursor/workspace/WORKSPACE-DISCOVERY.md
+      - .cursor/workspace/REPO-WIRING.md
+      - .cursor/workspace/LEGACY-CLEANUP.md
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+      - maintainers
+    status: active
+    tags:
+      - workspace
+      - report
+      - adoption
+      - continuity
