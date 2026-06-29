@@ -10,6 +10,7 @@ Use this file when the task is already clear and you want the shortest safe rout
 4. Select the preferred command:
    - `plan-program`
    - `plan-module`
+   - `small-change`
    - `complete-module`
    - `execute-issue`
    - `review-issue`
@@ -22,6 +23,7 @@ Use this file when the task is already clear and you want the shortest safe rout
 
 - new idea or objective: `plan-program`
 - new module: `plan-module`
+- tiny low-risk bug or simple bounded change: `small-change`
 - complete an existing module: `complete-module`
 - execute one ready issue: `execute-issue`
 - evaluate proof: `review-issue`
@@ -31,6 +33,7 @@ Use this file when the task is already clear and you want the shortest safe rout
 
 - program-level work: `INTENT.md`, then `PROGRAM.md`
 - module-level work: `MODULE.md`, `PHASE.md`, `ISSUE.md`
+- small-change work: compact `ISSUE.md` or issue-adjacent record, then concise `PROOF`, `REVIEW`, and `INTEGRATION`
 - issue-level work: `ISSUE.md`, then `PROOF.md`, `REVIEW.md`, `INTEGRATION.md`
 
 ## Anti-Incompletion Reminders

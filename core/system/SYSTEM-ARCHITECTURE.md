@@ -30,6 +30,24 @@ The `.cursor` system is:
 - implementation-free at the specification level
 - compatible with human and AI runtimes
 
+## Enforcement Model
+
+The system is intentionally compliance-based rather than controller-based.
+
+Cursor and Codex primarily operate by reading repository-visible instructions, artifacts, rules, prompts, and files. Because of that, the durable control mechanism is:
+
+- clear doctrine
+- explicit artifacts
+- visible state
+- dependency gates
+- proof requirements
+- review and integration handoffs
+- progressive-disclosure read paths
+
+An executable controller is not required for the core system to work as designed. Adding one would make sense only as an optional adapter for a specific runtime that can actually delegate execution through that controller.
+
+The core must remain usable when the only available runtime is an AI agent operating inside a repository.
+
 ## Layer Interaction Summary
 
 ### Doctrine

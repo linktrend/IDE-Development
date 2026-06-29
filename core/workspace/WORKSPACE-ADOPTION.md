@@ -47,6 +47,20 @@ It is not:
 
 After adoption is complete, normal work should continue through the existing session lifecycle and execution model.
 
+## Installation Model
+
+Workspace adoption is intentionally symlink-based.
+
+It does not require a separate installer script when:
+
+- the `IDE Development` repository is present inside the workspace
+- consumer repositories can resolve `.cursor` to `../IDE Development/.cursor`
+- `.cursor/README.md`, `.cursor/commands/INDEX.yaml`, and `.cursor/templates/INDEX.yaml` are reachable from the consumer repository
+
+The system is designed this way because Cursor and Codex consume repository-visible instructions and files. The installable unit is the visible workspace structure, not a background service.
+
+An automated verifier is optional future convenience, not a prerequisite for adoption.
+
 ## Adoption Sequence
 
 1. determine the active workspace from the current chat-visible filesystem context

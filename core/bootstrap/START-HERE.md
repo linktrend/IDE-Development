@@ -41,6 +41,7 @@ Discovery path selection:
 
 - greenfield or ambiguous work: `DISCOVERY -> INTERVIEW -> INTENT`
 - routine new work: `INTENT`
+- tiny low-risk bug or simple bounded change: `SMALL-CHANGE -> PROOF -> REVIEW -> INTEGRATION`
 - bugfix or atomic work: `ISSUE`
 
 ## Minimum Required System

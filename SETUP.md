@@ -73,6 +73,23 @@ Workspace adoption is one-time.
 
 Session lifecycle remains the daily operational behavior after adoption.
 
+## Installer Position
+
+No separate installer script is required for normal use.
+
+The intended installation model is:
+
+- keep `IDE Development` as a folder in the workspace
+- keep `IDE Development/core` as canonical knowledge
+- keep `IDE Development/.cursor` as the shared runtime surface
+- wire consumer repositories to that runtime surface with `.cursor` symlinks
+
+For Cursor, the practical requirement is that the workspace can see the `IDE Development` folder and the consumer repository `.cursor` symlink resolves correctly.
+
+For Codex, the practical requirement is that agents can discover the repository and follow the `.cursor` compatibility paths into `core`.
+
+An installer or verifier may be added later if manual adoption becomes error-prone across many machines, but it is not part of the required v1 operating model.
+
 ## Make Changes Safely
 
 Use one working copy at a time for active edits. Do not make overlapping manual changes on both the MacBook and Mac Mini and then try to reconcile them later.

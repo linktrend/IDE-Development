@@ -98,6 +98,40 @@ entries:
       - module
       - preferred
 
+  - id: small-change
+    path: .cursor/commands/small-change.md
+    purpose: Preferred lightweight command wrapper for tiny low-risk bugs or simple changes that still require proof, review, and integration.
+    when_to_use:
+      - when executing a tiny low-risk bug fix
+      - when making a simple bounded change that does not need full program or module planning
+      - when a user says "make this small change" or equivalent
+    underlying_prompt: .cursor/prompts/execution/SMALL-CHANGE.md
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    required_templates:
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/templates/INTEGRATION.md
+    required_agents:
+      - orchestrator
+      - reviewer
+      - integrator
+    expected_output:
+      - compact issue record or issue update
+      - implemented change
+      - concrete proof
+      - review verdict
+      - integration record
+    status: active
+    tags:
+      - command
+      - execution
+      - issue
+      - lightweight
+      - preferred
+
   - id: complete-module
     path: .cursor/commands/complete-module.md
     purpose: Preferred command wrapper for recursive module execution through readiness, proof, review, and integration.
@@ -220,9 +254,31 @@ entries:
       - issue
       - preferred
 
+  - id: archived-compatibility-commands
+    path: .cursor/commands/README.md
+    purpose: Archive and compatibility section for retained legacy and deprecated command wrappers.
+    when_to_use:
+      - when maintaining backward compatibility
+      - when an older workflow explicitly references a legacy command
+      - when validating that canonical commands are preferred for new work
+    underlying_prompt: none
+    required_doctrine:
+      - .cursor/README.md
+      - .cursor/commands/INDEX.yaml
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - route old command names without changing canonical execution behavior
+    status: compatibility-archive
+    tags:
+      - archive
+      - compatibility
+      - legacy
+      - not-preferred
+
   - id: linkdev-go
     path: .cursor/commands/linkdev-go.md
-    purpose: Legacy compatibility command for older planning flows.
+    purpose: Archived compatibility command for older planning flows.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-go
     underlying_prompt: .cursor/prompts/planner/ROLE.md
@@ -236,16 +292,17 @@ entries:
       - project-planner
     expected_output:
       - legacy planning flow output
-    status: legacy
+    status: compatibility-archive
     tags:
       - command
+      - archive
       - legacy
       - compatibility-only
       - not-preferred
 
   - id: linkdev-dispatch
     path: .cursor/commands/linkdev-dispatch.md
-    purpose: Legacy compatibility command retained for older dispatch flows.
+    purpose: Archived compatibility command retained for older dispatch flows.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-dispatch
     underlying_prompt: .cursor/prompts/setup/DISPATCH-INSTALL.md
@@ -255,16 +312,17 @@ entries:
     required_agents: []
     expected_output:
       - legacy dispatch setup behavior
-    status: legacy
+    status: compatibility-archive
     tags:
       - command
+      - archive
       - legacy
       - compatibility-only
       - not-preferred
 
   - id: linkdev-ui-automations
     path: .cursor/commands/linkdev-ui-automations.md
-    purpose: Deprecated legacy compatibility alias retained for older UI automation flows.
+    purpose: Archived deprecated compatibility alias retained for older UI automation flows.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-ui-automations
     underlying_prompt: .cursor/prompts/setup/DISPATCH-INSTALL.md
@@ -274,9 +332,10 @@ entries:
     required_agents: []
     expected_output:
       - legacy setup behavior
-    status: deprecated
+    status: compatibility-archive
     tags:
       - command
+      - archive
       - legacy
       - deprecated
       - alias
@@ -285,7 +344,7 @@ entries:
 
   - id: linkdev-wire-post-dispatch
     path: .cursor/commands/linkdev-wire-post-dispatch.md
-    purpose: Legacy compatibility command retained for older post-dispatch wiring.
+    purpose: Archived compatibility command retained for older post-dispatch wiring.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-wire-post-dispatch
     underlying_prompt: .cursor/prompts/setup/WIRE-POST-DISPATCH.md
@@ -295,16 +354,17 @@ entries:
     required_agents: []
     expected_output:
       - legacy post-dispatch wiring behavior
-    status: legacy
+    status: compatibility-archive
     tags:
       - command
+      - archive
       - legacy
       - compatibility-only
       - not-preferred
 
   - id: linkdev-wire-post-ui
     path: .cursor/commands/linkdev-wire-post-ui.md
-    purpose: Deprecated legacy compatibility alias retained for older post-UI wiring.
+    purpose: Archived deprecated compatibility alias retained for older post-UI wiring.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-wire-post-ui
     underlying_prompt: .cursor/prompts/setup/WIRE-POST-DISPATCH.md
@@ -314,9 +374,10 @@ entries:
     required_agents: []
     expected_output:
       - legacy post-ui wiring behavior
-    status: deprecated
+    status: compatibility-archive
     tags:
       - command
+      - archive
       - legacy
       - deprecated
       - alias
@@ -325,7 +386,7 @@ entries:
 
   - id: wire-linkdev
     path: .cursor/commands/wire-linkdev.md
-    purpose: Legacy compatibility command retained for older wire flows.
+    purpose: Archived compatibility command retained for older wire flows.
     when_to_use:
       - only when an existing workflow explicitly references wire-linkdev
     underlying_prompt: .cursor/prompts/setup/WIRE.md
@@ -335,9 +396,10 @@ entries:
     required_agents: []
     expected_output:
       - legacy wiring behavior
-    status: legacy
+    status: compatibility-archive
     tags:
       - command
+      - archive
       - legacy
       - compatibility-only
       - not-preferred
