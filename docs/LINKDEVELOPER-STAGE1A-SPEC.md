@@ -272,6 +272,7 @@ The only LiNKdev content with any ongoing value, per this audit, is the internal
 - **File:** `/Users/linktrend/Projects/IDE Development/.cursor/rules/00-linkdev-bootstrap.mdc`
 - **Current state:** `alwaysApply: true`, content correctly excludes LiNKdev as a dependency, but the filename itself invokes "linkdev" in a way that could be misread as endorsing it.
 - **Recommendation for Stage 1b:** rename the file (e.g., to `00-bootstrap.mdc`) and update any cross-references, while preserving the alwaysApply behavior and the "do not depend on LiNKdev" content unchanged. This is a rename-only change; no doctrine content changes are proposed here per the working rule against modifying `core/` files without a clear factual error.
+- **Status:** Bootstrap rule renamed to `00-bootstrap.mdc` in Stage 1b (2026-07-10).
 
 ### D.4 Summary table — LiNKdev references found in this repo (all already treated as legacy, none active)
 

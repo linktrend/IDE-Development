@@ -1,13 +1,21 @@
 # LiNKdeveloper Stage 1 — Declaration
 
-**Status:** Stage 1a (Define Workflow) complete, pending Carlos/Lisa review.
+**Status:** **Complete** — see `docs/LINKDEVELOPER-STAGE1-CLOSURE.md`  
 **Date:** 2026-07-10
 
 ## This repository IS LiNKdeveloper Stage 1
 
-This repository (`IDE Development`) is **LiNKdeveloper Stage 1**: a semi-manual application factory operating system. It provides the common workflow blueprint — doctrine, artifacts, workflows, contracts, and state model — that governs how any LiNKtrend factory (Website, Application, Automation, Content) turns an intent into an integrated, proven, released piece of work.
+This repository (`IDE Development`) is **LiNKdeveloper Stage 1**: the semi-manual **Application Factory** operating system.
 
-Stage 1 does not replace this repository's existing identity. It is a role this repository plays: the governed execution core for semi-manual, human-supervised factory work, as already described in `README.md` and `SETUP.md`.
+It provides the **development workflow blueprint** — doctrine, artifacts, workflows, contracts, and state model — for building venture applications:
+
+```
+Intent → Program → Module → Phase → Issue → Proof → Review → Integration → Complete
+```
+
+**This is not the operations workflow** for Website, Automation, or Content factories. Those factories use the **Factory Operations Common Blueprint** in `docs/FACTORY-OPERATIONS-BLUEPRINT.md` (Program → Module → Stage → Issue → Run → Gate, factory controller trigger, shared internal data architecture).
+
+IDE Development is also the **tool** used to finish factory implementation gaps in other repos — it is not copied into each factory folder.
 
 ## Naming stays unchanged
 
@@ -20,7 +28,7 @@ Stage 1 does not replace this repository's existing identity. It is a role this 
 
 `LiNKdeveloper` (as a separate repository at `/Users/linktrend/Projects/LiNKdeveloper`) is **Stage 2**: a fully autonomous orchestrator runtime — LiNKdeveloper's own docs describe an "autonomous, continuous lifecycle" driven by an internal orchestrator, executor routing policy, and issue/work-packet schema (see `LiNKdeveloper/docs/SOFTWARE_DEVELOPMENT_LIFECYCLE_MODEL.md`, `EXECUTOR_ROUTING_POLICY.md`).
 
-Stage 2 is **read-only reference** for Stage 1 work. It is not built, extended, wired, or depended upon during Stage 1. It exists to show where the semi-manual workflow defined here is eventually headed once autonomy is added. Stage 1 borrows *concepts* (lifecycle stage names, governance gates, work-packet shape) from Stage 2's docs for the Application Factory variant mapping — it does not borrow code, infrastructure, or runtime behavior.
+Stage 2 is **read-only reference** for Stage 1 work. It is not built, extended, wired, or depended upon during Stage 1. Stage 1 borrows *concepts* (lifecycle stage names, governance gates, work-packet shape) from Stage 2's docs for the Application Factory mapping — it does not borrow code, infrastructure, or runtime behavior.
 
 ## LiNKdev is legacy and excluded
 
@@ -28,19 +36,28 @@ Stage 2 is **read-only reference** for Stage 1 work. It is not built, extended, 
 
 This repository's own doctrine already treats LiNKdev as legacy, not active:
 
-- `.cursor/rules/00-linkdev-bootstrap.mdc` (alwaysApply: true) states: *"Do not depend on `LiNKdev`, chat memory, IDE memory, or unstated assumptions."*
+- `.cursor/rules/00-bootstrap.mdc` states: *"Do not depend on `LiNKdev`, chat memory, IDE memory, or unstated assumptions."*
 - `core/workspace/WORKSPACE-ADOPTION.md` lists "legacy LiNKdev remnants" as something to inspect and clean up during workspace adoption, not something to install.
 - `core/checklists/wire-checklist.md` requires confirming "no required runtime dependency on `LiNKdev`" before a repo is considered wired.
-- `core/skills/SKILLS_CATALOG.md` and `core/reports/SKILL-MIGRATION-PASS-1.md` reference `LiNKtrend-System/LiNKdev/skills/gstack` only as a **historical content source to mine selectively**, not as an active dependency.
 
-Stage 1 does not change this posture. LiNKdev appears in the Stage 1a spec only under legacy-to-migrate notes — never as an active system, dependency, or parallel workflow. See the Stage 1a spec, Section D, for the full legacy-exclusion treatment, including a naming collision this audit surfaced between LiNKdev's internal legacy `gstack` folder and the external `garrytan/gstack` Layer 2 skill source.
+See the Stage 1a spec, Section D, for the full legacy-exclusion treatment.
 
-## Three autonomy stages
+## Stage 1 deliverables
 
-| Stage | Name | Handoff model | Status |
-|---|---|---|---|
-| **1a** | Define Workflow | Human defines; spec produced | **Complete — this deliverable set** |
-| **1b** | Semi-manual development | Human approves; agent assists inside issues | Begins after 1a is approved by Carlos and Lisa |
-| **2** | Mostly/fully autonomous | LiNKdeveloper orchestrator + OpenClaw dispatch | Future — out of scope for this repository today |
+| Phase | Name | Status |
+|---|---|---|
+| **1a** | Define Application Factory workflow + skills | **Complete** |
+| **1b** | Semi-manual OS (bootstrap, equivalence, policies) | **Complete** |
+| **Blueprint** | Factory operations common blueprint | **Complete** |
+| **2** | Mostly/fully autonomous (LiNKdeveloper + OpenClaw) | Future |
 
-Full detail on blueprint verification, the Application Factory variant, the skills architecture, and acceptance criteria is in `docs/LINKDEVELOPER-STAGE1A-SPEC.md`. Execution evidence for this audit is in `docs/LINKDEVELOPER-STAGE1A-REPORT.md`.
+Full detail:
+
+- Application Factory: `docs/LINKDEVELOPER-STAGE1A-SPEC.md`
+- Stage 1b: `docs/LINKDEVELOPER-STAGE1B-REPORT.md`
+- Operations factories: `docs/FACTORY-OPERATIONS-BLUEPRINT.md`
+- Closure: `docs/LINKDEVELOPER-STAGE1-CLOSURE.md`
+
+## Next work
+
+Finish **Website Factory** under the operations blueprint — first product build for LiNKdeveloper Stage 1. See `docs/LINKSITES-FACTORY-SETUP-REPORT.md` for setup status and open items.

@@ -1,0 +1,11 @@
+---
+description: "LiNKsites CMS, templates, and packages"
+globs: "apps/**,packages/**"
+alwaysApply: false
+---
+
+# Sites implementation
+
+- Content model changes belong in `apps/cms` with migrations/scripts as per project SOPs.
+- Template changes in `web-master` / `web-company` should stay consistent with design tokens and shared packages.
+- Read `docs/README.md` before large refactors—docs index is the operator entry point.
