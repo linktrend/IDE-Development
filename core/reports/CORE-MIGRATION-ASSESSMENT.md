@@ -40,7 +40,7 @@ The current system assumes `.cursor/` in multiple structural ways.
 
 - `README.md` says the active system lives in `.cursor/`
 - `.cursor/README.md` says `.cursor/` is the active source of truth
-- `.cursor/rules/00-linkdev-bootstrap.mdc` declares `.cursor/` as the source of truth and hard-codes `.cursor/...` read order
+- `.cursor/rules/00-bootstrap.mdc` declares `.cursor/` as the source of truth and hard-codes `.cursor/...` read order
 - bootstrap documents route operators to `.cursor/bootstrap/START-HERE.md`, `.cursor/commands/INDEX.yaml`, `.cursor/execution/INDEX.yaml`, and `.cursor/templates/INDEX.yaml`
 
 ### 2. Indexes encode `.cursor` paths

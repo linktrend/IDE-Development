@@ -1,6 +1,6 @@
 # LiNKdeveloper Stage 1 — Declaration
 
-**Status:** **Complete** — see `docs/LINKDEVELOPER-STAGE1-CLOSURE.md`  
+**Status:** **Complete — verified for use** — see [`docs/LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md`](LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md) and [`docs/LINKDEVELOPER-STAGE1-CLOSURE.md`](LINKDEVELOPER-STAGE1-CLOSURE.md)  
 **Date:** 2026-07-10
 
 ## This repository IS LiNKdeveloper Stage 1
@@ -60,4 +60,4 @@ Full detail:
 
 ## Next work
 
-Finish **Website Factory** under the operations blueprint — first product build for LiNKdeveloper Stage 1. See `docs/LINKSITES-FACTORY-SETUP-REPORT.md` for setup status and open items.
+**Carlos develops using the LiNKdeveloper workspace;** factory operations implementation is deferred. See [`docs/LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md`](LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md) for the verified readiness verdict and [`docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md`](LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md) for day-to-day operation.

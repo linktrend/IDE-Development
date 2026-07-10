@@ -1,6 +1,8 @@
 # Factory Operations Common Blueprint
 
-**Status:** Locked — Carlos/Lisa alignment 2026-07-10  
+> **Status: Planning only — not implemented.** No Supabase, LiNKbrain, LiNKskills, or factory infrastructure in this blueprint is built until Carlos explicitly starts factory ops work.
+
+**Status:** Locked — Carlos/Lisa alignment 2026-07-10 (design document only; see banner above)  
 **Scope:** Website, Automation, and Content factories (operations domain)  
 **Out of scope:** Application Factory (LiNKdeveloper dev workflow), Trading (not a factory), LiNKaios (deferred), LiNKdev (legacy)
 

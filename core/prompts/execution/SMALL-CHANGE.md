@@ -3,7 +3,7 @@
 ## Read First
 
 1. `.cursor/README.md`
-2. `.cursor/rules/00-linkdev-bootstrap.mdc`
+2. `.cursor/rules/00-bootstrap.mdc`
 3. `.cursor/execution/INDEX.yaml`
 4. `.cursor/execution/MINIMUM-RUNTIME-MODEL.md`
 5. `.cursor/templates/ISSUE.md`
