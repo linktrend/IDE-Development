@@ -19,7 +19,7 @@ Ten historical audit and completion documents were relocated via `git mv`:
 | `LINKDEVELOPER-STAGE1-HYBRID-REPORT.md` | Hybrid skills install report |
 | `LINKDEVELOPER-STAGE1-TEST-RUNBOOK.md` | Supervised smoke test runbook |
 | `LINKSITES-FACTORY-SETUP-REPORT.md` | LinkSites factory setup audit |
-| `SKILLS-SUNSET-REPORT.md` | Layer 1 skills sunset audit |
+| `SKILLS-SUNSET-REPORT.md` | Sunset skills audit (archived report) |
 | `CORE-CURSOR-EQUIVALENCE-REPORT.md` | core/ vs .cursor/ equivalence audit |
 | `COPY-FIRST-UI-RESKIN-POLICY.md` | Copy-first UI reskin policy |
 

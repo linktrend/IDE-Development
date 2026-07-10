@@ -17,8 +17,8 @@ Use this skill when deciding how the system should handle a request. Carlos uses
 ## Routing order
 
 1. **Identify Carlos's trigger** — New idea (Trigger 1), PRD in hand (Trigger 2), or Existing software (Trigger 3). See `docs/LINKDEVELOPER-OPERATIONS-MANUAL.md` (triggers and routing).
-2. **Select hybrid macro or micro** — gstack (Layer 2) or mattpocock (Layer 3) per trigger stage. Registry: `docs/HYBRID-SKILLS-REGISTRY.md`.
-3. **Select domain skills** — Layer 1 locals from `SKILLS_CATALOG.md` when hybrid does not cover the concern (APIs, UI, deploy execution, etc.).
+2. **Select hybrid macro or micro** — gstack (macro) or mattpocock skills (micro) per trigger stage. Registry: `docs/HYBRID-SKILLS-REGISTRY.md`.
+3. **Select domain skills** — IDE Development core locals from `SKILLS_CATALOG.md` when hybrid does not cover the concern (APIs, UI, deploy execution, etc.).
 4. **Select internal artifact commands** — only when work is decomposed into the canonical graph (`plan-program`, `execute-issue`, …).
 5. **Select agent roles** as resources, not as the control structure.
 6. **Load only required artifacts** — progressive disclosure (Law 19).
@@ -34,40 +34,43 @@ Use this skill when deciding how the system should handle a request. Carlos uses
 5. mattpocock `/to-prd` when formalizing the PRD.
 6. **Stop for Carlos approval** — spec/PRD gate before development.
 7. Route app (LiNKapps starter kit) vs factory (`docs/FACTORY-OPERATIONS-BLUEPRINT.md`).
-8. Layer 1: `plan-program` → `plan-module` → execution commands.
+8. Core commands: `plan-program` → `plan-module` → execution commands.
 
 ### Trigger 2 — PRD in hand
 
 1. mattpocock `/grill-with-docs` — clarify gaps against docs and codebase.
 2. **Stop for Carlos approval** — clarified PRD gate.
 3. mattpocock `/to-issues` — slice into dependency-aware issues.
-4. Layer 1: `execute-issue` → proof → `review-issue` → `integrate-issue`.
+4. Core commands: `execute-issue` → proof → `review-issue` → `integrate-issue`.
 5. During execution: mattpocock `/tdd`, `/diagnosing-bugs`; domain skills as needed.
 
 ### Trigger 3 — Existing software
 
 1. Assess codebase — scope, gaps, risks.
 2. gstack `/health` when project health or gate discipline is unclear.
-3. Plan: Layer 1 `plan-module` or `small-change`; mattpocock `/improve-codebase-architecture` for structural refactors.
+3. Plan: core `plan-module` or `small-change`; mattpocock `/improve-codebase-architecture` for structural refactors.
 4. **Carlos approves** when direction is unclear or high-impact.
-5. Develop with domain skills + `/tdd`; Layer 1 gates always apply.
-6. gstack `/ship` only after Layer 1 integration passes — does not replace review or integration.
+5. Develop with domain skills + `/tdd`; core integration gates always apply.
+6. gstack `/ship` only after core integration passes — does not replace review or integration.
 
 ## Hybrid command index
 
-| Concern | Command entrypoint | Fork skill path |
-|---|---|---|
-| Spec | `hybrid-spec` | `/Users/linktrend/Projects/gstack/spec/SKILL.md` |
-| CEO plan review | `hybrid-plan-ceo-review` | `.../gstack/plan-ceo-review/SKILL.md` |
-| Health | `hybrid-health` | `.../gstack/health/SKILL.md` |
-| Ship | `hybrid-ship` | `.../gstack/ship/SKILL.md` |
-| Context save/restore | `hybrid-context-save`, `hybrid-context-restore` | `.../gstack/context-save/SKILL.md`, `context-restore/SKILL.md` |
-| Clarify PRD | `hybrid-grill` | `.../skills/skills/engineering/grill-with-docs/SKILL.md` |
-| PRD synthesis | `hybrid-to-prd` | `.../skills/skills/engineering/to-spec/SKILL.md` |
-| Issue slicing | `hybrid-to-issues` | `.../skills/skills/engineering/to-tickets/SKILL.md` |
-| TDD | `hybrid-tdd` | `.../skills/skills/engineering/tdd/SKILL.md` |
-| Debugging | `hybrid-diagnosing-bugs` | `.../skills/skills/engineering/diagnosing-bugs/SKILL.md` |
-| Architecture improve | `hybrid-improve-architecture` | `.../skills/skills/engineering/improve-codebase-architecture/SKILL.md` |
+**gstack (macro):**
+
+- Spec — `hybrid-spec` → `/Users/linktrend/Projects/gstack/spec/SKILL.md`
+- CEO plan review — `hybrid-plan-ceo-review` → `.../gstack/plan-ceo-review/SKILL.md`
+- Health — `hybrid-health` → `.../gstack/health/SKILL.md`
+- Ship — `hybrid-ship` → `.../gstack/ship/SKILL.md`
+- Context save/restore — `hybrid-context-save`, `hybrid-context-restore` → `.../gstack/context-save/SKILL.md`, `context-restore/SKILL.md`
+
+**mattpocock skills (micro):**
+
+- Clarify PRD — `hybrid-grill` → `.../skills/skills/engineering/grill-with-docs/SKILL.md`
+- PRD synthesis — `hybrid-to-prd` → `.../skills/skills/engineering/to-spec/SKILL.md`
+- Issue slicing — `hybrid-to-issues` → `.../skills/skills/engineering/to-tickets/SKILL.md`
+- TDD — `hybrid-tdd` → `.../skills/skills/engineering/tdd/SKILL.md`
+- Debugging — `hybrid-diagnosing-bugs` → `.../skills/skills/engineering/diagnosing-bugs/SKILL.md`
+- Architecture improve — `hybrid-improve-architecture` → `.../skills/skills/engineering/improve-codebase-architecture/SKILL.md`
 
 ## Domain skill shortcuts
 
@@ -108,7 +111,7 @@ Failed validation must not silently retry. Per archived Stage 2 reference `EXECU
 - Do not skip proof, review, or integration for speed.
 - Do not choose multiple overlapping skills when one is enough.
 - Do not treat specialist agents as sequence drivers.
-- gstack `/ship` and macro QA do not override Layer 1 gates.
+- gstack `/ship` and macro QA do not override core integration gates.
 - Record blockers when routing cannot proceed.
 
 ## Output
@@ -116,7 +119,7 @@ Failed validation must not silently retry. Per archived Stage 2 reference `EXECU
 - Carlos trigger (1, 2, or 3)
 - selected hybrid command(s) if any
 - selected domain skill(s) if any
-- selected Layer 1 command if any
+- selected core command if any
 - active artifact level
 - required reads
 - reason for route

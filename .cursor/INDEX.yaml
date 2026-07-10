@@ -50,7 +50,7 @@ entries:
       - when validating backward compatibility
     dependencies:
       - .cursor/README.md
-      - core/reports/V1.0.1-MIGRATION.md
+      - docs/archive/core-reports/V1.0.1-MIGRATION.md
     consumers:
       - maintainers
       - Cursor

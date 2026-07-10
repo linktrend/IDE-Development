@@ -107,6 +107,29 @@ pass "Hybrid command entrypoints present"
 [ -f "docs/LINKDEVELOPER-OPERATIONS-MANUAL.md" ] || fail "Missing docs/LINKDEVELOPER-OPERATIONS-MANUAL.md"
 pass "Operations manual present"
 
+[ ! -f "docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md" ] || fail "Retired doc must be removed: docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md"
+pass "Workspace operator guide retired (file absent)"
+
+# --- No layer terminology in active docs (excluding docs/archive/) ---
+while IFS= read -r -d '' file; do
+  case "$file" in
+    docs/archive/*|docs/adoption-backups/*) continue ;;
+  esac
+  if grep -qiE 'Layer [123]|three\.layer' "$file" 2>/dev/null; then
+    fail "Forbidden layer terminology in active doc $file (Layer [123] or three.layer)"
+  fi
+done < <(find docs -type f -name '*.md' -print0 2>/dev/null)
+pass "Active docs free of Layer 1/2/3 and three.layer terminology"
+
+# --- No legacy linkdev commands at core/commands/ root ---
+shopt -s nullglob
+linkdev_cmds=(core/commands/linkdev-*.md)
+shopt -u nullglob
+if [ "${#linkdev_cmds[@]}" -gt 0 ]; then
+  fail "Legacy linkdev command(s) at core/commands root (use compatibility-archive/): ${linkdev_cmds[*]}"
+fi
+pass "No linkdev-*.md at core/commands/ root"
+
 [ -f "docs/ARCHIVE-INDEX.md" ] || fail "Missing docs/ARCHIVE-INDEX.md"
 pass "Archive index present"
 

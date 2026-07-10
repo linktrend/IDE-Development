@@ -26,7 +26,7 @@ Use this skill when a task changes repository structure, shared artifacts, branc
 1. Keep canonical knowledge in `core/`.
 2. Preserve `.cursor/` compatibility paths.
 3. Prefer updating existing indexes over creating parallel navigation.
-4. Keep reports under `core/reports/` unless they are session handoffs.
+4. Keep historical design and audit reports under `docs/archive/core-reports/`.
 5. Keep session handoffs under `docs/handoff/`.
 6. Do not duplicate shared runtime content into consumer repositories when symlinks are intended.
 7. Record protective cleanup decisions in a report when they affect future operators.

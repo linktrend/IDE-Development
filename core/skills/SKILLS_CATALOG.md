@@ -12,7 +12,7 @@ Use this file to route into local domain skills and hybrid macro/micro skills.
 
 ---
 
-## Hybrid macro (gstack — Layer 2)
+## Hybrid macro (gstack)
 
 **Fork:** https://github.com/linktrend/gstack  
 **Local clone:** `/Users/linktrend/Projects/gstack`  
@@ -23,14 +23,14 @@ Command entrypoints: `core/commands/hybrid-spec.md`, `hybrid-plan-ceo-review.md`
 - **`/spec`** — structured specification from vague intent (Trigger 1)
 - **`/plan-ceo-review`** — executive plan review before large decomposition
 - **`/health`** — project health and repair loops (Trigger 3 assess)
-- **`/ship`** — ship verdict; subordinate to Layer 1 integration gates
+- **`/ship`** — ship verdict; subordinate to core integration gates
 - **`/context-save`**, **`/context-restore`** — session persistence across long runs
 
 Extended fork skills (`/review`, `/qa`, `/retro`, `/learn`) available for macro QA and retros after module work.
 
 ---
 
-## Hybrid micro (mattpocock — Layer 3)
+## Hybrid micro (mattpocock skills)
 
 **Fork:** https://github.com/linktrend/skills  
 **Local clone:** `/Users/linktrend/Projects/skills`  
@@ -49,7 +49,7 @@ Setup once per machine: `skills/engineering/setup-matt-pocock-skills/SKILL.md` i
 
 ---
 
-## Domain skills (kept locals — Layer 1)
+## Domain skills (IDE Development core)
 
 Forty local skills remain after hybrid sunset. Grouped by concern.
 

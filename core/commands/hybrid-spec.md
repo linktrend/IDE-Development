@@ -4,4 +4,4 @@ Use under **Trigger 1 (New idea)** after interview, before Carlos approves the s
 
 Read and execute `/Users/linktrend/Projects/gstack/spec/SKILL.md`.
 
-Layer 1 gates still apply. Registry: `docs/HYBRID-SKILLS-REGISTRY.md`.
+Core integration gates still apply. Registry: `docs/HYBRID-SKILLS-REGISTRY.md`.

@@ -4,27 +4,25 @@
 **Date:** 2026-07-10  
 **Status:** Active — Stage 1 operational; Stage 2/3 in preparation
 
-This manual is the canonical operator reference for LiNKdeveloper. It replaces the workspace operator guide for day-to-day use and reflects the archive mission completed on 2026-07-10: legacy runtimes are retired; one active system remains.
+This manual is the canonical operator reference for LiNKdeveloper. It replaces the workspace operator guide for day-to-day use.
 
 ---
 
 ## 1. System identity
 
-**LiNKdeveloper is IDE Development.** The local folder is `IDE Development` at `/Users/linktrend/Projects/IDE Development`. The GitHub repository remains `linktrend/IDE-Development`. No rename is required — the product name and the folder name are intentionally aligned in meaning, not spelling.
+**LiNKdeveloper is IDE Development.** The local folder is `IDE Development` at `/Users/linktrend/Projects/IDE Development`. The GitHub repository remains `linktrend/IDE-Development`. The product name and folder name are intentionally aligned in meaning, not spelling.
 
 LiNKdeveloper is the unified development system for planning and building venture software with AI assistance. It holds rules, skills, templates, doctrine, and execution commands. Product repositories hold the code and content being built.
 
-**Archive mission (Phase 1 complete).** Earlier experiments and duplicate runtimes are archived on disk and on GitHub. They are not part of daily operation. See [`docs/ARCHIVE-INDEX.md`](ARCHIVE-INDEX.md) for retired systems, archive paths, and when Stage 1 may read from archive.
+Earlier experiments and duplicate runtimes are retired. They are not part of daily operation. See [`docs/ARCHIVE-INDEX.md`](ARCHIVE-INDEX.md) for retired systems, archive paths, and when you may read from archive. Do not add archived folders to the workspace or wire product repos to them.
 
-Do not add archived folders to the workspace or wire product repos to them.
+**One system, three installed sources:**
 
-**Unified runtime — three installed sources, one operating surface:**
-
-1. **IDE Development core** — canonical knowledge in `core/` and the Cursor runtime surface in `.cursor/` (mostly symlinks into `core/`). This is Layer 1: doctrine, gates, proof/review/integration, and domain skills.
+1. **IDE Development core** — canonical knowledge in `core/` and the Cursor runtime surface in `.cursor/` (mostly symlinks into `core/`). Doctrine, gates, proof/review/integration, and domain skills live here.
 2. **gstack (macro)** — cloned at `/Users/linktrend/Projects/gstack`, fork https://github.com/linktrend/gstack. Handles specification, executive plan review, health checks, shipping verdicts, and session context.
 3. **mattpocock/skills (micro)** — cloned at `/Users/linktrend/Projects/skills`, fork https://github.com/linktrend/skills. Handles PRD clarification, issue slicing, test-driven development, debugging, and architecture improvement.
 
-You operate one system. Agents route across all three sources through the hybrid registry — you do not manage separate tiers manually.
+You operate one system. Agents route across all three sources through the hybrid registry — you do not manage separate sources manually.
 
 The saved workspace file **LiNKdeveloper** groups the system repo with product repos you are actively building. Add product folders to the workspace when you need them; remove them when work pauses.
 
@@ -229,7 +227,7 @@ The **Application Factory workflow** (this manual, IDE Development commands, and
 
 Cursor commands under `.cursor/commands/` are **agent entry points** for structured execution inside IDE Development. You do not type these as your primary workflow — you use natural language and the three triggers in Section 3. Agents invoke commands when the task fits.
 
-### Layer 1 — execution commands (primary)
+### IDE Development execution commands
 
 1. **`plan-program`** — new product idea or objective; produces validated intent, program artifact, and initial module structure
 2. **`plan-module`** — program exists; breaks a module into phases and issues with dependencies and acceptance criteria
@@ -247,7 +245,7 @@ plan-program  →  plan-module  →  complete-module
                               execute-issue  →  review-issue  →  integrate-issue
 ```
 
-### Hybrid commands (Layer 2 and 3)
+### Hybrid commands (gstack and mattpocock)
 
 Agents select these from triggers; Carlos does not invoke them by name.
 
@@ -258,7 +256,7 @@ Agents select these from triggers; Carlos does not invoke them by name.
 5. **`hybrid-tdd`** — mattpocock `/tdd`; test-driven implementation loop
 6. **`hybrid-diagnosing-bugs`** — mattpocock `/diagnosing-bugs`; systematic debugging
 7. **`hybrid-health`** — gstack `/health`; project health checks (Trigger 3 assess)
-8. **`hybrid-ship`** — gstack `/ship`; shippable vs blocked verdict (subordinate to Layer 1 gates)
+8. **`hybrid-ship`** — gstack `/ship`; shippable vs blocked verdict (subordinate to IDE Development integration and release gates)
 9. **`hybrid-plan-ceo-review`** — gstack `/plan-ceo-review`; executive plan review
 10. **`hybrid-context-save`** and **`hybrid-context-restore`** — session context persistence
 11. **`hybrid-improve-architecture`** — mattpocock `/improve-codebase-architecture`; refactor guidance
@@ -269,7 +267,7 @@ Command definitions live under `.cursor/commands/`. Index: `.cursor/commands/IND
 
 ## 10. What is coming — Stage 2 and Stage 3
 
-**Stage 2 — Mostly autonomous OpenClaw.** OpenClaw executives take over module and issue execution between Carlos gates. Telegram becomes the primary gate and briefing channel. Hybrid skills and Layer 1 commands remain the execution substrate. Design concepts migrate from the archived autonomous runtime into a live OpenClaw orchestration layer wired to IDE Development — without reviving legacy folder structures or duplicate system copies.
+**Stage 2 — Mostly autonomous OpenClaw.** OpenClaw executives take over module and issue execution between Carlos gates. Telegram becomes the primary gate and briefing channel. Hybrid skills and IDE Development commands remain the execution substrate. Design concepts migrate from the archived autonomous runtime into a live OpenClaw orchestration layer wired to IDE Development — without reviving legacy folder structures or duplicate system copies.
 
 **Stage 3 — Fully autonomous OpenClaw.** Continuous lifecycle operation with human policy only. Gates persist; readiness stays artifact-driven. Factory operations infrastructure (ledger, automation controller, factory schemas) comes online when Carlos explicitly starts factory ops work — not before.
 
@@ -282,11 +280,11 @@ Command definitions live under `.cursor/commands/`. Index: `.cursor/commands/IND
 **Key reference documents:**
 
 1. Stage 1 overview — `docs/LINKDEVELOPER-STAGE1.md`
-2. Stage 1 closure — `docs/LINKDEVELOPER-STAGE1-CLOSURE.md`
-3. Hybrid skills registry — `docs/HYBRID-SKILLS-REGISTRY.md`
-4. Workspace adoption — `core/workspace/WORKSPACE-ADOPTION.md`
-5. Repo wiring — `core/workspace/REPO-WIRING.md`
-6. Factory operations (planning) — `docs/FACTORY-OPERATIONS-BLUEPRINT.md`
+2. Hybrid skills registry — `docs/HYBRID-SKILLS-REGISTRY.md`
+3. Workspace adoption — `core/workspace/WORKSPACE-ADOPTION.md`
+4. Repo wiring — `core/workspace/REPO-WIRING.md`
+5. Factory operations (planning) — `docs/FACTORY-OPERATIONS-BLUEPRINT.md`
+6. Historical evidence — `docs/archive/`
 7. Automated Stage 1 re-check — `scripts/verify-stage1.sh`
 
 Your operating surface today: this manual, the LiNKdeveloper workspace, the three triggers, and your approval at the gates in Section 4.

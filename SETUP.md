@@ -13,9 +13,7 @@ The repository also supports:
 
 **New operators:** after cloning, read [docs/LINKDEVELOPER-OPERATIONS-MANUAL.md](docs/LINKDEVELOPER-OPERATIONS-MANUAL.md) for day-to-day instructions.
 
-Stage 1 declaration: [docs/LINKDEVELOPER-STAGE1.md](docs/LINKDEVELOPER-STAGE1.md)
-
-Retired systems: [docs/ARCHIVE-INDEX.md](docs/ARCHIVE-INDEX.md)
+Retired systems and historical evidence: [docs/ARCHIVE-INDEX.md](docs/ARCHIVE-INDEX.md) and [docs/archive/](docs/archive/README.md).
 
 ## Clone On Another Machine
 

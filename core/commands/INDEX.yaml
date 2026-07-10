@@ -319,7 +319,7 @@ entries:
     purpose: mattpocock /to-issues (to-tickets) — slice PRD into atomic issues.
     when_to_use:
       - after Carlos approves PRD/spec
-      - before Layer 1 execute-issue runs
+      - before core execute-issue runs
     underlying_prompt: /Users/linktrend/Projects/skills/skills/engineering/to-tickets/SKILL.md
     required_doctrine:
       - docs/HYBRID-SKILLS-REGISTRY.md
@@ -395,9 +395,9 @@ entries:
 
   - id: hybrid-ship
     path: .cursor/commands/hybrid-ship.md
-    purpose: gstack /ship — shippable vs blocked verdict (subordinate to Layer 1 gates).
+    purpose: gstack /ship — shippable vs blocked verdict (subordinate to core integration gates).
     when_to_use:
-      - after Layer 1 integration passes, before release decision
+      - after core integration passes, before release decision
     underlying_prompt: /Users/linktrend/Projects/gstack/ship/SKILL.md
     required_doctrine:
       - docs/HYBRID-SKILLS-REGISTRY.md
@@ -490,7 +490,7 @@ entries:
       - architecture
 
   - id: archived-compatibility-commands
-    path: .cursor/commands/README.md
+    path: .cursor/commands/compatibility-archive/README.md
     purpose: Archive and compatibility section for retained legacy and deprecated command wrappers.
     when_to_use:
       - when maintaining backward compatibility
@@ -512,7 +512,7 @@ entries:
       - not-preferred
 
   - id: linkdev-go
-    path: .cursor/commands/linkdev-go.md
+    path: .cursor/commands/compatibility-archive/linkdev-go.md
     purpose: Archived compatibility command for older planning flows.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-go
@@ -536,7 +536,7 @@ entries:
       - not-preferred
 
   - id: linkdev-dispatch
-    path: .cursor/commands/linkdev-dispatch.md
+    path: .cursor/commands/compatibility-archive/linkdev-dispatch.md
     purpose: Archived compatibility command retained for older dispatch flows.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-dispatch
@@ -556,7 +556,7 @@ entries:
       - not-preferred
 
   - id: linkdev-ui-automations
-    path: .cursor/commands/linkdev-ui-automations.md
+    path: .cursor/commands/compatibility-archive/linkdev-ui-automations.md
     purpose: Archived deprecated compatibility alias retained for older UI automation flows.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-ui-automations
@@ -578,7 +578,7 @@ entries:
       - not-preferred
 
   - id: linkdev-wire-post-dispatch
-    path: .cursor/commands/linkdev-wire-post-dispatch.md
+    path: .cursor/commands/compatibility-archive/linkdev-wire-post-dispatch.md
     purpose: Archived compatibility command retained for older post-dispatch wiring.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-wire-post-dispatch
@@ -598,7 +598,7 @@ entries:
       - not-preferred
 
   - id: linkdev-wire-post-ui
-    path: .cursor/commands/linkdev-wire-post-ui.md
+    path: .cursor/commands/compatibility-archive/linkdev-wire-post-ui.md
     purpose: Archived deprecated compatibility alias retained for older post-UI wiring.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-wire-post-ui
@@ -620,7 +620,7 @@ entries:
       - not-preferred
 
   - id: wire-linkdev
-    path: .cursor/commands/wire-linkdev.md
+    path: .cursor/commands/compatibility-archive/wire-linkdev.md
     purpose: Archived compatibility command retained for older wire flows.
     when_to_use:
       - only when an existing workflow explicitly references wire-linkdev

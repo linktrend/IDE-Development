@@ -4,4 +4,4 @@ Use when a program or module plan needs executive-style product/architecture rev
 
 Read and execute `/Users/linktrend/Projects/gstack/plan-ceo-review/SKILL.md`.
 
-Distinct from Layer 1 `code-review-and-quality` (issue/PR review). Registry: `docs/HYBRID-SKILLS-REGISTRY.md`.
+Distinct from core `code-review-and-quality` (issue/PR review). Registry: `docs/HYBRID-SKILLS-REGISTRY.md`.
