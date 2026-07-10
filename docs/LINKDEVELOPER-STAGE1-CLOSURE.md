@@ -1,101 +1,44 @@
 # LiNKdeveloper Stage 1 — Closure
 
 **Date:** 2026-07-10  
-**Status:** **Complete — verified for use (hybrid skills installed)**  
-**Principal:** Carlos | **Reviewer:** Lisa
+**Status:** **Complete — verified for use**
 
 ---
 
-## What Stage 1 is
+## Verdict
 
-**LiNKdeveloper Stage 1** = this repository (`IDE Development` on disk). It is the semi-manual **Application Factory** operating system — not the operations workflow for Website, Automation, or Content factories.
+**Stage 1 is complete.** Operate day-to-day via [`docs/LINKDEVELOPER-OPERATIONS-MANUAL.md`](LINKDEVELOPER-OPERATIONS-MANUAL.md).
 
-| Deliverable | Path | Status |
-|---|---|---|
-| Stage 1 declaration | `docs/LINKDEVELOPER-STAGE1.md` | Done |
-| Stage 1a — dev workflow + skills map | `docs/LINKDEVELOPER-STAGE1A-SPEC.md` | Done |
-| Stage 1a report | `docs/LINKDEVELOPER-STAGE1A-REPORT.md` | Done |
-| Stage 1b — semi-manual OS | `docs/LINKDEVELOPER-STAGE1B-REPORT.md` | Done |
-| Core/cursor equivalence | `docs/CORE-CURSOR-EQUIVALENCE-REPORT.md` | Done |
-| Copy-first UI policy | `docs/COPY-FIRST-UI-RESKIN-POLICY.md` | Done |
-| Bootstrap rename + skill relabels | commit `af9174b` | Done |
-| Factory operations blueprint | `docs/FACTORY-OPERATIONS-BLUEPRINT.md` | Planning only |
-| LiNKsites setup report | `docs/LINKSITES-FACTORY-SETUP-REPORT.md` | Done |
-| Workspace operator guide | `docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md` | Done |
-| Hybrid skills report | `docs/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md` | Done |
-| Hybrid skills registry | `docs/HYBRID-SKILLS-REGISTRY.md` | Done |
-| Stage 1 test runbook | `docs/LINKDEVELOPER-STAGE1-TEST-RUNBOOK.md` | Done |
-| Stage 1 verification report | `docs/LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md` | Done |
+**LiNKdeveloper** = this repository (`IDE Development`). It is the semi-manual Application Factory — not the Website, Automation, or Content factory operations workflow.
 
 ---
 
-## Verification
+## What was delivered
 
-Stage 1 operator readiness was validated on 2026-07-10 per the test runbook. Hybrid skills mission completed same day. Verdict: **READY FOR USE**.
+| Area | Active doc |
+|---|---|
+| Stage 1 declaration | [`LINKDEVELOPER-STAGE1.md`](LINKDEVELOPER-STAGE1.md) |
+| Operator instructions | [`LINKDEVELOPER-OPERATIONS-MANUAL.md`](LINKDEVELOPER-OPERATIONS-MANUAL.md) |
+| Hybrid skills registry | [`HYBRID-SKILLS-REGISTRY.md`](HYBRID-SKILLS-REGISTRY.md) |
+| Factory operations blueprint (planning) | [`FACTORY-OPERATIONS-BLUEPRINT.md`](FACTORY-OPERATIONS-BLUEPRINT.md) |
+| Retired systems and archive paths | [`ARCHIVE-INDEX.md`](ARCHIVE-INDEX.md) |
+| Historical evidence | [`docs/archive/`](archive/README.md) |
 
-| Resource | Path |
-|----------|------|
-| Operator guide | [`docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md`](LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md) |
-| Hybrid report | [`docs/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md`](LINKDEVELOPER-STAGE1-HYBRID-REPORT.md) |
-| Hybrid registry | [`docs/HYBRID-SKILLS-REGISTRY.md`](HYBRID-SKILLS-REGISTRY.md) |
-| Test runbook | [`docs/LINKDEVELOPER-STAGE1-TEST-RUNBOOK.md`](LINKDEVELOPER-STAGE1-TEST-RUNBOOK.md) |
-| Verification report | [`docs/LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md`](LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md) |
-| Smoke test artifacts | `core/pilots/stage1-operator-smoke/`, `core/pilots/hybrid-smoke/` |
-| Automated re-check | `scripts/verify-stage1.sh` |
+Automated re-check: `scripts/verify-stage1.sh`
 
 ---
 
 ## Two blueprints (do not conflate)
 
-| Blueprint | Applies to | Entry | Document |
-|---|---|---|---|
-| **Application Factory** (= LiNKdeveloper Stage 1) | Building venture apps | Intent | `LINKDEVELOPER-STAGE1A-SPEC.md` |
-| **Factory operations common** | Website, Automation, Content | Factory controller (`running`/`paused`/`stopped`) | `FACTORY-OPERATIONS-BLUEPRINT.md` |
+| Blueprint | Applies to | Entry |
+|---|---|---|
+| **Application Factory** (Stage 1) | Building venture apps | Intent |
+| **Factory operations common** | Website, Automation, Content | Factory controller (`running` / `paused` / `stopped`) |
 
-Trading is not a factory. LiNKdev is legacy. LiNKaios is deferred.
-
----
-
-## Workspace
-
-**LiNKdeveloper** (`~/Projects/Workspaces/LiNKdeveloper.code-workspace`):
-
-1. IDE Development — the system
-2. LiNKsites — first factory product to finish
-
-See [`docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md`](LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md) for day-to-day operator instructions.
+Trading is not a factory. Factory operations implementation is **deferred** until explicitly started.
 
 ---
 
-## What Stage 1 does NOT include
+## Next work
 
-- Stage 2 LiNKdeveloper autonomous runtime (separate repo)
-- Factory operations infrastructure (Postgres ledger, n8n factory controller, Supabase factory schema)
-- Website Factory build (template library, asset bucket, lead scout, etc.)
-- LiNKsites `.cursor` selective merge (pending Carlos decision)
-- Content or Automation factory detail specs
-
----
-
-## Next work (after Stage 1 closure)
-
-**Carlos develops venture applications using the LiNKdeveloper workspace and Application Factory workflow.** Factory operations implementation under `docs/FACTORY-OPERATIONS-BLUEPRINT.md` is **deferred** until Carlos explicitly starts factory ops work.
-
-When factory ops begins, reference items (not Stage 1 blockers):
-
-| Area | Notes |
-|------|-------|
-| Website Factory workflow spec | Variant on common blueprint |
-| Postgres MVP schema | Factory ledger + planes |
-| LiNKsites P1 gaps | Template library, asset bucket, batch variants |
-| Plane mirror sync | Ledger → Plane |
-
----
-
-## Commits (Stage 1 timeline)
-
-| Hash | Summary |
-|---|---|
-| `505e832` | Stage 1a/1b specs and policies |
-| `af9174b` | Bootstrap rename + skill relabels |
-| *(closure + verification)* | Factory blueprint, setup report, operator guide, runbook, verification |
+Develop venture applications using the Application Factory workflow and the Operations Manual. When factory ops begins, use `FACTORY-OPERATIONS-BLUEPRINT.md` as the design reference.

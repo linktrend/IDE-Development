@@ -9,7 +9,6 @@ source_adapted_from:
   - link-antigravity-kit/.codex/skills/frontend-design
   - anthropics/skills/skills/frontend-design
   - linktrend/LiNKtrend-System/docs/workspace/MVO-UI-POLICY.md
-  - linktrend/LiNKtrend-System/LiNKdev/product/grounding/UI_AUTHORITY.md
 ---
 
 # Frontend UI Engineering

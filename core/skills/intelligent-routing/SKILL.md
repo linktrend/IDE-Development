@@ -7,7 +7,7 @@ tags: [routing, skills, commands, agents, hybrid, triggers]
 source_adapted_from:
   - link-antigravity-kit/.codex/skills/intelligent-routing
   - docs/HYBRID-SKILLS-REGISTRY.md
-  - LiNKdeveloper/docs/EXECUTOR_ROUTING_POLICY.md (reference only)
+  - /Users/linktrend/Projects/Archive/LiNKdeveloper-Stage2-Runtime-20260710/docs/EXECUTOR_ROUTING_POLICY.md (read-only archive reference)
 ---
 
 # Intelligent Routing
@@ -16,7 +16,7 @@ Use this skill when deciding how the system should handle a request. Carlos uses
 
 ## Routing order
 
-1. **Identify Carlos's trigger** — New idea (Trigger 1), PRD in hand (Trigger 2), or Existing software (Trigger 3). See `docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md` Section 5.
+1. **Identify Carlos's trigger** — New idea (Trigger 1), PRD in hand (Trigger 2), or Existing software (Trigger 3). See `docs/LINKDEVELOPER-OPERATIONS-MANUAL.md` (triggers and routing).
 2. **Select hybrid macro or micro** — gstack (Layer 2) or mattpocock (Layer 3) per trigger stage. Registry: `docs/HYBRID-SKILLS-REGISTRY.md`.
 3. **Select domain skills** — Layer 1 locals from `SKILLS_CATALOG.md` when hybrid does not cover the concern (APIs, UI, deploy execution, etc.).
 4. **Select internal artifact commands** — only when work is decomposed into the canonical graph (`plan-program`, `execute-issue`, …).
@@ -96,7 +96,7 @@ Use only when the work graph exists or the task fits a bounded gate path:
 
 ## Validation and repair routing (reference)
 
-Failed validation must not silently retry. Per LiNKdeveloper Stage 2 reference `EXECUTOR_ROUTING_POLICY.md` and `VALIDATION-CONTRACT.md`:
+Failed validation must not silently retry. Per archived Stage 2 reference `EXECUTOR_ROUTING_POLICY.md` (see `docs/ARCHIVE-INDEX.md`) and `VALIDATION-CONTRACT.md`:
 
 - Reject progression when handoff cannot be validated.
 - Record ambiguity or failure in artifacts.

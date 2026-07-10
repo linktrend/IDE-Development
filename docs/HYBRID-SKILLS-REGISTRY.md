@@ -2,9 +2,9 @@
 
 **Date:** 2026-07-10  
 **Status:** Installed and wired — local clones present  
-**Owner:** LiNKdeveloper hybrid skills mission (Stage 1)
+**Owner:** LiNKdeveloper Stage 1 (IDE Development)
 
-This registry is the authoritative map for Layer 2 (gstack macro-orchestration) and Layer 3 (mattpocock micro-execution) skills integrated into LiNKdeveloper Stage 1. See `docs/LINKDEVELOPER-STAGE1A-SPEC.md` Section C for the layered model.
+This registry is the authoritative map for Layer 2 (gstack macro-orchestration) and Layer 3 (mattpocock micro-execution) skills integrated into **IDE Development**. Layered model detail: [`docs/archive/LINKDEVELOPER-STAGE1A-SPEC.md`](archive/LINKDEVELOPER-STAGE1A-SPEC.md) Section C (historical).
 
 ---
 
@@ -22,7 +22,9 @@ Both forks were created 2026-07-10 under the `linktrend` account. LiNKtrend owns
 - **gstack:** `/Users/linktrend/Projects/gstack`
 - **mattpocock/skills:** `/Users/linktrend/Projects/skills`
 
-IDE Development command entrypoints under `core/commands/hybrid-*.md` point agents at these paths. No LiNKdev dependency. The abandoned LiNKdev-internal `gstack` folder at `LiNKsites/LiNKdev/skills/gstack` is not restored.
+IDE Development command entrypoints under `core/commands/hybrid-*.md` point agents at these paths.
+
+For retired skill systems and historical provenance, see [`docs/ARCHIVE-INDEX.md`](ARCHIVE-INDEX.md).
 
 ---
 
@@ -37,8 +39,6 @@ Representative macro-orchestration slash commands. Invoke via `core/commands/hyb
 - **`/context-save`** and **`/context-restore`** — Session context persistence and handoff across long runs. Pair with `context-engineering` (Layer 1 read-order) — gstack persists session state; Layer 1 shapes what to read.
 
 Additional gstack skills (`/review`, `/qa`, `/retro`, `/learn`) exist in the fork for extended orchestration; route via `intelligent-routing` when macro QA or retro is needed after module completion.
-
-**Not the same as** the legacy LiNKdev-internal gstack extracts. Those mined skills (`release-readiness`, `browser-qa`, `retrospective-learning`) are sunset — use this fork instead.
 
 Skill paths (examples):
 
@@ -104,13 +104,13 @@ These eight local skills were removed — hybrid replaces them with no wrappers:
 - `test-driven-development` → mattpocock `/tdd`
 - `systematic-debugging` → mattpocock `/diagnosing-bugs`
 
-Details: `docs/SKILLS-SUNSET-REPORT.md`
+Details: [`docs/archive/SKILLS-SUNSET-REPORT.md`](archive/SKILLS-SUNSET-REPORT.md)
 
 ---
 
 ## Verification
 
-Trigger 2 hybrid smoke test completed 2026-07-10. Artifacts: `core/pilots/hybrid-smoke/`. Outcome recorded in `docs/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md`.
+Trigger 2 hybrid smoke test completed 2026-07-10. Artifacts: `core/pilots/hybrid-smoke/`. Outcome: [`docs/archive/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md`](archive/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md).
 
 Automated re-check: `scripts/verify-stage1.sh`
 
@@ -118,8 +118,8 @@ Automated re-check: `scripts/verify-stage1.sh`
 
 ## Related documents
 
-- `docs/LINKDEVELOPER-STAGE1A-SPEC.md` — Section C (layered skills map)
-- `docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md` — Carlos-facing three triggers
+- [`docs/LINKDEVELOPER-OPERATIONS-MANUAL.md`](LINKDEVELOPER-OPERATIONS-MANUAL.md) — day-to-day operator instructions
+- [`docs/LINKDEVELOPER-STAGE1.md`](LINKDEVELOPER-STAGE1.md) — Stage 1 declaration
+- [`docs/ARCHIVE-INDEX.md`](ARCHIVE-INDEX.md) — retired systems and historical reference
 - `core/skills/SKILLS_CATALOG.md` — agent routing catalog
 - `core/skills/intelligent-routing/SKILL.md` — hybrid routing hub
-- LiNKdeveloper Stage 2 reference (read-only): `EXECUTOR_ROUTING_POLICY.md`, validation repair routing — cited in `VALIDATION-CONTRACT.md` and `intelligent-routing`

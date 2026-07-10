@@ -103,12 +103,45 @@ pass "All 8 sunset skills removed from core/skills/"
 [ -f "core/commands/hybrid-tdd.md" ] || fail "Missing core/commands/hybrid-tdd.md"
 pass "Hybrid command entrypoints present"
 
-# --- No LiNKdev in operator guide (LiNKdeveloper is allowed) ---
-linkdev_hits="$(grep -in 'linkdev' docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md 2>/dev/null | grep -iv 'linkdeveloper' || true)"
-if [ -n "$linkdev_hits" ]; then
-  fail "LiNKdev mentioned in operator guide (forbidden): $linkdev_hits"
-fi
-pass "Operator guide has no LiNKdev references"
+# --- Operations manual and archive index ---
+[ -f "docs/LINKDEVELOPER-OPERATIONS-MANUAL.md" ] || fail "Missing docs/LINKDEVELOPER-OPERATIONS-MANUAL.md"
+pass "Operations manual present"
+
+[ -f "docs/ARCHIVE-INDEX.md" ] || fail "Missing docs/ARCHIVE-INDEX.md"
+pass "Archive index present"
+
+# --- Archived local snapshots (off-repo) ---
+ARCHIVE_STAGE2="/Users/linktrend/Projects/Archive/LiNKdeveloper-Stage2-Runtime-20260710"
+ARCHIVE_LINKDEV="/Users/linktrend/Projects/Archive/LiNKdev-legacy-20260710"
+[ -d "$ARCHIVE_STAGE2" ] || fail "Missing archive directory: $ARCHIVE_STAGE2"
+[ -d "$ARCHIVE_LINKDEV" ] || fail "Missing archive directory: $ARCHIVE_LINKDEV"
+pass "Local archive snapshot directories present"
+
+# --- No LiNKdev in active docs (LiNKdeveloper allowed; ARCHIVE-INDEX documents retirement) ---
+while IFS= read -r -d '' file; do
+  case "$file" in
+    docs/archive/*|docs/adoption-backups/*|docs/ARCHIVE-INDEX.md) continue ;;
+  esac
+  linkdev_hits="$(grep -in 'linkdev' "$file" 2>/dev/null | grep -iv 'linkdeveloper' || true)"
+  if [ -n "$linkdev_hits" ]; then
+    fail "LiNKdev mentioned in active doc $file (forbidden): $linkdev_hits"
+  fi
+done < <(find docs -type f -name '*.md' -print0 2>/dev/null)
+pass "Active docs have no LiNKdev references (excluding docs/archive, adoption-backups, ARCHIVE-INDEX)"
+
+# --- No stale bootstrap in active prompts (core/ and .cursor/) ---
+for prompt_root in core/prompts .cursor/prompts; do
+  [ -d "$prompt_root" ] || continue
+  while IFS= read -r -d '' file; do
+    case "$file" in
+      *adoption-backups*) continue ;;
+    esac
+    if grep -q '00-linkdev-bootstrap' "$file" 2>/dev/null; then
+      fail "Stale bootstrap path in $file (expected 00-bootstrap.mdc)"
+    fi
+  done < <(find "$prompt_root" -type f \( -name '*.md' -o -name '*.mdc' \) -print0 2>/dev/null)
+done
+pass "No 00-linkdev-bootstrap in core/prompts/ or .cursor/prompts/ (excluding adoption-backups)"
 
 echo ""
 echo "Stage 1 verification: ALL CHECKS PASSED"

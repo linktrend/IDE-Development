@@ -4,13 +4,13 @@
 
 **Status:** Locked — Carlos/Lisa alignment 2026-07-10 (design document only; see banner above)  
 **Scope:** Website, Automation, and Content factories (operations domain)  
-**Out of scope:** Application Factory (LiNKdeveloper dev workflow), Trading (not a factory), LiNKaios (deferred), LiNKdev (legacy)
+**Out of scope:** Application Factory (IDE Development dev workflow), Trading (not a factory)
 
 ---
 
 ## 1. Purpose
 
-This document defines the **common factory operations blueprint** used by LiNKtrend revenue factories. It is separate from the **Application Factory workflow**, which is the LiNKdeveloper development lifecycle (`Intent → Program → Module → Phase → Issue → Proof → Review → Integration → Complete`) defined and verified in Stage 1a/1b of this repository.
+This document defines the **common factory operations blueprint** used by LiNKtrend revenue factories. It is separate from the **Application Factory workflow**, which is the IDE Development lifecycle (`Intent → Program → Module → Phase → Issue → Proof → Review → Integration → Complete`) defined and verified in Stage 1 of this repository.
 
 Operations factories share:
 
@@ -54,7 +54,7 @@ Trigger → Program → Module → Stage → Issue → Run → Gate → … → 
 4. **Executor agents** (any type: Agent Zero, CrewAI, OpenClaw sub-agent, n8n, scripts) execute Issues.
 5. **Executive agents** are OpenClaws only: factory orchestrator, principal overseer (clone), trading agent (outside this blueprint).
 6. **CRM canonical source:** Odoo (CRM + accounting). Postgres stores factory entity refs and Odoo foreign keys — does not duplicate CRM data.
-7. **LiNKtrend-System / LiNKaios:** Deferred. Historical workflow maps are reference only, not active architecture.
+7. **Retired control-plane designs:** Historical workflow maps live in [`docs/ARCHIVE-INDEX.md`](ARCHIVE-INDEX.md) — reference only, not active architecture.
 
 ---
 
@@ -66,7 +66,7 @@ Trigger → Program → Module → Stage → Issue → Run → Gate → … → 
 |---|---|---|
 | **Factory Run Ledger** | All handoffs, gate state, proofs | **Yes** |
 | **n8n** | Deterministic execution (DB sync, publish, Odoo sync, recycle) | Executor |
-| **Plane** | Human observation mirror while LiNKaios is deferred | No — sync from ledger only |
+| **Plane** | Human observation mirror for factory health | No — sync from ledger only |
 
 Handoff = **ledger state transition** with contract manifest + proof. Not a human moving a card.
 
@@ -101,7 +101,7 @@ Canonical execution spine for all factories.
 | Run | `run_id`, `issue_id`, `executor_agent_id`, `output_manifest_ref`, `proof_ref` |
 | Gate | `gate_id`, `run_id`, `eval_results`, `result`, `shippable_verified` |
 
-**Application Factory** uses the same database with `workflow_domain = 'development'` and gate types `proof`, `review`, `integration` (LiNKdeveloper dev workflow). See `docs/LINKDEVELOPER-STAGE1A-SPEC.md`.
+**Application Factory** uses the same database with `workflow_domain = 'development'` and gate types `proof`, `review`, `integration` (IDE Development dev workflow). See [`docs/LINKDEVELOPER-STAGE1.md`](LINKDEVELOPER-STAGE1.md).
 
 ### Plane 2 — Contract & Manifest Registry (`contracts.*`)
 
@@ -218,7 +218,7 @@ Executive OpenClaws read scoped context bundles. Executors write audit; libraria
 | `integrations.plane_issue_map` | Ledger issue → Plane work item |
 | `integrations.plane_sync_log` | Sync audit |
 
-Uses existing `link-plane` fork. Carlos observes factory health in Plane while LiNKaios is deferred.
+Uses existing `link-plane` fork. Carlos observes factory health in Plane.
 
 ### Plane 10 — n8n Route Table (`integrations.n8n_*`)
 
@@ -304,7 +304,7 @@ P1 Discovery & Research
 
 | | Operations factories | Application Factory |
 |---|---|---|
-| Workflow | This blueprint | LiNKdeveloper dev workflow (Stage 1a) |
+| Workflow | This blueprint | Application Factory (IDE Development) |
 | Entry | Factory controller + feeders | Intent |
 | Domain | `workflow_domain = 'operations'` | `workflow_domain = 'development'` |
 | System home | Factory repos + ledger | This repo (IDE Development) |
@@ -318,10 +318,8 @@ IDE Development is the **tool** used to finish factory gaps — it is not the op
 
 **LiNKdeveloper workspace** (`~/Projects/Workspaces/LiNKdeveloper.code-workspace`):
 
-1. IDE Development (LiNKdeveloper Stage 1)
-2. LiNKsites (Website Factory product)
-
-LiNKtrend-System is **not** in the workspace (LiNKaios deferred).
+1. IDE Development — LiNKdeveloper (the system)
+2. LiNKsites — Website Factory product
 
 ---
 
@@ -343,8 +341,10 @@ LiNKtrend-System is **not** in the workspace (LiNKaios deferred).
 
 | Document | Role |
 |---|---|
-| `docs/LINKDEVELOPER-STAGE1A-SPEC.md` | Application Factory / dev workflow |
-| `docs/LINKDEVELOPER-STAGE1B-REPORT.md` | Stage 1b semi-manual OS |
+| `docs/LINKDEVELOPER-STAGE1.md` | Application Factory / dev workflow |
+| `docs/LINKDEVELOPER-OPERATIONS-MANUAL.md` | Day-to-day operator instructions |
+| `docs/archive/LINKDEVELOPER-STAGE1A-SPEC.md` | Stage 1a spec (historical) |
+| `docs/archive/LINKDEVELOPER-STAGE1B-REPORT.md` | Stage 1b report (historical) |
 | `LiNKsites/docs/reference/LINKSITES_FACTORY_KIT_WORKFLOW.md` | Website kit operations |
 | `LiNKdrive/Manuals/LiNKtrend Media/linktrend_media_content_creation_engine_manual.md` | Content factory |
 | `LiNKdrive/Manuals/LiNKbrain/linkbrain_manual.md` | Brain architecture |
