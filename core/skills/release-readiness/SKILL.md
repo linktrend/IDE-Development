@@ -5,10 +5,12 @@ version: 1.0.0
 status: active
 tags: [release, ship, readiness, validation]
 source_adapted_from:
-  - LiNKtrend-System/LiNKdev/skills/gstack/ship
-  - LiNKtrend-System/LiNKdev/skills/gstack/land-and-deploy
+  - LiNKdev-internal-gstack/ship
+  - LiNKdev-internal-gstack/land-and-deploy
   - addyosmani/agent-skills/skills/shipping-and-launch
 ---
+
+LiNKdev-internal-gstack is historical provenance from abandoned LiNKdev — not garrytan/gstack Layer 2.
 
 # Release Readiness
 

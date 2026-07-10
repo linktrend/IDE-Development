@@ -5,10 +5,12 @@ version: 1.0.0
 status: active
 tags: [retrospective, learning, improvement, blockers]
 source_adapted_from:
-  - LiNKtrend-System/LiNKdev/skills/gstack/retro
-  - LiNKtrend-System/LiNKdev/skills/gstack/learn
+  - LiNKdev-internal-gstack/retro
+  - LiNKdev-internal-gstack/learn
   - LiNKskills/skills/self-improvement
 ---
+
+LiNKdev-internal-gstack is historical provenance from abandoned LiNKdev — not garrytan/gstack Layer 2.
 
 # Retrospective Learning
 

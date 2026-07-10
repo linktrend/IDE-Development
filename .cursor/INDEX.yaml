@@ -7,7 +7,7 @@ entries:
       - when a runtime needs to understand the relationship between .cursor and core
     dependencies:
       - .cursor/README.md
-      - .cursor/rules/00-linkdev-bootstrap.mdc
+      - .cursor/rules/00-bootstrap.mdc
       - .cursor/session/INDEX.yaml
       - .cursor/workspace/INDEX.yaml
       - core/

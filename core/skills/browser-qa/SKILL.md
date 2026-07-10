@@ -5,10 +5,12 @@ version: 1.0.0
 status: active
 tags: [browser, qa, screenshots, web, verification]
 source_adapted_from:
-  - LiNKtrend-System/LiNKdev/skills/gstack/qa
-  - LiNKtrend-System/LiNKdev/skills/gstack/qa-only
-  - LiNKtrend-System/LiNKdev/skills/gstack/browse
+  - LiNKdev-internal-gstack/qa
+  - LiNKdev-internal-gstack/qa-only
+  - LiNKdev-internal-gstack/browse
 ---
+
+LiNKdev-internal-gstack is historical provenance from abandoned LiNKdev — not garrytan/gstack Layer 2.
 
 # Browser QA
 

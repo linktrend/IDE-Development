@@ -56,7 +56,7 @@ It remains operationally self-contained from the perspective of existing `.curso
 2. If the repository or session is fresh, read `bootstrap/START-HERE.md` next.
 3. If the work is greenfield, ambiguous, or under-specified, read `discovery/INDEX.yaml` before `INTENT.md`.
 4. Use `bootstrap/QUICKSTART.md` only when the work level is already obvious.
-5. Read `rules/00-linkdev-bootstrap.mdc`, then any other applicable rules.
+5. Read `rules/00-bootstrap.mdc`, then any other applicable rules.
 6. For program, module, phase, issue, proof, review, and integration work, read `execution/INDEX.yaml`.
 7. Use the execution doctrine files as the governing model:
    - `execution/CANONICAL-LAWS.md`
