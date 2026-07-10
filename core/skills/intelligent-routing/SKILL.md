@@ -1,52 +1,126 @@
 ---
 name: intelligent-routing
-description: Select the smallest appropriate command, skill, artifact path, and agent role for a task.
-version: 1.0.0
+description: Select trigger, hybrid skill, domain skill, command, artifact path, and agent role for a task.
+version: 2.0.0
 status: active
-tags: [routing, skills, commands, agents]
+tags: [routing, skills, commands, agents, hybrid, triggers]
 source_adapted_from:
   - link-antigravity-kit/.codex/skills/intelligent-routing
+  - docs/HYBRID-SKILLS-REGISTRY.md
+  - LiNKdeveloper/docs/EXECUTOR_ROUTING_POLICY.md (reference only)
 ---
 
 # Intelligent Routing
 
-Use this skill when deciding how the system should handle a request.
+Use this skill when deciding how the system should handle a request. Carlos uses three triggers only; agents pick routes inside them.
 
-## Routing Order
+## Routing order
 
-1. Determine whether the request is discovery, planning, execution, review, integration, session, or workspace adoption.
-2. Select the smallest command path.
-3. Select only relevant skills.
-4. Select agent roles only as resources, not as the control structure.
-5. Load only required artifacts.
+1. **Identify Carlos's trigger** — New idea (Trigger 1), PRD in hand (Trigger 2), or Existing software (Trigger 3). See `docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md` Section 5.
+2. **Select hybrid macro or micro** — gstack (Layer 2) or mattpocock (Layer 3) per trigger stage. Registry: `docs/HYBRID-SKILLS-REGISTRY.md`.
+3. **Select domain skills** — Layer 1 locals from `SKILLS_CATALOG.md` when hybrid does not cover the concern (APIs, UI, deploy execution, etc.).
+4. **Select internal artifact commands** — only when work is decomposed into the canonical graph (`plan-program`, `execute-issue`, …).
+5. **Select agent roles** as resources, not as the control structure.
+6. **Load only required artifacts** — progressive disclosure (Law 19).
 
-## Common Routes
+## Trigger → hybrid routes
 
-- ambiguous greenfield: discovery and interview
-- significant new work: `plan-program` or `plan-module`
-- tiny bounded work: `small-change`
+### Trigger 1 — New idea
+
+1. Interview Carlos for intent, constraints, success criteria.
+2. gstack `/spec` (`core/commands/hybrid-spec.md`) — structured specification.
+3. Optional gstack `/plan-ceo-review` for large or ambiguous bets.
+4. mattpocock `/grill-with-docs` if documentation gaps remain.
+5. mattpocock `/to-prd` when formalizing the PRD.
+6. **Stop for Carlos approval** — spec/PRD gate before development.
+7. Route app (LiNKapps starter kit) vs factory (`docs/FACTORY-OPERATIONS-BLUEPRINT.md`).
+8. Layer 1: `plan-program` → `plan-module` → execution commands.
+
+### Trigger 2 — PRD in hand
+
+1. mattpocock `/grill-with-docs` — clarify gaps against docs and codebase.
+2. **Stop for Carlos approval** — clarified PRD gate.
+3. mattpocock `/to-issues` — slice into dependency-aware issues.
+4. Layer 1: `execute-issue` → proof → `review-issue` → `integrate-issue`.
+5. During execution: mattpocock `/tdd`, `/diagnosing-bugs`; domain skills as needed.
+
+### Trigger 3 — Existing software
+
+1. Assess codebase — scope, gaps, risks.
+2. gstack `/health` when project health or gate discipline is unclear.
+3. Plan: Layer 1 `plan-module` or `small-change`; mattpocock `/improve-codebase-architecture` for structural refactors.
+4. **Carlos approves** when direction is unclear or high-impact.
+5. Develop with domain skills + `/tdd`; Layer 1 gates always apply.
+6. gstack `/ship` only after Layer 1 integration passes — does not replace review or integration.
+
+## Hybrid command index
+
+| Concern | Command entrypoint | Fork skill path |
+|---|---|---|
+| Spec | `hybrid-spec` | `/Users/linktrend/Projects/gstack/spec/SKILL.md` |
+| CEO plan review | `hybrid-plan-ceo-review` | `.../gstack/plan-ceo-review/SKILL.md` |
+| Health | `hybrid-health` | `.../gstack/health/SKILL.md` |
+| Ship | `hybrid-ship` | `.../gstack/ship/SKILL.md` |
+| Context save/restore | `hybrid-context-save`, `hybrid-context-restore` | `.../gstack/context-save/SKILL.md`, `context-restore/SKILL.md` |
+| Clarify PRD | `hybrid-grill` | `.../skills/skills/engineering/grill-with-docs/SKILL.md` |
+| PRD synthesis | `hybrid-to-prd` | `.../skills/skills/engineering/to-spec/SKILL.md` |
+| Issue slicing | `hybrid-to-issues` | `.../skills/skills/engineering/to-tickets/SKILL.md` |
+| TDD | `hybrid-tdd` | `.../skills/skills/engineering/tdd/SKILL.md` |
+| Debugging | `hybrid-diagnosing-bugs` | `.../skills/skills/engineering/diagnosing-bugs/SKILL.md` |
+| Architecture improve | `hybrid-improve-architecture` | `.../skills/skills/engineering/improve-codebase-architecture/SKILL.md` |
+
+## Domain skill shortcuts
+
+After hybrid selection, prefer the smallest domain skill:
+
+- UI → `frontend-ui-engineering`
+- API → `api-patterns`
+- Data → `database-design`
+- Deploy execute → `deployment-procedures` (ship *decision* → gstack `/ship`)
+- Browser flows → `webapp-testing`
+- Criterion QA → `persistent-qa`
+- Scaffold LiNKtrend app → `app-builder`
+- Read order → `context-engineering`
+
+## Internal artifact commands (decomposition required)
+
+Use only when the work graph exists or the task fits a bounded gate path:
+
+- ambiguous greenfield after spec: `plan-program`
+- module decomposition: `plan-module`
+- tiny bounded fix: `small-change`
 - ready issue: `execute-issue`
 - evidence check: `review-issue`
 - accepted work: `integrate-issue`
-- resume: session lifecycle
-- workspace wiring: workspace adoption
+- recursive module: `complete-module`
+
+## Validation and repair routing (reference)
+
+Failed validation must not silently retry. Per LiNKdeveloper Stage 2 reference `EXECUTOR_ROUTING_POLICY.md` and `VALIDATION-CONTRACT.md`:
+
+- Reject progression when handoff cannot be validated.
+- Record ambiguity or failure in artifacts.
+- On validation failure during review, return to execution or create a repair issue with `depends_on` the failing proof — see `VALIDATION-CONTRACT.md` Remaining Ambiguity Rule and Stage 2 repair routing (reference only; no LiNKdev runtime dependency).
 
 ## Rules
 
-- Do not over-plan trivial work.
+- Do not over-plan trivial work — `small-change` may suffice under Trigger 3.
 - Do not skip proof, review, or integration for speed.
 - Do not choose multiple overlapping skills when one is enough.
 - Do not treat specialist agents as sequence drivers.
+- gstack `/ship` and macro QA do not override Layer 1 gates.
 - Record blockers when routing cannot proceed.
 
 ## Output
 
-- selected command
-- selected skill or skills
+- Carlos trigger (1, 2, or 3)
+- selected hybrid command(s) if any
+- selected domain skill(s) if any
+- selected Layer 1 command if any
 - active artifact level
 - required reads
 - reason for route
 
-## Progressive Disclosure
+## Progressive disclosure
 
-Read indexes first. Stop once the correct route is clear.
+Read `docs/HYBRID-SKILLS-REGISTRY.md` and this catalog's overlap section first. Stop once the correct route is clear.

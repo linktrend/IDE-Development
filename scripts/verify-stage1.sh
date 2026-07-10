@@ -77,6 +77,39 @@ if [ -d "$PROMPT_DIR" ]; then
 fi
 pass "No 00-linkdev-bootstrap in core/prompts/execution/ (excluding adoption-backups)"
 
+# --- Hybrid registry exists ---
+[ -f "docs/HYBRID-SKILLS-REGISTRY.md" ] || fail "Missing docs/HYBRID-SKILLS-REGISTRY.md"
+pass "Hybrid skills registry present"
+
+# --- Sunset skills gone from core/skills/ ---
+SUNSET_SKILLS=(
+  release-readiness
+  browser-qa
+  retrospective-learning
+  spec-driven-development
+  plan-writing
+  task-decomposition
+  test-driven-development
+  systematic-debugging
+)
+for skill in "${SUNSET_SKILLS[@]}"; do
+  [ ! -d "core/skills/$skill" ] || fail "Sunset skill still present: core/skills/$skill"
+done
+pass "All 8 sunset skills removed from core/skills/"
+
+# --- Hybrid command entrypoints ---
+[ -f "core/commands/hybrid-spec.md" ] || fail "Missing core/commands/hybrid-spec.md"
+[ -f "core/commands/hybrid-grill.md" ] || fail "Missing core/commands/hybrid-grill.md"
+[ -f "core/commands/hybrid-tdd.md" ] || fail "Missing core/commands/hybrid-tdd.md"
+pass "Hybrid command entrypoints present"
+
+# --- No LiNKdev in operator guide (LiNKdeveloper is allowed) ---
+linkdev_hits="$(grep -in 'linkdev' docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md 2>/dev/null | grep -iv 'linkdeveloper' || true)"
+if [ -n "$linkdev_hits" ]; then
+  fail "LiNKdev mentioned in operator guide (forbidden): $linkdev_hits"
+fi
+pass "Operator guide has no LiNKdev references"
+
 echo ""
 echo "Stage 1 verification: ALL CHECKS PASSED"
 exit 0

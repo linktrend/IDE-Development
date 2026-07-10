@@ -1,7 +1,7 @@
 # LiNKdeveloper Stage 1 — Closure
 
 **Date:** 2026-07-10  
-**Status:** **Complete — verified for use**  
+**Status:** **Complete — verified for use (hybrid skills installed)**  
 **Principal:** Carlos | **Reviewer:** Lisa
 
 ---
@@ -22,6 +22,8 @@
 | Factory operations blueprint | `docs/FACTORY-OPERATIONS-BLUEPRINT.md` | Planning only |
 | LiNKsites setup report | `docs/LINKSITES-FACTORY-SETUP-REPORT.md` | Done |
 | Workspace operator guide | `docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md` | Done |
+| Hybrid skills report | `docs/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md` | Done |
+| Hybrid skills registry | `docs/HYBRID-SKILLS-REGISTRY.md` | Done |
 | Stage 1 test runbook | `docs/LINKDEVELOPER-STAGE1-TEST-RUNBOOK.md` | Done |
 | Stage 1 verification report | `docs/LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md` | Done |
 
@@ -29,14 +31,16 @@
 
 ## Verification
 
-Stage 1 operator readiness was validated on 2026-07-10 per the test runbook. Verdict: **READY FOR USE**.
+Stage 1 operator readiness was validated on 2026-07-10 per the test runbook. Hybrid skills mission completed same day. Verdict: **READY FOR USE**.
 
 | Resource | Path |
 |----------|------|
 | Operator guide | [`docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md`](LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md) |
+| Hybrid report | [`docs/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md`](LINKDEVELOPER-STAGE1-HYBRID-REPORT.md) |
+| Hybrid registry | [`docs/HYBRID-SKILLS-REGISTRY.md`](HYBRID-SKILLS-REGISTRY.md) |
 | Test runbook | [`docs/LINKDEVELOPER-STAGE1-TEST-RUNBOOK.md`](LINKDEVELOPER-STAGE1-TEST-RUNBOOK.md) |
 | Verification report | [`docs/LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md`](LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md) |
-| Smoke test artifacts | `core/pilots/stage1-operator-smoke/` |
+| Smoke test artifacts | `core/pilots/stage1-operator-smoke/`, `core/pilots/hybrid-smoke/` |
 | Automated re-check | `scripts/verify-stage1.sh` |
 
 ---

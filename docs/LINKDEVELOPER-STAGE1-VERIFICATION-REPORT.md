@@ -1,23 +1,38 @@
 # LiNKdeveloper Stage 1 — Verification Report
 
+> **Historical note (pre-hybrid):** Stage 1 passed initial verification on 2026-07-10 **before** hybrid skills install. That run is **NOT READY** for the current Carlos operating model until hybrid wiring completes. See hybrid re-verification below.
+
 **Date:** 2026-07-10  
 **Operator:** Carlos (via agent-assisted supervised run)  
 **Reviewer:** Lisa (optional)  
-**Duration:** ~35 minutes  
+**Duration:** ~35 minutes (initial) + hybrid mission (same day)  
 **Repository:** /Users/linktrend/Projects/IDE Development  
 **Runbook:** docs/LINKDEVELOPER-STAGE1-TEST-RUNBOOK.md
 
 ---
 
-## Executive Summary
+## Hybrid re-verification (2026-07-10)
 
 | Field | Value |
 |-------|-------|
-| Overall verdict | **pass** |
+| Hybrid mission | Install gstack + mattpocock; sunset 8 local skills |
+| Smoke test | Trigger 2 — `core/pilots/hybrid-smoke/` |
+| Script | `scripts/verify-stage1.sh` — all checks passed |
+| **Current verdict** | **READY FOR USE** |
+
+See `docs/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md` for forks, deletes, wiring, and smoke outcome.
+
+---
+
+## Executive Summary (initial run — superseded by hybrid section above for current model)
+
+| Field | Value |
+|-------|-------|
+| Overall verdict | **pass** (initial Stage 1 structure) |
 | Smoke test path | SMALL-CHANGE |
-| Ready for v1.0 tag | **yes** |
-| Ready for Stage 1 final sign-off | **yes** |
-| **Verdict** | **READY FOR USE** |
+| Ready for v1.0 tag | **yes** (after hybrid re-verification) |
+| Ready for Stage 1 final sign-off | **yes** (after hybrid re-verification) |
+| **Verdict (current)** | **READY FOR USE** |
 
 Stage 1 was validated end-to-end: all V1 readiness checklist items (1–10) passed, wire checklist structure verified (20 symlinks, 0 broken), bootstrap path drift cleaned (`00-linkdev-bootstrap` → `00-bootstrap.mdc` in active execution prompts), and a supervised SMALL-CHANGE smoke test completed with separate proof, review, and integration artifacts. The workspace operator guide and test runbook are in place. Factory operations blueprint is explicitly marked planning-only. No critical blockers remain for Carlos to use LiNKdeveloper Stage 1 for Application Factory development work.
 

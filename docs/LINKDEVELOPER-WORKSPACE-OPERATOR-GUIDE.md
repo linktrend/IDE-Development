@@ -2,24 +2,23 @@
 
 **Audience:** Carlos (Principal)  
 **Date:** 2026-07-10  
-**Status:** Active — Stage 1 complete
+**Status:** Active
 
-This guide explains how to open the LiNKdeveloper workspace, how the shared development system works, and what you do versus what the AI agents do. No technical setup knowledge is required to follow it.
+This guide explains how to open the LiNKdeveloper workspace, how the development system works, and what you do versus what the AI agents do. No technical setup knowledge is required to follow it.
 
 ---
 
 ## 1. What this workspace is
 
-**LiNKdeveloper Stage 1** lives in the folder called `IDE Development` on your Mac. It is the semi-manual **Application Factory** — the system you use to plan and build venture applications with AI assistance.
+**LiNKdeveloper** lives in the folder called `IDE Development` on your Mac. It is the unified development system you use to plan and build venture software with AI assistance.
 
-The saved workspace file **`LiNKdeveloper`** groups the system repo together with the product repos you are actively working on (for example, LiNKsites for the Website Factory).
+The saved workspace file **LiNKdeveloper** groups the system repo together with the product repos you are actively working on. Add product repos to the workspace when you need them.
 
-| Folder in workspace | Role |
-|---|---|
-| **IDE Development** | The system — rules, commands, skills, templates, and doctrine |
-| **LiNKsites** (and others you add later) | Product repos — the actual code and content being built |
+**IDE Development** is the system — rules, skills, templates, and doctrine that agents follow. Product repos hold the actual code and content being built.
 
 GitHub names stay unchanged: the repo is still `linktrend/IDE-Development`. The local folder name stays `IDE Development`.
+
+The LiNKdeveloper system combines three sources into one runtime: the IDE Development core (rules, commands, skills, templates), macro-orchestration patterns from gstack (spec, plan review, health checks, shipping), and micro-execution patterns from mattpocock/skills (clarification, PRD generation, issue slicing, TDD, debugging). You operate one system — not separate tiers or layers.
 
 ---
 
@@ -35,9 +34,7 @@ GitHub names stay unchanged: the repo is still `linktrend/IDE-Development`. The 
 
 4. If Cursor already has the workspace open but folders look stale, use **File → Reload Window**.
 
-**What you should see:** at minimum, `IDE Development` and `LiNKsites` in the sidebar. `IDE Development` is always the system repo — start there when you open a new chat or session about how work should run.
-
-**If the workspace file does not exist yet:** create it once by opening `IDE Development` in Cursor, adding the folders you need via **File → Add Folder to Workspace…**, then saving with **File → Save Workspace As…** as `LiNKdeveloper` under `~/Projects/Workspaces/`.
+**What you should see:** at minimum, `IDE Development` in the sidebar. `IDE Development` is always the system repo — start there when you open a new chat or session about how work should run.
 
 ---
 
@@ -54,10 +51,10 @@ When you improve the system, edits usually go into `core/` and flow through to `
 
 ### Product repos adopt the system via symlink
 
-Each product repo (LiNKsites, LiNKapps, etc.) can share the same runtime by pointing its local `.cursor` folder at the system:
+Each product repo can share the same runtime by pointing its local `.cursor` folder at the system:
 
 ```
-LiNKsites/.cursor  →  ../IDE Development/.cursor  →  ../IDE Development/core
+ProductRepo/.cursor  →  ../IDE Development/.cursor  →  ../IDE Development/core
 ```
 
 This is a **one-time wiring step**, not something you do every session. Full procedure: `core/workspace/REPO-WIRING.md` and `core/workspace/WORKSPACE-ADOPTION.md`.
@@ -68,166 +65,111 @@ This is a **one-time wiring step**, not something you do every session. Full pro
 - Always inspect an existing `.cursor` before replacing it — some repos have local rules worth keeping.
 - Back up replaceable material before changing anything.
 
-**Important for this mission:** LiNKsites is **not** symlinked yet. See Section 8.
-
 ---
 
 ## 4. Starting a session — what to read first
 
 When you or an agent starts work, read these in order (agents follow the same list automatically):
 
-| Order | File | Why |
-|---|---|---|
-| 1 | `README.md` (repo root) | What this repository is and how it is structured |
-| 2 | `.cursor/rules/00-bootstrap.mdc` | Mandatory read order and operating rules for every task |
-| 3 | `.cursor/skills/SKILLS_CATALOG.md` | Which skill to use for a given kind of work |
+1. **`README.md`** (repo root) — what this repository is and how it is structured
+2. **`.cursor/rules/00-bootstrap.mdc`** — mandatory read order and operating rules for every task
+3. **`.cursor/skills/SKILLS_CATALOG.md`** — which skill to use for a given kind of work
 
 After that, read **only what the current task needs** — a specific command file, template, or doctrine doc. Do not scan the entire system unless the task genuinely requires it.
-
-**Do not depend on:** chat memory, IDE memory, or the old **LiNKdev** system. LiNKdev is abandoned legacy.
 
 For a fast path when the task is already clear, agents may also use `.cursor/bootstrap/QUICKSTART.md`.
 
 ---
 
-## 5. The command surface — how work gets done
+## 5. Your primary workflow — three triggers
 
-Commands are entry points in Cursor chat. Type or invoke them when you want structured agent behavior. The six primary commands for Stage 1:
+Your work always starts with one of three triggers. **Choosing application versus factory is not a separate trigger** — it is a decision made inside each trigger, after the spec or PRD is clear.
 
-| Command | When to use it | What you get |
-|---|---|---|
-| **`plan-program`** | You have a new product idea or objective | Validated intent, a program artifact, and initial module structure |
-| **`plan-module`** | A program exists and you need to break a module into phases and issues | Module, phase, and issue artifacts with dependencies and acceptance criteria |
-| **`complete-module`** | A module is planned and you want it executed end-to-end | Recursive execution through proof, review, and integration until the module is done or blocked |
-| **`execute-issue`** | One issue is ready to implement | Code/work output plus a proof artifact; issue moves to review-ready or blocked |
-| **`review-issue`** | An issue has proof and needs an independent check | A review verdict (pass, fail, or blocked) with findings |
-| **`integrate-issue`** | Review passed and work should be recorded as accepted | Integration record and updated downstream readiness |
+### Trigger 1: New idea
 
-**Typical flow:**
+You have a product concept but no written spec yet.
 
-```
-plan-program  →  plan-module  →  complete-module
-                                      ↓
-                              execute-issue  →  review-issue  →  integrate-issue
-```
+1. **Interview** — work with an agent to explore the idea, constraints, and success criteria.
+2. **Spec or PRD** — the agent produces a written specification or product requirements document.
+3. **You approve** — you review and approve the spec/PRD before development begins. This is your primary human gate.
+4. **Route and develop** — based on what the product is:
+   - **Normal application** — scaffold from the LiNKapps starter kit at `/Users/linktrend/Projects/LiNKapps`, then develop.
+   - **Factory product** — agents use `docs/FACTORY-OPERATIONS-BLUEPRINT.md` as the planning reference for how the factory should operate, then develop.
 
-There is also **`small-change`** for tiny, low-risk fixes that still need proof, review, and integration — but do not need full program or module planning.
+### Trigger 2: PRD in hand
 
-Command definitions live under `.cursor/commands/`. Index: `.cursor/commands/INDEX.yaml`.
+You already have a product requirements document (from you, a stakeholder, or a prior session).
 
-**Legacy commands** (`linkdev-go`, `wire-linkdev`, etc.) exist for backward compatibility only. Do not use them for new work.
+1. **Clarify gaps** — the agent reads the PRD, asks targeted questions, and fills missing detail.
+2. **You approve** — you confirm the clarified spec/PRD is acceptable.
+3. **Route and develop** — same application-or-factory decision as Trigger 1, then build.
+
+### Trigger 3: Existing software
+
+You have working code that needs work — refactor, finish incomplete features, customize, or extend.
+
+1. **Assess** — the agent inspects the codebase and states what exists, what is missing, and what risks apply.
+2. **Plan** — for larger changes, the agent proposes a short plan; you approve if direction is unclear or high-impact.
+3. **Develop** — implement, test, and deliver. Factory products still reference the Factory Operations blueprint when operational behavior is in scope.
+
+### Application versus factory — one short note
+
+**Normal applications** start from the LiNKapps starter kit at `/Users/linktrend/Projects/LiNKapps`. **Factory products** (revenue production lines such as website, automation, or content factories) use `docs/FACTORY-OPERATIONS-BLUEPRINT.md` as a planning reference for agents — it describes how factory operations should eventually run autonomously. That blueprint is design-only until you explicitly start factory ops work; agents consult it when building or extending a factory, not when building a standard app.
 
 ---
 
 ## 6. Human gate points — where you approve
 
-Stage 1 is **semi-manual**. Agents do most of the issue-level work; **you** hold the gates that matter for direction and release.
+Agents do most of the detailed work. **You** hold the gates that matter for direction and release.
 
 ### You approve (human gates)
 
-| Gate | What you are deciding |
-|---|---|
-| **Program gate** | Is the product intent and program plan acceptable before serious technical work begins? |
-| **Module gate** | Is the module decomposition and scope right before autonomous execution runs? |
-| **Blueprint / architecture approval** | Is the product blueprint and technical approach approved? (First hard governance boundary before architecture work.) |
-| **Launch / release gate** | Is integrated work ready to ship or go live? |
+- **Spec / PRD approval** — Is the written product intent and requirements document acceptable before serious development begins?
+- **Program gate** — Is the program plan and scope right before large autonomous execution runs? (Applies when work is organized as a formal program.)
+- **Module gate** — Is the module decomposition right before agents execute a module end-to-end?
+- **Launch / release gate** — Is integrated work ready to ship or go live?
 
 When an agent reaches one of these gates, it should stop and present the artifact for your decision — not assume approval.
 
 ### Agents handle (with your oversight available)
 
-| Step | Who |
-|---|---|
-| Issue implementation | Agent (via `execute-issue`) |
-| Proof collection | Agent |
-| Independent review | Agent reviewer role (via `review-issue`) — checks proof against acceptance criteria, not gut feel |
-| Integration recording | Agent (via `integrate-issue`) — only after review passes |
+- Issue implementation and proof collection
+- Independent review — checks proof against acceptance criteria, not gut feel
+- Integration recording — only after review passes
 
 **Key rule:** readiness is computed from artifacts and state, not assumed. Every issue must pass through **review-ready** before integration. Review inspects **proof**, not confidence.
 
-If something feels wrong at any point, you can stop, redirect, or reject — that is the intended operating model for Stage 1.
+If something feels wrong at any point, you can stop, redirect, or reject — that is the intended operating model.
 
 ---
 
-## 7. Skills — what is installed vs. reference only
+## 7. Skills — installed hybrid stack
 
-### Layer 1 — installed and active
+Skills live in `.cursor/skills/SKILLS_CATALOG.md`. Agents read the catalog first, then open only the skill needed for the task.
 
-The skills listed in `.cursor/skills/SKILLS_CATALOG.md` are **local skills** in this repository. Agents read the catalog first, then open only the skill needed for the task. Examples: `intelligent-routing`, `frontend-ui-engineering`, `browser-qa`, `release-readiness`.
+LiNKdeveloper combines three installed sources into one runtime:
 
-These are ready to use today inside the LiNKdeveloper workspace.
+- **Local domain skills** in this repository — APIs, UI, deployment execution, routing, and governance (40 skills after hybrid sunset).
+- **gstack (macro)** — cloned at `/Users/linktrend/Projects/gstack`, fork https://github.com/linktrend/gstack. Handles spec, plan review, health checks, shipping verdicts, and session context.
+- **mattpocock/skills (micro)** — cloned at `/Users/linktrend/Projects/skills`, fork https://github.com/linktrend/skills. Handles PRD clarification, issue slicing, TDD, debugging, and architecture improvement.
 
-### Layer 2 and Layer 3 — reference only, not installed
+All three are wired and active — not reference-only. Agents route through your three triggers to the right hybrid or domain skill without you choosing skill names. Registry: `docs/HYBRID-SKILLS-REGISTRY.md`.
 
-Two external skill libraries are **mapped in planning documents but not vendored or installed** in Stage 1:
-
-| Layer | Source | Purpose (when installed later) |
-|---|---|---|
-| **Layer 2** | [`garrytan/gstack`](https://github.com/garrytan/gstack) | Macro-orchestration: spec, plan review, health checks, shipping, context save/restore |
-| **Layer 3** | [`mattpocock/skills`](https://github.com/mattpocock/skills) | Micro-execution: clarification, PRD generation, issue slicing, TDD, debugging |
-
-**They are not active in your workspace today.** Agents should not assume `/spec`, `/ship`, `/tdd`, or similar Layer 2/3 commands exist.
-
-**Naming note:** Three existing skills (`release-readiness`, `browser-qa`, `retrospective-learning`) were originally mined from an **internal** LiNKdev folder also called "gstack". That is **not** the same as `garrytan/gstack`. Those skills are labeled `LiNKdev-internal-gstack` in their provenance to avoid confusion.
-
-### How to add Layer 2/3 later (when you decide)
-
-This is future work — not part of Stage 1 closure:
-
-1. Review the layered skills map in `docs/LINKDEVELOPER-STAGE1A-SPEC.md` (Section C).
-2. Vendor or install the external packages into an approved location under `core/skills/` or a dedicated adapter path.
-3. Register new entries in `SKILLS_CATALOG.md` with clear layer labels.
-4. Wire command routing so Layer 2/3 skills complement — not replace — the existing command surface.
-5. Run a supervised low-risk test before relying on them for production work.
-
-Until then, treat Layer 2/3 as **read-only reference** for design decisions.
+To extend the system later, add domain skills under `core/skills/`, update the catalog and registry, and run a supervised low-risk test before relying on changes for production work.
 
 ---
 
-## 8. LiNKsites `.cursor` — backup exists, no symlink yet
+## 8. Factory operations blueprint — planning reference
 
-LiNKsites has its **own copied `.cursor`** folder with a mix of:
+`docs/FACTORY-OPERATIONS-BLUEPRINT.md` is a **planning document only** — not live factory infrastructure. Its banner states: no Supabase, LiNKbrain, LiNKskills, or factory infrastructure in that blueprint is built until you explicitly start factory ops work.
 
-- LiNKsites-specific rules (foundation, sites/apps, UI policy, release/deploy)
-- Generic rules that do not yet exist in IDE Development (quality, testing, agent behavior, troubleshooting)
-- Legacy LiNKdev commands and references
+Use it when the product is a **factory** (continuous production line). It describes the common operations skeleton — trigger, program, module, stage, issue, run, gate, output, complete — shared by website, automation, and content factories. Agents consult it when designing or building factory behavior; you do not operate it as a day-to-day control panel.
 
-**What was done:**
-
-- A full backup was saved to `docs/adoption-backups/LiNKsites/.cursor-backup-20260710/` (21 files).
-- **No symlink was applied** — a blind symlink would have overwritten repo-specific rules.
-
-**What this mission does not do:**
-
-- Symlink LiNKsites `.cursor` to IDE Development
-- Delete LiNKsites local rules without a selective merge plan
-
-**Your decision (pending):** selective merge — keep LiNKsites-specific rules local; adopt shared system paths only where it is safe. Details: `docs/LINKSITES-FACTORY-SETUP-REPORT.md`.
+The **Application Factory workflow** (this guide, IDE Development commands, and the development lifecycle) is separate from factory **operations**. Development builds software; factory operations run production lines once built.
 
 ---
 
-## 9. Factory operations blueprint — planning only, not active now
-
-There are **two different blueprints**. Do not mix them up.
-
-| Blueprint | Applies to | Status in Stage 1 |
-|---|---|---|
-| **Application Factory** (LiNKdeveloper Stage 1) | Building venture apps — the workflow in this guide | **Active** — use the commands in Section 5 |
-| **Factory Operations Common Blueprint** | Website, Automation, and Content factories — continuous production lines | **Planning document only** — not active implementation |
-
-The Factory Operations blueprint (`docs/FACTORY-OPERATIONS-BLUEPRINT.md`) describes how revenue factories will eventually run autonomously:
-
-```
-Trigger → Program → Module → Stage → Issue → Run → Gate → … → Output → Complete
-```
-
-That spine, factory controller triggers, Postgres ledger, and OpenClaw orchestrator are **future factory build work**. Stage 1 gives you the development workflow and workspace; the operations blueprint tells agents what to build next — it is not something you operate today.
-
-**Next product work:** finish the Website Factory under that blueprint, starting with a LiNKsites workflow variant spec. See `docs/LINKDEVELOPER-STAGE1-CLOSURE.md`.
-
----
-
-## 10. Quick reference
+## 9. Quick reference
 
 ### Open workspace
 
@@ -241,36 +183,57 @@ That spine, factory controller triggers, Postgres ledger, and OpenClaw orchestra
 2. `.cursor/rules/00-bootstrap.mdc`
 3. `.cursor/skills/SKILLS_CATALOG.md`
 
-### Primary commands
+### Your three triggers
 
-`plan-program` · `plan-module` · `complete-module` · `execute-issue` · `review-issue` · `integrate-issue`
+1. **New idea** → interview → spec/PRD → you approve → app or factory → develop
+2. **PRD in hand** → clarify gaps → you approve → app or factory → develop
+3. **Existing software** → assess → plan (if needed) → develop
 
 ### You approve
 
-Program gates · Module gates · Blueprint/architecture · Launch/release
-
-### Do not do in this mission
-
-- Symlink LiNKsites `.cursor`
-- Install `garrytan/gstack` or `mattpocock/skills`
-- Operate the Factory Operations blueprint as if it were live
+Spec/PRD · Program gates · Module gates · Launch/release
 
 ### Key docs
 
-| Topic | Path |
-|---|---|
-| Stage 1 overview | `docs/LINKDEVELOPER-STAGE1.md` |
-| Stage 1 closure | `docs/LINKDEVELOPER-STAGE1-CLOSURE.md` |
-| Workspace adoption | `core/workspace/WORKSPACE-ADOPTION.md` |
-| Repo wiring | `core/workspace/REPO-WIRING.md` |
-| LiNKsites setup status | `docs/LINKSITES-FACTORY-SETUP-REPORT.md` |
-| Factory operations (future) | `docs/FACTORY-OPERATIONS-BLUEPRINT.md` |
-| Command index | `.cursor/commands/INDEX.yaml` |
+- Stage 1 overview — `docs/LINKDEVELOPER-STAGE1.md`
+- Stage 1 closure — `docs/LINKDEVELOPER-STAGE1-CLOSURE.md`
+- Hybrid skills registry — `docs/HYBRID-SKILLS-REGISTRY.md`
+- Workspace adoption — `core/workspace/WORKSPACE-ADOPTION.md`
+- Repo wiring — `core/workspace/REPO-WIRING.md`
+- Factory operations (planning) — `docs/FACTORY-OPERATIONS-BLUEPRINT.md`
+- Command index (agents) — `.cursor/commands/INDEX.yaml`
 
 ---
 
-## 11. What Stage 2 is (and is not)
+## 10. What Stage 2 is (and is not)
 
 **LiNKdeveloper Stage 2** is a separate repository (`/Users/linktrend/Projects/LiNKdeveloper`) designed for fully autonomous orchestration. It is **reference only** during Stage 1 — do not add it to the workspace or depend on it for daily work.
 
-Stage 1 is complete. Your operating surface is this workspace, these commands, and your approval at the gates above.
+Your operating surface is this workspace, the three triggers above, and your approval at the gates in Section 6.
+
+---
+
+## Appendix A — Internal commands (agents, not your primary UI)
+
+Cursor commands under `.cursor/commands/` are **agent entry points** for structured execution inside IDE Development. You do not type these as your primary workflow — you use natural language and the three triggers in Section 5. Agents invoke commands when the task fits.
+
+**Primary commands:**
+
+- **`plan-program`** — new product idea or objective; produces validated intent, program artifact, and initial module structure
+- **`plan-module`** — program exists; breaks a module into phases and issues with dependencies and acceptance criteria
+- **`complete-module`** — module is planned; recursive execution through proof, review, and integration until done or blocked
+- **`execute-issue`** — one issue ready to implement; code/work output plus proof artifact
+- **`review-issue`** — issue has proof; independent review verdict (pass, fail, or blocked)
+- **`integrate-issue`** — review passed; integration record and updated downstream readiness
+
+**Typical agent flow:**
+
+```
+plan-program  →  plan-module  →  complete-module
+                                      ↓
+                              execute-issue  →  review-issue  →  integrate-issue
+```
+
+**`small-change`** handles tiny, low-risk fixes that still need proof, review, and integration but not full program or module planning.
+
+Command definitions live under `.cursor/commands/`. Index: `.cursor/commands/INDEX.yaml`.

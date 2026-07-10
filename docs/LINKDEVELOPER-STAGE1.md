@@ -1,6 +1,6 @@
 # LiNKdeveloper Stage 1 — Declaration
 
-**Status:** **Complete — verified for use** — see [`docs/LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md`](LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md) and [`docs/LINKDEVELOPER-STAGE1-CLOSURE.md`](LINKDEVELOPER-STAGE1-CLOSURE.md)  
+**Status:** **Complete — verified for use (hybrid skills installed)** — see [`docs/LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md`](LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md), [`docs/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md`](LINKDEVELOPER-STAGE1-HYBRID-REPORT.md), and [`docs/LINKDEVELOPER-STAGE1-CLOSURE.md`](LINKDEVELOPER-STAGE1-CLOSURE.md)  
 **Date:** 2026-07-10
 
 ## This repository IS LiNKdeveloper Stage 1
@@ -12,6 +12,21 @@ It provides the **development workflow blueprint** — doctrine, artifacts, work
 ```
 Intent → Program → Module → Phase → Issue → Proof → Review → Integration → Complete
 ```
+
+## Carlos operating model — three triggers + hybrid skills
+
+Carlos starts every session with one of three triggers (see `docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md`):
+
+1. **New idea** — interview → spec/PRD → approve → app or factory → develop
+2. **PRD in hand** — clarify gaps → approve → develop
+3. **Existing software** — assess → plan → develop
+
+**Hybrid skills are required**, not optional reference:
+
+- **gstack** (macro) — https://github.com/linktrend/gstack, local `/Users/linktrend/Projects/gstack`
+- **mattpocock/skills** (micro) — https://github.com/linktrend/skills, local `/Users/linktrend/Projects/skills`
+
+Registry and routing: `docs/HYBRID-SKILLS-REGISTRY.md`, `core/skills/intelligent-routing/SKILL.md`. Eight superseded local skills were deleted (no wrappers) — see `docs/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md`.
 
 **This is not the operations workflow** for Website, Automation, or Content factories. Those factories use the **Factory Operations Common Blueprint** in `docs/FACTORY-OPERATIONS-BLUEPRINT.md` (Program → Module → Stage → Issue → Run → Gate, factory controller trigger, shared internal data architecture).
 
@@ -48,6 +63,7 @@ See the Stage 1a spec, Section D, for the full legacy-exclusion treatment.
 |---|---|---|
 | **1a** | Define Application Factory workflow + skills | **Complete** |
 | **1b** | Semi-manual OS (bootstrap, equivalence, policies) | **Complete** |
+| **1c** | Hybrid skills install (gstack + mattpocock) | **Complete** |
 | **Blueprint** | Factory operations common blueprint | **Complete** |
 | **2** | Mostly/fully autonomous (LiNKdeveloper + OpenClaw) | Future |
 

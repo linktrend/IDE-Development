@@ -1,0 +1,125 @@
+# Hybrid Skills Registry
+
+**Date:** 2026-07-10  
+**Status:** Installed and wired — local clones present  
+**Owner:** LiNKdeveloper hybrid skills mission (Stage 1)
+
+This registry is the authoritative map for Layer 2 (gstack macro-orchestration) and Layer 3 (mattpocock micro-execution) skills integrated into LiNKdeveloper Stage 1. See `docs/LINKDEVELOPER-STAGE1A-SPEC.md` Section C for the layered model.
+
+---
+
+## Fork URLs
+
+- **Layer 2 (macro):** https://github.com/linktrend/gstack — upstream `garrytan/gstack`
+- **Layer 3 (micro):** https://github.com/linktrend/skills — upstream `mattpocock/skills`
+
+Both forks were created 2026-07-10 under the `linktrend` account. LiNKtrend owns the fork; upstream updates are pulled deliberately, not automatically.
+
+---
+
+## Local clone paths
+
+- **gstack:** `/Users/linktrend/Projects/gstack`
+- **mattpocock/skills:** `/Users/linktrend/Projects/skills`
+
+IDE Development command entrypoints under `core/commands/hybrid-*.md` point agents at these paths. No LiNKdev dependency. The abandoned LiNKdev-internal `gstack` folder at `LiNKsites/LiNKdev/skills/gstack` is not restored.
+
+---
+
+## gstack commands (Layer 2)
+
+Representative macro-orchestration slash commands. Invoke via `core/commands/hybrid-*.md` or read the skill file directly.
+
+- **`/spec`** — Turn vague intent into a structured specification. Primary path for **Trigger 1 (New idea)** after the interview phase and before Carlos approves the spec/PRD.
+- **`/plan-ceo-review`** — CEO-level product and architecture review of a plan or spec. Use when a significant program or module plan needs executive-style scrutiny before decomposition.
+- **`/health`** — Project health checks and repair loops. Use under **Trigger 3 (Existing software)** during assess/plan when the codebase shows drift, failing gates, or unclear readiness.
+- **`/ship`** — Release and shipping workflow. Decides shippable vs blocked; **subordinate to Layer 1 integration and release gates** — gstack does not bypass proof, review, or integration in IDE Development.
+- **`/context-save`** and **`/context-restore`** — Session context persistence and handoff across long runs. Pair with `context-engineering` (Layer 1 read-order) — gstack persists session state; Layer 1 shapes what to read.
+
+Additional gstack skills (`/review`, `/qa`, `/retro`, `/learn`) exist in the fork for extended orchestration; route via `intelligent-routing` when macro QA or retro is needed after module completion.
+
+**Not the same as** the legacy LiNKdev-internal gstack extracts. Those mined skills (`release-readiness`, `browser-qa`, `retrospective-learning`) are sunset — use this fork instead.
+
+Skill paths (examples):
+
+- `/Users/linktrend/Projects/gstack/spec/SKILL.md`
+- `/Users/linktrend/Projects/gstack/plan-ceo-review/SKILL.md`
+- `/Users/linktrend/Projects/gstack/health/SKILL.md`
+- `/Users/linktrend/Projects/gstack/ship/SKILL.md`
+- `/Users/linktrend/Projects/gstack/context-save/SKILL.md`
+- `/Users/linktrend/Projects/gstack/context-restore/SKILL.md`
+
+---
+
+## mattpocock commands (Layer 3)
+
+Micro-execution skills for clarification, PRD synthesis, issue slicing, TDD, debugging, and architecture improvement.
+
+- **`/grill-with-docs`** — Relentless interview against documentation; clarifies gaps. Primary path for **Trigger 2 (PRD in hand)** step 1 (clarify gaps).
+- **`/to-prd`** — Implemented as **`to-spec`** in the fork. Synthesizes conversation or clarified intent into a PRD/spec and publishes to the issue tracker.
+- **`/to-issues`** — Implemented as **`to-tickets`** in the fork. Slices work into atomic issues with dependencies.
+- **`/tdd`** — Test-driven implementation loop (failing test → fix → pass → regression proof).
+- **`/diagnosing-bugs`** — Systematic debugging for blocked or failing issues.
+- **`/improve-codebase-architecture`** — Architecture refactor guidance during **Trigger 3** plan or large refactor work.
+
+Skill paths:
+
+- `/Users/linktrend/Projects/skills/skills/engineering/grill-with-docs/SKILL.md`
+- `/Users/linktrend/Projects/skills/skills/engineering/to-spec/SKILL.md` (command label: `/to-prd`)
+- `/Users/linktrend/Projects/skills/skills/engineering/to-tickets/SKILL.md` (command label: `/to-issues`)
+- `/Users/linktrend/Projects/skills/skills/engineering/tdd/SKILL.md`
+- `/Users/linktrend/Projects/skills/skills/engineering/diagnosing-bugs/SKILL.md`
+- `/Users/linktrend/Projects/skills/skills/engineering/improve-codebase-architecture/SKILL.md`
+
+One-time setup: `/Users/linktrend/Projects/skills/skills/engineering/setup-matt-pocock-skills/SKILL.md`
+
+---
+
+## Trigger routing (prose)
+
+Carlos operates with three triggers only. Agents map hybrid skills inside each trigger; Carlos does not pick skill names.
+
+**Trigger 1 — New idea:** Interview with Carlos → gstack `/spec` (and optionally `/plan-ceo-review` for large bets) → mattpocock `/grill-with-docs` if docs need sharpening → `/to-prd` when ready to formalize → Carlos approves spec/PRD → route app vs factory → Layer 1 commands (`plan-program`, `plan-module`, …) for decomposition and execution.
+
+**Trigger 2 — PRD in hand:** mattpocock `/grill-with-docs` to clarify gaps → Carlos approves clarified PRD → `/to-issues` for issue graph → Layer 1 execution (`execute-issue`, proof, review, integration). Use `/tdd` and `/diagnosing-bugs` during issue execution as needed.
+
+**Trigger 3 — Existing software:** Assess codebase → gstack `/health` when health is uncertain → plan (Layer 1 `plan-module` or `/improve-codebase-architecture` for structural work) → Carlos approves if high-impact → develop with `/tdd`, domain skills, and Layer 1 gates. Use gstack `/ship` only after Layer 1 integration passes; it does not replace review or integration.
+
+**Session continuity:** Long runs may use gstack `/context-save` and `/context-restore` plus Layer 1 `context-engineering` for read order.
+
+**Internal artifact commands** (`plan-program`, `execute-issue`, `review-issue`, `integrate-issue`, …) apply when work is decomposed into the canonical artifact graph — not as Carlos's primary UI.
+
+---
+
+## Sunset skills (deleted from Layer 1)
+
+These eight local skills were removed — hybrid replaces them with no wrappers:
+
+- `release-readiness` → gstack `/ship`
+- `browser-qa` → gstack `/health` and QA flows; fallback `webapp-testing`
+- `retrospective-learning` → gstack `/retro` and `/learn`
+- `spec-driven-development` → gstack `/spec` + mattpocock `/grill-with-docs`
+- `plan-writing` → mattpocock `/to-prd` + gstack `/spec`
+- `task-decomposition` → mattpocock `/to-issues`
+- `test-driven-development` → mattpocock `/tdd`
+- `systematic-debugging` → mattpocock `/diagnosing-bugs`
+
+Details: `docs/SKILLS-SUNSET-REPORT.md`
+
+---
+
+## Verification
+
+Trigger 2 hybrid smoke test completed 2026-07-10. Artifacts: `core/pilots/hybrid-smoke/`. Outcome recorded in `docs/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md`.
+
+Automated re-check: `scripts/verify-stage1.sh`
+
+---
+
+## Related documents
+
+- `docs/LINKDEVELOPER-STAGE1A-SPEC.md` — Section C (layered skills map)
+- `docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md` — Carlos-facing three triggers
+- `core/skills/SKILLS_CATALOG.md` — agent routing catalog
+- `core/skills/intelligent-routing/SKILL.md` — hybrid routing hub
+- LiNKdeveloper Stage 2 reference (read-only): `EXECUTOR_ROUTING_POLICY.md`, validation repair routing — cited in `VALIDATION-CONTRACT.md` and `intelligent-routing`

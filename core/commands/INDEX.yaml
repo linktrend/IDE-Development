@@ -254,6 +254,241 @@ entries:
       - issue
       - preferred
 
+  - id: hybrid-spec
+    path: .cursor/commands/hybrid-spec.md
+    purpose: gstack /spec — structured specification for Trigger 1 new ideas.
+    when_to_use:
+      - Trigger 1 after interview, before Carlos approves spec/PRD
+      - when vague intent needs a structured spec
+    underlying_prompt: /Users/linktrend/Projects/gstack/spec/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+      - .cursor/skills/intelligent-routing/SKILL.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - structured spec artifact ready for human approval
+    status: active
+    tags:
+      - command
+      - hybrid
+      - gstack
+      - planning
+
+  - id: hybrid-grill
+    path: .cursor/commands/hybrid-grill.md
+    purpose: mattpocock /grill-with-docs — clarify PRD gaps against documentation.
+    when_to_use:
+      - Trigger 2 step 1 — PRD in hand, clarify gaps
+      - Trigger 1 when documentation needs sharpening
+    underlying_prompt: /Users/linktrend/Projects/skills/skills/engineering/grill-with-docs/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - clarified intent and documented gaps
+    status: active
+    tags:
+      - command
+      - hybrid
+      - mattpocock
+      - planning
+
+  - id: hybrid-to-prd
+    path: .cursor/commands/hybrid-to-prd.md
+    purpose: mattpocock /to-prd (to-spec) — synthesize PRD from clarified intent.
+    when_to_use:
+      - after grill or interview when formalizing PRD
+    underlying_prompt: /Users/linktrend/Projects/skills/skills/engineering/to-spec/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - PRD/spec ready for Carlos approval
+    status: active
+    tags:
+      - command
+      - hybrid
+      - mattpocock
+      - planning
+
+  - id: hybrid-to-issues
+    path: .cursor/commands/hybrid-to-issues.md
+    purpose: mattpocock /to-issues (to-tickets) — slice PRD into atomic issues.
+    when_to_use:
+      - after Carlos approves PRD/spec
+      - before Layer 1 execute-issue runs
+    underlying_prompt: /Users/linktrend/Projects/skills/skills/engineering/to-tickets/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates:
+      - .cursor/templates/ISSUE.md
+    required_agents: []
+    expected_output:
+      - dependency-aware issue set
+    status: active
+    tags:
+      - command
+      - hybrid
+      - mattpocock
+      - planning
+
+  - id: hybrid-tdd
+    path: .cursor/commands/hybrid-tdd.md
+    purpose: mattpocock /tdd — test-driven implementation loop.
+    when_to_use:
+      - during issue execution when behavior must be proven by tests
+    underlying_prompt: /Users/linktrend/Projects/skills/skills/engineering/tdd/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates:
+      - .cursor/templates/PROOF.md
+    required_agents: []
+    expected_output:
+      - failing-to-passing test proof
+    status: active
+    tags:
+      - command
+      - hybrid
+      - mattpocock
+      - execution
+
+  - id: hybrid-diagnosing-bugs
+    path: .cursor/commands/hybrid-diagnosing-bugs.md
+    purpose: mattpocock /diagnosing-bugs — systematic debugging.
+    when_to_use:
+      - blocked or failing issues needing root-cause analysis
+    underlying_prompt: /Users/linktrend/Projects/skills/skills/engineering/diagnosing-bugs/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - root cause, fix, and verification
+    status: active
+    tags:
+      - command
+      - hybrid
+      - mattpocock
+      - execution
+
+  - id: hybrid-health
+    path: .cursor/commands/hybrid-health.md
+    purpose: gstack /health — project health checks and repair loops.
+    when_to_use:
+      - Trigger 3 assess when health or gate discipline is unclear
+    underlying_prompt: /Users/linktrend/Projects/gstack/health/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - health assessment and repair recommendations
+    status: active
+    tags:
+      - command
+      - hybrid
+      - gstack
+      - assessment
+
+  - id: hybrid-ship
+    path: .cursor/commands/hybrid-ship.md
+    purpose: gstack /ship — shippable vs blocked verdict (subordinate to Layer 1 gates).
+    when_to_use:
+      - after Layer 1 integration passes, before release decision
+    underlying_prompt: /Users/linktrend/Projects/gstack/ship/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+      - .cursor/execution/CANONICAL-LAWS.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - ship verdict with risks and rollback notes
+    status: active
+    tags:
+      - command
+      - hybrid
+      - gstack
+      - release
+
+  - id: hybrid-plan-ceo-review
+    path: .cursor/commands/hybrid-plan-ceo-review.md
+    purpose: gstack /plan-ceo-review — executive plan review.
+    when_to_use:
+      - large or ambiguous program/module plans before decomposition
+    underlying_prompt: /Users/linktrend/Projects/gstack/plan-ceo-review/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - CEO-level plan review findings
+    status: active
+    tags:
+      - command
+      - hybrid
+      - gstack
+      - planning
+
+  - id: hybrid-context-save
+    path: .cursor/commands/hybrid-context-save.md
+    purpose: gstack /context-save — persist session context.
+    when_to_use:
+      - long runs needing handoff or pause
+    underlying_prompt: /Users/linktrend/Projects/gstack/context-save/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - saved session context
+    status: active
+    tags:
+      - command
+      - hybrid
+      - gstack
+      - session
+
+  - id: hybrid-context-restore
+    path: .cursor/commands/hybrid-context-restore.md
+    purpose: gstack /context-restore — resume saved session context.
+    when_to_use:
+      - resuming after context-save
+    underlying_prompt: /Users/linktrend/Projects/gstack/context-restore/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - restored session context
+    status: active
+    tags:
+      - command
+      - hybrid
+      - gstack
+      - session
+
+  - id: hybrid-improve-architecture
+    path: .cursor/commands/hybrid-improve-architecture.md
+    purpose: mattpocock /improve-codebase-architecture — refactor guidance.
+    when_to_use:
+      - Trigger 3 structural refactors or large architecture changes
+    underlying_prompt: /Users/linktrend/Projects/skills/skills/engineering/improve-codebase-architecture/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - architecture improvement plan or executed refactor
+    status: active
+    tags:
+      - command
+      - hybrid
+      - mattpocock
+      - architecture
+
   - id: archived-compatibility-commands
     path: .cursor/commands/README.md
     purpose: Archive and compatibility section for retained legacy and deprecated command wrappers.
