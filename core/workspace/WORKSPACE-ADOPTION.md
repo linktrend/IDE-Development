@@ -59,7 +59,7 @@ It does not require a separate installer script when:
 
 The system is designed this way because Cursor and Codex consume repository-visible instructions and files. The installable unit is the visible workspace structure, not a background service.
 
-An automated verifier is optional future convenience, not a prerequisite for adoption.
+Repo wiring itself is script-backed. Run `./scripts/wire-repo.sh <consumer-repo-path>` from `IDE Development` after discovery and legacy cleanup review. The script is idempotent and reports pass/fail results agents should interpret rather than improvising symlink commands.
 
 ## Adoption Sequence
 
@@ -74,8 +74,8 @@ An automated verifier is optional future convenience, not a prerequisite for ado
 5. preserve anything uncertain
 6. if safe, create backups of replaceable legacy material
 7. remove only clearly obsolete shared-system artifacts
-8. create `repo/.cursor` as a symlink to `../IDE Development/.cursor`
-9. verify:
+8. wire each approved consumer repository with `./scripts/wire-repo.sh <consumer-repo-path>` (preferred) or the manual symlink procedure in `REPO-WIRING.md` when judgment is required first
+9. confirm the script reports success, or manually verify:
    - `repo/.cursor`
    - `IDE Development/.cursor`
    - `IDE Development/core`
@@ -84,6 +84,8 @@ An automated verifier is optional future convenience, not a prerequisite for ado
 ## Natural-Language Trigger Rule
 
 Natural-language workspace adoption requests should route into `.cursor/workspace/INDEX.yaml`.
+
+For each consumer repository approved for wiring, agents should invoke `./scripts/wire-repo.sh <path>` and report the script output. Do not create symlinks by hand when the script path applies.
 
 No separate command family should be created.
 

@@ -171,13 +171,23 @@ Each product repo can share the same runtime by pointing its local `.cursor` fol
 ProductRepo/.cursor  →  ../IDE Development/.cursor  →  ../IDE Development/core
 ```
 
-This is a **one-time wiring step**, not something you do every session. Full procedure: `core/workspace/REPO-WIRING.md` and `core/workspace/WORKSPACE-ADOPTION.md`.
+This is a **one-time wiring step**, not something you do every session.
+
+**Preferred wiring command** (from `IDE Development`):
+
+```bash
+./scripts/wire-repo.sh /path/to/ProductRepo
+```
+
+The script backs up an existing `.cursor`, creates the symlink, verifies required runtime paths, and is safe to re-run when already wired. Agents should use this script for natural-language requests like "wire this repo" rather than improvising symlink commands.
+
+Full adoption sequence and manual fallback when judgment is needed first: `core/workspace/WORKSPACE-ADOPTION.md` and `core/workspace/REPO-WIRING.md`.
 
 **Rules of thumb:**
 
 1. Do **not** copy the whole system into each product repo when a symlink is enough.
 2. Always inspect an existing `.cursor` before replacing it — some repos have local rules worth keeping.
-3. Back up replaceable material before changing anything.
+3. Back up replaceable material before changing anything (the script does this automatically for replaceable `.cursor` state).
 
 ### Starting a session — what to read first
 
@@ -282,7 +292,7 @@ Command definitions live under `.cursor/commands/`. Index: `.cursor/commands/IND
 1. Stage 1 overview — `docs/LINKDEVELOPER-STAGE1.md`
 2. Hybrid skills registry — `docs/HYBRID-SKILLS-REGISTRY.md`
 3. Workspace adoption — `core/workspace/WORKSPACE-ADOPTION.md`
-4. Repo wiring — `core/workspace/REPO-WIRING.md`
+4. Repo wiring — `core/workspace/REPO-WIRING.md` and `scripts/wire-repo.sh`
 5. Factory operations (planning) — `docs/FACTORY-OPERATIONS-BLUEPRINT.md`
 6. Historical evidence — `docs/archive/`
 7. Automated Stage 1 re-check — `scripts/verify-stage1.sh`
