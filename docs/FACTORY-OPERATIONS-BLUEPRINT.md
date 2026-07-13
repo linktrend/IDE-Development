@@ -339,16 +339,15 @@ IDE Development is the **tool** used to finish factory gaps — it is not the op
 
 ## 11. References
 
-| Document | Role |
-|---|---|
-| `docs/LINKDEVELOPER-STAGE1.md` | Application Factory / dev workflow |
-| `docs/LINKDEVELOPER-OPERATIONS-MANUAL.md` | Day-to-day operator instructions |
-| `docs/archive/LINKDEVELOPER-STAGE1A-SPEC.md` | Stage 1a spec (historical) |
-| `docs/archive/LINKDEVELOPER-STAGE1B-REPORT.md` | Stage 1b report (historical) |
-| `LiNKsites/docs/reference/LINKSITES_FACTORY_KIT_WORKFLOW.md` | Website kit operations |
-| `LiNKdrive/Manuals/LiNKtrend Media/linktrend_media_content_creation_engine_manual.md` | Content factory |
-| `LiNKdrive/Manuals/LiNKbrain/linkbrain_manual.md` | Brain architecture |
-| `LiNKdrive/Manuals/LiNKskills/linkskills_manual.md` | Skills architecture |
+- [`docs/LINKDEVELOPER-STAGE1.md`](LINKDEVELOPER-STAGE1.md) — Application Factory / dev workflow
+- [`docs/LINKDEVELOPER-OPERATIONS-MANUAL.md`](LINKDEVELOPER-OPERATIONS-MANUAL.md) — day-to-day operator instructions
+- [`docs/ARCHIVE-INDEX.md`](ARCHIVE-INDEX.md) — retired systems and archive paths
+- [`docs/archive/LINKDEVELOPER-STAGE1A-SPEC.md`](archive/LINKDEVELOPER-STAGE1A-SPEC.md) — Stage 1a spec (historical)
+- [`docs/archive/LINKDEVELOPER-STAGE1B-REPORT.md`](archive/LINKDEVELOPER-STAGE1B-REPORT.md) — Stage 1b report (historical)
+- `LiNKsites/docs/reference/LINKSITES_FACTORY_KIT_WORKFLOW.md` — Website kit operations
+- `LiNKdrive/Manuals/LiNKtrend Media/linktrend_media_content_creation_engine_manual.md` — Content factory
+- `LiNKdrive/Manuals/LiNKbrain/linkbrain_manual.md` — Brain architecture
+- `LiNKdrive/Manuals/LiNKskills/linkskills_manual.md` — Skills architecture
 
 ---
 
