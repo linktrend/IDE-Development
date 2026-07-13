@@ -8,13 +8,11 @@
 
 ## Autonomy roadmap
 
-1. **Stage 1 (now — complete)** — Semi-manual Application Factory in **IDE Development**: hybrid skills, workspace adoption, proof/review/integration gates. Carlos holds human gates; Cursor agents do detailed work.
-2. **Stage 2 (future)** — Mostly autonomous OpenClaw orchestration: executives execute modules and issues between Carlos policy gates.
-3. **Stage 3 (future)** — Fully autonomous OpenClaw operation with human policy only; factory operations infrastructure when explicitly started.
+Stage 1 (now, complete) is semi-manual: Carlos holds the human gates, Cursor agents do the detailed work. Stages 2 and 3 hand execution to OpenClaw while keeping the same gate structure. Full roadmap detail: [`docs/LINKDEVELOPER-OPERATIONS-MANUAL.md`](LINKDEVELOPER-OPERATIONS-MANUAL.md) §2.
 
 ## Two blueprints (do not conflate)
 
-The **Application Factory** (Stage 1) applies to building venture apps — entry trigger is **Intent**. The **Factory operations common blueprint** applies to Website, Automation, and Content factories — entry is the factory controller (`running` / `paused` / `stopped`). Trading is not a factory. Factory operations implementation is **deferred** until explicitly started.
+The **Application Factory** (Stage 1, this repository) builds venture apps — entry is **Intent**. The **Factory operations common blueprint** runs Website, Automation, and Content factories — entry is the factory controller (`running` / `paused` / `stopped`). Trading is not a factory. Factory operations implementation is **deferred** until explicitly started. Detail: [`docs/FACTORY-OPERATIONS-BLUEPRINT.md`](FACTORY-OPERATIONS-BLUEPRINT.md), [`docs/LINKDEVELOPER-OPERATIONS-MANUAL.md`](LINKDEVELOPER-OPERATIONS-MANUAL.md) §8.
 
 ## Deliverables
 

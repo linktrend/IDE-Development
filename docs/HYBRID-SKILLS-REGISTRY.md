@@ -110,7 +110,7 @@ Details: [`docs/archive/SKILLS-SUNSET-REPORT.md`](archive/SKILLS-SUNSET-REPORT.m
 
 ## Verification
 
-Trigger 2 hybrid smoke test completed 2026-07-10. Artifacts: `core/pilots/hybrid-smoke/`. Outcome: [`docs/archive/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md`](archive/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md).
+Trigger 2 hybrid smoke test completed 2026-07-10. Artifacts (archived): `docs/archive/pilots/hybrid-smoke/`. Outcome: [`docs/archive/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md`](archive/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md).
 
 Automated re-check: `scripts/verify-stage1.sh`
 

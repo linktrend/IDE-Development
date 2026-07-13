@@ -52,20 +52,26 @@ The executor handoff is the main delta: **human → OpenClaw**. Gate names, proo
 
 Every session starts with exactly one of three triggers. Choosing application versus factory is **not** a fourth trigger — it is a routing decision inside each trigger, after the spec or PRD is clear.
 
+You do not need exact wording — agents recognize intent, not a magic phrase. The examples below just show the kind of thing you can type to start each trigger.
+
 ### Trigger 1: New idea
 
 You have a product concept but no written spec yet.
+
+**Say something like:** *"I have an idea for [product]. It should do [X]. Help me turn this into a spec."*
 
 1. **Interview** — work with an agent to explore the idea, constraints, and success criteria.
 2. **Spec or PRD** — the agent produces a written specification or product requirements document.
 3. **You approve** — review and approve the spec/PRD before development begins. This is your primary human gate.
 4. **Route and develop** — based on what the product is:
-   - **Normal application** — scaffold from the LiNKapps starter kit at `/Users/linktrend/Projects/LiNKapps`, then develop.
+   - **Normal application** — say *"scaffold this from the LiNKapps starter kit and start developing."* The agent copies the starter kit at `/Users/linktrend/Projects/LiNKapps` into the new product location and begins building on top of it — you do not run any setup commands yourself.
    - **Factory product** — agents use `docs/FACTORY-OPERATIONS-BLUEPRINT.md` as the planning reference for how the factory should operate, then develop.
 
 ### Trigger 2: PRD in hand
 
 You already have a product requirements document (from you, a stakeholder, or a prior session).
+
+**Say something like:** *"Here is a PRD for [product]. Review it, ask me what's missing, then get it ready to build."* (paste or attach the PRD)
 
 1. **Clarify gaps** — the agent reads the PRD, asks targeted questions, and fills missing detail.
 2. **You approve** — confirm the clarified spec/PRD is acceptable.
@@ -74,6 +80,8 @@ You already have a product requirements document (from you, a stakeholder, or a 
 ### Trigger 3: Existing software
 
 You have working code that needs work — refactor, finish incomplete features, customize, or extend.
+
+**Say something like:** *"Look at [repo/feature] and tell me what's there, what's missing, and what you'd do next."* or *"There's a bug: [describe what's wrong]."*
 
 1. **Assess** — the agent inspects the codebase and states what exists, what is missing, and what risks apply.
 2. **Plan** — for larger changes, the agent proposes a short plan; you approve if direction is unclear or high-impact.

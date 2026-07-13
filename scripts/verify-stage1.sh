@@ -166,6 +166,39 @@ for prompt_root in core/prompts .cursor/prompts; do
 done
 pass "No 00-linkdev-bootstrap in core/prompts/ or .cursor/prompts/ (excluding adoption-backups)"
 
+# --- No dangling references to paths archived out of core/pilots ---
+while IFS= read -r -d '' file; do
+  case "$file" in
+    docs/archive/*|docs/adoption-backups/*) continue ;;
+  esac
+  if grep -q 'core/pilots/hybrid-smoke' "$file" 2>/dev/null; then
+    fail "Stale path in $file: core/pilots/hybrid-smoke was archived to docs/archive/pilots/hybrid-smoke"
+  fi
+done < <(find docs -type f -name '*.md' -print0 2>/dev/null)
+pass "No dangling core/pilots/hybrid-smoke references in active docs"
+
+# --- SKILLS_CATALOG.md path list matches skills on disk (both directions) ---
+CATALOG="core/skills/SKILLS_CATALOG.md"
+missing_from_disk=()
+while IFS= read -r rel; do
+  skill_dir="core/${rel%/SKILL.md}"
+  [ -d "$skill_dir" ] || missing_from_disk+=("$rel")
+done < <(grep -oE '`skills/[a-zA-Z0-9_-]+/SKILL\.md`' "$CATALOG" | tr -d '`')
+if [ "${#missing_from_disk[@]}" -gt 0 ]; then
+  fail "SKILLS_CATALOG.md lists skill(s) missing on disk: ${missing_from_disk[*]}"
+fi
+
+missing_from_catalog=()
+for dir in core/skills/*/; do
+  name="$(basename "$dir")"
+  [ -f "${dir}SKILL.md" ] || continue
+  grep -q "skills/${name}/SKILL.md" "$CATALOG" || missing_from_catalog+=("$name")
+done
+if [ "${#missing_from_catalog[@]}" -gt 0 ]; then
+  fail "Skill folder(s) on disk missing from SKILLS_CATALOG.md path list: ${missing_from_catalog[*]}"
+fi
+pass "SKILLS_CATALOG.md path list matches core/skills/ on disk"
+
 echo ""
 echo "Stage 1 verification: ALL CHECKS PASSED"
 exit 0

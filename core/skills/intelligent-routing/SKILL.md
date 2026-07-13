@@ -84,6 +84,9 @@ After hybrid selection, prefer the smallest domain skill:
 - Criterion QA → `persistent-qa`
 - Scaffold LiNKtrend app → `app-builder`
 - Read order → `context-engineering`
+- Review a PR / change / patch → `code-review-and-quality` (distinct from gstack `/plan-ceo-review`, which is executive-level plan review, not patch review)
+- Bug report ("I found a bug", something broke) → mattpocock `/diagnosing-bugs`; if severity or scope is unclear, treat as Trigger 3 assess first
+- Security concern (auth, secrets, input handling, trust boundary) → `security-and-hardening`
 
 ## Internal artifact commands (decomposition required)
 

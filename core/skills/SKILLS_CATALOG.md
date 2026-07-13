@@ -106,6 +106,11 @@ Forty local skills remain after hybrid sunset. Grouped by concern.
 - `repository-manager` — workspace hygiene, handoffs, artifact placement
 - `deprecation-and-migration` — safe retirement of old systems
 - `code-simplification` — reduce complexity while preserving behavior
+- `security-and-hardening` — trust boundaries, auth, secrets, input, dependency, and operational risk review
+
+### Meta
+
+- `skill-template` — golden template for creating or refactoring shared core skills; not a task-routing skill
 
 ### Language and shell
 
