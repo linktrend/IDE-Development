@@ -1,8 +1,10 @@
 # Factory Operations Common Blueprint
 
-> **Status: Planning only — not implemented.** No Supabase, LiNKbrain, LiNKskills, or factory infrastructure in this blueprint is built until Carlos explicitly starts factory ops work.
+> **Archived 2026-07-13.** Moved out of the active `docs/` tree during the Stage 1 product-agnostic cleanup. This blueprint was never implemented and named specific product architecture (LiNKbrain, LinkSkills, a hardcoded LiNKsites "Website Factory" plane) that does not belong in the shared, product-agnostic LiNKdeveloper system. It is kept here as historical design context only. Any product that wants factory-operations planning must define it in that product's own repository/specification (e.g. LiNKsites now has its own governing Program Manual) — do not treat this document as authoritative or as a live routing target.
 
-**Status:** Locked — Carlos/Lisa alignment 2026-07-10 (design document only; see banner above)  
+> **Original status: Planning only — not implemented.** No Supabase, LiNKbrain, LiNKskills, or factory infrastructure in this blueprint is built until Carlos explicitly starts factory ops work.
+
+**Status:** Locked — Carlos/Lisa alignment 2026-07-10 (design document only; see banners above)  
 **Scope:** Website, Automation, and Content factories (operations domain)  
 **Out of scope:** Application Factory (IDE Development dev workflow), Trading (not a factory)
 

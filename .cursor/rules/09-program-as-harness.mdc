@@ -1,0 +1,27 @@
+# Program as Harness
+
+A **Program** (LiNKsites, LiNKautowork, LiNKtrend Sales, Content Topic Research, Content Creation, Content Distribution/Analytics, and any future Program) is not an AI agent with instructions. It is a **Harness**: software that wraps around one or more AI models and manages how they are used, so that output is consistent, repeatable, auditable, and scalable rather than dependent on open-ended chat-style prompting.
+
+Every Program must be built to expose the same five required parts. When designing or reviewing a Program, check that each part is explicit and identifiable — do not accept a Program where any part is implicit, missing, or delegated silently to model judgment.
+
+## The five required parts
+
+1. **Instructions** — the Issue contract: a specific, versioned definition of what output is expected, in what shape, for this unit of work. Not a general prompt; a contract.
+2. **Data feed** — deterministic retrieval from the Program's own schema/tables (or an explicit upstream contract). The model is fed data by the harness; it does not reconstruct facts from memory or guesswork.
+3. **Memory** — shared curated knowledge (LiNKbrain) plus this-run state (the Program Ledger: Issue/Run/Gate/Event). The model's own context window is working memory only, never the source of truth.
+4. **Tools** — explicit, permissioned calls (capability connectors, APIs, scripts, open-source software). No open-ended shell/browser access unless a step is genuinely undeterminable another way.
+5. **Grading** — a Gate: something other than the model that produced the output checks it before the Run is allowed to advance. No agent, persona, or model may self-certify its own work as complete.
+
+## Determinism ordering
+
+When choosing how an Issue gets executed, prefer in this order:
+1. Deterministic code / open-source software (most deterministic).
+2. Automation (e.g. n8n / LiNKautowork workflow).
+3. Structured/scoped AI model call with a Gate.
+4. Freeform AI agent — last resort, only when the above cannot do the job.
+
+The more of a Program's Issues that resolve at levels 1–2, the more deterministic, cheap, and reliable the Program is. AI agents are the fallback tier, not the default.
+
+## Applies to
+
+All current and future Programs. This doctrine does not require LiNKaios, Open Engine, or any deferred system to exist — it applies at the Program level today.

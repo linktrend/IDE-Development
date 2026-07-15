@@ -33,7 +33,7 @@ Use this skill when deciding how the system should handle a request. Carlos uses
 4. mattpocock `/grill-with-docs` if documentation gaps remain.
 5. mattpocock `/to-prd` when formalizing the PRD.
 6. **Stop for Carlos approval** — spec/PRD gate before development.
-7. Route app (LiNKapps starter kit) vs factory (`docs/FACTORY-OPERATIONS-BLUEPRINT.md`).
+7. Route app vs factory-style product: normal applications scaffold from the LiNKapps starter kit; factory-style products (continuous production lines) follow that product's own governing specification/roadmap — there is no shared generic factory-ops blueprint (see `docs/ARCHIVE-INDEX.md` for the retired one and why).
 8. Core commands: `plan-program` → `plan-module` → execution commands.
 
 ### Trigger 2 — PRD in hand

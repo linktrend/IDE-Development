@@ -1,6 +1,6 @@
 ---
 name: data-table
-description: Columnar table guidance for LiNKaios shell UI. Use for catalogs, indexes, settings lists, logs, and other structured row-and-column surfaces.
+description: Columnar table guidance for admin/operator shell UI. Use for catalogs, indexes, settings lists, logs, and other structured row-and-column surfaces.
 ---
 
 # Data Table

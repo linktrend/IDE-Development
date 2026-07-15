@@ -26,5 +26,6 @@ For current instructions, start with [`../LINKDEVELOPER-OPERATIONS-MANUAL.md`](.
 **Product and factory notes**
 
 - `LINKSITES-FACTORY-SETUP-REPORT.md` — LiNKsites factory setup notes
+- `FACTORY-OPERATIONS-BLUEPRINT.md` — Retired factory-operations planning doc (archived 2026-07-13 during Stage 1 product-agnostic cleanup; named specific product architecture that does not belong in the shared system — historical design context only, not a live routing target)
 
 Automated re-check for active Stage 1 surfaces: `scripts/verify-stage1.sh` (repo root).

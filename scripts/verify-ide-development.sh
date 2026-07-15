@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# LiNKdeveloper Stage 1 verification — stdlib/shell only.
+# IDE Development verification — stdlib/shell only.
 # Exit 0 on pass; non-zero with message on fail.
 
 set -euo pipefail
@@ -104,7 +104,7 @@ pass "All 8 sunset skills removed from core/skills/"
 pass "Hybrid command entrypoints present"
 
 # --- Operations manual and archive index ---
-[ -f "docs/LINKDEVELOPER-OPERATIONS-MANUAL.md" ] || fail "Missing docs/LINKDEVELOPER-OPERATIONS-MANUAL.md"
+[ -f "docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md" ] || fail "Missing docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md"
 pass "Operations manual present"
 
 [ ! -f "docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md" ] || fail "Retired doc must be removed: docs/LINKDEVELOPER-WORKSPACE-OPERATOR-GUIDE.md"

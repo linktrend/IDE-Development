@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This repository is **LiNKdeveloper** — the shared AI development core used across Cursor, Codex, and future tools.
+This repository is **IDE Development** — the shared AI development core used across Cursor, Codex, and future tools.
 
 The canonical knowledge asset lives in `core/`. The compatibility runtime surface remains in `.cursor/`. GitHub is the source of truth.
 
@@ -11,7 +11,7 @@ The repository also supports:
 - session lifecycle for daily resume and close-out behavior
 - workspace adoption for one-time installation into an existing `Projects/` workspace
 
-**New operators:** after cloning, read [docs/LINKDEVELOPER-OPERATIONS-MANUAL.md](docs/LINKDEVELOPER-OPERATIONS-MANUAL.md) for day-to-day instructions.
+**New operators:** after cloning, read [docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md](docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md) for day-to-day instructions.
 
 Retired systems and historical evidence: [docs/ARCHIVE-INDEX.md](docs/ARCHIVE-INDEX.md) and [docs/archive/](docs/archive/README.md).
 

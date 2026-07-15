@@ -22,4 +22,4 @@ Session lifecycle docs under `core/session/` and `core/bootstrap/` define when h
 
 ## Operator reference
 
-Day-to-day instructions: [`docs/LINKDEVELOPER-OPERATIONS-MANUAL.md`](../LINKDEVELOPER-OPERATIONS-MANUAL.md)
+Day-to-day instructions: [`docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md`](../IDE-DEVELOPMENT-OPERATIONS-MANUAL.md)

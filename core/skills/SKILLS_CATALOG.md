@@ -117,9 +117,9 @@ Forty local skills remain after hybrid sunset. Grouped by concern.
 - `nodejs-best-practices`, `python-patterns`, `rust-pro`
 - `bash-linux`, `powershell-windows`
 
-### LiNKaios host UI composites (optional — host repos only)
+### Admin/operator shell UI composites (optional)
 
-Use only when building LiNKaios Class A operator UI surfaces:
+Use only when the current work is building an admin or operator console surface for whichever product is in scope:
 
 - `data-table` — columnar shell tables
 - `action-queue` — feed-style attention rows

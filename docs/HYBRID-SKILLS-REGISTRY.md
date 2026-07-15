@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-10  
 **Status:** Installed and wired — local clones present  
-**Owner:** LiNKdeveloper Stage 1 (IDE Development)
+**Owner:** IDE Development
 
 This registry is the authoritative map for gstack macro-orchestration and mattpocock micro-execution skills integrated into **IDE Development**. Historical layered model detail: [`docs/archive/LINKDEVELOPER-STAGE1A-SPEC.md`](archive/LINKDEVELOPER-STAGE1A-SPEC.md) Section C.
 
@@ -118,8 +118,8 @@ Automated re-check: `scripts/verify-stage1.sh`
 
 ## Related documents
 
-- [`docs/LINKDEVELOPER-OPERATIONS-MANUAL.md`](LINKDEVELOPER-OPERATIONS-MANUAL.md) — day-to-day operator instructions
-- [`docs/LINKDEVELOPER-STAGE1.md`](LINKDEVELOPER-STAGE1.md) — Stage 1 declaration
+- [`docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md`](IDE-DEVELOPMENT-OPERATIONS-MANUAL.md) — day-to-day operator instructions
+- [`docs/IDE-DEVELOPMENT-STAGE1.md`](IDE-DEVELOPMENT-STAGE1.md) — Application Factory declaration
 - [`docs/ARCHIVE-INDEX.md`](ARCHIVE-INDEX.md) — retired systems and historical reference
 - `core/skills/SKILLS_CATALOG.md` — agent routing catalog
 - `core/skills/intelligent-routing/SKILL.md` — hybrid routing hub

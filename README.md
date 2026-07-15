@@ -1,8 +1,8 @@
 # IDE Development
 
-**LiNKdeveloper** — the semi-manual Application Factory operating system for LiNKtrend venture development.
+The shared, human-assisted AI development core used across Cursor, Codex, and future tools for LiNKtrend venture development.
 
-This repository contains the global AI development core used across Cursor, Codex, and future tools.
+This repository contains the global AI development core used across Cursor, Codex, and future tools. It is distinct from **LiNKdeveloper**, the separate, VPS-hosted autonomous application-factory Program (see `/Users/linktrend/Projects/LiNKdeveloper`). LiNKdeveloper may be authored using this repo's `.cursor` surface, but it does not depend on this repo at runtime.
 
 The canonical knowledge asset lives in [`core/`](core/). The compatibility runtime surface for existing Cursor-oriented consumers remains in [`.cursor/`](.cursor/README.md).
 
@@ -24,6 +24,6 @@ GitHub is the source of truth: [linktrend/IDE-Development](https://github.com/li
 
 ## New operators
 
-Start here: [docs/LINKDEVELOPER-OPERATIONS-MANUAL.md](docs/LINKDEVELOPER-OPERATIONS-MANUAL.md)
+Start here: [docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md](docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md)
 
 Machine setup and update guidance: [SETUP.md](SETUP.md)

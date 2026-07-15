@@ -1,6 +1,6 @@
 ---
 name: personal-information-forms
-description: Shared form guidance for name, address, phone, email, and related personal-information workflows in LiNKaios UI.
+description: Shared form guidance for name, address, phone, email, and related personal-information workflows in admin/operator UI.
 ---
 
 # Personal Information Forms

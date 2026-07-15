@@ -1,18 +1,20 @@
-# LiNKdeveloper Operations Manual
+# IDE Development Operations Manual
 
-**Audience:** Carlos (Principal) and future OpenClaw operators  
-**Date:** 2026-07-10  
-**Status:** Active — Stage 1 operational; Stage 2/3 in preparation
+**Audience:** Carlos (Principal) and future operators  
+**Date:** 2026-07-10 (naming corrected 2026-07-15)  
+**Status:** Active
 
-This manual is the canonical operator reference for LiNKdeveloper. It replaces the workspace operator guide for day-to-day use.
+This manual is the canonical operator reference for **IDE Development**. It replaces the workspace operator guide for day-to-day use.
+
+**Naming correction (2026-07-15):** This repository is no longer called "LiNKdeveloper." That name now belongs to a separate, independent Program and repository (`/Users/linktrend/Projects/LiNKdeveloper`) — a VPS-hosted, mostly-autonomous application factory that is built *using* this repo's Cursor surface but does not depend on it at runtime; its own doctrine/skills/gates are copied and adapted, not referenced live. This repository, IDE Development, is the permanent human-assisted development core — it does not evolve into that separate Program. Historical sections below still refer to "Stage 1/2/3 autonomy evolution" and "OpenClaw operators" as originally written; treat that framing as superseded by the LiNKdeveloper Program split, not as this repo's own roadmap.
 
 ---
 
 ## 1. System identity
 
-**LiNKdeveloper is IDE Development.** The local folder is `IDE Development` at `/Users/linktrend/Projects/IDE Development`. The GitHub repository remains `linktrend/IDE-Development`. The product name and folder name are intentionally aligned in meaning, not spelling.
+The local folder is `IDE Development` at `/Users/linktrend/Projects/IDE Development`. The GitHub repository remains `linktrend/IDE-Development`.
 
-LiNKdeveloper is the unified development system for planning and building venture software with AI assistance. It holds rules, skills, templates, doctrine, and execution commands. Product repositories hold the code and content being built.
+IDE Development is the unified development system for planning and building venture software with AI assistance. It holds rules, skills, templates, doctrine, and execution commands. Product repositories hold the code and content being built.
 
 Earlier experiments and duplicate runtimes are retired. They are not part of daily operation. See [`docs/ARCHIVE-INDEX.md`](ARCHIVE-INDEX.md) for retired systems, archive paths, and when you may read from archive. Do not add archived folders to the workspace or wire product repos to them.
 
@@ -24,13 +26,13 @@ Earlier experiments and duplicate runtimes are retired. They are not part of dai
 
 You operate one system. Agents route across all three sources through the hybrid registry — you do not manage separate sources manually.
 
-The saved workspace file **LiNKdeveloper** groups the system repo with product repos you are actively building. Add product folders to the workspace when you need them; remove them when work pauses.
+The saved workspace file (historically named "LiNKdeveloper") groups this system repo with product repos you are actively building. Add product folders to the workspace when you need them; remove them when work pauses.
 
 ---
 
-## 2. Autonomy evolution — three stages, one gate structure
+## 2. Autonomy evolution — three stages, one gate structure (historical framing — see naming correction above)
 
-LiNKdeveloper evolves through three stages of autonomy. The **gate structure stays the same** across all stages. What changes is **who executes** between gates: Carlos in Stage 1, OpenClaw executives and executors in Stages 2 and 3.
+This repo previously described itself as evolving through three stages of autonomy, with OpenClaw eventually taking over execution. That roadmap now belongs to the separate LiNKdeveloper Program, not to this repo. The **gate structure** described below (proof/review/integration) remains accurate for how this repo itself is used; the "who executes between gates" framing is retained here only as historical record.
 
 **Shared lifecycle spine (Application Factory):**
 
@@ -65,7 +67,7 @@ You have a product concept but no written spec yet.
 3. **You approve** — review and approve the spec/PRD before development begins. This is your primary human gate.
 4. **Route and develop** — based on what the product is:
    - **Normal application** — say *"scaffold this from the LiNKapps starter kit and start developing."* The agent copies the starter kit at `/Users/linktrend/Projects/LiNKapps` into the new product location and begins building on top of it — you do not run any setup commands yourself.
-   - **Factory product** — agents use `docs/FACTORY-OPERATIONS-BLUEPRINT.md` as the planning reference for how the factory should operate, then develop.
+   - **Factory product** (a continuous production line such as a website, automation, or content factory) — the agent follows that product's own governing specification (PRD, program manual, or ADRs) for how the factory should operate, then develops against it. LiNKdeveloper does not carry a generic factory-operations blueprint of its own — see `docs/ARCHIVE-INDEX.md` for why the earlier one was retired.
 
 ### Trigger 2: PRD in hand
 
@@ -85,9 +87,9 @@ You have working code that needs work — refactor, finish incomplete features, 
 
 1. **Assess** — the agent inspects the codebase and states what exists, what is missing, and what risks apply.
 2. **Plan** — for larger changes, the agent proposes a short plan; you approve if direction is unclear or high-impact.
-3. **Develop** — implement, test, and deliver. Factory products still reference the Factory Operations blueprint when operational behavior is in scope.
+3. **Develop** — implement, test, and deliver. Factory products still reference their own governing specification when operational behavior is in scope.
 
-**Application versus factory — one short note.** Normal applications start from the LiNKapps starter kit. Factory products (revenue production lines such as website, automation, or content factories) use `docs/FACTORY-OPERATIONS-BLUEPRINT.md` as a planning reference. That blueprint describes how factory operations should eventually run autonomously. It is design-only until you explicitly start factory ops work.
+**Application versus factory — one short note.** Normal applications start from the LiNKapps starter kit. Factory products (revenue production lines such as website, automation, or content factories) are planned and operated per that product's own specification — LiNKdeveloper is deliberately product-agnostic and does not ship a generic factory-operations blueprint.
 
 ---
 
@@ -229,13 +231,13 @@ To extend the system later, add domain skills under `core/skills/`, update the c
 
 ---
 
-## 8. Factory operations blueprint — planning only
+## 8. Factory operations — product-specific, not a shared blueprint
 
-`docs/FACTORY-OPERATIONS-BLUEPRINT.md` is a **planning document only** — not live factory infrastructure. Its banner states clearly: no Supabase schemas, Postgres factory ledger, n8n factory controller, or factory brain infrastructure is built until you explicitly start factory ops work.
+**Factory infrastructure belongs to each factory product — not to Stage 1.** Stage 1 is the shared, product-agnostic Application Factory development workflow in this repository. Factory ops (how a specific website, automation, or content factory actually operates — its planes, ledger, gates, infrastructure) is defined by that product's own governing specification, not by LiNKdeveloper.
 
-**Factory infrastructure belongs to factory operations — not Stage 1.** Stage 1 is the Application Factory development workflow in this repository. Factory ops is a separate domain for continuous production lines (website, automation, content factories).
+An earlier generic "Factory Operations Common Blueprint" was retired and archived (`docs/archive/FACTORY-OPERATIONS-BLUEPRINT.md`) because it hardcoded specific product architecture (LiNKbrain, LinkSkills, a named LiNKsites plane) into what must stay a shared system. It was never implemented and is historical reference only — do not build against it.
 
-Use the blueprint when the product is a **factory**. It describes the common operations skeleton — trigger, program, module, stage, issue, run, gate, output, complete — shared by revenue factories. Agents consult it when designing or building factory behavior; you do not operate it as a day-to-day control panel today.
+When the product is a **factory**, read that product's own specification (PRD, program manual, or ADRs) for its operations model. If no such specification exists yet, that is a gap to close with Carlos before building factory behavior — do not invent one from the archived blueprint.
 
 The **Application Factory workflow** (this manual, IDE Development commands, and the development lifecycle) is separate from factory **operations**. Development builds software; factory operations run production lines once built.
 
@@ -301,7 +303,7 @@ Command definitions live under `.cursor/commands/`. Index: `.cursor/commands/IND
 2. Hybrid skills registry — `docs/HYBRID-SKILLS-REGISTRY.md`
 3. Workspace adoption — `core/workspace/WORKSPACE-ADOPTION.md`
 4. Repo wiring — `core/workspace/REPO-WIRING.md` and `scripts/wire-repo.sh`
-5. Factory operations (planning) — `docs/FACTORY-OPERATIONS-BLUEPRINT.md`
+5. Retired systems, including the archived factory-operations blueprint — `docs/ARCHIVE-INDEX.md`
 6. Historical evidence — `docs/archive/`
 7. Automated Stage 1 re-check — `scripts/verify-stage1.sh`
 
