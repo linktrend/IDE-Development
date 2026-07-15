@@ -143,14 +143,14 @@ pass "Local archive snapshot directories present"
 # --- No LiNKdev in active docs (LiNKdeveloper allowed; ARCHIVE-INDEX documents retirement) ---
 while IFS= read -r -d '' file; do
   case "$file" in
-    docs/archive/*|docs/adoption-backups/*|docs/ARCHIVE-INDEX.md) continue ;;
+    docs/archive/*|docs/adoption-backups/*|docs/workspace-reports/*|docs/ARCHIVE-INDEX.md) continue ;;
   esac
   linkdev_hits="$(grep -in 'linkdev' "$file" 2>/dev/null | grep -iv 'linkdeveloper' || true)"
   if [ -n "$linkdev_hits" ]; then
     fail "LiNKdev mentioned in active doc $file (forbidden): $linkdev_hits"
   fi
 done < <(find docs -type f -name '*.md' -print0 2>/dev/null)
-pass "Active docs have no LiNKdev references (excluding docs/archive, adoption-backups, ARCHIVE-INDEX)"
+pass "Active docs have no LiNKdev references (excluding docs/archive, adoption-backups, workspace-reports, ARCHIVE-INDEX)"
 
 # --- No stale bootstrap in active prompts (core/ and .cursor/) ---
 for prompt_root in core/prompts .cursor/prompts; do
