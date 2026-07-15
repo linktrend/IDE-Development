@@ -13,6 +13,10 @@
 
 **Factory Operations Common Blueprint** — Local: [`docs/archive/FACTORY-OPERATIONS-BLUEPRINT.md`](archive/FACTORY-OPERATIONS-BLUEPRINT.md) (archived 2026-07-13). Planning-only design for Website/Automation/Content factory operations. Retired because it hardcoded specific product architecture (LiNKbrain, LinkSkills, a named LiNKsites "Website Factory" plane) into what must be a shared, product-agnostic system. Never implemented. A product that needs factory-operations planning must define it in that product's own repository/specification instead (e.g. LiNKsites now has its own governing Program Manual).
 
+**LiNKapps** (`LiNKdev Starter Kit` / `LTM Starter Kit`) — Local snapshot: `/Users/linktrend/Projects/Archive/LiNKapps-legacy-20260715/`. Retired name for the web + mobile starter-kit monorepo. Content vendored into the independent **LiNKdeveloper** Program repo at `/Users/linktrend/Projects/LiNKdeveloper/starter-kits/linkapps-fullstack/` (2026-07-15) before archiving.
+
+**LiNKtrend-System/LiNKdev factory** — Local snapshot: `/Users/linktrend/Projects/Archive/LiNKdev-factory-legacy-20260715/`. The `factory/` tree inside the old `LiNKtrend-System` monorepo's embedded `LiNKdev/` copy (distinct from the standalone `LiNKdev-legacy-20260710` snapshot above). Doctrine (Laws, gate catalog, proof standard, handoff contracts, generic agent-role templates) vendored into `/Users/linktrend/Projects/LiNKdeveloper/doctrine/` (2026-07-15) before archiving; its GitHub Actions dispatch loop was not carried forward.
+
 None of the systems above are installed, extended, or required for day-to-day Stage 1 operation.
 
 ---
