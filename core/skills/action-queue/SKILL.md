@@ -1,6 +1,6 @@
 ---
 name: action-queue
-description: Feed-style attention rows for LiNKaios surfaces. Use when the UI is a task or inbox feed rather than a columnar table.
+description: Feed-style attention rows for admin/operator shell surfaces. Use when the UI is a task or inbox feed rather than a columnar table.
 ---
 
 # Action Queue

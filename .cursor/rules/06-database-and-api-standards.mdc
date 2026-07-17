@@ -1,5 +1,5 @@
 ---
-description: Database and API standards for LiNKtrend ecosystem MVO.
+description: General database and API standards for LiNKtrend product development.
 alwaysApply: false
 ---
 
@@ -9,27 +9,10 @@ Use Supabase/Postgres-compatible schemas unless a repo already has a justified a
 
 Use migrations. Do not hand-edit production schemas.
 
-Prefer tenant-scoped tables and explicit tenant_id fields.
+Prefer tenant-scoped tables and explicit `tenant_id` fields when the product is multi-tenant.
 
 Preserve RLS and audit patterns where already present.
 
-API endpoints should be minimal and explicit for MVO.
+API endpoints should be minimal and explicit — build only the contracts the current work requires.
 
-Initial required contracts:
-
-- Tenant
-- Role
-- LiNKbot
-- Module
-- CapabilityConnector
-- CapabilityLease
-- WorkflowRun
-- AuditEvent
-- MemoryEvent
-- ContextBundle
-- Lead
-- WebsitePreview
-- CRMRecord
-- PlaneProject
-
-If changing a cross-system contract, update the relevant local planning, template, or contract artifacts before implementation proceeds.
+Required entities, contracts, and schemas are defined by the target product's own specification (PRD, program manual, or ADRs) — do not assume any entity list from another product applies here. If a cross-system contract changes, update the relevant local planning, template, or contract artifacts before implementation proceeds.
