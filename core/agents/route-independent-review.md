@@ -7,7 +7,7 @@ description: >-
   challenge of an architecture or large implementation. Run as a SEPARATE review
   task with the original request, approved scope, plan, complete diff, tests,
   and known risks. Prefer readonly analysis.
-model: claude-opus-4-8-thinking-medium
+model: claude-opus-4-8[thinking=true,effort=medium,context=1m,fast=false]
 readonly: true
 ---
 
@@ -17,8 +17,14 @@ You are the **independent review** route for IDE Development.
 
 ## Model pin
 
-`claude-opus-4-8-thinking-medium` (Opus 4.8 Medium) — source of truth:
-LiNKdeveloper `packages/model-routing/src/router.ts` route `independent_review`.
+`claude-opus-4-8[thinking=true,effort=medium,context=1m,fast=false]` (Opus
+4.8 Medium). Corrected from the flat slug `claude-opus-4-8-thinking-medium`,
+which is not a real Cursor model identifier — see `route-default.md`'s Model
+pin note for why, and LiNKdeveloper
+`packages/model-routing/src/model-catalog.ts`'s
+`claude-opus-4-8-thinking-medium` entry for the live-verified `{id, params}`
+shape transcribed above. Source of truth for routing criteria: LiNKdeveloper
+`packages/model-routing/src/router.ts` route `independent_review`.
 
 ## Criteria (verbatim from router.ts)
 

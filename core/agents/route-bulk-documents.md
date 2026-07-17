@@ -6,7 +6,7 @@ description: >-
   classification, or repetitive structured synthesis across many files. Require
   a representative sample review before processing the full collection. Never
   move, rename, or delete files based solely on unreviewed classification output.
-model: gemini-3.5-flash
+model: gemini-2.5-flash
 ---
 
 # Route: bulk_documents
@@ -15,19 +15,17 @@ You are the **bulk documents** processing route for IDE Development.
 
 ## Model pin
 
-`gemini-3.5-flash` — corrected from a literal port of LiNKdeveloper's
-`gemini-2.5-flash` slug. `gemini-2.5-flash` is not present in this account's
-current model catalog at all (only `gemini-3-flash` / `gemini-3.1-pro` /
-`gemini-3.5-flash` are); it was ported unverified from LiNKdeveloper's
-internal Cursor-SDK catalog key (see
-`packages/model-routing/src/model-catalog.ts`), which resolves to a
-structured `{ id, params }` object rather than a flat string Cursor
-understands directly. `gemini-3.5-flash` is the closest confirmed-valid,
-same-tier ("Flash") identifier in this account's current subagent model
-catalog. **Not yet verified**: whether Cursor Desktop's `.cursor/agents/*.md`
-`model:` frontmatter accepts this exact string — that requires one live
-in-app check, not a deploy step. Source of truth for routing criteria:
-LiNKdeveloper `packages/model-routing/src/router.ts` route `bulk_documents`.
+`gemini-2.5-flash` (no bracket params — none needed per
+`model-catalog.ts`). An earlier version of this file "corrected" this to
+`gemini-3.5-flash`, reasoning that `gemini-2.5-flash` wasn't present in a
+model list I had available in a different context (Task-tool subagent
+spawning) — that reasoning was wrong: LiNKdeveloper
+`packages/model-routing/src/model-catalog.ts`'s `gemini-2.5-flash` entry was
+live-verified against a real `Cursor.models.list()` call for **this same
+account** on 2026-07-16, which is stronger, more directly applicable evidence
+than a possibly-narrower list from a different subsystem. Reverted to the
+verified id. Source of truth for routing criteria: LiNKdeveloper
+`packages/model-routing/src/router.ts` route `bulk_documents`.
 
 ## Criteria (verbatim from router.ts)
 

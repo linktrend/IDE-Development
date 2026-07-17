@@ -220,22 +220,28 @@ Skills live in `.cursor/skills/SKILLS_CATALOG.md`. Agents read the catalog first
 
 **Carlos does not pick skill names.** You describe intent through one of the three triggers. Agents route through `docs/HYBRID-SKILLS-REGISTRY.md` and `core/skills/intelligent-routing/SKILL.md` to the correct hybrid or domain skill.
 
-### Model routing (wired, three slugs corrected)
+### Model routing (wired, correct frontmatter format confirmed against Cursor's own docs)
 
 Cursor Desktop model routing is **real and wired** via pinned custom subagents. Source of truth for route→model *mapping* (which route to use for which task) is LiNKdeveloper `packages/model-routing/src/router.ts` (ported, not re-derived). Doctrine: `.cursor/skills/model-routing/SKILL.md`.
 
-The *slug strings* themselves are a separate concern from the mapping. LiNKdeveloper's `router.ts` slugs are keys into that Program's own `packages/model-routing/src/model-catalog.ts`, which resolves them to structured `{ id, params }` Cursor-SDK `ModelSelection` objects — that file's docstring explicitly warns against assuming a slug shape without checking a live `Cursor.models.list()` first, and records a real prior case where an assumed slug didn't exist. Three of the six ported slugs were an unverified literal copy of those SDK-internal keys and did not match any model in this account's actual subagent catalog; they were corrected to the closest confirmed-valid equivalents:
+Per [Cursor's subagent docs](https://cursor.com/docs/subagents), the `model:` frontmatter field takes a **base model ID plus `[id=value,...]` bracket parameters** (e.g. `claude-opus-4-8[effort=high]`) — it does not take flat suffixed strings. Two rounds of correction happened on this doctrine before it was verified against Cursor's real docs:
 
-| Route | Subagent path | Model slug | Status |
-|---|---|---|---|
-| `default` | `.cursor/agents/route-default.md` | `claude-sonnet-5-thinking-medium` | confirmed valid |
-| `escalation` | `.cursor/agents/route-escalation.md` | `gpt-5.6-sol-medium` | confirmed valid |
-| `independent_review` | `.cursor/agents/route-independent-review.md` | `claude-opus-4-8-thinking-medium` | confirmed valid |
-| `economical` | `.cursor/agents/route-economical.md` | `composer-2.5-fast` | corrected from `composer-2.5` |
-| `bulk_documents` | `.cursor/agents/route-bulk-documents.md` | `gemini-3.5-flash` | corrected from `gemini-2.5-flash` (didn't exist) |
-| `evaluation` | `.cursor/agents/route-evaluation.md` | `cursor-grok-4.5-medium-fast` | corrected from `grok-4.5-medium`; **"Fast off" not yet confirmed** — see the agent file's Model pin section |
+1. All six routes were originally ported as flat strings straight from LiNKdeveloper's `router.ts` (e.g. `claude-sonnet-5-thinking-medium`). Those are LiNKdeveloper's own internal routing-policy names, not Cursor identifiers anywhere.
+2. Three were then "corrected" against a different subsystem's model list (Task-tool subagent spawning, a narrower/different catalog than this frontmatter field uses) — that was also wrong, and for `evaluation` specifically would have baked in "-fast", violating the explicit Fast-off requirement.
+3. The actual fix: transcribe each route's already-live-verified `{ id, params }` shape from LiNKdeveloper `packages/model-routing/src/model-catalog.ts` (ground-truth-checked against a real `Cursor.models.list()` call for this same account on 2026-07-16) directly into bracket-param syntax.
 
-"Confirmed valid" means present in this account's live subagent model catalog as of 2026-07-17 — it does **not** yet mean Cursor Desktop's `.cursor/agents/*.md` `model:` frontmatter is confirmed to honor these exact strings at runtime. That needs one live in-app check (invoke each route agent from the Cursor chat and observe which model actually answers) — a same-session sanity check, not a deploy step.
+| Route | Subagent path | Model pin |
+|---|---|---|
+| `default` | `.cursor/agents/route-default.md` | `claude-sonnet-5[thinking=true,effort=medium,context=1m]` |
+| `escalation` | `.cursor/agents/route-escalation.md` | `gpt-5.6-sol[reasoning=medium,context=1m,fast=false]` |
+| `independent_review` | `.cursor/agents/route-independent-review.md` | `claude-opus-4-8[thinking=true,effort=medium,context=1m,fast=false]` |
+| `economical` | `.cursor/agents/route-economical.md` | `composer-2.5[fast=true]` |
+| `bulk_documents` | `.cursor/agents/route-bulk-documents.md` | `gemini-2.5-flash` |
+| `evaluation` | `.cursor/agents/route-evaluation.md` | `grok-4.5[effort=medium,fast=false]` |
+
+**Composer-fallback and Ultra plan, resolved:** per Cursor's subagent FAQ, the "subagents always run on Composer regardless of `model:`" trap only applies to **legacy request-based plans without Max Mode**. Ultra is a usage-based plan, so per that same FAQ ("Usage-based plans and Max Mode will default to the parent model" in the fallback cases, and normal honoring otherwise) this trap does not apply here — resolving the Principal's original open question from before this unification work started.
+
+**Still not verified** (same-session Cursor Desktop check, not a deploy step): that these exact bracket-param strings parse and resolve as expected at runtime. Invoke each route agent from the Cursor chat (e.g. `/route-default hello`) and confirm the responding model matches the pin.
 
 On model-quality failure, agents must log the attempt and retry once with the different-family pairing in `model-routing` (capped at one hop). This is agent-followed doctrine — IDE Development has no persistent Ledger process to mechanize it.
 

@@ -8,7 +8,7 @@ description: >-
   prod data/live trading; failure will be obvious; result verifiable by
   automated/objective check; changes easy to revert. If any condition is false
   or unknown, use route-default instead.
-model: composer-2.5-fast
+model: composer-2.5[fast=true]
 ---
 
 # Route: economical
@@ -17,19 +17,16 @@ You are the **economical** bounded-work route for IDE Development.
 
 ## Model pin
 
-`composer-2.5-fast` — corrected from a literal port of LiNKdeveloper's
-`composer-2.5` slug. That string is LiNKdeveloper's own internal Cursor-SDK
-catalog key (see `packages/model-routing/src/model-catalog.ts`), which
-resolves to a structured `{ id, params }` `ModelSelection` object, not a flat
-string Cursor understands directly — that file's own docstring warns against
-assuming a slug shape without checking `Cursor.models.list()` first, and
-records a prior case where a "similar-looking" slug turned out not to exist
-at all. `composer-2.5-fast` is the closest confirmed-valid identifier in this
-account's current subagent model catalog. **Not yet verified**: whether
-Cursor Desktop's `.cursor/agents/*.md` `model:` frontmatter accepts this exact
-string — that requires one live in-app check (e.g. invoking this agent from
-the Cursor chat and confirming which model responds), not a deploy step.
-Source of truth for routing criteria: LiNKdeveloper
+`composer-2.5[fast=true]` (Composer 2.5). An earlier version of this file
+pinned `composer-2.5-fast` — that was itself a wrong correction, made before
+checking [Cursor's subagent docs](https://cursor.com/docs/subagents) for the
+real frontmatter format. The `model:` field takes a base model ID plus
+`[id=value,...]` bracket parameters (Cursor's own docs example:
+`composer-2.5[fast=false]`); it does not take flat suffixed strings like
+`composer-2.5-fast` at all. The params above are transcribed directly from
+LiNKdeveloper `packages/model-routing/src/model-catalog.ts`'s `composer-2.5`
+entry (live-verified against `Cursor.models.list()` on 2026-07-16). Source of
+truth for routing criteria: LiNKdeveloper
 `packages/model-routing/src/router.ts` route `economical`.
 
 ## Criteria (verbatim from router.ts)
