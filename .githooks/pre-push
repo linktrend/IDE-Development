@@ -14,14 +14,21 @@ do
   fi
 done
 
-if [[ -z "$VALIDATOR" ]]; then
-  exit 0
-fi
-
 STATE_LIST="$(git ls-files | grep -E '(^|/)PIPELINE-STATE\.json$' || true)"
 
 if [[ -z "$STATE_LIST" ]]; then
   exit 0
+fi
+
+# See pre-commit's matching comment: a tracked PIPELINE-STATE.json with no
+# validator present is a broken install, not a "not using the pipeline"
+# signal — fail closed (Law 16), never silently no-op.
+if [[ -z "$VALIDATOR" ]]; then
+  echo "pre-push: REJECT — PIPELINE-STATE.json is tracked but no application-pipeline validator" >&2
+  echo "  found at core/runtime/validate-application-pipeline.mjs or .cursor/runtime/validate-application-pipeline.mjs." >&2
+  echo "  This repo is using the fixed application pipeline but IDE Development isn't fully" >&2
+  echo "  installed/vendored — fix the install before pushing pipeline-state changes." >&2
+  exit 1
 fi
 
 FAILED=0

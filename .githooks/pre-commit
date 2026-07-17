@@ -14,10 +14,6 @@ do
   fi
 done
 
-if [[ -z "$VALIDATOR" ]]; then
-  exit 0
-fi
-
 STATE_LIST="$(
   {
     git diff --cached --name-only --diff-filter=ACMR
@@ -27,6 +23,21 @@ STATE_LIST="$(
 
 if [[ -z "$STATE_LIST" ]]; then
   exit 0
+fi
+
+# A staged PIPELINE-STATE.json means this repo is actively using the fixed
+# application pipeline, so the validator MUST be present too (it ships
+# vendored alongside via the core/.cursor symlink pattern). A missing
+# validator here is a broken/incomplete IDE Development install, not an
+# "this repo doesn't use the pipeline" signal — fail closed per Law 16
+# ("Quality gates must stop progression, not merely warn"), never silently
+# no-op just because the check itself couldn't be found.
+if [[ -z "$VALIDATOR" ]]; then
+  echo "pre-commit: REJECT — PIPELINE-STATE.json changed but no application-pipeline validator" >&2
+  echo "  found at core/runtime/validate-application-pipeline.mjs or .cursor/runtime/validate-application-pipeline.mjs." >&2
+  echo "  This repo is using the fixed application pipeline but IDE Development isn't fully" >&2
+  echo "  installed/vendored — fix the install before committing pipeline-state changes." >&2
+  exit 1
 fi
 
 FAILED=0
