@@ -3,13 +3,14 @@ entries:
     path: .cursor/workspace/INDEX.yaml
     purpose: Progressive-disclosure index for one-time workspace adoption, repository discovery, legacy cleanup, consumer wiring, and adoption reporting.
     when_to_read:
-      - when a user says "Install the system into this workspace", "Adopt this workspace", or "Wire this workspace"
+      - when a user says "Install the system into this workspace", "Adopt this workspace", "Wire this workspace", "Wire this repo", or "Adopt this repo into the workspace"
       - when entering the workspace directory directly
       - when validating multi-repository workspace adoption behavior
     dependencies:
       - .cursor/bootstrap/START-HERE.md
       - .cursor/bootstrap/PROJECT-BOOTSTRAP.md
       - .cursor/session/INDEX.yaml
+      - wire-repo-script
     consumers:
       - human operators
       - Cursor
@@ -94,6 +95,7 @@ entries:
       - when checking symlink integrity and backward compatibility
     dependencies:
       - workspace-adoption
+      - wire-repo-script
       - .cursor/import-core.md
     consumers:
       - human operators
@@ -107,6 +109,28 @@ entries:
       - wiring
       - symlink
       - compatibility
+
+  - id: wire-repo-script
+    path: scripts/wire-repo.sh
+    purpose: Deterministic consumer-repository wiring script. Creates repo/.cursor symlink, backs up conflicting state, verifies required runtime paths, and exits idempotently when already wired.
+    when_to_read:
+      - when a user says "Wire this repo", "Wire this workspace to IDE-Development", "Adopt this repo into the workspace", or similar natural-language wiring requests
+      - immediately before executing consumer repository wiring after discovery and legacy cleanup review
+    dependencies:
+      - workspace-adoption
+      - repo-wiring
+    consumers:
+      - human operators
+      - Cursor
+      - Codex
+      - Claude
+      - maintainers
+    status: active
+    tags:
+      - workspace
+      - wiring
+      - script
+      - deterministic
 
   - id: legacy-cleanup
     path: .cursor/workspace/LEGACY-CLEANUP.md

@@ -1,0 +1,43 @@
+---
+description: LinkSites customer/template UI — packages/ui vendor model; not LiNKaios operator shell.
+alwaysApply: false
+globs:
+  - "apps/**"
+  - "packages/**"
+---
+
+# LinkSites UI Policy (customer / template surfaces)
+
+Applies to **published SMB sites** and template apps under `apps/web-*` and shared packages — **not** LiNKaios operator UI (that lives in LiNKtrend-System).
+
+## Authority chain
+
+1. **This rule** — customer/template scope
+2. **Template-local design** — tokens and components vendored into each template
+3. **`packages/ui`** — shared assets copied into templates (vendor model; see `packages/ui/README.md`)
+
+Do **not** import or mirror LiNKaios `ui-standards.ts`, shell chrome, data-table families, or operator dashboard patterns here.
+
+## Vendor model (`packages/ui`)
+
+- Assets in `packages/ui` are **copied** into templates/projects — not imported at runtime across deploy boundaries unless explicitly designed
+- Update shared assets here first, then vendor into templates
+- Keep each asset self-contained with usage notes
+
+## Discovery before new UI
+
+1. Read existing template components and design tokens in the target app
+2. Check `packages/ui` and `packages/blocks` for reusable patterns
+3. Use shadcn MCP only to discover primitives — match template aesthetic, not LiNKaios operator shell
+
+## Defaults
+
+- Functional clarity and accessibility over pixel polish unless an issue specifies design review
+- Accessible labels, focus states, and error feedback (no raw stack traces to end users)
+- Match project test/lint commands from repo docs
+
+## Related
+
+- Portable factory rule: `LiNKdev/factory/rules/08-ui-and-frontend-standards.mdc`
+- Grounding: `LiNKdev/product/grounding/CONSTRAINTS.md`, `UI_AUTHORITY.template.md`
+- LiNKaios operator UI: LiNKtrend-System `.cursor/rules/08-linkaios-ui-standards.mdc` (do not apply here)

@@ -1,0 +1,21 @@
+---
+alwaysApply: false
+globs: "**/*"
+---
+
+# LiNKsites Foundation
+
+LiNKsites is the **website factory**: many SMB sites from reusable Next.js templates, backed by **Payload CMS** and optional Supabase. Central CMS + hostname routing + premium spin-off deployments per README.
+
+## Layout
+
+- `apps/cms/` — Payload CMS (Next.js + Payload)
+- `apps/web-master/`, `apps/web-company/` — site templates
+- `packages/` — shared types, UI blocks, config, utils
+- `supabase/` — migrations and functions
+- `sites_specs/` — authoritative specs
+- `docs/` — primary documentation index
+
+## Modes
+
+- Shared platform (many hostnames, one runtime) vs premium dedicated frontends—preserve `siteId` and CMS contracts when changing routing.

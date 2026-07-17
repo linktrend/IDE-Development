@@ -47,6 +47,20 @@ It is not:
 
 After adoption is complete, normal work should continue through the existing session lifecycle and execution model.
 
+## Installation Model
+
+Workspace adoption is intentionally symlink-based.
+
+It does not require a separate installer script when:
+
+- the `IDE Development` repository is present inside the workspace
+- consumer repositories can resolve `.cursor` to `../IDE Development/.cursor`
+- `.cursor/README.md`, `.cursor/commands/INDEX.yaml`, and `.cursor/templates/INDEX.yaml` are reachable from the consumer repository
+
+The system is designed this way because Cursor and Codex consume repository-visible instructions and files. The installable unit is the visible workspace structure, not a background service.
+
+Repo wiring itself is script-backed. Run `./scripts/wire-repo.sh <consumer-repo-path>` from `IDE Development` after discovery and legacy cleanup review. The script is idempotent and reports pass/fail results agents should interpret rather than improvising symlink commands.
+
 ## Adoption Sequence
 
 1. determine the active workspace from the current chat-visible filesystem context
@@ -60,8 +74,8 @@ After adoption is complete, normal work should continue through the existing ses
 5. preserve anything uncertain
 6. if safe, create backups of replaceable legacy material
 7. remove only clearly obsolete shared-system artifacts
-8. create `repo/.cursor` as a symlink to `../IDE Development/.cursor`
-9. verify:
+8. wire each approved consumer repository with `./scripts/wire-repo.sh <consumer-repo-path>` (preferred) or the manual symlink procedure in `REPO-WIRING.md` when judgment is required first
+9. confirm the script reports success, or manually verify:
    - `repo/.cursor`
    - `IDE Development/.cursor`
    - `IDE Development/core`
@@ -70,6 +84,8 @@ After adoption is complete, normal work should continue through the existing ses
 ## Natural-Language Trigger Rule
 
 Natural-language workspace adoption requests should route into `.cursor/workspace/INDEX.yaml`.
+
+For each consumer repository approved for wiring, agents should invoke `./scripts/wire-repo.sh <path>` and report the script output. Do not create symlinks by hand when the script path applies.
 
 No separate command family should be created.
 

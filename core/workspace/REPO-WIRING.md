@@ -4,7 +4,30 @@
 
 Define how consumer repositories are attached to the shared runtime surface after safe discovery and cleanup review.
 
-## Wiring Rule
+## Preferred Method — Deterministic Script
+
+When the consumer repository path is known and legacy cleanup has already been reviewed, prefer the wiring script:
+
+```bash
+./scripts/wire-repo.sh /path/to/consumer-repo
+```
+
+From inside `IDE Development`, pass an absolute or relative path to the consumer repository root.
+
+The script:
+
+- verifies the target is a directory and is not the system repository itself
+- detects an already-correct symlink and exits cleanly (idempotent)
+- backs up an existing `.cursor` directory or mismatched symlink to `.cursor-backup-<timestamp>/`
+- creates `repo/.cursor` as a relative symlink to `IDE Development/.cursor`
+- verifies required runtime paths are reachable from the consumer repository
+- touches only `.cursor` in the consumer repository
+
+Agents receiving natural-language wiring requests should run this script and report its pass/fail output rather than improvising symlink commands by hand.
+
+## Manual Fallback
+
+Use manual wiring only when judgment is required first — for example, when an existing `.cursor` contains mixed repository-specific rules and shared-system copies that must be inspected per `LEGACY-CLEANUP.md` before replacement.
 
 For each consumer repository:
 
