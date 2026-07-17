@@ -167,3 +167,20 @@ entries:
       - contracts
       - canonical
       - validation
+
+  - id: application-pipeline-state-schema
+    path: .cursor/contracts/APPLICATION-PIPELINE-STATE.schema.json
+    purpose: JSON Schema for durable application PIPELINE-STATE.json artifacts.
+    when_to_read:
+      - when creating or validating PIPELINE-STATE.json
+    dependencies:
+      - .cursor/execution/APPLICATION-PIPELINE.md
+    consumers:
+      - human operators
+      - AI runtimes
+      - validators
+    status: active
+    tags:
+      - contracts
+      - schema
+      - application-pipeline

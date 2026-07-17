@@ -7,13 +7,26 @@ scope:
   - "<in-scope item>"
 out_of_scope:
   - "<out-of-scope item>"
+program_kind: "application | non-application"
 modules:
-  - module_id: "<module-id>"
-    path: ".cursor-or-repo-relative-path-to-module-artifact"
+  # Application Programs MUST list exactly these six, in order (paths under docs/development/<program-id>/modules/):
+  - module_id: "intake_and_definition"
+    path: "modules/01-intake-and-definition/MODULE.md"
+  - module_id: "assembly_planning"
+    path: "modules/02-assembly-planning/MODULE.md"
+  - module_id: "execution"
+    path: "modules/03-execution/MODULE.md"
+  - module_id: "verification_and_hardening"
+    path: "modules/04-verification-and-hardening/MODULE.md"
+  - module_id: "library_contribution"
+    path: "modules/05-library-contribution/MODULE.md"
+  - module_id: "shipment"
+    path: "modules/06-shipment/MODULE.md"
 read_first:
   - ".cursor/execution/INDEX.yaml"
   - ".cursor/execution/CANONICAL-LAWS.md"
   - ".cursor/execution/MINIMUM-RUNTIME-MODEL.md"
+  - ".cursor/execution/APPLICATION-PIPELINE.md"
 read_forbidden:
   - "unrelated module trees not needed for current program work"
 program_definition_of_done:
@@ -55,7 +68,9 @@ Describe the total outcome this program must achieve.
 
 ## Modules
 
-List the modules that make up the program and the path to each module artifact.
+**Application Programs:** list exactly the six fixed Modules in order (IDs from `.cursor/execution/APPLICATION-PIPELINE.md`). Do not rename, reorder, omit, or add a seventh top-level Module.
+
+**Non-application governed work:** generic Module semantics remain available; list domain modules as needed.
 
 ## Progressive Disclosure Inputs
 

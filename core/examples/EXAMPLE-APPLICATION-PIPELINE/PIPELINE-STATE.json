@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "programId": "example-application-pipeline",
+  "targetRepositoryRoot": "core/examples/EXAMPLE-APPLICATION-PIPELINE",
+  "currentModuleId": "intake_and_definition",
+  "modules": {
+    "intake_and_definition": {
+      "state": "active",
+      "gatePath": "modules/01-intake-and-definition/gate.json",
+      "gateVerdict": null
+    },
+    "assembly_planning": {
+      "state": "pending",
+      "gatePath": "modules/02-assembly-planning/gate.json",
+      "gateVerdict": null
+    },
+    "execution": {
+      "state": "pending",
+      "gatePath": "modules/03-execution/gate.json",
+      "gateVerdict": null
+    },
+    "verification_and_hardening": {
+      "state": "pending",
+      "gatePath": "modules/04-verification-and-hardening/gate.json",
+      "gateVerdict": null
+    },
+    "library_contribution": {
+      "state": "pending",
+      "gatePath": "modules/05-library-contribution/gate.json",
+      "gateVerdict": null
+    },
+    "shipment": {
+      "state": "pending",
+      "gatePath": "modules/06-shipment/gate.json",
+      "gateVerdict": null
+    }
+  },
+  "principalDecisions": [],
+  "livingDocumentPath": "LIVING-DOCUMENT.md",
+  "livingDocumentSha256": null,
+  "libraryCheckoutPath": null,
+  "libraryCommitSha": null,
+  "lastTransitionTimestamp": null,
+  "lastTransitionActor": null,
+  "blockers": [],
+  "terminalState": null,
+  "issues": {},
+  "livingDocumentCriteria": []
+}

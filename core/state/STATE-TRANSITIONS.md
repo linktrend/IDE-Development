@@ -9,6 +9,8 @@ This document defines allowed and invalid transitions for all canonical work uni
 1. No transition may bypass required upstream obligations.
 2. No transition may hide a failed review or failed integration behind a completion label.
 3. Transition authority belongs to the stage that owns that transition.
+4. Application-pipeline Module transitions are fail-closed via `.cursor/runtime/validate-application-pipeline.mjs` (Law 16). Non-zero means stop; no warn-only path.
+5. Issues cannot become `done` without proof, independent review pass, and integration.
 
 ## Intent Transitions
 

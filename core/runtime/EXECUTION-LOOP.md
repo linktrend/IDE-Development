@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the human-driven runtime loop for carrying out doctrine-compliant execution.
+This document defines the human-driven (session-scoped) runtime loop for carrying out doctrine-compliant execution. For application Programs, the loop is driven by the fixed six-Module pipeline in `.cursor/execution/APPLICATION-PIPELINE.md` with fail-closed validation via `.cursor/runtime/validate-application-pipeline.mjs`.
 
 ## Entry Scope
 

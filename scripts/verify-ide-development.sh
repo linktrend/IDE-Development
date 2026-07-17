@@ -199,6 +199,55 @@ if [ "${#missing_from_catalog[@]}" -gt 0 ]; then
 fi
 pass "SKILLS_CATALOG.md path list matches core/skills/ on disk"
 
+# --- Application pipeline contract ---
+[ -f "core/execution/APPLICATION-PIPELINE.md" ] || fail "Missing APPLICATION-PIPELINE.md"
+[ -f "core/contracts/APPLICATION-PIPELINE-STATE.schema.json" ] || fail "Missing APPLICATION-PIPELINE-STATE.schema.json"
+[ -f "core/runtime/validate-application-pipeline.mjs" ] || fail "Missing validate-application-pipeline.mjs"
+[ -f "core/templates/PIPELINE-STATE.json" ] || fail "Missing PIPELINE-STATE.json template"
+node -e "JSON.parse(require('fs').readFileSync('core/templates/PIPELINE-STATE.json','utf8'))" \
+  || fail "PIPELINE-STATE.json template is not valid JSON"
+# Fixed Module order in example
+for d in \
+  01-intake-and-definition \
+  02-assembly-planning \
+  03-execution \
+  04-verification-and-hardening \
+  05-library-contribution \
+  06-shipment
+do
+  [ -d "core/examples/EXAMPLE-APPLICATION-PIPELINE/modules/$d" ] \
+    || fail "Missing fixed Module example path: $d"
+done
+pass "Application pipeline schema/order fixtures present"
+
+# --- No active absolute hybrid sibling paths ---
+if rg -q '/Users/linktrend/Projects/(gstack|skills)' core docs --glob '!docs/archive/**' --glob '!docs/planning/**' 2>/dev/null; then
+  fail "Active absolute hybrid paths remain under core/docs (excluding archive/planning)"
+fi
+pass "No active absolute hybrid sibling paths"
+
+# --- Vendored skill hashes ---
+if [ -x "scripts/verify-vendored-skills.sh" ]; then
+  bash scripts/verify-vendored-skills.sh || fail "verify-vendored-skills.sh failed"
+else
+  fail "Missing scripts/verify-vendored-skills.sh"
+fi
+
+# --- Gate Stop progression test ---
+if [ -x "scripts/test-gate-stop-progression.sh" ]; then
+  bash scripts/test-gate-stop-progression.sh || fail "Gate Stop progression test failed"
+else
+  fail "Missing scripts/test-gate-stop-progression.sh"
+fi
+
+# --- Feasibility fixture still valid ---
+if [ -x "scripts/feasibility/run-fixed-pipeline-feasibility.sh" ]; then
+  bash scripts/feasibility/run-fixed-pipeline-feasibility.sh >/dev/null \
+    || fail "fixed-pipeline feasibility runner failed"
+  pass "Fixed-pipeline feasibility runner"
+fi
+
 echo ""
 echo "Stage 1 verification: ALL CHECKS PASSED"
 exit 0
+

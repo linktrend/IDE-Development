@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "application-pipeline-state.schema.json",
+  "title": "ApplicationPipelineState",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "programId",
+    "targetRepositoryRoot",
+    "currentModuleId",
+    "modules",
+    "principalDecisions",
+    "livingDocumentPath",
+    "livingDocumentSha256",
+    "libraryCheckoutPath",
+    "libraryCommitSha",
+    "lastTransitionTimestamp",
+    "lastTransitionActor",
+    "blockers",
+    "terminalState"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "programId": { "type": "string", "minLength": 1 },
+    "targetRepositoryRoot": { "type": "string", "minLength": 1 },
+    "currentModuleId": {
+      "type": "string",
+      "enum": [
+        "intake_and_definition",
+        "assembly_planning",
+        "execution",
+        "verification_and_hardening",
+        "library_contribution",
+        "shipment"
+      ]
+    },
+    "modules": {
+      "type": "object",
+      "required": [
+        "intake_and_definition",
+        "assembly_planning",
+        "execution",
+        "verification_and_hardening",
+        "library_contribution",
+        "shipment"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "intake_and_definition": { "$ref": "#/$defs/moduleState" },
+        "assembly_planning": { "$ref": "#/$defs/moduleState" },
+        "execution": { "$ref": "#/$defs/moduleState" },
+        "verification_and_hardening": { "$ref": "#/$defs/moduleState" },
+        "library_contribution": { "$ref": "#/$defs/moduleState" },
+        "shipment": { "$ref": "#/$defs/moduleState" }
+      }
+    },
+    "principalDecisions": { "type": "array" },
+    "livingDocumentPath": { "type": ["string", "null"] },
+    "livingDocumentSha256": { "type": ["string", "null"] },
+    "libraryCheckoutPath": { "type": ["string", "null"] },
+    "libraryCommitSha": { "type": ["string", "null"] },
+    "lastTransitionTimestamp": { "type": ["string", "null"] },
+    "lastTransitionActor": { "type": ["string", "null"] },
+    "blockers": { "type": "array" },
+    "terminalState": {
+      "type": ["string", "null"],
+      "enum": ["release_ready", "blocked", "cancelled", null]
+    },
+    "issues": { "type": "object" },
+    "livingDocumentCriteria": { "type": "array" }
+  },
+  "$defs": {
+    "moduleState": {
+      "type": "object",
+      "required": ["state", "gatePath", "gateVerdict"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["pending", "active", "gate_pending", "blocked", "complete"]
+        },
+        "gatePath": { "type": ["string", "null"] },
+        "gateVerdict": {
+          "type": ["string", "null"],
+          "enum": ["pass", "accepted", "rejected", "fail", null]
+        }
+      }
+    }
+  }
+}

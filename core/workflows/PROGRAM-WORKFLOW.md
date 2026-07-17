@@ -7,7 +7,8 @@ This workflow defines how work moves from validated intent into a program that c
 ## Responsibilities
 
 - validate that a program should exist
-- establish the top-level structure of modules
+- for application Programs: instantiate the six fixed Modules (never invent domain Modules at the top level)
+- for non-application governed work: establish an appropriate generic module structure
 - define program-wide constraints and definition of done
 - provide the contract for module-level execution
 
@@ -44,8 +45,8 @@ Required artifacts:
 1. Create or refine `INTENT.md`.
 2. Evaluate verdict and eligibility for program creation.
 3. If accepted, create or update `PROGRAM.md`.
-4. Define modules, global constraints, and program definition of done.
-5. Hand off target modules to the module workflow.
+4. For application Programs, instantiate the six fixed Modules in order; for non-application work, define modules as needed. Set global constraints and program definition of done.
+5. Hand off target modules to the module workflow (or `run-application-pipeline` for application Programs).
 
 ## Output Contract
 

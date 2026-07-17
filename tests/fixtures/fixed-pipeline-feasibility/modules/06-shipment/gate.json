@@ -1,0 +1,5 @@
+{
+  "moduleId": "shipment",
+  "verdict": null,
+  "notes": "Fixture gate for shipment — terminal is release_ready, not complete"
+}
