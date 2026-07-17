@@ -111,6 +111,12 @@ If a handoff cannot be validated confidently, the system should:
 - record the ambiguity
 - return the work to clarification, rework, or blocker resolution
 
+## Repair routing (LiNKdeveloper reference)
+
+When validation fails during review or integration, do not silently retry. Stage 2 LiNKdeveloper reference docs (`EXECUTOR_ROUTING_POLICY.md`, validation repair routing in `VALIDATION_RULEBOOK`) describe automatic repair-issue creation: a new `ISSUE.md` with `depends_on` pointing at the failing proof, preserving Canonical Law 11 (blocked work leaves a trail).
+
+Stage 1 applies this concept through Layer 1 commands and `intelligent-routing` — return failed work to `execute-issue` or spawn an explicit repair issue with artifact trail. Hybrid gstack `/health` may assist diagnosis; repair routing remains Layer 1 governed. See `docs/HYBRID-SKILLS-REGISTRY.md` for hybrid vs Layer 1 boundaries. No LiNKdev runtime dependency.
+
 ## Read Next
 
 1. `CONTRACT-MODEL.md`

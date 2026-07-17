@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This repository contains the shared AI development core used across Cursor, Codex, and future tools.
+This repository is **IDE Development** — the shared AI development core used across Cursor, Codex, and future tools.
 
 The canonical knowledge asset lives in `core/`. The compatibility runtime surface remains in `.cursor/`. GitHub is the source of truth.
 
@@ -10,6 +10,10 @@ The repository also supports:
 
 - session lifecycle for daily resume and close-out behavior
 - workspace adoption for one-time installation into an existing `Projects/` workspace
+
+**New operators:** after cloning, read [docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md](docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md) for day-to-day instructions.
+
+Retired systems and historical evidence: [docs/ARCHIVE-INDEX.md](docs/ARCHIVE-INDEX.md) and [docs/archive/](docs/archive/README.md).
 
 ## Clone On Another Machine
 
@@ -72,6 +76,23 @@ Operational result:
 Workspace adoption is one-time.
 
 Session lifecycle remains the daily operational behavior after adoption.
+
+## Installer Position
+
+No separate installer script is required for normal use.
+
+The intended installation model is:
+
+- keep `IDE Development` as a folder in the workspace
+- keep `IDE Development/core` as canonical knowledge
+- keep `IDE Development/.cursor` as the shared runtime surface
+- wire consumer repositories to that runtime surface with `.cursor` symlinks
+
+For Cursor, the practical requirement is that the workspace can see the `IDE Development` folder and the consumer repository `.cursor` symlink resolves correctly.
+
+For Codex, the practical requirement is that agents can discover the repository and follow the `.cursor` compatibility paths into `core`.
+
+An installer or verifier may be added later if manual adoption becomes error-prone across many machines, but it is not part of the required v1 operating model.
 
 ## Make Changes Safely
 

@@ -9,7 +9,7 @@ Do not commit secrets, API keys, tokens, private credentials, or real customer d
 
 Prefer `.env.example` for required variables. Real secrets stay in local `.env`, Supabase, DigitalOcean, GSM, Infisical/OpenBao, or other approved secret stores.
 
-All external side effects must be governed through LinkSkills capability leases in the MVO design, even if the implementation is simplified.
+All external side effects must be governed through whatever approval, audit, and permission mechanism the target product's own specification defines — do not invent one and do not assume a specific mechanism (e.g. a capability/lease system) exists unless that product's governing spec says so.
 
 Risky side effects include:
 
@@ -21,7 +21,7 @@ Risky side effects include:
 - modifying production workflows
 - deploying infrastructure
 
-For MVO, outreach email is draft-only unless explicitly approved.
+Treat any risky side effect as draft-only or dry-run by default until the target product's approval policy explicitly authorizes a live send/action.
 
 Cost controls are first-class. Agents must avoid unnecessary premium model usage and record any long-running or expensive operation.
 

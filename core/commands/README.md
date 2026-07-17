@@ -6,17 +6,31 @@ Preferred commands for new work are:
 
 - `plan-program`
 - `plan-module`
+- `small-change`
 - `complete-module`
 - `execute-issue`
 - `review-issue`
 - `integrate-issue`
 
-Legacy `linkdev-*` and related compatibility commands remain only for continuity with older flows.
+`small-change` is the lightweight path for tiny low-risk bugs or simple bounded changes. It reduces planning ceremony, but it does not remove proof, review, integration, or the rule that `done` means verified.
 
-Current compatibility status:
+## Archive And Compatibility
 
-- `linkdev-go`, `linkdev-dispatch`, `linkdev-wire-post-dispatch`, and `wire-linkdev` are retained as legacy commands
-- `linkdev-ui-automations` and `linkdev-wire-post-ui` are retained as deprecated compatibility aliases
+Legacy `linkdev-*` and related commands are quarantined under [`compatibility-archive/`](compatibility-archive/README.md).
+
+They remain available for older references, but they are not part of the preferred command surface for new work.
+
+Archived compatibility commands:
+
+- `compatibility-archive/linkdev-go.md`
+- `compatibility-archive/linkdev-dispatch.md`
+- `compatibility-archive/linkdev-wire-post-dispatch.md`
+- `compatibility-archive/wire-linkdev.md`
+
+Archived deprecated aliases:
+
+- `compatibility-archive/linkdev-ui-automations.md`
+- `compatibility-archive/linkdev-wire-post-ui.md`
 
 Future work should use the newer execution command layer and its doctrine-driven prompts.
 

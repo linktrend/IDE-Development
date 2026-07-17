@@ -7,7 +7,7 @@ entries:
       - when a runtime needs to understand the relationship between .cursor and core
     dependencies:
       - .cursor/README.md
-      - .cursor/rules/00-linkdev-bootstrap.mdc
+      - .cursor/rules/00-bootstrap.mdc
       - .cursor/session/INDEX.yaml
       - .cursor/workspace/INDEX.yaml
       - core/
@@ -50,7 +50,7 @@ entries:
       - when validating backward compatibility
     dependencies:
       - .cursor/README.md
-      - core/reports/V1.0.1-MIGRATION.md
+      - docs/archive/core-reports/V1.0.1-MIGRATION.md
     consumers:
       - maintainers
       - Cursor
