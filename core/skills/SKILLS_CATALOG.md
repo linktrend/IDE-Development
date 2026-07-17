@@ -76,6 +76,7 @@ Forty local skills remain after hybrid sunset. Grouped by concern.
 - `incremental-implementation` — verified vertical slices during execution
 - `app-builder` — scaffold or extend apps using LiNKtrend stack conventions and starter kit routing
 - `intelligent-routing` — trigger → hybrid → domain → artifact command router
+- `model-routing` — spawn pinned `.cursor/agents/route-*` subagents (ports LiNKdeveloper router.ts)
 - `context-engineering` — progressive disclosure and read order (pairs with gstack context-save/restore)
 
 ### Architecture, APIs, data, source grounding
@@ -183,6 +184,7 @@ When multiple domain skills appear relevant:
 - `skills/lint-and-validate/SKILL.md`
 - `skills/mcp-builder/SKILL.md`
 - `skills/mobile-design/SKILL.md`
+- `skills/model-routing/SKILL.md`
 - `skills/nodejs-best-practices/SKILL.md`
 - `skills/observability-and-instrumentation/SKILL.md`
 - `skills/parallel-agents/SKILL.md`

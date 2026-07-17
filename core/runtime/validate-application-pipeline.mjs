@@ -45,6 +45,7 @@ function parseArgs(argv) {
     requestTransition: null,
     requestIssueDone: null,
     setTerminal: null,
+    checkConsistency: false,
     apply: false,
   };
   for (let i = 2; i < argv.length; i += 1) {
@@ -53,17 +54,81 @@ function parseArgs(argv) {
     else if (a === "--request-transition") args.requestTransition = argv[++i];
     else if (a === "--request-issue-done") args.requestIssueDone = argv[++i];
     else if (a === "--set-terminal") args.setTerminal = argv[++i];
+    else if (a === "--check-consistency") args.checkConsistency = true;
     else if (a === "--apply") args.apply = true;
     else if (a === "--help" || a === "-h") {
       console.log(`Usage:
   node .cursor/runtime/validate-application-pipeline.mjs --state <path> --request-transition <module-id>:<target-state> [--apply]
   node .cursor/runtime/validate-application-pipeline.mjs --state <path> --request-issue-done <issue-id> [--apply]
-  node .cursor/runtime/validate-application-pipeline.mjs --state <path> --set-terminal <release_ready|blocked|cancelled> [--apply]`);
+  node .cursor/runtime/validate-application-pipeline.mjs --state <path> --set-terminal <release_ready|blocked|cancelled> [--apply]
+  node .cursor/runtime/validate-application-pipeline.mjs --state <path> --check-consistency`);
       process.exit(0);
     } else fail(`Unknown argument: ${a}`);
   }
   if (!args.state) fail("--state is required");
   return args;
+}
+
+/**
+ * Fail-closed consistency check for git hooks / resume.
+ * Rejects hand-edited invalid states (skipped predecessors, complete without gate, etc.).
+ */
+function validateConsistency(state, statePath) {
+  for (const moduleId of MODULE_ORDER) {
+    const mod = state.modules?.[moduleId];
+    if (!mod) fail(`Missing module record: ${moduleId}`);
+    if (!MODULE_STATES.has(mod.state)) {
+      fail(`Invalid state for ${moduleId}: ${mod.state}`);
+    }
+    if (mod.state === "complete") {
+      if (moduleId === "shipment") {
+        fail(
+          "Module shipment cannot be complete; terminal status must be release_ready",
+        );
+      }
+      validateCompleteTransition(state, statePath, moduleId);
+      if (!predecessorComplete(state, moduleId) && MODULE_ORDER.indexOf(moduleId) > 0) {
+        // validateCompleteTransition does not re-check predecessor for already-complete;
+        // enforce ordering here so hand-edits that mark Module N complete while N-1 is pending fail.
+      }
+    }
+    if (mod.state === "active" || mod.state === "gate_pending") {
+      validateActivateTransition(state, moduleId);
+    }
+  }
+  // Ordering: no later module may be complete/active/gate_pending if an earlier one is not complete
+  for (let i = 1; i < MODULE_ORDER.length; i += 1) {
+    const prev = MODULE_ORDER[i - 1];
+    const cur = MODULE_ORDER[i];
+    const prevState = state.modules[prev].state;
+    const curState = state.modules[cur].state;
+    const progressed = ["active", "gate_pending", "complete"].includes(curState);
+    if (progressed && prevState !== "complete") {
+      fail(
+        `Invalid ordering: ${cur} is ${curState} but predecessor ${prev} is ${prevState}`,
+      );
+    }
+  }
+  // Issues marked done must satisfy proof/review/integration
+  for (const [issueId, issue] of Object.entries(state.issues || {})) {
+    if (issue?.status === "done") {
+      const probe = {
+        ...state,
+        issues: {
+          ...state.issues,
+          [issueId]: { ...issue, status: "in_progress" },
+        },
+      };
+      validateIssueDone(probe, issueId);
+    }
+  }
+  if (state.terminalState === "release_ready") {
+    const gate = loadGate(statePath, state.modules.shipment?.gatePath);
+    if (!gate || (gate.verdict !== "pass" && gate.verdict !== "accepted")) {
+      fail("terminalState release_ready requires passing shipment gate");
+    }
+  }
+  console.log("OK: pipeline state is consistent");
 }
 
 function loadState(path) {
@@ -197,6 +262,11 @@ function main() {
   const state = JSON.parse(original);
 
   try {
+    if (args.checkConsistency) {
+      validateConsistency(state, statePath);
+      process.exit(0);
+    }
+
     if (args.requestIssueDone) {
       validateIssueDone(state, args.requestIssueDone);
       if (args.apply) {
@@ -238,7 +308,9 @@ function main() {
     }
 
     if (!args.requestTransition) {
-      fail("Provide --request-transition, --request-issue-done, or --set-terminal");
+      fail(
+        "Provide --request-transition, --request-issue-done, --set-terminal, or --check-consistency",
+      );
     }
 
     const [moduleId, targetState] = args.requestTransition.split(":");

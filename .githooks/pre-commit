@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Reject commits that leave PIPELINE-STATE.json in an invalid transition state.
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+VALIDATOR=""
+for candidate in \
+  "$ROOT/core/runtime/validate-application-pipeline.mjs" \
+  "$ROOT/.cursor/runtime/validate-application-pipeline.mjs"
+do
+  if [[ -f "$candidate" ]]; then
+    VALIDATOR="$candidate"
+    break
+  fi
+done
+
+if [[ -z "$VALIDATOR" ]]; then
+  exit 0
+fi
+
+STATE_LIST="$(
+  {
+    git diff --cached --name-only --diff-filter=ACMR
+    git diff --name-only --diff-filter=ACMR
+  } | grep -E '(^|/)PIPELINE-STATE\.json$' | sort -u || true
+)"
+
+if [[ -z "$STATE_LIST" ]]; then
+  exit 0
+fi
+
+FAILED=0
+while IFS= read -r rel; do
+  [[ -z "$rel" ]] && continue
+  TMP="$(mktemp)"
+  if git cat-file -e ":$rel" 2>/dev/null; then
+    git show ":$rel" >"$TMP"
+  elif [[ -f "$ROOT/$rel" ]]; then
+    cp "$ROOT/$rel" "$TMP"
+  else
+    rm -f "$TMP"
+    continue
+  fi
+  WORK_DIR="$(dirname "$ROOT/$rel")"
+  WORK_STATE="$WORK_DIR/.hook-pipeline-state-check.json"
+  cp "$TMP" "$WORK_STATE"
+  if ! node "$VALIDATOR" --state "$WORK_STATE" --check-consistency; then
+    echo "pre-commit: REJECT invalid pipeline state in $rel" >&2
+    FAILED=1
+  fi
+  rm -f "$TMP" "$WORK_STATE"
+done <<< "$STATE_LIST"
+
+exit "$FAILED"
