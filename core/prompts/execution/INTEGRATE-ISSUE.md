@@ -14,7 +14,7 @@
 
 ## Doctrine
 
-Only passing review permits integration. Dependencies are satisfied by integrated work, not by partially executed work.
+Only passing review permits integration. Dependencies are satisfied by integrated work, not by partially executed work. If review is `fail` or missing, refuse integration and leave the Issue not `done`.
 
 ## Templates
 

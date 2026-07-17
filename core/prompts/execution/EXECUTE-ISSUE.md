@@ -13,7 +13,7 @@
 
 ## Doctrine
 
-Issue is the atomic executable unit. Execute only when dependencies are satisfied and the issue is truly ready.
+Issue is the atomic executable unit. Execute only when dependencies are satisfied and the issue is truly ready. Self-report is not proof. Do not mark `done` from this prompt — stop at `review_ready` with a real `PROOF.md`.
 
 ## Templates
 

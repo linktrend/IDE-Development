@@ -39,7 +39,7 @@ Record the resulting active-line state and whether downstream issues may now be 
 
 ## Gate Guidance
 
-Only passing review should permit integration. Dependencies should treat integrated work, not merely executed work, as satisfied.
+Only passing review should permit integration. Dependencies should treat integrated work, not merely executed work, as satisfied. Refuse integration when review is fail/missing; Issue must not become `done`.
 
 ## Verbosity Guidance
 

@@ -21,8 +21,8 @@ Earlier experiments and duplicate runtimes are retired. They are not part of dai
 **One system, three installed sources:**
 
 1. **IDE Development core** — canonical knowledge in `core/` and the Cursor runtime surface in `.cursor/` (mostly symlinks into `core/`). Doctrine, gates, proof/review/integration, and domain skills live here.
-2. **gstack (macro)** — cloned at `/Users/linktrend/Projects/gstack`, fork https://github.com/linktrend/gstack. Handles specification, executive plan review, health checks, shipping verdicts, and session context.
-3. **mattpocock/skills (micro)** — cloned at `/Users/linktrend/Projects/skills`, fork https://github.com/linktrend/skills. Handles PRD clarification, issue slicing, test-driven development, debugging, and architecture improvement.
+2. **gstack (macro)** — vendored at `.cursor/runtime/skills/gstack/` (fork https://github.com/linktrend/gstack). Handles specification, executive plan review, health checks, shipping verdicts, and session context.
+3. **mattpocock/skills (micro)** — vendored at `.cursor/runtime/skills/mattpocock/` (fork https://github.com/linktrend/skills). Handles PRD clarification, issue slicing, test-driven development, debugging, and architecture improvement.
 
 You operate one system. Agents route across all three sources through the hybrid registry — you do not manage separate sources manually.
 
@@ -50,46 +50,47 @@ The executor handoff is the main delta: **human → OpenClaw**. Gate names, proo
 
 ---
 
-## 3. Three triggers only
+## 3. Plain-language triggers → fixed six-Module application pipeline
 
-Every session starts with exactly one of three triggers. Choosing application versus factory is **not** a fourth trigger — it is a routing decision inside each trigger, after the spec or PRD is clear.
+You still start sessions with plain language. Agents map that language onto the **fixed six-Module application pipeline** (not an open “pick your domain modules” decomposition).
 
-You do not need exact wording — agents recognize intent, not a magic phrase. The examples below just show the kind of thing you can type to start each trigger.
+You do not need exact wording — agents recognize intent, not a magic phrase.
 
-### Trigger 1: New idea
+### Fixed Modules (application Programs)
 
-You have a product concept but no written spec yet.
+1. Module 1 — Intake & Definition  
+2. Module 2 — Assembly Planning  
+3. Module 3 — Execution  
+4. Module 4 — Verification & Hardening  
+5. Module 5 — Library Contribution  
+6. Module 6 — Shipment (stops at `release_ready`; does not deploy)
 
-**Say something like:** *"I have an idea for [product]. It should do [X]. Help me turn this into a spec."*
+Commands: `run-application-pipeline` / `resume-application-pipeline`. Doctrine: `.cursor/execution/APPLICATION-PIPELINE.md`.
 
-1. **Interview** — work with an agent to explore the idea, constraints, and success criteria.
-2. **Spec or PRD** — the agent produces a written specification or product requirements document.
-3. **You approve** — review and approve the spec/PRD before development begins. This is your primary human gate.
-4. **Route and develop** — based on what the product is:
-   - **Normal application** — say *"scaffold this from the LiNKapps starter kit and start developing."* The agent copies the starter kit at `/Users/linktrend/Projects/LiNKapps` into the new product location and begins building on top of it — you do not run any setup commands yourself.
-   - **Factory product** (a continuous production line such as a website, automation, or content factory) — the agent follows that product's own governing specification (PRD, program manual, or ADRs) for how the factory should operate, then develops against it. LiNKdeveloper does not carry a generic factory-operations blueprint of its own — see `docs/ARCHIVE-INDEX.md` for why the earlier one was retired.
+### Trigger: New idea
 
-### Trigger 2: PRD in hand
+**Say something like:** *"I have an idea for [product]. It should do [X]. Help me turn this into a spec."* or *"Run the application pipeline for [product]."*
 
-You already have a product requirements document (from you, a stakeholder, or a prior session).
+Agents start Module 1 (interview → Intent → PRD → Living Document → your approval), then continue Modules 2–6 with fail-closed gates.
 
-**Say something like:** *"Here is a PRD for [product]. Review it, ask me what's missing, then get it ready to build."* (paste or attach the PRD)
+### Trigger: PRD in hand
 
-1. **Clarify gaps** — the agent reads the PRD, asks targeted questions, and fills missing detail.
-2. **You approve** — confirm the clarified spec/PRD is acceptable.
-3. **Route and develop** — same application-or-factory decision as Trigger 1, then build.
+**Say something like:** *"Here is a PRD for [product]. Review it, ask me what's missing, then get it ready to build."*
 
-### Trigger 3: Existing software
+Agents enter Module 1 with the PRD as input, complete Living Document + your approval, then continue the fixed pipeline.
 
-You have working code that needs work — refactor, finish incomplete features, customize, or extend.
+### Trigger: Existing software / release-sized increment
 
 **Say something like:** *"Look at [repo/feature] and tell me what's there, what's missing, and what you'd do next."* or *"There's a bug: [describe what's wrong]."*
 
-1. **Assess** — the agent inspects the codebase and states what exists, what is missing, and what risks apply.
-2. **Plan** — for larger changes, the agent proposes a short plan; you approve if direction is unclear or high-impact.
-3. **Develop** — implement, test, and deliver. Factory products still reference their own governing specification when operational behavior is in scope.
+- **Release-sized application increment / substantial rebuild:** use the fixed six-Module pipeline (`run-application-pipeline` or resume).
+- **Atomic maintenance / one-file bug fix:** use the existing issue → proof → review → integration path; include evidence in the next release’s Module 4–6.
 
-**Application versus factory — one short note.** Normal applications start from the LiNKapps starter kit. Factory products (revenue production lines such as website, automation, or content factories) are planned and operated per that product's own specification — LiNKdeveloper is deliberately product-agnostic and does not ship a generic factory-operations blueprint.
+### Resume
+
+**Say something like:** *"Resume this application build."* Agents read `PIPELINE-STATE.json` only — no chat memory required.
+
+**Feasibility note:** This is a session-scoped Cursor orchestrator over durable repository state, not a persistent autonomous VPS runtime.
 
 ---
 
@@ -222,8 +223,8 @@ Skills live in `.cursor/skills/SKILLS_CATALOG.md`. Agents read the catalog first
 **Three installed sources:**
 
 1. **Local domain skills** in this repository — APIs, UI, deployment execution, routing, and governance.
-2. **gstack (macro)** — `/Users/linktrend/Projects/gstack`. Spec, plan review, health, ship, context save/restore.
-3. **mattpocock/skills (micro)** — `/Users/linktrend/Projects/skills`. Grill-with-docs, PRD synthesis, issue slicing, TDD, debugging, architecture improvement.
+2. **gstack (macro)** — `.cursor/runtime/skills/gstack/`. Spec, plan review, health, ship, context save/restore.
+3. **mattpocock/skills (micro)** — `.cursor/runtime/skills/mattpocock/`. Grill-with-docs, PRD synthesis, issue slicing, TDD, debugging, architecture improvement.
 
 All three are wired and active — not reference-only. Hybrid command entrypoints live under `.cursor/commands/hybrid-*.md` (canonical copies in `core/commands/`).
 

@@ -15,7 +15,7 @@ Use this file to route into local domain skills and hybrid macro/micro skills.
 ## Hybrid macro (gstack)
 
 **Fork:** https://github.com/linktrend/gstack  
-**Local clone:** `/Users/linktrend/Projects/gstack`  
+**Vendored copy:** `.cursor/runtime/skills/gstack/` (physical copy; refresh via `scripts/vendor-hybrid-skills.sh`)  
 **Registry:** `docs/HYBRID-SKILLS-REGISTRY.md`
 
 Command entrypoints: `core/commands/hybrid-spec.md`, `hybrid-plan-ceo-review.md`, `hybrid-health.md`, `hybrid-ship.md`, `hybrid-context-save.md`, `hybrid-context-restore.md`
@@ -33,7 +33,7 @@ Extended fork skills (`/review`, `/qa`, `/retro`, `/learn`) available for macro 
 ## Hybrid micro (mattpocock skills)
 
 **Fork:** https://github.com/linktrend/skills  
-**Local clone:** `/Users/linktrend/Projects/skills`  
+**Vendored copy:** `.cursor/runtime/skills/mattpocock/` (physical copy; refresh via `scripts/vendor-hybrid-skills.sh`)  
 **Registry:** `docs/HYBRID-SKILLS-REGISTRY.md`
 
 Command entrypoints: `core/commands/hybrid-grill.md`, `hybrid-to-prd.md`, `hybrid-to-issues.md`, `hybrid-tdd.md`, `hybrid-diagnosing-bugs.md`, `hybrid-improve-architecture.md`

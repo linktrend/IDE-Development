@@ -16,61 +16,53 @@ Use this skill when deciding how the system should handle a request. Carlos uses
 
 ## Routing order
 
-1. **Identify Carlos's trigger** — New idea (Trigger 1), PRD in hand (Trigger 2), or Existing software (Trigger 3). See `docs/LINKDEVELOPER-OPERATIONS-MANUAL.md` (triggers and routing).
-2. **Select hybrid macro or micro** — gstack (macro) or mattpocock skills (micro) per trigger stage. Registry: `docs/HYBRID-SKILLS-REGISTRY.md`.
-3. **Select domain skills** — IDE Development core locals from `SKILLS_CATALOG.md` when hybrid does not cover the concern (APIs, UI, deploy execution, etc.).
-4. **Select internal artifact commands** — only when work is decomposed into the canonical graph (`plan-program`, `execute-issue`, …).
-5. **Select agent roles** as resources, not as the control structure.
-6. **Load only required artifacts** — progressive disclosure (Law 19).
+1. **Identify Carlos's plain-language trigger** — new idea, PRD in hand, or existing software / release-sized increment. See `docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md`.
+2. **For application Programs** — prefer `run-application-pipeline` / `resume-application-pipeline` and the six fixed Modules (`.cursor/execution/APPLICATION-PIPELINE.md`). Do not invent open domain Modules.
+3. **Select Module composite skills** under `.cursor/runtime/skills/linktrend/` plus vendored gstack/mattpocock skills. Registry: `docs/HYBRID-SKILLS-REGISTRY.md`.
+4. **Select domain skills** — IDE Development core locals from `SKILLS_CATALOG.md` when hybrid does not cover the concern (APIs, UI, etc.).
+5. **Atomic maintenance** — one-file bug fixes use issue proof/review/integration without a full six-Module rerun.
+6. **Select agent roles** as resources, not as the control structure.
+7. **Load only required artifacts** — progressive disclosure (Law 19).
 
-## Trigger → hybrid routes
+## Trigger → pipeline / hybrid routes
 
-### Trigger 1 — New idea
+### New idea → Module 1 then fixed pipeline
 
-1. Interview Carlos for intent, constraints, success criteria.
-2. gstack `/spec` (`core/commands/hybrid-spec.md`) — structured specification.
-3. Optional gstack `/plan-ceo-review` for large or ambiguous bets.
-4. mattpocock `/grill-with-docs` if documentation gaps remain.
-5. mattpocock `/to-prd` when formalizing the PRD.
-6. **Stop for Carlos approval** — spec/PRD gate before development.
-7. Route app vs factory-style product: normal applications scaffold from the LiNKapps starter kit; factory-style products (continuous production lines) follow that product's own governing specification/roadmap — there is no shared generic factory-ops blueprint (see `docs/ARCHIVE-INDEX.md` for the retired one and why).
-8. Core commands: `plan-program` → `plan-module` → execution commands.
+1. Start `run-application-pipeline` (Module 1: interview → Intent → PRD → Living Document).
+2. Composite: `linktrend/module1-intake-and-definition` (grill-with-docs + gstack spec + to-spec).
+3. **Stop for Carlos approval** — Module 1 gate before Module 2.
+4. Continue Modules 2–6 with fail-closed validator calls.
 
-### Trigger 2 — PRD in hand
+### PRD in hand → Module 1 (with PRD input) then fixed pipeline
 
-1. mattpocock `/grill-with-docs` — clarify gaps against docs and codebase.
-2. **Stop for Carlos approval** — clarified PRD gate.
-3. mattpocock `/to-issues` — slice into dependency-aware issues.
-4. Core commands: `execute-issue` → proof → `review-issue` → `integrate-issue`.
-5. During execution: mattpocock `/tdd`, `/diagnosing-bugs`; domain skills as needed.
+1. Enter Module 1 with the PRD as input; clarify gaps; author Living Document.
+2. **Stop for Carlos approval**.
+3. Continue Modules 2–6.
 
-### Trigger 3 — Existing software
+### Existing software / release-sized increment
 
-1. Assess codebase — scope, gaps, risks.
-2. gstack `/health` when project health or gate discipline is unclear.
-3. Plan: core `plan-module` or `small-change`; mattpocock `/improve-codebase-architecture` for structural refactors.
-4. **Carlos approves** when direction is unclear or high-impact.
-5. Develop with domain skills + `/tdd`; core integration gates always apply.
-6. gstack `/ship` only after core integration passes — does not replace review or integration.
+1. Release-sized work: `run-application-pipeline` or `resume-application-pipeline`.
+2. Atomic bugfix: issue → proof → review → integration; fold into next Module 4–6 evidence.
+3. gstack `/health`, `/ship` remain subordinate to pipeline gates and never authorize deploy from Module 6 alone.
 
 ## Hybrid command index
 
-**gstack (macro):**
+**gstack (macro)** — vendored under `.cursor/runtime/skills/gstack/`:
 
-- Spec — `hybrid-spec` → `/Users/linktrend/Projects/gstack/spec/SKILL.md`
-- CEO plan review — `hybrid-plan-ceo-review` → `.../gstack/plan-ceo-review/SKILL.md`
-- Health — `hybrid-health` → `.../gstack/health/SKILL.md`
-- Ship — `hybrid-ship` → `.../gstack/ship/SKILL.md`
-- Context save/restore — `hybrid-context-save`, `hybrid-context-restore` → `.../gstack/context-save/SKILL.md`, `context-restore/SKILL.md`
+- Spec — `hybrid-spec` → `.cursor/runtime/skills/gstack/spec/SKILL.md`
+- CEO plan review — `hybrid-plan-ceo-review` → `.cursor/runtime/skills/gstack/plan-ceo-review/SKILL.md`
+- Health — `hybrid-health` → `.cursor/runtime/skills/gstack/health/SKILL.md`
+- Ship — `hybrid-ship` → `.cursor/runtime/skills/gstack/ship/SKILL.md`
+- Context save/restore — `hybrid-context-save`, `hybrid-context-restore` → `.cursor/runtime/skills/gstack/context-save/SKILL.md`, `context-restore/SKILL.md`
 
-**mattpocock skills (micro):**
+**mattpocock skills (micro)** — vendored under `.cursor/runtime/skills/mattpocock/`:
 
-- Clarify PRD — `hybrid-grill` → `.../skills/skills/engineering/grill-with-docs/SKILL.md`
-- PRD synthesis — `hybrid-to-prd` → `.../skills/skills/engineering/to-spec/SKILL.md`
-- Issue slicing — `hybrid-to-issues` → `.../skills/skills/engineering/to-tickets/SKILL.md`
-- TDD — `hybrid-tdd` → `.../skills/skills/engineering/tdd/SKILL.md`
-- Debugging — `hybrid-diagnosing-bugs` → `.../skills/skills/engineering/diagnosing-bugs/SKILL.md`
-- Architecture improve — `hybrid-improve-architecture` → `.../skills/skills/engineering/improve-codebase-architecture/SKILL.md`
+- Clarify PRD — `hybrid-grill` → `.cursor/runtime/skills/mattpocock/grill-with-docs/SKILL.md`
+- PRD synthesis — `hybrid-to-prd` → `.cursor/runtime/skills/mattpocock/to-spec/SKILL.md`
+- Issue slicing — `hybrid-to-issues` → `.cursor/runtime/skills/mattpocock/to-tickets/SKILL.md`
+- TDD — `hybrid-tdd` → `.cursor/runtime/skills/mattpocock/tdd/SKILL.md`
+- Debugging — `hybrid-diagnosing-bugs` → `.cursor/runtime/skills/mattpocock/diagnosing-bugs/SKILL.md`
+- Architecture improve — `hybrid-improve-architecture` → `.cursor/runtime/skills/mattpocock/improve-codebase-architecture/SKILL.md`
 
 ## Domain skill shortcuts
 

@@ -2,6 +2,6 @@
 
 Systematic debugging for blocked or failing issues.
 
-Read and execute `/Users/linktrend/Projects/skills/skills/engineering/diagnosing-bugs/SKILL.md`.
+Read and execute `.cursor/runtime/skills/mattpocock/diagnosing-bugs/SKILL.md`.
 
 Registry: `docs/HYBRID-SKILLS-REGISTRY.md`.

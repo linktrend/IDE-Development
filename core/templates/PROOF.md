@@ -50,7 +50,7 @@ Describe the issue, phase, module, or program this proof applies to.
 
 ## Gate Guidance
 
-Proof must be non-vacuous. Every completion claim should be traceable to evidence.
+Proof must be non-vacuous. Every completion claim should be traceable to evidence. A model’s completion statement alone is not proof. Independent review inspects real artifacts.
 
 ## Verbosity Guidance
 

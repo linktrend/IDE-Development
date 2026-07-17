@@ -260,7 +260,7 @@ entries:
     when_to_use:
       - Trigger 1 after interview, before Carlos approves spec/PRD
       - when vague intent needs a structured spec
-    underlying_prompt: /Users/linktrend/Projects/gstack/spec/SKILL.md
+    underlying_prompt: .cursor/runtime/skills/gstack/spec/SKILL.md
     required_doctrine:
       - docs/HYBRID-SKILLS-REGISTRY.md
       - .cursor/skills/intelligent-routing/SKILL.md
@@ -281,7 +281,7 @@ entries:
     when_to_use:
       - Trigger 2 step 1 — PRD in hand, clarify gaps
       - Trigger 1 when documentation needs sharpening
-    underlying_prompt: /Users/linktrend/Projects/skills/skills/engineering/grill-with-docs/SKILL.md
+    underlying_prompt: .cursor/runtime/skills/mattpocock/grill-with-docs/SKILL.md
     required_doctrine:
       - docs/HYBRID-SKILLS-REGISTRY.md
     required_templates: []
@@ -300,7 +300,7 @@ entries:
     purpose: mattpocock /to-prd (to-spec) — synthesize PRD from clarified intent.
     when_to_use:
       - after grill or interview when formalizing PRD
-    underlying_prompt: /Users/linktrend/Projects/skills/skills/engineering/to-spec/SKILL.md
+    underlying_prompt: .cursor/runtime/skills/mattpocock/to-spec/SKILL.md
     required_doctrine:
       - docs/HYBRID-SKILLS-REGISTRY.md
     required_templates: []
@@ -320,7 +320,7 @@ entries:
     when_to_use:
       - after Carlos approves PRD/spec
       - before core execute-issue runs
-    underlying_prompt: /Users/linktrend/Projects/skills/skills/engineering/to-tickets/SKILL.md
+    underlying_prompt: .cursor/runtime/skills/mattpocock/to-tickets/SKILL.md
     required_doctrine:
       - docs/HYBRID-SKILLS-REGISTRY.md
     required_templates:
@@ -340,7 +340,7 @@ entries:
     purpose: mattpocock /tdd — test-driven implementation loop.
     when_to_use:
       - during issue execution when behavior must be proven by tests
-    underlying_prompt: /Users/linktrend/Projects/skills/skills/engineering/tdd/SKILL.md
+    underlying_prompt: .cursor/runtime/skills/mattpocock/tdd/SKILL.md
     required_doctrine:
       - docs/HYBRID-SKILLS-REGISTRY.md
     required_templates:
@@ -360,7 +360,7 @@ entries:
     purpose: mattpocock /diagnosing-bugs — systematic debugging.
     when_to_use:
       - blocked or failing issues needing root-cause analysis
-    underlying_prompt: /Users/linktrend/Projects/skills/skills/engineering/diagnosing-bugs/SKILL.md
+    underlying_prompt: .cursor/runtime/skills/mattpocock/diagnosing-bugs/SKILL.md
     required_doctrine:
       - docs/HYBRID-SKILLS-REGISTRY.md
     required_templates: []
@@ -379,7 +379,7 @@ entries:
     purpose: gstack /health — project health checks and repair loops.
     when_to_use:
       - Trigger 3 assess when health or gate discipline is unclear
-    underlying_prompt: /Users/linktrend/Projects/gstack/health/SKILL.md
+    underlying_prompt: .cursor/runtime/skills/gstack/health/SKILL.md
     required_doctrine:
       - docs/HYBRID-SKILLS-REGISTRY.md
     required_templates: []
@@ -398,7 +398,7 @@ entries:
     purpose: gstack /ship — shippable vs blocked verdict (subordinate to core integration gates).
     when_to_use:
       - after core integration passes, before release decision
-    underlying_prompt: /Users/linktrend/Projects/gstack/ship/SKILL.md
+    underlying_prompt: .cursor/runtime/skills/gstack/ship/SKILL.md
     required_doctrine:
       - docs/HYBRID-SKILLS-REGISTRY.md
       - .cursor/execution/CANONICAL-LAWS.md
@@ -418,7 +418,7 @@ entries:
     purpose: gstack /plan-ceo-review — executive plan review.
     when_to_use:
       - large or ambiguous program/module plans before decomposition
-    underlying_prompt: /Users/linktrend/Projects/gstack/plan-ceo-review/SKILL.md
+    underlying_prompt: .cursor/runtime/skills/gstack/plan-ceo-review/SKILL.md
     required_doctrine:
       - docs/HYBRID-SKILLS-REGISTRY.md
     required_templates: []
@@ -437,7 +437,7 @@ entries:
     purpose: gstack /context-save — persist session context.
     when_to_use:
       - long runs needing handoff or pause
-    underlying_prompt: /Users/linktrend/Projects/gstack/context-save/SKILL.md
+    underlying_prompt: .cursor/runtime/skills/gstack/context-save/SKILL.md
     required_doctrine:
       - docs/HYBRID-SKILLS-REGISTRY.md
     required_templates: []
@@ -456,7 +456,7 @@ entries:
     purpose: gstack /context-restore — resume saved session context.
     when_to_use:
       - resuming after context-save
-    underlying_prompt: /Users/linktrend/Projects/gstack/context-restore/SKILL.md
+    underlying_prompt: .cursor/runtime/skills/gstack/context-restore/SKILL.md
     required_doctrine:
       - docs/HYBRID-SKILLS-REGISTRY.md
     required_templates: []
@@ -475,7 +475,7 @@ entries:
     purpose: mattpocock /improve-codebase-architecture — refactor guidance.
     when_to_use:
       - Trigger 3 structural refactors or large architecture changes
-    underlying_prompt: /Users/linktrend/Projects/skills/skills/engineering/improve-codebase-architecture/SKILL.md
+    underlying_prompt: .cursor/runtime/skills/mattpocock/improve-codebase-architecture/SKILL.md
     required_doctrine:
       - docs/HYBRID-SKILLS-REGISTRY.md
     required_templates: []
@@ -638,3 +638,89 @@ entries:
       - legacy
       - compatibility-only
       - not-preferred
+
+  - id: run-application-pipeline
+    path: .cursor/commands/run-application-pipeline.md
+    purpose: Start the fixed six-Module application pipeline for a new or release-sized Program.
+    when_to_use:
+      - when building a new application
+      - when a user says "Run the application pipeline"
+    underlying_prompt: .cursor/prompts/execution/RUN-APPLICATION-PIPELINE.md
+    required_doctrine:
+      - .cursor/execution/APPLICATION-PIPELINE.md
+      - .cursor/execution/CANONICAL-LAWS.md
+    required_templates:
+      - .cursor/templates/PIPELINE-STATE.json
+      - .cursor/templates/LIVING-DOCUMENT.md
+      - .cursor/templates/PROGRAM.md
+    required_agents:
+      - planner
+      - product-owner
+    expected_output:
+      - docs/development/<program-id>/ with six fixed Modules
+      - PIPELINE-STATE.json
+      - release_ready or blocked terminal
+    status: active
+    tags:
+      - command
+      - application-pipeline
+      - preferred
+
+  - id: resume-application-pipeline
+    path: .cursor/commands/resume-application-pipeline.md
+    purpose: Resume an application pipeline from durable PIPELINE-STATE.json without chat memory.
+    when_to_use:
+      - when a user says "Resume this application build"
+    underlying_prompt: .cursor/prompts/execution/RESUME-APPLICATION-PIPELINE.md
+    required_doctrine:
+      - .cursor/execution/APPLICATION-PIPELINE.md
+    required_templates:
+      - .cursor/templates/PIPELINE-STATE.json
+    required_agents:
+      - planner
+    expected_output:
+      - continued Module progression from durable state
+    status: active
+    tags:
+      - command
+      - application-pipeline
+      - preferred
+
+  - id: library-search
+    path: .cursor/commands/library-search.md
+    purpose: Search the shared LiNKlibraries catalog (Module 2).
+    when_to_use:
+      - during Module 2 library-starter-kit-query
+    underlying_prompt: .cursor/prompts/execution/LIBRARY-SEARCH.md
+    required_doctrine:
+      - .cursor/library/README.md
+      - docs/adr/0002-shared-component-template-asset-library.md
+    required_templates:
+      - .cursor/templates/LIBRARY-QUERY-REPORT.md
+    required_agents: []
+    expected_output:
+      - catalog matches with fetch commit SHA
+    status: active
+    tags:
+      - library
+      - module-2
+
+  - id: library-contribute
+    path: .cursor/commands/library-contribute.md
+    purpose: Prepare/validate/publish a Module 5 contribution bundle to LiNKlibraries.
+    when_to_use:
+      - during Module 5 library contribution
+    underlying_prompt: .cursor/prompts/execution/LIBRARY-CONTRIBUTE.md
+    required_doctrine:
+      - .cursor/library/README.md
+      - docs/adr/0002-shared-component-template-asset-library.md
+    required_templates:
+      - .cursor/templates/LIBRARY-CONTRIBUTION.md
+    required_agents: []
+    expected_output:
+      - validated contribution bundle
+      - publication_pending or opened_pr status
+    status: active
+    tags:
+      - library
+      - module-5

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This workflow defines how a module is decomposed into phases and issues and how module completion is determined.
+This workflow defines how a module is decomposed into phases and issues and how module completion is determined. For application Programs, the Module is one of the six fixed lifecycle stages; this workflow may create product-specific Phases/Issues inside that Module but must not create additional top-level application Modules.
 
 ## Responsibilities
 

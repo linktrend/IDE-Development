@@ -15,7 +15,7 @@
 
 ## Doctrine
 
-Review must reject vacuous completion. Findings must be grounded in proof, acceptance criteria, and actual outputs.
+Review must reject vacuous completion. Findings must be grounded in proof, acceptance criteria, and actual outputs. The reviewer must be independent of the executor. Inspect real artifacts (files, command outputs); if proof claims pass but artifacts mismatch, verdict is `fail`. Gates stop progression (Law 16) — never warn-and-continue.
 
 ## Templates
 
