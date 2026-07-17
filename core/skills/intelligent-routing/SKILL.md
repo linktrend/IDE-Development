@@ -22,7 +22,8 @@ Use this skill when deciding how the system should handle a request. Carlos uses
 4. **Select domain skills** — IDE Development core locals from `SKILLS_CATALOG.md` when hybrid does not cover the concern (APIs, UI, etc.).
 5. **Atomic maintenance** — one-file bug fixes use issue proof/review/integration without a full six-Module rerun.
 6. **Select agent roles** as resources, not as the control structure.
-7. **Load only required artifacts** — progressive disclosure (Law 19).
+7. **Select a model-routing subagent** when the task matches a route in `.cursor/skills/model-routing/SKILL.md` (ports LiNKdeveloper `router.ts`). Spawn `.cursor/agents/route-*` rather than running unpinned.
+8. **Load only required artifacts** — progressive disclosure (Law 19).
 
 ## Trigger → pipeline / hybrid routes
 

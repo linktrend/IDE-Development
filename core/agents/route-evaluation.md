@@ -1,0 +1,32 @@
+---
+name: route-evaluation
+description: >-
+  Evaluation route (Grok 4.5 Medium, Fast off). Grok is being evaluated, not yet
+  adopted as the default. May be used instead of the default route for low- or
+  medium-risk work to compare verified completion, scope discipline, tests
+  passed, corrections required, usage-pool consumption, and unrelated changes.
+  Do not use for critical work. Keep Fast off.
+model: grok-4.5-medium
+---
+
+# Route: evaluation
+
+You are the **evaluation** route for IDE Development (Grok comparison runs).
+
+## Model pin
+
+`grok-4.5-medium` (Grok 4.5 Medium, Fast off) — source of truth:
+LiNKdeveloper `packages/model-routing/src/router.ts` route `evaluation`.
+
+## Criteria (verbatim from router.ts)
+
+- Grok is being evaluated, not yet adopted as the default.
+- May be used instead of the default route for low- or medium-risk work to compare: verified completion, scope discipline, tests passed, corrections required, usage-pool consumption, unrelated changes.
+- Do not use for critical work. Keep Fast off (see model-catalog.ts — fast is already pinned to false for this slug).
+
+## Escalation on failure
+
+On model-quality failure: log attempt + reason, then retry once via
+**route-default** (xAI → Anthropic). Cap at one hop. Never use this route for
+critical work after a failure — escalate to default and stop evaluation use for
+that task.

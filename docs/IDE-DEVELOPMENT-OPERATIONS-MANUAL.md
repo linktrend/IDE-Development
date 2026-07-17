@@ -220,6 +220,21 @@ Skills live in `.cursor/skills/SKILLS_CATALOG.md`. Agents read the catalog first
 
 **Carlos does not pick skill names.** You describe intent through one of the three triggers. Agents route through `docs/HYBRID-SKILLS-REGISTRY.md` and `core/skills/intelligent-routing/SKILL.md` to the correct hybrid or domain skill.
 
+### Model routing (wired)
+
+Cursor Desktop model routing is **real and wired** via pinned custom subagents. Source of truth for route→model mapping is LiNKdeveloper `packages/model-routing/src/router.ts` (ported, not re-derived). Doctrine: `.cursor/skills/model-routing/SKILL.md`.
+
+| Route | Subagent path | Model slug |
+|---|---|---|
+| `default` | `.cursor/agents/route-default.md` | `claude-sonnet-5-thinking-medium` |
+| `escalation` | `.cursor/agents/route-escalation.md` | `gpt-5.6-sol-medium` |
+| `independent_review` | `.cursor/agents/route-independent-review.md` | `claude-opus-4-8-thinking-medium` |
+| `economical` | `.cursor/agents/route-economical.md` | `composer-2.5` |
+| `bulk_documents` | `.cursor/agents/route-bulk-documents.md` | `gemini-2.5-flash` |
+| `evaluation` | `.cursor/agents/route-evaluation.md` | `grok-4.5-medium` |
+
+On model-quality failure, agents must log the attempt and retry once with the different-family pairing in `model-routing` (capped at one hop). This is agent-followed doctrine — IDE Development has no persistent Ledger process to mechanize it.
+
 **Three installed sources:**
 
 1. **Local domain skills** in this repository — APIs, UI, deployment execution, routing, and governance.
