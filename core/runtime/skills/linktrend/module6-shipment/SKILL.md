@@ -54,5 +54,5 @@ Issue/Module scope and pipeline gates override this composite skill. This compos
 
 - Do not reference the LiNKdeveloper repository at runtime.
 - Before Module transitions, call `node .cursor/runtime/validate-application-pipeline.mjs --state <PIPELINE-STATE.json> --request-transition <module-id>:<target-state>`.
-- MUST NOT deploy. Terminal status is release_ready or blocked. gstack/ship is subordinate to critical proof manifest and Principal pre-deploy gate. No Cursor Desktop model-routing policy. Underlying skills cannot override pipeline state, gates, scope, or proof requirements.
+- MUST NOT deploy. Terminal status is release_ready or blocked. gstack/ship is subordinate to critical proof manifest and Principal pre-deploy gate. Principal Release OK remains mandatory in IDE Development (unlike LiNKdeveloper's automatic canary promotion).
 - Contains **no** Cursor Desktop model-routing policy.

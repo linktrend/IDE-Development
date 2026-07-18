@@ -10,8 +10,9 @@
     "currentModuleId",
     "modules",
     "principalDecisions",
-    "livingDocumentPath",
-    "livingDocumentSha256",
+    "intentPath",
+    "technicalPrdPath",
+    "technicalPrdSha256",
     "libraryCheckoutPath",
     "libraryCommitSha",
     "lastTransitionTimestamp",
@@ -20,7 +21,7 @@
     "terminalState"
   ],
   "properties": {
-    "schemaVersion": { "type": "integer", "const": 1 },
+    "schemaVersion": { "type": "integer", "const": 2 },
     "programId": { "type": "string", "minLength": 1 },
     "targetRepositoryRoot": { "type": "string", "minLength": 1 },
     "currentModuleId": {
@@ -55,8 +56,25 @@
       }
     },
     "principalDecisions": { "type": "array" },
-    "livingDocumentPath": { "type": ["string", "null"] },
-    "livingDocumentSha256": { "type": ["string", "null"] },
+    "intentPath": { "type": ["string", "null"] },
+    "technicalPrdPath": { "type": ["string", "null"] },
+    "technicalPrdSha256": { "type": ["string", "null"] },
+    "technicalDesignPath": { "type": ["string", "null"] },
+    "starterKitDecision": {
+      "type": ["object", "null"],
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": ["none", "selected", "declined"]
+        },
+        "kitId": { "type": ["string", "null"] },
+        "matchConfidence": {
+          "type": ["string", "null"],
+          "enum": ["confident", "low", null]
+        },
+        "rationale": { "type": "string" }
+      }
+    },
     "libraryCheckoutPath": { "type": ["string", "null"] },
     "libraryCommitSha": { "type": ["string", "null"] },
     "lastTransitionTimestamp": { "type": ["string", "null"] },
@@ -67,7 +85,17 @@
       "enum": ["release_ready", "blocked", "cancelled", null]
     },
     "issues": { "type": "object" },
-    "livingDocumentCriteria": { "type": "array" }
+    "technicalPrdAcceptanceCriteria": { "type": "array" },
+    "confirmedInterviewCheckpoints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["analysis", "prioritization", "intent"]
+      }
+    },
+    "gateRepairBudget": { "type": "integer", "minimum": 1, "maximum": 3, "default": 3 },
+    "moduleAttemptCounts": { "type": "object" },
+    "gateRejectionHistory": { "type": "array" }
   },
   "$defs": {
     "moduleState": {
@@ -82,7 +110,8 @@
         "gateVerdict": {
           "type": ["string", "null"],
           "enum": ["pass", "accepted", "rejected", "fail", null]
-        }
+        },
+        "attemptCount": { "type": "integer", "minimum": 0 }
       }
     }
   }

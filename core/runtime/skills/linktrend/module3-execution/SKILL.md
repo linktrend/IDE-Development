@@ -12,10 +12,11 @@ harness: ide
 
 ## Allowed phases
 
-- `dispatch dependency-ready Issues`
-- `proof`
-- `independent review`
-- `integration`
+- `3.1-issue-dispatch`
+- `3.2-implement-and-proof`
+- `3.3-independent-review`
+- `3.4-integration`
+- `3.5-module-gate`
 
 ## Required inputs
 
@@ -26,13 +27,31 @@ harness: ide
 
 - Issues done with proof + independent review + integration
 - recomputed readiness
+- Module gate verdict
+
+## GitHub / branch discipline
+
+For each Issue (when the target repo uses GitHub):
+
+1. Create branch `issue/<issueId>-<slug>` from `development`.
+2. Implement and collect non-vacuous proof on that branch.
+3. Independent review (not the author).
+4. Open PR; wait for CI. CI failure is a gate rejection — enter repair (budget 3).
+5. When merge-ready, Integrator merges into `development`.
+
+Do **not** auto-promote `development` → `staging` → `main`. Principal Release OK remains Module 6.
 
 ## Stop conditions
 
 - self-report offered as proof
 - review not independent
 - integration skipped
+- CI failed without repair attempt (or repair budget exhausted)
 - Module gate missing Tier-B-equivalent verdict
+
+## Gate repair
+
+On Issue or Module gate rejection: automatically re-drive repair work up to `gateRepairBudget` (default 3). Record severity and reason in gate / `PIPELINE-STATE.json` `gateRejectionHistory`. On exhaustion: block and brief the Principal.
 
 ## Underlying vendored skills composed
 
@@ -50,5 +69,5 @@ Issue/Module scope and pipeline gates override this composite skill. This compos
 
 - Do not reference the LiNKdeveloper repository at runtime.
 - Before Module transitions, call `node .cursor/runtime/validate-application-pipeline.mjs --state <PIPELINE-STATE.json> --request-transition <module-id>:<target-state>`.
-- Dispatch only dependency-ready Issues. Reject self-review. Underlying skills cannot override pipeline state, gates, scope, or proof requirements.
+- Dispatch only dependency-ready Issues. Reject self-review.
 - Contains **no** Cursor Desktop model-routing policy.

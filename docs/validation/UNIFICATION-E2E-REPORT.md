@@ -8,7 +8,7 @@
 
 | Module | Evidence |
 |--------|----------|
-| 1 Intake | INTENT/PRD/LIVING-DOCUMENT + Principal approval in PIPELINE-STATE |
+| 1 Intake | INTENT/TECHNICAL-PRD + Principal approval in PIPELINE-STATE |
 | 2 Assembly | LIBRARY-QUERY-REPORT with `publication_pending` / pending remote SHA |
 | 3 Execution | ISSUE-A → ISSUE-B dependency; both `done` with proof/review/integration |
 | 4 Verification | AC-001 met after recorded repair loop |

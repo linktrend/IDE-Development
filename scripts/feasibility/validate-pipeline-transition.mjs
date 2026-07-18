@@ -104,8 +104,58 @@ function validateCompleteTransition(state, statePath, moduleId) {
     fail(`Gate verdict missing or not pass for module ${moduleId}`);
   }
 
-  // Rule 4: Module 1 requires recorded Principal approval
+  // Repair budget: cannot complete after attempts exceed budget (must be blocked instead)
+  const budget =
+    typeof state.gateRepairBudget === "number" && state.gateRepairBudget > 0
+      ? state.gateRepairBudget
+      : 3;
+  const attempts =
+    typeof mod.attemptCount === "number"
+      ? mod.attemptCount
+      : typeof state.moduleAttemptCounts?.[moduleId] === "number"
+        ? state.moduleAttemptCounts[moduleId]
+        : 0;
+  if (attempts > budget) {
+    fail(
+      `Module ${moduleId} cannot complete: attemptCount ${attempts} exceeds gateRepairBudget ${budget}`,
+    );
+  }
+
+  // Rule 4: Module 1 — Intent + Technical PRD + interview checkpoints + Principal approval
   if (moduleId === "intake_and_definition") {
+    if (!state.intentPath || String(state.intentPath).trim() === "") {
+      fail(
+        "Module intake_and_definition cannot complete without intentPath (INTENT.md)",
+      );
+    }
+    if (
+      !state.technicalPrdPath ||
+      String(state.technicalPrdPath).trim() === ""
+    ) {
+      fail(
+        "Module intake_and_definition cannot complete without technicalPrdPath (TECHNICAL-PRD.md)",
+      );
+    }
+    const checkpoints = Array.isArray(state.confirmedInterviewCheckpoints)
+      ? state.confirmedInterviewCheckpoints
+      : Array.isArray(gate.confirmedInterviewCheckpoints)
+        ? gate.confirmedInterviewCheckpoints
+        : [];
+    for (const required of ["analysis", "prioritization", "intent"]) {
+      if (!checkpoints.includes(required)) {
+        fail(
+          `Module intake_and_definition cannot complete without confirmed interview checkpoint: ${required}`,
+        );
+      }
+    }
+    const prdReviewOk =
+      gate.technicalPrdIndependentReviewApproved === true ||
+      gate.technicalPrdReviewDecision === "approved";
+    if (!prdReviewOk) {
+      fail(
+        "Module intake_and_definition cannot complete without Technical PRD independent review approved",
+      );
+    }
     const recorded =
       gate.principalApprovalRecorded === true ||
       (Array.isArray(state.principalDecisions) &&
@@ -121,15 +171,40 @@ function validateCompleteTransition(state, statePath, moduleId) {
     }
   }
 
-  // Rule 6: Module 4 cannot complete with unmet Living Document criteria
+  // Rule 4b: Module 2 — Technical Design path + independent review
+  if (moduleId === "assembly_planning") {
+    if (
+      !state.technicalDesignPath ||
+      String(state.technicalDesignPath).trim() === ""
+    ) {
+      fail(
+        "Module assembly_planning cannot complete without technicalDesignPath (TECHNICAL-DESIGN.md)",
+      );
+    }
+    const designReviewOk =
+      gate.technicalDesignIndependentReviewApproved === true ||
+      gate.technicalDesignReviewDecision === "approved";
+    if (!designReviewOk) {
+      fail(
+        "Module assembly_planning cannot complete without Technical Design independent review approved",
+      );
+    }
+  }
+
+  // Rule 6: Module 4 cannot complete with unmet Technical PRD acceptance criteria
   if (moduleId === "verification_and_hardening") {
-    const unmet = gate.unmetLivingDocumentCriteria || [];
-    const stateUnmet = (state.livingDocumentCriteria || []).filter(
-      (c) => c.status !== "met",
-    );
+    const unmet =
+      gate.unmetTechnicalPrdAcceptanceCriteria ||
+      gate.unmetLivingDocumentCriteria ||
+      [];
+    const criteria =
+      state.technicalPrdAcceptanceCriteria ||
+      state.livingDocumentCriteria ||
+      [];
+    const stateUnmet = criteria.filter((c) => c.status !== "met");
     if (unmet.length > 0 || stateUnmet.length > 0) {
       fail(
-        "Module verification_and_hardening cannot complete with unmet Living Document criteria",
+        "Module verification_and_hardening cannot complete with unmet Technical PRD acceptance criteria",
       );
     }
   }

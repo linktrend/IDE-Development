@@ -651,7 +651,8 @@ entries:
       - .cursor/execution/CANONICAL-LAWS.md
     required_templates:
       - .cursor/templates/PIPELINE-STATE.json
-      - .cursor/templates/LIVING-DOCUMENT.md
+      - .cursor/templates/TECHNICAL-PRD.md
+      - .cursor/templates/TECHNICAL-DESIGN.md
       - .cursor/templates/PROGRAM.md
     required_agents:
       - planner

@@ -2,6 +2,8 @@
   "moduleId": "intake_and_definition",
   "verdict": "pass",
   "principalApprovalRecorded": true,
-  "unmetLivingDocumentCriteria": [],
+  "technicalPrdIndependentReviewApproved": true,
+  "confirmedInterviewCheckpoints": ["analysis", "prioritization", "intent"],
+  "unmetTechnicalPrdAcceptanceCriteria": [],
   "notes": "E2E fixture gate"
 }

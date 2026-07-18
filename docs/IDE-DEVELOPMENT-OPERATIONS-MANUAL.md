@@ -58,12 +58,12 @@ You do not need exact wording — agents recognize intent, not a magic phrase.
 
 ### Fixed Modules (application Programs)
 
-1. Module 1 — Intake & Definition  
-2. Module 2 — Assembly Planning  
-3. Module 3 — Execution  
-4. Module 4 — Verification & Hardening  
+1. Module 1 — Intake & Definition (interview checkpoints → Intent → Technical PRD → your approval)  
+2. Module 2 — Assembly Planning (includes Technical Design; Starter Kit optional)  
+3. Module 3 — Execution (branch-per-Issue, PR + CI)  
+4. Module 4 — Verification & Hardening (includes lightweight test preflights)  
 5. Module 5 — Library Contribution  
-6. Module 6 — Shipment (stops at `release_ready`; does not deploy)
+6. Module 6 — Shipment (stops at `release_ready`; Principal pre-deploy required; does not deploy)
 
 Commands: `run-application-pipeline` / `resume-application-pipeline`. Doctrine: `.cursor/execution/APPLICATION-PIPELINE.md`.
 
@@ -71,13 +71,13 @@ Commands: `run-application-pipeline` / `resume-application-pipeline`. Doctrine: 
 
 **Say something like:** *"I have an idea for [product]. It should do [X]. Help me turn this into a spec."* or *"Run the application pipeline for [product]."*
 
-Agents start Module 1 (interview → Intent → PRD → Living Document → your approval), then continue Modules 2–6 with fail-closed gates.
+Agents start Module 1 (interview with analysis/prioritization/Intent confirms → Technical PRD → your approval), then continue Modules 2–6 with fail-closed gates. A Starter Kit may be offered for greenfield work but is never required.
 
 ### Trigger: PRD in hand
 
 **Say something like:** *"Here is a PRD for [product]. Review it, ask me what's missing, then get it ready to build."*
 
-Agents enter Module 1 with the PRD as input, complete Living Document + your approval, then continue the fixed pipeline.
+Agents enter Module 1 with that draft as input, complete Intent + Technical PRD + your approval, then continue the fixed pipeline.
 
 ### Trigger: Existing software / release-sized increment
 
@@ -100,7 +100,7 @@ Agents do most detailed work. **You** hold the gates that matter for direction a
 
 ### You approve (human gates)
 
-1. **Spec / PRD approval** — Is the written product intent and requirements document acceptable before serious development begins? This is the **primary** gate in Stage 1. Nothing substantial starts without it.
+1. **Intent + Technical PRD approval** — Is the confirmed Intent and Technical PRD acceptable before serious development begins? This is the **primary** gate in Stage 1. Nothing substantial starts without it.
 2. **Program gate** — Is the program plan and scope right before large autonomous execution runs? Applies when work is organized as a formal program.
 3. **Module gate** — Is the module decomposition right before agents execute a module end-to-end?
 4. **Launch / release gate** — Is integrated work ready to ship or go live?

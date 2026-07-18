@@ -255,20 +255,36 @@ entries:
       - orientation
       - compatibility-only
 
-  - id: living-document-template
-    path: .cursor/templates/LIVING-DOCUMENT.md
-    purpose: Acceptance-criteria living document for application Programs.
+  - id: technical-prd-template
+    path: .cursor/templates/TECHNICAL-PRD.md
+    purpose: Single product-definition document for application Programs (replaces PRD + Living Document).
     when_to_use:
-      - during Module 1 intake
-      - when mapping criteria in Module 2
+      - during Module 1 intake after confirmed Intent
+      - when mapping acceptance criteria in Module 2
+      - when verifying criteria in Module 4
     required_by:
       - application-pipeline
     related_templates:
       - program-template
+      - technical-design-template
     status: active
     tags:
       - application-pipeline
-      - living-document
+      - technical-prd
+
+  - id: technical-design-template
+    path: .cursor/templates/TECHNICAL-DESIGN.md
+    purpose: Architecture / data / API design document authored in Module 2 before Issue planning.
+    when_to_use:
+      - Module 2 phase 2.5-technical-design
+    required_by:
+      - application-pipeline
+    related_templates:
+      - technical-prd-template
+    status: active
+    tags:
+      - application-pipeline
+      - technical-design
 
   - id: pipeline-state-template
     path: .cursor/templates/PIPELINE-STATE.json
@@ -278,11 +294,9 @@ entries:
     required_by:
       - application-pipeline
     related_templates:
-      - living-document-template
-    status: active
-    tags:
-      - application-pipeline
-      - state
+      - technical-prd-template
+      - technical-design-template
+      - program-template
 
   - id: module-gate-template
     path: .cursor/templates/MODULE-GATE.md

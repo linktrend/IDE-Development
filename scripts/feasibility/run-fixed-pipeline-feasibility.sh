@@ -73,7 +73,14 @@ root = pathlib.Path(sys.argv[1])
 gate = json.loads((root / "modules/01-intake-and-definition/gate.json").read_text())
 gate["verdict"] = "pass"
 gate["principalApprovalRecorded"] = False
+gate["technicalPrdIndependentReviewApproved"] = True
+gate["confirmedInterviewCheckpoints"] = ["analysis", "prioritization", "intent"]
 (root / "modules/01-intake-and-definition/gate.json").write_text(json.dumps(gate, indent=2) + "\n")
+state = json.loads((root / "pipeline-state.json").read_text())
+state["intentPath"] = "INTENT.md"
+state["technicalPrdPath"] = "TECHNICAL-PRD.md"
+state["confirmedInterviewCheckpoints"] = ["analysis", "prioritization", "intent"]
+(root / "pipeline-state.json").write_text(json.dumps(state, indent=2) + "\n")
 before = (root / "pipeline-state.json").read_text()
 pathlib.Path(root / "before.json").write_text(before)
 PY
@@ -87,6 +94,73 @@ else
   echo "PASS: state unchanged after rejected Module 1 complete"
   pass=$((pass + 1))
 fi
+
+# --- Negative: Module 1 complete without Technical PRD independent review ---
+cp -R "$FIXTURE/." "$WORK/n1b/"
+python3 - <<'PY' "$WORK/n1b"
+import json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+gate = json.loads((root / "modules/01-intake-and-definition/gate.json").read_text())
+gate["verdict"] = "pass"
+gate["principalApprovalRecorded"] = True
+gate["technicalPrdIndependentReviewApproved"] = False
+(root / "modules/01-intake-and-definition/gate.json").write_text(json.dumps(gate, indent=2) + "\n")
+state = json.loads((root / "pipeline-state.json").read_text())
+state["intentPath"] = "INTENT.md"
+state["technicalPrdPath"] = "TECHNICAL-PRD.md"
+state["confirmedInterviewCheckpoints"] = ["analysis", "prioritization", "intent"]
+state["principalDecisions"] = [{"scope": "module1", "decision": "approved"}]
+(root / "pipeline-state.json").write_text(json.dumps(state, indent=2) + "\n")
+PY
+run_expect_fail "Module 1 complete without Technical PRD independent review" \
+  --state "$WORK/n1b/pipeline-state.json" \
+  --request-transition "intake_and_definition:complete" --apply
+
+# --- Negative: Module 2 complete without Technical Design review ---
+cp -R "$FIXTURE/." "$WORK/n2b/"
+python3 - <<'PY' "$WORK/n2b"
+import json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+state = json.loads((root / "pipeline-state.json").read_text())
+state["modules"]["intake_and_definition"]["state"] = "complete"
+state["modules"]["assembly_planning"]["state"] = "active"
+state["intentPath"] = "INTENT.md"
+state["technicalPrdPath"] = "TECHNICAL-PRD.md"
+state["technicalDesignPath"] = "TECHNICAL-DESIGN.md"
+state["confirmedInterviewCheckpoints"] = ["analysis", "prioritization", "intent"]
+(root / "pipeline-state.json").write_text(json.dumps(state, indent=2) + "\n")
+gate = json.loads((root / "modules/02-assembly-planning/gate.json").read_text())
+gate["verdict"] = "pass"
+gate["technicalDesignIndependentReviewApproved"] = False
+(root / "modules/02-assembly-planning/gate.json").write_text(json.dumps(gate, indent=2) + "\n")
+PY
+run_expect_fail "Module 2 complete without Technical Design independent review" \
+  --state "$WORK/n2b/pipeline-state.json" \
+  --request-transition "assembly_planning:complete" --apply
+
+# --- Negative: Module complete after repair budget exceeded ---
+cp -R "$FIXTURE/." "$WORK/n2c/"
+python3 - <<'PY' "$WORK/n2c"
+import json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+state = json.loads((root / "pipeline-state.json").read_text())
+state["modules"]["intake_and_definition"]["state"] = "complete"
+state["modules"]["assembly_planning"]["state"] = "active"
+state["modules"]["assembly_planning"]["attemptCount"] = 4
+state["gateRepairBudget"] = 3
+state["intentPath"] = "INTENT.md"
+state["technicalPrdPath"] = "TECHNICAL-PRD.md"
+state["technicalDesignPath"] = "TECHNICAL-DESIGN.md"
+state["confirmedInterviewCheckpoints"] = ["analysis", "prioritization", "intent"]
+(root / "pipeline-state.json").write_text(json.dumps(state, indent=2) + "\n")
+gate = json.loads((root / "modules/02-assembly-planning/gate.json").read_text())
+gate["verdict"] = "pass"
+gate["technicalDesignIndependentReviewApproved"] = True
+(root / "modules/02-assembly-planning/gate.json").write_text(json.dumps(gate, indent=2) + "\n")
+PY
+run_expect_fail "Module 2 complete after repair budget exceeded" \
+  --state "$WORK/n2c/pipeline-state.json" \
+  --request-transition "assembly_planning:complete" --apply
 
 # --- Negative: activate Module 3 when Module 2 gate rejected / not complete ---
 cp -R "$FIXTURE/." "$WORK/n2/"
@@ -149,11 +223,11 @@ import json, pathlib, sys
 root = pathlib.Path(sys.argv[1])
 gate = json.loads((root / "modules/04-verification-and-hardening/gate.json").read_text())
 gate["verdict"] = "pass"
-gate["unmetLivingDocumentCriteria"] = ["AC-1"]
+gate["unmetTechnicalPrdAcceptanceCriteria"] = ["AC-1"]
 (root / "modules/04-verification-and-hardening/gate.json").write_text(json.dumps(gate, indent=2) + "\n")
 pathlib.Path(root / "before.json").write_text((root / "pipeline-state.json").read_text())
 PY
-run_expect_fail "Module 4 complete with unmet Living Document criteria" \
+run_expect_fail "Module 4 complete with unmet Technical PRD acceptance criteria" \
   --state "$WORK/n4/pipeline-state.json" \
   --request-transition "verification_and_hardening:complete" --apply
 
@@ -180,6 +254,8 @@ root = pathlib.Path(sys.argv[1])
 gate = json.loads((root / "modules/01-intake-and-definition/gate.json").read_text())
 gate["verdict"] = "pass"
 gate["principalApprovalRecorded"] = True
+gate["technicalPrdIndependentReviewApproved"] = True
+gate["confirmedInterviewCheckpoints"] = ["analysis", "prioritization", "intent"]
 (root / "modules/01-intake-and-definition/gate.json").write_text(json.dumps(gate, indent=2) + "\n")
 for mid, rel in [
   ("02-assembly-planning", "assembly_planning"),
@@ -191,12 +267,19 @@ for mid, rel in [
     gpath = root / f"modules/{mid}/gate.json"
     g = json.loads(gpath.read_text())
     g["verdict"] = "pass"
+    if mid == "02-assembly-planning":
+        g["technicalDesignIndependentReviewApproved"] = True
     if mid == "04-verification-and-hardening":
-        g["unmetLivingDocumentCriteria"] = []
+        g["unmetTechnicalPrdAcceptanceCriteria"] = []
     gpath.write_text(json.dumps(g, indent=2) + "\n")
 state = json.loads((root / "pipeline-state.json").read_text())
 state["principalDecisions"] = [{"scope": "module1", "decision": "approved"}]
-state["livingDocumentCriteria"] = [{"id": "AC-1", "status": "met"}]
+state["intentPath"] = "INTENT.md"
+state["technicalPrdPath"] = "TECHNICAL-PRD.md"
+state["technicalDesignPath"] = "TECHNICAL-DESIGN.md"
+state["confirmedInterviewCheckpoints"] = ["analysis", "prioritization", "intent"]
+state["technicalPrdAcceptanceCriteria"] = [{"id": "AC-1", "status": "met"}]
+state["gateRepairBudget"] = 3
 state["issues"] = {
   "ISSUE-1": {
     "status": "review_ready",

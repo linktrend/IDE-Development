@@ -29,14 +29,14 @@ Use this skill when deciding how the system should handle a request. Carlos uses
 
 ### New idea → Module 1 then fixed pipeline
 
-1. Start `run-application-pipeline` (Module 1: interview → Intent → PRD → Living Document).
+1. Start `run-application-pipeline` (Module 1: interview hard gates → Intent → Technical PRD → your approval).
 2. Composite: `linktrend/module1-intake-and-definition` (grill-with-docs + gstack spec + to-spec).
 3. **Stop for Carlos approval** — Module 1 gate before Module 2.
 4. Continue Modules 2–6 with fail-closed validator calls.
 
-### PRD in hand → Module 1 (with PRD input) then fixed pipeline
+### PRD / draft in hand → Module 1 then fixed pipeline
 
-1. Enter Module 1 with the PRD as input; clarify gaps; author Living Document.
+1. Enter Module 1 with the draft as input; run analysis/prioritization/Intent confirms; author Technical PRD.
 2. **Stop for Carlos approval**.
 3. Continue Modules 2–6.
 

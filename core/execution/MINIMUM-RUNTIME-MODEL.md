@@ -5,7 +5,7 @@ This model defines the minimum concepts required for autonomous execution using 
 ## Hierarchy
 
 - **Program**: the total body of work directed toward a meaningful outcome.
-- **Module** (application Programs): one of the six fixed lifecycle stages — `intake_and_definition`, `assembly_planning`, `execution`, `verification_and_hardening`, `library_contribution`, `shipment`. See `.cursor/execution/APPLICATION-PIPELINE.md`.
+- **Module** (application Programs): one of the six fixed lifecycle stages — `intake_and_definition`, `assembly_planning`, `execution`, `verification_and_hardening`, `library_contribution`, `shipment`. See `.cursor/execution/APPLICATION-PIPELINE.md`. Module 1 produces Intent + Technical PRD (not a separate Living Document). Starter Kits are optional.
 - **Module** (non-application governed work): a major domain area within a program (generic Module semantics remain available for non-application work only).
 - **Phase**: a checkpointed subset of work within a module.
 - **Issue**: the atomic executable unit.

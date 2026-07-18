@@ -22,7 +22,7 @@ Fixed six-Module state machine via `core/runtime/validate-application-pipeline.m
 | 1 Intake & Definition | complete (Principal approval recorded) |
 | 2 Assembly Planning | complete (Library query SHA `4cc7a9ea6e8a29d172098c3986f89a7110d2b229`) |
 | 3 Execution | complete (ISSUE-1 done with proof/review/integration) |
-| 4 Verification & Hardening | complete (Living Document criteria met) |
+| 4 Verification & Hardening | complete (Technical PRD acceptance criteria met) |
 | 5 Library Contribution | complete (live Shared Library catalog query, 4 entries) |
 | 6 Shipment | gate_pending + **terminal `release_ready`** |
 

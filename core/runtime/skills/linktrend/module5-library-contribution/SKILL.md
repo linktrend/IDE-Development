@@ -50,4 +50,5 @@ Issue/Module scope and pipeline gates override this composite skill. This compos
 - Do not reference the LiNKdeveloper repository at runtime.
 - Before Module transitions, call `node .cursor/runtime/validate-application-pipeline.mjs --state <PIPELINE-STATE.json> --request-transition <module-id>:<target-state>`.
 - No upstream skill is treated as sufficient. Until Principal confirms automatic PR creation, stop at publication_pending with a local bundle. Underlying skills cannot override pipeline state, gates, scope, or proof requirements.
+- Optional note only: a successful pattern may be a future Starter Kit candidate — IDE Development does **not** run an automated kit-minting pipeline.
 - Contains **no** Cursor Desktop model-routing policy.
