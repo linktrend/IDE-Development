@@ -106,3 +106,11 @@ entries:
       - module
       - canonical
       - end-to-end
+
+  - id: example-application-pipeline
+    path: .cursor/examples/EXAMPLE-APPLICATION-PIPELINE/
+    purpose: Fixed six-Module application pipeline example (no open domain Modules).
+    status: active
+    tags:
+      - example
+      - application-pipeline

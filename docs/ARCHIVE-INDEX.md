@@ -27,6 +27,8 @@ Both **IDE Development** (this repo) and the independent **LiNKdeveloper** Progr
 
 **LiNKdev** archive is **not** a bootstrap or runtime source. Do not install `LiNKdev/` from archive into this repo or treat archive paths as active doctrine.
 
+**Unification build-plan PRD (2026-07-17)** — Archived 2026-07-18 to [`docs/archive/planning/ide-development-linkdeveloper-unification-build-plan-prd.md`](archive/planning/ide-development-linkdeveloper-unification-build-plan-prd.md). Historical implementation plan; Living Document / dual-PRD language superseded by Technical PRD in `core/execution/APPLICATION-PIPELINE.md`. Do not implement from the archive copy.
+
 Historical Stage 1 completion evidence (specs, reports, runbooks from the closure wave) lives under [`docs/archive/`](archive/README.md).
 
 ---

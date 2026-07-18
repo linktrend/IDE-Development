@@ -21,8 +21,8 @@ Earlier experiments and duplicate runtimes are retired. They are not part of dai
 **One system, three installed sources:**
 
 1. **IDE Development core** — canonical knowledge in `core/` and the Cursor runtime surface in `.cursor/` (mostly symlinks into `core/`). Doctrine, gates, proof/review/integration, and domain skills live here.
-2. **gstack (macro)** — cloned at `/Users/linktrend/Projects/gstack`, fork https://github.com/linktrend/gstack. Handles specification, executive plan review, health checks, shipping verdicts, and session context.
-3. **mattpocock/skills (micro)** — cloned at `/Users/linktrend/Projects/skills`, fork https://github.com/linktrend/skills. Handles PRD clarification, issue slicing, test-driven development, debugging, and architecture improvement.
+2. **gstack (macro)** — vendored at `.cursor/runtime/skills/gstack/` (fork https://github.com/linktrend/gstack). Handles specification, executive plan review, health checks, shipping verdicts, and session context.
+3. **mattpocock/skills (micro)** — vendored at `.cursor/runtime/skills/mattpocock/` (fork https://github.com/linktrend/skills). Handles PRD clarification, issue slicing, test-driven development, debugging, and architecture improvement.
 
 You operate one system. Agents route across all three sources through the hybrid registry — you do not manage separate sources manually.
 
@@ -50,46 +50,47 @@ The executor handoff is the main delta: **human → OpenClaw**. Gate names, proo
 
 ---
 
-## 3. Three triggers only
+## 3. Plain-language triggers → fixed six-Module application pipeline
 
-Every session starts with exactly one of three triggers. Choosing application versus factory is **not** a fourth trigger — it is a routing decision inside each trigger, after the spec or PRD is clear.
+You still start sessions with plain language. Agents map that language onto the **fixed six-Module application pipeline** (not an open “pick your domain modules” decomposition).
 
-You do not need exact wording — agents recognize intent, not a magic phrase. The examples below just show the kind of thing you can type to start each trigger.
+You do not need exact wording — agents recognize intent, not a magic phrase.
 
-### Trigger 1: New idea
+### Fixed Modules (application Programs)
 
-You have a product concept but no written spec yet.
+1. Module 1 — Intake & Definition (interview checkpoints → Intent → Technical PRD → your approval)  
+2. Module 2 — Assembly Planning (includes Technical Design; Starter Kit optional)  
+3. Module 3 — Execution (branch-per-Issue, PR + CI)  
+4. Module 4 — Verification & Hardening (includes lightweight test preflights)  
+5. Module 5 — Library Contribution  
+6. Module 6 — Shipment (stops at `release_ready`; Principal pre-deploy required; does not deploy)
 
-**Say something like:** *"I have an idea for [product]. It should do [X]. Help me turn this into a spec."*
+Commands: `run-application-pipeline` / `resume-application-pipeline`. Doctrine: `.cursor/execution/APPLICATION-PIPELINE.md`.
 
-1. **Interview** — work with an agent to explore the idea, constraints, and success criteria.
-2. **Spec or PRD** — the agent produces a written specification or product requirements document.
-3. **You approve** — review and approve the spec/PRD before development begins. This is your primary human gate.
-4. **Route and develop** — based on what the product is:
-   - **Normal application** — say *"scaffold this from the LiNKapps starter kit and start developing."* The agent copies the starter kit at `/Users/linktrend/Projects/LiNKapps` into the new product location and begins building on top of it — you do not run any setup commands yourself.
-   - **Factory product** (a continuous production line such as a website, automation, or content factory) — the agent follows that product's own governing specification (PRD, program manual, or ADRs) for how the factory should operate, then develops against it. LiNKdeveloper does not carry a generic factory-operations blueprint of its own — see `docs/ARCHIVE-INDEX.md` for why the earlier one was retired.
+### Trigger: New idea
 
-### Trigger 2: PRD in hand
+**Say something like:** *"I have an idea for [product]. It should do [X]. Help me turn this into a spec."* or *"Run the application pipeline for [product]."*
 
-You already have a product requirements document (from you, a stakeholder, or a prior session).
+Agents start Module 1 (interview with analysis/prioritization/Intent confirms → Technical PRD → your approval), then continue Modules 2–6 with fail-closed gates. A Starter Kit may be offered for greenfield work but is never required.
 
-**Say something like:** *"Here is a PRD for [product]. Review it, ask me what's missing, then get it ready to build."* (paste or attach the PRD)
+### Trigger: PRD in hand
 
-1. **Clarify gaps** — the agent reads the PRD, asks targeted questions, and fills missing detail.
-2. **You approve** — confirm the clarified spec/PRD is acceptable.
-3. **Route and develop** — same application-or-factory decision as Trigger 1, then build.
+**Say something like:** *"Here is a PRD for [product]. Review it, ask me what's missing, then get it ready to build."*
 
-### Trigger 3: Existing software
+Agents enter Module 1 with that draft as input, complete Intent + Technical PRD + your approval, then continue the fixed pipeline.
 
-You have working code that needs work — refactor, finish incomplete features, customize, or extend.
+### Trigger: Existing software / release-sized increment
 
 **Say something like:** *"Look at [repo/feature] and tell me what's there, what's missing, and what you'd do next."* or *"There's a bug: [describe what's wrong]."*
 
-1. **Assess** — the agent inspects the codebase and states what exists, what is missing, and what risks apply.
-2. **Plan** — for larger changes, the agent proposes a short plan; you approve if direction is unclear or high-impact.
-3. **Develop** — implement, test, and deliver. Factory products still reference their own governing specification when operational behavior is in scope.
+- **Release-sized application increment / substantial rebuild:** use the fixed six-Module pipeline (`run-application-pipeline` or resume).
+- **Atomic maintenance / one-file bug fix:** use the existing issue → proof → review → integration path; include evidence in the next release’s Module 4–6.
 
-**Application versus factory — one short note.** Normal applications start from the LiNKapps starter kit. Factory products (revenue production lines such as website, automation, or content factories) are planned and operated per that product's own specification — LiNKdeveloper is deliberately product-agnostic and does not ship a generic factory-operations blueprint.
+### Resume
+
+**Say something like:** *"Resume this application build."* Agents read `PIPELINE-STATE.json` only — no chat memory required.
+
+**Feasibility note:** This is a session-scoped Cursor orchestrator over durable repository state, not a persistent autonomous VPS runtime.
 
 ---
 
@@ -99,7 +100,7 @@ Agents do most detailed work. **You** hold the gates that matter for direction a
 
 ### You approve (human gates)
 
-1. **Spec / PRD approval** — Is the written product intent and requirements document acceptable before serious development begins? This is the **primary** gate in Stage 1. Nothing substantial starts without it.
+1. **Intent + Technical PRD approval** — Is the confirmed Intent and Technical PRD acceptable before serious development begins? This is the **primary** gate in Stage 1. Nothing substantial starts without it.
 2. **Program gate** — Is the program plan and scope right before large autonomous execution runs? Applies when work is organized as a formal program.
 3. **Module gate** — Is the module decomposition right before agents execute a module end-to-end?
 4. **Launch / release gate** — Is integrated work ready to ship or go live?
@@ -219,11 +220,36 @@ Skills live in `.cursor/skills/SKILLS_CATALOG.md`. Agents read the catalog first
 
 **Carlos does not pick skill names.** You describe intent through one of the three triggers. Agents route through `docs/HYBRID-SKILLS-REGISTRY.md` and `core/skills/intelligent-routing/SKILL.md` to the correct hybrid or domain skill.
 
+### Model routing (wired, correct frontmatter format confirmed against Cursor's own docs)
+
+Cursor Desktop model routing is **real and wired** via pinned custom subagents. Source of truth for route→model *mapping* (which route to use for which task) is LiNKdeveloper `packages/model-routing/src/router.ts` (ported, not re-derived). Doctrine: `.cursor/skills/model-routing/SKILL.md`.
+
+Per [Cursor's subagent docs](https://cursor.com/docs/subagents), the `model:` frontmatter field takes a **base model ID plus `[id=value,...]` bracket parameters** (e.g. `claude-opus-4-8[effort=high]`) — it does not take flat suffixed strings. Two rounds of correction happened on this doctrine before it was verified against Cursor's real docs:
+
+1. All six routes were originally ported as flat strings straight from LiNKdeveloper's `router.ts` (e.g. `claude-sonnet-5-thinking-medium`). Those are LiNKdeveloper's own internal routing-policy names, not Cursor identifiers anywhere.
+2. Three were then "corrected" against a different subsystem's model list (Task-tool subagent spawning, a narrower/different catalog than this frontmatter field uses) — that was also wrong, and for `evaluation` specifically would have baked in "-fast", violating the explicit Fast-off requirement.
+3. The actual fix: transcribe each route's already-live-verified `{ id, params }` shape from LiNKdeveloper `packages/model-routing/src/model-catalog.ts` (ground-truth-checked against a real `Cursor.models.list()` call for this same account on 2026-07-16) directly into bracket-param syntax.
+
+| Route | Subagent path | Model pin |
+|---|---|---|
+| `default` | `.cursor/agents/route-default.md` | `claude-sonnet-5[thinking=true,effort=medium,context=1m]` |
+| `escalation` | `.cursor/agents/route-escalation.md` | `gpt-5.6-sol[reasoning=medium,context=1m,fast=false]` |
+| `independent_review` | `.cursor/agents/route-independent-review.md` | `claude-opus-4-8[thinking=true,effort=medium,context=1m,fast=false]` |
+| `economical` | `.cursor/agents/route-economical.md` | `composer-2.5[fast=true]` |
+| `bulk_documents` | `.cursor/agents/route-bulk-documents.md` | `gemini-2.5-flash` |
+| `evaluation` | `.cursor/agents/route-evaluation.md` | `grok-4.5[effort=medium,fast=false]` |
+
+**Composer-fallback and Ultra plan, resolved:** per Cursor's subagent FAQ, the "subagents always run on Composer regardless of `model:`" trap only applies to **legacy request-based plans without Max Mode**. Ultra is a usage-based plan, so per that same FAQ ("Usage-based plans and Max Mode will default to the parent model" in the fallback cases, and normal honoring otherwise) this trap does not apply here — resolving the Principal's original open question from before this unification work started.
+
+**Still not verified** (same-session Cursor Desktop check, not a deploy step): that these exact bracket-param strings parse and resolve as expected at runtime. Invoke each route agent from the Cursor chat (e.g. `/route-default hello`) and confirm the responding model matches the pin.
+
+On model-quality failure, agents must log the attempt and retry once with the different-family pairing in `model-routing` (capped at one hop). This is agent-followed doctrine — IDE Development has no persistent Ledger process to mechanize it.
+
 **Three installed sources:**
 
 1. **Local domain skills** in this repository — APIs, UI, deployment execution, routing, and governance.
-2. **gstack (macro)** — `/Users/linktrend/Projects/gstack`. Spec, plan review, health, ship, context save/restore.
-3. **mattpocock/skills (micro)** — `/Users/linktrend/Projects/skills`. Grill-with-docs, PRD synthesis, issue slicing, TDD, debugging, architecture improvement.
+2. **gstack (macro)** — `.cursor/runtime/skills/gstack/`. Spec, plan review, health, ship, context save/restore.
+3. **mattpocock/skills (micro)** — `.cursor/runtime/skills/mattpocock/`. Grill-with-docs, PRD synthesis, issue slicing, TDD, debugging, architecture improvement.
 
 All three are wired and active — not reference-only. Hybrid command entrypoints live under `.cursor/commands/hybrid-*.md` (canonical copies in `core/commands/`).
 

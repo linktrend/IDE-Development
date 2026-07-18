@@ -16,6 +16,17 @@
 
 Use the autonomous module execution model. Issue is the atomic executable unit. Dependencies determine order. Review and integration gates cannot be skipped.
 
+For application Programs:
+
+1. Validate the predecessor Module gate before doing work (Module 1 has no predecessor).
+2. Before progression, validate this Module’s own gate via:
+
+```bash
+node .cursor/runtime/validate-application-pipeline.mjs --state <PIPELINE-STATE.json> --request-transition <module-id>:complete
+```
+
+3. Non-zero → stop. Module 6 uses terminal `release_ready`, not `complete`.
+
 ## Templates
 
 - `MODULE.md`

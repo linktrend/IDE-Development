@@ -17,7 +17,7 @@ These laws are the durable foundation of the execution system. They are tool-ind
 13. **Integration is separate from review.** Reviewed work is not yet integrated work; incorporation into the active line is a distinct step.
 14. **Release is separate from integration.** Integrated work is not automatically releasable; release requires system-level validation.
 15. **Higher-level completion is stricter than lower-level completion.** Module and program completion require more than all child issues being marked done.
-16. **Quality gates must stop progression, not merely warn.** A blocking failure prevents downstream execution until resolved or explicitly waived.
+16. **Quality gates must stop progression, not merely warn.** A blocking failure prevents downstream execution until resolved or explicitly waived. Executable enforcement for application Programs: `.cursor/runtime/validate-application-pipeline.mjs` (fail-closed; non-zero means stop). Behavioral coverage: `scripts/test-gate-stop-progression.sh` / `docs/validation/GATE-STOP-001-report.md`.
 17. **Definitions of done exist at every level.** Issues, phases, modules, and programs each require explicit completion semantics.
 18. **Agents are resources, not the control structure.** Execution order should emerge from artifacts and dependencies, not from fixed agent choreography.
 19. **Progressive disclosure is mandatory.** Agents should read only the minimum context required for the current unit of work.

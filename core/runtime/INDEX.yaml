@@ -121,3 +121,22 @@ entries:
       - runtime
       - dependencies
       - concurrency
+
+  - id: validate-application-pipeline
+    path: .cursor/runtime/validate-application-pipeline.mjs
+    purpose: Fail-closed deterministic validator for application pipeline state transitions.
+    when_to_read:
+      - before every Module state transition
+      - when resuming an application pipeline
+    dependencies:
+      - .cursor/execution/APPLICATION-PIPELINE.md
+      - .cursor/contracts/APPLICATION-PIPELINE-STATE.schema.json
+    consumers:
+      - AI runtimes
+      - orchestrators
+      - validators
+    status: active
+    tags:
+      - runtime
+      - validator
+      - application-pipeline

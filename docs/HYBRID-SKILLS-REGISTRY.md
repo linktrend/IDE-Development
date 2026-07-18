@@ -17,12 +17,16 @@ Both forks were created 2026-07-10 under the `linktrend` account. LiNKtrend owns
 
 ---
 
-## Local clone paths
+## Vendored skill paths (authoritative at runtime)
 
-- **gstack:** `/Users/linktrend/Projects/gstack`
-- **mattpocock/skills:** `/Users/linktrend/Projects/skills`
+Physical copies live in-repo (not sibling-path dependencies, not cross-repo symlinks):
 
-IDE Development command entrypoints under `core/commands/hybrid-*.md` point agents at these paths.
+- **gstack:** `.cursor/runtime/skills/gstack/`
+- **mattpocock:** `.cursor/runtime/skills/mattpocock/`
+
+Manifest: `core/runtime/skills/VENDOR-MANIFEST.json`. Refresh with `scripts/vendor-hybrid-skills.sh`; verify with `scripts/verify-vendored-skills.sh`.
+
+IDE Development command entrypoints under `core/commands/hybrid-*.md` point agents at these vendored paths.
 
 For retired skill systems and historical provenance, see [`docs/ARCHIVE-INDEX.md`](ARCHIVE-INDEX.md).
 
@@ -42,12 +46,12 @@ Additional gstack skills (`/review`, `/qa`, `/retro`, `/learn`) exist in the for
 
 Skill paths (examples):
 
-- `/Users/linktrend/Projects/gstack/spec/SKILL.md`
-- `/Users/linktrend/Projects/gstack/plan-ceo-review/SKILL.md`
-- `/Users/linktrend/Projects/gstack/health/SKILL.md`
-- `/Users/linktrend/Projects/gstack/ship/SKILL.md`
-- `/Users/linktrend/Projects/gstack/context-save/SKILL.md`
-- `/Users/linktrend/Projects/gstack/context-restore/SKILL.md`
+- `.cursor/runtime/skills/gstack/spec/SKILL.md`
+- `.cursor/runtime/skills/gstack/plan-ceo-review/SKILL.md`
+- `.cursor/runtime/skills/gstack/health/SKILL.md`
+- `.cursor/runtime/skills/gstack/ship/SKILL.md`
+- `.cursor/runtime/skills/gstack/context-save/SKILL.md`
+- `.cursor/runtime/skills/gstack/context-restore/SKILL.md`
 
 ---
 
@@ -64,14 +68,14 @@ Micro-execution skills for clarification, PRD synthesis, issue slicing, TDD, deb
 
 Skill paths:
 
-- `/Users/linktrend/Projects/skills/skills/engineering/grill-with-docs/SKILL.md`
-- `/Users/linktrend/Projects/skills/skills/engineering/to-spec/SKILL.md` (command label: `/to-prd`)
-- `/Users/linktrend/Projects/skills/skills/engineering/to-tickets/SKILL.md` (command label: `/to-issues`)
-- `/Users/linktrend/Projects/skills/skills/engineering/tdd/SKILL.md`
-- `/Users/linktrend/Projects/skills/skills/engineering/diagnosing-bugs/SKILL.md`
-- `/Users/linktrend/Projects/skills/skills/engineering/improve-codebase-architecture/SKILL.md`
+- `.cursor/runtime/skills/mattpocock/grill-with-docs/SKILL.md`
+- `.cursor/runtime/skills/mattpocock/to-spec/SKILL.md` (command label: `/to-prd`)
+- `.cursor/runtime/skills/mattpocock/to-tickets/SKILL.md` (command label: `/to-issues`)
+- `.cursor/runtime/skills/mattpocock/tdd/SKILL.md`
+- `.cursor/runtime/skills/mattpocock/diagnosing-bugs/SKILL.md`
+- `.cursor/runtime/skills/mattpocock/improve-codebase-architecture/SKILL.md`
 
-One-time setup: `/Users/linktrend/Projects/skills/skills/engineering/setup-matt-pocock-skills/SKILL.md`
+One-time setup skill (vendored): `.cursor/runtime/skills/mattpocock/setup-matt-pocock-skills/SKILL.md`
 
 ---
 

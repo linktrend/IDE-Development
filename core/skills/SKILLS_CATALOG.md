@@ -15,7 +15,7 @@ Use this file to route into local domain skills and hybrid macro/micro skills.
 ## Hybrid macro (gstack)
 
 **Fork:** https://github.com/linktrend/gstack  
-**Local clone:** `/Users/linktrend/Projects/gstack`  
+**Vendored copy:** `.cursor/runtime/skills/gstack/` (physical copy; refresh via `scripts/vendor-hybrid-skills.sh`)  
 **Registry:** `docs/HYBRID-SKILLS-REGISTRY.md`
 
 Command entrypoints: `core/commands/hybrid-spec.md`, `hybrid-plan-ceo-review.md`, `hybrid-health.md`, `hybrid-ship.md`, `hybrid-context-save.md`, `hybrid-context-restore.md`
@@ -33,7 +33,7 @@ Extended fork skills (`/review`, `/qa`, `/retro`, `/learn`) available for macro 
 ## Hybrid micro (mattpocock skills)
 
 **Fork:** https://github.com/linktrend/skills  
-**Local clone:** `/Users/linktrend/Projects/skills`  
+**Vendored copy:** `.cursor/runtime/skills/mattpocock/` (physical copy; refresh via `scripts/vendor-hybrid-skills.sh`)  
 **Registry:** `docs/HYBRID-SKILLS-REGISTRY.md`
 
 Command entrypoints: `core/commands/hybrid-grill.md`, `hybrid-to-prd.md`, `hybrid-to-issues.md`, `hybrid-tdd.md`, `hybrid-diagnosing-bugs.md`, `hybrid-improve-architecture.md`
@@ -76,6 +76,7 @@ Forty local skills remain after hybrid sunset. Grouped by concern.
 - `incremental-implementation` — verified vertical slices during execution
 - `app-builder` — scaffold or extend apps using LiNKtrend stack conventions and starter kit routing
 - `intelligent-routing` — trigger → hybrid → domain → artifact command router
+- `model-routing` — spawn pinned `.cursor/agents/route-*` subagents (ports LiNKdeveloper router.ts)
 - `context-engineering` — progressive disclosure and read order (pairs with gstack context-save/restore)
 
 ### Architecture, APIs, data, source grounding
@@ -183,6 +184,7 @@ When multiple domain skills appear relevant:
 - `skills/lint-and-validate/SKILL.md`
 - `skills/mcp-builder/SKILL.md`
 - `skills/mobile-design/SKILL.md`
+- `skills/model-routing/SKILL.md`
 - `skills/nodejs-best-practices/SKILL.md`
 - `skills/observability-and-instrumentation/SKILL.md`
 - `skills/parallel-agents/SKILL.md`

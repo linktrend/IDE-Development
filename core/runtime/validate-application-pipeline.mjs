@@ -1,0 +1,427 @@
+#!/usr/bin/env node
+/**
+ * Production application-pipeline transition validator (Phase 3).
+ * Fail-closed: non-zero means stop; no warn-only behavior.
+ * Fail-closed: non-zero exit leaves state file unchanged.
+ *
+ * Usage:
+ *   node scripts/feasibility/validate-pipeline-transition.mjs \
+ *     --state <path> --request-transition <module-id>:<target-state> [--apply]
+ *   node scripts/feasibility/validate-pipeline-transition.mjs \
+ *     --state <path> --request-issue-done <issue-id> [--apply]
+ *   node scripts/feasibility/validate-pipeline-transition.mjs \
+ *     --state <path> --set-terminal <release_ready|blocked|cancelled> [--apply]
+ */
+
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const MODULE_ORDER = [
+  "intake_and_definition",
+  "assembly_planning",
+  "execution",
+  "verification_and_hardening",
+  "library_contribution",
+  "shipment",
+];
+
+const MODULE_STATES = new Set([
+  "pending",
+  "active",
+  "gate_pending",
+  "blocked",
+  "complete",
+]);
+
+function fail(message) {
+  console.error(`REJECT: ${message}`);
+  process.exit(1);
+}
+
+function parseArgs(argv) {
+  const args = {
+    state: null,
+    requestTransition: null,
+    requestIssueDone: null,
+    setTerminal: null,
+    checkConsistency: false,
+    apply: false,
+  };
+  for (let i = 2; i < argv.length; i += 1) {
+    const a = argv[i];
+    if (a === "--state") args.state = argv[++i];
+    else if (a === "--request-transition") args.requestTransition = argv[++i];
+    else if (a === "--request-issue-done") args.requestIssueDone = argv[++i];
+    else if (a === "--set-terminal") args.setTerminal = argv[++i];
+    else if (a === "--check-consistency") args.checkConsistency = true;
+    else if (a === "--apply") args.apply = true;
+    else if (a === "--help" || a === "-h") {
+      console.log(`Usage:
+  node .cursor/runtime/validate-application-pipeline.mjs --state <path> --request-transition <module-id>:<target-state> [--apply]
+  node .cursor/runtime/validate-application-pipeline.mjs --state <path> --request-issue-done <issue-id> [--apply]
+  node .cursor/runtime/validate-application-pipeline.mjs --state <path> --set-terminal <release_ready|blocked|cancelled> [--apply]
+  node .cursor/runtime/validate-application-pipeline.mjs --state <path> --check-consistency`);
+      process.exit(0);
+    } else fail(`Unknown argument: ${a}`);
+  }
+  if (!args.state) fail("--state is required");
+  return args;
+}
+
+/**
+ * Fail-closed consistency check for git hooks / resume.
+ * Rejects hand-edited invalid states (skipped predecessors, complete without gate, etc.).
+ */
+function validateConsistency(state, statePath) {
+  for (const moduleId of MODULE_ORDER) {
+    const mod = state.modules?.[moduleId];
+    if (!mod) fail(`Missing module record: ${moduleId}`);
+    if (!MODULE_STATES.has(mod.state)) {
+      fail(`Invalid state for ${moduleId}: ${mod.state}`);
+    }
+    if (mod.state === "complete") {
+      if (moduleId === "shipment") {
+        fail(
+          "Module shipment cannot be complete; terminal status must be release_ready",
+        );
+      }
+      validateCompleteTransition(state, statePath, moduleId);
+      if (!predecessorComplete(state, moduleId) && MODULE_ORDER.indexOf(moduleId) > 0) {
+        // validateCompleteTransition does not re-check predecessor for already-complete;
+        // enforce ordering here so hand-edits that mark Module N complete while N-1 is pending fail.
+      }
+    }
+    if (mod.state === "active" || mod.state === "gate_pending") {
+      validateActivateTransition(state, moduleId);
+    }
+  }
+  // Ordering: no later module may be complete/active/gate_pending if an earlier one is not complete
+  for (let i = 1; i < MODULE_ORDER.length; i += 1) {
+    const prev = MODULE_ORDER[i - 1];
+    const cur = MODULE_ORDER[i];
+    const prevState = state.modules[prev].state;
+    const curState = state.modules[cur].state;
+    const progressed = ["active", "gate_pending", "complete"].includes(curState);
+    if (progressed && prevState !== "complete") {
+      fail(
+        `Invalid ordering: ${cur} is ${curState} but predecessor ${prev} is ${prevState}`,
+      );
+    }
+  }
+  // Issues marked done must satisfy proof/review/integration
+  for (const [issueId, issue] of Object.entries(state.issues || {})) {
+    if (issue?.status === "done") {
+      const probe = {
+        ...state,
+        issues: {
+          ...state.issues,
+          [issueId]: { ...issue, status: "in_progress" },
+        },
+      };
+      validateIssueDone(probe, issueId);
+    }
+  }
+  if (state.terminalState === "release_ready") {
+    const gate = loadGate(statePath, state.modules.shipment?.gatePath);
+    if (!gate || (gate.verdict !== "pass" && gate.verdict !== "accepted")) {
+      fail("terminalState release_ready requires passing shipment gate");
+    }
+  }
+  console.log("OK: pipeline state is consistent");
+}
+
+function loadState(path) {
+  if (!existsSync(path)) fail(`State file missing: ${path}`);
+  return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function loadGate(statePath, gatePath) {
+  if (!gatePath) return null;
+  const abs = resolve(dirname(statePath), gatePath);
+  if (!existsSync(abs)) return null;
+  return JSON.parse(readFileSync(abs, "utf8"));
+}
+
+function predecessorComplete(state, moduleId) {
+  const idx = MODULE_ORDER.indexOf(moduleId);
+  if (idx <= 0) return true;
+  const prev = MODULE_ORDER[idx - 1];
+  return state.modules[prev]?.state === "complete";
+}
+
+function validateCompleteTransition(state, statePath, moduleId) {
+  const mod = state.modules[moduleId];
+  if (!mod) fail(`Unknown module: ${moduleId}`);
+
+  // Rule 7: Module 6 cannot become complete; terminal is release_ready
+  if (moduleId === "shipment") {
+    fail(
+      "Module shipment cannot transition to complete; terminal status for this scope is release_ready",
+    );
+  }
+
+  const gate = loadGate(statePath, mod.gatePath);
+  if (!gate) fail(`Gate absent for module ${moduleId}`);
+  if (gate.verdict === "rejected" || gate.verdict === "fail") {
+    fail(`Gate rejected for module ${moduleId}; cannot complete`);
+  }
+  if (gate.verdict !== "pass" && gate.verdict !== "accepted") {
+    fail(`Gate verdict missing or not pass for module ${moduleId}`);
+  }
+
+  // Repair budget: cannot complete after attempts exceed budget (must be blocked instead)
+  const budget =
+    typeof state.gateRepairBudget === "number" && state.gateRepairBudget > 0
+      ? state.gateRepairBudget
+      : 3;
+  const attempts =
+    typeof mod.attemptCount === "number"
+      ? mod.attemptCount
+      : typeof state.moduleAttemptCounts?.[moduleId] === "number"
+        ? state.moduleAttemptCounts[moduleId]
+        : 0;
+  if (attempts > budget) {
+    fail(
+      `Module ${moduleId} cannot complete: attemptCount ${attempts} exceeds gateRepairBudget ${budget}`,
+    );
+  }
+
+  // Rule 4: Module 1 — Intent + Technical PRD + interview checkpoints + Principal approval
+  if (moduleId === "intake_and_definition") {
+    if (!state.intentPath || String(state.intentPath).trim() === "") {
+      fail(
+        "Module intake_and_definition cannot complete without intentPath (INTENT.md)",
+      );
+    }
+    if (
+      !state.technicalPrdPath ||
+      String(state.technicalPrdPath).trim() === ""
+    ) {
+      fail(
+        "Module intake_and_definition cannot complete without technicalPrdPath (TECHNICAL-PRD.md)",
+      );
+    }
+    const checkpoints = Array.isArray(state.confirmedInterviewCheckpoints)
+      ? state.confirmedInterviewCheckpoints
+      : Array.isArray(gate.confirmedInterviewCheckpoints)
+        ? gate.confirmedInterviewCheckpoints
+        : [];
+    for (const required of ["analysis", "prioritization", "intent"]) {
+      if (!checkpoints.includes(required)) {
+        fail(
+          `Module intake_and_definition cannot complete without confirmed interview checkpoint: ${required}`,
+        );
+      }
+    }
+    const prdReviewOk =
+      gate.technicalPrdIndependentReviewApproved === true ||
+      gate.technicalPrdReviewDecision === "approved";
+    if (!prdReviewOk) {
+      fail(
+        "Module intake_and_definition cannot complete without Technical PRD independent review approved",
+      );
+    }
+    const recorded =
+      gate.principalApprovalRecorded === true ||
+      (Array.isArray(state.principalDecisions) &&
+        state.principalDecisions.some(
+          (d) =>
+            d?.scope === "module1" &&
+            (d?.decision === "approved" || d?.verdict === "approved"),
+        ));
+    if (!recorded) {
+      fail(
+        "Module intake_and_definition cannot complete without recorded Principal approval",
+      );
+    }
+  }
+
+  // Rule 4b: Module 2 — Technical Design path + independent review
+  if (moduleId === "assembly_planning") {
+    if (
+      !state.technicalDesignPath ||
+      String(state.technicalDesignPath).trim() === ""
+    ) {
+      fail(
+        "Module assembly_planning cannot complete without technicalDesignPath (TECHNICAL-DESIGN.md)",
+      );
+    }
+    const designReviewOk =
+      gate.technicalDesignIndependentReviewApproved === true ||
+      gate.technicalDesignReviewDecision === "approved";
+    if (!designReviewOk) {
+      fail(
+        "Module assembly_planning cannot complete without Technical Design independent review approved",
+      );
+    }
+  }
+
+  // Rule 6: Module 4 cannot complete with unmet Technical PRD acceptance criteria
+  if (moduleId === "verification_and_hardening") {
+    const unmet =
+      gate.unmetTechnicalPrdAcceptanceCriteria ||
+      gate.unmetLivingDocumentCriteria ||
+      [];
+    const criteria =
+      state.technicalPrdAcceptanceCriteria ||
+      state.livingDocumentCriteria ||
+      [];
+    const stateUnmet = criteria.filter((c) => c.status !== "met");
+    if (unmet.length > 0 || stateUnmet.length > 0) {
+      fail(
+        "Module verification_and_hardening cannot complete with unmet Technical PRD acceptance criteria",
+      );
+    }
+  }
+}
+
+function validateActivateTransition(state, moduleId) {
+  if (!MODULE_ORDER.includes(moduleId)) fail(`Unknown module: ${moduleId}`);
+  if (!predecessorComplete(state, moduleId)) {
+    const idx = MODULE_ORDER.indexOf(moduleId);
+    const prev = MODULE_ORDER[idx - 1];
+    fail(
+      `Cannot activate ${moduleId}: predecessor ${prev} is not complete (state=${state.modules[prev]?.state})`,
+    );
+  }
+  const prevIdx = MODULE_ORDER.indexOf(moduleId) - 1;
+  if (prevIdx >= 0) {
+    const prev = MODULE_ORDER[prevIdx];
+    const prevMod = state.modules[prev];
+    // Also reject if predecessor gate is rejected even if somehow marked
+    if (prevMod?.gateVerdict === "rejected") {
+      fail(`Cannot activate ${moduleId}: predecessor gate rejected`);
+    }
+  }
+}
+
+function validateIssueDone(state, issueId) {
+  const issue = state.issues?.[issueId];
+  if (!issue) fail(`Unknown issue: ${issueId}`);
+  if (issue.status === "done") fail(`Issue ${issueId} already done`);
+
+  // Rule 5: reject done without proof, passing independent review, and integration
+  if (!issue.proof || issue.proof.status !== "present") {
+    fail(`Issue ${issueId} cannot become done without proof`);
+  }
+  if (!issue.review || issue.review.verdict !== "pass") {
+    fail(
+      `Issue ${issueId} cannot become done without passing independent review`,
+    );
+  }
+  if (!issue.integration || issue.integration.status !== "integrated") {
+    fail(`Issue ${issueId} cannot become done without integration`);
+  }
+  if (issue.selfReviewed === true) {
+    fail(`Issue ${issueId} cannot become done: self-review is rejected`);
+  }
+}
+
+function applyTransition(state, moduleId, targetState) {
+  state.modules[moduleId].state = targetState;
+  if (targetState === "complete") {
+    state.modules[moduleId].gateVerdict = "pass";
+  }
+  if (targetState === "active") {
+    state.currentModuleId = moduleId;
+  }
+  state.lastTransitionTimestamp = new Date().toISOString();
+  state.lastTransitionActor = "application-pipeline-validator";
+}
+
+function main() {
+  const args = parseArgs(process.argv);
+  const statePath = resolve(args.state);
+  const original = readFileSync(statePath, "utf8");
+  const state = JSON.parse(original);
+
+  try {
+    if (args.checkConsistency) {
+      validateConsistency(state, statePath);
+      process.exit(0);
+    }
+
+    if (args.requestIssueDone) {
+      validateIssueDone(state, args.requestIssueDone);
+      if (args.apply) {
+        state.issues[args.requestIssueDone].status = "done";
+        state.lastTransitionTimestamp = new Date().toISOString();
+        state.lastTransitionActor = "application-pipeline-validator";
+        writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
+      }
+      console.log(`OK: issue ${args.requestIssueDone} -> done allowed`);
+      process.exit(0);
+    }
+
+    if (args.setTerminal) {
+      const allowed = new Set(["release_ready", "blocked", "cancelled"]);
+      if (!allowed.has(args.setTerminal)) {
+        fail(`Invalid terminal state: ${args.setTerminal}`);
+      }
+      if (args.setTerminal === "release_ready") {
+        if (state.modules.shipment?.state !== "gate_pending" &&
+            state.modules.shipment?.state !== "active") {
+          // Allow if shipment gate passed conceptually via gate_pending + pass
+        }
+        const gate = loadGate(statePath, state.modules.shipment?.gatePath);
+        if (!gate || (gate.verdict !== "pass" && gate.verdict !== "accepted")) {
+          fail("Cannot set release_ready without passing shipment gate");
+        }
+      }
+      if (args.apply) {
+        state.terminalState = args.setTerminal;
+        if (args.setTerminal === "release_ready") {
+          state.modules.shipment.state = "gate_pending";
+        }
+        state.lastTransitionTimestamp = new Date().toISOString();
+        state.lastTransitionActor = "application-pipeline-validator";
+        writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
+      }
+      console.log(`OK: terminal -> ${args.setTerminal} allowed`);
+      process.exit(0);
+    }
+
+    if (!args.requestTransition) {
+      fail(
+        "Provide --request-transition, --request-issue-done, --set-terminal, or --check-consistency",
+      );
+    }
+
+    const [moduleId, targetState] = args.requestTransition.split(":");
+    if (!moduleId || !targetState) {
+      fail("--request-transition must be <module-id>:<target-state>");
+    }
+    if (!MODULE_ORDER.includes(moduleId)) fail(`Unknown module: ${moduleId}`);
+    if (!MODULE_STATES.has(targetState)) {
+      fail(`Unknown target state: ${targetState}`);
+    }
+
+    if (targetState === "complete") {
+      validateCompleteTransition(state, statePath, moduleId);
+    } else if (targetState === "active") {
+      validateActivateTransition(state, moduleId);
+    } else if (targetState === "gate_pending") {
+      // allowed from active only for simplicity
+      if (state.modules[moduleId]?.state !== "active") {
+        fail(`Cannot move ${moduleId} to gate_pending unless active`);
+      }
+    }
+
+    // Rule 3: also reject activating next if current not complete — covered above
+
+    if (args.apply) {
+      applyTransition(state, moduleId, targetState);
+      writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
+    }
+
+    console.log(`OK: ${moduleId} -> ${targetState} allowed`);
+    process.exit(0);
+  } catch (err) {
+    // Ensure state unchanged on unexpected error
+    writeFileSync(statePath, original);
+    fail(err?.message || String(err));
+  }
+}
+
+main();

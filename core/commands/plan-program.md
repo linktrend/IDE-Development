@@ -6,7 +6,8 @@ Operational summary:
 
 - start from `INTENT.md`
 - produce or refine `PROGRAM.md`
-- identify the initial module structure
+- for application Programs: instantiate the six fixed Modules (APPLICATION-PIPELINE.md)
+- for non-application governed work: identify the initial module structure
 - stop with explicit blockers if program creation is not yet justified
 
 Read and execute `.cursor/prompts/execution/PLAN-PROGRAM.md`.

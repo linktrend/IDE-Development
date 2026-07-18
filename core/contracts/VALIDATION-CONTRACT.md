@@ -23,6 +23,8 @@ A handoff is valid only when:
 4. side effects are allowed and visible
 5. invariants remain true
 
+Gates are **fail-closed** (Law 16). Warn-only progression is forbidden. For application Programs, Module transitions must pass `.cursor/runtime/validate-application-pipeline.mjs` before state is written. Self-report is never proof.
+
 ## Producer And Consumer Validation Model
 
 - the producer validates completeness before handoff

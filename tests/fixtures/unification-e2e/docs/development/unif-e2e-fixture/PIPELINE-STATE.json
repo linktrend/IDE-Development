@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 2,
+  "programId": "unif-e2e-fixture",
+  "targetRepositoryRoot": "tests/fixtures/unification-e2e",
+  "currentModuleId": "shipment",
+  "modules": {
+    "intake_and_definition": {
+      "state": "complete",
+      "gatePath": "modules/01-intake-and-definition/gate.json",
+      "gateVerdict": "pass",
+      "attemptCount": 1
+    },
+    "assembly_planning": {
+      "state": "complete",
+      "gatePath": "modules/02-assembly-planning/gate.json",
+      "gateVerdict": "pass",
+      "attemptCount": 1
+    },
+    "execution": {
+      "state": "complete",
+      "gatePath": "modules/03-execution/gate.json",
+      "gateVerdict": "pass",
+      "attemptCount": 1
+    },
+    "verification_and_hardening": {
+      "state": "complete",
+      "gatePath": "modules/04-verification-and-hardening/gate.json",
+      "gateVerdict": "pass",
+      "attemptCount": 1
+    },
+    "library_contribution": {
+      "state": "complete",
+      "gatePath": "modules/05-library-contribution/gate.json",
+      "gateVerdict": "pass",
+      "attemptCount": 1
+    },
+    "shipment": {
+      "state": "gate_pending",
+      "gatePath": "modules/06-shipment/gate.json",
+      "gateVerdict": "pass",
+      "attemptCount": 1
+    }
+  },
+  "principalDecisions": [
+    {
+      "scope": "module1",
+      "decision": "approved"
+    },
+    {
+      "scope": "module6_pre_deploy",
+      "decision": "approved_release_ready_only"
+    }
+  ],
+  "intentPath": "INTENT.md",
+  "technicalPrdPath": "TECHNICAL-PRD.md",
+  "technicalPrdSha256": "9703cc7bdfd535a192cb99a15ba86f88c6ced3270f323962d372ef763d6b2e37",
+  "technicalDesignPath": "TECHNICAL-DESIGN.md",
+  "starterKitDecision": {
+    "decision": "declined",
+    "kitId": null,
+    "matchConfidence": null,
+    "rationale": "Existing fixture repo; Starter Kit optional in IDE Development"
+  },
+  "libraryCheckoutPath": null,
+  "libraryCommitSha": "pending-shared-library-remote",
+  "lastTransitionTimestamp": "2026-07-17T00:00:00Z",
+  "lastTransitionActor": "unification-e2e",
+  "blockers": [],
+  "terminalState": "release_ready",
+  "issues": {
+    "ISSUE-A": {
+      "status": "done",
+      "proof": {
+        "status": "present"
+      },
+      "review": {
+        "verdict": "pass"
+      },
+      "integration": {
+        "status": "integrated"
+      }
+    },
+    "ISSUE-B": {
+      "status": "done",
+      "proof": {
+        "status": "present"
+      },
+      "review": {
+        "verdict": "pass"
+      },
+      "integration": {
+        "status": "integrated"
+      },
+      "dependsOn": [
+        "ISSUE-A"
+      ]
+    }
+  },
+  "technicalPrdAcceptanceCriteria": [
+    {
+      "id": "AC-001",
+      "status": "met"
+    }
+  ],
+  "confirmedInterviewCheckpoints": [
+    "analysis",
+    "prioritization",
+    "intent"
+  ],
+  "gateRepairBudget": 3,
+  "moduleAttemptCounts": {},
+  "gateRejectionHistory": [],
+  "deployCommandsRun": []
+}

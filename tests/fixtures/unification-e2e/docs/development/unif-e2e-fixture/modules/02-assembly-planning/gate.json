@@ -1,0 +1,7 @@
+{
+  "moduleId": "assembly_planning",
+  "verdict": "pass",
+  "technicalDesignIndependentReviewApproved": true,
+  "unmetTechnicalPrdAcceptanceCriteria": [],
+  "notes": "E2E fixture gate"
+}
