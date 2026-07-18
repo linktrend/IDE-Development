@@ -2,47 +2,32 @@
 alwaysApply: true
 ---
 
-# LiNKtrend Venture Studio — Identity & Context
+# LiNKtrend — Identity & Context
 
 ## What this repo is
 
-**LiNKtrend System = LiNKaios** — the AI-native company operating system monorepo. LiNKaios ships as **LiNKaios Client** (licensee operators) and **LiNKtrend Admin** (vendor fleet and tenant management). Other planes (LiNKbrain, LinkSkills, LiNKautowork, LiNKbot, LiNKguard) are components of LiNKaios, not separate products.
+This repository is **LiNKdeveloper** (`IDE Development` on disk) — the shared, product-agnostic Stage 1 Application Factory: doctrine, artifacts, workflows, contracts, and hybrid skills for building any LiNKtrend venture product through the lifecycle `Intent → Program → Module → Phase → Issue → Proof → Review → Integration → Complete`.
 
-This rule is self-contained and should be treated as the canonical identity brief unless a newer local replacement is added inside this repository.
+LiNKdeveloper is not a product and does not define, own, or assume the architecture of any specific product (its planes, services, terminology, UI system, or infrastructure). Product-specific doctrine belongs in that product's own repository and specification set, not here. If a task requires product-specific knowledge that isn't in the target repo, stop and ask rather than inventing or reusing another product's architecture by default.
 
 ## Who We Are
 
 LiNKtrend is an AI-native venture studio that industrializes digital venture creation through an agentic organizational structure. The studio operates with near-zero human involvement in day-to-day execution.
 
-- **Principal** — The sole human authority. Non-technical operator. Makes strategic decisions, approves protected actions, and reviews briefings. Does not write code or manage execution.
-- **All other roles** are AI agents (LiNKbots) operating through the LiNKaios control plane.
+- **Principal** — The sole human authority (Carlos). Non-technical operator. Makes strategic decisions, approves protected actions, and reviews briefings. Does not write code or manage execution.
+- **All other roles are AI agents** performing planning, implementation, proof, review, and integration work under the gate structure defined in `docs/LINKDEVELOPER-OPERATIONS-MANUAL.md`.
 
-## Core Systems
+## Repository classification (general convention, not a fixed catalog)
 
-| System | Purpose |
-|--------|---------|
-| **LiNKaios** | AI Operating System — control plane for mission scheduling, governance, and audit |
-| **LiNKbrain** | Shared memory and audit layer (Supabase + pgvector) |
-| **LiNKskills** | Centralized logic-as-a-service — versioned, reusable skill modules |
-| **LiNKautowork** | Automation execution layer (n8n-based) for deterministic workflows |
-| **LiNKapps** | Internal developer platform for application products |
-| **LiNKsites** | Internal developer platform for web presences |
-
-## Repository Classification
-
-All repositories live at https://github.com/linktrend
+All LiNKtrend repositories live at https://github.com/linktrend
 
 | Prefix | Meaning | Action |
 |--------|---------|--------|
-| `LiNK*` | Active core system repos | Develop actively |
+| `LiNK*` | Active LiNKtrend product/system repos | Develop actively per that repo's own specification |
 | `link-*` | Forks of external projects | Modify for LiNKtrend integration; never push upstream |
 | `Zepricated*` / `zepricated*` | Archived legacy | Ignore completely |
 
-## Agent Workforce (3-Tier Model)
-
-1. **Orchestration** (Paperclip) — schedules work, manages hierarchy, heartbeat cadence
-2. **Management** (OpenClaw agents) — plans, decomposes tasks, governs quality
-3. **Execution** (Agent Zero agents) — writes code, runs commands, builds outputs
+This convention describes naming only. It does not imply any particular repo's internal architecture, terminology, or product relationships — those are defined by the target repo's own governing specification.
 
 ## Communication
 

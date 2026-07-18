@@ -56,21 +56,25 @@ It remains operationally self-contained from the perspective of existing `.curso
 2. If the repository or session is fresh, read `bootstrap/START-HERE.md` next.
 3. If the work is greenfield, ambiguous, or under-specified, read `discovery/INDEX.yaml` before `INTENT.md`.
 4. Use `bootstrap/QUICKSTART.md` only when the work level is already obvious.
-5. Read `rules/00-linkdev-bootstrap.mdc`, then any other applicable rules.
+5. Read `rules/00-bootstrap.mdc`, then any other applicable rules.
 6. For program, module, phase, issue, proof, review, and integration work, read `execution/INDEX.yaml`.
 7. Use the execution doctrine files as the governing model:
    - `execution/CANONICAL-LAWS.md`
    - `execution/MINIMUM-RUNTIME-MODEL.md`
    - `execution/AUTONOMOUS-MODULE-EXECUTION.md`
-8. Use `templates/INDEX.yaml` to select the minimum artifact needed.
-9. Use `agents/INDEX.yaml` when the task needs a role, control function, or squad composition.
-10. Use `commands/INDEX.yaml` when the task begins from a command-style invocation.
-11. Use `session/INDEX.yaml` when the task is a natural-language resume or close-out request.
-12. Use `workspace/INDEX.yaml` when the task is a one-time workspace adoption request.
-13. Read `skills/SKILLS_CATALOG.md` before opening individual skills.
-14. Open only the prompt, template, checklist, workflow, skill, agent, command, session, or workspace file required for the task.
-15. Prefer revising existing assets over creating parallel copies.
-16. Keep the system simple, modular, and maintainable.
+   - `execution/APPLICATION-PIPELINE.md` (fixed six-Module application Programs)
+8. For application builds, prefer `commands/run-application-pipeline.md` / `resume-application-pipeline.md` and fail-closed validation via `runtime/validate-application-pipeline.mjs`. Hybrid skills are physical copies under `runtime/skills/` (not sibling absolute paths).
+9. Use `templates/INDEX.yaml` to select the minimum artifact needed.
+10. Use `agents/INDEX.yaml` when the task needs a role, control function, or squad composition.
+11. Use `commands/INDEX.yaml` when the task begins from a command-style invocation.
+12. Use `session/INDEX.yaml` when the task is a natural-language resume or close-out request.
+13. Use `workspace/INDEX.yaml` when the task is a one-time workspace adoption request.
+14. Read `skills/SKILLS_CATALOG.md` before opening individual skills.
+15. Open only the prompt, template, checklist, workflow, skill, agent, command, session, or workspace file required for the task.
+16. Prefer revising existing assets over creating parallel copies.
+17. Keep the system simple, modular, and maintainable.
+
+**Feasibility note:** application-pipeline orchestration is session-scoped over durable repository state (`feasible_with_approximation`), not a persistent VPS runtime.
 
 ## First Path
 

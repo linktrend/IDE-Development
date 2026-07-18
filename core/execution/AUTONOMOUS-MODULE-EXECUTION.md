@@ -2,15 +2,16 @@
 
 This document defines expected runtime behavior for a command such as:
 
-`Complete Authentication Module.`
+`Complete Module 3 — Execution.` (application Programs) or `Complete Authentication Module.` (non-application governed work only).
 
-A capable human or AI runtime should be able to execute the module recursively using artifacts alone.
+A capable human or AI runtime should be able to execute the module recursively using artifacts alone. For application Programs, Modules are the six fixed lifecycle stages in `.cursor/execution/APPLICATION-PIPELINE.md`; product-specific decomposition happens as Phases and Issues inside the current fixed Module.
 
 ## Entry Behavior
 
 1. Load the execution doctrine from `.cursor/execution/`.
-2. Load the target module artifact.
-3. Read only the program-level constraints needed by that module.
+2. For application Programs, load `.cursor/execution/APPLICATION-PIPELINE.md` and validate the predecessor Module gate before doing work.
+3. Load the target module artifact.
+4. Read only the program-level constraints needed by that module.
 
 ## Recursive Execution Behavior
 
@@ -35,6 +36,16 @@ A capable human or AI runtime should be able to execute the module recursively u
 - Review is required before integration.
 - Integration is required before downstream issues may rely on the work.
 - A blocked issue must leave an explicit trail of attempted work and open blockers.
+
+## Application-pipeline note
+
+Before marking an application Module complete, run:
+
+```bash
+node .cursor/runtime/validate-application-pipeline.mjs --state <PIPELINE-STATE.json> --request-transition <module-id>:complete
+```
+
+Non-zero means stop. Module 6 terminates at `release_ready`, not `complete`.
 
 ## Completion
 

@@ -3,7 +3,7 @@
 ## Read First
 
 1. `.cursor/README.md`
-2. `.cursor/rules/00-linkdev-bootstrap.mdc`
+2. `.cursor/rules/00-bootstrap.mdc`
 3. `.cursor/execution/INDEX.yaml`
 4. `.cursor/execution/MINIMUM-RUNTIME-MODEL.md`
 5. `.cursor/execution/AUTONOMOUS-MODULE-EXECUTION.md`
@@ -17,7 +17,7 @@
 
 ## Doctrine
 
-Plan the module so it can execute recursively through phases and issues without scanning unrelated context.
+Plan the module so it can execute recursively through phases and issues without scanning unrelated context. For application Programs, the Module ID must be one of the six fixed lifecycle stages; you may decompose the current fixed Module into product-specific Phases and Issues, but you must not create additional top-level application Modules.
 
 ## Templates
 

@@ -54,7 +54,7 @@ Phase review is optional unless explicitly required by a phase or module artifac
 
 ## Gate Guidance
 
-Review must reject vacuous completion. Findings must refer back to actual proof or observed outputs.
+Review must reject vacuous completion. Findings must refer back to actual proof or observed outputs. Reviewer must be independent of the executor. Fail closed on mismatch (Law 16).
 
 ## Verbosity Guidance
 

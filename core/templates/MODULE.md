@@ -1,9 +1,10 @@
 ---
-module_id: "<module-id>"
+module_id: "<module-id>" # application: one of intake_and_definition|assembly_planning|execution|verification_and_hardening|library_contribution|shipment
 title: "<module-title>"
 status: "draft"
 parent_program: "<program-id>"
 objective: "<module objective>"
+# Application Programs: decompose into Phases/Issues only; do not create sibling top-level Modules.
 scope:
   - "<in-scope item>"
 out_of_scope:

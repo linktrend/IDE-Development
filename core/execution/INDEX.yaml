@@ -76,3 +76,22 @@ entries:
       - execution
       - module
       - runtime-behavior
+
+  - id: application-pipeline
+    path: .cursor/execution/APPLICATION-PIPELINE.md
+    purpose: Fixed six-Module application-build pipeline contract for IDE Development.
+    when_to_read:
+      - when starting or resuming an application Program
+      - when validating Module transitions
+    dependencies:
+      - canonical-laws
+      - minimum-runtime-model
+    consumers:
+      - human operators
+      - AI runtimes
+      - orchestrators
+    status: active
+    tags:
+      - execution
+      - application-pipeline
+      - modules

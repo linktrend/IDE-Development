@@ -1,0 +1,7 @@
+{
+  "moduleId": "execution",
+  "verdict": "pass",
+  "principalApprovalRecorded": false,
+  "unmetLivingDocumentCriteria": [],
+  "notes": "E2E fixture gate"
+}

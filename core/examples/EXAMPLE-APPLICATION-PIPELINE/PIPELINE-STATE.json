@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 2,
+  "programId": "example-application-pipeline",
+  "targetRepositoryRoot": "core/examples/EXAMPLE-APPLICATION-PIPELINE",
+  "currentModuleId": "intake_and_definition",
+  "modules": {
+    "intake_and_definition": {
+      "state": "active",
+      "gatePath": "modules/01-intake-and-definition/gate.json",
+      "gateVerdict": null,
+      "attemptCount": 0
+    },
+    "assembly_planning": {
+      "state": "pending",
+      "gatePath": "modules/02-assembly-planning/gate.json",
+      "gateVerdict": null,
+      "attemptCount": 0
+    },
+    "execution": {
+      "state": "pending",
+      "gatePath": "modules/03-execution/gate.json",
+      "gateVerdict": null,
+      "attemptCount": 0
+    },
+    "verification_and_hardening": {
+      "state": "pending",
+      "gatePath": "modules/04-verification-and-hardening/gate.json",
+      "gateVerdict": null,
+      "attemptCount": 0
+    },
+    "library_contribution": {
+      "state": "pending",
+      "gatePath": "modules/05-library-contribution/gate.json",
+      "gateVerdict": null,
+      "attemptCount": 0
+    },
+    "shipment": {
+      "state": "pending",
+      "gatePath": "modules/06-shipment/gate.json",
+      "gateVerdict": null,
+      "attemptCount": 0
+    }
+  },
+  "principalDecisions": [],
+  "intentPath": "INTENT.md",
+  "technicalPrdPath": "TECHNICAL-PRD.md",
+  "technicalPrdSha256": null,
+  "technicalDesignPath": "TECHNICAL-DESIGN.md",
+  "starterKitDecision": null,
+  "libraryCheckoutPath": null,
+  "libraryCommitSha": null,
+  "lastTransitionTimestamp": null,
+  "lastTransitionActor": null,
+  "blockers": [],
+  "terminalState": null,
+  "issues": {},
+  "technicalPrdAcceptanceCriteria": [],
+  "confirmedInterviewCheckpoints": [],
+  "gateRepairBudget": 3,
+  "moduleAttemptCounts": {},
+  "gateRejectionHistory": []
+}

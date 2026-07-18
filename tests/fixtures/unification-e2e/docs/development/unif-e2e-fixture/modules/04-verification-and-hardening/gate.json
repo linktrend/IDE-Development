@@ -1,0 +1,7 @@
+{
+  "moduleId": "verification_and_hardening",
+  "verdict": "pass",
+  "principalApprovalRecorded": false,
+  "unmetLivingDocumentCriteria": [],
+  "notes": "E2E fixture gate"
+}

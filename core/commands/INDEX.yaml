@@ -98,6 +98,40 @@ entries:
       - module
       - preferred
 
+  - id: small-change
+    path: .cursor/commands/small-change.md
+    purpose: Preferred lightweight command wrapper for tiny low-risk bugs or simple changes that still require proof, review, and integration.
+    when_to_use:
+      - when executing a tiny low-risk bug fix
+      - when making a simple bounded change that does not need full program or module planning
+      - when a user says "make this small change" or equivalent
+    underlying_prompt: .cursor/prompts/execution/SMALL-CHANGE.md
+    required_doctrine:
+      - .cursor/execution/INDEX.yaml
+      - .cursor/execution/MINIMUM-RUNTIME-MODEL.md
+    required_templates:
+      - .cursor/templates/ISSUE.md
+      - .cursor/templates/PROOF.md
+      - .cursor/templates/REVIEW.md
+      - .cursor/templates/INTEGRATION.md
+    required_agents:
+      - orchestrator
+      - reviewer
+      - integrator
+    expected_output:
+      - compact issue record or issue update
+      - implemented change
+      - concrete proof
+      - review verdict
+      - integration record
+    status: active
+    tags:
+      - command
+      - execution
+      - issue
+      - lightweight
+      - preferred
+
   - id: complete-module
     path: .cursor/commands/complete-module.md
     purpose: Preferred command wrapper for recursive module execution through readiness, proof, review, and integration.
@@ -220,9 +254,266 @@ entries:
       - issue
       - preferred
 
+  - id: hybrid-spec
+    path: .cursor/commands/hybrid-spec.md
+    purpose: gstack /spec — structured specification for Trigger 1 new ideas.
+    when_to_use:
+      - Trigger 1 after interview, before Carlos approves spec/PRD
+      - when vague intent needs a structured spec
+    underlying_prompt: .cursor/runtime/skills/gstack/spec/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+      - .cursor/skills/intelligent-routing/SKILL.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - structured spec artifact ready for human approval
+    status: active
+    tags:
+      - command
+      - hybrid
+      - gstack
+      - planning
+
+  - id: hybrid-grill
+    path: .cursor/commands/hybrid-grill.md
+    purpose: mattpocock /grill-with-docs — clarify PRD gaps against documentation.
+    when_to_use:
+      - Trigger 2 step 1 — PRD in hand, clarify gaps
+      - Trigger 1 when documentation needs sharpening
+    underlying_prompt: .cursor/runtime/skills/mattpocock/grill-with-docs/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - clarified intent and documented gaps
+    status: active
+    tags:
+      - command
+      - hybrid
+      - mattpocock
+      - planning
+
+  - id: hybrid-to-prd
+    path: .cursor/commands/hybrid-to-prd.md
+    purpose: mattpocock /to-prd (to-spec) — synthesize PRD from clarified intent.
+    when_to_use:
+      - after grill or interview when formalizing PRD
+    underlying_prompt: .cursor/runtime/skills/mattpocock/to-spec/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - PRD/spec ready for Carlos approval
+    status: active
+    tags:
+      - command
+      - hybrid
+      - mattpocock
+      - planning
+
+  - id: hybrid-to-issues
+    path: .cursor/commands/hybrid-to-issues.md
+    purpose: mattpocock /to-issues (to-tickets) — slice PRD into atomic issues.
+    when_to_use:
+      - after Carlos approves PRD/spec
+      - before core execute-issue runs
+    underlying_prompt: .cursor/runtime/skills/mattpocock/to-tickets/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates:
+      - .cursor/templates/ISSUE.md
+    required_agents: []
+    expected_output:
+      - dependency-aware issue set
+    status: active
+    tags:
+      - command
+      - hybrid
+      - mattpocock
+      - planning
+
+  - id: hybrid-tdd
+    path: .cursor/commands/hybrid-tdd.md
+    purpose: mattpocock /tdd — test-driven implementation loop.
+    when_to_use:
+      - during issue execution when behavior must be proven by tests
+    underlying_prompt: .cursor/runtime/skills/mattpocock/tdd/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates:
+      - .cursor/templates/PROOF.md
+    required_agents: []
+    expected_output:
+      - failing-to-passing test proof
+    status: active
+    tags:
+      - command
+      - hybrid
+      - mattpocock
+      - execution
+
+  - id: hybrid-diagnosing-bugs
+    path: .cursor/commands/hybrid-diagnosing-bugs.md
+    purpose: mattpocock /diagnosing-bugs — systematic debugging.
+    when_to_use:
+      - blocked or failing issues needing root-cause analysis
+    underlying_prompt: .cursor/runtime/skills/mattpocock/diagnosing-bugs/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - root cause, fix, and verification
+    status: active
+    tags:
+      - command
+      - hybrid
+      - mattpocock
+      - execution
+
+  - id: hybrid-health
+    path: .cursor/commands/hybrid-health.md
+    purpose: gstack /health — project health checks and repair loops.
+    when_to_use:
+      - Trigger 3 assess when health or gate discipline is unclear
+    underlying_prompt: .cursor/runtime/skills/gstack/health/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - health assessment and repair recommendations
+    status: active
+    tags:
+      - command
+      - hybrid
+      - gstack
+      - assessment
+
+  - id: hybrid-ship
+    path: .cursor/commands/hybrid-ship.md
+    purpose: gstack /ship — shippable vs blocked verdict (subordinate to core integration gates).
+    when_to_use:
+      - after core integration passes, before release decision
+    underlying_prompt: .cursor/runtime/skills/gstack/ship/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+      - .cursor/execution/CANONICAL-LAWS.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - ship verdict with risks and rollback notes
+    status: active
+    tags:
+      - command
+      - hybrid
+      - gstack
+      - release
+
+  - id: hybrid-plan-ceo-review
+    path: .cursor/commands/hybrid-plan-ceo-review.md
+    purpose: gstack /plan-ceo-review — executive plan review.
+    when_to_use:
+      - large or ambiguous program/module plans before decomposition
+    underlying_prompt: .cursor/runtime/skills/gstack/plan-ceo-review/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - CEO-level plan review findings
+    status: active
+    tags:
+      - command
+      - hybrid
+      - gstack
+      - planning
+
+  - id: hybrid-context-save
+    path: .cursor/commands/hybrid-context-save.md
+    purpose: gstack /context-save — persist session context.
+    when_to_use:
+      - long runs needing handoff or pause
+    underlying_prompt: .cursor/runtime/skills/gstack/context-save/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - saved session context
+    status: active
+    tags:
+      - command
+      - hybrid
+      - gstack
+      - session
+
+  - id: hybrid-context-restore
+    path: .cursor/commands/hybrid-context-restore.md
+    purpose: gstack /context-restore — resume saved session context.
+    when_to_use:
+      - resuming after context-save
+    underlying_prompt: .cursor/runtime/skills/gstack/context-restore/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - restored session context
+    status: active
+    tags:
+      - command
+      - hybrid
+      - gstack
+      - session
+
+  - id: hybrid-improve-architecture
+    path: .cursor/commands/hybrid-improve-architecture.md
+    purpose: mattpocock /improve-codebase-architecture — refactor guidance.
+    when_to_use:
+      - Trigger 3 structural refactors or large architecture changes
+    underlying_prompt: .cursor/runtime/skills/mattpocock/improve-codebase-architecture/SKILL.md
+    required_doctrine:
+      - docs/HYBRID-SKILLS-REGISTRY.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - architecture improvement plan or executed refactor
+    status: active
+    tags:
+      - command
+      - hybrid
+      - mattpocock
+      - architecture
+
+  - id: archived-compatibility-commands
+    path: .cursor/commands/compatibility-archive/README.md
+    purpose: Archive and compatibility section for retained legacy and deprecated command wrappers.
+    when_to_use:
+      - when maintaining backward compatibility
+      - when an older workflow explicitly references a legacy command
+      - when validating that canonical commands are preferred for new work
+    underlying_prompt: none
+    required_doctrine:
+      - .cursor/README.md
+      - .cursor/commands/INDEX.yaml
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - route old command names without changing canonical execution behavior
+    status: compatibility-archive
+    tags:
+      - archive
+      - compatibility
+      - legacy
+      - not-preferred
+
   - id: linkdev-go
-    path: .cursor/commands/linkdev-go.md
-    purpose: Legacy compatibility command for older planning flows.
+    path: .cursor/commands/compatibility-archive/linkdev-go.md
+    purpose: Archived compatibility command for older planning flows.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-go
     underlying_prompt: .cursor/prompts/planner/ROLE.md
@@ -236,16 +527,17 @@ entries:
       - project-planner
     expected_output:
       - legacy planning flow output
-    status: legacy
+    status: compatibility-archive
     tags:
       - command
+      - archive
       - legacy
       - compatibility-only
       - not-preferred
 
   - id: linkdev-dispatch
-    path: .cursor/commands/linkdev-dispatch.md
-    purpose: Legacy compatibility command retained for older dispatch flows.
+    path: .cursor/commands/compatibility-archive/linkdev-dispatch.md
+    purpose: Archived compatibility command retained for older dispatch flows.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-dispatch
     underlying_prompt: .cursor/prompts/setup/DISPATCH-INSTALL.md
@@ -255,16 +547,17 @@ entries:
     required_agents: []
     expected_output:
       - legacy dispatch setup behavior
-    status: legacy
+    status: compatibility-archive
     tags:
       - command
+      - archive
       - legacy
       - compatibility-only
       - not-preferred
 
   - id: linkdev-ui-automations
-    path: .cursor/commands/linkdev-ui-automations.md
-    purpose: Deprecated legacy compatibility alias retained for older UI automation flows.
+    path: .cursor/commands/compatibility-archive/linkdev-ui-automations.md
+    purpose: Archived deprecated compatibility alias retained for older UI automation flows.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-ui-automations
     underlying_prompt: .cursor/prompts/setup/DISPATCH-INSTALL.md
@@ -274,9 +567,10 @@ entries:
     required_agents: []
     expected_output:
       - legacy setup behavior
-    status: deprecated
+    status: compatibility-archive
     tags:
       - command
+      - archive
       - legacy
       - deprecated
       - alias
@@ -284,8 +578,8 @@ entries:
       - not-preferred
 
   - id: linkdev-wire-post-dispatch
-    path: .cursor/commands/linkdev-wire-post-dispatch.md
-    purpose: Legacy compatibility command retained for older post-dispatch wiring.
+    path: .cursor/commands/compatibility-archive/linkdev-wire-post-dispatch.md
+    purpose: Archived compatibility command retained for older post-dispatch wiring.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-wire-post-dispatch
     underlying_prompt: .cursor/prompts/setup/WIRE-POST-DISPATCH.md
@@ -295,16 +589,17 @@ entries:
     required_agents: []
     expected_output:
       - legacy post-dispatch wiring behavior
-    status: legacy
+    status: compatibility-archive
     tags:
       - command
+      - archive
       - legacy
       - compatibility-only
       - not-preferred
 
   - id: linkdev-wire-post-ui
-    path: .cursor/commands/linkdev-wire-post-ui.md
-    purpose: Deprecated legacy compatibility alias retained for older post-UI wiring.
+    path: .cursor/commands/compatibility-archive/linkdev-wire-post-ui.md
+    purpose: Archived deprecated compatibility alias retained for older post-UI wiring.
     when_to_use:
       - only when an existing workflow explicitly references linkdev-wire-post-ui
     underlying_prompt: .cursor/prompts/setup/WIRE-POST-DISPATCH.md
@@ -314,9 +609,10 @@ entries:
     required_agents: []
     expected_output:
       - legacy post-ui wiring behavior
-    status: deprecated
+    status: compatibility-archive
     tags:
       - command
+      - archive
       - legacy
       - deprecated
       - alias
@@ -324,8 +620,8 @@ entries:
       - not-preferred
 
   - id: wire-linkdev
-    path: .cursor/commands/wire-linkdev.md
-    purpose: Legacy compatibility command retained for older wire flows.
+    path: .cursor/commands/compatibility-archive/wire-linkdev.md
+    purpose: Archived compatibility command retained for older wire flows.
     when_to_use:
       - only when an existing workflow explicitly references wire-linkdev
     underlying_prompt: .cursor/prompts/setup/WIRE.md
@@ -335,9 +631,97 @@ entries:
     required_agents: []
     expected_output:
       - legacy wiring behavior
-    status: legacy
+    status: compatibility-archive
     tags:
       - command
+      - archive
       - legacy
       - compatibility-only
       - not-preferred
+
+  - id: run-application-pipeline
+    path: .cursor/commands/run-application-pipeline.md
+    purpose: Start the fixed six-Module application pipeline for a new or release-sized Program.
+    when_to_use:
+      - when building a new application
+      - when a user says "Run the application pipeline"
+    underlying_prompt: .cursor/prompts/execution/RUN-APPLICATION-PIPELINE.md
+    required_doctrine:
+      - .cursor/execution/APPLICATION-PIPELINE.md
+      - .cursor/execution/CANONICAL-LAWS.md
+    required_templates:
+      - .cursor/templates/PIPELINE-STATE.json
+      - .cursor/templates/TECHNICAL-PRD.md
+      - .cursor/templates/TECHNICAL-DESIGN.md
+      - .cursor/templates/PROGRAM.md
+    required_agents:
+      - planner
+      - product-owner
+    expected_output:
+      - docs/development/<program-id>/ with six fixed Modules
+      - PIPELINE-STATE.json
+      - release_ready or blocked terminal
+    status: active
+    tags:
+      - command
+      - application-pipeline
+      - preferred
+
+  - id: resume-application-pipeline
+    path: .cursor/commands/resume-application-pipeline.md
+    purpose: Resume an application pipeline from durable PIPELINE-STATE.json without chat memory.
+    when_to_use:
+      - when a user says "Resume this application build"
+    underlying_prompt: .cursor/prompts/execution/RESUME-APPLICATION-PIPELINE.md
+    required_doctrine:
+      - .cursor/execution/APPLICATION-PIPELINE.md
+    required_templates:
+      - .cursor/templates/PIPELINE-STATE.json
+    required_agents:
+      - planner
+    expected_output:
+      - continued Module progression from durable state
+    status: active
+    tags:
+      - command
+      - application-pipeline
+      - preferred
+
+  - id: library-search
+    path: .cursor/commands/library-search.md
+    purpose: Search the shared LiNKlibraries catalog (Module 2).
+    when_to_use:
+      - during Module 2 library-starter-kit-query
+    underlying_prompt: .cursor/prompts/execution/LIBRARY-SEARCH.md
+    required_doctrine:
+      - .cursor/library/README.md
+      - docs/adr/0002-shared-component-template-asset-library.md
+    required_templates:
+      - .cursor/templates/LIBRARY-QUERY-REPORT.md
+    required_agents: []
+    expected_output:
+      - catalog matches with fetch commit SHA
+    status: active
+    tags:
+      - library
+      - module-2
+
+  - id: library-contribute
+    path: .cursor/commands/library-contribute.md
+    purpose: Prepare/validate/publish a Module 5 contribution bundle to LiNKlibraries.
+    when_to_use:
+      - during Module 5 library contribution
+    underlying_prompt: .cursor/prompts/execution/LIBRARY-CONTRIBUTE.md
+    required_doctrine:
+      - .cursor/library/README.md
+      - docs/adr/0002-shared-component-template-asset-library.md
+    required_templates:
+      - .cursor/templates/LIBRARY-CONTRIBUTION.md
+    required_agents: []
+    expected_output:
+      - validated contribution bundle
+      - publication_pending or opened_pr status
+    status: active
+    tags:
+      - library
+      - module-5

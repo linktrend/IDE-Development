@@ -254,3 +254,87 @@ entries:
       - module
       - orientation
       - compatibility-only
+
+  - id: technical-prd-template
+    path: .cursor/templates/TECHNICAL-PRD.md
+    purpose: Single product-definition document for application Programs (replaces PRD + Living Document).
+    when_to_use:
+      - during Module 1 intake after confirmed Intent
+      - when mapping acceptance criteria in Module 2
+      - when verifying criteria in Module 4
+    required_by:
+      - application-pipeline
+    related_templates:
+      - program-template
+      - technical-design-template
+    status: active
+    tags:
+      - application-pipeline
+      - technical-prd
+
+  - id: technical-design-template
+    path: .cursor/templates/TECHNICAL-DESIGN.md
+    purpose: Architecture / data / API design document authored in Module 2 before Issue planning.
+    when_to_use:
+      - Module 2 phase 2.5-technical-design
+    required_by:
+      - application-pipeline
+    related_templates:
+      - technical-prd-template
+    status: active
+    tags:
+      - application-pipeline
+      - technical-design
+
+  - id: pipeline-state-template
+    path: .cursor/templates/PIPELINE-STATE.json
+    purpose: Durable pipeline state machine template for application Programs.
+    when_to_use:
+      - when starting run-application-pipeline
+    required_by:
+      - application-pipeline
+    related_templates:
+      - technical-prd-template
+      - technical-design-template
+      - program-template
+
+  - id: module-gate-template
+    path: .cursor/templates/MODULE-GATE.md
+    purpose: Per-Module gate artifact template for the fixed application pipeline.
+    when_to_use:
+      - at each Module gate
+    required_by:
+      - application-pipeline
+    related_templates:
+      - pipeline-state-template
+    status: active
+    tags:
+      - application-pipeline
+      - gate
+
+  - id: library-query-report-template
+    path: .cursor/templates/LIBRARY-QUERY-REPORT.md
+    purpose: Module 2 Library query report with commit SHA.
+    when_to_use:
+      - during Module 2 library-starter-kit-query
+    required_by:
+      - application-pipeline
+    related_templates: []
+    status: active
+    tags:
+      - application-pipeline
+      - library
+
+  - id: library-contribution-template
+    path: .cursor/templates/LIBRARY-CONTRIBUTION.md
+    purpose: Module 5 Library contribution / publication-pending record.
+    when_to_use:
+      - during Module 5 library contribution
+    required_by:
+      - application-pipeline
+    related_templates:
+      - library-query-report-template
+    status: active
+    tags:
+      - application-pipeline
+      - library

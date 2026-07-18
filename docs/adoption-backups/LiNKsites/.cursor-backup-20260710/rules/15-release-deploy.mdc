@@ -1,0 +1,10 @@
+---
+description: "LiNKsites deploy and Supabase"
+globs: "supabase/**"
+alwaysApply: false
+---
+
+# Infra & DB
+
+- Apply Supabase migrations from `supabase/` with project governance in docs.
+- Deployment targets (Vercel / multi-tenant hosting) follow site factory runbooks in `docs/`.

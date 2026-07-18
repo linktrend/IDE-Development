@@ -3,7 +3,7 @@
 ## Read First
 
 1. `.cursor/README.md`
-2. `.cursor/rules/00-linkdev-bootstrap.mdc`
+2. `.cursor/rules/00-bootstrap.mdc`
 3. `.cursor/execution/INDEX.yaml`
 4. `.cursor/execution/CANONICAL-LAWS.md`
 5. `.cursor/execution/MINIMUM-RUNTIME-MODEL.md`
@@ -15,7 +15,7 @@
 
 ## Doctrine
 
-Review must reject vacuous completion. Findings must be grounded in proof, acceptance criteria, and actual outputs.
+Review must reject vacuous completion. Findings must be grounded in proof, acceptance criteria, and actual outputs. The reviewer must be independent of the executor. Inspect real artifacts (files, command outputs); if proof claims pass but artifacts mismatch, verdict is `fail`. Gates stop progression (Law 16) — never warn-and-continue.
 
 ## Templates
 

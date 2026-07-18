@@ -3,7 +3,7 @@
 ## Read First
 
 1. `.cursor/README.md`
-2. `.cursor/rules/00-linkdev-bootstrap.mdc`
+2. `.cursor/rules/00-bootstrap.mdc`
 3. `.cursor/execution/INDEX.yaml`
 4. `.cursor/execution/MINIMUM-RUNTIME-MODEL.md`
 5. `.cursor/execution/AUTONOMOUS-MODULE-EXECUTION.md`
@@ -15,6 +15,17 @@
 ## Doctrine
 
 Use the autonomous module execution model. Issue is the atomic executable unit. Dependencies determine order. Review and integration gates cannot be skipped.
+
+For application Programs:
+
+1. Validate the predecessor Module gate before doing work (Module 1 has no predecessor).
+2. Before progression, validate this Module’s own gate via:
+
+```bash
+node .cursor/runtime/validate-application-pipeline.mjs --state <PIPELINE-STATE.json> --request-transition <module-id>:complete
+```
+
+3. Non-zero → stop. Module 6 uses terminal `release_ready`, not `complete`.
 
 ## Templates
 

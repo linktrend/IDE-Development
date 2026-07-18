@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — 2026-07-18
+
+- Aligned the fixed six-Module application pipeline with LiNKdeveloper process improvements that apply inside Cursor:
+  - Module 1: four hard-gated interview checkpoints; Intent + single Technical PRD (retired Living Document / dual PRD)
+  - Module 2: Technical Design + independent review; Starter Kit optional (never mandatory)
+  - Module 3: branch-per-Issue / PR / CI discipline documented
+  - Module 4: lightweight test-planning and coverage-trace preflights; Technical PRD criteria
+  - Session-scoped gate repair (default budget 3) + severity fields
+  - Principal Module 1 and Module 6 pre-deploy gates retained (no LAW-06 auto-promotion)
+- Pipeline state schemaVersion 2 (`technicalPrdPath` / `technicalPrdAcceptanceCriteria` / `confirmedInterviewCheckpoints`)
+- New templates: `TECHNICAL-PRD.md`, `TECHNICAL-DESIGN.md`
+- Validator mechanically enforces Module 1 checkpoints + Technical PRD review, Module 2 Technical Design review, and repair-budget ceiling
+- Archived superseded unification build-plan PRD under `docs/archive/planning/`
+
 ## v1.2
 
 - introduced the workspace adoption lifecycle as a one-time operational capability for wiring existing multi-repository workspaces into the shared IDE Development runtime
