@@ -116,14 +116,16 @@ Details: [`docs/archive/SKILLS-SUNSET-REPORT.md`](archive/SKILLS-SUNSET-REPORT.m
 
 Trigger 2 hybrid smoke test completed 2026-07-10. Artifacts (archived): `docs/archive/pilots/hybrid-smoke/`. Outcome: [`docs/archive/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md`](archive/LINKDEVELOPER-STAGE1-HYBRID-REPORT.md).
 
-Automated re-check: `scripts/verify-stage1.sh`
+Automated re-check: `scripts/verify-ide-development.sh`
 
 ---
 
 ## Related documents
 
+- [`docs/IDE-DEVELOPMENT-INTENT.md`](IDE-DEVELOPMENT-INTENT.md) — why this repository exists
+- [`docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md`](IDE-DEVELOPMENT-TECHNICAL-PRD.md) — exhaustive technical reference (§5 covers hybrid skills)
 - [`docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md`](IDE-DEVELOPMENT-OPERATIONS-MANUAL.md) — day-to-day operator instructions
-- [`docs/IDE-DEVELOPMENT-STAGE1.md`](IDE-DEVELOPMENT-STAGE1.md) — Application Factory declaration
+- [`docs/OPEN-ISSUES.md`](OPEN-ISSUES.md) — build log / deferred items
 - [`docs/ARCHIVE-INDEX.md`](ARCHIVE-INDEX.md) — retired systems and historical reference
 - `core/skills/SKILLS_CATALOG.md` — agent routing catalog
 - `core/skills/intelligent-routing/SKILL.md` — hybrid routing hub

@@ -15,7 +15,7 @@ LiNKdeveloper is not a product and does not define, own, or assume the architect
 LiNKtrend is an AI-native venture studio that industrializes digital venture creation through an agentic organizational structure. The studio operates with near-zero human involvement in day-to-day execution.
 
 - **Principal** — The sole human authority (Carlos). Non-technical operator. Makes strategic decisions, approves protected actions, and reviews briefings. Does not write code or manage execution.
-- **All other roles are AI agents** performing planning, implementation, proof, review, and integration work under the gate structure defined in `docs/LINKDEVELOPER-OPERATIONS-MANUAL.md`.
+- **All other roles are AI agents** performing planning, implementation, proof, review, and integration work under the gate structure defined in `docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md`.
 
 ## Repository classification (general convention, not a fixed catalog)
 
