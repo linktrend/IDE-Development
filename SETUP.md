@@ -11,7 +11,12 @@ The repository also supports:
 - session lifecycle for daily resume and close-out behavior
 - workspace adoption for one-time installation into an existing `Projects/` workspace
 
-**New operators:** after cloning, read [docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md](docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md) for day-to-day instructions.
+**New operators:** after cloning, start with the source-of-truth set:
+
+- [docs/IDE-DEVELOPMENT-INTENT.md](docs/IDE-DEVELOPMENT-INTENT.md)
+- [docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md](docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md)
+- [docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md](docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md) — day-to-day instructions
+- [docs/OPEN-ISSUES.md](docs/OPEN-ISSUES.md) — build log
 
 Retired systems and historical evidence: [docs/ARCHIVE-INDEX.md](docs/ARCHIVE-INDEX.md) and [docs/archive/](docs/archive/README.md).
 
