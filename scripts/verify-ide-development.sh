@@ -133,12 +133,18 @@ pass "No linkdev-*.md at core/commands/ root"
 [ -f "docs/ARCHIVE-INDEX.md" ] || fail "Missing docs/ARCHIVE-INDEX.md"
 pass "Archive index present"
 
-# --- Archived local snapshots (off-repo) ---
+# --- Archived local snapshots (off-repo; operator machine only) ---
+# These paths live outside the git repo under Projects/Archive. GitHub Actions
+# (and any CI without that local tree) must skip — do not fake presence.
 ARCHIVE_STAGE2="/Users/linktrend/Projects/Archive/LiNKdeveloper-Stage2-Runtime-20260710"
 ARCHIVE_LINKDEV="/Users/linktrend/Projects/Archive/LiNKdev-legacy-20260710"
-[ -d "$ARCHIVE_STAGE2" ] || fail "Missing archive directory: $ARCHIVE_STAGE2"
-[ -d "$ARCHIVE_LINKDEV" ] || fail "Missing archive directory: $ARCHIVE_LINKDEV"
-pass "Local archive snapshot directories present"
+if [ "${CI:-}" = "true" ] || [ "${SKIP_LOCAL_ARCHIVE_CHECKS:-}" = "1" ]; then
+  pass "Local archive snapshot directories skipped (CI/SKIP_LOCAL_ARCHIVE_CHECKS; not available off-machine)"
+else
+  [ -d "$ARCHIVE_STAGE2" ] || fail "Missing archive directory: $ARCHIVE_STAGE2"
+  [ -d "$ARCHIVE_LINKDEV" ] || fail "Missing archive directory: $ARCHIVE_LINKDEV"
+  pass "Local archive snapshot directories present"
+fi
 
 # --- No LiNKdev in active docs (LiNKdeveloper allowed; ARCHIVE-INDEX documents retirement) ---
 while IFS= read -r -d '' file; do
@@ -221,8 +227,20 @@ done
 pass "Application pipeline schema/order fixtures present"
 
 # --- No active absolute hybrid sibling paths ---
-if rg -q '/Users/linktrend/Projects/(gstack|skills)' core docs --glob '!docs/archive/**' --glob '!docs/planning/**' 2>/dev/null; then
-  fail "Active absolute hybrid paths remain under core/docs (excluding archive/planning)"
+# Prefer ripgrep when available; fall back to grep so CI does not silently skip.
+if command -v rg >/dev/null 2>&1; then
+  if rg -q '/Users/linktrend/Projects/(gstack|skills)' core docs --glob '!docs/archive/**' --glob '!docs/planning/**' 2>/dev/null; then
+    fail "Active absolute hybrid paths remain under core/docs (excluding archive/planning)"
+  fi
+else
+  hybrid_hits="$(
+    grep -RInE '/Users/linktrend/Projects/(gstack|skills)' core docs 2>/dev/null \
+      | grep -vE '(^|/)docs/archive/|(^|/)docs/planning/' \
+      || true
+  )"
+  if [ -n "$hybrid_hits" ]; then
+    fail "Active absolute hybrid paths remain under core/docs (excluding archive/planning)"
+  fi
 fi
 pass "No active absolute hybrid sibling paths"
 
