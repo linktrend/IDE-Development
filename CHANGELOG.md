@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — 2026-07-19
+
+- Documentation source-of-truth cleanup: Intent, Technical PRD, rewritten Operations Manual, and `docs/OPEN-ISSUES.md`; superseded Stage 1 declaration / unification planning / workspace-report / unification validation docs archived under `docs/archive/`
+
 ## Unreleased — 2026-07-18
 
 - Aligned the fixed six-Module application pipeline with LiNKdeveloper process improvements that apply inside Cursor:
