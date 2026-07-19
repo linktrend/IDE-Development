@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main, staging, development]
+  pull_request:
+    branches: [main, staging, development]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify IDE Development
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Stage 1 verification
+        # Runs verify-ide-development.sh, which also invokes:
+        #   scripts/verify-vendored-skills.sh
+        #   scripts/test-gate-stop-progression.sh
+        #   scripts/feasibility/run-fixed-pipeline-feasibility.sh
+        # Skipped in CI (not runnable / side-effecting):
+        #   scripts/wire-repo.sh — needs a consumer repo path
+        #   scripts/install-git-hooks.sh — mutates local git config
+        #   scripts/vendor-hybrid-skills.sh — needs local gstack/skills clones
+        # Local-only archive directory checks are skipped when CI=true.
+        env:
+          CI: "true"
+        run: bash scripts/verify-ide-development.sh
+
+      - name: Pipeline state consistency (hooks equivalent)
+        # Same fail-closed check as .githooks/pre-commit and .githooks/pre-push,
+        # so invalid PIPELINE-STATE.json cannot land even if local hooks are bypassed.
+        run: bash scripts/verify-pipeline-states.sh
