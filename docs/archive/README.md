@@ -1,31 +1,45 @@
-# Historical Evidence — `docs/archive/`
+# Archive — superseded by the current source-of-truth documents
 
-This folder holds **completed Stage 1 artifacts** from the 2026-07-10 closure wave. They are preserved for audit, regression checks, and historical context — not for day-to-day operator use.
+Everything under `docs/archive/` is retained for history but is **no longer authoritative** for how IDE Development works today. Some of it (Stage 2/3 OpenClaw-as-this-repo roadmap, Living Document / dual-PRD language, “hybrid skills are stubs,” `verify-stage1.sh` naming) is factually stale relative to the filesystem as it stands on 2026-07-19.
 
-For current instructions, start with [`../LINKDEVELOPER-OPERATIONS-MANUAL.md`](../LINKDEVELOPER-OPERATIONS-MANUAL.md). For retired system names and archive locations, see [`../ARCHIVE-INDEX.md`](../ARCHIVE-INDEX.md).
+**Current source of truth (2026-07-19):**
 
-## Contents
+- [`../IDE-DEVELOPMENT-INTENT.md`](../IDE-DEVELOPMENT-INTENT.md) — why IDE Development exists, scope, and what "done" means.
+- [`../IDE-DEVELOPMENT-TECHNICAL-PRD.md`](../IDE-DEVELOPMENT-TECHNICAL-PRD.md) — exhaustive technical reference, including a §12 table of where archived documents have drifted from the real filesystem.
+- [`../IDE-DEVELOPMENT-OPERATIONS-MANUAL.md`](../IDE-DEVELOPMENT-OPERATIONS-MANUAL.md) — plain-English handbook for the Principal.
+- [`../OPEN-ISSUES.md`](../OPEN-ISSUES.md) — append-only engineering build log and open/deferred items.
+- [`../HYBRID-SKILLS-REGISTRY.md`](../HYBRID-SKILLS-REGISTRY.md) — live hybrid command map (not archived; still cited by verify + commands).
+- [`../../core/execution/`](../../core/execution/) — still live/operative doctrine (Laws, runtime model, application pipeline). **Not archived.**
 
-**Stage 1 specs and reports**
+For retired *system* names (LiNKdev, Stage 2 Runtime archive paths, Factory Operations Blueprint, etc.), see [`../ARCHIVE-INDEX.md`](../ARCHIVE-INDEX.md).
 
-- `LINKDEVELOPER-STAGE1A-SPEC.md` — Application Factory workflow and skills map
-- `LINKDEVELOPER-STAGE1A-REPORT.md` — Stage 1a completion report
-- `LINKDEVELOPER-STAGE1B-REPORT.md` — Stage 1b semi-manual OS report
-- `LINKDEVELOPER-STAGE1-VERIFICATION-REPORT.md` — Operator readiness verification
-- `LINKDEVELOPER-STAGE1-HYBRID-REPORT.md` — Hybrid skills install report
-- `LINKDEVELOPER-STAGE1-TEST-RUNBOOK.md` — Supervised smoke test runbook
-- `LINKDEVELOPER-STAGE1-CLOSURE.md` — Stage 1 closure summary (superseded by `LINKDEVELOPER-STAGE1.md`)
+## What's here
+
+**Stage 1 specs and reports (2026-07-10 closure wave)**
+
+- `LINKDEVELOPER-STAGE1A-SPEC.md`, `*-REPORT.md`, `*-TEST-RUNBOOK.md`, `*-CLOSURE.md`, `*-HYBRID-REPORT.md`, `*-VERIFICATION-REPORT.md`
+- `IDE-DEVELOPMENT-STAGE1.md` — short Application Factory declaration superseded by Intent + Operations Manual (archived 2026-07-19)
 
 **Consolidation and policy**
 
-- `LINKDEVELOPER-DOC-CONSOLIDATION-REPORT.md` — Doc consolidation mission report (2026-07-10)
-- `SKILLS-SUNSET-REPORT.md` — Superseded local skills removal
-- `CORE-CURSOR-EQUIVALENCE-REPORT.md` — `core/` ↔ `.cursor/` equivalence proof
-- `COPY-FIRST-UI-RESKIN-POLICY.md` — Copy-first UI reskin policy
+- `LINKDEVELOPER-DOC-CONSOLIDATION-REPORT.md`, `SKILLS-SUNSET-REPORT.md`, `CORE-CURSOR-EQUIVALENCE-REPORT.md`, `COPY-FIRST-UI-RESKIN-POLICY.md`
 
-**Product and factory notes**
+**Product / factory notes**
 
-- `LINKSITES-FACTORY-SETUP-REPORT.md` — LiNKsites factory setup notes
-- `FACTORY-OPERATIONS-BLUEPRINT.md` — Retired factory-operations planning doc (archived 2026-07-13 during Stage 1 product-agnostic cleanup; named specific product architecture that does not belong in the shared system — historical design context only, not a live routing target)
+- `LINKSITES-FACTORY-SETUP-REPORT.md`
+- `FACTORY-OPERATIONS-BLUEPRINT.md` — retired product-coupled factory-ops planning
 
-Automated re-check for active Stage 1 surfaces: `scripts/verify-stage1.sh` (repo root).
+**Core design reports / pilots**
+
+- `core-reports/` — historical core design and migration passes
+- `pilots/hybrid-smoke/` — hybrid smoke test artifacts
+
+**Planning / validation / workspace reports (archived 2026-07-19)**
+
+- `planning/` — unification build-plan PRD copies (do not implement from these; see `core/execution/APPLICATION-PIPELINE.md`)
+- `validation/` — point-in-time unification E2E / baseline / cross-system reports (GATE-STOP and feasibility reports remain live under `docs/validation/` because doctrine/scripts cite them)
+- `workspace-reports/` — point-in-time wire reports
+
+If something here conflicts with the Intent, Technical PRD, or Operations Manual, **those three documents win.**
+
+Automated re-check for active surfaces: `scripts/verify-ide-development.sh` (repo root).
