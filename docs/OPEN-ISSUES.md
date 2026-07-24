@@ -14,7 +14,7 @@ Append-only engineering build log for this repository. Prefer this file over sta
 
 4. **Persistent autonomous orchestrator in this repo** — deliberately out of scope (belongs to LiNKdeveloper).
 
-5. **Automatic product deploy / LAW-06-style promotion from Module 6** — deliberately not ported; Module 6 ends at `release_ready` + Principal Release OK.
+5. **Automatic product deploy / LAW-06-style promotion from Module 6** — deliberately not ported; Module 6 ends at `release_ready` + Principal Release OK. **Note (2026-07-24):** Git branch promote (`development`→`staging` auto; `staging`→`main` Principal Telegram Approve) is in scope via ADR 0003 — that is not Module 6 live deploy.
 
 6. **Dollar-cost accounting UI** — not present.
 
@@ -65,3 +65,27 @@ Following the same playbook as LiNKdeveloper OPEN-ISSUES item #43 (2026-07-18), 
 **Verification after structural changes:** `scripts/verify-ide-development.sh`, `scripts/verify-vendored-skills.sh`, `scripts/verify-pipeline-states.sh` (expected: pure documentation/file-organization pass; no code changes required for green).
 
 **What this deliberately does NOT do:** delete archived documents; rewrite `core/execution/*`; change pipeline/validator/hooks behavior; invent completeness for deferred autonomy features.
+
+---
+
+## 9. Retire hybrid-skills refresh script and sibling gstack/skills clones — 2026-07-23
+
+Principal decision: vendored hybrid skills inside this repo are authoritative and already adapted; do not refresh from upstream sibling clones.
+
+**Removed:** `scripts/vendor-hybrid-skills.sh`.
+
+**Updated:** `docs/HYBRID-SKILLS-REGISTRY.md`, Intent/Technical PRD, `SKILLS_CATALOG.md`, CI workflow comments; Lisa personality notes under `openclaw_prime` now point at vendored paths.
+
+**Deleted from disk (not git):** `/Users/linktrend/Projects/gstack` and `/Users/linktrend/Projects/skills` (optional warehouses only). GitHub forks `linktrend/gstack` and `linktrend/skills` were not deleted.
+
+**Kept:** in-repo vendored trees under `core/runtime/skills/{gstack,mattpocock}/` and `scripts/verify-vendored-skills.sh`.
+
+---
+
+## 10. Autonomous ship / pull / promote + wire inheritance (Layer A+B) — 2026-07-24
+
+Principal go-ahead: system lives in IDE Development; wired repos inherit agent doctrine (`.cursor` symlink) and managed GitHub workflows (sync on wire/backfill); IDE Development itself in scope; Bugbot as Reviewer; Lisa Telegram for one-line status + main Approve.
+
+**Added:** ADR 0003, `docs/AUTONOMOUS-GIT-OPERATIONS.md`, `docs/CURSOR-AUTOMATIONS-SETUP.md`, `core/github/managed-workflows/`, `core/checklists/BUGBOT-INHERITANCE.md`, rules `01-git-branching` / `02-autonomous-ship-pull`, `scripts/sync-managed-workflows.sh`, `scripts/backfill-managed-workflows.sh` (wire-repo extended).
+
+**Still operator/dashboard:** create Cursor Automations from the setup doc; enable Bugbot per repo checklist; Lisa personality updates in openclaw_prime.

@@ -223,7 +223,7 @@ Sunset (removed, replaced by hybrid): `release-readiness`, `browser-qa`, `retros
 - Path: `.cursor/runtime/skills/gstack/` → `core/runtime/skills/gstack/`
 - Fork: `https://github.com/linktrend/gstack` (upstream `garrytan/gstack`)
 - Manifest: `core/runtime/skills/VENDOR-MANIFEST.json` (commit SHA + per-file hashes)
-- Refresh: `scripts/vendor-hybrid-skills.sh`; verify: `scripts/verify-vendored-skills.sh`
+- Verify vendored copies: `scripts/verify-vendored-skills.sh` (no auto-refresh from upstream; copies are adapted in-repo)
 
 Primary commands (via `core/commands/hybrid-*.md`):
 
@@ -305,14 +305,17 @@ Install: `scripts/install-git-hooks.sh` → sets `core.hooksPath=.githooks`.
 |---|---|
 | `ci.yml` | On PR/push to `development`/`staging`/`main`: run `verify-ide-development.sh` + `verify-pipeline-states.sh` |
 | `branch-source-policy.yml` | Enforces allowed PR sources: work branches → `development`; only `development` → `staging`; only `staging` → `main` |
-| `linktrend-development-to-staging.yml` | Scheduled promotion helper |
-| `linktrend-staging-to-main.yml` | Manual staging→main helper |
+| `linktrend-development-to-staging.yml` | Tue/Fri 08:00 Asia/Taipei auto `development`→`staging` |
+| `linktrend-staging-to-main.yml` | Mon 08:00 package; merge on Principal Approve dispatch |
+| `linktrend-integrator-merge.yml` | Auto-merge PRs into `development` when checks/reviews allow |
+
+Managed copies live in `core/github/managed-workflows/` and sync via `scripts/sync-managed-workflows.sh` / `wire-repo.sh`. Consumer `ci.yml` is never overwritten by sync.
 
 Allowed short-lived sources into `development`: `dev/*`, `issue/*`, `feature/*`, `fix/*`, `chore/*`, `codex/*`, `cursor/*`, `antigravity/*`, `dependabot/*`.
 
 ### Branching doctrine (consumer + this repo)
 
-See `.cursor/rules/01-git-branching.mdc`: Integrator merges into `development`; Principal promotes `development` → `staging` → `main`.
+See `.cursor/rules/01-git-branching.mdc` and `docs/AUTONOMOUS-GIT-OPERATIONS.md`: Bugbot reviews; Integrator merges into `development`; Promoter auto-merges `development`→`staging` (Tue/Fri); Principal Approves `staging`→`main` via Lisa/Telegram (Mon). Module 6 product Release OK remains separate.
 
 ---
 

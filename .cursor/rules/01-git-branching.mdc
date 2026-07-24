@@ -7,9 +7,11 @@ globs: "**/*"
 
 This rule is the local branching standard for the shared `.cursor` system and aligned product work.
 
+Authoritative schedule and roles: `docs/AUTONOMOUS-GIT-OPERATIONS.md` and `docs/adr/0003-autonomous-ship-pull-promote.md`.
+
 ## Integration branch
 
-- **`development`** is the integration branch for factory and integrator merges.
+- **`development`** is the integration branch for factory and Integrator merges.
 
 ## Branch prefixes
 
@@ -17,20 +19,24 @@ This rule is the local branching standard for the shared `.cursor` system and al
 |--------|-----|--------------|
 | `issue/<id>-<slug>` | One branch per governed issue | **`development`** (Integrator only) |
 | `dev/<machine><ide>` | Optional ad-hoc IDE work per host SOP | **`development`** via PR |
-| Promotion | `development` → `staging` → `main` | **Principal** for `staging` and `main` |
+| `cursor/*` | Cloud / dashboard agent work | **`development`** via PR |
+| Promotion | `development` → `staging` → `main` | See promotion flow below |
 
 ## Promotion flow
 
 ```
-issue/* or dev/*  →  PR to development  →  Integrator merges issue branches when merge-ready
-development       →  PR to staging      →  Principal
-staging           →  PR to main         →  Principal
+issue/* or dev/* or cursor/*  →  PR to development
+  →  Bugbot reviews  →  Integrator merges when CI green + Bugbot pass
+development  →  staging   (Tue & Fri 08:00 Asia/Taipei, auto)
+staging      →  main      (Mon 08:00 package; Principal Approve ~08:30 via Lisa/Telegram)
 ```
 
 - **Integrator** automation merges only into **`development`**.
-- **Principal** approves promotion **`development` → `staging` → `main`**.
+- **Promoter** automation merges **`development` → `staging`** on schedule.
+- **Principal** approves **`staging` → `main`** (Lisa Telegram). Not a code review of every PR.
+- Module 6 **product Release OK / live deploy** remains a separate Principal gate.
 - Allowed PR sources into `development` are enforced in `.github/workflows/branch-source-policy.yml`.
 
 ## Commit messages
 
-Conventional commits: `type(scope): summary` — details in the factory rule.
+Conventional commits: `type(scope): summary`.

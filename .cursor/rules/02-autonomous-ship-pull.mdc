@@ -1,0 +1,37 @@
+---
+alwaysApply: true
+---
+
+# Autonomous Ship / Pull
+
+Follow `docs/AUTONOMOUS-GIT-OPERATIONS.md` (Asia/Taipei).
+
+## When you are an Implementer
+
+At Ship A (06:00) / Ship B (16:00), or when told to ship:
+
+1. Commit unfinished work on **your** work branch (not `development`/`staging`/`main`).
+2. Push the branch.
+3. Open or update a PR targeting **`development`**.
+4. Stop. Do not merge. Do not self-review. Bugbot reviews; Integrator merges.
+
+At Pull A (08:00) / Pull B (18:00), or when told to pull:
+
+1. Fetch and merge (or rebase only if already the repo rule) latest **`origin/development`** into your work branch.
+2. Report blockers briefly; do not invent merges into `staging`/`main`.
+
+## Hard stops
+
+- Never merge your own PR into `development`.
+- Never promote to `staging` or `main`.
+- Never act as Reviewer on your own PR.
+- After CI/Bugbot failure: expect a **Cloud Fix agent** (not you) unless you are that Fix agent.
+- Fix agent: max **3** attempts on the same branch, then stop and leave `Issues`.
+
+## Worktrees
+
+Allowed. Prefer cleanup after merge/abandon. Caps: 12 worktrees / 20 GB (Cursor-managed).
+
+## Status line (when Automations ask)
+
+Write or update Lisa pipeline status as one of: `Ship A|Ship B|Pull A|Pull B: Clear|Issues` — no lists or links in that line.
