@@ -62,7 +62,7 @@ ACP prompts and absolute paths: openclaw_prime `linkbots/lisa/Personality files/
 - `cursor/*` for cloud/dashboard agents.
 - `dev/<machine><ide>` rare ad-hoc only.
 - Bootstrap: `/agentsetup`. Already-open migration: `/agentcomply`.
-- **Implementer vs Orchestrator:** `/agentsetup` and `/agentcomply` are for **Implementers** that own work in **one repo**. A workspace **Orchestrator** must not be forced onto a random/stolen `issue/*` as “session home.” Orchestrators coordinate (and may spawn/direct per-repo Implementers); they do not get a forever home issue branch. Accidental dirty edits in a repo → hand off to that repo’s Implementer + `/agentcomply` there, or open a correctly named issue for that specific change.
+- **Branch rule (any agent):** no code/repo touch → no branch required. The moment any agent touches a repo, run `/agentsetup` or `/agentcomply` for **that** repo and use `issue/<id>-slug` for the work package. Multi-root ambiguity → ask which repo. Do not silently adopt an unrelated open PR branch — the branch must match this work package.
 
 ## Lisa one-line statuses (Telegram)
 
