@@ -70,6 +70,8 @@ jobs:
           }
 
           collect_prs() {
+            # One PR per run (triggering PR or head SHA). Avoid multi-PR wait budgets
+            # that exceed the job timeout.
             if [ -n "${PR_NUMBER}" ]; then
               printf '%s\n' "${PR_NUMBER}"
             elif [ -n "${HEAD_SHA}" ]; then
@@ -77,20 +79,35 @@ jobs:
                 --json number,isDraft,headRefOid \
                 --jq ".[] | select(.isDraft==false and .headRefOid==\"${HEAD_SHA}\") | .number"
             else
-              gh pr list --base development --state open \
-                --json number,isDraft \
-                --jq '.[] | select(.isDraft==false) | .number'
+              echo "No PR_NUMBER or HEAD_SHA — refusing to scan all open PRs in one wait budget." >&2
             fi
           }
 
           bugbot_state_from_checks() {
+            # Prefer latest success; block on any NEUTRAL/FAILURE even if an older SUCCESS exists.
             echo "$1" | jq -r '
               [.[] | select(.name=="Cursor Bugbot")] as $b
               | if ($b|length)==0 then "missing"
                 elif any($b[]; .state=="PENDING" or .state=="QUEUED" or .state=="IN_PROGRESS") then "pending"
-                elif all($b[]; .state=="SUCCESS") then "success"
+                elif any($b[]; .state=="NEUTRAL" or .state=="FAILURE" or .state=="ACTION_REQUIRED" or .state=="ERROR" or .state=="TIMED_OUT") then "not_success"
+                elif any($b[]; .state=="SUCCESS") then "success"
                 else "not_success"
                 end'
+          }
+
+          # Collapse duplicate check rows (cancel-in-progress leaves CANCELLED + SUCCESS).
+          aggregate_checks() {
+            echo "$1" | jq -c '
+              group_by(.name) | map({
+                name: .[0].name,
+                state: (
+                  if any(.[]; .state=="PENDING" or .state=="QUEUED" or .state=="IN_PROGRESS") then "PENDING"
+                  elif any(.[]; .state=="SUCCESS") then "SUCCESS"
+                  elif any(.[]; .state=="SKIPPED") then "SKIPPED"
+                  else (map(.state) | unique | join(","))
+                  end
+                )
+              })'
           }
 
           pr_meta_ok() {
@@ -109,12 +126,14 @@ jobs:
               return 1
             fi
 
-            checks="$(gh pr checks "${pr}" --json name,state 2>/dev/null || echo '[]')"
-            bugbot_state="$(bugbot_state_from_checks "${checks}")"
+            checks_raw="$(gh pr checks "${pr}" --json name,state 2>/dev/null || echo '[]')"
+            bugbot_state="$(bugbot_state_from_checks "${checks_raw}")"
             if [ "${bugbot_state}" != "success" ]; then
               echo "PR #${pr}: Bugbot gate not passed (state=${bugbot_state})"
               return 1
             fi
+
+            checks="$(aggregate_checks "${checks_raw}")"
 
             IFS=',' read -r -a required <<< "${REQUIRED_CHECKS}"
             for name in "${required[@]}"; do
@@ -124,12 +143,10 @@ jobs:
                 echo "${checks}" | jq -r --arg n "${name}" '
                   [.[] | select(.name==$n) | .state] as $s
                   | if ($s|length)==0 then "missing"
-                    elif any($s[]; .=="PENDING" or .=="QUEUED" or .=="IN_PROGRESS") then "pending"
-                    elif all($s[]; .=="SUCCESS") then "success"
-                    else "not_success"
+                    else $s[0]
                     end'
               )"
-              if [ "${state}" != "success" ]; then
+              if [ "${state}" != "SUCCESS" ]; then
                 echo "PR #${pr}: required check '${name}' not success (state=${state})"
                 return 1
               fi

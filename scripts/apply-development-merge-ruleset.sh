@@ -3,34 +3,73 @@
 # Integrator then merges only when those gates are green.
 #
 # Usage:
-#   ./scripts/apply-development-merge-ruleset.sh [owner/repo] [check context...]
+#   ./scripts/apply-development-merge-ruleset.sh
+#   ./scripts/apply-development-merge-ruleset.sh --repo linktrend/LiNKskills
+#   ./scripts/apply-development-merge-ruleset.sh --repo linktrend/LiNKskills \
+#     -- "Cursor Bugbot" "test" "Enforce allowed PR source branches"
 #
 # Defaults:
 #   repo   = linktrend/IDE-Development (or GH_REPO)
 #   checks = Cursor Bugbot + Verify IDE Development + Enforce allowed PR source branches
-#
-# Example for a consumer whose CI job has a different name:
-#   ./scripts/apply-development-merge-ruleset.sh linktrend/LiNKskills \
-#     "Cursor Bugbot" "test" "Enforce allowed PR source branches"
 
 set -euo pipefail
 
-REPO_INPUT="${1:-}"
-if [ -n "${REPO_INPUT}" ] && [[ "${REPO_INPUT}" == */* ]]; then
-  REPO="${REPO_INPUT}"
-  shift || true
-else
-  REPO="${GH_REPO:-linktrend/IDE-Development}"
-fi
+REPO="${GH_REPO:-linktrend/IDE-Development}"
+CHECKS=(
+  "Cursor Bugbot"
+  "Verify IDE Development"
+  "Enforce allowed PR source branches"
+)
+CHECKS_SET=0
 
-if [ "$#" -gt 0 ]; then
-  CHECKS=("$@")
-else
-  CHECKS=(
-    "Cursor Bugbot"
-    "Verify IDE Development"
-    "Enforce allowed PR source branches"
-  )
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --repo)
+      [ "$#" -ge 2 ] || { echo "FAIL: --repo needs owner/name" >&2; exit 1; }
+      REPO="$2"
+      shift 2
+      ;;
+    --)
+      shift
+      CHECKS=("$@")
+      CHECKS_SET=1
+      break
+      ;;
+    -h|--help)
+      sed -n '2,14p' "$0"
+      exit 0
+      ;;
+    */*)
+      if [[ "$1" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+        REPO="$1"
+        shift
+      else
+        CHECKS=("$@")
+        CHECKS_SET=1
+        break
+      fi
+      ;;
+    *)
+      # Check names (may contain spaces) — replace defaults entirely only via explicit list.
+      CHECKS=("$@")
+      CHECKS_SET=1
+      break
+      ;;
+  esac
+done
+
+# If caller passed check names without --repo, keep Cursor Bugbot unless they included it.
+if [ "${CHECKS_SET}" -eq 1 ]; then
+  has_bugbot=0
+  for c in "${CHECKS[@]}"; do
+    if [ "$c" = "Cursor Bugbot" ]; then
+      has_bugbot=1
+      break
+    fi
+  done
+  if [ "${has_bugbot}" -eq 0 ]; then
+    CHECKS=("Cursor Bugbot" "${CHECKS[@]}")
+  fi
 fi
 
 RULESET_NAME="development-autonomous-merge"
@@ -76,7 +115,11 @@ existing_id="$(
 )"
 
 if [ -n "${existing_id}" ]; then
-  echo "Updating ruleset id=${existing_id}"
+  existing_bypass="$(
+    gh api "repos/${REPO}/rulesets/${existing_id}" --jq '.bypass_actors // []'
+  )"
+  body="$(echo "${body}" | jq --argjson bypass "${existing_bypass}" '.bypass_actors=$bypass')"
+  echo "Updating ruleset id=${existing_id} (preserving bypass_actors)"
   echo "${body}" | gh api --method PUT "repos/${REPO}/rulesets/${existing_id}" --input -
 else
   echo "Creating ruleset"
