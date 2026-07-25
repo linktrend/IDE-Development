@@ -10,6 +10,9 @@ name: LiNKtrend Integrator Merge To Development
 # Bugbot posts COMMENTED reviews and does not GitHub-APPROVE. Do not wait for
 # review.state == approved. Prefer a development ruleset that requires the
 # "Cursor Bugbot" check (see scripts/apply-development-merge-ruleset.sh).
+#
+# This job polls until gates pass (or timeout). pull_request fires before Bugbot
+# finishes; check_run on the default branch may lag until this workflow is merged.
 
 on:
   pull_request:
@@ -44,6 +47,7 @@ jobs:
        github.event.check_run.name != 'enable-auto-merge' &&
        github.event.check_run.name != 'merge-when-ready')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Merge when CI green and Bugbot success
         env:
@@ -52,6 +56,9 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number || '' }}
           HEAD_SHA: ${{ github.event.check_run.head_sha || github.event.pull_request.head.sha || '' }}
+          # Bugbot often takes 1–3 minutes; allow headroom for CI + review.
+          GATE_WAIT_SECONDS: "900"
+          GATE_POLL_SECONDS: "20"
         run: |
           set -euo pipefail
 
@@ -74,17 +81,21 @@ jobs:
             local meta checks bugbot_state failing pending
 
             meta="$(gh pr view "${pr}" --json baseRefName,isDraft,state,headRefOid)"
-            echo "${meta}" | jq -e '.baseRefName=="development" and .isDraft==false and .state=="OPEN"' >/dev/null
+            if ! echo "${meta}" | jq -e '.baseRefName=="development" and .isDraft==false and .state=="OPEN"' >/dev/null; then
+              echo "PR #${pr}: not an open non-draft PR into development"
+              return 1
+            fi
 
             checks="$(gh pr checks "${pr}" --json name,state 2>/dev/null || echo '[]')"
 
-            # gh pr checks --json state uses SUCCESS | FAILURE | PENDING | NEUTRAL | ...
+            # Require every Cursor Bugbot row to be SUCCESS so a stale success cannot
+            # mask a newer NEUTRAL/FAILURE on the same head.
             bugbot_state="$(
               echo "${checks}" | jq -r '
                 [.[] | select(.name=="Cursor Bugbot")] as $b
                 | if ($b|length)==0 then "missing"
                   elif any($b[]; .state=="PENDING" or .state=="QUEUED" or .state=="IN_PROGRESS") then "pending"
-                  elif any($b[]; .state=="SUCCESS") then "success"
+                  elif all($b[]; .state=="SUCCESS") then "success"
                   else "not_success"
                   end'
             )"
@@ -119,7 +130,8 @@ jobs:
                   | select(.name!="integrate"
                       and .name!="enable-auto-merge"
                       and .name!="merge-when-ready"
-                      and .name!="Cursor Bugbot Autofix")
+                      and .name!="Cursor Bugbot Autofix"
+                      and .name!="Cursor Bugbot")
                   | select(.state=="PENDING" or .state=="QUEUED" or .state=="IN_PROGRESS")
                   | .name]
                 | unique | .[]'
@@ -134,6 +146,21 @@ jobs:
             return 0
           }
 
+          try_merge() {
+            local pr="$1"
+            # Merge only after gates pass. Do not arm --auto before Bugbot success
+            # when no ruleset is present (that would merge too early).
+            if gh pr merge "${pr}" --squash --auto; then
+              echo "PR #${pr}: auto-merge armed or completed"
+              return 0
+            elif gh pr merge "${pr}" --squash; then
+              echo "PR #${pr}: merged"
+              return 0
+            fi
+            echo "PR #${pr}: merge attempt failed (policy/conflict) — not force-merging"
+            return 1
+          }
+
           echo "Event=${EVENT_NAME} PR_NUMBER=${PR_NUMBER:-none} HEAD_SHA=${HEAD_SHA:-none}"
 
           mapfile -t prs < <(collect_prs)
@@ -142,20 +169,41 @@ jobs:
             exit 0
           fi
 
+          deadline=$((SECONDS + GATE_WAIT_SECONDS))
           for pr in "${prs[@]}"; do
             [ -n "${pr}" ] || continue
-            echo "Evaluating PR #${pr}"
-            if ! gates_pass "${pr}"; then
-              echo "PR #${pr}: not ready — leaving open for Fix agent / later events"
-              continue
-            fi
-            # Merge only after gates pass. Do not arm --auto before Bugbot success
-            # when no ruleset is present (that would merge too early).
-            if gh pr merge "${pr}" --squash --auto; then
-              echo "PR #${pr}: auto-merge armed or completed"
-            elif gh pr merge "${pr}" --squash; then
-              echo "PR #${pr}: merged"
-            else
-              echo "PR #${pr}: merge attempt failed (policy/conflict) — not force-merging"
+            echo "Evaluating PR #${pr} (wait up to ${GATE_WAIT_SECONDS}s)"
+            merged=0
+            while true; do
+              if gates_pass "${pr}"; then
+                if try_merge "${pr}"; then
+                  merged=1
+                fi
+                break
+              fi
+              # Permanent Bugbot failure/neutral: do not spin the full timeout.
+              checks_now="$(gh pr checks "${pr}" --json name,state 2>/dev/null || echo '[]')"
+              bugbot_now="$(
+                echo "${checks_now}" | jq -r '
+                  [.[] | select(.name=="Cursor Bugbot")] as $b
+                  | if ($b|length)==0 then "missing"
+                    elif any($b[]; .state=="PENDING" or .state=="QUEUED" or .state=="IN_PROGRESS") then "pending"
+                    elif all($b[]; .state=="SUCCESS") then "success"
+                    else "not_success"
+                    end'
+              )"
+              if [ "${bugbot_now}" = "not_success" ]; then
+                echo "PR #${pr}: Bugbot not clear (state=${bugbot_now}) — leaving open for Fix agent"
+                break
+              fi
+              if [ "${SECONDS}" -ge "${deadline}" ]; then
+                echo "PR #${pr}: timed out waiting for gates — leaving open"
+                break
+              fi
+              echo "PR #${pr}: waiting ${GATE_POLL_SECONDS}s for gates..."
+              sleep "${GATE_POLL_SECONDS}"
+            done
+            if [ "${merged}" -eq 0 ]; then
+              echo "PR #${pr}: not merged this run"
             fi
           done
