@@ -258,6 +258,12 @@ else
   fail "Missing scripts/test-gate-stop-progression.sh"
 fi
 
+if [ -x "scripts/tests/test-integrator-bugbot-gate.sh" ]; then
+  bash scripts/tests/test-integrator-bugbot-gate.sh || fail "Integrator Bugbot gate test failed"
+else
+  fail "Missing scripts/tests/test-integrator-bugbot-gate.sh"
+fi
+
 # --- Feasibility fixture still valid ---
 if [ -x "scripts/feasibility/run-fixed-pipeline-feasibility.sh" ]; then
   bash scripts/feasibility/run-fixed-pipeline-feasibility.sh >/dev/null \
