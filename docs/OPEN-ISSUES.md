@@ -76,7 +76,7 @@ Principal decision: vendored hybrid skills inside this repo are authoritative an
 
 **Updated:** `docs/HYBRID-SKILLS-REGISTRY.md`, Intent/Technical PRD, `SKILLS_CATALOG.md`, CI workflow comments; Lisa personality notes under `openclaw_prime` now point at vendored paths.
 
-**Deleted from disk (not git):** `/Users/linktrend/Projects/gstack` and `/Users/linktrend/Projects/skills` (optional warehouses only). GitHub forks `linktrend/gstack` and `linktrend/skills` were not deleted.
+**Deleted from disk (not git):** optional sibling warehouses formerly named `gstack` and `skills` under the operator Projects tree. GitHub forks `linktrend/gstack` and `linktrend/skills` were not deleted.
 
 **Kept:** in-repo vendored trees under `core/runtime/skills/{gstack,mattpocock}/` and `scripts/verify-vendored-skills.sh`.
 
@@ -88,4 +88,6 @@ Principal go-ahead: system lives in IDE Development; wired repos inherit agent d
 
 **Added:** ADR 0003, `docs/AUTONOMOUS-GIT-OPERATIONS.md`, `docs/CURSOR-AUTOMATIONS-SETUP.md`, `core/github/managed-workflows/`, `core/checklists/BUGBOT-INHERITANCE.md`, rules `01-git-branching` / `02-autonomous-ship-pull`, `scripts/sync-managed-workflows.sh`, `scripts/backfill-managed-workflows.sh` (wire-repo extended).
 
-**Still operator/dashboard:** create Cursor Automations from the setup doc; enable Bugbot per repo checklist; Lisa personality updates in openclaw_prime.
+**Clock (amended 2026-07-25):** Lisa Option A is the primary Ship/Pull clock (cron → Cursor ACP on Mini). Cursor Automations are optional backup only (`docs/CURSOR-AUTOMATIONS-SETUP.md`). Bugbot already ON — skip enablement. Lisa ship/pull procedures live in openclaw_prime.
+
+**Skills (2026-07-25):** `/agentsetup` and `/agentcomply` land under `core/skills/` + `core/commands/` for short-lived `issue/*` bootstrap and migration.

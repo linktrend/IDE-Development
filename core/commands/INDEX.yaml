@@ -489,6 +489,53 @@ entries:
       - mattpocock
       - architecture
 
+  - id: agentsetup
+    path: .cursor/commands/agentsetup.md
+    purpose: Bootstrap a NEW agent session onto short-lived issue/* from latest development.
+    when_to_use:
+      - when Carlos runs /agentsetup
+      - at the start of a new agent session before coding
+    underlying_prompt: .cursor/skills/agentsetup/SKILL.md
+    required_doctrine:
+      - .cursor/rules/01-git-branching.mdc
+      - .cursor/rules/02-autonomous-ship-pull.mdc
+      - docs/AUTONOMOUS-GIT-OPERATIONS.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - checked-out issue/<id>-<slug> branch from latest origin/development
+      - plain-English ready report with Ship/Pull hard stops
+    status: active
+    tags:
+      - command
+      - agent
+      - git
+      - bootstrap
+
+  - id: agentcomply
+    path: .cursor/commands/agentcomply.md
+    purpose: Migrate an ALREADY-OPEN agent onto issue/* (or cleanup) and move dirty work safely.
+    when_to_use:
+      - when Carlos runs /agentcomply
+      - when an open agent is on wrong or forever-home branch with work to preserve
+    underlying_prompt: .cursor/skills/agentcomply/SKILL.md
+    required_doctrine:
+      - .cursor/rules/01-git-branching.mdc
+      - .cursor/rules/02-autonomous-ship-pull.mdc
+      - docs/AUTONOMOUS-GIT-OPERATIONS.md
+    required_templates: []
+    required_agents: []
+    expected_output:
+      - work moved onto issue/* or issue/cleanup-<topic>
+      - optional push and PR to development when commits are ready
+      - plain-English comply summary
+    status: active
+    tags:
+      - command
+      - agent
+      - git
+      - compliance
+
   - id: archived-compatibility-commands
     path: .cursor/commands/compatibility-archive/README.md
     purpose: Archive and compatibility section for retained legacy and deprecated command wrappers.

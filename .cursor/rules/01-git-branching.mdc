@@ -17,10 +17,12 @@ Authoritative schedule and roles: `docs/AUTONOMOUS-GIT-OPERATIONS.md` and `docs/
 
 | Prefix | Use | Merge target |
 |--------|-----|--------------|
-| `issue/<id>-<slug>` | One branch per governed issue | **`development`** (Integrator only) |
-| `dev/<machine><ide>` | Optional ad-hoc IDE work per host SOP | **`development`** via PR |
+| `issue/<id>-<slug>` | **Studio default** — one short-lived branch per governed issue | **`development`** (Integrator only) |
+| `dev/<machine><ide>` | Rare ad-hoc IDE work only (not forever home) | **`development`** via PR |
 | `cursor/*` | Cloud / dashboard agent work | **`development`** via PR |
 | Promotion | `development` → `staging` → `main` | See promotion flow below |
+
+Bootstrap new sessions with `/agentsetup`. Migrate already-open dirty/wrong-branch sessions with `/agentcomply`.
 
 ## Promotion flow
 

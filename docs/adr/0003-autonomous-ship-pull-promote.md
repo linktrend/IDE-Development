@@ -10,7 +10,7 @@ Agents were not consistently committing, pushing, or opening PRs into `developme
 
 ## Decision
 
-1. **IDE Development is the system SOT** for autonomous Git ops doctrine, managed workflow templates, Bugbot inheritance checklist, and Cursor Automation prompts.
+1. **IDE Development is the system SOT** for autonomous Git ops doctrine, managed workflow templates, Bugbot inheritance checklist, and Ship/Pull clock doctrine.
 2. **Inheritance is two layers:**
    - **A.** Agent behavior via `repo/.cursor` → IDE Development `.cursor` symlink (`scripts/wire-repo.sh`).
    - **B.** GitHub robots + Bugbot checklist installed/synced from `core/github/managed-workflows/` during wire/backfill (symlink alone is not enough).
@@ -21,7 +21,7 @@ Agents were not consistently committing, pushing, or opening PRs into `developme
    - **Fix agent** — always a short-lived **Cloud** agent on the same branch; max **3** attempts; then stop and surface `Issues`.
    - **Integrator** — merge-only automation into `development` when CI green + Bugbot pass.
    - **Promoter** — GitHub Actions schedules.
-   - **Lisa** — Telegram one-line checkpoint status; Principal **Approve** for `staging`→`main` via Telegram.
+   - **Lisa** — **primary Ship/Pull clock** (Option A): cron on Mini spawns Cursor ACP shipper/puller; Telegram one-line checkpoint status; Principal **Approve** for `staging`→`main` via Telegram.
 5. **Calendar (Asia/Taipei):**
 
    | Event | Time |
@@ -35,12 +35,14 @@ Agents were not consistently committing, pushing, or opening PRs into `developme
 
 6. **Worktrees:** allowed; max **12**; max **20 GB**; delete after merge or abandon.
 7. **Module 6 product Release OK / live deploy** remains Principal-gated. This ADR changes **Git branch promotion**, not product deploy authority.
+8. **Studio branching default:** short-lived `issue/<id>-slug` per governed work (`/agentsetup`, `/agentcomply`); not forever `dev/*` home.
 
 ## Alternatives considered
 
 - Keep Principal-only for all promotions — rejected; blocks autonomy.
 - Separate Mini Reviewer agent — rejected; Bugbot is independent and already productized.
 - Symlink-only inheritance — rejected; does not install Actions/Bugbot.
+- Cursor Automations as primary Ship/Pull clock (Option B) — rejected 2026-07-25; Lisa Option A is primary; Automations optional backup only.
 
 ## Consequences
 
@@ -48,8 +50,25 @@ Agents were not consistently committing, pushing, or opening PRs into `developme
 - Managed workflows sync on wire/backfill; consumer-specific `ci.yml` is never overwritten by sync.
 - Intent/PRD wording distinguishes Git promote vs Module 6 Release OK.
 - Lisa HEARTBEAT/digest gain one-line pipeline checkpoints (Telegram).
+- Lisa owns Ship/Pull cron + ACP prompts in openclaw_prime; `docs/CURSOR-AUTOMATIONS-SETUP.md` reframed as backup.
 
 ## Validation / rollback
 
-- Validation: wired repos have managed workflow files; doctrine docs resolve; promote crons match table (UTC = Taipei−8h).
-- Rollback: restore prior promote YAML schedules; revert branching rule; stop Automations; leave Bugbot as-is.
+- Validation: wired repos have managed workflow files; doctrine docs resolve; promote crons match table (UTC = Taipei−8h); Lisa ship/pull cron jobs exist on Mini when awake.
+- Rollback: restore prior promote YAML schedules; revert branching rule; disable Lisa ship/pull crons; leave Bugbot as-is.
+
+---
+
+## Amendment — 2026-07-25 (Principal locked)
+
+**Option A:** Lisa is the Ship/Pull clock (OpenClaw cron → Cursor ACP shipper/puller on Mini). Forget Option B / Cursor Automations as primary clock.
+
+Clarifications locked the same day:
+
+- Times unchanged (Asia/Taipei Ship A 06:00, Pull A 08:00, Ship B 16:00, Pull B 18:00).
+- Ship: commit → push → open/update PR → `development` → STOP (no merge/self-review).
+- Pull: merge latest `origin/development` into work branches on disk; not hard-gated on all PRs merged; unfinished rolls forward.
+- One repo at a time (sequential).
+- Studio default: short-lived `issue/<id>-slug` (not forever `dev/*`).
+- Bugbot already ON — no human Bugbot enablement work in this amendment.
+- Mini must be awake for Lisa ACP at runtime (ops prerequisite; not a code secret).
