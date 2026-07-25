@@ -8,24 +8,28 @@ Follow `docs/AUTONOMOUS-GIT-OPERATIONS.md` (Asia/Taipei).
 
 **Primary clock:** Lisa Option A (OpenClaw cron → Cursor ACP shipper/puller on Mini). Cursor Automations are optional backup only.
 
+**Wave names** use local hour labels: **Ship 06**, **Pull 08**, **Ship 16**, **Pull 18** (not A/B letters).
+
 ## When you are an Implementer
 
 Prefer short-lived **`issue/<id>-slug`** work branches (studio default).
 
-At Ship A (06:00) / Ship B (16:00), or when told to ship:
+At Ship 06 (06:00) / Ship 16 (16:00), or when told to ship:
 
 1. Commit unfinished work on **your** work branch (not `development`/`staging`/`main`).
 2. Push the branch.
 3. Open or update a PR targeting **`development`**.
 4. Stop. Do not merge. Do not self-review. Bugbot reviews; Integrator merges.
 
-At Pull A (08:00) / Pull B (18:00), or when told to pull:
+At Pull 08 (08:00) / Pull 18 (18:00), or when told to pull:
 
 1. Fetch and merge (or rebase only if already the repo rule) latest **`origin/development`** into your work branch.
 2. Pull is **not** hard-gated on all PRs being merged; unfinished work rolls forward.
 3. Report blockers briefly; do not invent merges into `staging`/`main`.
 
 Process **one repo at a time** when running as the Lisa-spawned shipper/puller.
+
+`/agentsetup` and `/agentcomply` are for Implementers (one repo). Workspace Orchestrators must not steal an unrelated `issue/*` as session home — see `docs/AUTONOMOUS-GIT-OPERATIONS.md`.
 
 ## Hard stops
 
@@ -41,4 +45,4 @@ Allowed. Prefer cleanup after merge/abandon. Caps: 12 worktrees / 20 GB (Cursor-
 
 ## Status line (when Lisa / shipper / puller asks)
 
-Write or update Lisa pipeline status as one of: `Ship A|Ship B|Pull A|Pull B: Clear|Issues` — no lists or links in that line.
+Write or update Lisa pipeline status as one of: `Ship 06|Ship 16|Pull 08|Pull 18: Clear|Issues` — no lists or links in that line.

@@ -1,10 +1,11 @@
 ---
 name: agentsetup
 description: >-
-  Bootstrap a NEW agent session onto a short-lived issue/* work branch from
-  latest development. Use when Carlos runs /agentsetup or asks to start a new
-  agent on the correct governed branch.
-version: 1.0.0
+  Bootstrap a NEW Implementer agent session onto a short-lived issue/* work
+  branch from latest development. Not for workspace Orchestrators. Use when
+  Carlos runs /agentsetup or asks to start a new agent on the correct governed
+  branch.
+version: 1.1.0
 status: active
 tags: [git, agent, bootstrap, branching, ship-pull]
 related_commands:
@@ -14,9 +15,11 @@ related_skills:
   - git-safeguard
 ---
 
-# Agent Setup (NEW session)
+# Agent Setup (NEW Implementer session)
 
-Bootstrap a **new** agent onto a short-lived `issue/<id>-<slug>` branch. Do not use this for already-open agents with dirty or wrong-branch work — use `agentcomply`.
+Bootstrap a **new Implementer** onto a short-lived `issue/<id>-<slug>` branch. Do not use this for already-open agents with dirty or wrong-branch work — use `agentcomply`.
+
+**Not for Orchestrators.** Do not invent a fake “home repo” or forever `issue/*` home for a workspace-wide coordinator.
 
 ## Authority
 
@@ -26,6 +29,8 @@ Bootstrap a **new** agent onto a short-lived `issue/<id>-<slug>` branch. Do not 
 
 ## House rules (locked)
 
+- **`/agentsetup` and `/agentcomply` are for Implementers** that own work in **one repo**.
+- **Orchestrators** should not use setup to claim a home repo/branch. They coordinate; per-repo Implementers own `issue/*` branches.
 - **One short-lived `issue/<id>-slug` per piece of governed work** — not forever `dev/*` home branches.
 - `cursor/*` for cloud/dashboard agents.
 - `dev/*` rare ad-hoc only.
@@ -33,12 +38,13 @@ Bootstrap a **new** agent onto a short-lived `issue/<id>-<slug>` branch. Do not 
 
 ## Use When
 
-- Carlos invokes `/agentsetup`
-- A brand-new agent session needs a correct work branch before coding
+- Carlos invokes `/agentsetup` for a **new Implementer**
+- A brand-new coding agent needs a correct work branch before coding
 
 ## Scope Out
 
 - Migrating an already-open dirty session → `agentcomply`
+- **Workspace Orchestrator** sessions — do not create a fake home `issue/*`; tell Carlos to use per-repo Implementers for coding, and `/agentcomply` only in those sessions
 - Lisa Option A clock, doctrine rewrites, Integrator/Promoter landing
 - Committing or opening PRs unless Carlos explicitly asks during setup
 
@@ -46,6 +52,7 @@ Bootstrap a **new** agent onto a short-lived `issue/<id>-<slug>` branch. Do not 
 
 Ask Carlos only for missing required info — few sharp questions, then proceed:
 
+0. **Role** — if the session looks like a workspace Orchestrator (multi-root coordinator), confirm; if Orchestrator, stop (see Role gate)
 1. **Issue id** (e.g. `123` or `LAW-05`)
 2. **Short slug** (kebab-case, e.g. `agent-setup-commands`)
 3. **Target repo** if multi-root / ambiguous
@@ -53,6 +60,17 @@ Ask Carlos only for missing required info — few sharp questions, then proceed:
 Do not re-ask what is already clear from the message or workspace.
 
 ## Workflow
+
+### 0. Role gate
+
+If this is a **workspace Orchestrator** (or Carlos says so):
+
+- Do **not** create an `issue/*` branch as session home.
+- Explain: orchestrators don’t get a forever home repo/branch via `/agentsetup`.
+- Next step: open or direct a **per-repo Implementer** and run `/agentsetup` there for the actual coding work.
+- Stop.
+
+If **Implementer** — continue.
 
 ### 1. Detect repo context
 
@@ -102,10 +120,11 @@ Plain English summary:
 - **Base:** latest `origin/development`
 - **Next:** implement the issue; at Ship, push and open/update PR to `development`
 
-## Output template
+## Output template (Implementer)
 
 ```text
 Agent setup ready
+- Role: Implementer
 - Repo: <name>
 - Branch: issue/<id>-<slug>
 - Base: origin/development (fetched)
@@ -113,10 +132,20 @@ Agent setup ready
 - Next: do the work on this branch; Ship = commit + push + PR → development
 ```
 
+## Output template (Orchestrator)
+
+```text
+Agent setup — skipped (Orchestrator)
+- Role: Orchestrator (workspace-wide)
+- Session home issue branch: none (by design)
+- Next: open/direct a per-repo Implementer and run /agentsetup there for coding work
+```
+
 ## Blockers
 
 Stop and ask when:
 
+- role is ambiguous (Implementer vs Orchestrator)
 - multi-root and target repo is ambiguous
 - issue id or slug still missing after one tight question set
 - cannot reach `origin/development`

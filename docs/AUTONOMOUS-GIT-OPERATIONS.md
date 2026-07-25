@@ -32,10 +32,10 @@ IDE Development itself uses the same managed workflows (it is in scope).
 
 | Event | Local time | Who fires | Behavior |
 |---|---|---|---|
-| Ship A | 06:00 | Lisa cron → Cursor ACP shipper | One repo at a time (sequential): commit work branch → push → open/update PR → `development` → **STOP** (no merge / no self-review) |
-| Pull A | 08:00 | Lisa cron → Cursor ACP puller | Merge latest `origin/development` into work branches on disk; **not** hard-gated on all PRs merged; unfinished work rolls forward |
-| Ship B | 16:00 | Lisa cron → Cursor ACP shipper | Same as Ship A |
-| Pull B | 18:00 | Lisa cron → Cursor ACP puller | Same as Pull A |
+| Ship 06:00 | 06:00 | Lisa cron → Cursor ACP shipper | One repo at a time (sequential): commit work branch → push → open/update PR → `development` → **STOP** (no merge / no self-review) |
+| Pull 08:00 | 08:00 | Lisa cron → Cursor ACP puller | Merge latest `origin/development` into work branches on disk; **not** hard-gated on all PRs merged; unfinished work rolls forward |
+| Ship 16:00 | 16:00 | Lisa cron → Cursor ACP shipper | Same as Ship 06:00 |
+| Pull 18:00 | 18:00 | Lisa cron → Cursor ACP puller | Same as Pull 08:00 |
 | Staging promote | Tue & Fri 08:00 | GitHub Promoter (`0 0 * * 2,5` UTC) | Auto `development`→`staging`; Fix agent if red, then retry |
 | Main package | Mon 08:00 | GitHub Promoter (`0 0 * * 1` UTC) | Package only; do **not** merge yet |
 | Main Approve | Mon ~08:30 | Lisa Telegram | Principal says Approve → dispatch merge |
@@ -62,15 +62,16 @@ ACP prompts and absolute paths: openclaw_prime `linkbots/lisa/Personality files/
 - `cursor/*` for cloud/dashboard agents.
 - `dev/<machine><ide>` rare ad-hoc only.
 - Bootstrap: `/agentsetup`. Already-open migration: `/agentcomply`.
+- **Implementer vs Orchestrator:** `/agentsetup` and `/agentcomply` are for **Implementers** that own work in **one repo**. A workspace **Orchestrator** must not be forced onto a random/stolen `issue/*` as “session home.” Orchestrators coordinate (and may spawn/direct per-repo Implementers); they do not get a forever home issue branch. Accidental dirty edits in a repo → hand off to that repo’s Implementer + `/agentcomply` there, or open a correctly named issue for that specific change.
 
 ## Lisa one-line statuses (Telegram)
 
-After each checkpoint, heartbeat/digest may include **only** lines like:
+Clock labels use **wall-clock time** (Asia/Taipei), not A/B letters. After each checkpoint, heartbeat/digest may include **only** lines like:
 
-- `Ship A: Clear` / `Ship A: Issues`
-- `Pull A: Clear` / `Pull A: Issues`
-- `Ship B: Clear` / `Ship B: Issues`
-- `Pull B: Clear` / `Pull B: Issues`
+- `Ship 06:00: Clear` / `Ship 06:00: Issues`
+- `Pull 08:00: Clear` / `Pull 08:00: Issues`
+- `Ship 16:00: Clear` / `Ship 16:00: Issues`
+- `Pull 18:00: Clear` / `Pull 18:00: Issues`
 - `Staging promote (Tue): Clear` / `Staging promote (Fri): Issues`
 - `Main ready (Mon): Clear` / `Main ready (Mon): Issues`
 

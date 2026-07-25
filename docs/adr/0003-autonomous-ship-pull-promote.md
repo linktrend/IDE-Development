@@ -22,14 +22,14 @@ Agents were not consistently committing, pushing, or opening PRs into `developme
    - **Integrator** — merge-only automation into `development` when CI green + Bugbot pass.
    - **Promoter** — GitHub Actions schedules.
    - **Lisa** — **primary Ship/Pull clock** (Option A): cron on Mini spawns Cursor ACP shipper/puller; Telegram one-line checkpoint status; Principal **Approve** for `staging`→`main` via Telegram.
-5. **Calendar (Asia/Taipei):**
+5. **Calendar (Asia/Taipei)** — wave names are **clock times** (not A/B letters):
 
    | Event | Time |
    |---|---|
-   | Ship A | 06:00 |
-   | Pull A | 08:00 |
-   | Ship B | 16:00 |
-   | Pull B | 18:00 |
+   | Ship 06:00 | 06:00 |
+   | Pull 08:00 | 08:00 |
+   | Ship 16:00 | 16:00 |
+   | Pull 18:00 | 18:00 |
    | `development`→`staging` | Tue & Fri 08:00 auto |
    | `staging`→`main` | Mon 08:00 package; Principal Approve ~08:30 via Lisa/Telegram |
 
@@ -65,10 +65,11 @@ Agents were not consistently committing, pushing, or opening PRs into `developme
 
 Clarifications locked the same day:
 
-- Times unchanged (Asia/Taipei Ship A 06:00, Pull A 08:00, Ship B 16:00, Pull B 18:00).
+- Times unchanged (Asia/Taipei Ship 06:00 / Pull 08:00 / Ship 16:00 / Pull 18:00 — formerly letter waves A/B; user-facing labels use full clock times, 2026-07-25).
 - Ship: commit → push → open/update PR → `development` → STOP (no merge/self-review).
 - Pull: merge latest `origin/development` into work branches on disk; not hard-gated on all PRs merged; unfinished rolls forward.
 - One repo at a time (sequential).
 - Studio default: short-lived `issue/<id>-slug` (not forever `dev/*`).
+- `/agentsetup` / `/agentcomply` are for **Implementers** (one repo); workspace **Orchestrators** do not get a forever session-home issue branch.
 - Bugbot already ON — no human Bugbot enablement work in this amendment.
 - Mini must be awake for Lisa ACP at runtime (ops prerequisite; not a code secret).
