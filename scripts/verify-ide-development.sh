@@ -258,6 +258,13 @@ else
   fail "Missing scripts/test-gate-stop-progression.sh"
 fi
 
+if ! cmp -s \
+  "core/github/managed-workflows/linktrend-integrator-merge.yml" \
+  ".github/workflows/linktrend-integrator-merge.yml"; then
+  fail "Integrator workflow diverged: core/github/managed-workflows vs .github/workflows"
+fi
+pass "Integrator managed template matches live workflow"
+
 if [ -x "scripts/tests/test-integrator-bugbot-gate.sh" ]; then
   bash scripts/tests/test-integrator-bugbot-gate.sh || fail "Integrator Bugbot gate test failed"
 else

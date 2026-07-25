@@ -52,7 +52,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number || '' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.check_run.pull_requests[0].number || github.event.inputs.pr_number || '' }}
           HEAD_SHA: ${{ github.event.check_run.head_sha || github.event.pull_request.head.sha || '' }}
           GATE_WAIT_SECONDS: "900"
           GATE_POLL_SECONDS: "20"
@@ -124,9 +124,9 @@ jobs:
               return 1
             fi
 
-            if ! checks_raw="$(gh pr checks "${pr}" --json name,state,completedAt,startedAt 2> >(tee /tmp/gh-pr-checks.err >&2))"; then
+            if ! checks_raw="$(gh pr checks "${pr}" --json name,state,completedAt,startedAt 2>/tmp/gh-pr-checks.err)"; then
               echo "PR #${pr}: gh pr checks failed — not treating as missing"
-              [ -s /tmp/gh-pr-checks.err ] && cat /tmp/gh-pr-checks.err >&2 || true
+              cat /tmp/gh-pr-checks.err >&2 || true
               return 1
             fi
             if [ -z "${checks_raw}" ]; then
@@ -215,8 +215,9 @@ jobs:
               if gates_pass "${pr}"; then
                 if try_merge "${pr}"; then
                   merged=1
+                  break
                 fi
-                break
+                echo "PR #${pr}: gates green but merge failed — will retry"
               fi
 
               if ! pr_meta_ok "${pr}"; then
@@ -224,8 +225,13 @@ jobs:
                 break
               fi
 
-              checks_now="$(gh pr checks "${pr}" --json name,state,completedAt,startedAt 2>/dev/null || echo '[]')"
-              bugbot_now="$(bugbot_state_from_checks "${checks_now}")"
+              if ! checks_now="$(gh pr checks "${pr}" --json name,state,completedAt,startedAt 2>/tmp/gh-pr-checks.err)"; then
+                echo "PR #${pr}: gh pr checks failed while waiting — will retry"
+                cat /tmp/gh-pr-checks.err >&2 || true
+                bugbot_now="pending"
+              else
+                bugbot_now="$(bugbot_state_from_checks "${checks_now}")"
+              fi
               if [ "${bugbot_now}" = "not_success" ]; then
                 echo "PR #${pr}: Bugbot not clear (state=${bugbot_now}) — leaving open for Fix agent"
                 break
