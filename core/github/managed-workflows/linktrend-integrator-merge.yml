@@ -74,17 +74,22 @@ jobs:
             local meta checks bugbot_state failing pending
 
             meta="$(gh pr view "${pr}" --json baseRefName,isDraft,state,headRefOid)"
-            echo "${meta}" | jq -e '.baseRefName=="development" and .isDraft==false and .state=="OPEN"' >/dev/null
+            if ! echo "${meta}" | jq -e '.baseRefName=="development" and .isDraft==false and .state=="OPEN"' >/dev/null; then
+              echo "PR #${pr}: not an open non-draft PR into development"
+              return 1
+            fi
 
             checks="$(gh pr checks "${pr}" --json name,state 2>/dev/null || echo '[]')"
 
             # gh pr checks --json state uses SUCCESS | FAILURE | PENDING | NEUTRAL | ...
+            # Require every Cursor Bugbot row to be SUCCESS so a stale success cannot
+            # mask a newer NEUTRAL/FAILURE on the same head.
             bugbot_state="$(
               echo "${checks}" | jq -r '
                 [.[] | select(.name=="Cursor Bugbot")] as $b
                 | if ($b|length)==0 then "missing"
                   elif any($b[]; .state=="PENDING" or .state=="QUEUED" or .state=="IN_PROGRESS") then "pending"
-                  elif any($b[]; .state=="SUCCESS") then "success"
+                  elif all($b[]; .state=="SUCCESS") then "success"
                   else "not_success"
                   end'
             )"
