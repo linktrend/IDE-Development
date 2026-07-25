@@ -38,7 +38,9 @@ Optional (if available on the Cursor team): enable **fail on unresolved issues**
      "Cursor Bugbot" "Your CI job name" "Enforce allowed PR source branches"
    ```
 6. Confirm Integrator workflow is present: `.github/workflows/linktrend-integrator-merge.yml`.
-7. Record completion in the adoption/wire report: `Bugbot: enabled | blocked:<reason>`.
+7. Set GitHub Actions variable `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` to this repo's CI job name(s), comma-separated (example for IDE Development: `Verify IDE Development,Enforce allowed PR source branches`). Leave unset only if Bugbot + any non-failing checks are enough.
+8. Confirm Integrator managed template matches live file after sync (`cmp` in IDE Development verify).
+9. Record completion in the adoption/wire report: `Bugbot: enabled | blocked:<reason>`.
 
 ## If Bugbot cannot be enabled
 
