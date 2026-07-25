@@ -25,3 +25,7 @@ Templates synced into consumer repos (and IDE Development itself) by:
 ## Bugbot
 
 Workflows do not enable Bugbot by themselves. Complete `core/checklists/BUGBOT-INHERITANCE.md` after wire/backfill.
+
+**Pass signal:** GitHub check `Cursor Bugbot` conclusion/state `success` (no open findings). `neutral` means findings remain — Integrator must not merge.
+
+**Ruleset:** after syncing workflows, run `scripts/apply-development-merge-ruleset.sh [owner/repo] [check names...]` so `development` requires Bugbot + CI before merge.

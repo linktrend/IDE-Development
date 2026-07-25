@@ -19,9 +19,9 @@ IDE Development itself uses the same managed workflows (it is in scope).
 | Role | Who | Job |
 |---|---|---|
 | Implementer | Long-lived local / Remote Control / Cloud agents | Branch → commit → push → PR → `development` |
-| Reviewer | **Bugbot** | Review every PR into `development` |
+| Reviewer | **Bugbot** | Review every PR into `development` (pass = GitHub check `Cursor Bugbot` → `success`) |
 | Fix agent | Short-lived **Cloud** agent on same branch | Repair CI/Bugbot failures; max **3** attempts |
-| Integrator | GitHub Action (`linktrend-integrator-merge.yml`) | Merge into `development` when CI green + Bugbot pass |
+| Integrator | GitHub Action (`linktrend-integrator-merge.yml`) | Merge into `development` when CI green + `Cursor Bugbot` success (not GitHub APPROVE) |
 | Promoter | GitHub Actions schedules | Tue/Fri staging; Mon main package |
 | Lisa | OpenClaw / Telegram (**primary Ship/Pull clock**) | Cron → spawn Cursor ACP shipper/puller on Mini; one-line checkpoint status; ask Principal to Approve main |
 | Principal | Carlos | Approve `staging`→`main` (~Mon 08:30); intervene on `Issues` |
