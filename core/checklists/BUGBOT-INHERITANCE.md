@@ -8,16 +8,37 @@ Complete for every repo that inherits autonomous Git ops from IDE Development (a
 
 Layer B installs GitHub Actions. **Bugbot** is the Reviewer for PRs into `development`. It is enabled on [cursor.com](https://cursor.com) / GitHub integration — not by the symlink alone.
 
+## What “Bugbot pass” means
+
+Authoritative signal is the GitHub check named **`Cursor Bugbot`** (see [Cursor Bugbot docs](https://cursor.com/docs/bugbot)):
+
+| Check conclusion | Meaning | Integrator |
+|---|---|---|
+| `success` | No issues, and no unresolved Bugbot comments from earlier runs | **May merge** |
+| `neutral` | Findings remain (default when Bugbot reports issues), cancelled, or internal error | **Must not merge** |
+| `failure` | Findings and fail-on-unresolved-issues is enabled | **Must not merge** |
+
+Bugbot usually posts **`COMMENTED`** reviews. It does **not** need to GitHub-APPROVE. Integrator keys off the check, not `review.state == approved`.
+
+Optional (if available on the Cursor team): enable **fail on unresolved issues** so findings become `failure` instead of `neutral`. Integrator already treats non-`success` as a block, so this is defense-in-depth for the GitHub merge button / ruleset.
+
 ## Checklist (per GitHub repo)
 
 1. Confirm repo is under the `linktrend` GitHub org connected to Cursor.
 2. Open Cursor dashboard → **Bugbot** (or Agents / Bugbot settings).
 3. Enable Bugbot for this repository (or org-default that includes it).
-4. Open a test PR into `development` and confirm Bugbot posts a review.
-5. Prefer branch protection on `development` that requires:
-   - relevant CI checks
-   - at least one approving review (Bugbot counts when configured as a reviewer)
-6. Record completion in the adoption/wire report: `Bugbot: enabled | blocked:<reason>`.
+4. Open a test PR into `development` and confirm Bugbot posts a review **and** a `Cursor Bugbot` check.
+5. Apply the development merge ruleset (requires Bugbot + CI checks):
+   ```bash
+   # IDE Development defaults:
+   ./scripts/apply-development-merge-ruleset.sh
+
+   # Consumer with different CI job name(s):
+   ./scripts/apply-development-merge-ruleset.sh linktrend/YourRepo \
+     "Cursor Bugbot" "Your CI job name" "Enforce allowed PR source branches"
+   ```
+6. Confirm Integrator workflow is present: `.github/workflows/linktrend-integrator-merge.yml`.
+7. Record completion in the adoption/wire report: `Bugbot: enabled | blocked:<reason>`.
 
 ## If Bugbot cannot be enabled
 
@@ -28,5 +49,7 @@ Layer B installs GitHub Actions. **Bugbot** is the Reviewer for PRs into `develo
 ## Related
 
 - Managed workflows: `core/github/managed-workflows/`
+- Integrator: `core/github/managed-workflows/linktrend-integrator-merge.yml`
+- Ruleset helper: `scripts/apply-development-merge-ruleset.sh`
 - Wire: `scripts/wire-repo.sh`
 - Automations: `docs/CURSOR-AUTOMATIONS-SETUP.md`
