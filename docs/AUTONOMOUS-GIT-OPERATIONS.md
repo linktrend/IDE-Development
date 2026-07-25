@@ -42,7 +42,19 @@ IDE Development itself uses the same managed workflows (it is in scope).
 
 **Runtime prerequisite (human/ops):** Mini must be awake (Keep Awake / Remote Control) so Lisa ACP can spawn. Documented in openclaw_prime Lisa ship/pull clock procedure.
 
-**Repo order (sequential):** wired workspace product repos + IDE Development. Exact list and ACP prompts live in openclaw_prime (`linkbots/lisa/…`).
+**Repo order (sequential — Principal-locked 2026-07-25):** process exactly one repo at a time, in this order (skip missing paths):
+
+1. IDE Development  
+2. openclaw_prime  
+3. LiNKplatform  
+4. LiNKskills  
+5. LiNKbrain  
+6. LiNKsites  
+7. LiNKdeveloper  
+8. LiNKlibraries  
+9. LiNKautowork  
+
+ACP prompts and absolute paths: openclaw_prime `linkbots/lisa/Personality files/agents/ship-pull-clock.md`.
 
 ## Studio branching default (locked)
 

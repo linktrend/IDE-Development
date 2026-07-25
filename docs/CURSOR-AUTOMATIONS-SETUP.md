@@ -40,7 +40,18 @@ Otherwise skip creating Automations; Lisa owns the schedule (Ship A 06:00, Pull 
 Ship A (Asia/Taipei). You are the Implementer under IDE Development autonomous Git ops.
 Primary clock is Lisa Option A; you are a backup Automation run.
 
-Process ONE REPO AT A TIME (sequential), for in-scope repos with local changes on a work branch (prefer issue/*; also dev/*, cursor/*):
+Process ONE REPO AT A TIME in this exact order (skip missing paths):
+1) /Users/linktrend/Projects/IDE Development
+2) /Users/linktrend/Projects/openclaw_prime
+3) /Users/linktrend/Projects/LiNKplatform
+4) /Users/linktrend/Projects/LiNKskills
+5) /Users/linktrend/Projects/LiNKbrain
+6) /Users/linktrend/Projects/LiNKsites
+7) /Users/linktrend/Projects/LiNKdeveloper
+8) /Users/linktrend/Projects/LiNKlibraries
+9) /Users/linktrend/Projects/LiNKautowork
+
+For each repo with local changes or unpushed commits on a work branch (prefer issue/*; also cursor/*, rare dev/*):
 1) Commit with conventional commits if there are changes.
 2) Push the branch.
 3) Open or update a PR targeting development.
@@ -65,9 +76,20 @@ Reply with that same one line only.
 Pull A (Asia/Taipei). Sync to latest development.
 Primary clock is Lisa Option A; you are a backup Automation run.
 
-Process ONE REPO AT A TIME. Pull is NOT hard-gated on all PRs being merged; unfinished work rolls forward.
+Pull is NOT hard-gated on all PRs being merged; unfinished work rolls forward.
 
-For each in-scope work branch in this workspace:
+Process ONE REPO AT A TIME in this exact order (skip missing paths):
+1) /Users/linktrend/Projects/IDE Development
+2) /Users/linktrend/Projects/openclaw_prime
+3) /Users/linktrend/Projects/LiNKplatform
+4) /Users/linktrend/Projects/LiNKskills
+5) /Users/linktrend/Projects/LiNKbrain
+6) /Users/linktrend/Projects/LiNKsites
+7) /Users/linktrend/Projects/LiNKdeveloper
+8) /Users/linktrend/Projects/LiNKlibraries
+9) /Users/linktrend/Projects/LiNKautowork
+
+For each repo with a checked-out work branch (issue/*, cursor/*, rare dev/*):
 1) Fetch origin.
 2) Merge origin/development into the work branch (unless the repo already mandates rebase).
 3) Report blockers briefly in your private notes only.
