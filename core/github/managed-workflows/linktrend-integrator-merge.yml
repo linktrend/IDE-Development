@@ -83,31 +83,30 @@ jobs:
             fi
           }
 
+          # Newest row wins per check name (cancel-in-progress leaves stale CANCELLED/SUCCESS pairs).
+          latest_checks() {
+            echo "$1" | jq -c '
+              group_by(.name) | map(
+                sort_by(.completedAt // .startedAt // "") | last
+                | {name, state}
+              )'
+          }
+
           bugbot_state_from_checks() {
-            # Prefer latest success; block on any NEUTRAL/FAILURE even if an older SUCCESS exists.
             echo "$1" | jq -r '
               [.[] | select(.name=="Cursor Bugbot")] as $b
               | if ($b|length)==0 then "missing"
-                elif any($b[]; .state=="PENDING" or .state=="QUEUED" or .state=="IN_PROGRESS") then "pending"
-                elif any($b[]; .state=="NEUTRAL" or .state=="FAILURE" or .state=="ACTION_REQUIRED" or .state=="ERROR" or .state=="TIMED_OUT") then "not_success"
-                elif any($b[]; .state=="SUCCESS") then "success"
-                else "not_success"
+                else
+                  ($b | sort_by(.completedAt // .startedAt // "") | last | .state) as $s
+                  | if ($s=="PENDING" or $s=="QUEUED" or $s=="IN_PROGRESS") then "pending"
+                    elif ($s=="SUCCESS") then "success"
+                    else "not_success"
+                    end
                 end'
           }
 
-          # Collapse duplicate check rows (cancel-in-progress leaves CANCELLED + SUCCESS).
           aggregate_checks() {
-            echo "$1" | jq -c '
-              group_by(.name) | map({
-                name: .[0].name,
-                state: (
-                  if any(.[]; .state=="PENDING" or .state=="QUEUED" or .state=="IN_PROGRESS") then "PENDING"
-                  elif any(.[]; .state=="SUCCESS") then "SUCCESS"
-                  elif any(.[]; .state=="SKIPPED") then "SKIPPED"
-                  else (map(.state) | unique | join(","))
-                  end
-                )
-              })'
+            latest_checks "$1"
           }
 
           pr_meta_ok() {
@@ -126,7 +125,7 @@ jobs:
               return 1
             fi
 
-            checks_raw="$(gh pr checks "${pr}" --json name,state 2>/dev/null || echo '[]')"
+            checks_raw="$(gh pr checks "${pr}" --json name,state,completedAt,startedAt 2>/dev/null || echo '[]')"
             bugbot_state="$(bugbot_state_from_checks "${checks_raw}")"
             if [ "${bugbot_state}" != "success" ]; then
               echo "PR #${pr}: Bugbot gate not passed (state=${bugbot_state})"
@@ -218,7 +217,7 @@ jobs:
                 break
               fi
 
-              checks_now="$(gh pr checks "${pr}" --json name,state 2>/dev/null || echo '[]')"
+              checks_now="$(gh pr checks "${pr}" --json name,state,completedAt,startedAt 2>/dev/null || echo '[]')"
               bugbot_now="$(bugbot_state_from_checks "${checks_now}")"
               if [ "${bugbot_now}" = "not_success" ]; then
                 echo "PR #${pr}: Bugbot not clear (state=${bugbot_now}) — leaving open for Fix agent"
