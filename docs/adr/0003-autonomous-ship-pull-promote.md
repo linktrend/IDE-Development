@@ -26,10 +26,10 @@ Agents were not consistently committing, pushing, or opening PRs into `developme
 
    | Event | Time |
    |---|---|
-   | Ship 06:00 | 06:00 |
-   | Pull 08:00 | 08:00 |
-   | Ship 16:00 | 16:00 |
-   | Pull 18:00 | 18:00 |
+   | Ship 06 | 06:00 |
+   | Pull 08 | 08:00 |
+   | Ship 16 | 16:00 |
+   | Pull 18 | 18:00 |
    | `development`→`staging` | Tue & Fri 08:00 auto |
    | `staging`→`main` | Mon 08:00 package; Principal Approve ~08:30 via Lisa/Telegram |
 
@@ -65,7 +65,7 @@ Agents were not consistently committing, pushing, or opening PRs into `developme
 
 Clarifications locked the same day:
 
-- Times unchanged (Asia/Taipei Ship 06:00 / Pull 08:00 / Ship 16:00 / Pull 18:00 — formerly letter waves A/B; user-facing labels use full clock times, 2026-07-25).
+- Times unchanged (Asia/Taipei Ship 06 / Pull 08 / Ship 16 / Pull 18 — formerly letter waves A/B; user-facing labels use full clock times, 2026-07-25).
 - Ship: commit → push → open/update PR → `development` → STOP (no merge/self-review).
 - Pull: merge latest `origin/development` into work branches on disk; not hard-gated on all PRs merged; unfinished rolls forward.
 - One repo at a time (sequential).
