@@ -26,8 +26,6 @@ Bootstrap a **new agent** onto a short-lived `issue/<id>-<slug>` branch for the 
 
 ## House rules (locked)
 
-- **`/agentsetup` is primarily for Implementers** that own work in **one repo**.
-- **Orchestrators** should not use setup to invent a fake forever home repo/branch. Coordination-only → no branch. Coding in a repo → open/direct a per-repo Implementer (or run setup for **that** repo only).
 - **No code/repo touch → no branch required.** Coordination-only sessions that do not edit a repo do not need `/agentsetup`.
 - **Touch a repo → setup for that repo.** Any agent that will edit a repo (including an orchestrator that starts coding) runs `/agentsetup` for **that** repo.
 - **One short-lived `issue/<id>-slug` per piece of governed work** — not forever `dev/*` home branches.

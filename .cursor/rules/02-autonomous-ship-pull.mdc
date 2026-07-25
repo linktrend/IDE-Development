@@ -29,8 +29,6 @@ At Pull 08 / Pull 18, or when told to pull:
 
 Process **one repo at a time** when running as the Lisa-spawned shipper/puller.
 
-`/agentsetup` and `/agentcomply` are for Implementers (one repo). Workspace Orchestrators must not steal an unrelated `issue/*` as session home — see `docs/AUTONOMOUS-GIT-OPERATIONS.md`.
-
 Any agent that touches a repo uses `/agentsetup` or `/agentcomply` for **that** repo (`issue/<id>-slug` for the work package). No repo touch → no branch. Do not silently adopt an unrelated open PR branch — see `docs/AUTONOMOUS-GIT-OPERATIONS.md`.
 
 ## Hard stops
