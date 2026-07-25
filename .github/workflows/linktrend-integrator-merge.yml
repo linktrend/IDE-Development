@@ -70,14 +70,13 @@ jobs:
           }
 
           collect_prs() {
-            # One PR per run (triggering PR or head SHA). Avoid multi-PR wait budgets
-            # that exceed the job timeout.
+            # Exactly one PR per run (triggering PR, else first match for head SHA).
             if [ -n "${PR_NUMBER}" ]; then
               printf '%s\n' "${PR_NUMBER}"
             elif [ -n "${HEAD_SHA}" ]; then
               gh pr list --base development --state open \
                 --json number,isDraft,headRefOid \
-                --jq ".[] | select(.isDraft==false and .headRefOid==\"${HEAD_SHA}\") | .number"
+                --jq "[.[] | select(.isDraft==false and .headRefOid==\"${HEAD_SHA}\") | .number] | .[0] // empty"
             else
               echo "No PR_NUMBER or HEAD_SHA — refusing to scan all open PRs in one wait budget." >&2
             fi
@@ -125,7 +124,15 @@ jobs:
               return 1
             fi
 
-            checks_raw="$(gh pr checks "${pr}" --json name,state,completedAt,startedAt 2>/dev/null || echo '[]')"
+            if ! checks_raw="$(gh pr checks "${pr}" --json name,state,completedAt,startedAt 2> >(tee /tmp/gh-pr-checks.err >&2))"; then
+              echo "PR #${pr}: gh pr checks failed — not treating as missing"
+              [ -s /tmp/gh-pr-checks.err ] && cat /tmp/gh-pr-checks.err >&2 || true
+              return 1
+            fi
+            if [ -z "${checks_raw}" ]; then
+              echo "PR #${pr}: gh pr checks returned empty payload"
+              return 1
+            fi
             bugbot_state="$(bugbot_state_from_checks "${checks_raw}")"
             if [ "${bugbot_state}" != "success" ]; then
               echo "PR #${pr}: Bugbot gate not passed (state=${bugbot_state})"
