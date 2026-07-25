@@ -26,12 +26,12 @@ Agents were not consistently committing, pushing, or opening PRs into `developme
 
    | Event | Time |
    |---|---|
-   | Ship 06 | 06:00 |
-   | Pull 08 | 08:00 |
+   | Ship 05 | 05:00 |
+   | Pull 07 | 07:00 |
    | Ship 16 | 16:00 |
    | Pull 18 | 18:00 |
    | `development`→`staging` | Tue & Fri 08:00 auto |
-   | `staging`→`main` | Mon 08:00 package; Principal Approve ~08:30 via Lisa/Telegram |
+   | `staging`→`main` | Mon 08:00 package; Principal Approve 08:30 via Lisa morning digest (Telegram reply) |
 
 6. **Worktrees:** allowed; max **12**; max **20 GB**; delete after merge or abandon.
 7. **Module 6 product Release OK / live deploy** remains Principal-gated. This ADR changes **Git branch promotion**, not product deploy authority.
@@ -65,7 +65,7 @@ Agents were not consistently committing, pushing, or opening PRs into `developme
 
 Clarifications locked the same day:
 
-- Times unchanged (Asia/Taipei Ship 06 / Pull 08 / Ship 16 / Pull 18 — formerly letter waves A/B; user-facing labels use full clock times, 2026-07-25).
+- Times (Asia/Taipei): Ship 05 / Pull 07 / Ship 16 / Pull 18 (hour labels; morning pair advanced 2026-07-25 so 08:30 digest covers all four daily waves).
 - Ship: commit → push → open/update PR → `development` → STOP (no merge/self-review).
 - Pull: merge latest `origin/development` into work branches on disk; not hard-gated on all PRs merged; unfinished rolls forward.
 - One repo at a time (sequential).
@@ -73,3 +73,15 @@ Clarifications locked the same day:
 - `/agentsetup` / `/agentcomply` are for **Implementers** (one repo); workspace **Orchestrators** do not get a forever session-home issue branch.
 - Bugbot already ON — no human Bugbot enablement work in this amendment.
 - Mini must be awake for Lisa ACP at runtime (ops prerequisite; not a code secret).
+
+---
+
+## Amendment — 2026-07-25 (digest 08:30 + morning Ship/Pull)
+
+Principal locked:
+
+- Morning digest moves **06:45 → 08:30**; email includes Pipeline (D) + Monday Main Approve when Clear; Telegram keeps Battery (C) + same Approve.
+- Heartbeat at **06:45**; **no 08:45** heartbeat (digest owns that Review #1 slot).
+- Morning Ship **05:00**, Pull **07:00** (evening 16/18 unchanged).
+- After each Ship/Pull wave: Telegram one-liner **and** email one-liner (Clear or Issues).
+- Overnight local coding **19:00–04:00** (was 19:00–07:00) so coding stops before Ship 05.

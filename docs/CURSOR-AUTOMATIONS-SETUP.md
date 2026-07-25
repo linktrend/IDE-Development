@@ -20,7 +20,7 @@ Procedures and ACP prompts: openclaw_prime `linkbots/lisa/Personality files/agen
 - Lisa gateway / ACP is down and Carlos wants a temporary dashboard clock
 - Disaster recovery while Mini is offline
 
-Otherwise skip creating Automations; Lisa owns the schedule (Ship 06, Pull 08, Ship 16, Pull 18 Asia/Taipei).
+Otherwise skip creating Automations; Lisa owns the schedule (Ship 05, Pull 07, Ship 16, Pull 18 Asia/Taipei).
 
 ## Standing prerequisites (backup mode)
 
@@ -28,16 +28,16 @@ Otherwise skip creating Automations; Lisa owns the schedule (Ship 06, Pull 08, S
 - Cloud Bugbot / Fix / Integrator do **not** need desk presence.
 - After each run, update Lisa status file when the agent can write local files:
   - Path: `/Users/linktrend/.openclaw-lisa/workspace/memory/pipeline-status.md`
-  - One line only, e.g. `Ship 06: Clear` or `Pull 18: Issues`
+  - One line only, e.g. `Ship 05: Clear` or `Pull 18: Issues`
 
-## Automation 1 — Ship 06 — backup only
+## Automation 1 — Ship 05 — backup only
 
-**Schedule:** Daily 06:00 Asia/Taipei  
+**Schedule:** Daily 05:00 Asia/Taipei  
 
 **Prompt:**
 
 ```text
-Ship 06 (Asia/Taipei). You are the Implementer under IDE Development autonomous Git ops.
+Ship 05 (Asia/Taipei). You are the Implementer under IDE Development autonomous Git ops.
 Primary clock is Lisa Option A; you are a backup Automation run.
 
 Process ONE REPO AT A TIME in this exact order (skip missing paths):
@@ -59,21 +59,21 @@ For each repo with local changes or unpushed commits on a work branch (prefer is
 
 If you can write local files, set the first line of
 /Users/linktrend/.openclaw-lisa/workspace/memory/pipeline-status.md
-to exactly: Ship 06: Clear
-or Ship 06: Issues
+to exactly: Ship 05: Clear
+or Ship 05: Issues
 (no lists, no links).
 
 Reply with that same one line only.
 ```
 
-## Automation 2 — Pull 08 — backup only
+## Automation 2 — Pull 07 — backup only
 
-**Schedule:** Daily 08:00 Asia/Taipei  
+**Schedule:** Daily 07:00 Asia/Taipei  
 
 **Prompt:**
 
 ```text
-Pull 08 (Asia/Taipei). Sync to latest development.
+Pull 07 (Asia/Taipei). Sync to latest development.
 Primary clock is Lisa Option A; you are a backup Automation run.
 
 Pull is NOT hard-gated on all PRs being merged; unfinished work rolls forward.
@@ -96,19 +96,19 @@ For each repo with a checked-out work branch (issue/*, cursor/*, rare dev/*):
 
 Write one line to
 /Users/linktrend/.openclaw-lisa/workspace/memory/pipeline-status.md
-: Pull 08: Clear
-or Pull 08: Issues
+: Pull 07: Clear
+or Pull 07: Issues
 
 Reply with that same one line only.
 ```
 
 ## Automation 3 — Ship 16 — backup only
 
-Same as Ship 06; replace labels with `Ship 16`.
+Same as Ship 05; replace labels with `Ship 16`.
 
 ## Automation 4 — Pull 18 — backup only
 
-Same as Pull 08; replace labels with `Pull 18`.
+Same as Pull 07; replace labels with `Pull 18`.
 
 ## Fix agent Automation (recommended either way)
 
@@ -118,10 +118,7 @@ Same as Pull 08; replace labels with `Pull 18`.
 
 ```text
 You are the Cloud Fix agent (not the original Implementer).
-Checkout the failing PR branch. Fix CI and/or Bugbot findings. Push.
-Do not merge. Max 3 fix attempts on this branch historically; if already at 3, stop and leave Issues.
+Same PR branch. Investigate CI/Bugbot failure. Fix with minimal diff.
+Max 3 attempts total across Fix agents for this PR. If still failing, stop and surface Issues.
+Do not merge. Do not touch staging/main.
 ```
-
-## Principal note
-
-Creating these Automations is a dashboard step and is **optional**. Wired repos inherit agent behavior via `.cursor`; **Lisa Option A supplies the primary clock**.
