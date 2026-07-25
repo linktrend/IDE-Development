@@ -28,11 +28,13 @@ Migrate an **already-open agent** onto a proper short-lived `issue/*` branch for
 
 ## House rules (locked)
 
+- **`/agentcomply` is primarily for Implementers** that own work in **one repo**.
+- **Orchestrator (workspace-wide coordination):** do **not** invent or steal a forever “session home” `issue/*` branch. If the session is only coordinating (no repo edits), stop — no branch required. If it has accidental dirty edits, hand off to that repo’s Implementer + `/agentcomply` there, or open a **correctly named** `issue/<id>-slug` for that specific change — never adopt an unrelated open PR (e.g. Lisa doctrine) as this chat’s identity.
 - **No code/repo touch → no branch required.** Coordination-only sessions that do not edit a repo do not need `/agentcomply`.
 - **Touch a repo → comply for that repo.** Any agent that edits a repo (including an orchestrator that starts coding) runs `/agentcomply` or `/agentsetup` for **that** repo and uses `issue/<id>-slug` for the work package.
 - One short-lived `issue/<id>-slug` per piece of governed work — no forever `dev/*` home.
 - Branch must match **this work package**. Do not silently adopt an unrelated open PR branch just because it exists.
-- Multi-root: if which repo is being touched is ambiguous, ask (normal ambiguity ask).
+- Multi-root: if which repo is being touched is ambiguous, ask (normal ambiguity ask). Detect or ask once if role is Orchestrator vs Implementer when unclear.
 - `cursor/*` for cloud; `dev/*` rare ad-hoc only.
 - Never dump work onto `development` / `staging` / `main`.
 - Never merge own PR; never self-review; Bugbot reviews; Integrator merges.
@@ -58,6 +60,18 @@ Migrate an **already-open agent** onto a proper short-lived `issue/*` branch for
 4. Whether to **commit** and/or **open/update PR** (ask if commit message or readiness is ambiguous)
 
 ## Workflow
+
+### 0. Role / touch gate (do this first)
+
+If this looks like a **workspace Orchestrator** (multi-root coordinator; UI title/role says Orchestrator) and it is **not** about to edit a specific repo:
+
+1. Do **not** create/checkout/claim an `issue/*` as session home.
+2. Optionally report a brief multi-repo status.
+3. Tell Carlos: orchestrators don’t get a forever session-home issue branch; implementer work happens in per-repo agents (or this orchestrator may spawn/direct those).
+4. If accidental dirty edits exist in a repo: hand off to that repo’s Implementer + `/agentcomply` there, or open a correctly named issue for that change.
+5. Stop (Orchestrator output below).
+
+If the session **will touch a repo**, continue as Implementer for **that** repo only.
 
 ### 1. Inspect current state
 
@@ -140,6 +154,7 @@ Plain English summary of exactly what was done:
 
 ```text
 Agent comply done
+- Role: Implementer (repo touch)
 - Repo: <name>
 - Was: <old-branch> (dirty: yes/no)
 - Now: issue/<id>-<slug>   # branch for this work package
@@ -151,10 +166,24 @@ Agent comply done
 - Reminder: work package lives on issue/… — not forever dev/*
 ```
 
+## Output template (Orchestrator — no rehome)
+
+```text
+Agent comply — Orchestrator (no rehome)
+- Role: Orchestrator (workspace-wide)
+- Session home issue branch: none (by design)
+- Multi-repo snapshot: <brief or “coordination only / clean”>
+- Action: do not associate this chat with an unrelated issue/* branch
+- If dirty edits exist: hand off to that repo’s Implementer + /agentcomply there,
+  or open a correctly named issue/* for that specific change
+- Next: keep coordinating; spawn/direct per-repo Implementers for coding
+```
+
 ## Blockers
 
 Stop and ask when:
 
+- role is ambiguous (Orchestrator vs Implementer) after one question
 - multi-root and target repo is ambiguous
 - moving work would require destructive history rewrite
 - secrets appear in the dirty set

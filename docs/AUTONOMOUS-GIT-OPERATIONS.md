@@ -24,7 +24,7 @@ IDE Development itself uses the same managed workflows (it is in scope).
 | Integrator | GitHub Action (`linktrend-integrator-merge.yml`) | Merge into `development` when CI green + `Cursor Bugbot` success (not GitHub APPROVE) |
 | Promoter | GitHub Actions schedules | Tue/Fri staging; Mon main package |
 | Lisa | OpenClaw / Telegram (**primary Ship/Pull clock**) | Cron → spawn Cursor ACP shipper/puller on Mini; one-line checkpoint status; ask Principal to Approve main |
-| Principal | Carlos | Approve `staging`→`main` (~Mon 08:30); intervene on `Issues` |
+| Principal | Carlos | Approve `staging`→`main` (Mon 08:30 via digest; reply on Telegram); intervene on `Issues` |
 
 ## Primary clock — Lisa Option A (locked)
 
@@ -32,13 +32,14 @@ IDE Development itself uses the same managed workflows (it is in scope).
 
 | Event | Local time | Who fires | Behavior |
 |---|---|---|---|
-| Ship 06:00 | 06:00 | Lisa cron → Cursor ACP shipper | One repo at a time (sequential): commit work branch → push → open/update PR → `development` → **STOP** (no merge / no self-review) |
-| Pull 08:00 | 08:00 | Lisa cron → Cursor ACP puller | Merge latest `origin/development` into work branches on disk; **not** hard-gated on all PRs merged; unfinished work rolls forward |
-| Ship 16:00 | 16:00 | Lisa cron → Cursor ACP shipper | Same as Ship 06:00 |
-| Pull 18:00 | 18:00 | Lisa cron → Cursor ACP puller | Same as Pull 08:00 |
+| Ship 05 | 05:00 | Lisa cron → Cursor ACP shipper | One repo at a time (sequential): commit work branch → push → open/update PR → `development` → **STOP** (no merge / no self-review) |
+| Pull 07 | 07:00 | Lisa cron → Cursor ACP puller | Merge latest `origin/development` into work branches on disk; **not** hard-gated on all PRs merged; unfinished work rolls forward |
+| Ship 16 | 16:00 | Lisa cron → Cursor ACP shipper | Same as Ship 05 |
+| Pull 18 | 18:00 | Lisa cron → Cursor ACP puller | Same as Pull 07 |
 | Staging promote | Tue & Fri 08:00 | GitHub Promoter (`0 0 * * 2,5` UTC) | Auto `development`→`staging`; Fix agent if red, then retry |
 | Main package | Mon 08:00 | GitHub Promoter (`0 0 * * 1` UTC) | Package only; do **not** merge yet |
-| Main Approve | Mon ~08:30 | Lisa Telegram | Principal says Approve → dispatch merge |
+| Morning digest | 08:30 | Lisa cron | Email + Telegram day-ahead; Pipeline lines; Mon Main Approve ask when Clear |
+| Main Approve | Mon 08:30 | Lisa digest (Telegram reply) | Principal says Approve on Telegram → dispatch merge |
 
 **Runtime prerequisite (human/ops):** Mini must be awake (Keep Awake / Remote Control) so Lisa ACP can spawn. Documented in openclaw_prime Lisa ship/pull clock procedure.
 
@@ -62,16 +63,17 @@ ACP prompts and absolute paths: openclaw_prime `linkbots/lisa/Personality files/
 - `cursor/*` for cloud/dashboard agents.
 - `dev/<machine><ide>` rare ad-hoc only.
 - Bootstrap: `/agentsetup`. Already-open migration: `/agentcomply`.
-- **Branch rule (any agent):** no code/repo touch → no branch required. The moment any agent touches a repo, run `/agentsetup` or `/agentcomply` for **that** repo and use `issue/<id>-slug` for the work package. Multi-root ambiguity → ask which repo. Do not silently adopt an unrelated open PR branch — the branch must match this work package.
+- **Implementer vs Orchestrator:** `/agentsetup` and `/agentcomply` are for **Implementers** that own work in **one repo**. A workspace **Orchestrator** must not be forced onto a random/stolen `issue/*` as “session home.” Orchestrators coordinate (and may spawn/direct per-repo Implementers); they do not get a forever home issue branch. Accidental dirty edits in a repo → hand off to that repo’s Implementer + `/agentcomply` there, or open a correctly named issue for that specific change. Multi-root ambiguity → ask which repo. Do not silently adopt an unrelated open PR branch.
+- **Branch rule (any agent):** no code/repo touch → no branch required. The moment any agent touches a repo, run `/agentsetup` or `/agentcomply` for **that** repo and use `issue/<id>-slug` for the work package.
 
-## Lisa one-line statuses (Telegram)
+## Lisa one-line statuses (Telegram + Ship/Pull email)
 
-Clock labels use **wall-clock time** (Asia/Taipei), not A/B letters. After each checkpoint, heartbeat/digest may include **only** lines like:
+Clock labels use **local hour** (Asia/Taipei), not A/B letters. After each Ship/Pull wave, Lisa announces **and emails** the one line (Clear or Issues). Heartbeat/digest may also include **only** lines like:
 
-- `Ship 06:00: Clear` / `Ship 06:00: Issues`
-- `Pull 08:00: Clear` / `Pull 08:00: Issues`
-- `Ship 16:00: Clear` / `Ship 16:00: Issues`
-- `Pull 18:00: Clear` / `Pull 18:00: Issues`
+- `Ship 05: Clear` / `Ship 05: Issues`
+- `Pull 07: Clear` / `Pull 07: Issues`
+- `Ship 16: Clear` / `Ship 16: Issues`
+- `Pull 18: Clear` / `Pull 18: Issues`
 - `Staging promote (Tue): Clear` / `Staging promote (Fri): Issues`
 - `Main ready (Mon): Clear` / `Main ready (Mon): Issues`
 
