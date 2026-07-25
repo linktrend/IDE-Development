@@ -112,8 +112,9 @@ jobs:
           pr_meta_ok() {
             local pr="$1"
             local meta
-            meta="$(gh pr view "${pr}" --json baseRefName,isDraft,state)"
-            echo "${meta}" | jq -e '.baseRefName=="development" and .isDraft==false and .state=="OPEN"' >/dev/null
+            # Must return false (not abort the job) when gh/jq fail under set -e.
+            meta="$(gh pr view "${pr}" --json baseRefName,isDraft,state 2>/dev/null)" || return 1
+            echo "${meta}" | jq -e '.baseRefName=="development" and .isDraft==false and .state=="OPEN"' >/dev/null 2>&1
           }
 
           gates_pass() {
