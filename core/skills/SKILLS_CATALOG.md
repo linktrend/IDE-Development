@@ -15,7 +15,7 @@ Use this file to route into local domain skills and hybrid macro/micro skills.
 ## Hybrid macro (gstack)
 
 **Fork:** https://github.com/linktrend/gstack  
-**Vendored copy:** `.cursor/runtime/skills/gstack/` (physical copy; refresh via `scripts/vendor-hybrid-skills.sh`)  
+**Vendored copy:** `.cursor/runtime/skills/gstack/` (physical adapted copy; verify via `scripts/verify-vendored-skills.sh`)  
 **Registry:** `docs/HYBRID-SKILLS-REGISTRY.md`
 
 Command entrypoints: `core/commands/hybrid-spec.md`, `hybrid-plan-ceo-review.md`, `hybrid-health.md`, `hybrid-ship.md`, `hybrid-context-save.md`, `hybrid-context-restore.md`
@@ -33,7 +33,7 @@ Extended fork skills (`/review`, `/qa`, `/retro`, `/learn`) available for macro 
 ## Hybrid micro (mattpocock skills)
 
 **Fork:** https://github.com/linktrend/skills  
-**Vendored copy:** `.cursor/runtime/skills/mattpocock/` (physical copy; refresh via `scripts/vendor-hybrid-skills.sh`)  
+**Vendored copy:** `.cursor/runtime/skills/mattpocock/` (physical adapted copy; verify via `scripts/verify-vendored-skills.sh`)  
 **Registry:** `docs/HYBRID-SKILLS-REGISTRY.md`
 
 Command entrypoints: `core/commands/hybrid-grill.md`, `hybrid-to-prd.md`, `hybrid-to-issues.md`, `hybrid-tdd.md`, `hybrid-diagnosing-bugs.md`, `hybrid-improve-architecture.md`
@@ -51,7 +51,7 @@ Setup once per machine: `skills/engineering/setup-matt-pocock-skills/SKILL.md` i
 
 ## Domain skills (IDE Development core)
 
-Forty local skills remain after hybrid sunset. Grouped by concern.
+Forty-three local skills remain after hybrid sunset. Grouped by concern.
 
 ### UI and frontend
 
@@ -104,6 +104,8 @@ Forty local skills remain after hybrid sunset. Grouped by concern.
 ### Repository safety and change management
 
 - `git-safeguard` — pre-commit/push safety
+- `agentsetup` — NEW agent bootstrap onto short-lived `issue/*` from latest `development` (`/agentsetup`)
+- `agentcomply` — ALREADY-OPEN agent migration onto `issue/*` (or cleanup), move dirty work safely (`/agentcomply`)
 - `repository-manager` — workspace hygiene, handoffs, artifact placement
 - `deprecation-and-migration` — safe retirement of old systems
 - `code-simplification` — reduce complexity while preserving behavior
@@ -163,6 +165,8 @@ When multiple domain skills appear relevant:
 ## Available skills (paths)
 
 - `skills/action-queue/SKILL.md`
+- `skills/agentcomply/SKILL.md`
+- `skills/agentsetup/SKILL.md`
 - `skills/api-patterns/SKILL.md`
 - `skills/app-builder/SKILL.md`
 - `skills/architecture/SKILL.md`

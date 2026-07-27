@@ -44,7 +44,7 @@ This repository is “done enough for daily use” when:
 5. **Six model-routing subagents** exist under `.cursor/agents/route-*.md` with Cursor bracket-param model pins, ported from LiNKdeveloper’s router criteria.
 6. **Verification passes:** `scripts/verify-ide-development.sh` (and the scripts it invokes) exit 0.
 
-That is **not** the same as: a persistent autonomous orchestrator, Telegram executive routing, live VPS deployment of this system, or automatic `development` → `staging` → `main` promotion of *product* work without Principal Release OK. Those belong elsewhere (chiefly LiNKdeveloper) or remain deliberately deferred.
+That is **not** the same as: a persistent VPS factory orchestrator, or live product deployment without Module 6 Principal Release OK. **Git** ship/pull/promote (Bugbot review, Integrator merge into `development`, scheduled `development`→`staging`, Principal Telegram Approve for `staging`→`main`) **is** in scope for this system and is inherited by wired repos — see `docs/AUTONOMOUS-GIT-OPERATIONS.md` and ADR 0003.
 
 ---
 
@@ -56,7 +56,7 @@ That is **not** the same as: a persistent autonomous orchestrator, Telegram exec
 - A **target product repository** (or this repo itself) to wire and/or run an application Program against.
 - Optional **candidate Intent / PRD-shaped text** for Module 1 entry classification.
 - Optional access to **LiNKlibraries** (`https://github.com/linktrend/LiNKlibraries.git`) for Module 2 library query and Module 5 contribution.
-- Optional local clones of upstream hybrid skill sources when refreshing the vendor (`scripts/vendor-hybrid-skills.sh`).
+- Hybrid gstack/mattpocock skills as already-vendored, adapted copies under `core/runtime/skills/` (not sibling-repo dependencies).
 
 ### Outputs (what IDE Development produces)
 
@@ -73,7 +73,7 @@ That is **not** the same as: a persistent autonomous orchestrator, Telegram exec
 | Be the autonomous VPS factory | That is **LiNKdeveloper**. This repo stays human-assisted / session-scoped. |
 | Persist a Program Ledger / poll loop | No Postgres Ledger, no unattended crash recovery, no heartbeat. State lives in repo artifacts + `PIPELINE-STATE.json`. |
 | Mandatory Starter Kit / environment_bootstrap Module | LiNKdeveloper has seven Modules including `environment_bootstrap`. IDE Development has **six** Modules; Starter Kit is optional; light git/CI sanity is not a seventh Module. |
-| Automatic product promotion without Principal | Module 6 ends at `release_ready` with **Principal pre-deploy / Release OK**. No LAW-06 auto-promotion here. |
+| Automatic **product live deploy** without Principal | Module 6 ends at `release_ready` with **Principal pre-deploy / Release OK**. Git branch promote is separate (ADR 0003). |
 | Own product-specific factory operations | Website/automation/content factory ops belong in each product’s own specification — not in this shared core. |
 | Decide which venture to build | Intent comes from the Principal / studio strategy. |
 | Ship a Principal phone/web approval dashboard | Operator surface is Cursor + this Operations Manual. |

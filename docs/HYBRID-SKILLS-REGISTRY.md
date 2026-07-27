@@ -1,19 +1,19 @@
 # Hybrid Skills Registry
 
 **Date:** 2026-07-10  
-**Status:** Installed and wired — local clones present  
+**Status:** Installed and wired — vendored in-repo copies are authoritative  
 **Owner:** IDE Development
 
 This registry is the authoritative map for gstack macro-orchestration and mattpocock micro-execution skills integrated into **IDE Development**. Historical layered model detail: [`docs/archive/LINKDEVELOPER-STAGE1A-SPEC.md`](archive/LINKDEVELOPER-STAGE1A-SPEC.md) Section C.
 
 ---
 
-## Fork URLs
+## Upstream provenance (historical)
 
-- **gstack (macro):** https://github.com/linktrend/gstack — upstream `garrytan/gstack`
-- **mattpocock (micro):** https://github.com/linktrend/skills — upstream `mattpocock/skills`
+- **gstack (macro):** originally from `garrytan/gstack` / LiNKtrend fork `linktrend/gstack`
+- **mattpocock (micro):** originally from `mattpocock/skills` / LiNKtrend fork `linktrend/skills`
 
-Both forks were created 2026-07-10 under the `linktrend` account. LiNKtrend owns the fork; upstream updates are pulled deliberately, not automatically.
+Physical copies were vendored into this repo and adapted for IDE Development. **Do not auto-refresh from upstream** — that would risk overwriting local adaptations. There is no refresh script; sibling clones under `Projects/gstack` and `Projects/skills` are not required.
 
 ---
 
@@ -24,7 +24,7 @@ Physical copies live in-repo (not sibling-path dependencies, not cross-repo syml
 - **gstack:** `.cursor/runtime/skills/gstack/`
 - **mattpocock:** `.cursor/runtime/skills/mattpocock/`
 
-Manifest: `core/runtime/skills/VENDOR-MANIFEST.json`. Refresh with `scripts/vendor-hybrid-skills.sh`; verify with `scripts/verify-vendored-skills.sh`.
+Manifest: `core/runtime/skills/VENDOR-MANIFEST.json`. Verify with `scripts/verify-vendored-skills.sh`.
 
 IDE Development command entrypoints under `core/commands/hybrid-*.md` point agents at these vendored paths.
 

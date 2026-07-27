@@ -61,6 +61,8 @@ The system is designed this way because Cursor and Codex consume repository-visi
 
 Repo wiring itself is script-backed. Run `./scripts/wire-repo.sh <consumer-repo-path>` from `IDE Development` after discovery and legacy cleanup review. The script is idempotent and reports pass/fail results agents should interpret rather than improvising symlink commands.
 
+Wiring installs **two layers**: (A) `.cursor` symlink for agent doctrine, and (B) managed `.github/workflows` for ship/pull/promote robots. Bugbot and Cursor Automations are dashboard steps listed after wire — see `docs/AUTONOMOUS-GIT-OPERATIONS.md`.
+
 ## Adoption Sequence
 
 1. determine the active workspace from the current chat-visible filesystem context
