@@ -12,7 +12,7 @@ Operational summary:
 - from latest `development`, create the proper branch for this work package
 - move dirty work safely (stash/checkout/pop or equivalent); never dump onto development/staging/main
 - commit only when Carlos wants or the commit is clearly ready; never commit secrets
-- push the branch; open/update PR → `development` if commits are ready — otherwise leave ready-to-ship for Ship wave
+- push the branch as a **checkpoint** (no PR). When the issue is finished, mark review-ready — Review Packager opens the PR. Do not self-merge.
 - tell the session: this work package lives on `issue/…`; no forever `dev/*`
 - plain English summary of what was done
 

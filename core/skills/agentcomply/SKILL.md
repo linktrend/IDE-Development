@@ -57,7 +57,7 @@ Migrate an **already-open agent** onto a proper short-lived `issue/*` branch for
 1. **Issue id + short slug** for `issue/<id>-<slug>`
 2. Or allow **`issue/cleanup-<topic>`** if no issue id exists yet
 3. **Target repo** if multi-root / ambiguous
-4. Whether to **commit** and/or **open/update PR** (ask if commit message or readiness is ambiguous)
+4. Whether to **commit/push a checkpoint** and/or **mark review-ready** (ask if commit message or readiness is ambiguous). Do not open a PR yourself — Review Packager does that.
 
 ## Workflow
 
