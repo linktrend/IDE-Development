@@ -138,7 +138,8 @@ Merge only when all are true:
 ## Pull rules
 
 - Update unfinished work from `origin/development`
-- Skip frozen reviewed SHAs / branches under active review freeze
+- Skip when the exact branch-tip SHA has successful commit status **`Linktrend Review Ready`**, or an open review PR into `development` whose head equals that tip, or an explicit operator freeze
+- Do **not** use `.linktrend/review-ready.json` (must not be used)
 - Continue other work on another issue branch or worktree during freeze
 
 ## Cleanup

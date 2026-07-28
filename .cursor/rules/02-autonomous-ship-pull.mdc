@@ -43,7 +43,11 @@ Once packaged/reviewed for a SHA: **do not modify that frozen branch**. Continue
 At Pull 07 / Pull 18, or when told to pull:
 
 1. Fetch and merge (or rebase only if already the repo rule) latest **`origin/development`** into unfinished work branches.
-2. **Skip frozen reviewed SHAs** (do not rewrite history on a branch under review).
+2. **Skip frozen reviewed SHAs** when any of these hold for the branch tip:
+   - successful commit status **`Linktrend Review Ready`** on that exact tip SHA; or
+   - an open review PR into `development` whose head equals that tip; or
+   - an explicit operator freeze.
+   Do **not** use `.linktrend/review-ready.json` (must not exist / must not be used).
 3. Pull is **not** hard-gated on all PRs being merged; unfinished work rolls forward.
 4. Report blockers briefly; do not invent merges into `staging`/`main`.
 

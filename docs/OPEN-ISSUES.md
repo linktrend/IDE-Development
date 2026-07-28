@@ -118,3 +118,16 @@ Branch `issue/GITOPS-01-review-packager-pipeline`. Principal-locked amendment to
 - Lisa reporting lines for Review Packager / Staging 10:00 until openclaw follow-up PR lands.
 
 **Authoritative clock (Asia/Taipei):** Ship 05, Pull 07, Ship 16, Pull 18; Packager Tue/Fri 08:00; Staging Tue/Fri 10:00; Main package Mon 08:00; digest + Approve Mon 08:30.
+
+### Correction — 2026-07-28 (review-ready mechanism)
+
+The bullet above that mentions discovering `.linktrend/review-ready.json` is **obsolete** and must not be followed.
+
+**Authoritative mechanism now:**
+
+1. Push the completed work branch first.
+2. Publish successful commit status **`Linktrend Review Ready`** on the exact branch-tip SHA (`core/github/REVIEW-READY.md`, `scripts/mark-review-ready.sh`).
+3. A later commit becomes unready automatically.
+4. No `.linktrend/review-ready.json` and no readiness marker commit.
+
+**Pull/freeze skip:** successful `Linktrend Review Ready` on the tip SHA, or an open review PR whose head equals that tip, or an explicit operator freeze — never a JSON-file condition.

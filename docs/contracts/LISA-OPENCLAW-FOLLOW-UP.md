@@ -9,9 +9,9 @@ This document is the binding follow-up contract for a future PR in `openclaw_pri
 **Authoritative SOT (read first):**
 
 - `docs/AUTONOMOUS-GIT-OPERATIONS.md`
-- `docs/adr/0003-autonomous-ship-pull-promote.md` (amendment 2026-07-28)
+- `docs/adr/0003-autonomous-ship-pull-promote.md` (incl. 2026-07-28 commit-status amendment)
 - `core/github/CI-GATE-CONTRACTS.md`
-- `core/github/REVIEW-READY.md`
+- `core/github/REVIEW-READY.md` (**commit status only** — never a readiness file in the diff)
 - `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`
 
 ---
@@ -26,7 +26,7 @@ Align Lisa Option A (OpenClaw cron → Cursor ACP) with the **Review Packager re
 | Pull waves | Merge `origin/development` into unfinished work branches; **skip frozen reviewed SHAs** |
 | Review Packager | GitHub-owned Tue/Fri **08:00** — Lisa reports status lines only |
 | Staging promote | GitHub-owned Tue/Fri **10:00** — Lisa reports status lines only |
-| Implementer finish | Agent marks `review_ready` + `.linktrend/review-ready.json`; Packager opens PR |
+| Implementer finish | Push tip → publish successful commit status `Linktrend Review Ready` on that exact SHA; Packager opens PR |
 
 Do **not** claim Lisa/openclaw files were edited in GITOPS-01. Implement this contract in openclaw_prime when scheduled.
 
@@ -65,7 +65,7 @@ On every Ship 05 and Ship 16 wave, the ACP **Shipper** prompt must:
 
 EOD (~17:00) follows the same checkpoint rule.
 
-When work is **finished** (proof, local gates, clean tree): implementer marks review-ready via `scripts/mark-review-ready.sh` and pushes — still **no PR** from the implementer. Tue/Fri 08:00 Review Packager opens the PR and requests Bugbot once.
+When work is **finished** (proof, local gates, clean tree): implementer **pushes first**, then marks review-ready via `scripts/mark-review-ready.sh` (publishes `Linktrend Review Ready` on the exact tip SHA) — still **no PR** from the implementer and **no** `.linktrend/review-ready.json`. Tue/Fri 08:00 Review Packager opens the PR and requests Bugbot once.
 
 ---
 
@@ -78,9 +78,10 @@ On every Pull 07 and Pull 18 wave, the ACP **Puller** prompt must:
    - `git fetch origin`
    - Merge `origin/development` into the work branch (unless repo mandates rebase).
 3. **Skip** branches whose tip SHA is **frozen under active review**:
-   - Open non-draft PR into `development` whose head equals branch tip, **or**
-   - Valid `.linktrend/review-ready.json` on the branch where `commitSha == HEAD` and Packager has not yet completed for that SHA, **or**
-   - Branch explicitly marked review-frozen in operator notes.
+   - Exact branch-tip SHA has successful GitHub commit status **`Linktrend Review Ready`**, **or**
+   - Open review PR into `development` whose head equals that tip, **or**
+   - Explicit operator freeze.
+   - Do **not** consult `.linktrend/review-ready.json` (that file must not be used).
 4. Do **not** merge into `staging` or `main`.
 5. Unfinished work on skipped branches rolls forward on the next Pull wave.
 

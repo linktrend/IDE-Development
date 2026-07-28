@@ -102,3 +102,20 @@ Principal locked (IDE Development redesign):
 8. **Review freeze:** do not modify the frozen reviewed branch; continue on another issue branch/worktree.
 9. **Ship 05 / Pull 07** remain authoritative morning wave labels (not 06/08).
 10. Follow-up contracts for Lisa/OpenClaw (no edits in those repos in this change): `docs/contracts/LISA-OPENCLAW-FOLLOW-UP.md`, `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`.
+
+---
+
+## Amendment — 2026-07-28 (review-ready = commit status; supersedes file marker)
+
+**Factual correction** to item 2 of the earlier 2026-07-28 amendment above (that item is obsolete and must not be followed):
+
+1. **Authoritative review-ready mechanism:**
+   - Push the completed work branch first so `HEAD == origin/<branch>`.
+   - Publish successful GitHub commit status context **`Linktrend Review Ready`** on the **exact branch-tip SHA** (`scripts/mark-review-ready.sh` / `core/github/REVIEW-READY.md`).
+   - A later commit becomes unready automatically (new tip SHA has no success status).
+2. **There is no** `.linktrend/review-ready.json` readiness file and **no** readiness marker commit in the feature diff.
+3. **Pull / freeze skip** (Lisa puller and `scripts/pull-update-work-branches.sh`):
+   - Skip when the exact branch-tip SHA has successful `Linktrend Review Ready` status; **or**
+   - Skip when an open review PR into `development` has head equal to that tip; **or**
+   - Skip on an explicit operator freeze.
+   - Do **not** use a deleted JSON-file condition.

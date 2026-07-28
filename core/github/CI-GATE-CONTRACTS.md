@@ -2,7 +2,7 @@
 
 **Audience:** Review Packager, Integrator, Staging/Main promotion, agents, CI maintainers.
 **Status:** Binding for IDE Development GitOps redesign.
-**Related:** `docs/adr/0003-autonomous-git-operations.md`, `core/github/REVIEW-READY.md`.
+**Related:** `docs/adr/0003-autonomous-ship-pull-promote.md`, `core/github/REVIEW-READY.md`.
 
 ---
 

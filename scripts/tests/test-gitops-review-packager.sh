@@ -101,6 +101,107 @@ done
 [ ! -f core/templates/REVIEW-READY.json ] || fail "REVIEW-READY.json template must be removed"
 pass "Executable modes + obsolete readiness file artifacts removed"
 
+# Authoritative docs/scripts must not positively instruct creating/using the deleted JSON marker.
+# Explanatory "must not use" / obsolete/superseded mentions are allowed. Historical ADR/OPEN-ISSUES
+# lines may retain obsolete text only when a dated correction supersedes them.
+python3 - <<'PY'
+from pathlib import Path
+import re
+
+JSON = ".linktrend/review-ready.json"
+
+def is_positive_json_instruction(line: str) -> bool:
+    if "review-ready.json" not in line:
+        return False
+    low = line.lower()
+    # Explicit prohibition / explanation — allowed
+    if any(
+        tok in low
+        for tok in (
+            "must not",
+            "do **not**",
+            "do not",
+            "never",
+            "obsolete",
+            "superseded",
+            "there is no",
+            "must not be used",
+            "must not exist",
+            "not be used",
+            "no longer",
+            "fight over a shared path like",
+            "like `.linktrend/review-ready.json`",
+            "no `.linktrend/review-ready.json`",
+            "and **no** `.linktrend/review-ready.json`",
+            "and **no** `.linktrend/review-ready.json`",
+            "— still **no pr** from the implementer and **no** `.linktrend/review-ready.json`",
+        )
+    ):
+        return False
+    if re.search(r"(?i)\bno\b.*review-ready\.json", line):
+        return False
+    # Positive operational verbs / discover patterns
+    if re.search(
+        r"(?i)(discover\s+`?\.linktrend/review-ready\.json"
+        r"|marks?\s+.`?review_ready.?\s*\+\s*`?\.linktrend/review-ready\.json"
+        r"|branch-local\s+`?\.linktrend/review-ready\.json"
+        r"|valid\s+`?\.linktrend/review-ready\.json"
+        r"|create\w*\s+.*review-ready\.json"
+        r"|write\w*\s+.*review-ready\.json"
+        r"|commit\w*\s+.*review-ready\.json)",
+        line,
+    ):
+        return True
+    return False
+
+# Current operational contracts / agent instructions — no positive JSON readiness.
+ops = [
+    Path("docs/contracts/LISA-OPENCLAW-FOLLOW-UP.md"),
+    Path("core/github/REVIEW-READY.md"),
+    Path("docs/AUTONOMOUS-GIT-OPERATIONS.md"),
+    Path(".cursor/rules/02-autonomous-ship-pull.mdc"),
+    Path("scripts/gitops/work-branch-allowlist.sh"),
+    Path("scripts/mark-review-ready.sh"),
+    Path("scripts/validate-review-ready.sh"),
+    Path("scripts/clear-review-ready.sh"),
+    Path("scripts/pull-update-work-branches.sh"),
+]
+for path in ops:
+    text = path.read_text(encoding="utf-8")
+    for i, line in enumerate(text.splitlines(), 1):
+        if is_positive_json_instruction(line):
+            raise SystemExit(f"{path}:{i}: positive review-ready.json instruction forbidden:\n{line}")
+
+allow = Path("scripts/gitops/work-branch-allowlist.sh").read_text(encoding="utf-8")
+assert "review_ready_allowed_paths" not in allow
+assert "review-ready.json" not in allow
+assert "review-freeze.json" not in allow
+
+# Historical records may keep obsolete bullets only if a dated correction supersedes them.
+adr = Path("docs/adr/0003-autonomous-ship-pull-promote.md").read_text(encoding="utf-8")
+assert "review-ready = commit status; supersedes file marker" in adr
+assert "Linktrend Review Ready" in adr
+assert "There is no** `.linktrend/review-ready.json` readiness file" in adr
+
+oi = Path("docs/OPEN-ISSUES.md").read_text(encoding="utf-8")
+assert "Correction — 2026-07-28 (review-ready mechanism)" in oi
+assert "Linktrend Review Ready" in oi
+assert "obsolete" in oi.lower()
+
+# Broken ADR link must stay fixed
+cig = Path("core/github/CI-GATE-CONTRACTS.md").read_text(encoding="utf-8")
+assert "docs/adr/0003-autonomous-ship-pull-promote.md" in cig
+assert "docs/adr/0003-autonomous-git-operations.md" not in cig
+
+# Authoritative readiness doc must describe commit status, not a marker commit
+rr = Path("core/github/REVIEW-READY.md").read_text(encoding="utf-8")
+assert "Linktrend Review Ready" in rr
+assert "Do **not** add a readiness file" in rr
+
+print("no authoritative positive JSON readiness dependency")
+PY
+pass "No authoritative positive dependency on deleted JSON readiness"
+
 # Honest outcomes vocabulary
 python3 - <<'PY'
 from pathlib import Path

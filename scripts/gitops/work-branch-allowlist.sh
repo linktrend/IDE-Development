@@ -39,10 +39,3 @@ allowed_work_branch_globs() {
     'issue/*' 'feature/*' 'fix/*' 'chore/*' \
     'codex/*' 'cursor/*' 'antigravity/*' 'dependabot/*' 'dev/*'
 }
-
-# Paths permitted in a review-ready marker-only commit.
-review_ready_allowed_paths() {
-  printf '%s\n' \
-    '.linktrend/review-ready.json' \
-    '.linktrend/review-freeze.json'
-}
