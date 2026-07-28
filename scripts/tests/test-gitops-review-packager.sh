@@ -160,4 +160,26 @@ PY
 done
 pass "App token same-job only; no job-output secret transport"
 
+# ---- Concurrency: PR/head key; never workflow_run.id / check_run.id ----
+for wf in "$PKG" "$INT"; do
+  grp="$(grep -E '^\s*group:' "$wf" | head -1)"
+  echo "$grp" | grep -q 'workflow_run\.id\|check_run\.id' \
+    && fail "concurrency must not use workflow_run.id/check_run.id: $wf :: $grp"
+  echo "$grp" | grep -Eq 'pull_request\.number|pull_requests\[0\]\.number|head_sha' \
+    || fail "concurrency must key on PR number or head SHA: $wf :: $grp"
+  grep -q 'cancel-in-progress: false' "$wf" || fail "cancel-in-progress must be false: $wf"
+done
+grep -q 'cancel-in-progress: false' "$STG"
+grep -q 'cancel-in-progress: false' "$MAIN"
+# Event filters before mint: promote workflows require promote/* head
+grep -q "startsWith(github.event.workflow_run.head_branch, 'promote/staging/')" "$STG" \
+  || fail "staging must filter workflow_run head_branch before mint"
+grep -q "startsWith(github.event.workflow_run.head_branch, 'promote/main/')" "$MAIN" \
+  || fail "main must filter workflow_run head_branch before mint"
+grep -q "Linktrend Main Outcome" "$STG" || fail "staging must exclude Linktrend Main Outcome"
+grep -q "workflow_run.event == 'pull_request'" "$PKG" || fail "packager must ignore push CI"
+grep -q "workflow_run.event == 'pull_request'" "$INT" || fail "integrator must ignore push CI"
+grep -q "!startsWith(github.head_ref, 'promote/')" "$PKG" || fail "packager must exclude promote heads"
+pass "Concurrency per PR/head + pre-mint event filters"
+
 echo "PASS: gitops static redesign + trust-boundary checks"

@@ -586,5 +586,192 @@ print("discovery readiness token ok")
 PY
 pass "discovery readiness prefers AUTOMATION_TOKEN; fail closed without App"
 
+# ============================================================================
+# 16) Concurrency group mapping + dual-evaluator race (exactly one Bugbot)
+# ============================================================================
+python3 - "$ROOT" <<'PY'
+import json, os, subprocess, sys, tempfile, time
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
+from event_relevance import packager_concurrency_group, integrator_concurrency_group
+
+sha = "ffffffffffffffffffffffffffffffffffffffff"
+pr_num = 42
+# Three event shapes → identical Packager group
+prt = {"pull_request": {"number": pr_num, "head": {"sha": sha}}}
+wr = {"workflow_run": {"id": 999001, "head_sha": sha, "pull_requests": [{"number": pr_num}]}}
+cr = {"check_run": {"id": 888002, "head_sha": sha, "pull_requests": [{"number": pr_num}]}}
+g1 = packager_concurrency_group("pull_request_target", prt, run_id="1")
+g2 = packager_concurrency_group("workflow_run", wr, run_id="2")
+g3 = packager_concurrency_group("check_run", cr, run_id="3")
+assert g1 == g2 == g3 == f"linktrend-packager-eval-{pr_num}", (g1, g2, g3)
+# Without PR list, fall back to head SHA (still shared across event types)
+wr2 = {"workflow_run": {"id": 1, "head_sha": sha, "pull_requests": []}}
+cr2 = {"check_run": {"id": 2, "head_sha": sha, "pull_requests": []}}
+assert packager_concurrency_group("workflow_run", wr2) == packager_concurrency_group("check_run", cr2)
+assert packager_concurrency_group("workflow_run", wr2).endswith(sha)
+# Integrator likewise; must not cancel mid-merge (tested in YAML statically)
+ig1 = integrator_concurrency_group("pull_request_target", prt)
+ig2 = integrator_concurrency_group("workflow_run", wr)
+ig3 = integrator_concurrency_group("check_run", cr)
+assert ig1 == ig2 == ig3 == f"linktrend-integrator-eval-{pr_num}"
+
+# Dual-process race on shared comment store
+root = Path(sys.argv[1])
+store = Path(tempfile.mkdtemp()) / "comments.json"
+script = root / "scripts/gitops/bugbot_request_once.py"
+
+def run_one(delay: float, out: Path):
+    return subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "--store", str(store),
+            "--sha", sha,
+            "--fast-gate-ok",
+            "--pretouch-delay", str(delay),
+            "--hold-lock-seconds", "0.15",
+            "--out", str(out),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+out_a = Path(tempfile.mkdtemp()) / "a.json"
+out_b = Path(tempfile.mkdtemp()) / "b.json"
+with ThreadPoolExecutor(max_workers=2) as ex:
+    futs = [ex.submit(run_one, 0.0, out_a), ex.submit(run_one, 0.02, out_b)]
+    codes = [f.result().returncode for f in as_completed(futs)]
+assert all(c == 0 for c in codes), codes
+results = [json.loads(out_a.read_text()), json.loads(out_b.read_text())]
+statuses = sorted(r["status"] for r in results)
+assert statuses == ["bugbot_requested", "skipped"], statuses
+assert any(r.get("detail") == "skipped_duplicate_marker" for r in results if r["status"] == "skipped")
+comments = json.loads(store.read_text())
+assert len(comments) == 1, comments
+assert sha in comments[0]["body"]
+assert comments[0]["body"].lower().count("cursor review") == 1
+print("concurrency+race ok")
+PY
+pass "concurrency group shared; dual evaluator posts Bugbot once"
+
+# ============================================================================
+# 17) Privileged event-filter matrix (zero mint on unrelated rows)
+# ============================================================================
+python3 - "$ROOT" <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
+from event_relevance import privileged_workflows_for
+
+def prt(base, head, draft=False):
+    return {
+        "pull_request": {
+            "draft": draft,
+            "base": {"ref": base},
+            "head": {"ref": head, "sha": "a" * 40},
+            "number": 1,
+        }
+    }
+
+def wr(event, head_branch, base=None, conclusion="success"):
+    prs = []
+    if base is not None:
+        prs = [{"number": 1, "base": {"ref": base}, "head": {"ref": head_branch}}]
+    return {
+        "workflow_run": {
+            "conclusion": conclusion,
+            "event": event,
+            "head_branch": head_branch,
+            "head_sha": "b" * 40,
+            "pull_requests": prs,
+            "name": "CI",
+        }
+    }
+
+def cr(name, base, head, slug="cursor"):
+    return {
+        "check_run": {
+            "name": name,
+            "head_sha": "c" * 40,
+            "app": {"slug": slug},
+            "pull_requests": [
+                {"number": 1, "base": {"ref": base}, "head": {"ref": head}}
+            ],
+        }
+    }
+
+matrix = []
+
+def expect(label, event_name, event, allowed):
+    got = privileged_workflows_for(event_name, event)
+    matrix.append({"label": label, "got": got, "allowed": sorted(allowed)})
+    assert sorted(got) == sorted(allowed), f"{label}: got={got} want={allowed}"
+
+# Feature PR → development
+expect("feature PR→dev pull_request_target", "pull_request_target",
+       prt("development", "issue/x"), {"packager-evaluate", "integrator"})
+expect("feature PR CI workflow_run", "workflow_run",
+       wr("pull_request", "issue/x", base="development"),
+       {"packager-evaluate", "integrator"})
+expect("feature PR Branch Source workflow_run", "workflow_run",
+       {**wr("pull_request", "issue/x", base="development"),
+        **{"workflow_run": {**wr("pull_request", "issue/x", base="development")["workflow_run"], "name": "Branch Source Policy"}}},
+       {"packager-evaluate", "integrator"})
+expect("feature Bugbot check_run", "check_run",
+       cr("Cursor Bugbot", "development", "issue/x"),
+       {"packager-evaluate", "integrator"})
+
+# promote/staging → staging
+expect("promote staging PR", "pull_request_target",
+       prt("staging", "promote/staging/abc"), {"staging-promote"})
+expect("promote staging CI", "workflow_run",
+       wr("pull_request", "promote/staging/abc", base="staging"), {"staging-promote"})
+expect("promote staging Bugbot", "check_run",
+       cr("Cursor Bugbot", "staging", "promote/staging/abc"), {"staging-promote"})
+
+# promote/main → main
+expect("promote main PR", "pull_request_target",
+       prt("main", "promote/main/abc"), {"main-promote"})
+expect("promote main CI", "workflow_run",
+       wr("pull_request", "promote/main/abc", base="main"), {"main-promote"})
+expect("promote main Bugbot", "check_run",
+       cr("Cursor Bugbot", "main", "promote/main/abc"), {"main-promote"})
+
+# Ordinary push CI — no PR
+for branch in ("development", "staging", "main"):
+    expect(f"push CI {branch}", "workflow_run",
+           wr("push", branch, base=None), set())
+
+# Outcome checks must not awaken unrelated workflows
+for name in (
+    "Linktrend Packager Result",
+    "Linktrend Integrator Result",
+    "Linktrend Staging Outcome",
+    "Linktrend Main Outcome",
+):
+    expect(f"outcome {name} on feature", "check_run",
+           cr(name, "development", "issue/x", slug="github-actions"), set())
+    expect(f"outcome {name} external slug still excluded by name", "check_run",
+           cr(name, "development", "issue/x", slug="cursor"), set())
+
+# Feature PR must not start promotion
+expect("feature not staging", "pull_request_target",
+       prt("development", "issue/x"), {"packager-evaluate", "integrator"})
+assert "staging-promote" not in privileged_workflows_for(
+    "pull_request_target", prt("development", "issue/x")
+)
+assert "main-promote" not in privileged_workflows_for(
+    "pull_request_target", prt("development", "issue/x")
+)
+
+print("matrix rows", len(matrix))
+print("event matrix ok")
+PY
+pass "privileged event-filter matrix"
+
 echo ""
 echo "PASS: behavioral gitops tests (${PASS} groups)"

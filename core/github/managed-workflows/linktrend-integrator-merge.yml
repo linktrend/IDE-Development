@@ -27,29 +27,47 @@ on:
 
 permissions: {}
 
+# Serialize per PR/head; never cancel mid-merge (cancel-in-progress=false).
 concurrency:
-  group: integrator-pr-${{ github.event.pull_request.number || github.event.workflow_run.id || github.event.check_run.id || github.event.inputs.pr_number || github.run_id }}
-  cancel-in-progress: true
+  group: linktrend-integrator-eval-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.event.check_run.pull_requests[0].number || github.event.inputs.pr_number || github.event.workflow_run.head_sha || github.event.check_run.head_sha || format('misc-{0}', github.run_id) }}
+  cancel-in-progress: false
 
 jobs:
   evaluate:
     name: evaluate
+    # Filter BEFORE checkout/token mint. Development PRs only; never promote/*;
+    # never push CI without a PR; never outcome-check self-wakes.
     if: >
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request_target' && github.event.pull_request.draft == false) ||
+      (
+        github.event_name == 'pull_request_target' &&
+        github.event.pull_request.draft == false &&
+        github.event.pull_request.base.ref == 'development' &&
+        !startsWith(github.head_ref, 'promote/')
+      ) ||
       (
         github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success'
+        github.event.workflow_run.conclusion == 'success' &&
+        (github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.event == 'pull_request_target') &&
+        !startsWith(github.event.workflow_run.head_branch, 'promote/') &&
+        (
+          github.event.workflow_run.pull_requests[0] == null ||
+          github.event.workflow_run.pull_requests[0].base.ref == 'development'
+        )
       ) ||
-      (github.event_name == 'check_run' &&
-       github.event.check_run.app.slug != 'github-actions' &&
-       github.event.check_run.name != 'evaluate' &&
-       github.event.check_run.name != 'Linktrend Integrator Result' &&
-       github.event.check_run.name != 'Linktrend Packager Result' &&
-       github.event.check_run.name != 'Linktrend Staging Outcome' &&
-       github.event.check_run.name != 'Linktrend Main Outcome' &&
-       github.event.check_run.name != 'enable-auto-merge' &&
-       github.event.check_run.name != 'merge-when-ready')
+      (
+        github.event_name == 'check_run' &&
+        github.event.check_run.app.slug != 'github-actions' &&
+        github.event.check_run.name != 'evaluate' &&
+        github.event.check_run.name != 'Linktrend Integrator Result' &&
+        github.event.check_run.name != 'Linktrend Packager Result' &&
+        github.event.check_run.name != 'Linktrend Staging Outcome' &&
+        github.event.check_run.name != 'Linktrend Main Outcome' &&
+        github.event.check_run.name != 'enable-auto-merge' &&
+        github.event.check_run.name != 'merge-when-ready' &&
+        github.event.check_run.pull_requests[0].base.ref == 'development' &&
+        !startsWith(github.event.check_run.pull_requests[0].head.ref, 'promote/')
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
