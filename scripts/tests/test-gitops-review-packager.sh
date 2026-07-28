@@ -19,6 +19,9 @@ grep -q 'packager_evaluate.py' "$PKG" || fail "evaluate phase missing"
 grep -q 'workflow_run:' "$PKG" || fail "packager missing workflow_run wake"
 grep -q 'workflows:' "$PKG" || fail "packager missing workflows list"
 grep -q 'CI' "$PKG" || fail "packager must wake on CI workflow_run"
+grep -q 'Branch Source Policy' "$PKG" || fail "packager must wake on Branch Source Policy"
+grep -q 'Branch Source Policy' "$INT" || fail "integrator must wake on Branch Source Policy"
+grep -q 'Enforce allowed PR source branches' "$PKG" || fail "packager FAST_GATE must include Branch Source check"
 pass "Workflow phases + crons + workflow_run wake"
 
 for f in linktrend-review-packager.yml linktrend-development-to-staging.yml \
@@ -112,5 +115,49 @@ for s in ("waiting","skipped","blocked","bugbot_requested","automation_credentia
 print("outcomes ok")
 PY
 pass "Honest outcome vocabulary present"
+
+# ---- App token: same-job mint; never job-output secrets ----
+PINNED="fee1f7d63c2ff003460e3d139729b119787bc349"
+for wf in "${WRITE_WFS[@]}"; do
+  grep -q "create-github-app-token@${PINNED}" "$wf" \
+    || fail "App token action not pinned to reviewed SHA: $wf"
+  if grep -nE 'outputs:\s*$' "$wf" >/dev/null; then
+    # Any job-level outputs block must not expose app_token / token
+    python3 - "$wf" <<'PY'
+import re,sys
+text=open(sys.argv[1],encoding="utf-8").read()
+# Rough: between "jobs:" and end, find job outputs that mention token
+for m in re.finditer(r'(?m)^  [A-Za-z0-9_-]+:\n(?:.*\n)*?(?=^  [A-Za-z0-9_-]+:|\Z)', text.split("jobs:\n",1)[-1] if "jobs:" in text else ""):
+    block=m.group(0)
+    if re.search(r'(?m)^\s+outputs:\s*$', block):
+        if re.search(r'(?i)app_token|outputs\.token|token:', block.split("steps:",1)[0]):
+            raise SystemExit(f"token-like job output in {sys.argv[1]}")
+print("ok")
+PY
+  fi
+  if grep -nE 'needs\.[A-Za-z0-9_-]+\.outputs\.(app_token|token)\b' "$wf"; then
+    fail "consumes App token via needs.*.outputs: $wf"
+  fi
+  if grep -nE 'skip-token-revoke:\s*true' "$wf"; then
+    fail "skip-token-revoke workaround forbidden: $wf"
+  fi
+done
+# Consumer steps must not inject private key env
+for wf in "${WRITE_WFS[@]}"; do
+  # private-key: is allowed only under create-github-app-token with: block
+  python3 - "$wf" <<'PY'
+from pathlib import Path
+import sys,re
+text=Path(sys.argv[1]).read_text()
+# Forbid LINKTREND_GITOPS_APP_PRIVATE_KEY in env: mappings for run steps
+if re.search(r'(?m)^\s+LINKTREND_GITOPS_APP_PRIVATE_KEY:\s*', text):
+    raise SystemExit(f"private key env injected into workflow steps: {sys.argv[1]}")
+# Forbid job output named app_token
+if re.search(r'(?m)^\s+app_token:\s*', text):
+    raise SystemExit(f"app_token job output present: {sys.argv[1]}")
+print("ok")
+PY
+done
+pass "App token same-job only; no job-output secret transport"
 
 echo "PASS: gitops static redesign + trust-boundary checks"

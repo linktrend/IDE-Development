@@ -1,8 +1,11 @@
 name: LiNKtrend Integrator Merge To Development
 
 # Privileged jobs checkout the default branch only (never PR head/merge).
-# Wake paths: pull_request_target (initial), workflow_run (Actions gates),
-# check_run (external apps e.g. Cursor Bugbot).
+# Wake paths: pull_request_target (initial), workflow_run (every Actions gate
+# workflow that produces a named fast-gate check), check_run (external apps).
+#
+# Consumers: workflow_run.workflows is STATIC YAML — list every gate-producing
+# workflow display name for the repository (IDE: CI + Branch Source Policy).
 
 on:
   pull_request_target:
@@ -11,6 +14,7 @@ on:
   workflow_run:
     workflows:
       - CI
+      - Branch Source Policy
     types: [completed]
   check_run:
     types: [completed]
@@ -35,8 +39,7 @@ jobs:
       (github.event_name == 'pull_request_target' && github.event.pull_request.draft == false) ||
       (
         github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.name == 'CI'
+        github.event.workflow_run.conclusion == 'success'
       ) ||
       (github.event_name == 'check_run' &&
        github.event.check_run.app.slug != 'github-actions' &&
@@ -62,7 +65,7 @@ jobs:
 
       - name: Mint GitHub App token
         id: app
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
         continue-on-error: true
         with:
           app-id: ${{ vars.LINKTREND_GITOPS_APP_ID }}
@@ -98,12 +101,11 @@ jobs:
         env:
           LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
           LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
-          GITHUB_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ steps.target.outputs.pr }}
           HEAD_SHA: ${{ steps.target.outputs.head }}
-          REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development' }}
+          REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development,Enforce allowed PR source branches' }}
           BUGBOT_SUCCESS_CHECK_NAME: Cursor Bugbot
           GATE_WAIT_SECONDS: "120"
           GATE_POLL_SECONDS: "15"
@@ -111,7 +113,7 @@ jobs:
         run: |
           set -euo pipefail
           if ! source scripts/gitops/resolve_automation_token.sh; then
-            python3 scripts/gitops/write_outcome.py \
+            GITHUB_TOKEN="${{ github.token }}" python3 scripts/gitops/write_outcome.py \
               --file integrator-result.json \
               --status automation_credentials_blocked \
               --detail "Integrator requires GitHub App token for autonomous merge" \
@@ -124,6 +126,7 @@ jobs:
           fi
           export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE
           export GH_TOKEN="${AUTOMATION_TOKEN}"
+          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
           bash scripts/gitops/integrator_evaluate.sh
 
       - name: Upload integrator result
@@ -149,8 +152,6 @@ jobs:
             detail="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("detail",""))' "$f")"
             echo "### Integrator status: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
             echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
-            # Job green means the evaluator ran. Success terminal states are only
-            # reported via Linktrend Integrator Result check (merged).
             case "${status}" in
               failed|automation_credentials_blocked) exit 1 ;;
               *) exit 0 ;;

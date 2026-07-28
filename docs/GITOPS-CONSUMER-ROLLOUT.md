@@ -36,6 +36,13 @@ Consumer adoption is **staged** only after:
 1. this change reaches IDE Development’s **default branch (`main`)** and first-adopter smoke passes, and
 2. **Bugbot mention-only** (`manualTriggerOnly`) is confirmed per repository (`docs/contracts/BUGBOT-MENTION-ONLY.md`).
 
+### Static `workflow_run` gate workflow names
+
+`workflow_run.workflows` is **static YAML** and cannot be configured through repository variables. When syncing managed workflows into a consumer, **substitute or generate** the list so it includes every Actions workflow display name that produces a configured named gate check. IDE Development lists:
+
+- `CI`
+- `Branch Source Policy`
+
 Merging to `development` alone does **not** activate new scheduled workflows. Code alone does **not** enforce mention-only.
 
 ---

@@ -38,7 +38,15 @@ class ReadyStatus:
 
 
 def _gh_token() -> str:
-    return os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or ""
+    # Prefer App automation token for autonomous GitOps (discover/evaluate/promote).
+    # Do not let the workflow GITHUB_TOKEN shadow a minted App token.
+    return (
+        os.environ.get("AUTOMATION_TOKEN")
+        or os.environ.get("LINKTREND_APP_TOKEN")
+        or os.environ.get("GH_TOKEN")
+        or os.environ.get("GITHUB_TOKEN")
+        or ""
+    )
 
 
 def _repo_slug() -> str:
@@ -136,7 +144,10 @@ class GitHubStatusBackend:
         self.repo = repo or _repo_slug()
         self.token = token or _gh_token()
         if not self.token:
-            raise RuntimeError("GH_TOKEN/GITHUB_TOKEN required for GitHub status backend")
+            raise RuntimeError(
+                "AUTOMATION_TOKEN (preferred) or GH_TOKEN/GITHUB_TOKEN required "
+                "for GitHub status backend"
+            )
 
     def get_latest(self, sha: str) -> ReadyStatus | None:
         url = f"https://api.github.com/repos/{self.repo}/commits/{sha}/statuses"

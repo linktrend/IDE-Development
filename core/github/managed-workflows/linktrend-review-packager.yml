@@ -5,10 +5,14 @@
 # Wake paths:
 #   - schedule / workflow_dispatch → discover (draft PRs only)
 #   - pull_request_target → initial evaluate (trusted workflow + scripts)
-#   - workflow_run (CI) → Actions fast-gate completion (check_run is suppressed for Actions)
+#   - workflow_run → Actions gate completion for EVERY workflow that produces a
+#     named fast-gate check (IDE: CI + Branch Source Policy). check_run alone is
+#     insufficient for Actions-created suites.
 #   - check_run → external apps only (e.g. Cursor Bugbot); github-actions filtered out
 #
-# Consumers: map gate workflow *names* into workflow_run.workflows (IDE uses "CI").
+# Consumers: workflow_run.workflows is STATIC YAML. Substitute/generate the list of
+# every workflow display name that produces a configured named gate check. Repository
+# variables cannot change workflow_run trigger names.
 
 name: Linktrend Review Packager
 
@@ -27,6 +31,7 @@ on:
   workflow_run:
     workflows:
       - CI
+      - Branch Source Policy
     types: [completed]
   check_run:
     types: [completed]
@@ -39,7 +44,7 @@ concurrency:
 
 env:
   BUGBOT_REVIEW_COMMAND: ${{ vars.LINKTREND_BUGBOT_REVIEW_COMMAND || 'cursor review' }}
-  FAST_GATE_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development' }}
+  FAST_GATE_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development,Enforce allowed PR source branches' }}
 
 jobs:
   discover:
@@ -56,9 +61,10 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
+      # Private key only here. Consuming steps must not receive it.
       - name: Mint GitHub App token
         id: app
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
         continue-on-error: true
         with:
           app-id: ${{ vars.LINKTREND_GITOPS_APP_ID }}
@@ -79,7 +85,10 @@ jobs:
             echo "### Packager discover: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
+          # App token for all autonomous API calls (including readiness). Never use workflow GITHUB_TOKEN.
           export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE AUTOMATION_CREDENTIALS_STATUS
+          export GH_TOKEN="${AUTOMATION_TOKEN}"
+          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
           python3 scripts/gitops/packager_discover.py
           status="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json"))["status"])')"
           echo "### Packager discover: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
@@ -103,8 +112,7 @@ jobs:
       github.event_name == 'pull_request_target' ||
       (
         github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.name == 'CI'
+        github.event.workflow_run.conclusion == 'success'
       ) ||
       (github.event_name == 'check_run' &&
        github.event.check_run.app.slug != 'github-actions' &&
@@ -129,7 +137,7 @@ jobs:
 
       - name: Mint GitHub App token
         id: app
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
         continue-on-error: true
         with:
           app-id: ${{ vars.LINKTREND_GITOPS_APP_ID }}
@@ -160,7 +168,6 @@ jobs:
         env:
           LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
           LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
-          GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ steps.target.outputs.pr }}
           HEAD_SHA: ${{ steps.target.outputs.head }}
@@ -170,7 +177,8 @@ jobs:
         run: |
           set -euo pipefail
           if ! source scripts/gitops/resolve_automation_token.sh; then
-            python3 scripts/gitops/write_outcome.py \
+            # Result check may use the job token (not autonomous mutation).
+            GITHUB_TOKEN="${{ github.token }}" python3 scripts/gitops/write_outcome.py \
               --status automation_credentials_blocked \
               --detail "App token unavailable for Packager evaluate" \
               --check-name "Linktrend Packager Result" \
@@ -180,13 +188,13 @@ jobs:
             exit 1
           fi
           export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE AUTOMATION_CREDENTIALS_STATUS
+          export GH_TOKEN="${AUTOMATION_TOKEN}"
+          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
           python3 scripts/gitops/packager_evaluate.py
           status="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json"))["status"])')"
           detail="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json")).get("detail",""))')"
           echo "### Packager evaluate: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
-          # Job green means evaluator ran. Terminal success is only via Result check
-          # for bugbot_requested / packaged — not mere script execution.
           case "${status}" in
             failed|automation_credentials_blocked) exit 1 ;;
             *) exit 0 ;;

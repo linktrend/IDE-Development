@@ -1,7 +1,7 @@
 # GitHub App credentials for autonomous GitOps (setup contract)
 
-**Status:** Required external gate — agents must not create Apps, secrets, or credentials  
-**Date:** 2026-07-28  
+**Status:** Required external gate — agents must not create Apps, secrets, or credentials
+**Date:** 2026-07-28
 **Audience:** Carlos (one-time setup)
 
 ## Why not `GITHUB_TOKEN` alone
@@ -19,7 +19,18 @@ A dedicated **GitHub App** installed on the org/repos, used only by managed GitO
 | Repository/org variable | `LINKTREND_GITOPS_APP_ID` | Numeric App ID (non-secret) |
 | Repository/org secret | `LINKTREND_GITOPS_APP_PRIVATE_KEY` | PEM private key — **never** commit |
 
-Workflows mint a short-lived installation token (e.g. `actions/create-github-app-token`) and set `LINKTREND_APP_TOKEN` for scripts.
+### Token minting contract (same job only)
+
+1. Only the official mint step receives the private key:
+   `actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349` (v2.2.2)
+2. Subsequent shell/Python steps receive **only**:
+   - `LINKTREND_GITOPS_APP_ID` (non-secret)
+   - `LINKTREND_APP_TOKEN` = `${{ steps.app.outputs.token }}` (minted installation token)
+3. Consuming steps must **not** receive `LINKTREND_GITOPS_APP_PRIVATE_KEY`
+4. Mint and consume in the **same job**. Do not put the token in job outputs, artifacts, summaries, or repository files (GitHub does not transmit secret job outputs; the action revokes the token when its job ends)
+5. Do not use `skip-token-revoke` to work around cross-job transport
+
+`scripts/gitops/resolve_automation_token.sh` accepts a non-empty minted token + App ID and rejects private-key leakage into consumer steps.
 
 ## Minimum App permissions
 
@@ -39,20 +50,20 @@ Do **not** grant admin, members, or secrets management.
 
 ## Workflow fail-closed contract
 
-If App ID/private key/token are unavailable:
+If App ID or minted token are unavailable:
 
 1. Outcome status is **`automation_credentials_blocked`**
 2. Workflows must **not** silently fall back to `GITHUB_TOKEN` and claim autonomy
-3. Diagnostics may print `AUTOMATION_TOKEN_SOURCE` / `AUTOMATION_CREDENTIALS_STATUS` only (never key material)
+3. Diagnostics may print `AUTOMATION_TOKEN_SOURCE` / `AUTOMATION_CREDENTIALS_STATUS` only (never key or token material)
 
 `scripts/gitops/resolve_automation_token.sh` enforces this when `REQUIRE_APP_TOKEN=1`.
 
 ## One-time setup steps (Carlos)
 
-1. GitHub → Settings → Developer settings → **GitHub Apps** → New GitHub App  
-   - Name e.g. `LiNKtrend GitOps`  
-   - Webhook: disabled  
-   - Permissions: table above  
+1. GitHub → Settings → Developer settings → **GitHub Apps** → New GitHub App
+   - Name e.g. `LiNKtrend GitOps`
+   - Webhook: disabled
+   - Permissions: table above
    - Where can this App be installed: Only on this account / org
 2. Create private key; store PEM in org or repo secret `LINKTREND_GITOPS_APP_PRIVATE_KEY`
 3. Note App ID → variable `LINKTREND_GITOPS_APP_ID`
@@ -64,8 +75,8 @@ If App ID/private key/token are unavailable:
 
 Consumer rollout remains blocked until:
 
-1. This corrected system is on the default branch and smoke-tested  
-2. Bugbot `manualTriggerOnly` is confirmed per repo  
+1. This corrected system is on the default branch and smoke-tested
+2. Bugbot `manualTriggerOnly` is confirmed per repo
 3. This App token path is configured (`automation_credentials_blocked` must not be the steady state)
 
 ## Agent prohibition

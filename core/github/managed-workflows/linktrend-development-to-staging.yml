@@ -2,8 +2,11 @@
 # Sync: scripts/sync-managed-workflows.sh
 #
 # TRUST BOUNDARY: privileged jobs check out the default branch only.
-# Never execute PR head/merge scripts with write credentials.
+# App token is minted and consumed in the SAME job (never via job outputs).
 # Build creates an exact promote candidate. Reevaluate binds that PR + head SHA.
+#
+# Consumers: workflow_run.workflows is STATIC YAML — list every gate-producing
+# workflow display name (IDE: CI + Branch Source Policy).
 name: Development → Staging Promotion
 
 on:
@@ -30,7 +33,9 @@ on:
   check_run:
     types: [completed]
   workflow_run:
-    workflows: ["CI"]
+    workflows:
+      - CI
+      - Branch Source Policy
     types: [completed]
 
 concurrency:
@@ -40,7 +45,7 @@ concurrency:
 permissions: {}
 
 jobs:
-  resolve-token:
+  promote:
     if: >
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
@@ -57,25 +62,8 @@ jobs:
       ) ||
       (
         github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.name == 'CI'
+        github.event.workflow_run.conclusion == 'success'
       )
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      token_ready: ${{ steps.app.outcome == 'success' && steps.app.outputs.token != '' && 'true' || 'false' }}
-      app_token: ${{ steps.app.outputs.token }}
-    steps:
-      - id: app
-        continue-on-error: true
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ vars.LINKTREND_GITOPS_APP_ID }}
-          private-key: ${{ secrets.LINKTREND_GITOPS_APP_PRIVATE_KEY }}
-
-  promote:
-    needs: resolve-token
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -84,13 +72,10 @@ jobs:
       statuses: read
       pull-requests: read
     env:
-      GH_TOKEN: ${{ needs.resolve-token.outputs.token_ready == 'true' && needs.resolve-token.outputs.app_token || github.token }}
-      GITHUB_TOKEN: ${{ needs.resolve-token.outputs.token_ready == 'true' && needs.resolve-token.outputs.app_token || github.token }}
-      LINKTREND_APP_TOKEN: ${{ needs.resolve-token.outputs.app_token }}
-      LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
-      REQUIRE_APP_TOKEN: "1"
       OUTCOME_CHECK_NAME: Linktrend Staging Outcome
-      STAGING_GATE_CHECKS: ${{ vars.LINKTREND_STAGING_GATE_CHECKS || 'Verify IDE Development' }}
+      STAGING_GATE_CHECKS: ${{ vars.LINKTREND_STAGING_GATE_CHECKS || 'Verify IDE Development,Enforce allowed PR source branches' }}
+      REQUIRE_APP_TOKEN: "1"
+      LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
     steps:
       - name: Checkout trusted default branch only
         uses: actions/checkout@v4
@@ -99,12 +84,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Configure git remote for App token pushes
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+      - name: Mint GitHub App token
+        id: app
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        continue-on-error: true
+        with:
+          app-id: ${{ vars.LINKTREND_GITOPS_APP_ID }}
+          private-key: ${{ secrets.LINKTREND_GITOPS_APP_PRIVATE_KEY }}
 
       - name: Resolve mode and exact candidate
         id: ctx
@@ -116,6 +102,7 @@ jobs:
           INPUT_PR: ${{ github.event.inputs.promote_pr_number }}
           INPUT_SHA: ${{ github.event.inputs.expected_head_sha }}
           HEAD_REF: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           MODE="reevaluate"
@@ -158,31 +145,43 @@ jobs:
             echo "skip=${SKIP}"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Resolve automation token (fail closed)
+      - name: Check App token minted
         id: creds
+        env:
+          LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
         run: |
           set -euo pipefail
-          if ! source scripts/gitops/resolve_automation_token.sh; then
+          if source scripts/gitops/resolve_automation_token.sh; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            exit 0
           fi
-          echo "ready=true" >> "$GITHUB_OUTPUT"
-          echo "AUTOMATION_TOKEN=${AUTOMATION_TOKEN}" >> "$GITHUB_ENV"
-          echo "AUTOMATION_TOKEN_SOURCE=${AUTOMATION_TOKEN_SOURCE}" >> "$GITHUB_ENV"
 
       - name: Report credentials blocked
         if: steps.creds.outputs.ready != 'true'
         env:
           HEAD_SHA: ${{ steps.ctx.outputs.sha || github.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 scripts/gitops/write_outcome.py \
             --status automation_credentials_blocked \
-            --detail "LINKTREND_GITOPS_APP_ID / LINKTREND_GITOPS_APP_PRIVATE_KEY required for autonomous promotion." \
+            --detail "LINKTREND_GITOPS_APP_ID / minted App token required for autonomous promotion." \
             --check-name "$OUTCOME_CHECK_NAME" \
             --head-sha "$HEAD_SHA" \
             --token-env GITHUB_TOKEN
           exit 1
+
+      - name: Configure git remote for App token pushes
+        if: steps.ctx.outputs.skip != 'true' && steps.creds.outputs.ready == 'true'
+        env:
+          LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          set -euo pipefail
+          source scripts/gitops/resolve_automation_token.sh
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${AUTOMATION_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
       - name: Run staging promotion
         if: steps.ctx.outputs.skip != 'true' && steps.creds.outputs.ready == 'true'
@@ -192,8 +191,12 @@ jobs:
           EXPECTED_PROMOTE_HEAD: ${{ steps.ctx.outputs.sha }}
           GH_REPO: ${{ github.repository }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
         run: |
           set -euo pipefail
+          source scripts/gitops/resolve_automation_token.sh
+          export GH_TOKEN="${AUTOMATION_TOKEN}"
+          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
           bash scripts/gitops/promote_staging.sh
           status="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json"))["status"])')"
           detail="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json")).get("detail",""))')"
@@ -203,7 +206,7 @@ jobs:
             --detail "$detail" \
             --check-name "$OUTCOME_CHECK_NAME" \
             --head-sha "$sha" \
-            --token-env GITHUB_TOKEN
+            --token-env GH_TOKEN
           echo "### Staging outcome: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
           case "${status}" in

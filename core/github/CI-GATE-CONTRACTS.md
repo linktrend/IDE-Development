@@ -32,17 +32,12 @@ Check conclusion names that satisfy each gate are defined below for **this** rep
 
 All of the following must conclude **success** on the PR head SHA (when the workflow exists and is required for that event):
 
-| Check name (GitHub check / workflow job display) | Source |
-|--------------------------------------------------|--------|
-| `Verify IDE Development` | `.github/workflows/verify-ide-development.yml` (job `verify`) |
+| Check name (GitHub check / workflow job display) | Source workflow display name |
+|--------------------------------------------------|------------------------------|
+| `Verify IDE Development` | `CI` (`.github/workflows/ci.yml`) |
+| `Enforce allowed PR source branches` | `Branch Source Policy` (`.github/workflows/branch-source-policy.yml`) |
 
-Optional / informational checks that must **not** block `fast-gate`:
-
-- Docs-only or advisory workflows not listed above
-- `Cursor Bugbot` (separate success check — see Bugbot contract)
-- Unrelated third-party checks not in this table
-
-If `Verify IDE Development` did not run for the head SHA, treat as **not ready** (missing ≠ success).
+Packager and Integrator must list **both** workflow display names under `workflow_run.workflows`. Completion of either workflow reevaluates the exact PR/head; Bugbot/merge proceeds only when **every** named fast-gate check is success on that SHA.
 
 ### `staging-gate`
 
@@ -98,11 +93,19 @@ When syncing managed workflows into a consumer:
    - `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (fast-gate check names, comma-separated)
    - `LINKTREND_STAGING_GATE_CHECKS`
    - `LINKTREND_RELEASE_GATE_CHECKS`
-3. Map the consumer’s **GitHub Actions workflow display name** into the managed Packager/Integrator/promote `workflow_run.workflows` list (IDE Development uses `CI` from `.github/workflows/ci.yml`). `check_run` alone is insufficient for Actions-created suites.
+3. **`workflow_run.workflows` is STATIC YAML** and cannot be driven by repository variables. For each consumer, substitute or generate the managed workflow so the list contains **every** GitHub Actions workflow **display name** that produces a configured named gate check. IDE Development lists `CI` and `Branch Source Policy`.
 4. Document the mapping in the consumer’s `docs/` or workflow comments.
 5. Never invent “wait for all checks” as a shortcut.
-6. Configure the GitHub App credential contract (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`) before claiming autonomy.
+6. Configure the GitHub App credential contract (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`) before claiming autonomy. Mint and consume the App token in the **same job**; never via job outputs.
 7. Do **not** roll out until this corrected system is on the default branch, smoke-tested, and Bugbot `manualTriggerOnly` is confirmed.
+
+Optional / informational checks that must **not** block `fast-gate`:
+
+- Docs-only or advisory workflows not listed in the gate tables
+- `Cursor Bugbot` (separate success check — see Bugbot contract)
+- Unrelated third-party checks not in the gate tables
+
+Missing required checks are **not ready** (missing ≠ success).
 
 ---
 
@@ -111,7 +114,7 @@ When syncing managed workflows into a consumer:
 | Event | Used for |
 |-------|----------|
 | `pull_request_target` | Initial evaluate on trusted workflow definition (scripts from default branch) |
-| `workflow_run` (`CI` completed) | Reevaluate when GitHub Actions fast-gate finishes (Actions does not emit usable `check_run` workflow events for its own suites) |
+| `workflow_run` (every gate-producing workflow, e.g. `CI` + `Branch Source Policy`) | Reevaluate when GitHub Actions gates finish (Actions does not emit usable `check_run` workflow events for its own suites) |
 | `check_run` (non-`github-actions`) | External apps such as Cursor Bugbot |
 | `schedule` / `workflow_dispatch` | Discovery / promote build windows |
 
@@ -121,4 +124,4 @@ Privileged jobs always check out `github.event.repository.default_branch` with `
 
 ## Change control
 
-Changing required check names is a **contract change**: update this file, tests that assert the names, and any workflow `env` lists in the same PR.
+Changing required check names is a **contract change**: update this file, tests that assert the names, and any workflow `env` lists **and** static `workflow_run.workflows` lists in the same PR.

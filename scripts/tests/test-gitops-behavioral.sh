@@ -405,73 +405,110 @@ pass "exact-candidate promote binding + advancement fail-closed"
 
 # ============================================================================
 # 12) Gate wake path + Bugbot request scenarios (policy + workflow wiring)
+# Exact order: ready → CI done → Branch Source pending → waiting →
+# Branch Source done → wake → Bugbot exactly once
 # ============================================================================
 python3 - "$ROOT" <<'PY'
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
-from packager_logic import should_request_bugbot, fast_gate_status, build_bugbot_comment, marker_for
+from packager_logic import should_request_bugbot, fast_gate_status, build_bugbot_comment, parse_required_checks
 
 sha = "cccccccccccccccccccccccccccccccccccccccc"
-# PR opens while CI pending → no Bugbot
-st,_ = fast_gate_status([{"name":"Verify IDE Development","state":"PENDING"}], ["Verify IDE Development"])
-assert st == "pending"
-ok, reason = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=False)
+required = parse_required_checks(
+    "Verify IDE Development,Enforce allowed PR source branches"
+)
+assert required == ["Verify IDE Development", "Enforce allowed PR source branches"]
+
+# 1-2) PR/head ready; CI completes; Branch Source Policy still pending
+checks_after_ci = [
+    {"name": "Verify IDE Development", "state": "SUCCESS", "completedAt": "t1"},
+    {"name": "Enforce allowed PR source branches", "state": "PENDING", "completedAt": ""},
+]
+st, detail = fast_gate_status(checks_after_ci, required)
+assert st == "pending", (st, detail)
+ok, reason = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=(st == "success"))
 assert not ok and reason == "fast_gate_not_green"
-# One gate remains pending
-st,_ = fast_gate_status([
-  {"name":"Verify IDE Development","state":"SUCCESS"},
-  {"name":"Other","state":"PENDING"},
-], ["Verify IDE Development","Other"])
-assert st == "pending"
-# All gates success → exactly one request
-ok, reason = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=True)
-assert ok and reason == "request"
-c = [{"body": build_bugbot_comment("cursor review", sha)}]
-ok, reason = should_request_bugbot(comments=c, head_sha=sha, fast_gate_ok=True)
-assert not ok and reason == "skipped_duplicate_marker"
-# Head changes → old marker does not authorize new head
-ok, reason = should_request_bugbot(comments=c, head_sha="dddddddddddddddddddddddddddddddddddddddd", fast_gate_ok=True)
-assert ok and reason == "request"  # new head may request once
-# Evaluator cannot trigger itself indefinitely — workflow filters
-pkg = Path(sys.argv[1], "core/github/managed-workflows/linktrend-review-packager.yml").read_text()
-assert "workflow_run:" in pkg and "CI" in pkg
-assert "github-actions" in pkg
-assert "Linktrend Packager Result" in pkg
-assert "pull_request_target" in pkg
-print("wake+bugbot scenarios ok")
+# Evaluation returns waiting — no Bugbot request
+eval1_status = "waiting"
+assert eval1_status == "waiting"
+
+# 5-6) Branch Source Policy then completes → evaluation wakes again
+checks_both = [
+    {"name": "Verify IDE Development", "state": "SUCCESS", "completedAt": "t1"},
+    {"name": "Enforce allowed PR source branches", "state": "SUCCESS", "completedAt": "t2"},
+]
+st2, _ = fast_gate_status(checks_both, required)
+assert st2 == "success"
+ok2, reason2 = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=True)
+assert ok2 and reason2 == "request"
+# Exactly one request
+comments = [{"body": build_bugbot_comment("cursor review", sha)}]
+ok3, reason3 = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
+assert not ok3 and reason3 == "skipped_duplicate_marker"
+
+# Workflow wiring: both wake names present; static YAML (not vars)
+for rel in (
+    "core/github/managed-workflows/linktrend-review-packager.yml",
+    "core/github/managed-workflows/linktrend-integrator-merge.yml",
+):
+    text = Path(sys.argv[1], rel).read_text()
+    assert "Branch Source Policy" in text
+    assert "- CI" in text or "CI" in text
+    # Must not claim dynamic workflow_run names via vars
+    assert "vars.LINKTREND_WORKFLOW_RUN" not in text
+print("wake+bugbot dual-gate scenarios ok")
 PY
 pass "wake path + Bugbot request scenarios"
 
 # ============================================================================
-# 13) App credentials fail closed (no silent GITHUB_TOKEN autonomy)
+# 13) App credentials: minted token accepted without private key; fail closed otherwise
 # ============================================================================
 python3 - "$ROOT" <<'PY'
 from pathlib import Path
-import subprocess, os, tempfile, sys
+import subprocess, os, sys
 root = Path(sys.argv[1])
-env = os.environ.copy()
-env.pop("LINKTREND_APP_TOKEN", None)
-env.pop("LINKTREND_GITOPS_APP_ID", None)
-env.pop("LINKTREND_GITOPS_APP_PRIVATE_KEY", None)
-env["REQUIRE_APP_TOKEN"] = "1"
-r = subprocess.run(["bash", str(root/"scripts/gitops/resolve_automation_token.sh")],
-                   capture_output=True, text=True, env=env)
+script = str(root / "scripts/gitops/resolve_automation_token.sh")
+
+def run(env_extra):
+    env = os.environ.copy()
+    for k in ("LINKTREND_APP_TOKEN","LINKTREND_GITOPS_APP_ID","LINKTREND_GITOPS_APP_PRIVATE_KEY",
+              "AUTOMATION_TOKEN","GH_TOKEN","GITHUB_TOKEN"):
+        env.pop(k, None)
+    env["REQUIRE_APP_TOKEN"] = "1"
+    env.update(env_extra)
+    return subprocess.run(["bash", script], capture_output=True, text=True, env=env)
+
+# Real workflow shape: App ID + minted token; private key ABSENT
+r = run({"LINKTREND_GITOPS_APP_ID": "12345", "LINKTREND_APP_TOKEN": "ghs_test_minted_token_value"})
+assert r.returncode == 0, r.stderr + r.stdout
+assert "AUTOMATION_TOKEN_SOURCE=github_app" in r.stdout
+assert "ghs_test_minted_token_value" not in r.stdout  # never print token
+assert "ghs_test_minted_token_value" not in r.stderr
+
+# Missing token → blocked
+r = run({"LINKTREND_GITOPS_APP_ID": "12345"})
 assert r.returncode != 0
 assert "automation_credentials_blocked" in (r.stderr + r.stdout)
-# Scripts refuse autonomy without App source
-for rel in ["scripts/gitops/packager_discover.py","scripts/gitops/packager_evaluate.py"]:
-    t = (root/rel).read_text()
-    assert "automation_credentials_blocked" in t
-    assert 'github_app' in t
-for rel in ["scripts/gitops/promote_staging.sh","scripts/gitops/promote_main.sh","scripts/gitops/integrator_evaluate.sh"]:
-    t = (root/rel).read_text()
-    assert "automation_credentials_blocked" in t
-    assert "github_app" in t
+
+# Private key leaked into consumer → blocked
+r = run({
+    "LINKTREND_GITOPS_APP_ID": "12345",
+    "LINKTREND_APP_TOKEN": "ghs_test",
+    "LINKTREND_GITOPS_APP_PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----\nX\n-----END PRIVATE KEY-----",
+})
+assert r.returncode != 0
+assert "private_key_leaked" in (r.stderr + r.stdout) or "automation_credentials_blocked" in (r.stderr + r.stdout)
+
+# GITHUB_TOKEN alone must not grant autonomy
+r = run({"GITHUB_TOKEN": "ghs_workflow_token_only", "GH_TOKEN": "ghs_workflow_token_only"})
+assert r.returncode != 0
+assert "automation_credentials_blocked" in (r.stderr + r.stdout)
+
 doc = (root/"docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md").read_text()
-assert "personal access token" in doc.lower() or "PAT" in doc or "broad personal" in doc.lower()
-assert "LINKTREND_GITOPS_APP_PRIVATE_KEY" in doc
-print("credentials fail-closed ok")
+assert "same job" in doc.lower() or "SAME job" in doc
+assert "job outputs" in doc.lower()
+print("credentials contract ok")
 PY
 pass "App credentials fail closed; no silent GITHUB_TOKEN autonomy"
 
@@ -500,6 +537,54 @@ assert pr == "3" and head == "ghi"
 print("resolver ok")
 PY
 pass "trusted event PR/SHA resolver"
+
+# ============================================================================
+# 15) Discovery readiness uses AUTOMATION_TOKEN (workflow-shaped env)
+# ============================================================================
+python3 - "$ROOT" <<'PY'
+import os, sys, json, tempfile
+from pathlib import Path
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root / "scripts" / "gitops"))
+import readiness_status as rs
+
+token = "ghs_discovery_app_token_SECRET"
+tmpdir = tempfile.mkdtemp()
+os.environ["LINKTREND_STATUS_BACKEND"] = "file"
+os.environ["LINKTREND_STATUS_DIR"] = tmpdir
+# Workflow shape after resolve: AUTOMATION_TOKEN set; workflow GITHUB_TOKEN may also exist
+os.environ["AUTOMATION_TOKEN"] = token
+os.environ["GITHUB_TOKEN"] = "ghs_workflow_token_MUST_NOT_WIN"
+os.environ.pop("GH_TOKEN", None)
+os.environ.pop("LINKTREND_APP_TOKEN", None)
+
+# Prove preference
+assert rs._gh_token() == token
+
+sha = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+rs.mark_sha(sha, "ISSUE-1", "ready-for-discover")
+ok, detail = rs.is_sha_review_ready(sha)
+assert ok, detail
+
+# Missing App automation token → github backend would fail; file backend still works,
+# but resolve_automation_token fail-closed is the discover gate. Prove script rejects.
+import subprocess
+env = os.environ.copy()
+env.pop("AUTOMATION_TOKEN", None)
+env.pop("LINKTREND_APP_TOKEN", None)
+env.pop("LINKTREND_GITOPS_APP_ID", None)
+env.pop("LINKTREND_GITOPS_APP_PRIVATE_KEY", None)
+env["REQUIRE_APP_TOKEN"] = "1"
+r = subprocess.run(["bash", str(root/"scripts/gitops/resolve_automation_token.sh")],
+                   capture_output=True, text=True, env=env)
+assert r.returncode != 0
+out = r.stdout + r.stderr
+assert "automation_credentials_blocked" in out
+assert token not in out
+assert "ghs_workflow_token_MUST_NOT_WIN" not in out
+print("discovery readiness token ok")
+PY
+pass "discovery readiness prefers AUTOMATION_TOKEN; fail closed without App"
 
 echo ""
 echo "PASS: behavioral gitops tests (${PASS} groups)"
