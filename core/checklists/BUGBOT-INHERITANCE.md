@@ -38,9 +38,10 @@ Optional (if available on the Cursor team): enable **fail on unresolved issues**
      "Cursor Bugbot" "Your CI job name" "Enforce allowed PR source branches"
    ```
 6. Confirm Integrator workflow is present: `.github/workflows/linktrend-integrator-merge.yml`.
-7. Set GitHub Actions variable `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` to this repo's CI job name(s), comma-separated (example for IDE Development: `Verify IDE Development,Enforce allowed PR source branches`). Leave unset only if Bugbot + any non-failing checks are enough.
-8. Confirm Integrator managed template matches live file after sync (`cmp` in IDE Development verify).
-9. Record completion in the adoption/wire report: `Bugbot: enabled | blocked:<reason>`.
+7. Set GitHub Actions variable `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` to this repo's **fast-gate** CI job name(s), comma-separated (example for IDE Development: `Verify IDE Development`). Integrator no longer waits for every visible check — see `core/github/CI-GATE-CONTRACTS.md`. Leave unset only if the managed workflow default is wrong for the consumer (then set explicitly).
+8. Confirm Review Packager workflow is present: `.github/workflows/linktrend-review-packager.yml` (Tue/Fri 08:00 Asia/Taipei). Bugbot request default command is `cursor review` (configurable); success check remains `Cursor Bugbot`.
+9. Confirm Integrator managed template matches live file after sync (`cmp` in IDE Development verify).
+10. Record completion in the adoption/wire report: `Bugbot: enabled | blocked:<reason>`.
 
 ## If Bugbot cannot be enabled
 

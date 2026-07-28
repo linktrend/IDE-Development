@@ -1,6 +1,6 @@
 # Autonomous Git Operations
 
-**Status:** Active (Principal go-ahead 2026-07-24; Option A clock locked 2026-07-25)  
+**Status:** Active (Principal go-ahead 2026-07-24; Option A clock locked 2026-07-25; Review Packager redesign 2026-07-28)  
 **ADR:** `docs/adr/0003-autonomous-ship-pull-promote.md`  
 **Timezone:** Asia/Taipei  
 **SOT home:** This repo (IDE Development). Wired consumers inherit Layer A (`.cursor`) and Layer B (managed GitHub workflows + Bugbot checklist).
@@ -18,11 +18,12 @@ IDE Development itself uses the same managed workflows (it is in scope).
 
 | Role | Who | Job |
 |---|---|---|
-| Implementer | Long-lived local / Remote Control / Cloud agents | Branch → commit → push → PR → `development` |
-| Reviewer | **Bugbot** | Review every PR into `development` (pass = GitHub check `Cursor Bugbot` → `success`) |
-| Fix agent | Short-lived **Cloud** agent on same branch | Repair CI/Bugbot failures; max **3** attempts |
-| Integrator | GitHub Action (`linktrend-integrator-merge.yml`) | Merge into `development` when CI green + `Cursor Bugbot` success (not GitHub APPROVE) |
-| Promoter | GitHub Actions schedules | Tue/Fri staging; Mon main package |
+| Implementer | Long-lived local / Remote Control / Cloud agents | Branch → checkpoint commit/push → mark `review_ready` when finished |
+| Review Packager | GitHub Action (`linktrend-review-packager.yml`) | Tue/Fri 08:00: discover review-ready → open PR → request Bugbot once |
+| Reviewer | **Bugbot** | Review PRs into `development` (pass = GitHub check `Cursor Bugbot` → `success`) |
+| Fix agent | Short-lived **Cloud** agent on same branch | Repair CI/Bugbot failures; max **3** attempts; new SHA re-enters packaging |
+| Integrator | GitHub Action (`linktrend-integrator-merge.yml`) | Merge into `development` when **fast-gate** + `Cursor Bugbot` success + head SHA = reviewed SHA |
+| Promoter | GitHub Actions schedules | Tue/Fri **10:00** staging; Mon main package |
 | Lisa | OpenClaw / Telegram (**primary Ship/Pull clock**) | Cron → spawn Cursor ACP shipper/puller on Mini; one-line checkpoint status; ask Principal to Approve main |
 | Principal | Carlos | Approve `staging`→`main` (Mon 08:30 via digest; reply on Telegram); intervene on `Issues` |
 
@@ -32,14 +33,18 @@ IDE Development itself uses the same managed workflows (it is in scope).
 
 | Event | Local time | Who fires | Behavior |
 |---|---|---|---|
-| Ship 05 | 05:00 | Lisa cron → Cursor ACP shipper | One repo at a time (sequential): commit work branch → push → open/update PR → `development` → **STOP** (no merge / no self-review) |
-| Pull 07 | 07:00 | Lisa cron → Cursor ACP puller | Merge latest `origin/development` into work branches on disk; **not** hard-gated on all PRs merged; unfinished work rolls forward |
-| Ship 16 | 16:00 | Lisa cron → Cursor ACP shipper | Same as Ship 05 |
+| Ship 05 | 05:00 | Lisa cron → Cursor ACP shipper | One repo at a time: **checkpoint** = commit + push on work branch → **STOP**. No PR. No Bugbot. |
+| Pull 07 | 07:00 | Lisa cron → Cursor ACP puller | Merge latest `origin/development` into unfinished work branches; **skip frozen reviewed SHAs**; unfinished rolls forward |
+| Review Packager | Tue & Fri **08:00** | GitHub (`0 0 * * 2,5` UTC) | Discover `.linktrend/review-ready.json` where `commitSha == HEAD` → open/ready PR → comment configurable Bugbot command (default `cursor review`) once with hidden SHA marker |
+| Staging promote | Tue & Fri **10:00** | GitHub (`0 2 * * 2,5` UTC) | Promote only what is already safely in `development`. If not ready: **skip and report why**. Never force. |
+| Ship 16 | 16:00 | Lisa cron → Cursor ACP shipper | Same as Ship 05 (checkpoint only) |
 | Pull 18 | 18:00 | Lisa cron → Cursor ACP puller | Same as Pull 07 |
-| Staging promote | Tue & Fri 08:00 | GitHub Promoter (`0 0 * * 2,5` UTC) | Auto `development`→`staging`; Fix agent if red, then retry |
+| EOD checkpoint | ~17:00 | Agent / operator | Checkpoint commit+push only — not a review request |
 | Main package | Mon 08:00 | GitHub Promoter (`0 0 * * 1` UTC) | Package only; do **not** merge yet |
 | Morning digest | 08:30 | Lisa cron | Email + Telegram day-ahead; Pipeline lines; Mon Main Approve ask when Clear |
-| Main Approve | Mon 08:30 | Lisa digest (Telegram reply) | Principal says Approve on Telegram → dispatch merge |
+| Main Approve | Mon 08:30 | Lisa digest (Telegram reply) | Principal says Approve → Lisa dispatches merge for **exact SHA** |
+
+**Why Packager 08:00 / Staging 10:00:** Pull 07 finishes first; review, CI, integration, and possible repair get a two-hour window. At 10:00 promote only work already merged into `development`. Anything still under review or repair waits for the next window.
 
 **Runtime prerequisite (human/ops):** Mini must be awake (Keep Awake / Remote Control) so Lisa ACP can spawn. Documented in openclaw_prime Lisa ship/pull clock procedure.
 
@@ -55,7 +60,7 @@ IDE Development itself uses the same managed workflows (it is in scope).
 8. LiNKlibraries  
 9. LiNKautowork  
 
-ACP prompts and absolute paths: openclaw_prime `linkbots/lisa/Personality files/agents/ship-pull-clock.md`.
+ACP prompts and absolute paths: openclaw_prime `linkbots/lisa/Personality files/agents/ship-pull-clock.md` (follow-up contract for Ship checkpoint-only wording: `docs/contracts/LISA-OPENCLAW-FOLLOW-UP.md`).
 
 ## Studio branching default (locked)
 
@@ -63,19 +68,90 @@ ACP prompts and absolute paths: openclaw_prime `linkbots/lisa/Personality files/
 - `cursor/*` for cloud/dashboard agents.
 - `dev/<machine><ide>` rare ad-hoc only.
 - Bootstrap: `/agentsetup`. Already-open migration: `/agentcomply`.
-- **Implementer vs Orchestrator:** `/agentsetup` and `/agentcomply` are for **Implementers** that own work in **one repo**. A workspace **Orchestrator** must not be forced onto a random/stolen `issue/*` as “session home.” Orchestrators coordinate (and may spawn/direct per-repo Implementers); they do not get a forever home issue branch. Accidental dirty edits in a repo → hand off to that repo’s Implementer + `/agentcomply` there, or open a correctly named issue for that specific change. Multi-root ambiguity → ask which repo. Do not silently adopt an unrelated open PR branch.
+- **Implementer vs Orchestrator:** `/agentsetup` and `/agentcomply` are for **Implementers** that own work in **one repo**. A workspace **Orchestrator** must not be forced onto a random/stolen `issue/*` as “session home.”
 - **Branch rule (any agent):** no code/repo touch → no branch required. The moment any agent touches a repo, run `/agentsetup` or `/agentcomply` for **that** repo and use `issue/<id>-slug` for the work package.
+
+## Checkpoints vs review-ready
+
+| Action | When | Opens PR? | Bugbot? |
+|---|---|---|---|
+| Checkpoint | Ship waves, EOD, anytime | No | No |
+| Mark review-ready | Issue finished + proof + local gates | No (agent) | No (agent) |
+| Review Packager | Tue/Fri 08:00 | Yes | Yes, once per SHA |
+| Urgent package | `workflow_dispatch` on packager | Yes | Yes, once per SHA |
+
+Record path: `.linktrend/review-ready.json` — see `core/github/REVIEW-READY.md`.  
+Helpers: `scripts/mark-review-ready.sh`, `scripts/validate-review-ready.sh`, `scripts/clear-review-ready.sh`.
+
+## Bugbot contract
+
+- Success check name remains exactly **`Cursor Bugbot`**.
+- Request command is **configurable**; safe default is exactly: `cursor review` (no `@` unless live testing proves this installation requires it).
+- Idempotent hidden marker: `<!-- linktrend-bugbot-requested: <sha> -->`.
+- A new functional commit invalidates the previous reviewed SHA and marker.
+- Normal maximum: one initial Bugbot request + one after a consolidated correction batch.
+
+## Named CI gates
+
+Do **not** wait for every visible GitHub check. Use named contracts in `core/github/CI-GATE-CONTRACTS.md`:
+
+- `fast-gate` — before Bugbot packaging readiness / Integrator merge
+- `staging-gate` — development→staging
+- `release-gate` — staging→main Approve merge
+
+Missing required checks are **not** success.
+
+## Integrator auto-merge (development)
+
+Merge only when all are true:
+
+1. Non-draft open PR into `development`
+2. Head SHA equals reviewed SHA from Bugbot marker
+3. `fast-gate` required checks = success
+4. `Cursor Bugbot` = success
+5. Not `conflict_blocked`
+
+## Staging promotion
+
+- Tue/Fri **10:00** Asia/Taipei
+- Promote only commits already on `development`
+- No prefer-incoming; on conflict → skip + report
+- If staging not ready at 10:00 → skip safely and report why
+
+## Main promotion
+
+- Mon 08:00 package PR
+- Principal Approve → dispatch merge of **exact** package SHA after `release-gate`
+- Lisa dispatch interface: `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`
+
+## Conflict recovery
+
+1. Pause the item (`conflict_blocked`)
+2. Repair on a branch (never auto-prefer either side)
+3. New SHA → re-mark review-ready → re-enter Packager
+4. Max **3** repair attempts, then `Issues`
+
+## Pull rules
+
+- Update unfinished work from `origin/development`
+- Skip frozen reviewed SHAs / branches under active review freeze
+- Continue other work on another issue branch or worktree during freeze
+
+## Cleanup
+
+After **safe merge only**: delete merged issue branches / worktrees. Never delete by name alone.
 
 ## Lisa one-line statuses (Telegram + Ship/Pull email)
 
-Clock labels use **local hour** (Asia/Taipei), not A/B letters. After each Ship/Pull wave, Lisa announces **and emails** the one line (Clear or Issues). Heartbeat/digest may also include **only** lines like:
+Clock labels use **local hour** (Asia/Taipei), not A/B letters:
 
 - `Ship 05: Clear` / `Ship 05: Issues`
 - `Pull 07: Clear` / `Pull 07: Issues`
 - `Ship 16: Clear` / `Ship 16: Issues`
 - `Pull 18: Clear` / `Pull 18: Issues`
-- `Staging promote (Tue): Clear` / `Staging promote (Fri): Issues`
-- `Main ready (Mon): Clear` / `Main ready (Mon): Issues`
+- `Review Packager (Tue|Fri): Clear|Issues`
+- `Staging promote (Tue|Fri): Clear|Issues`
+- `Main ready (Mon): Clear|Issues`
 
 No lists or links in those lines. Detail stays in `memory/pipeline-status.md` (Lisa workspace) for when Carlos asks.
 
@@ -83,15 +159,16 @@ No lists or links in those lines. Detail stays in `memory/pipeline-status.md` (L
 
 1. Prefer Remote Control for long-lived agents; Mini awake + Keep Awake (required for Lisa ACP clock).
 2. Start from latest `development` (Pull waves enforce sync).
-3. Work on **`issue/*`** by default (`dev/*` or `cursor/*` only when appropriate).
-4. Commit with conventional commits; push often.
-5. Open or update PR → `development`.
+3. Work on **`issue/*`** by default.
+4. Commit with conventional commits; **push often (checkpoints)**.
+5. When finished: mark review-ready + push; do **not** open PR yourself (Packager does).
 6. Do **not** self-merge; do **not** promote to `staging`/`main`.
 7. Do **not** review your own PR (Bugbot is Reviewer).
+8. During review freeze: continue only on another issue branch/worktree.
 
 ## Fix path
 
-On CI red or Bugbot fail: spawn Cloud Fix agent on that branch (not “send back to original implementer”). After 3 failed attempts: stop; Lisa one-liner `Issues`; no force-merge.
+On CI red or Bugbot fail: spawn Cloud Fix agent on that branch (not “send back to original implementer”). Consolidate corrections, then at most one additional Bugbot request. After 3 failed attempts: stop; Lisa one-liner `Issues`; no force-merge.
 
 ## Worktrees
 
@@ -106,8 +183,11 @@ Allowed. Caps: **12** worktrees, **20 GB** total Cursor-managed. Delete after me
 
 - Rules: `.cursor/rules/01-git-branching.mdc`, `.cursor/rules/02-autonomous-ship-pull.mdc`
 - Skills/commands: `/agentsetup`, `/agentcomply`
+- Review-ready: `core/github/REVIEW-READY.md`
+- CI gates: `core/github/CI-GATE-CONTRACTS.md`
 - Managed workflows: `core/github/managed-workflows/`
 - Wire/sync: `scripts/wire-repo.sh`, `scripts/sync-managed-workflows.sh`
 - Bugbot checklist: `core/checklists/BUGBOT-INHERITANCE.md`
 - Cursor Automations (optional backup): `docs/CURSOR-AUTOMATIONS-SETUP.md`
-- Lisa Option A clock: openclaw_prime `linkbots/lisa/Personality files/agents/ship-pull-clock.md`
+- Lisa contracts: `docs/contracts/LISA-OPENCLAW-FOLLOW-UP.md`, `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`
+- Consumer rollout: `docs/GITOPS-CONSUMER-ROLLOUT.md`

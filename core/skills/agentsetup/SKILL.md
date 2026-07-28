@@ -100,7 +100,8 @@ Remind hard stops in plain English:
 - Do **not** merge into `development`
 - Do **not** self-review (Bugbot reviews)
 - Do **not** promote to `staging` or `main`
-- Ship waves: commit → push → PR → `development` → stop
+- Ship waves: **checkpoint only** = commit → push → stop (no PR, no Bugbot)
+- When finished: mark review-ready + push; Review Packager opens the PR
 
 ### 5. Report
 
@@ -109,7 +110,7 @@ Plain English summary:
 - **Repo:** path or name
 - **Branch:** `issue/<id>-<slug>`
 - **Base:** latest `origin/development`
-- **Next:** implement the issue; at Ship, push and open/update PR to `development`
+- **Next:** implement the issue; at Ship, checkpoint commit+push only; when finished, mark review-ready
 
 ## Output template
 
@@ -119,7 +120,7 @@ Agent setup ready
 - Branch: issue/<id>-<slug>
 - Base: origin/development (fetched)
 - Hard stops: no merge, no self-review, no staging/main
-- Next: do the work on this branch; Ship = commit + push + PR → development
+- Next: do the work on this branch; Ship = checkpoint commit+push; finish = mark review-ready
 ```
 
 ## Blockers

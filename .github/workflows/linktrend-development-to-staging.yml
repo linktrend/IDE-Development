@@ -1,15 +1,206 @@
 name: LiNKtrend Development To Staging
 
-# Tue & Fri 08:00 Asia/Taipei = 00:00 UTC (Taiwan has no DST)
+# Tuesday and Friday 10:00 Asia/Taipei = 02:00 UTC (Taiwan has no DST).
+# Runs two hours after Review Packager (08:00 Taipei) so Pull 07, review, CI,
+# integration, and repair can finish first.
+#
+# Promote only work already merged safely into development.
+# Never force through work still under review or repair.
+# No prefer-incoming. No Bugbot re-review on promotion.
+# If not ready at 10:00: skip safely and report why.
+
 on:
   schedule:
-    - cron: "0 0 * * 2,5"
+    - cron: "0 2 * * 2,5"
   workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this promotion run is needed"
+        required: false
+        default: "manual"
 
 permissions:
   contents: write
+  pull-requests: write
+  checks: read
+  statuses: read
+  actions: read
+
+concurrency:
+  group: linktrend-development-to-staging-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  TIMEZONE_LABEL: "Asia/Taipei"
+  # staging-gate check names (comma-separated). Override via repo variable.
+  STAGING_GATE_CHECKS: ${{ vars.LINKTREND_STAGING_GATE_CHECKS || 'Verify IDE Development' }}
 
 jobs:
   promote-development:
-    uses: linktrend/LiNKtrend-System/.github/workflows/reusable-development-to-staging.yml@main
-    secrets: inherit
+    name: Promote development → staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Promote or skip with report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          git fetch origin development staging
+
+          DEV_SHA="$(git rev-parse origin/development)"
+          STG_SHA="$(git rev-parse origin/staging)"
+          echo "development=${DEV_SHA}"
+          echo "staging=${STG_SHA}"
+
+          report() {
+            local status="$1"
+            local why="$2"
+            echo "STAGING_PROMOTE_STATUS=${status}"
+            echo "STAGING_PROMOTE_REASON=${why}"
+            {
+              echo "## Staging promote report"
+              echo ""
+              echo "- Timezone: ${TIMEZONE_LABEL}"
+              echo "- Schedule: Tue/Fri 10:00 ${TIMEZONE_LABEL}"
+              echo "- Status: **${status}**"
+              echo "- Reason: ${why}"
+              echo "- development: \`${DEV_SHA}\`"
+              echo "- staging: \`${STG_SHA}\`"
+            } | tee staging-promote-report.md
+            # Also emit as job summary
+            cat staging-promote-report.md >> "${GITHUB_STEP_SUMMARY:-/dev/null}" || true
+          }
+
+          if git merge-base --is-ancestor origin/development origin/staging; then
+            report "skipped" "development is already fully contained in staging — nothing to promote"
+            exit 0
+          fi
+
+          # Detect conflicts without mutating staging: try a throwaway merge.
+          WORK="/tmp/staging-promote-check-$$"
+          git worktree add --detach "${WORK}" origin/staging
+          cleanup() { git worktree remove --force "${WORK}" 2>/dev/null || rm -rf "${WORK}"; }
+          trap cleanup EXIT
+
+          if ! git -C "${WORK}" merge --no-commit --no-ff origin/development; then
+            git -C "${WORK}" merge --abort 2>/dev/null || true
+            report "skipped" "merge conflict between staging and development — conflict_blocked; do not prefer-incoming; repair required"
+            # Open/refresh a conflict notice issue comment on any open promote PR
+            existing="$(gh pr list --base staging --head development --state open --json number --jq '.[0].number // empty' || true)"
+            if [ -n "${existing}" ]; then
+              gh pr comment "${existing}" --body "$(cat <<EOF
+          ## Staging promote skipped (conflict)
+
+          Scheduled Tue/Fri 10:00 ${TIMEZONE_LABEL} run found a merge conflict.
+          Status: **conflict_blocked**. Prefer-incoming is forbidden.
+          Repair on a dedicated branch, merge safely into development, wait for next window.
+          - development: \`${DEV_SHA}\`
+          - staging: \`${STG_SHA}\`
+          EOF
+          )" || true
+            fi
+            exit 0
+          fi
+          git -C "${WORK}" merge --abort 2>/dev/null || true
+
+          # staging-gate: required checks on development tip must be success when available.
+          # We inspect the latest completed check-runs for DEV_SHA.
+          IFS=',' read -r -a required <<< "${STAGING_GATE_CHECKS}"
+          for name in "${required[@]}"; do
+            name="$(echo "${name}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+            [ -n "${name}" ] || continue
+            # GitHub check-runs API by filter
+            state="$(
+              gh api "repos/${GITHUB_REPOSITORY}/commits/${DEV_SHA}/check-runs" \
+                --paginate \
+                --jq "[.check_runs[] | select(.name==\"${name}\")] | sort_by(.completed_at // .started_at // \"\") | last | .conclusion // \"missing\"" \
+                2>/dev/null || echo "missing"
+            )"
+            # normalize
+            state="$(echo "${state}" | tr '[:upper:]' '[:lower:]')"
+            if [ "${state}" = "null" ] || [ -z "${state}" ]; then
+              state="missing"
+            fi
+            if [ "${state}" != "success" ]; then
+              report "skipped" "staging-gate check '${name}' not success on development tip (state=${state}); missing≠success"
+              exit 0
+            fi
+          done
+
+          body="$(cat <<EOF
+          ## Staging promote (autonomous Git ops)
+
+          Scheduled Tuesday/Friday **10:00 ${TIMEZONE_LABEL}** promotion.
+
+          - Promotes only commits already merged into \`development\`.
+          - Does **not** re-run Bugbot.
+          - Does **not** force work still under review or repair.
+          - Prefer-incoming is forbidden on conflicts.
+
+          - development SHA: \`${DEV_SHA}\`
+          - previous staging SHA: \`${STG_SHA}\`
+
+          See IDE Development \`docs/AUTONOMOUS-GIT-OPERATIONS.md\` and \`core/github/CI-GATE-CONTRACTS.md\`.
+          EOF
+          )"
+
+          # Prefer a promotion PR (auditable). If GitHub allows same-repo development→staging PR:
+          existing="$(gh pr list --base staging --head development --state open --json number --jq '.[0].number // empty' || true)"
+          if [ -n "${existing}" ]; then
+            gh pr edit "${existing}" --body "${body}"
+            echo "Refreshing open promote PR #${existing}"
+            # Attempt merge of the promote PR (squash or merge commit). Never force.
+            if gh pr merge "${existing}" --merge; then
+              report "promoted" "merged existing promotion PR #${existing}"
+              exit 0
+            fi
+            report "skipped" "promotion PR #${existing} exists but could not merge safely this window"
+            exit 0
+          fi
+
+          if pr_url="$(gh pr create --base staging --head development \
+              --title "chore(promote): development → staging" \
+              --body "${body}" 2>/tmp/promote-pr.err)"; then
+            pr_num="$(gh pr view "${pr_url}" --json number --jq .number)"
+            if gh pr merge "${pr_num}" --merge; then
+              report "promoted" "created and merged promotion PR #${pr_num}"
+              exit 0
+            fi
+            report "skipped" "created promotion PR #${pr_num} but merge not ready this window (left open)"
+            exit 0
+          fi
+
+          # Fallback: direct fast-forward / merge push when PR create is blocked (e.g. same-branch policy).
+          echo "PR create failed; attempting direct merge push (no prefer-incoming):"
+          cat /tmp/promote-pr.err >&2 || true
+          PUSH_WORK="/tmp/staging-promote-push-$$"
+          git worktree add --detach "${PUSH_WORK}" origin/staging
+          if ! git -C "${PUSH_WORK}" merge --no-ff origin/development -m "chore(promote): development → staging (${DEV_SHA})"; then
+            git -C "${PUSH_WORK}" merge --abort 2>/dev/null || true
+            git worktree remove --force "${PUSH_WORK}" 2>/dev/null || true
+            report "skipped" "direct merge failed after PR create failure — left staging unchanged"
+            exit 0
+          fi
+          if git -C "${PUSH_WORK}" push origin HEAD:staging; then
+            git worktree remove --force "${PUSH_WORK}" 2>/dev/null || true
+            report "promoted" "direct merge push to staging at development ${DEV_SHA}"
+            exit 0
+          fi
+          git worktree remove --force "${PUSH_WORK}" 2>/dev/null || true
+          report "skipped" "could not push staging safely this window"
+          exit 0
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-promote-report
+          path: staging-promote-report.md
+          if-no-files-found: ignore

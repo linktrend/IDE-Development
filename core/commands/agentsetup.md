@@ -11,7 +11,7 @@ Operational summary:
 - ask Carlos only for missing issue id, short slug, and target repo if ambiguous
 - sync to latest `origin/development`
 - create and checkout `issue/<id>-<slug>`
-- confirm ready; remind Ship/Pull hard stops (no merge, no self-review, no staging/main)
+- confirm ready; remind Ship/Pull hard stops (no merge, no self-review, no staging/main; Ship = checkpoint only)
 - report branch, repo, and next steps in plain English
 
 House rule: one short-lived `issue/*` per governed work package — not forever `dev/*`. Cloud uses `cursor/*`; `dev/*` rare ad-hoc only.

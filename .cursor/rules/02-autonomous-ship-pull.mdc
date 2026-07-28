@@ -2,44 +2,66 @@
 alwaysApply: true
 ---
 
-# Autonomous Ship / Pull
+# Autonomous Ship / Pull / Review Packager
 
 Follow `docs/AUTONOMOUS-GIT-OPERATIONS.md` (Asia/Taipei).
 
 **Primary clock:** Lisa Option A (OpenClaw cron → Cursor ACP shipper/puller on Mini). Cursor Automations are optional backup only.
 
-**Wave names** use local hour labels: **Ship 06**, **Pull 08**, **Ship 16**, **Pull 18** (not A/B letters).
+**Wave names** use local hour labels: **Ship 05**, **Pull 07**, **Ship 16**, **Pull 18** (not A/B letters). Ship **05** / Pull **07** are authoritative.
 
 ## When you are an Implementer
 
 Prefer short-lived **`issue/<id>-slug`** work branches (studio default).
 
-At Ship 06 / Ship 16, or when told to ship:
+### Checkpoints (frequent — not a review request)
 
-1. Commit unfinished work on **your** work branch (not `development`/`staging`/`main`).
+At Ship 05 / Ship 16, at 17:00 EOD, or whenever you need a safe save:
+
+1. Commit unfinished work on **your** work branch (never `development` / `staging` / `main`).
 2. Push the branch.
-3. Open or update a PR targeting **`development`**.
-4. Stop. Do not merge. Do not self-review. Bugbot reviews; Integrator merges.
+3. **Do not** open a PR. **Do not** request Bugbot. **Do not** mark review-ready unless work is actually finished.
+4. Stop. Continue tomorrow on the same branch after Pull.
 
-At Pull 08 / Pull 18, or when told to pull:
+### Review-ready (when the issue is finished)
 
-1. Fetch and merge (or rebase only if already the repo rule) latest **`origin/development`** into your work branch.
-2. Pull is **not** hard-gated on all PRs being merged; unfinished work rolls forward.
-3. Report blockers briefly; do not invent merges into `staging`/`main`.
+1. Satisfy acceptance criteria; keep `PROOF.md` (or equivalent).
+2. Pass inexpensive deterministic checks locally.
+3. Run `scripts/mark-review-ready.sh` (writes `.linktrend/review-ready.json` for **current HEAD**).
+4. Commit that file and push.
+5. Set issue status to `review_ready`.
+6. Stop. The **Review Packager** (Tue/Fri 08:00 Asia/Taipei) opens the PR and requests Bugbot once.
+
+A new functional commit **invalidates** the reviewed SHA — rewrite the marker or clear it.
+
+### Review freeze
+
+Once packaged/reviewed for a SHA: **do not modify that frozen branch**. Continue only on another issue branch or worktree.
+
+### Pull waves
+
+At Pull 07 / Pull 18, or when told to pull:
+
+1. Fetch and merge (or rebase only if already the repo rule) latest **`origin/development`** into unfinished work branches.
+2. **Skip frozen reviewed SHAs** (do not rewrite history on a branch under review).
+3. Pull is **not** hard-gated on all PRs being merged; unfinished work rolls forward.
+4. Report blockers briefly; do not invent merges into `staging`/`main`.
 
 Process **one repo at a time** when running as the Lisa-spawned shipper/puller.
 
 `/agentsetup` and `/agentcomply` are for Implementers (one repo). Workspace Orchestrators must not steal an unrelated `issue/*` as session home — see `docs/AUTONOMOUS-GIT-OPERATIONS.md`.
 
-Any agent that touches a repo uses `/agentsetup` or `/agentcomply` for **that** repo (`issue/<id>-slug` for the work package). No repo touch → no branch. Do not silently adopt an unrelated open PR branch — see `docs/AUTONOMOUS-GIT-OPERATIONS.md`.
+Any agent that touches a repo uses `/agentsetup` or `/agentcomply` for **that** repo (`issue/<id>-slug` for the work package). No repo touch → no branch. Do not silently adopt an unrelated open PR branch.
 
 ## Hard stops
 
 - Never merge your own PR into `development`.
 - Never promote to `staging` or `main`.
 - Never act as Reviewer on your own PR.
+- Never force work through a promotion window.
 - After CI/Bugbot failure: expect a **Cloud Fix agent** (not you) unless you are that Fix agent.
 - Fix agent: max **3** attempts on the same branch, then stop and leave `Issues`.
+- Normal Bugbot maximum: one initial request + one after a consolidated correction batch.
 
 ## Worktrees
 
@@ -47,4 +69,4 @@ Allowed. Prefer cleanup after merge/abandon. Caps: 12 worktrees / 20 GB (Cursor-
 
 ## Status line (when Lisa / shipper / puller asks)
 
-Write or update Lisa pipeline status as one of: `Ship 06|Ship 16|Pull 08|Pull 18: Clear|Issues` — no lists or links in that line.
+Write or update Lisa pipeline status as one of: `Ship 05|Ship 16|Pull 07|Pull 18: Clear|Issues` — no lists or links in that line.

@@ -2,14 +2,15 @@ name: LiNKtrend Integrator Merge To Development
 
 # Merge-only Integrator for PRs into development.
 #
-# Pass gate (authoritative — matches Cursor Bugbot docs):
-#   - Check named exactly "Cursor Bugbot" reports SUCCESS on every row
-#   - Named required CI checks (repo var or defaults) are present and SUCCESS
-#   - No other non-integrator checks in FAILURE / NEUTRAL / pending
+# Pass gate (named contracts only — never "every visible check"):
+#   - Check named exactly "Cursor Bugbot" reports SUCCESS for the head SHA
+#   - fast-gate required CI checks (repo var or IDE default) are present and SUCCESS
+#   - Head SHA equals the reviewed SHA recorded in the Bugbot hidden marker
 #
 # Bugbot posts COMMENTED reviews; do not wait for GitHub APPROVE.
-# Polls until gates pass so pull_request runs that start before Bugbot still merge.
+# Missing required checks ≠ success. No force-merge.
 # Ruleset helper: scripts/apply-development-merge-ruleset.sh
+# Gate names: core/github/CI-GATE-CONTRACTS.md
 
 on:
   pull_request:
@@ -30,7 +31,6 @@ permissions:
   checks: read
 
 concurrency:
-  # Prefer head SHA so pull_request and check_run for the same commit share a group.
   group: integrator-pr-${{ github.event.pull_request.number || github.event.check_run.pull_requests[0].number || github.event.inputs.pr_number || github.run_id }}
   cancel-in-progress: true
 
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Merge when CI green and Bugbot success
+      - name: Merge when fast-gate green and Bugbot success
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -56,10 +56,11 @@ jobs:
           HEAD_SHA: ${{ github.event.check_run.head_sha || github.event.pull_request.head.sha || '' }}
           GATE_WAIT_SECONDS: "900"
           GATE_POLL_SECONDS: "20"
-          # Comma-separated CI job names that must be SUCCESS (in addition to Cursor Bugbot).
-          # Default empty so consumers are not stuck on IDE-only job names. Set repo variable
-          # LINKTREND_INTEGRATOR_REQUIRED_CHECKS (e.g. "Verify IDE Development,Enforce allowed PR source branches").
-          REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || '' }}
+          BUGBOT_SUCCESS_CHECK_NAME: "Cursor Bugbot"
+          BUGBOT_MARKER_PREFIX: "<!-- linktrend-bugbot-requested:"
+          # Comma-separated fast-gate check names. IDE Development default below;
+          # consumers override via repo variable LINKTREND_INTEGRATOR_REQUIRED_CHECKS.
+          REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development' }}
         run: |
           set -euo pipefail
 
@@ -71,7 +72,6 @@ jobs:
           }
 
           collect_prs() {
-            # Exactly one PR per run (triggering PR, else first match for head SHA).
             if [ -n "${PR_NUMBER}" ]; then
               printf '%s\n' "${PR_NUMBER}"
             elif [ -n "${HEAD_SHA}" ]; then
@@ -83,7 +83,6 @@ jobs:
             fi
           }
 
-          # Newest row wins per check name (cancel-in-progress leaves stale CANCELLED/SUCCESS pairs).
           latest_checks() {
             echo "$1" | jq -c '
               group_by(.name) | map(
@@ -93,8 +92,9 @@ jobs:
           }
 
           bugbot_state_from_checks() {
-            echo "$1" | jq -r '
-              [.[] | select(.name=="Cursor Bugbot")] as $b
+            local check_name="${BUGBOT_SUCCESS_CHECK_NAME}"
+            echo "$1" | jq -r --arg n "${check_name}" '
+              [.[] | select(.name==$n)] as $b
               | if ($b|length)==0 then "missing"
                 else
                   ($b | sort_by(.completedAt // .startedAt // "") | last | .state) as $s
@@ -105,29 +105,64 @@ jobs:
                 end'
           }
 
-          aggregate_checks() {
-            latest_checks "$1"
-          }
-
           pr_meta_ok() {
             local pr="$1"
             local meta
-            # Must return false (not abort the job) when gh/jq fail under set -e.
-            meta="$(gh pr view "${pr}" --json baseRefName,isDraft,state 2>/dev/null)" || return 1
+            meta="$(gh pr view "${pr}" --json baseRefName,isDraft,state,mergeable 2>/dev/null)" || return 1
             echo "${meta}" | jq -e '.baseRefName=="development" and .isDraft==false and .state=="OPEN"' >/dev/null 2>&1
+          }
+
+          reviewed_sha_from_pr() {
+            local pr="$1"
+            local body comments
+            body="$(gh pr view "${pr}" --json body --jq .body 2>/dev/null || true)"
+            # Prefer explicit hidden marker: <!-- linktrend-bugbot-requested: <sha> -->
+            echo "${body}" | grep -oE '<!-- linktrend-bugbot-requested:[[:space:]]*[0-9a-fA-F]+[[:space:]]*-->' \
+              | head -n1 \
+              | sed -E 's/.*linktrend-bugbot-requested:[[:space:]]*([0-9a-fA-F]+).*/\1/' \
+              | tr 'A-F' 'a-f' || true
+            comments="$(gh api "repos/${GH_REPO}/issues/${pr}/comments" --paginate --jq '.[].body' 2>/dev/null || true)"
+            echo "${comments}" | grep -oE '<!-- linktrend-bugbot-requested:[[:space:]]*[0-9a-fA-F]+[[:space:]]*-->' \
+              | tail -n1 \
+              | sed -E 's/.*linktrend-bugbot-requested:[[:space:]]*([0-9a-fA-F]+).*/\1/' \
+              | tr 'A-F' 'a-f' || true
+          }
+
+          resolve_reviewed_sha() {
+            local pr="$1"
+            # Last non-empty marker wins (comment marker after body).
+            reviewed_sha_from_pr "${pr}" | awk 'NF{line=$0} END{print line}'
           }
 
           gates_pass() {
             local pr="$1"
-            local checks bugbot_state name state required IFS
+            local checks_raw checks bugbot_state name state required IFS
+            local head_sha reviewed_sha mergeable
 
             if ! pr_meta_ok "${pr}"; then
               echo "PR #${pr}: not an open non-draft PR into development"
               return 1
             fi
 
+            head_sha="$(gh pr view "${pr}" --json headRefOid --jq .headRefOid)"
+            reviewed_sha="$(resolve_reviewed_sha "${pr}")"
+            if [ -z "${reviewed_sha}" ]; then
+              echo "PR #${pr}: no reviewed SHA marker (<!-- linktrend-bugbot-requested: <sha> -->) — not merging"
+              return 1
+            fi
+            if [ "${head_sha}" != "${reviewed_sha}" ]; then
+              echo "PR #${pr}: head ${head_sha} != reviewed SHA ${reviewed_sha} — new commit invalidated review"
+              return 1
+            fi
+
+            mergeable="$(gh pr view "${pr}" --json mergeable --jq .mergeable)"
+            if [ "${mergeable}" = "CONFLICTING" ]; then
+              echo "PR #${pr}: mergeable=CONFLICTING — conflict_blocked; leave open for repair"
+              return 1
+            fi
+
             if ! checks_raw="$(gh pr checks "${pr}" --json name,state,completedAt,startedAt 2>/tmp/gh-pr-checks.err)"; then
-              echo "PR #${pr}: gh pr checks failed — not treating as missing"
+              echo "PR #${pr}: gh pr checks failed — not treating as success"
               cat /tmp/gh-pr-checks.err >&2 || true
               return 1
             fi
@@ -135,18 +170,23 @@ jobs:
               echo "PR #${pr}: gh pr checks returned empty payload"
               return 1
             fi
+
             bugbot_state="$(bugbot_state_from_checks "${checks_raw}")"
             if [ "${bugbot_state}" != "success" ]; then
-              echo "PR #${pr}: Bugbot gate not passed (state=${bugbot_state})"
+              echo "PR #${pr}: Bugbot gate not passed (state=${bugbot_state}; need ${BUGBOT_SUCCESS_CHECK_NAME}=SUCCESS)"
               return 1
             fi
 
-            checks="$(aggregate_checks "${checks_raw}")"
+            checks="$(latest_checks "${checks_raw}")"
 
+            # Named fast-gate only — do NOT iterate every visible check.
             IFS=',' read -r -a required <<< "${REQUIRED_CHECKS}"
+            local any_required=0
             for name in "${required[@]}"; do
               name="$(echo "${name}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
               [ -n "${name}" ] || continue
+              any_required=1
+              is_ignored_check "${name}" && continue
               state="$(
                 echo "${checks}" | jq -r --arg n "${name}" '
                   [.[] | select(.name==$n) | .state] as $s
@@ -155,29 +195,16 @@ jobs:
                     end'
               )"
               if [ "${state}" != "SUCCESS" ]; then
-                echo "PR #${pr}: required check '${name}' not success (state=${state})"
+                echo "PR #${pr}: fast-gate check '${name}' not success (state=${state}); missing≠success"
                 return 1
               fi
             done
+            if [ "${any_required}" -eq 0 ]; then
+              echo "PR #${pr}: REQUIRED_CHECKS empty — refusing to treat as green"
+              return 1
+            fi
 
-            while IFS=$'\t' read -r name state; do
-              [ -n "${name}" ] || continue
-              is_ignored_check "${name}" && continue
-              [ "${name}" = "Cursor Bugbot" ] && continue
-              case "${state}" in
-                SUCCESS|SKIPPED) ;;
-                PENDING|QUEUED|IN_PROGRESS)
-                  echo "PR #${pr}: check still pending: ${name}"
-                  return 1
-                  ;;
-                *)
-                  echo "PR #${pr}: check not green: ${name}=${state}"
-                  return 1
-                  ;;
-              esac
-            done < <(echo "${checks}" | jq -r '.[] | [.name,.state] | @tsv')
-
-            echo "PR #${pr}: gates passed (Bugbot success + required checks green)"
+            echo "PR #${pr}: gates passed (reviewed SHA match + ${BUGBOT_SUCCESS_CHECK_NAME} + fast-gate)"
             return 0
           }
 
@@ -195,7 +222,8 @@ jobs:
           }
 
           echo "Event=${EVENT_NAME} PR_NUMBER=${PR_NUMBER:-none} HEAD_SHA=${HEAD_SHA:-none}"
-          echo "REQUIRED_CHECKS=${REQUIRED_CHECKS}"
+          echo "REQUIRED_CHECKS(fast-gate)=${REQUIRED_CHECKS}"
+          echo "BUGBOT_SUCCESS_CHECK_NAME=${BUGBOT_SUCCESS_CHECK_NAME}"
 
           mapfile -t prs < <(collect_prs)
           if [ "${#prs[@]}" -eq 0 ] || [ -z "${prs[0]:-}" ]; then

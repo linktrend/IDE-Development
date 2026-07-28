@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "issueId": "<issue-id>",
+  "branch": "issue/<id>-<slug>",
+  "commitSha": "<full-git-sha>",
+  "recordedAt": "YYYY-MM-DDTHH:MM:SSZ",
+  "deterministicGate": "pass",
+  "notes": ""
+}
