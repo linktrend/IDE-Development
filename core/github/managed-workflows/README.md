@@ -4,28 +4,32 @@ Templates synced into consumer repos (and IDE Development itself) by:
 
 ```bash
 ./scripts/sync-managed-workflows.sh <repo-path>
-# or via
-./scripts/wire-repo.sh <consumer-repo-path>
 ```
 
 ## Synced files (Layer B)
 
 | File | Purpose |
 |---|---|
-| `branch-source-policy.yml` | Enforce allowed PR sources |
-| `linktrend-development-to-staging.yml` | Tue/Fri 08:00 Asia/Taipei auto promote |
-| `linktrend-staging-to-main.yml` | Mon 08:00 package; merge only on Approve dispatch |
-| `linktrend-integrator-merge.yml` | Auto-merge PRs into `development` when ready |
+| `branch-source-policy.yml` | Allowed work branches into development; `promote/*` into staging/main |
+| `linktrend-review-packager.yml` | Discover (Tue/Fri 08:00) + evaluate (`pull_request_target` / `workflow_run` CI / external `check_run`) |
+| `linktrend-development-to-staging.yml` | Build (Tue/Fri 10:00) + exact-candidate reevaluate |
+| `linktrend-staging-to-main.yml` | Package / approve-merge (bound SHAs) / observe |
+| `linktrend-integrator-merge.yml` | Merge to development when fast-gate + Bugbot + reviewed SHA |
 
-## Never synced by this pack
+## Trust boundary (all privileged workflows)
 
-- `ci.yml` — product/repo-specific verification (keep local)
-- Any other repo-only workflows
+- Checkout **default branch only** (`persist-credentials: false`)
+- Never run PR head/merge scripts with write credentials
+- Autonomous mutation requires GitHub App token (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`)
+- Honest outcomes via `gitops-outcome.json` / result checks (green job ≠ packaged)
 
-## Bugbot
+## Contracts
 
-Workflows do not enable Bugbot by themselves. Complete `core/checklists/BUGBOT-INHERITANCE.md` after wire/backfill.
+- `core/github/CI-GATE-CONTRACTS.md` (includes consumer `workflow_run` name mapping)
+- `core/github/REVIEW-READY.md` (commit status, not a file in the diff)
+- `docs/contracts/BUGBOT-MENTION-ONLY.md`
+- `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`
 
-**Pass signal:** GitHub check `Cursor Bugbot` conclusion/state `success` (no open findings). `neutral` means findings remain — Integrator must not merge.
+## Never synced
 
-**Ruleset:** after syncing workflows, run `scripts/apply-development-merge-ruleset.sh [owner/repo] [check names...]` so `development` requires Bugbot + CI before merge.
+- `ci.yml` (unprivileged PR testing; `contents: read`)

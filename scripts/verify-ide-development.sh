@@ -265,10 +265,29 @@ if ! cmp -s \
 fi
 pass "Integrator managed template matches live workflow"
 
+for wf in linktrend-review-packager.yml linktrend-development-to-staging.yml linktrend-staging-to-main.yml; do
+  if ! cmp -s "core/github/managed-workflows/${wf}" ".github/workflows/${wf}"; then
+    fail "Managed workflow diverged: ${wf}"
+  fi
+done
+pass "Packager/staging/main managed templates match live workflows"
+
 if [ -x "scripts/tests/test-integrator-bugbot-gate.sh" ]; then
   bash scripts/tests/test-integrator-bugbot-gate.sh || fail "Integrator Bugbot gate test failed"
 else
   fail "Missing scripts/tests/test-integrator-bugbot-gate.sh"
+fi
+
+if [ -x "scripts/tests/test-gitops-review-packager.sh" ]; then
+  bash scripts/tests/test-gitops-review-packager.sh || fail "GitOps review-packager redesign test failed"
+else
+  fail "Missing scripts/tests/test-gitops-review-packager.sh"
+fi
+
+if [ -x "scripts/tests/test-gitops-behavioral.sh" ]; then
+  bash scripts/tests/test-gitops-behavioral.sh || fail "GitOps behavioral test failed"
+else
+  fail "Missing scripts/tests/test-gitops-behavioral.sh"
 fi
 
 # --- Feasibility fixture still valid ---

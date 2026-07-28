@@ -1,7 +1,7 @@
 # ADR 0003: Autonomous Ship / Pull / Promote (Inherited via Wire)
 
-**Status:** Accepted (Principal go-ahead 2026-07-24)  
-**Date:** 2026-07-24  
+**Status:** Accepted (Principal go-ahead 2026-07-24)
+**Date:** 2026-07-24
 **Timezone:** Asia/Taipei (no DST)
 
 ## Context
@@ -85,3 +85,37 @@ Principal locked:
 - Morning Ship **05:00**, Pull **07:00** (evening 16/18 unchanged).
 - After each Ship/Pull wave: Telegram one-liner **and** email one-liner (Clear or Issues).
 - Overnight local coding **19:00–04:00** (was 19:00–07:00) so coding stops before Ship 05.
+
+---
+
+## Amendment — 2026-07-28 (Review Packager + promotion window)
+
+Principal locked (IDE Development redesign):
+
+1. **Ship = checkpoint only:** commit + push on `issue/*`. No PR. No Bugbot. EOD ~17:00 is also checkpoint-only.
+2. **`review_ready`:** branch-local `.linktrend/review-ready.json` with `commitSha == HEAD`. Later commits invalidate.
+3. **Review Packager:** Tuesday & Friday **08:00** Asia/Taipei (`0 0 * * 2,5` UTC). Discover eligible review-ready work → deterministic readiness → open/ready PR → Bugbot once.
+4. **Staging promote:** Tuesday & Friday **10:00** Asia/Taipei (`0 2 * * 2,5` UTC). Promote only work already merged into `development`. If not ready: skip and report why. Never force. No prefer-incoming.
+5. **Bugbot:** request command configurable; default exactly `cursor review` (no `@` unless live-proven). Success check remains `Cursor Bugbot`. Hidden idempotency marker `<!-- linktrend-bugbot-requested: <sha> -->`. Normal max 2 requests per PR (initial + one after consolidated corrections).
+6. **Named CI gates:** `fast-gate` / `staging-gate` / `release-gate` — never “wait for every visible check.” Missing ≠ success.
+7. **Integrator:** auto-merge only when non-draft → `development`, head SHA = reviewed SHA, fast-gate green, `Cursor Bugbot` success.
+8. **Review freeze:** do not modify the frozen reviewed branch; continue on another issue branch/worktree.
+9. **Ship 05 / Pull 07** remain authoritative morning wave labels (not 06/08).
+10. Follow-up contracts for Lisa/OpenClaw (no edits in those repos in this change): `docs/contracts/LISA-OPENCLAW-FOLLOW-UP.md`, `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`.
+
+---
+
+## Amendment — 2026-07-28 (review-ready = commit status; supersedes file marker)
+
+**Factual correction** to item 2 of the earlier 2026-07-28 amendment above (that item is obsolete and must not be followed):
+
+1. **Authoritative review-ready mechanism:**
+   - Push the completed work branch first so `HEAD == origin/<branch>`.
+   - Publish successful GitHub commit status context **`Linktrend Review Ready`** on the **exact branch-tip SHA** (`scripts/mark-review-ready.sh` / `core/github/REVIEW-READY.md`).
+   - A later commit becomes unready automatically (new tip SHA has no success status).
+2. **There is no** `.linktrend/review-ready.json` readiness file and **no** readiness marker commit in the feature diff.
+3. **Pull / freeze skip** (Lisa puller and `scripts/pull-update-work-branches.sh`):
+   - Skip when the exact branch-tip SHA has successful `Linktrend Review Ready` status; **or**
+   - Skip when an open review PR into `development` has head equal to that tip; **or**
+   - Skip on an explicit operator freeze.
+   - Do **not** use a deleted JSON-file condition.
