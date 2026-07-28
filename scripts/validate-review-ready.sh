@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# Validate .linktrend/review-ready.json (contentSha + marker-commit design).
+# Validate that SHA (default HEAD) has successful Linktrend Review Ready status.
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "FAIL: not a git repository" >&2
   exit 1
 }
-RECORD_PATH="${1-}"
-if [ -n "$RECORD_PATH" ]; then
-  exec python3 "${ROOT}/scripts/gitops/validate_review_ready.py" "$ROOT" "$RECORD_PATH"
+cd "$ROOT"
+SHA="${1:-$(git rev-parse HEAD)}"
+if python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gitops/readiness_status.py" get "$SHA"; then
+  echo "PASS: review-ready status success for ${SHA}"
+  exit 0
 fi
-exec python3 "${ROOT}/scripts/gitops/validate_review_ready.py" "$ROOT"
+echo "FAIL: ${SHA} is not review-ready" >&2
+exit 1

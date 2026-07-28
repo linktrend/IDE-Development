@@ -1,7 +1,7 @@
 # GitOps consumer rollout (GITOPS-01)
 
-**Status:** Rollout plan — read-only drift posture until wired  
-**Date:** 2026-07-28  
+**Status:** Rollout plan — read-only drift posture until wired
+**Date:** 2026-07-28
 **PR:** `issue/GITOPS-01-review-packager-pipeline` on IDE Development
 
 **SOT:** `docs/AUTONOMOUS-GIT-OPERATIONS.md` · `docs/adr/0003-autonomous-ship-pull-promote.md`
@@ -31,7 +31,12 @@ This PR updates **IDE Development only**. It does **not** edit consumer reposito
 - Apply development merge rulesets on consumers
 - Modify LiNKplatform / LiNKskills / LiNKbrain / LiNKsites / LiNKdeveloper / LiNKlibraries / LiNKautowork branches or workflows
 
-Consumer adoption is **staged** only after this change reaches IDE Development’s **default branch (`main`)** and first-adopter smoke passes. Merging to `development` alone does **not** activate new scheduled workflows.
+Consumer adoption is **staged** only after:
+
+1. this change reaches IDE Development’s **default branch (`main`)** and first-adopter smoke passes, and
+2. **Bugbot mention-only** (`manualTriggerOnly`) is confirmed per repository (`docs/contracts/BUGBOT-MENTION-ONLY.md`).
+
+Merging to `development` alone does **not** activate new scheduled workflows. Code alone does **not** enforce mention-only.
 
 ---
 

@@ -1,7 +1,7 @@
 name: LiNKtrend Development To Staging
 
-# Tuesday and Friday 10:00 Asia/Taipei = 02:00 UTC.
-# Temporary promote/staging/* branch + PR only. Never direct-push staging.
+# Tue/Fri 10:00 Asia/Taipei = 02:00 UTC
+# build on schedule/manual; reevaluate on promote PR/check (never rebuilds)
 
 on:
   schedule:
@@ -17,8 +17,6 @@ on:
     branches: [staging]
   check_run:
     types: [completed]
-  issues:
-    types: [edited, labeled]
 
 permissions:
   contents: write
@@ -29,7 +27,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: linktrend-development-to-staging-${{ github.repository }}
+  group: linktrend-development-to-staging-${{ github.repository }}-${{ github.event_name }}
   cancel-in-progress: false
 
 env:
@@ -37,37 +35,53 @@ env:
   STAGING_GATE_CHECKS: ${{ vars.LINKTREND_STAGING_GATE_CHECKS || 'Verify IDE Development' }}
 
 jobs:
-  promote-development:
-    name: Promote via temporary branch
-    # Scheduled/manual: build candidate. PR/check events on promote branches: reevaluate merge.
-    if: >
-      github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && startsWith(github.head_ref, 'promote/staging/')) ||
-      (github.event_name == 'check_run' && contains(join(github.event.check_run.pull_requests.*.head.ref, ','), 'promote/staging/'))
+  build:
+    name: Build staging candidate
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Promote or reevaluate
+      - name: Build
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          MODE: build
           STAGING_GATE_CHECKS: ${{ env.STAGING_GATE_CHECKS }}
-          TIMEZONE_LABEL: ${{ env.TIMEZONE_LABEL }}
         run: bash scripts/gitops/promote_staging.sh
-
-      - name: Upload report
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: staging-promote-report
+          name: staging-build-report
+          path: staging-promote-report.md
+          if-no-files-found: ignore
+
+  reevaluate:
+    name: Reevaluate staging promote PR
+    if: >
+      (github.event_name == 'pull_request' && startsWith(github.head_ref, 'promote/staging/')) ||
+      (github.event_name == 'check_run' && contains(join(github.event.check_run.pull_requests.*.head.ref, ','), 'promote/staging/'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reevaluate (no rebuild/push)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MODE: reevaluate
+          STAGING_GATE_CHECKS: ${{ env.STAGING_GATE_CHECKS }}
+          GATE_WAIT_SECONDS: "180"
+        run: bash scripts/gitops/promote_staging.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: staging-reevaluate-report
           path: |
             staging-promote-report.md
             staging-gate-wait.json
-            .linktrend/conflict-tasks/
           if-no-files-found: ignore

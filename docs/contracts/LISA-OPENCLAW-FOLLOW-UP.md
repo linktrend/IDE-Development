@@ -1,7 +1,7 @@
 # Lisa / OpenClaw follow-up contract (GITOPS-01)
 
-**Status:** Follow-up only — **no Lisa or openclaw_prime edits in GITOPS-01**  
-**Date:** 2026-07-28  
+**Status:** Follow-up only — **no Lisa or openclaw_prime edits in GITOPS-01**
+**Date:** 2026-07-28
 **Timezone:** Asia/Taipei (no DST)
 
 This document is the binding follow-up contract for a future PR in `openclaw_prime` (and any Lisa personality sync). IDE Development is the **source of truth** for autonomous Git ops doctrine.

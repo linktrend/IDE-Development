@@ -1,10 +1,9 @@
-# Review Packager — draft PR → fast-gate → ready → Bugbot once
+# Review Packager — discovery (schedule) + gate-completion evaluate (PR/check)
 
 name: Linktrend Review Packager
 
 on:
   schedule:
-    # Tuesday and Friday 08:00 Asia/Taipei (= 00:00 UTC)
     - cron: "0 0 * * 2,5"
   workflow_dispatch:
     inputs:
@@ -12,9 +11,14 @@ on:
         description: "Why this packaging run is needed"
         required: false
         default: "manual"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [development]
+  check_run:
+    types: [completed]
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
   issues: write
   checks: read
@@ -22,38 +26,59 @@ permissions:
   actions: read
 
 concurrency:
-  group: linktrend-review-packager-${{ github.repository }}
+  group: linktrend-review-packager-${{ github.event.pull_request.number || github.event.check_run.head_sha || github.run_id }}
   cancel-in-progress: false
 
 env:
-  # Prefer repo variable; exact default is "cursor review" (no @).
   BUGBOT_REVIEW_COMMAND: ${{ vars.LINKTREND_BUGBOT_REVIEW_COMMAND || 'cursor review' }}
   FAST_GATE_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development' }}
-  GATE_WAIT_SECONDS: "900"
-  GATE_POLL_SECONDS: "20"
 
 jobs:
-  package:
-    name: Package review-ready work branches
+  discover:
+    name: Discover ready tips (draft PRs only)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Run packager
+      - name: Discover
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_WORKSPACE: ${{ github.workspace }}
-        run: python3 scripts/gitops/packager_runner.py
-
-      - name: Upload packager report
+        run: python3 scripts/gitops/packager_discover.py
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: review-packager-report
-          path: packager-report.json
+          name: packager-discover-report
+          path: packager-discover-report.json
+          if-no-files-found: ignore
+
+  evaluate:
+    name: Evaluate draft PR after gates
+    if: >
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'check_run' &&
+       github.event.check_run.name != 'evaluate' &&
+       github.event.check_run.name != 'Discover ready tips (draft PRs only)' &&
+       github.event.check_run.name != 'Linktrend Integrator Result')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Evaluate one PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.check_run.pull_requests[0].number || '' }}
+          HEAD_SHA: ${{ github.event.check_run.head_sha || github.event.pull_request.head.sha || '' }}
+          BUGBOT_REVIEW_COMMAND: ${{ env.BUGBOT_REVIEW_COMMAND }}
+          FAST_GATE_CHECKS: ${{ env.FAST_GATE_CHECKS }}
+        run: python3 scripts/gitops/packager_evaluate.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: packager-evaluate-report
+          path: packager-evaluate-report.json
           if-no-files-found: ignore

@@ -1,31 +1,27 @@
 name: LiNKtrend Staging To Main
 
-# Mon 08:00 Asia/Taipei = 00:00 UTC — package temporary promote/main/* PR.
-# Merge only on workflow_dispatch action=approve-merge with exact SHA bindings.
-# Never direct-push main.
-
 on:
   schedule:
     - cron: "0 0 * * 1"
   workflow_dispatch:
     inputs:
       action:
-        description: "package = open/refresh promote PR; approve-merge = merge after Principal Approve"
+        description: "package | approve-merge"
         type: choice
         options:
           - package
           - approve-merge
         default: package
       expected_sha:
-        description: "Exact staging SHA required for approve-merge"
+        description: "Required for approve-merge: exact staging SHA"
         required: false
         type: string
       expected_promote_head:
-        description: "Exact promote PR head SHA required for approve-merge"
+        description: "Required for approve-merge: exact promote PR head SHA"
         required: false
         type: string
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened]
     branches: [main]
   check_run:
     types: [completed]
@@ -46,53 +42,67 @@ jobs:
   package:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.action == 'package')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Package main promote candidate
+      - name: Package
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           MODE: package
           RELEASE_GATE_CHECKS: ${{ env.RELEASE_GATE_CHECKS }}
         run: bash scripts/gitops/promote_main.sh
-      - name: Upload report
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
           name: main-package-report
-          path: |
-            main-promote-report.md
-            .linktrend/conflict-tasks/
+          path: main-promote-report.md
           if-no-files-found: ignore
 
   merge-on-approve:
     if: github.event_name == 'workflow_dispatch' && inputs.action == 'approve-merge'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Approve-merge exact candidate
+      - name: Approve-merge (both SHAs required)
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           MODE: approve-merge
-          EXPECTED_STAGING_SHA: ${{ inputs.expected_sha || '' }}
-          EXPECTED_PROMOTE_HEAD: ${{ inputs.expected_promote_head || '' }}
+          EXPECTED_STAGING_SHA: ${{ inputs.expected_sha }}
+          EXPECTED_PROMOTE_HEAD: ${{ inputs.expected_promote_head }}
           RELEASE_GATE_CHECKS: ${{ env.RELEASE_GATE_CHECKS }}
-        run: bash scripts/gitops/promote_main.sh
-      - name: Upload report
+        run: |
+          set -euo pipefail
+          if [ -z "${EXPECTED_STAGING_SHA}" ] || [ -z "${EXPECTED_PROMOTE_HEAD}" ]; then
+            echo "FAIL: approve-merge requires expected_sha and expected_promote_head"
+            exit 1
+          fi
+          bash scripts/gitops/promote_main.sh
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
           name: main-approve-report
           path: |
             main-promote-report.md
             release-gate-wait.json
           if-no-files-found: ignore
+
+  reevaluate:
+    if: >
+      (github.event_name == 'pull_request' && startsWith(github.head_ref, 'promote/main/')) ||
+      (github.event_name == 'check_run' && contains(join(github.event.check_run.pull_requests.*.head.ref, ','), 'promote/main/'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Observe only (no rebuild)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MODE: reevaluate
+        run: bash scripts/gitops/promote_main.sh

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Write .linktrend/review-ready.json with contentSha = current HEAD (functional tip).
-# Does not commit. Does not open a PR. Does not request Bugbot.
+# Publish Linktrend Review Ready commit status for the current branch tip.
+# Does not modify the feature diff. Does not open a PR. Does not request Bugbot.
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
@@ -8,19 +8,17 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   exit 1
 }
 cd "$ROOT"
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=gitops/work-branch-allowlist.sh
-source "${SCRIPT_DIR}/gitops/work-branch-allowlist.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gitops/work-branch-allowlist.sh"
 
 ISSUE_ID="${1:-}"
 NOTES="${2:-}"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-CONTENT_SHA="$(git rev-parse HEAD)"
+SHA="$(git rev-parse HEAD)"
 
 case "$BRANCH" in
-  development|staging|main)
-    echo "FAIL: refuse to mark review_ready on protected branch $BRANCH" >&2
+  development|staging|main|HEAD)
+    echo "FAIL: refuse to mark review_ready on protected/detached ref $BRANCH" >&2
     exit 1
     ;;
 esac
@@ -30,11 +28,24 @@ if ! is_allowed_work_branch "$BRANCH"; then
   exit 1
 fi
 
-if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  echo "FAIL: tracked working tree must be clean before marking review-ready (commit functional work first)" >&2
-  git status --porcelain --untracked-files=no >&2 || true
+if [ -n "$(git status --porcelain)" ]; then
+  echo "FAIL: working tree must be fully clean before marking review-ready" >&2
+  git status --porcelain >&2 || true
   exit 1
 fi
+
+# Local HEAD must equal remote branch tip (when remote tracking exists / origin present)
+if git rev-parse --verify "refs/remotes/origin/${BRANCH}" >/dev/null 2>&1; then
+  REMOTE="$(git rev-parse "refs/remotes/origin/${BRANCH}")"
+  if [ "$SHA" != "$REMOTE" ]; then
+    echo "FAIL: local HEAD ($SHA) != origin/${BRANCH} ($REMOTE). Push first." >&2
+    exit 1
+  fi
+elif git remote get-url origin >/dev/null 2>&1; then
+  echo "FAIL: origin/${BRANCH} missing — push the branch before marking review-ready" >&2
+  exit 1
+fi
+# File backend tests may have no origin; allowed when LINKTREND_STATUS_BACKEND=file
 
 if [ -z "$ISSUE_ID" ]; then
   if [[ "$BRANCH" =~ ^issue/([A-Za-z0-9._-]+)- ]]; then
@@ -47,22 +58,6 @@ if [ -z "$ISSUE_ID" ]; then
   fi
 fi
 
-RECORDED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-python3 - "$ROOT" "$ISSUE_ID" "$BRANCH" "$CONTENT_SHA" "$RECORDED_AT" "$NOTES" <<'PY'
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
-from validate_review_ready import write_record
-write_record(
-    Path(sys.argv[1]),
-    issue_id=sys.argv[2],
-    branch=sys.argv[3],
-    content_sha=sys.argv[4],
-    recorded_at=sys.argv[5],
-    notes=sys.argv[6],
-)
-print(f"Wrote .linktrend/review-ready.json contentSha={sys.argv[4]}")
-PY
-
-echo "Next: run scripts/commit-review-ready.sh to create the marker-only commit, then push."
-echo "Do not amend the functional commit. The marker commit's parent must remain contentSha."
+python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gitops/readiness_status.py" mark "$SHA" "$ISSUE_ID" "$NOTES"
+echo "PASS: Linktrend Review Ready status published for ${SHA}"
+echo "Next: push is already required; Review Packager will open a draft PR (no Bugbot until fast-gate)."

@@ -1,0 +1,47 @@
+# Bugbot mention-only (cost control)
+
+**Status:** Required before consumer rollout
+**Date:** 2026-07-28
+
+Code alone **cannot** enforce mention-only. Cursor Bugbot runs from Cursor’s GitHub App settings. PR #19 observed automatic usage-limit comments on pushes even without a new `cursor review` comment — proof that automatic mode is still active for this installation.
+
+## Required setting
+
+For each repository (starting with `linktrend/IDE-Development`):
+
+`manualTriggerOnly: true` (API) / **Only run when mentioned** (dashboard)
+
+Manual triggers remain: comment exactly `cursor review` or `bugbot run`.
+
+## API (team Admin API key)
+
+```bash
+curl -X POST https://api.cursor.com/bugbot/repo/update \
+  -H "Authorization: Bearer $CURSOR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repoUrl": "https://github.com/linktrend/IDE-Development",
+    "enabled": true,
+    "manualTriggerOnly": true
+  }'
+```
+
+List: `GET https://api.cursor.com/bugbot/repos`
+
+## Dashboard steps (Carlos)
+
+1. Open https://cursor.com/dashboard/bugbot
+2. Find `IDE-Development` (and each consumer before wire)
+3. Enable Bugbot if needed
+4. Set **Only run when mentioned** / repository `manualTriggerOnly` equivalent
+5. Optional team setting: **Run only once per PR** (reduces spend if auto mode cannot be cleared)
+6. Verify: push a trivial commit to a draft test PR **without** commenting `cursor review` — Bugbot must **not** start a billable review
+7. Verify mention path: comment `cursor review` once — Bugbot runs
+
+## Rollout gate
+
+Consumer rollout is **blocked** until mention-only is confirmed per repository. Do not purchase funds or raise spending limits as part of this GitOps work.
+
+## This PR
+
+Agents must not post additional `cursor review` comments on PR #19 while the spending limit is active. Integrator correctly blocks on SHA/marker mismatch; bootstrap merge (if any) is a documented one-time admin exception outside the product workflow.

@@ -1,63 +1,45 @@
-# Review-ready record (branch-local)
+# Review-ready signal (out-of-diff)
 
-Committed on a task branch when work is finished and eligible for the Tue/Fri Review Packager.
+When a work branch tip is finished and eligible for the Tue/Fri Review Packager, publish a **GitHub commit status** on that exact SHA. Do **not** add a readiness file or marker commit to the feature diff.
 
-## Path
+## Why not a file in the branch
 
-`.linktrend/review-ready.json`
+Concurrent feature branches must not fight over a shared path like `.linktrend/review-ready.json`. Readiness is low-frequency workflow metadata, not product source.
 
-## Design (non-self-referential)
+## Status contract
 
-1. Finish functional work and commit it. That commit is **`contentSha`**.
-2. Run `scripts/mark-review-ready.sh` — writes the JSON with `contentSha` = current HEAD (functional tip). Does **not** commit.
-3. Run `scripts/commit-review-ready.sh` — creates a **marker-only** commit that changes only approved readiness paths.
-4. Push. The marker commit’s tip SHA is the proposed PR/review SHA.
+| Field | Value |
+|-------|--------|
+| Context | `Linktrend Review Ready` |
+| State when ready | `success` |
+| Description | `issue=<id>` plus optional notes |
+| Withdrawal | post `failure` (or `error`) for the same context on that SHA |
 
-### Validity rules
+## Validity
 
-Valid only when all are true:
+- Packager accepts only the **latest successful** `Linktrend Review Ready` status on the **current branch tip SHA**.
+- A later commit is automatically unready (new SHA has no success status).
+- Repeated marking of the same SHA is idempotent.
 
-- `contentSha == HEAD^` (parent of tip is the functional commit)
-- Tip commit changes only `.linktrend/review-ready.json` (and optional `.linktrend/review-freeze.json`)
-- Tip includes `.linktrend/review-ready.json`
-- `deterministicGate` is `pass`
+## Agent checklist
 
-Any later commit makes the record stale automatically.
+1. Acceptance criteria + proof satisfied
+2. Full working tree clean
+3. Push so `HEAD == origin/<branch>`
+4. `scripts/mark-review-ready.sh <issue-id> [notes]`
+5. Set issue status to `review_ready`
+6. Stop — Packager opens a **draft** PR; Bugbot only after fast-gate on that exact SHA
 
-The Packager uses the **marker tip** as the PR head / review SHA. It does **not** require `contentSha == HEAD`.
+Withdraw: `scripts/clear-review-ready.sh [sha] [reason]`
 
-## Schema
+Validate: `scripts/validate-review-ready.sh [sha]`
 
-```json
-{
-  "schemaVersion": 2,
-  "issueId": "<issue-id>",
-  "branch": "issue/<id>-<slug>",
-  "contentSha": "<40-char lowercase hex of final functional commit>",
-  "recordedAt": "<ISO-8601>",
-  "deterministicGate": "pass",
-  "notes": "<optional>"
-}
-```
+## Backends
 
-Legacy `commitSha` (self-referential) is **rejected**.
-
-## Agent checklist before writing
-
-1. Approved scope and acceptance criteria satisfied
-2. Implementation complete; no further functional changes planned
-3. Required `PROOF.md` (or equivalent proof) exists
-4. Inexpensive deterministic checks pass locally
-5. Working tree clean
-6. `scripts/mark-review-ready.sh` then `scripts/commit-review-ready.sh`
-7. Push; set issue status to `review_ready`
+- **GitHub** (default): Commit Statuses API
+- **File** (tests): `LINKTREND_STATUS_BACKEND=file` + `LINKTREND_STATUS_DIR=...`
 
 ## Packager behavior
 
-See `scripts/gitops/packager_runner.py` and `linktrend-review-packager.yml`:
-
-1. Discover allowed work branches with a valid marker tip
-2. Open a **draft** PR (no Bugbot yet)
-3. Wait for named **fast-gate** on that exact PR head
-4. Only then mark ready and comment the configurable Bugbot command (default `cursor review`)
-5. Write the hidden “requested” marker **only in that comment after it succeeds**
+1. **Discover** (schedule/manual): ready tips → draft PRs only (no Bugbot, no serial CI wait)
+2. **Evaluate** (PR/check): reread head → confirm readiness + fast-gate → reread head → mark ready → reread head → comment `cursor review` once → marker only in that comment

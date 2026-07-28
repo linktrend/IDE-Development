@@ -1,8 +1,8 @@
 # Autonomous Git Operations
 
-**Status:** Active (Principal go-ahead 2026-07-24; Option A clock locked 2026-07-25; Review Packager redesign 2026-07-28)  
-**ADR:** `docs/adr/0003-autonomous-ship-pull-promote.md`  
-**Timezone:** Asia/Taipei  
+**Status:** Active (Principal go-ahead 2026-07-24; Option A clock locked 2026-07-25; Review Packager redesign 2026-07-28)
+**ADR:** `docs/adr/0003-autonomous-ship-pull-promote.md`
+**Timezone:** Asia/Taipei
 **SOT home:** This repo (IDE Development). Wired consumers inherit Layer A (`.cursor`) and Layer B (managed GitHub workflows + Bugbot checklist).
 
 ## Two-layer inheritance
@@ -35,7 +35,7 @@ IDE Development itself uses the same managed workflows (it is in scope).
 |---|---|---|---|
 | Ship 05 | 05:00 | Lisa cron → Cursor ACP shipper | One repo at a time: **checkpoint** = commit + push on work branch → **STOP**. No PR. No Bugbot. |
 | Pull 07 | 07:00 | Lisa cron → Cursor ACP puller | Merge latest `origin/development` into unfinished work branches; **skip frozen reviewed SHAs**; unfinished rolls forward |
-| Review Packager | Tue & Fri **08:00** | GitHub (`0 0 * * 2,5` UTC) | Discover valid review-ready marker tips on allowed work branches → open **draft** PR → wait for **fast-gate** on that exact head → mark ready → comment configurable Bugbot command (default `cursor review`) once; hidden SHA marker only after the comment succeeds |
+| Review Packager | Tue & Fri **08:00** | GitHub (`0 0 * * 2,5` UTC) | **Discover:** ready commit-status tips → draft PRs only (no Bugbot, no serial CI wait). **Evaluate** (PR/check): readiness + fast-gate on exact head → ready → `cursor review` once |
 | Staging promote | Tue & Fri **10:00** | GitHub (`0 2 * * 2,5` UTC) | Promote only what is already safely in `development`. If not ready: **skip and report why**. Never force. |
 | Ship 16 | 16:00 | Lisa cron → Cursor ACP shipper | Same as Ship 05 (checkpoint only) |
 | Pull 18 | 18:00 | Lisa cron → Cursor ACP puller | Same as Pull 07 |
@@ -50,15 +50,15 @@ IDE Development itself uses the same managed workflows (it is in scope).
 
 **Repo order (sequential — Principal-locked 2026-07-25):** process exactly one repo at a time, in this order (skip missing paths):
 
-1. IDE Development  
-2. openclaw_prime  
-3. LiNKplatform  
-4. LiNKskills  
-5. LiNKbrain  
-6. LiNKsites  
-7. LiNKdeveloper  
-8. LiNKlibraries  
-9. LiNKautowork  
+1. IDE Development
+2. openclaw_prime
+3. LiNKplatform
+4. LiNKskills
+5. LiNKbrain
+6. LiNKsites
+7. LiNKdeveloper
+8. LiNKlibraries
+9. LiNKautowork
 
 ACP prompts and absolute paths: openclaw_prime `linkbots/lisa/Personality files/agents/ship-pull-clock.md` (follow-up contract for Ship checkpoint-only wording: `docs/contracts/LISA-OPENCLAW-FOLLOW-UP.md`).
 
@@ -80,8 +80,9 @@ ACP prompts and absolute paths: openclaw_prime `linkbots/lisa/Personality files/
 | Review Packager | Tue/Fri 08:00 | Yes | Yes, once per SHA |
 | Urgent package | `workflow_dispatch` on packager | Yes | Yes, once per SHA |
 
-Record path: `.linktrend/review-ready.json` — see `core/github/REVIEW-READY.md` (`contentSha` + marker-only commit).
-Helpers: `scripts/mark-review-ready.sh`, `scripts/commit-review-ready.sh`, `scripts/validate-review-ready.sh`, `scripts/clear-review-ready.sh`.
+Record: GitHub commit status context `Linktrend Review Ready` on the exact tip SHA — see `core/github/REVIEW-READY.md`.
+Helpers: `scripts/mark-review-ready.sh`, `scripts/validate-review-ready.sh`, `scripts/clear-review-ready.sh`.
+Bugbot mention-only: `docs/contracts/BUGBOT-MENTION-ONLY.md` (required before consumer rollout).
 
 ## Bugbot contract
 
