@@ -94,6 +94,10 @@ Usage: $(basename "$0") <consumer-repo-path>
 Wire a consumer repository to IDE Development by creating:
   <consumer-repo>/.cursor -> <relative path to IDE Development>/.cursor
 
+Also syncs managed GitHub workflows (Layer B) from:
+  core/github/managed-workflows/
+into the consumer .github/workflows/ (never overwrites ci.yml).
+
 The script backs up an existing .cursor directory or mismatched symlink before wiring.
 It verifies required runtime paths after wiring and is idempotent when already correct.
 
@@ -176,7 +180,16 @@ required_paths=(
 )
 
 info ""
+info "=== Layer B: sync managed GitHub workflows ==="
+SYNC_SCRIPT="${SYSTEM_ROOT}/scripts/sync-managed-workflows.sh"
+[ -f "$SYNC_SCRIPT" ] || fail "Missing sync script: $SYNC_SCRIPT"
+bash "$SYNC_SCRIPT" "$TARGET_REPO"
+
+info ""
 info "Wire summary: SUCCESS"
 info "Consumer: $TARGET_REPO"
 info "Link: $TARGET_CURSOR -> $(readlink "$TARGET_CURSOR")"
+info "Managed workflows: synced (see core/github/managed-workflows/README.md)"
+info "Next: complete Bugbot checklist — core/checklists/BUGBOT-INHERITANCE.md"
+info "Next: Cursor Automations — docs/CURSOR-AUTOMATIONS-SETUP.md"
 exit 0

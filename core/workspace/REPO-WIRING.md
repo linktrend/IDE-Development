@@ -19,11 +19,14 @@ The script:
 - verifies the target is a directory and is not the system repository itself
 - detects an already-correct symlink and exits cleanly (idempotent)
 - backs up an existing `.cursor` directory or mismatched symlink to `.cursor-backup-<timestamp>/`
-- creates `repo/.cursor` as a relative symlink to `IDE Development/.cursor`
+- creates `repo/.cursor` as a relative symlink to `IDE Development/.cursor` (**Layer A** — agent behavior)
+- syncs managed GitHub workflows from `core/github/managed-workflows/` into `repo/.github/workflows/` (**Layer B** — robots; never overwrites `ci.yml`)
 - verifies required runtime paths are reachable from the consumer repository
-- touches only `.cursor` in the consumer repository
+- prints next steps for Bugbot enablement and Cursor Automations
 
 Agents receiving natural-language wiring requests should run this script and report its pass/fail output rather than improvising symlink commands by hand.
+
+Autonomous Git ops doctrine: `docs/AUTONOMOUS-GIT-OPERATIONS.md`. Backfill existing wired repos: `./scripts/backfill-managed-workflows.sh`.
 
 ## Manual Fallback
 
@@ -72,4 +75,13 @@ The consumer repository should not need to know that:
 
 ## Duplicate Copy Rule
 
-Do not create duplicate content copies inside consumer repositories when a symlink is sufficient and safe.
+Do not create duplicate content copies of `.cursor` / `core` inside consumer repositories when a symlink is sufficient and safe.
+
+Managed GitHub workflow YAML **must** be copied into each consumer (GitHub cannot follow the `.cursor` symlink). Prefer `scripts/sync-managed-workflows.sh` over hand copies.
+
+## Post-wire checklist (Layer B completion)
+
+1. Managed workflows present under `repo/.github/workflows/` (sync output PASS).
+2. Bugbot enabled for the GitHub repo — `core/checklists/BUGBOT-INHERITANCE.md`.
+3. Cursor Automations for Ship/Pull exist on the account — `docs/CURSOR-AUTOMATIONS-SETUP.md`.
+4. Commit and push the synced workflow files on a work branch → PR → `development`.

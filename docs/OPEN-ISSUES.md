@@ -14,7 +14,7 @@ Append-only engineering build log for this repository. Prefer this file over sta
 
 4. **Persistent autonomous orchestrator in this repo** — deliberately out of scope (belongs to LiNKdeveloper).
 
-5. **Automatic product deploy / LAW-06-style promotion from Module 6** — deliberately not ported; Module 6 ends at `release_ready` + Principal Release OK.
+5. **Automatic product deploy / LAW-06-style promotion from Module 6** — deliberately not ported; Module 6 ends at `release_ready` + Principal Release OK. **Note (2026-07-24):** Git branch promote (`development`→`staging` auto; `staging`→`main` Principal Telegram Approve) is in scope via ADR 0003 — that is not Module 6 live deploy.
 
 6. **Dollar-cost accounting UI** — not present.
 
@@ -65,3 +65,69 @@ Following the same playbook as LiNKdeveloper OPEN-ISSUES item #43 (2026-07-18), 
 **Verification after structural changes:** `scripts/verify-ide-development.sh`, `scripts/verify-vendored-skills.sh`, `scripts/verify-pipeline-states.sh` (expected: pure documentation/file-organization pass; no code changes required for green).
 
 **What this deliberately does NOT do:** delete archived documents; rewrite `core/execution/*`; change pipeline/validator/hooks behavior; invent completeness for deferred autonomy features.
+
+---
+
+## 9. Retire hybrid-skills refresh script and sibling gstack/skills clones — 2026-07-23
+
+Principal decision: vendored hybrid skills inside this repo are authoritative and already adapted; do not refresh from upstream sibling clones.
+
+**Removed:** `scripts/vendor-hybrid-skills.sh`.
+
+**Updated:** `docs/HYBRID-SKILLS-REGISTRY.md`, Intent/Technical PRD, `SKILLS_CATALOG.md`, CI workflow comments; Lisa personality notes under `openclaw_prime` now point at vendored paths.
+
+**Deleted from disk (not git):** optional sibling warehouses formerly named `gstack` and `skills` under the operator Projects tree. GitHub forks `linktrend/gstack` and `linktrend/skills` were not deleted.
+
+**Kept:** in-repo vendored trees under `core/runtime/skills/{gstack,mattpocock}/` and `scripts/verify-vendored-skills.sh`.
+
+---
+
+## 10. Autonomous ship / pull / promote + wire inheritance (Layer A+B) — 2026-07-24
+
+Principal go-ahead: system lives in IDE Development; wired repos inherit agent doctrine (`.cursor` symlink) and managed GitHub workflows (sync on wire/backfill); IDE Development itself in scope; Bugbot as Reviewer; Lisa Telegram for one-line status + main Approve.
+
+**Added:** ADR 0003, `docs/AUTONOMOUS-GIT-OPERATIONS.md`, `docs/CURSOR-AUTOMATIONS-SETUP.md`, `core/github/managed-workflows/`, `core/checklists/BUGBOT-INHERITANCE.md`, rules `01-git-branching` / `02-autonomous-ship-pull`, `scripts/sync-managed-workflows.sh`, `scripts/backfill-managed-workflows.sh` (wire-repo extended).
+
+**Clock (amended 2026-07-25):** Lisa Option A is the primary Ship/Pull clock (cron → Cursor ACP on Mini). Cursor Automations are optional backup only (`docs/CURSOR-AUTOMATIONS-SETUP.md`). Bugbot already ON — skip enablement. Lisa ship/pull procedures live in openclaw_prime.
+
+**Skills (2026-07-25):** `/agentsetup` and `/agentcomply` land under `core/skills/` + `core/commands/` for short-lived `issue/*` bootstrap and migration.
+
+---
+
+## 11. GITOPS-01 Review Packager redesign — 2026-07-28
+
+Branch `issue/GITOPS-01-review-packager-pipeline`. Principal-locked amendment to ADR 0003 (Review Packager + promotion window).
+
+**Done in this PR (IDE Development only):**
+
+- **Ship = checkpoint only:** commit + push on work branch; no PR; no Bugbot from Ship waves or EOD.
+- **Review Packager:** `linktrend-review-packager.yml` — Tue/Fri **08:00** Asia/Taipei; discover `.linktrend/review-ready.json` where `commitSha == HEAD` → open/ready PR → Bugbot once (`cursor review` default).
+- **Staging promote:** Tue/Fri **10:00** Asia/Taipei (two hours after Packager); promote only work already on `development`; skip + report if not ready.
+- **Named CI gates:** `core/github/CI-GATE-CONTRACTS.md` (`fast-gate`, `staging-gate`, `release-gate`).
+- **Review-ready contract:** `core/github/REVIEW-READY.md` + `scripts/mark-review-ready.sh`, `validate-review-ready.sh`, `clear-review-ready.sh`.
+- **Managed workflow sync list** includes review-packager; development-to-staging cron `0 2 * * 2,5` UTC.
+- **Doctrine:** `docs/AUTONOMOUS-GIT-OPERATIONS.md` updated; ADR 0003 amendment 2026-07-28.
+- **Follow-up contracts (no Lisa/OpenClaw edits here):** `docs/contracts/LISA-OPENCLAW-FOLLOW-UP.md`, `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`.
+- **Consumer rollout plan:** `docs/GITOPS-CONSUMER-ROLLOUT.md` (read-only drift posture; staged wire after merge).
+
+**Deferred (explicitly not in GITOPS-01):**
+
+- openclaw_prime Lisa personality / cron updates (`ship-pull-clock.md`, `pipeline-status.md`, `morning-digest.md`, etc.) — checklist in `LISA-OPENCLAW-FOLLOW-UP.md`.
+- `wire-repo.sh` / `sync-managed-workflows.sh` on consumer repos (LiNKplatform, LiNKskills, LiNKbrain, LiNKsites, LiNKdeveloper, LiNKlibraries, LiNKautowork).
+- Per-consumer `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` and Bugbot inheritance checklist runs.
+- Lisa reporting lines for Review Packager / Staging 10:00 until openclaw follow-up PR lands.
+
+**Authoritative clock (Asia/Taipei):** Ship 05, Pull 07, Ship 16, Pull 18; Packager Tue/Fri 08:00; Staging Tue/Fri 10:00; Main package Mon 08:00; digest + Approve Mon 08:30.
+
+### Correction — 2026-07-28 (review-ready mechanism)
+
+The bullet above that mentions discovering `.linktrend/review-ready.json` is **obsolete** and must not be followed.
+
+**Authoritative mechanism now:**
+
+1. Push the completed work branch first.
+2. Publish successful commit status **`Linktrend Review Ready`** on the exact branch-tip SHA (`core/github/REVIEW-READY.md`, `scripts/mark-review-ready.sh`).
+3. A later commit becomes unready automatically.
+4. No `.linktrend/review-ready.json` and no readiness marker commit.
+
+**Pull/freeze skip:** successful `Linktrend Review Ready` on the tip SHA, or an open review PR whose head equals that tip, or an explicit operator freeze — never a JSON-file condition.
