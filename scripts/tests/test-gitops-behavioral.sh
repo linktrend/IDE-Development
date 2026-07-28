@@ -118,10 +118,13 @@ text = Path(sys.argv[1], "scripts/gitops/packager_evaluate.py").read_text()
 assert "abort_head_changed_after_gate" in text
 assert "abort_head_changed_before_bugbot" in text
 assert "bugbot_requested" in text
+assert "stale_event_head" in text
 # discovery must not call build_bugbot_comment
 disc = Path(sys.argv[1], "scripts/gitops/packager_discover.py").read_text()
 assert "build_bugbot_comment" not in disc
 assert "--draft" in disc
+assert "linktrend-packager:begin" in disc
+assert "title_preserved" in disc
 print("packager phases ok")
 PY
 pass "Packager discovery without Bugbot; gate/head abort; idempotent request policy"
@@ -151,18 +154,20 @@ python3 - "$ROOT" <<'PY'
 from pathlib import Path
 import sys,re
 text=Path(sys.argv[1],"scripts/gitops/promote_staging.sh").read_text()
-# Extract reevaluate_existing function body roughly
-assert "reevaluate_existing()" in text
-fn=text.split("reevaluate_existing()")[1].split("if [ \"${MODE}\" = \"reevaluate\"")[0]
+assert "reevaluate_exact()" in text
+fn=text.split("reevaluate_exact()")[1].split("if [ \"${MODE}\" = \"reevaluate\"")[0]
 for banned in ["git branch -f", "git checkout", "git merge", "git push", "force-with-lease"]:
-    # allow comments mentioning bans? require absence of execution forms
-    if banned in fn and not banned.startswith("#"):
-        # checkout might appear in comments — check command-like lines
-        for line in fn.splitlines():
-            s=line.strip()
-            if s.startswith("#"): continue
-            if banned in s:
-                raise SystemExit(f"banned `{banned}` in reevaluate: {s}")
+    for line in fn.splitlines():
+        s=line.strip()
+        if s.startswith("#"): continue
+        if banned in s:
+            raise SystemExit(f"banned `{banned}` in reevaluate: {s}")
+assert "linktrend-promote:" in text
+assert "EXPECTED_PROMOTE_HEAD" in text
+assert "PROMOTE_PR_NUMBER" in text
+for line in text.splitlines():
+    if "git fetch origin" in line and not line.strip().startswith("#"):
+        assert "|| true" not in line, line
 print("reevaluate clean")
 PY
 # Repeated "events" leave head unchanged
@@ -194,16 +199,12 @@ grep -q -- '--increment-attempt' "$ROOT/scripts/gitops/promote_staging.sh"
 pass "durable conflict attempts persist and stop at three"
 
 # ============================================================================
-# 5) Main approval requires both SHAs
+# 5) Main approval requires staging + main + promote head SHAs
 # ============================================================================
-# Unit: script fails when env empty
-if MODE=approve-merge EXPECTED_STAGING_SHA= EXPECTED_PROMOTE_HEAD= \
-  bash "$ROOT/scripts/gitops/promote_main.sh" >/tmp/main-approve.out 2>&1; then
-  # may fail earlier on git fetch — accept failure containing requires both
-  true
-fi
 grep -q 'requires both EXPECTED_STAGING_SHA and EXPECTED_PROMOTE_HEAD' "$ROOT/scripts/gitops/promote_main.sh"
-grep -q 'expected_sha and expected_promote_head' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
+grep -q 'EXPECTED_MAIN_SHA' "$ROOT/scripts/gitops/promote_main.sh"
+grep -q 'expected_main_sha' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
+grep -q 'expected_promote_head' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
 pass "main approval requires both expected SHAs"
 
 # ============================================================================
@@ -341,6 +342,164 @@ grep -qi 'mention-only\|manualTriggerOnly' "$ROOT/docs/GITOPS-CONSUMER-ROLLOUT.m
 grep -q 'cron: "0 0 \* \* 2,5"' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
 grep -q 'cron: "0 2 \* \* 2,5"' "$ROOT/core/github/managed-workflows/linktrend-development-to-staging.yml"
 pass "activation + mention-only docs + schedules"
+
+# ============================================================================
+# 10) PR body preservation outside managed section
+# ============================================================================
+python3 - "$ROOT" <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
+from packager_discover import merge_body, BEGIN, END
+
+human = (
+    "# Agent transcript\n\n"
+    "Keep this byte-for-byte.\n\n"
+    "## Evidence\n\n"
+    "- test results: PASS\n"
+    "- notes: do-not-touch\n"
+)
+body1 = merge_body(human, "aaa", "issue/x")
+assert "Keep this byte-for-byte." in body1
+assert BEGIN in body1 and END in body1
+outside1 = body1.split(BEGIN)[0]
+body2 = merge_body(body1, "bbb", "issue/x")
+outside2 = body2.split(BEGIN)[0]
+assert outside1 == outside2 == human + "\n\n" or outside1 == outside2
+# stricter: bytes before managed begin unchanged across runs
+assert body1.split(BEGIN)[0] == body2.split(BEGIN)[0]
+# managed section updated
+assert "bbb" in body2.split(BEGIN)[1]
+assert "aaa" not in body2.split(BEGIN)[1].split(END)[0]
+# title never in merge_body API — discover never edits title for existing
+disc = Path(sys.argv[1], "scripts/gitops/packager_discover.py").read_text()
+assert "Never overwrite title" in disc or "title_preserved" in disc
+assert "gh\", \"pr\", \"edit\"" in disc
+assert "--title" not in disc.split("if existing:")[1].split("return")[0]
+print("body preserve ok")
+PY
+pass "existing PR content survives outside managed section"
+
+# ============================================================================
+# 11) Exact-candidate promote binding + source/target advancement
+# ============================================================================
+python3 - "$ROOT" <<'PY'
+from pathlib import Path
+import sys
+stg = Path(sys.argv[1], "scripts/gitops/promote_staging.sh").read_text()
+main = Path(sys.argv[1], "scripts/gitops/promote_main.sh").read_text()
+assert "target staging advanced" in stg or "targetSha" in stg
+assert "stale event" in stg
+assert "marker candidateHead" in stg
+assert "EXPECTED_MAIN_SHA" in main
+assert "target advanced" in main or "expected main target" in main
+# development tip advance must not rebuild an existing exact candidate
+assert "already exists for this exact source/target" in stg or "sourceSha" in stg
+wf = Path(sys.argv[1], "core/github/managed-workflows/linktrend-development-to-staging.yml").read_text()
+assert "PROMOTE_PR_NUMBER" in wf
+assert "EXPECTED_PROMOTE_HEAD" in wf
+assert "promote/staging/" in wf
+print("exact candidate ok")
+PY
+pass "exact-candidate promote binding + advancement fail-closed"
+
+# ============================================================================
+# 12) Gate wake path + Bugbot request scenarios (policy + workflow wiring)
+# ============================================================================
+python3 - "$ROOT" <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
+from packager_logic import should_request_bugbot, fast_gate_status, build_bugbot_comment, marker_for
+
+sha = "cccccccccccccccccccccccccccccccccccccccc"
+# PR opens while CI pending → no Bugbot
+st,_ = fast_gate_status([{"name":"Verify IDE Development","state":"PENDING"}], ["Verify IDE Development"])
+assert st == "pending"
+ok, reason = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=False)
+assert not ok and reason == "fast_gate_not_green"
+# One gate remains pending
+st,_ = fast_gate_status([
+  {"name":"Verify IDE Development","state":"SUCCESS"},
+  {"name":"Other","state":"PENDING"},
+], ["Verify IDE Development","Other"])
+assert st == "pending"
+# All gates success → exactly one request
+ok, reason = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=True)
+assert ok and reason == "request"
+c = [{"body": build_bugbot_comment("cursor review", sha)}]
+ok, reason = should_request_bugbot(comments=c, head_sha=sha, fast_gate_ok=True)
+assert not ok and reason == "skipped_duplicate_marker"
+# Head changes → old marker does not authorize new head
+ok, reason = should_request_bugbot(comments=c, head_sha="dddddddddddddddddddddddddddddddddddddddd", fast_gate_ok=True)
+assert ok and reason == "request"  # new head may request once
+# Evaluator cannot trigger itself indefinitely — workflow filters
+pkg = Path(sys.argv[1], "core/github/managed-workflows/linktrend-review-packager.yml").read_text()
+assert "workflow_run:" in pkg and "CI" in pkg
+assert "github-actions" in pkg
+assert "Linktrend Packager Result" in pkg
+assert "pull_request_target" in pkg
+print("wake+bugbot scenarios ok")
+PY
+pass "wake path + Bugbot request scenarios"
+
+# ============================================================================
+# 13) App credentials fail closed (no silent GITHUB_TOKEN autonomy)
+# ============================================================================
+python3 - "$ROOT" <<'PY'
+from pathlib import Path
+import subprocess, os, tempfile, sys
+root = Path(sys.argv[1])
+env = os.environ.copy()
+env.pop("LINKTREND_APP_TOKEN", None)
+env.pop("LINKTREND_GITOPS_APP_ID", None)
+env.pop("LINKTREND_GITOPS_APP_PRIVATE_KEY", None)
+env["REQUIRE_APP_TOKEN"] = "1"
+r = subprocess.run(["bash", str(root/"scripts/gitops/resolve_automation_token.sh")],
+                   capture_output=True, text=True, env=env)
+assert r.returncode != 0
+assert "automation_credentials_blocked" in (r.stderr + r.stdout)
+# Scripts refuse autonomy without App source
+for rel in ["scripts/gitops/packager_discover.py","scripts/gitops/packager_evaluate.py"]:
+    t = (root/rel).read_text()
+    assert "automation_credentials_blocked" in t
+    assert 'github_app' in t
+for rel in ["scripts/gitops/promote_staging.sh","scripts/gitops/promote_main.sh","scripts/gitops/integrator_evaluate.sh"]:
+    t = (root/rel).read_text()
+    assert "automation_credentials_blocked" in t
+    assert "github_app" in t
+doc = (root/"docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md").read_text()
+assert "personal access token" in doc.lower() or "PAT" in doc or "broad personal" in doc.lower()
+assert "LINKTREND_GITOPS_APP_PRIVATE_KEY" in doc
+print("credentials fail-closed ok")
+PY
+pass "App credentials fail closed; no silent GITHUB_TOKEN autonomy"
+
+# ============================================================================
+# 14) Event target resolver (trusted fields only)
+# ============================================================================
+python3 - "$ROOT" <<'PY'
+import json, os, tempfile
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
+from resolve_event_pr import resolve
+
+pr, head = resolve("pull_request_target", {
+  "pull_request": {"number": 19, "head": {"sha": "abc"}}
+}, "", "")
+assert pr == "19" and head == "abc"
+pr, head = resolve("workflow_run", {
+  "workflow_run": {"head_sha": "def", "pull_requests": [{"number": 7}]}
+}, "", "")
+assert pr == "7" and head == "def"
+pr, head = resolve("check_run", {
+  "check_run": {"head_sha": "ghi", "pull_requests": [{"number": 3}]}
+}, "", "")
+assert pr == "3" and head == "ghi"
+print("resolver ok")
+PY
+pass "trusted event PR/SHA resolver"
 
 echo ""
 echo "PASS: behavioral gitops tests (${PASS} groups)"

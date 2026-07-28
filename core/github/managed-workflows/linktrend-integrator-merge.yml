@@ -1,13 +1,17 @@
 name: LiNKtrend Integrator Merge To Development
 
-# Evaluate/merge PRs into development using named fast-gate + Cursor Bugbot +
-# reviewed SHA marker. Emits honest integrator-result.json and check run
-# "Linktrend Integrator Result" (success only when merged).
+# Privileged jobs checkout the default branch only (never PR head/merge).
+# Wake paths: pull_request_target (initial), workflow_run (Actions gates),
+# check_run (external apps e.g. Cursor Bugbot).
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [development]
+  workflow_run:
+    workflows:
+      - CI
+    types: [completed]
   check_run:
     types: [completed]
   workflow_dispatch:
@@ -17,13 +21,10 @@ on:
         required: false
         type: string
 
-permissions:
-  contents: write
-  pull-requests: write
-  checks: write
+permissions: {}
 
 concurrency:
-  group: integrator-pr-${{ github.event.pull_request.number || github.event.check_run.pull_requests[0].number || github.event.inputs.pr_number || github.run_id }}
+  group: integrator-pr-${{ github.event.pull_request.number || github.event.workflow_run.id || github.event.check_run.id || github.event.inputs.pr_number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -31,56 +32,130 @@ jobs:
     name: evaluate
     if: >
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'pull_request_target' && github.event.pull_request.draft == false) ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.name == 'CI'
+      ) ||
       (github.event_name == 'check_run' &&
+       github.event.check_run.app.slug != 'github-actions' &&
        github.event.check_run.name != 'evaluate' &&
        github.event.check_run.name != 'Linktrend Integrator Result' &&
+       github.event.check_run.name != 'Linktrend Packager Result' &&
+       github.event.check_run.name != 'Linktrend Staging Outcome' &&
+       github.event.check_run.name != 'Linktrend Main Outcome' &&
        github.event.check_run.name != 'enable-auto-merge' &&
        github.event.check_run.name != 'merge-when-ready')
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: read
     steps:
-      - name: Checkout scripts
+      - name: Checkout trusted default branch only
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
 
-      - name: Evaluate and maybe merge
-        id: integrate
+      - name: Mint GitHub App token
+        id: app
+        uses: actions/create-github-app-token@v1
+        continue-on-error: true
+        with:
+          app-id: ${{ vars.LINKTREND_GITOPS_APP_ID }}
+          private-key: ${{ secrets.LINKTREND_GITOPS_APP_PRIVATE_KEY }}
+
+      - name: Resolve PR/head from trusted event fields
+        id: target
         env:
           GH_TOKEN: ${{ github.token }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            echo "pr=${{ github.event.inputs.pr_number }}" >> "$GITHUB_OUTPUT"
+            echo "head=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mapfile -t _lines < <(python3 scripts/gitops/resolve_event_pr.py)
+          PR=""
+          HEAD=""
+          for line in "${_lines[@]}"; do
+            case "$line" in
+              pr=*) PR="${line#pr=}" ;;
+              head=*) HEAD="${line#head=}" ;;
+            esac
+          done
+          echo "pr=${PR}" >> "$GITHUB_OUTPUT"
+          echo "head=${HEAD}" >> "$GITHUB_OUTPUT"
+
+      - name: Evaluate and maybe merge
+        env:
+          LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
+          LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
+          GITHUB_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number || github.event.check_run.pull_requests[0].number || github.event.inputs.pr_number || '' }}
-          HEAD_SHA: ${{ github.event.check_run.head_sha || github.event.pull_request.head.sha || '' }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.target.outputs.pr }}
+          HEAD_SHA: ${{ steps.target.outputs.head }}
           REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development' }}
           BUGBOT_SUCCESS_CHECK_NAME: Cursor Bugbot
-          GATE_WAIT_SECONDS: "900"
-          GATE_POLL_SECONDS: "20"
-        run: bash scripts/gitops/integrator_evaluate.sh
+          GATE_WAIT_SECONDS: "120"
+          GATE_POLL_SECONDS: "15"
+          REQUIRE_APP_TOKEN: "1"
+        run: |
+          set -euo pipefail
+          if ! source scripts/gitops/resolve_automation_token.sh; then
+            python3 scripts/gitops/write_outcome.py \
+              --file integrator-result.json \
+              --status automation_credentials_blocked \
+              --detail "Integrator requires GitHub App token for autonomous merge" \
+              --check-name "Linktrend Integrator Result" \
+              --head-sha "${HEAD_SHA}" \
+              --token-env GITHUB_TOKEN
+            cp integrator-result.json gitops-outcome.json
+            echo "### Integrator status: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE
+          export GH_TOKEN="${AUTOMATION_TOKEN}"
+          bash scripts/gitops/integrator_evaluate.sh
 
       - name: Upload integrator result
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: integrator-result
-          path: integrator-result.json
+          path: |
+            integrator-result.json
+            gitops-outcome.json
           if-no-files-found: ignore
 
       - name: Summarize honest status
         if: always()
         run: |
           set -euo pipefail
-          if [ -f integrator-result.json ]; then
-            status="$(python3 -c 'import json; print(json.load(open("integrator-result.json"))["status"])')"
-            detail="$(python3 -c 'import json; print(json.load(open("integrator-result.json"))["detail"])')"
+          f=""
+          if [ -f integrator-result.json ]; then f=integrator-result.json
+          elif [ -f gitops-outcome.json ]; then f=gitops-outcome.json
+          fi
+          if [ -n "$f" ]; then
+            status="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$f")"
+            detail="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("detail",""))' "$f")"
             echo "### Integrator status: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
             echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
-            # Fail the job for blocked/failed so a green "evaluate" check never
-            # implies a merge that did not happen. waiting/merged exit 0.
+            # Job green means the evaluator ran. Success terminal states are only
+            # reported via Linktrend Integrator Result check (merged).
             case "${status}" in
-              blocked|failed) exit 1 ;;
+              failed|automation_credentials_blocked) exit 1 ;;
               *) exit 0 ;;
             esac
           else
-            echo "### Integrator status: \`failed\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "missing integrator-result.json" >> "$GITHUB_STEP_SUMMARY"
+            echo "missing outcome file" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi

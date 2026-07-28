@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Packager gate-completion phase: evaluate one draft PR; Bugbot only after fast-gate.
+"""Packager evaluate: wake on PR / workflow_run / external check_run.
 
-Race-safe: reread head before ready, before comment, and refuse if SHA drifts.
-Does not wait serially across many branches — intended to run per PR/check event.
+Trusted scripts only (caller must checkout default branch). Race-safe head rereads.
 """
 
 from __future__ import annotations
@@ -24,10 +23,15 @@ from packager_logic import (  # noqa: E402
     should_request_bugbot,
 )
 from readiness_status import is_sha_review_ready  # noqa: E402
+from write_outcome import post_check_run, write_outcome  # noqa: E402
 
 
-def run(args: list[str]) -> str:
-    return subprocess.check_output(args, text=True).strip()
+def run(args: list[str], token: str | None = None) -> str:
+    env = os.environ.copy()
+    if token:
+        env["GH_TOKEN"] = token
+        env["GITHUB_TOKEN"] = token
+    return subprocess.check_output(args, text=True, env=env).strip()
 
 
 def gh_api(method: str, url: str, token: str, body=None):
@@ -53,11 +57,13 @@ def gh_api(method: str, url: str, token: str, body=None):
         raise RuntimeError(f"{method} {url} -> {e.code}: {detail}") from e
 
 
-def pr_head(pr: int) -> str:
-    return run(["gh", "pr", "view", str(pr), "--json", "headRefOid", "--jq", ".headRefOid"]).lower()
+def pr_head(pr: int, token: str) -> str:
+    return run(
+        ["gh", "pr", "view", str(pr), "--json", "headRefOid", "--jq", ".headRefOid"], token
+    ).lower()
 
 
-def pr_meta(pr: int) -> dict:
+def pr_meta(pr: int, token: str) -> dict:
     return json.loads(
         run(
             [
@@ -67,14 +73,19 @@ def pr_meta(pr: int) -> dict:
                 str(pr),
                 "--json",
                 "number,url,isDraft,headRefOid,baseRefName,state,headRefName",
-            ]
+            ],
+            token,
         )
     )
 
 
-def pr_checks(pr: int) -> list[dict]:
+def pr_checks(pr: int, token: str) -> list[dict]:
     return json.loads(
-        run(["gh", "pr", "checks", str(pr), "--json", "name,state,completedAt,startedAt"]) or "[]"
+        run(
+            ["gh", "pr", "checks", str(pr), "--json", "name,state,completedAt,startedAt"],
+            token,
+        )
+        or "[]"
     )
 
 
@@ -95,8 +106,33 @@ def post_comment(token: str, repo: str, pr: int, body: str) -> None:
     )
 
 
-def evaluate_pr(pr: int) -> dict:
-    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or ""
+def resolve_pr_number(token: str) -> int | None:
+    if os.environ.get("PR_NUMBER"):
+        return int(os.environ["PR_NUMBER"])
+    # workflow_run payload may pass HEAD_SHA
+    head = (os.environ.get("HEAD_SHA") or "").lower()
+    if head:
+        out = run(
+            [
+                "gh",
+                "pr",
+                "list",
+                "--base",
+                "development",
+                "--state",
+                "open",
+                "--json",
+                "number,headRefOid",
+                "--jq",
+                f'[.[] | select(.headRefOid=="{head}")][0].number // empty',
+            ],
+            token,
+        )
+        return int(out) if out else None
+    return None
+
+
+def evaluate_pr(pr: int, token: str) -> dict:
     repo = os.environ["GITHUB_REPOSITORY"]
     command = (
         os.environ.get("BUGBOT_REVIEW_COMMAND")
@@ -109,61 +145,67 @@ def evaluate_pr(pr: int) -> dict:
         or "Verify IDE Development"
     )
 
-    meta = pr_meta(pr)
-    result = {"pr": pr, "action": None}
+    meta = pr_meta(pr, token)
+    result: dict = {"pr": pr}
     if meta.get("baseRefName") != "development" or meta.get("state") != "OPEN":
-        result["action"] = "skip_not_open_development_pr"
+        result["status"] = "skipped"
+        result["detail"] = "not_open_development_pr"
         return result
 
     sha1 = (meta.get("headRefOid") or "").lower()
-    ready, detail = is_sha_review_ready(sha1)
-    result["headSha"] = sha1
-    result["ready_detail"] = detail
-    if not ready:
-        result["action"] = "skip_not_ready_on_head"
+    event_head = (os.environ.get("HEAD_SHA") or "").lower()
+    if event_head and event_head != sha1:
+        result["status"] = "skipped"
+        result["detail"] = f"stale_event_head:{event_head}!={sha1}"
+        result["headSha"] = sha1
         return result
 
-    checks = pr_checks(pr)
+    ready, detail = is_sha_review_ready(sha1)
+    result["headSha"] = sha1
+    if not ready:
+        result["status"] = "waiting"
+        result["detail"] = f"not_ready:{detail}"
+        return result
+
+    checks = pr_checks(pr, token)
     gate_status, gate_detail = fast_gate_status(checks, parse_required_checks(required))
     result["fast_gate"] = {"status": gate_status, "detail": gate_detail}
     if gate_status != "success":
-        result["action"] = "waiting_or_blocked_fast_gate"
-        # Stay draft; zero Bugbot
+        result["status"] = "waiting" if gate_status == "pending" else "blocked"
+        result["detail"] = f"fast_gate:{gate_status}:{gate_detail}"
         return result
 
-    # Reread head immediately after gate observation
-    sha2 = pr_head(pr)
+    sha2 = pr_head(pr, token)
     if sha2 != sha1:
-        result["action"] = "abort_head_changed_after_gate"
-        result["headShaNow"] = sha2
+        result["status"] = "skipped"
+        result["detail"] = f"abort_head_changed_after_gate:{sha2}"
         return result
 
     ready2, _ = is_sha_review_ready(sha2)
     if not ready2:
-        result["action"] = "abort_readiness_lost"
+        result["status"] = "skipped"
+        result["detail"] = "readiness_lost"
         return result
 
-    # Mark ready for review
     if meta.get("isDraft"):
-        run(["gh", "pr", "ready", str(pr)])
+        run(["gh", "pr", "ready", str(pr)], token)
 
-    # Reread head again before Bugbot comment
-    sha3 = pr_head(pr)
+    sha3 = pr_head(pr, token)
     if sha3 != sha1:
-        result["action"] = "abort_head_changed_before_bugbot"
-        result["headShaNow"] = sha3
+        result["status"] = "skipped"
+        result["detail"] = f"abort_head_changed_before_bugbot:{sha3}"
         return result
 
     comments = list_comments(token, repo, pr)
     ok, reason = should_request_bugbot(comments=comments, head_sha=sha3, fast_gate_ok=True)
     if not ok:
-        result["action"] = reason
+        result["status"] = "skipped" if reason.startswith("skipped_") else "blocked"
+        result["detail"] = reason
         return result
 
-    comment = build_bugbot_comment(command, sha3)
-    post_comment(token, repo, pr, comment)
-    # Marker only exists inside the successful comment body (build_bugbot_comment).
-    result["action"] = "bugbot_requested"
+    post_comment(token, repo, pr, build_bugbot_comment(command, sha3))
+    result["status"] = "bugbot_requested"
+    result["detail"] = f"requested_for_{sha3}"
     result["headSha"] = sha3
     post_comment(
         token,
@@ -178,43 +220,37 @@ def evaluate_pr(pr: int) -> dict:
     return result
 
 
-def resolve_pr_number() -> int | None:
-    if os.environ.get("PR_NUMBER"):
-        return int(os.environ["PR_NUMBER"])
-    # From check_run payload via env HEAD_SHA
-    head = os.environ.get("HEAD_SHA") or ""
-    if head:
-        out = run(
-            [
-                "gh",
-                "pr",
-                "list",
-                "--base",
-                "development",
-                "--state",
-                "open",
-                "--json",
-                "number,headRefOid,isDraft",
-                "--jq",
-                f'[.[] | select(.headRefOid=="{head}")][0].number // empty',
-            ]
-        )
-        return int(out) if out else None
-    return None
-
-
 def main() -> int:
-    pr = resolve_pr_number()
-    if not pr:
-        report = {"action": "no_pr", "detail": "No PR_NUMBER/HEAD_SHA candidate"}
-        Path("packager-evaluate-report.json").write_text(
-            json.dumps(report, indent=2) + "\n", encoding="utf-8"
+    token = os.environ.get("AUTOMATION_TOKEN") or ""
+    source = os.environ.get("AUTOMATION_TOKEN_SOURCE") or ""
+    # Evaluate may use App token; for read+comment prefer App. Fail closed if missing.
+    if source != "github_app" or not token:
+        write_outcome(
+            Path("gitops-outcome.json"),
+            "automation_credentials_blocked",
+            "Packager evaluate requires GitHub App token",
         )
-        print(json.dumps(report, indent=2))
         return 0
-    report = evaluate_pr(pr)
-    Path("packager-evaluate-report.json").write_text(
-        json.dumps(report, indent=2) + "\n", encoding="utf-8"
+
+    pr = resolve_pr_number(token)
+    if not pr:
+        write_outcome(Path("gitops-outcome.json"), "skipped", "no_pr_candidate")
+        return 0
+
+    report = evaluate_pr(pr, token)
+    status = report.get("status") or "failed"
+    detail = report.get("detail") or ""
+    write_outcome(Path("gitops-outcome.json"), status, detail, report=report)
+    head = report.get("headSha") or os.environ.get("HEAD_SHA") or ""
+    # Use GITHUB_TOKEN for check-run if provided separately (job-level)
+    check_token = os.environ.get("GITHUB_TOKEN") or token
+    post_check_run(
+        name="Linktrend Packager Result",
+        head_sha=head,
+        status=status,
+        detail=detail,
+        repo=os.environ.get("GITHUB_REPOSITORY") or "",
+        token=check_token,
     )
     print(json.dumps(report, indent=2))
     return 0

@@ -1,87 +1,219 @@
-name: LiNKtrend Development To Staging
-
-# Tue/Fri 10:00 Asia/Taipei = 02:00 UTC
-# build on schedule/manual; reevaluate on promote PR/check (never rebuilds)
+# Managed by IDE Development — do not edit by hand in consumers.
+# Sync: scripts/sync-managed-workflows.sh
+#
+# TRUST BOUNDARY: privileged jobs check out the default branch only.
+# Never execute PR head/merge scripts with write credentials.
+# Build creates an exact promote candidate. Reevaluate binds that PR + head SHA.
+name: Development → Staging Promotion
 
 on:
   schedule:
     - cron: "0 2 * * 2,5"
   workflow_dispatch:
     inputs:
-      reason:
-        description: "Why this promotion run is needed"
+      mode:
+        description: "build = create/update candidate; reevaluate = exact promote PR"
+        required: true
+        default: reevaluate
+        type: choice
+        options: [build, reevaluate]
+      promote_pr_number:
+        description: "Exact promote PR number (reevaluate)"
         required: false
-        default: "manual"
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    branches: [staging]
+        type: string
+      expected_head_sha:
+        description: "Expected promote PR head SHA (reevaluate)"
+        required: false
+        type: string
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   check_run:
     types: [completed]
-
-permissions:
-  contents: write
-  pull-requests: write
-  checks: read
-  statuses: read
-  actions: read
-  issues: write
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
 
 concurrency:
-  group: linktrend-development-to-staging-${{ github.repository }}-${{ github.event_name }}
+  group: development-to-staging
   cancel-in-progress: false
 
-env:
-  TIMEZONE_LABEL: "Asia/Taipei"
-  STAGING_GATE_CHECKS: ${{ vars.LINKTREND_STAGING_GATE_CHECKS || 'Verify IDE Development' }}
+permissions: {}
 
 jobs:
-  build:
-    name: Build staging candidate
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+  resolve-token:
+    if: >
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request_target' &&
+        startsWith(github.head_ref, 'promote/staging/')
+      ) ||
+      (
+        github.event_name == 'check_run' &&
+        github.event.check_run.app.slug != 'github-actions' &&
+        github.event.check_run.name != 'Linktrend Staging Outcome' &&
+        github.event.check_run.name != 'Linktrend Packager Result' &&
+        github.event.check_run.name != 'Linktrend Integrator Result'
+      ) ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.name == 'CI'
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      token_ready: ${{ steps.app.outcome == 'success' && steps.app.outputs.token != '' && 'true' || 'false' }}
+      app_token: ${{ steps.app.outputs.token }}
+    steps:
+      - id: app
+        continue-on-error: true
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.LINKTREND_GITOPS_APP_ID }}
+          private-key: ${{ secrets.LINKTREND_GITOPS_APP_PRIVATE_KEY }}
+
+  promote:
+    needs: resolve-token
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      checks: write
+      statuses: read
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ needs.resolve-token.outputs.token_ready == 'true' && needs.resolve-token.outputs.app_token || github.token }}
+      GITHUB_TOKEN: ${{ needs.resolve-token.outputs.token_ready == 'true' && needs.resolve-token.outputs.app_token || github.token }}
+      LINKTREND_APP_TOKEN: ${{ needs.resolve-token.outputs.app_token }}
+      LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
+      REQUIRE_APP_TOKEN: "1"
+      OUTCOME_CHECK_NAME: Linktrend Staging Outcome
+      STAGING_GATE_CHECKS: ${{ vars.LINKTREND_STAGING_GATE_CHECKS || 'Verify IDE Development' }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout trusted default branch only
+        uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
-      - name: Build
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          MODE: build
-          STAGING_GATE_CHECKS: ${{ env.STAGING_GATE_CHECKS }}
-        run: bash scripts/gitops/promote_staging.sh
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: staging-build-report
-          path: staging-promote-report.md
-          if-no-files-found: ignore
+          persist-credentials: false
 
-  reevaluate:
-    name: Reevaluate staging promote PR
-    if: >
-      (github.event_name == 'pull_request' && startsWith(github.head_ref, 'promote/staging/')) ||
-      (github.event_name == 'check_run' && contains(join(github.event.check_run.pull_requests.*.head.ref, ','), 'promote/staging/'))
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Reevaluate (no rebuild/push)
+      - name: Configure git remote for App token pushes
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+      - name: Resolve mode and exact candidate
+        id: ctx
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          PROMOTE_PREFIX: "promote/staging/"
+          INPUT_MODE: ${{ github.event.inputs.mode }}
+          INPUT_PR: ${{ github.event.inputs.promote_pr_number }}
+          INPUT_SHA: ${{ github.event.inputs.expected_head_sha }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          MODE="reevaluate"
+          PR=""
+          SHA=""
+          SKIP=""
+          case "${GITHUB_EVENT_NAME}" in
+            schedule)
+              MODE="build"
+              ;;
+            workflow_dispatch)
+              MODE="${INPUT_MODE:-reevaluate}"
+              PR="${INPUT_PR:-}"
+              SHA="${INPUT_SHA:-}"
+              ;;
+            pull_request_target|check_run|workflow_run)
+              MODE="reevaluate"
+              mapfile -t _lines < <(python3 scripts/gitops/resolve_event_pr.py)
+              for line in "${_lines[@]}"; do
+                case "$line" in
+                  pr=*) PR="${line#pr=}" ;;
+                  head=*) SHA="${line#head=}" ;;
+                esac
+              done
+              if [ -z "${PR}" ]; then
+                SKIP="true"
+              fi
+              if [ "${GITHUB_EVENT_NAME}" = "pull_request_target" ]; then
+                case "${HEAD_REF}" in
+                  promote/staging/*) ;;
+                  *) SKIP="true" ;;
+                esac
+              fi
+              ;;
+          esac
+          {
+            echo "mode=${MODE}"
+            echo "pr=${PR}"
+            echo "sha=${SHA}"
+            echo "skip=${SKIP}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve automation token (fail closed)
+        id: creds
+        run: |
+          set -euo pipefail
+          if ! source scripts/gitops/resolve_automation_token.sh; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          echo "AUTOMATION_TOKEN=${AUTOMATION_TOKEN}" >> "$GITHUB_ENV"
+          echo "AUTOMATION_TOKEN_SOURCE=${AUTOMATION_TOKEN_SOURCE}" >> "$GITHUB_ENV"
+
+      - name: Report credentials blocked
+        if: steps.creds.outputs.ready != 'true'
+        env:
+          HEAD_SHA: ${{ steps.ctx.outputs.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          python3 scripts/gitops/write_outcome.py \
+            --status automation_credentials_blocked \
+            --detail "LINKTREND_GITOPS_APP_ID / LINKTREND_GITOPS_APP_PRIVATE_KEY required for autonomous promotion." \
+            --check-name "$OUTCOME_CHECK_NAME" \
+            --head-sha "$HEAD_SHA" \
+            --token-env GITHUB_TOKEN
+          exit 1
+
+      - name: Run staging promotion
+        if: steps.ctx.outputs.skip != 'true' && steps.creds.outputs.ready == 'true'
+        env:
+          MODE: ${{ steps.ctx.outputs.mode }}
+          PROMOTE_PR_NUMBER: ${{ steps.ctx.outputs.pr }}
+          EXPECTED_PROMOTE_HEAD: ${{ steps.ctx.outputs.sha }}
           GH_REPO: ${{ github.repository }}
-          MODE: reevaluate
-          STAGING_GATE_CHECKS: ${{ env.STAGING_GATE_CHECKS }}
-          GATE_WAIT_SECONDS: "180"
-        run: bash scripts/gitops/promote_staging.sh
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: staging-reevaluate-report
-          path: |
-            staging-promote-report.md
-            staging-gate-wait.json
-          if-no-files-found: ignore
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          bash scripts/gitops/promote_staging.sh
+          status="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json"))["status"])')"
+          detail="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json")).get("detail",""))')"
+          sha="${EXPECTED_PROMOTE_HEAD:-$GITHUB_SHA}"
+          python3 scripts/gitops/write_outcome.py \
+            --status "$status" \
+            --detail "$detail" \
+            --check-name "$OUTCOME_CHECK_NAME" \
+            --head-sha "$sha" \
+            --token-env GITHUB_TOKEN
+          echo "### Staging outcome: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
+          case "${status}" in
+            failed|automation_credentials_blocked) exit 1 ;;
+            *) exit 0 ;;
+          esac
+
+      - name: Skip noise events
+        if: steps.ctx.outputs.skip == 'true' && steps.creds.outputs.ready == 'true'
+        run: |
+          python3 scripts/gitops/write_outcome.py \
+            --status skipped \
+            --detail "no exact promote/staging candidate for this event"

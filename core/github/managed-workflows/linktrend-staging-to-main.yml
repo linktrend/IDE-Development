@@ -1,3 +1,8 @@
+# Managed by IDE Development — do not edit by hand in consumers.
+# Sync: scripts/sync-managed-workflows.sh
+#
+# TRUST BOUNDARY: privileged jobs check out the default branch only.
+# Approve-merge binds staging source SHA, prior main target SHA, and promote head.
 name: LiNKtrend Staging To Main
 
 on:
@@ -6,103 +11,255 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "package | approve-merge"
+        description: "package | approve-merge | reevaluate"
         type: choice
         options:
           - package
           - approve-merge
+          - reevaluate
         default: package
       expected_sha:
-        description: "Required for approve-merge: exact staging SHA"
+        description: "approve-merge: exact staging source SHA"
+        required: false
+        type: string
+      expected_main_sha:
+        description: "approve-merge: prior main target SHA"
         required: false
         type: string
       expected_promote_head:
-        description: "Required for approve-merge: exact promote PR head SHA"
+        description: "approve-merge / reevaluate: exact promote PR head SHA"
         required: false
         type: string
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches: [main]
+      promote_pr_number:
+        description: "reevaluate / approve-merge: exact promote PR number"
+        required: false
+        type: string
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
   check_run:
     types: [completed]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
 
-permissions:
-  contents: write
-  pull-requests: write
-  checks: read
-  statuses: read
-  actions: read
-  issues: write
+permissions: {}
+
+concurrency:
+  group: staging-to-main
+  cancel-in-progress: false
 
 env:
   TIMEZONE_LABEL: "Asia/Taipei"
   RELEASE_GATE_CHECKS: ${{ vars.LINKTREND_RELEASE_GATE_CHECKS || 'Verify IDE Development' }}
 
 jobs:
-  package:
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.action == 'package')
+  resolve-token:
+    if: >
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request_target' &&
+        startsWith(github.head_ref, 'promote/main/')
+      ) ||
+      (
+        github.event_name == 'check_run' &&
+        github.event.check_run.app.slug != 'github-actions' &&
+        github.event.check_run.name != 'Linktrend Main Outcome' &&
+        github.event.check_run.name != 'Linktrend Staging Outcome' &&
+        github.event.check_run.name != 'Linktrend Packager Result' &&
+        github.event.check_run.name != 'Linktrend Integrator Result'
+      ) ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.name == 'CI'
+      )
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      token_ready: ${{ steps.app.outcome == 'success' && steps.app.outputs.token != '' && 'true' || 'false' }}
+      app_token: ${{ steps.app.outputs.token }}
     steps:
-      - uses: actions/checkout@v4
+      - id: app
+        continue-on-error: true
+        uses: actions/create-github-app-token@v1
         with:
-          fetch-depth: 0
-      - name: Package
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          MODE: package
-          RELEASE_GATE_CHECKS: ${{ env.RELEASE_GATE_CHECKS }}
-        run: bash scripts/gitops/promote_main.sh
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: main-package-report
-          path: main-promote-report.md
-          if-no-files-found: ignore
+          app-id: ${{ vars.LINKTREND_GITOPS_APP_ID }}
+          private-key: ${{ secrets.LINKTREND_GITOPS_APP_PRIVATE_KEY }}
 
-  merge-on-approve:
-    if: github.event_name == 'workflow_dispatch' && inputs.action == 'approve-merge'
+  promote:
+    needs: resolve-token
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      checks: write
+      statuses: read
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ needs.resolve-token.outputs.token_ready == 'true' && needs.resolve-token.outputs.app_token || github.token }}
+      GITHUB_TOKEN: ${{ needs.resolve-token.outputs.token_ready == 'true' && needs.resolve-token.outputs.app_token || github.token }}
+      LINKTREND_APP_TOKEN: ${{ needs.resolve-token.outputs.app_token }}
+      LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
+      REQUIRE_APP_TOKEN: "1"
+      OUTCOME_CHECK_NAME: Linktrend Main Outcome
+      RELEASE_GATE_CHECKS: ${{ env.RELEASE_GATE_CHECKS }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout trusted default branch only
+        uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
-      - name: Approve-merge (both SHAs required)
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          MODE: approve-merge
-          EXPECTED_STAGING_SHA: ${{ inputs.expected_sha }}
-          EXPECTED_PROMOTE_HEAD: ${{ inputs.expected_promote_head }}
-          RELEASE_GATE_CHECKS: ${{ env.RELEASE_GATE_CHECKS }}
+          persist-credentials: false
+
+      - name: Configure git remote for App token pushes
         run: |
           set -euo pipefail
-          if [ -z "${EXPECTED_STAGING_SHA}" ] || [ -z "${EXPECTED_PROMOTE_HEAD}" ]; then
-            echo "FAIL: approve-merge requires expected_sha and expected_promote_head"
-            exit 1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+      - name: Resolve mode and exact candidate
+        id: ctx
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          PROMOTE_PREFIX: "promote/main/"
+          INPUT_ACTION: ${{ github.event.inputs.action }}
+          INPUT_PR: ${{ github.event.inputs.promote_pr_number }}
+          INPUT_STG: ${{ github.event.inputs.expected_sha }}
+          INPUT_MAIN: ${{ github.event.inputs.expected_main_sha }}
+          INPUT_HEAD: ${{ github.event.inputs.expected_promote_head }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          MODE="reevaluate"
+          PR=""
+          SHA=""
+          STG=""
+          MAIN=""
+          SKIP=""
+          case "${GITHUB_EVENT_NAME}" in
+            schedule)
+              MODE="package"
+              ;;
+            workflow_dispatch)
+              case "${INPUT_ACTION:-package}" in
+                package) MODE="package" ;;
+                approve-merge) MODE="approve-merge" ;;
+                *) MODE="reevaluate" ;;
+              esac
+              PR="${INPUT_PR:-}"
+              SHA="${INPUT_HEAD:-}"
+              STG="${INPUT_STG:-}"
+              MAIN="${INPUT_MAIN:-}"
+              ;;
+            pull_request_target|check_run|workflow_run)
+              MODE="reevaluate"
+              mapfile -t _lines < <(python3 scripts/gitops/resolve_event_pr.py)
+              for line in "${_lines[@]}"; do
+                case "$line" in
+                  pr=*) PR="${line#pr=}" ;;
+                  head=*) SHA="${line#head=}" ;;
+                esac
+              done
+              if [ -z "${PR}" ]; then
+                SKIP="true"
+              fi
+              if [ "${GITHUB_EVENT_NAME}" = "pull_request_target" ]; then
+                case "${HEAD_REF}" in
+                  promote/main/*) ;;
+                  *) SKIP="true" ;;
+                esac
+              fi
+              ;;
+          esac
+          {
+            echo "mode=${MODE}"
+            echo "pr=${PR}"
+            echo "sha=${SHA}"
+            echo "stg=${STG}"
+            echo "main=${MAIN}"
+            echo "skip=${SKIP}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve automation token (fail closed)
+        id: creds
+        run: |
+          set -euo pipefail
+          if ! source scripts/gitops/resolve_automation_token.sh; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          echo "AUTOMATION_TOKEN=${AUTOMATION_TOKEN}" >> "$GITHUB_ENV"
+          echo "AUTOMATION_TOKEN_SOURCE=${AUTOMATION_TOKEN_SOURCE}" >> "$GITHUB_ENV"
+
+      - name: Report credentials blocked
+        if: steps.creds.outputs.ready != 'true'
+        env:
+          HEAD_SHA: ${{ steps.ctx.outputs.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          python3 scripts/gitops/write_outcome.py \
+            --status automation_credentials_blocked \
+            --detail "LINKTREND_GITOPS_APP_ID / LINKTREND_GITOPS_APP_PRIVATE_KEY required for autonomous main promotion." \
+            --check-name "$OUTCOME_CHECK_NAME" \
+            --head-sha "$HEAD_SHA" \
+            --token-env GITHUB_TOKEN
+          exit 1
+
+      - name: Run main promotion
+        if: steps.ctx.outputs.skip != 'true' && steps.creds.outputs.ready == 'true'
+        env:
+          MODE: ${{ steps.ctx.outputs.mode }}
+          PROMOTE_PR_NUMBER: ${{ steps.ctx.outputs.pr }}
+          EXPECTED_PROMOTE_HEAD: ${{ steps.ctx.outputs.sha }}
+          EXPECTED_STAGING_SHA: ${{ steps.ctx.outputs.stg }}
+          EXPECTED_MAIN_SHA: ${{ steps.ctx.outputs.main }}
+          GH_REPO: ${{ github.repository }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "${MODE}" = "approve-merge" ]; then
+            if [ -z "${EXPECTED_STAGING_SHA}" ] || [ -z "${EXPECTED_PROMOTE_HEAD}" ] || [ -z "${EXPECTED_MAIN_SHA}" ]; then
+              python3 scripts/gitops/write_outcome.py \
+                --status failed \
+                --detail "approve-merge requires expected_sha, expected_main_sha, and expected_promote_head"
+              exit 1
+            fi
           fi
           bash scripts/gitops/promote_main.sh
+          status="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json"))["status"])')"
+          detail="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json")).get("detail",""))')"
+          sha="${EXPECTED_PROMOTE_HEAD:-$GITHUB_SHA}"
+          python3 scripts/gitops/write_outcome.py \
+            --status "$status" \
+            --detail "$detail" \
+            --check-name "$OUTCOME_CHECK_NAME" \
+            --head-sha "$sha" \
+            --token-env GITHUB_TOKEN
+          echo "### Main outcome: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
+          case "${status}" in
+            failed|automation_credentials_blocked) exit 1 ;;
+            *) exit 0 ;;
+          esac
+
+      - name: Skip noise events
+        if: steps.ctx.outputs.skip == 'true' && steps.creds.outputs.ready == 'true'
+        run: |
+          python3 scripts/gitops/write_outcome.py \
+            --status skipped \
+            --detail "no exact promote/main candidate for this event"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: main-approve-report
+          name: main-promote-report
           path: |
+            gitops-outcome.json
             main-promote-report.md
             release-gate-wait.json
           if-no-files-found: ignore
-
-  reevaluate:
-    if: >
-      (github.event_name == 'pull_request' && startsWith(github.head_ref, 'promote/main/')) ||
-      (github.event_name == 'check_run' && contains(join(github.event.check_run.pull_requests.*.head.ref, ','), 'promote/main/'))
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Observe only (no rebuild)
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          MODE: reevaluate
-        run: bash scripts/gitops/promote_main.sh

@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Packager discovery phase: find ready tips, open/refresh draft PRs. No Bugbot. No CI wait."""
+"""Packager discovery: ready tips → draft PRs. Preserves existing PR title/body.
+
+Updates only a delimited managed section. No Bugbot. No serial CI wait.
+Requires automation App token (fail closed).
+"""
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
@@ -14,10 +19,22 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from packager_logic import is_allowed_work_branch  # noqa: E402
 from readiness_status import is_sha_review_ready  # noqa: E402
+from write_outcome import write_outcome  # noqa: E402
+
+BEGIN = "<!-- linktrend-packager:begin -->"
+END = "<!-- linktrend-packager:end -->"
+SECTION_RE = re.compile(
+    re.escape(BEGIN) + r".*?" + re.escape(END),
+    re.DOTALL,
+)
 
 
-def run(args: list[str]) -> str:
-    return subprocess.check_output(args, text=True).strip()
+def run(args: list[str], token: str | None = None) -> str:
+    env = os.environ.copy()
+    if token:
+        env["GH_TOKEN"] = token
+        env["GITHUB_TOKEN"] = token
+    return subprocess.check_output(args, text=True, env=env).strip()
 
 
 def gh_api(method: str, url: str, token: str, body=None):
@@ -43,6 +60,28 @@ def gh_api(method: str, url: str, token: str, body=None):
         raise RuntimeError(f"{method} {url} -> {e.code}: {detail}") from e
 
 
+def managed_section(sha: str, branch: str) -> str:
+    return (
+        f"{BEGIN}\n"
+        f"## Review Packager (managed)\n\n"
+        f"- Candidate tip SHA: `{sha}`\n"
+        f"- Branch: `{branch}`\n"
+        f"- Phase: discovery — draft only; Bugbot is requested only after fast-gate "
+        f"on this exact SHA (evaluate / workflow_run path).\n"
+        f"{END}\n"
+    )
+
+
+def merge_body(existing: str, sha: str, branch: str) -> str:
+    section = managed_section(sha, branch)
+    if SECTION_RE.search(existing or ""):
+        return SECTION_RE.sub(section.strip(), existing)
+    base = (existing or "").rstrip()
+    if base:
+        return base + "\n\n" + section
+    return section
+
+
 def list_branches(token: str, repo: str) -> list[dict]:
     branches = []
     page = 1
@@ -61,7 +100,7 @@ def list_branches(token: str, repo: str) -> list[dict]:
     return branches
 
 
-def ensure_draft_pr(branch: str, sha: str, summary: str) -> dict:
+def ensure_draft_pr(token: str, branch: str, sha: str) -> dict:
     existing = json.loads(
         run(
             [
@@ -75,38 +114,38 @@ def ensure_draft_pr(branch: str, sha: str, summary: str) -> dict:
                 "--state",
                 "open",
                 "--json",
-                "number,url,isDraft,headRefOid,title",
-            ]
+                "number,url,isDraft,headRefOid,title,body",
+            ],
+            token,
         )
         or "[]"
     )
-    title = f"Review: {branch}"
-    if summary:
-        title = summary[:72] if len(summary) <= 72 else summary[:69] + "..."
-    body = (
-        f"## Review Packager (discovery)\n\n"
-        f"Draft PR only — Bugbot is **not** requested in this phase.\n\n"
-        f"- Candidate tip SHA: `{sha}`\n"
-        f"- Gate-completion job will request Bugbot only after fast-gate succeeds "
-        f"on this exact SHA.\n"
-    )
     if existing:
         pr = existing[0]
-        run(["gh", "pr", "edit", str(pr["number"]), "--body", body, "--title", title])
-        # Ensure draft until evaluate promotes it
-        if not pr.get("isDraft"):
-            # Leave as-is if already ready (evaluate may have promoted)
-            pass
-        else:
-            pass
+        # Ready/frozen PRs: never rewrite title/body (preserve human/agent content).
+        if not bool(pr.get("isDraft")):
+            return {
+                "number": pr["number"],
+                "url": pr["url"],
+                "isDraft": False,
+                "created": False,
+                "title_preserved": True,
+                "body_untouched": True,
+            }
+        new_body = merge_body(pr.get("body") or "", sha, branch)
+        if new_body != (pr.get("body") or ""):
+            run(["gh", "pr", "edit", str(pr["number"]), "--body", new_body], token)
+        # Never overwrite title
         return {
             "number": pr["number"],
             "url": pr["url"],
             "isDraft": bool(pr.get("isDraft")),
-            "head": pr.get("headRefOid"),
             "created": False,
+            "title_preserved": True,
         }
-    # Convert ready PR creation: always draft
+
+    title = f"Review: {branch}"
+    body = merge_body("", sha, branch)
     url = run(
         [
             "gh",
@@ -121,19 +160,26 @@ def ensure_draft_pr(branch: str, sha: str, summary: str) -> dict:
             "--body",
             body,
             "--draft",
-        ]
+        ],
+        token,
     )
-    num = int(run(["gh", "pr", "view", url, "--json", "number", "--jq", ".number"]))
-    return {"number": num, "url": url, "isDraft": True, "head": sha, "created": True}
+    num = int(run(["gh", "pr", "view", url, "--json", "number", "--jq", ".number"], token))
+    return {"number": num, "url": url, "isDraft": True, "created": True, "title_preserved": True}
 
 
 def main() -> int:
-    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or ""
-    if not token:
-        print("FAIL: GH_TOKEN required", file=sys.stderr)
-        return 2
+    token = os.environ.get("AUTOMATION_TOKEN") or ""
+    if not token or os.environ.get("AUTOMATION_TOKEN_SOURCE") != "github_app":
+        write_outcome(
+            Path("gitops-outcome.json"),
+            "automation_credentials_blocked",
+            "Packager discover requires GitHub App token (LINKTREND_GITOPS_APP_*)",
+        )
+        return 0
+
     repo = os.environ["GITHUB_REPOSITORY"]
     report = []
+    packaged = 0
     for b in list_branches(token, repo):
         name = b.get("name") or ""
         if not is_allowed_work_branch(name):
@@ -142,39 +188,35 @@ def main() -> int:
         if not sha:
             continue
         ok, detail = is_sha_review_ready(sha)
-        entry = {"branch": name, "headSha": sha, "ready": ok, "detail": detail}
+        entry: dict = {"branch": name, "headSha": sha, "ready": ok, "detail": detail}
         if not ok:
             entry["action"] = "skipped_not_ready"
             report.append(entry)
             continue
         try:
-            pr = ensure_draft_pr(name, sha, detail)
+            pr = ensure_draft_pr(token, name, sha)
             head = run(
-                ["gh", "pr", "view", str(pr["number"]), "--json", "headRefOid", "--jq", ".headRefOid"]
+                ["gh", "pr", "view", str(pr["number"]), "--json", "headRefOid", "--jq", ".headRefOid"],
+                token,
             ).lower()
             if head != sha:
-                entry.update(
-                    {
-                        "action": "skipped_head_drift",
-                        "reason": f"PR head {head} != tip {sha}",
-                        "pr": pr["number"],
-                    }
-                )
+                entry.update({"action": "skipped_head_drift", "pr": pr["number"]})
             else:
-                entry.update(
-                    {
-                        "action": "draft_ensured",
-                        "pr": pr["number"],
-                        "pr_url": pr["url"],
-                        "isDraft": pr["isDraft"],
-                    }
-                )
+                entry.update({"action": "draft_ensured", "pr": pr["number"], "pr_url": pr["url"]})
+                packaged += 1
         except Exception as e:  # noqa: BLE001
             entry.update({"action": "error", "reason": str(e)})
         report.append(entry)
 
     Path("packager-discover-report.json").write_text(
         json.dumps(report, indent=2) + "\n", encoding="utf-8"
+    )
+    status = "packaged" if packaged else "skipped"
+    write_outcome(
+        Path("gitops-outcome.json"),
+        status,
+        f"discover packaged_or_refreshed={packaged}",
+        report=report,
     )
     print(json.dumps(report, indent=2))
     return 0

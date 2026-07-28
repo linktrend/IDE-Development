@@ -1,29 +1,43 @@
 #!/usr/bin/env bash
 # Integrator evaluate/merge for PRs into development.
-# Emits integrator-result.json with status: merged|waiting|blocked|failed
-# Posts check run "Linktrend Integrator Result" with honest conclusion.
-# The Actions job should treat evaluate as report-only; this script's exit code:
-#   0 = merged or waiting (non-error)
-#   1 = blocked or failed
+# Requires GitHub App automation token (fail closed).
+# Emits integrator-result.json + gitops-outcome.json with honest status.
+# Posts check run "Linktrend Integrator Result" (success only when merged).
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PR_NUMBER="${PR_NUMBER:-}"
 HEAD_SHA="${HEAD_SHA:-}"
 REQUIRED_CHECKS="${REQUIRED_CHECKS:-Verify IDE Development}"
 BUGBOT_SUCCESS_CHECK_NAME="${BUGBOT_SUCCESS_CHECK_NAME:-Cursor Bugbot}"
-GATE_WAIT_SECONDS="${GATE_WAIT_SECONDS:-900}"
-GATE_POLL_SECONDS="${GATE_POLL_SECONDS:-20}"
+GATE_WAIT_SECONDS="${GATE_WAIT_SECONDS:-120}"
+GATE_POLL_SECONDS="${GATE_POLL_SECONDS:-15}"
 GH_REPO="${GH_REPO:-${GITHUB_REPOSITORY:-}}"
+
+TOKEN="${AUTOMATION_TOKEN:-}"
+if [ -z "${TOKEN}" ] || [ "${AUTOMATION_TOKEN_SOURCE:-}" != "github_app" ]; then
+  python3 "${SCRIPT_DIR}/write_outcome.py" \
+    --file integrator-result.json \
+    --status automation_credentials_blocked \
+    --detail "Integrator requires GitHub App token for autonomous merge"
+  cp integrator-result.json gitops-outcome.json 2>/dev/null || true
+  exit 0
+fi
+export GH_TOKEN="${TOKEN}"
+export GITHUB_TOKEN="${TOKEN}"
 
 write_result() {
   local status="$1"
   local detail="$2"
   local pr="${3:-}"
-  python3 - "$status" "$detail" "$pr" <<'PY'
+  local sha="${4:-}"
+  python3 - "$status" "$detail" "$pr" "$sha" <<'PY'
 import json, sys
-status, detail, pr = sys.argv[1:4]
-payload = {"status": status, "detail": detail, "pr": pr or None}
-open("integrator-result.json", "w", encoding="utf-8").write(json.dumps(payload, indent=2) + "\n")
+status, detail, pr, sha = sys.argv[1:5]
+payload = {"status": status, "detail": detail, "pr": pr or None, "headSha": sha or None}
+text = json.dumps(payload, indent=2) + "\n"
+open("integrator-result.json", "w", encoding="utf-8").write(text)
+open("gitops-outcome.json", "w", encoding="utf-8").write(text)
 print(f"INTEGRATOR_STATUS={status}")
 print(f"INTEGRATOR_DETAIL={detail}")
 PY
@@ -33,24 +47,14 @@ post_check() {
   local status="$1"
   local detail="$2"
   local sha="$3"
-  local conclusion="neutral"
-  case "$status" in
-    merged) conclusion="success" ;;
-    waiting) conclusion="neutral" ;;
-    blocked) conclusion="neutral" ;;
-    failed) conclusion="failure" ;;
-  esac
-  if [ -z "$sha" ] || [ -z "${GH_REPO}" ]; then
-    return 0
-  fi
-  # Create check run with honest conclusion (does not claim merge unless merged).
-  gh api --method POST "repos/${GH_REPO}/check-runs" \
-    -f name='Linktrend Integrator Result' \
-    -f head_sha="$sha" \
-    -f status='completed' \
-    -f conclusion="$conclusion" \
-    -f output[title]="Integrator: ${status}" \
-    -f output[summary]="${detail}" >/dev/null || true
+  python3 "${SCRIPT_DIR}/write_outcome.py" \
+    --file gitops-outcome.json \
+    --status "$status" \
+    --detail "$detail" \
+    --check-name "Linktrend Integrator Result" \
+    --head-sha "${sha}" \
+    --repo "${GH_REPO}" \
+    --token-env GH_TOKEN >/dev/null || true
 }
 
 bugbot_state_from_checks() {
@@ -90,7 +94,7 @@ collect_pr() {
 
 pr="$(collect_pr || true)"
 if [ -z "${pr}" ]; then
-  write_result "waiting" "No candidate development PR to evaluate" ""
+  write_result "waiting" "No candidate development PR to evaluate" "" "${HEAD_SHA}"
   post_check "waiting" "No candidate PR" "${HEAD_SHA}"
   exit 0
 fi
@@ -98,36 +102,51 @@ fi
 meta="$(gh pr view "${pr}" --json baseRefName,isDraft,state,headRefOid,mergeable)"
 echo "${meta}" | jq -e '.baseRefName=="development" and .isDraft==false and .state=="OPEN"' >/dev/null \
   || {
-    write_result "blocked" "PR #${pr} is not an open non-draft development PR" "${pr}"
+    write_result "blocked" "PR #${pr} is not an open non-draft development PR" "${pr}" "$(echo "${meta}" | jq -r .headRefOid)"
     post_check "blocked" "invalid PR state" "$(echo "${meta}" | jq -r .headRefOid)"
-    exit 1
+    exit 0
   }
 
+# Event may carry a stale SHA — always reread live head before acting
 head_sha="$(echo "${meta}" | jq -r .headRefOid)"
+if [ -n "${HEAD_SHA}" ] && [ "${HEAD_SHA}" != "${head_sha}" ]; then
+  write_result "skipped" "stale event: event head ${HEAD_SHA} != live ${head_sha}" "${pr}" "${head_sha}"
+  post_check "skipped" "stale event head" "${head_sha}"
+  exit 0
+fi
+
 reviewed="$(resolve_reviewed_sha "${pr}")"
 if [ -z "${reviewed}" ]; then
-  write_result "waiting" "PR #${pr}: no Bugbot-requested marker yet for a reviewed SHA" "${pr}"
+  write_result "waiting" "PR #${pr}: no Bugbot-requested marker yet for a reviewed SHA" "${pr}" "${head_sha}"
   post_check "waiting" "awaiting Bugbot request marker" "${head_sha}"
   exit 0
 fi
 if [ "${head_sha}" != "${reviewed}" ]; then
-  write_result "blocked" "PR #${pr}: head ${head_sha} != reviewed ${reviewed}" "${pr}"
+  write_result "blocked" "PR #${pr}: head ${head_sha} != reviewed ${reviewed}" "${pr}" "${head_sha}"
   post_check "blocked" "head drifted from reviewed SHA" "${head_sha}"
-  exit 1
+  exit 0
 fi
 
 mergeable="$(echo "${meta}" | jq -r .mergeable)"
 if [ "${mergeable}" = "CONFLICTING" ]; then
-  write_result "blocked" "PR #${pr}: conflict_blocked" "${pr}"
+  write_result "blocked" "PR #${pr}: conflict_blocked" "${pr}" "${head_sha}"
   post_check "blocked" "merge conflict" "${head_sha}"
-  exit 1
+  exit 0
 fi
 
 deadline=$((SECONDS + GATE_WAIT_SECONDS))
 while true; do
+  # Reread live head each loop — old events must not merge a new tip
+  live_head="$(gh pr view "${pr}" --json headRefOid --jq .headRefOid)"
+  if [ "${live_head}" != "${head_sha}" ]; then
+    write_result "skipped" "head changed during evaluate ${live_head}" "${pr}" "${live_head}"
+    post_check "skipped" "head changed" "${live_head}"
+    exit 0
+  fi
+
   if ! checks_raw="$(gh pr checks "${pr}" --json name,state,completedAt,startedAt 2>/tmp/gh-pr-checks.err)"; then
     if [ "${SECONDS}" -ge "${deadline}" ]; then
-      write_result "waiting" "PR #${pr}: could not read checks before timeout" "${pr}"
+      write_result "waiting" "PR #${pr}: could not read checks before timeout" "${pr}" "${head_sha}"
       post_check "waiting" "checks unreadable" "${head_sha}"
       exit 0
     fi
@@ -136,12 +155,11 @@ while true; do
   fi
 
   bugbot="$(bugbot_state_from_checks "${checks_raw}")"
-  gate_json="$(printf '%s' "${checks_raw}" | python3 -c '
-import json,sys
+  gate_json="$(printf '%s' "${checks_raw}" | REQUIRED_CHECKS="${REQUIRED_CHECKS}" python3 -c '
+import json,sys,os
 sys.path.insert(0,"scripts/gitops")
 from packager_logic import fast_gate_status, parse_required_checks
 checks=json.load(sys.stdin)
-import os
 status,detail=fast_gate_status(checks, parse_required_checks(os.environ["REQUIRED_CHECKS"]))
 print(json.dumps({"status":status,"detail":detail}))
 ')"
@@ -149,29 +167,35 @@ print(json.dumps({"status":status,"detail":detail}))
   gate_detail="$(echo "${gate_json}" | jq -r .detail)"
 
   if [ "${bugbot}" = "success" ] && [ "${gate_status}" = "success" ]; then
+    live_head="$(gh pr view "${pr}" --json headRefOid --jq .headRefOid)"
+    if [ "${live_head}" != "${head_sha}" ] || [ "${live_head}" != "${reviewed}" ]; then
+      write_result "skipped" "head changed before merge" "${pr}" "${live_head}"
+      post_check "skipped" "head changed before merge" "${live_head}"
+      exit 0
+    fi
     if gh pr merge "${pr}" --squash --auto || gh pr merge "${pr}" --squash; then
-      write_result "merged" "PR #${pr} merged at ${head_sha}" "${pr}"
+      write_result "merged" "PR #${pr} merged at ${head_sha}" "${pr}" "${head_sha}"
       post_check "merged" "merged ${head_sha}" "${head_sha}"
       exit 0
     fi
-    write_result "blocked" "PR #${pr}: gates green but merge failed (policy/conflict)" "${pr}"
+    write_result "blocked" "PR #${pr}: gates green but merge failed (policy/conflict)" "${pr}" "${head_sha}"
     post_check "blocked" "merge failed" "${head_sha}"
-    exit 1
+    exit 0
   fi
 
   if [ "${bugbot}" = "not_success" ]; then
-    write_result "blocked" "PR #${pr}: ${BUGBOT_SUCCESS_CHECK_NAME} not success" "${pr}"
+    write_result "blocked" "PR #${pr}: ${BUGBOT_SUCCESS_CHECK_NAME} not success" "${pr}" "${head_sha}"
     post_check "blocked" "Bugbot not success" "${head_sha}"
-    exit 1
+    exit 0
   fi
   if [ "${gate_status}" = "failed" ]; then
-    write_result "blocked" "PR #${pr}: fast-gate failed (${gate_detail})" "${pr}"
+    write_result "blocked" "PR #${pr}: fast-gate failed (${gate_detail})" "${pr}" "${head_sha}"
     post_check "blocked" "fast-gate failed: ${gate_detail}" "${head_sha}"
-    exit 1
+    exit 0
   fi
 
   if [ "${SECONDS}" -ge "${deadline}" ]; then
-    write_result "waiting" "PR #${pr}: still waiting (bugbot=${bugbot} gate=${gate_status}:${gate_detail})" "${pr}"
+    write_result "waiting" "PR #${pr}: still waiting (bugbot=${bugbot} gate=${gate_status}:${gate_detail})" "${pr}" "${head_sha}"
     post_check "waiting" "timeout waiting for gates" "${head_sha}"
     exit 0
   fi

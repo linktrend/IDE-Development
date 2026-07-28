@@ -94,9 +94,28 @@ Otherwise: leave open, comment why, or wait.
 When syncing managed workflows into a consumer:
 
 1. Keep gate **ids** (`fast-gate`, `staging-gate`, `release-gate`) stable.
-2. Replace IDE check names with that repo’s primary verify workflow job names.
-3. Document the mapping in the consumer’s `docs/` or workflow comments.
-4. Never invent “wait for all checks” as a shortcut.
+2. Replace IDE check names with that repo’s primary verify workflow job names via repository variables:
+   - `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (fast-gate check names, comma-separated)
+   - `LINKTREND_STAGING_GATE_CHECKS`
+   - `LINKTREND_RELEASE_GATE_CHECKS`
+3. Map the consumer’s **GitHub Actions workflow display name** into the managed Packager/Integrator/promote `workflow_run.workflows` list (IDE Development uses `CI` from `.github/workflows/ci.yml`). `check_run` alone is insufficient for Actions-created suites.
+4. Document the mapping in the consumer’s `docs/` or workflow comments.
+5. Never invent “wait for all checks” as a shortcut.
+6. Configure the GitHub App credential contract (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`) before claiming autonomy.
+7. Do **not** roll out until this corrected system is on the default branch, smoke-tested, and Bugbot `manualTriggerOnly` is confirmed.
+
+---
+
+## Wake paths (Actions vs external checks)
+
+| Event | Used for |
+|-------|----------|
+| `pull_request_target` | Initial evaluate on trusted workflow definition (scripts from default branch) |
+| `workflow_run` (`CI` completed) | Reevaluate when GitHub Actions fast-gate finishes (Actions does not emit usable `check_run` workflow events for its own suites) |
+| `check_run` (non-`github-actions`) | External apps such as Cursor Bugbot |
+| `schedule` / `workflow_dispatch` | Discovery / promote build windows |
+
+Privileged jobs always check out `github.event.repository.default_branch` with `persist-credentials: false`. Ordinary testing of proposed code remains in unprivileged `ci.yml` (`contents: read`).
 
 ---
 
