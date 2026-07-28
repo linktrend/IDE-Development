@@ -1,11 +1,12 @@
 name: LiNKtrend Integrator Merge To Development
 
 # Privileged jobs checkout the default branch only (never PR head/merge).
-# Wake paths: pull_request_target (initial), workflow_run (every Actions gate
-# workflow that produces a named fast-gate check), check_run (external apps).
+# Resolve (read-only GITHUB_TOKEN) then evaluate (App token) only when relevant.
 #
-# Consumers: workflow_run.workflows is STATIC YAML — list every gate-producing
-# workflow display name for the repository (IDE: CI + Branch Source Policy).
+# Concurrency: exact candidate head SHA for automatic events; workflow_dispatch may
+# use explicit pr_number when no SHA is present. cancel-in-progress=false.
+#
+# Consumers: workflow_run.workflows is STATIC YAML (IDE: CI + Branch Source Policy).
 
 on:
   pull_request_target:
@@ -27,33 +28,19 @@ on:
 
 permissions: {}
 
-# Serialize per PR/head; never cancel mid-merge (cancel-in-progress=false).
 concurrency:
-  group: linktrend-integrator-eval-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.event.check_run.pull_requests[0].number || github.event.inputs.pr_number || github.event.workflow_run.head_sha || github.event.check_run.head_sha || format('misc-{0}', github.run_id) }}
+  group: linktrend-integrator-eval-${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha || github.event.check_run.head_sha || github.event.inputs.pr_number || format('misc-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
-  evaluate:
-    name: evaluate
-    # Filter BEFORE checkout/token mint. Development PRs only; never promote/*;
-    # never push CI without a PR; never outcome-check self-wakes.
+  resolve:
+    name: Resolve candidate (read-only)
     if: >
       github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'pull_request_target' &&
-        github.event.pull_request.draft == false &&
-        github.event.pull_request.base.ref == 'development' &&
-        !startsWith(github.head_ref, 'promote/')
-      ) ||
+      github.event_name == 'pull_request_target' ||
       (
         github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        (github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.event == 'pull_request_target') &&
-        !startsWith(github.event.workflow_run.head_branch, 'promote/') &&
-        (
-          github.event.workflow_run.pull_requests[0] == null ||
-          github.event.workflow_run.pull_requests[0].base.ref == 'development'
-        )
+        github.event.workflow_run.conclusion == 'success'
       ) ||
       (
         github.event_name == 'check_run' &&
@@ -64,10 +51,41 @@ jobs:
         github.event.check_run.name != 'Linktrend Staging Outcome' &&
         github.event.check_run.name != 'Linktrend Main Outcome' &&
         github.event.check_run.name != 'enable-auto-merge' &&
-        github.event.check_run.name != 'merge-when-ready' &&
-        github.event.check_run.pull_requests[0].base.ref == 'development' &&
-        !startsWith(github.event.check_run.pull_requests[0].head.ref, 'promote/')
+        github.event.check_run.name != 'merge-when-ready'
       )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.r.outputs.relevant }}
+      pr: ${{ steps.r.outputs.pr }}
+      base: ${{ steps.r.outputs.base }}
+      head_ref: ${{ steps.r.outputs.head_ref }}
+      head_sha: ${{ steps.r.outputs.head_sha }}
+      reason: ${{ steps.r.outputs.reason }}
+    steps:
+      - name: Checkout trusted default branch only
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Resolve PR/base/head (no App token)
+        id: r
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RESOLVE_ROLE: integrator
+        run: python3 scripts/gitops/resolve_event_pr.py
+
+  evaluate:
+    name: evaluate
+    needs: resolve
+    if: needs.resolve.outputs.relevant == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -89,40 +107,14 @@ jobs:
           app-id: ${{ vars.LINKTREND_GITOPS_APP_ID }}
           private-key: ${{ secrets.LINKTREND_GITOPS_APP_PRIVATE_KEY }}
 
-      - name: Resolve PR/head from trusted event fields
-        id: target
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          GITHUB_EVENT_PATH: ${{ github.event_path }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            echo "pr=${{ github.event.inputs.pr_number }}" >> "$GITHUB_OUTPUT"
-            echo "head=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          mapfile -t _lines < <(python3 scripts/gitops/resolve_event_pr.py)
-          PR=""
-          HEAD=""
-          for line in "${_lines[@]}"; do
-            case "$line" in
-              pr=*) PR="${line#pr=}" ;;
-              head=*) HEAD="${line#head=}" ;;
-            esac
-          done
-          echo "pr=${PR}" >> "$GITHUB_OUTPUT"
-          echo "head=${HEAD}" >> "$GITHUB_OUTPUT"
-
       - name: Evaluate and maybe merge
         env:
           LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
           LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
           GH_REPO: ${{ github.repository }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ steps.target.outputs.pr }}
-          HEAD_SHA: ${{ steps.target.outputs.head }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr }}
+          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
           REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development,Enforce allowed PR source branches' }}
           BUGBOT_SUCCESS_CHECK_NAME: Cursor Bugbot
           GATE_WAIT_SECONDS: "120"
@@ -170,6 +162,7 @@ jobs:
             detail="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("detail",""))' "$f")"
             echo "### Integrator status: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
             echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
+            echo "resolve_reason=${{ needs.resolve.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
             case "${status}" in
               failed|automation_credentials_blocked) exit 1 ;;
               *) exit 0 ;;

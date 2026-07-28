@@ -160,26 +160,45 @@ PY
 done
 pass "App token same-job only; no job-output secret transport"
 
-# ---- Concurrency: PR/head key; never workflow_run.id / check_run.id ----
+# ---- Concurrency: uniform head SHA for automatic events ----
 for wf in "$PKG" "$INT"; do
   grp="$(grep -E '^\s*group:' "$wf" | head -1)"
   echo "$grp" | grep -q 'workflow_run\.id\|check_run\.id' \
     && fail "concurrency must not use workflow_run.id/check_run.id: $wf :: $grp"
-  echo "$grp" | grep -Eq 'pull_request\.number|pull_requests\[0\]\.number|head_sha' \
-    || fail "concurrency must key on PR number or head SHA: $wf :: $grp"
+  echo "$grp" | grep -q 'pull_request\.number\|pull_requests\[0\]\.number' \
+    && fail "automatic concurrency must not mix PR numbers: $wf :: $grp"
+  echo "$grp" | grep -Eq 'pull_request\.head\.sha|workflow_run\.head_sha|check_run\.head_sha' \
+    || fail "concurrency must key on head SHA: $wf :: $grp"
   grep -q 'cancel-in-progress: false' "$wf" || fail "cancel-in-progress must be false: $wf"
 done
 grep -q 'cancel-in-progress: false' "$STG"
 grep -q 'cancel-in-progress: false' "$MAIN"
-# Event filters before mint: promote workflows require promote/* head
-grep -q "startsWith(github.event.workflow_run.head_branch, 'promote/staging/')" "$STG" \
-  || fail "staging must filter workflow_run head_branch before mint"
-grep -q "startsWith(github.event.workflow_run.head_branch, 'promote/main/')" "$MAIN" \
-  || fail "main must filter workflow_run head_branch before mint"
+# Resolve-before-mint: privileged evaluate/promote depends on resolve relevant
+for wf in "$PKG" "$INT" "$STG" "$MAIN"; do
+  grep -q 'RESOLVE_ROLE\|resolve_event_pr.py' "$wf" || fail "missing trusted resolver: $wf"
+  grep -q "needs.resolve.outputs.relevant == 'true'" "$wf" \
+    || fail "mutation job must gate on resolve.relevant: $wf"
+  # App mint step must not appear in the resolve job (stop at next top-level job key)
+  python3 - "$wf" <<'PY'
+from pathlib import Path
+import sys, re
+text = Path(sys.argv[1]).read_text()
+# Use DOTALL so the job body can span lines, but stop via lookahead on the next job key.
+# Never use '.*:' with DOTALL — that greedily eats through newlines to a distant colon.
+m = re.search(r'(?ms)^  resolve:\n.*?(?=^  [a-z][a-z0-9_-]*:)', text)
+if not m:
+    raise SystemExit(f'no resolve job: {sys.argv[1]}')
+block = m.group(0)
+if 'create-github-app-token' in block:
+    raise SystemExit(f'App token minted inside resolve job: {sys.argv[1]}')
+if 'LINKTREND_GITOPS_APP_PRIVATE_KEY' in block:
+    raise SystemExit(f'private key referenced inside resolve job: {sys.argv[1]}')
+print('ok')
+PY
+done
 grep -q "Linktrend Main Outcome" "$STG" || fail "staging must exclude Linktrend Main Outcome"
-grep -q "workflow_run.event == 'pull_request'" "$PKG" || fail "packager must ignore push CI"
-grep -q "workflow_run.event == 'pull_request'" "$INT" || fail "integrator must ignore push CI"
-grep -q "!startsWith(github.head_ref, 'promote/')" "$PKG" || fail "packager must exclude promote heads"
-pass "Concurrency per PR/head + pre-mint event filters"
+! test -f scripts/gitops/event_relevance.py || fail "test-only event_relevance.py must be removed"
+! test -f scripts/gitops/bugbot_request_once.py || fail "test-only bugbot_request_once.py must be removed"
+pass "Uniform SHA concurrency + resolve-before-mint; test-only helpers removed"
 
 echo "PASS: gitops static redesign + trust-boundary checks"

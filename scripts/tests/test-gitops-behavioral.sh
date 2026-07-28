@@ -386,8 +386,9 @@ pass "existing PR content survives outside managed section"
 python3 - "$ROOT" <<'PY'
 from pathlib import Path
 import sys
-stg = Path(sys.argv[1], "scripts/gitops/promote_staging.sh").read_text()
-main = Path(sys.argv[1], "scripts/gitops/promote_main.sh").read_text()
+root = Path(sys.argv[1])
+stg = (root / "scripts/gitops/promote_staging.sh").read_text()
+main = (root / "scripts/gitops/promote_main.sh").read_text()
 assert "target staging advanced" in stg or "targetSha" in stg
 assert "stale event" in stg
 assert "marker candidateHead" in stg
@@ -395,10 +396,14 @@ assert "EXPECTED_MAIN_SHA" in main
 assert "target advanced" in main or "expected main target" in main
 # development tip advance must not rebuild an existing exact candidate
 assert "already exists for this exact source/target" in stg or "sourceSha" in stg
-wf = Path(sys.argv[1], "core/github/managed-workflows/linktrend-development-to-staging.yml").read_text()
+wf = (root / "core/github/managed-workflows/linktrend-development-to-staging.yml").read_text()
 assert "PROMOTE_PR_NUMBER" in wf
 assert "EXPECTED_PROMOTE_HEAD" in wf
-assert "promote/staging/" in wf
+# Branch prefix policy lives in trusted resolver + promote script (not duplicated in YAML ifs)
+resolver = (root / "scripts/gitops/resolve_event_pr.py").read_text()
+assert "promote/staging/" in resolver and "promote/staging/" in stg
+assert "promote/main/" in resolver and "promote/main/" in main
+assert "RESOLVE_ROLE: staging" in wf
 print("exact candidate ok")
 PY
 pass "exact-candidate promote binding + advancement fail-closed"
@@ -473,7 +478,7 @@ script = str(root / "scripts/gitops/resolve_automation_token.sh")
 def run(env_extra):
     env = os.environ.copy()
     for k in ("LINKTREND_APP_TOKEN","LINKTREND_GITOPS_APP_ID","LINKTREND_GITOPS_APP_PRIVATE_KEY",
-              "AUTOMATION_TOKEN","GH_TOKEN","GITHUB_TOKEN"):
+              "LINKTREND_GITOPS_APP_ID_VAR","AUTOMATION_TOKEN","GH_TOKEN","GITHUB_TOKEN"):
         env.pop(k, None)
     env["REQUIRE_APP_TOKEN"] = "1"
     env.update(env_extra)
@@ -481,14 +486,14 @@ def run(env_extra):
 
 # Real workflow shape: App ID + minted token; private key ABSENT
 r = run({"LINKTREND_GITOPS_APP_ID": "12345", "LINKTREND_APP_TOKEN": "ghs_test_minted_token_value"})
-assert r.returncode == 0, r.stderr + r.stdout
-assert "AUTOMATION_TOKEN_SOURCE=github_app" in r.stdout
+assert r.returncode == 0, (r.returncode, r.stderr, r.stdout)
+assert "AUTOMATION_TOKEN_SOURCE=github_app" in r.stdout, r.stdout
 assert "ghs_test_minted_token_value" not in r.stdout  # never print token
 assert "ghs_test_minted_token_value" not in r.stderr
 
 # Missing token → blocked
 r = run({"LINKTREND_GITOPS_APP_ID": "12345"})
-assert r.returncode != 0
+assert r.returncode != 0, (r.returncode, r.stderr, r.stdout)
 assert "automation_credentials_blocked" in (r.stderr + r.stdout)
 
 # Private key leaked into consumer → blocked
@@ -497,12 +502,12 @@ r = run({
     "LINKTREND_APP_TOKEN": "ghs_test",
     "LINKTREND_GITOPS_APP_PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----\nX\n-----END PRIVATE KEY-----",
 })
-assert r.returncode != 0
+assert r.returncode != 0, (r.returncode, r.stderr, r.stdout)
 assert "private_key_leaked" in (r.stderr + r.stdout) or "automation_credentials_blocked" in (r.stderr + r.stdout)
 
 # GITHUB_TOKEN alone must not grant autonomy
 r = run({"GITHUB_TOKEN": "ghs_workflow_token_only", "GH_TOKEN": "ghs_workflow_token_only"})
-assert r.returncode != 0
+assert r.returncode != 0, (r.returncode, r.stderr, r.stdout)
 assert "automation_credentials_blocked" in (r.stderr + r.stdout)
 
 doc = (root/"docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md").read_text()
@@ -513,27 +518,46 @@ PY
 pass "App credentials fail closed; no silent GITHUB_TOKEN autonomy"
 
 # ============================================================================
-# 14) Event target resolver (trusted fields only)
+# 14) Event target resolver (trusted fields + production resolve_candidate)
 # ============================================================================
 python3 - "$ROOT" <<'PY'
-import json, os, tempfile
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
-from resolve_event_pr import resolve
+from resolve_event_pr import resolve_candidate
 
-pr, head = resolve("pull_request_target", {
-  "pull_request": {"number": 19, "head": {"sha": "abc"}}
-}, "", "")
-assert pr == "19" and head == "abc"
-pr, head = resolve("workflow_run", {
-  "workflow_run": {"head_sha": "def", "pull_requests": [{"number": 7}]}
-}, "", "")
-assert pr == "7" and head == "def"
-pr, head = resolve("check_run", {
-  "check_run": {"head_sha": "ghi", "pull_requests": [{"number": 3}]}
-}, "", "")
-assert pr == "3" and head == "ghi"
+out = resolve_candidate("pull_request_target", {
+  "pull_request": {
+    "number": 19, "draft": False,
+    "base": {"ref": "development"},
+    "head": {"ref": "issue/x", "sha": "abc"},
+  }
+}, "", "o/r", role="packager")
+assert out["relevant"] == "true" and out["pr"] == "19" and out["head_sha"] == "abc"
+
+out = resolve_candidate("workflow_run", {
+  "workflow_run": {
+    "conclusion": "success", "head_sha": "def", "head_branch": "issue/x",
+    "pull_requests": [{
+      "number": 7, "state": "open",
+      "base": {"ref": "development"},
+      "head": {"ref": "issue/x", "sha": "def"},
+    }],
+  }
+}, "", "o/r", role="packager")
+assert out["relevant"] == "true" and out["pr"] == "7" and out["head_sha"] == "def"
+
+out = resolve_candidate("check_run", {
+  "check_run": {
+    "name": "Cursor Bugbot", "head_sha": "ghi", "app": {"slug": "cursor"},
+    "pull_requests": [{
+      "number": 3, "state": "open",
+      "base": {"ref": "development"},
+      "head": {"ref": "issue/x", "sha": "ghi"},
+    }],
+  }
+}, "", "o/r", role="packager")
+assert out["relevant"] == "true" and out["pr"] == "3" and out["head_sha"] == "ghi"
 print("resolver ok")
 PY
 pass "trusted event PR/SHA resolver"
@@ -587,191 +611,181 @@ PY
 pass "discovery readiness prefers AUTOMATION_TOKEN; fail closed without App"
 
 # ============================================================================
-# 16) Concurrency group mapping + dual-evaluator race (exactly one Bugbot)
+# 16) Uniform SHA concurrency (actual workflow expressions) + serialized
+#     production-path Bugbot idempotency (not a local flock proof)
 # ============================================================================
 python3 - "$ROOT" <<'PY'
-import json, os, subprocess, sys, tempfile, time
+import re, sys
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
-sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
-from event_relevance import packager_concurrency_group, integrator_concurrency_group
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root / "scripts" / "gitops"))
+from packager_logic import should_request_bugbot, build_bugbot_comment
 
 sha = "ffffffffffffffffffffffffffffffffffffffff"
-pr_num = 42
-# Three event shapes → identical Packager group
-prt = {"pull_request": {"number": pr_num, "head": {"sha": sha}}}
-wr = {"workflow_run": {"id": 999001, "head_sha": sha, "pull_requests": [{"number": pr_num}]}}
-cr = {"check_run": {"id": 888002, "head_sha": sha, "pull_requests": [{"number": pr_num}]}}
-g1 = packager_concurrency_group("pull_request_target", prt, run_id="1")
-g2 = packager_concurrency_group("workflow_run", wr, run_id="2")
-g3 = packager_concurrency_group("check_run", cr, run_id="3")
-assert g1 == g2 == g3 == f"linktrend-packager-eval-{pr_num}", (g1, g2, g3)
-# Without PR list, fall back to head SHA (still shared across event types)
-wr2 = {"workflow_run": {"id": 1, "head_sha": sha, "pull_requests": []}}
-cr2 = {"check_run": {"id": 2, "head_sha": sha, "pull_requests": []}}
-assert packager_concurrency_group("workflow_run", wr2) == packager_concurrency_group("check_run", cr2)
-assert packager_concurrency_group("workflow_run", wr2).endswith(sha)
-# Integrator likewise; must not cancel mid-merge (tested in YAML statically)
-ig1 = integrator_concurrency_group("pull_request_target", prt)
-ig2 = integrator_concurrency_group("workflow_run", wr)
-ig3 = integrator_concurrency_group("check_run", cr)
-assert ig1 == ig2 == ig3 == f"linktrend-integrator-eval-{pr_num}"
 
-# Dual-process race on shared comment store
-root = Path(sys.argv[1])
-store = Path(tempfile.mkdtemp()) / "comments.json"
-script = root / "scripts/gitops/bugbot_request_once.py"
+def concurrency_expr(path: Path) -> str:
+    text = path.read_text()
+    m = re.search(r'(?m)^\s*group:\s*(.+)$', text)
+    assert m, path
+    return m.group(1).strip()
 
-def run_one(delay: float, out: Path):
-    return subprocess.run(
-        [
-            sys.executable,
-            str(script),
-            "--store", str(store),
-            "--sha", sha,
-            "--fast-gate-ok",
-            "--pretouch-delay", str(delay),
-            "--hold-lock-seconds", "0.15",
-            "--out", str(out),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+pkg = concurrency_expr(root / "core/github/managed-workflows/linktrend-review-packager.yml")
+live = concurrency_expr(root / ".github/workflows/linktrend-review-packager.yml")
+assert pkg == live, "managed/live packager concurrency diverged"
+assert "workflow_run.id" not in pkg and "check_run.id" not in pkg
+assert "pull_request.number" not in pkg and "pull_requests[0].number" not in pkg
+assert "pull_request.head.sha" in pkg
+assert "workflow_run.head_sha" in pkg
+assert "check_run.head_sha" in pkg
 
-out_a = Path(tempfile.mkdtemp()) / "a.json"
-out_b = Path(tempfile.mkdtemp()) / "b.json"
-with ThreadPoolExecutor(max_workers=2) as ex:
-    futs = [ex.submit(run_one, 0.0, out_a), ex.submit(run_one, 0.02, out_b)]
-    codes = [f.result().returncode for f in as_completed(futs)]
-assert all(c == 0 for c in codes), codes
-results = [json.loads(out_a.read_text()), json.loads(out_b.read_text())]
-statuses = sorted(r["status"] for r in results)
-assert statuses == ["bugbot_requested", "skipped"], statuses
-assert any(r.get("detail") == "skipped_duplicate_marker" for r in results if r["status"] == "skipped")
-comments = json.loads(store.read_text())
-assert len(comments) == 1, comments
-assert sha in comments[0]["body"]
-assert comments[0]["body"].lower().count("cursor review") == 1
-print("concurrency+race ok")
+# Simulate expression fallbacks for same SHA with/without pull_requests arrays
+def eval_packager_group(event_name: str, *, pr_sha="", wr_sha="", cr_sha="", run_id="9"):
+    # Mirror YAML: a || b || c || misc-run_id
+    return pr_sha or wr_sha or cr_sha or f"misc-{run_id}"
+
+g_prt = eval_packager_group("pull_request_target", pr_sha=sha)
+g_wr_with = eval_packager_group("workflow_run", wr_sha=sha)  # PR array present or not — SHA is uniform
+g_wr_empty = eval_packager_group("workflow_run", wr_sha=sha)
+g_cr_with = eval_packager_group("check_run", cr_sha=sha)
+g_cr_empty = eval_packager_group("check_run", cr_sha=sha)
+assert g_prt == g_wr_with == g_wr_empty == g_cr_with == g_cr_empty == sha
+
+ig = concurrency_expr(root / "core/github/managed-workflows/linktrend-integrator-merge.yml")
+assert "pull_request.head.sha" in ig and "workflow_run.head_sha" in ig and "check_run.head_sha" in ig
+assert "inputs.pr_number" in ig  # dispatch-only fallback
+assert "cancel-in-progress: false" in (root / "core/github/managed-workflows/linktrend-integrator-merge.yml").read_text()
+
+# Production-path idempotency: first request, then reread comments → duplicate skip
+comments = []
+ok, reason = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
+assert ok and reason == "request"
+comments.append({"body": build_bugbot_comment("cursor review", sha)})
+ok2, reason2 = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
+assert not ok2 and reason2 == "skipped_duplicate_marker"
+assert sum(1 for c in comments if "cursor review" in c["body"].lower()) == 1
+# Document honesty: cross-run serialization is Actions concurrency; this proves
+# the second serialized evaluator's comment-reread idempotency only.
+print("sha concurrency + serialized idempotency ok")
 PY
-pass "concurrency group shared; dual evaluator posts Bugbot once"
+pass "uniform SHA concurrency + production-path Bugbot idempotency"
 
 # ============================================================================
-# 17) Privileged event-filter matrix (zero mint on unrelated rows)
+# 17) Actual resolver matrix (empty PR arrays, forks, promote roles)
 # ============================================================================
 python3 - "$ROOT" <<'PY'
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
-from event_relevance import privileged_workflows_for
+from resolve_event_pr import resolve_candidate
 
-def prt(base, head, draft=False):
-    return {
-        "pull_request": {
-            "draft": draft,
-            "base": {"ref": base},
-            "head": {"ref": head, "sha": "a" * 40},
-            "number": 1,
-        }
-    }
+sha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+rows = []
 
-def wr(event, head_branch, base=None, conclusion="success"):
-    prs = []
-    if base is not None:
-        prs = [{"number": 1, "base": {"ref": base}, "head": {"ref": head_branch}}]
-    return {
-        "workflow_run": {
-            "conclusion": conclusion,
-            "event": event,
-            "head_branch": head_branch,
-            "head_sha": "b" * 40,
-            "pull_requests": prs,
-            "name": "CI",
-        }
-    }
-
-def cr(name, base, head, slug="cursor"):
-    return {
-        "check_run": {
-            "name": name,
-            "head_sha": "c" * 40,
-            "app": {"slug": slug},
-            "pull_requests": [
-                {"number": 1, "base": {"ref": base}, "head": {"ref": head}}
-            ],
-        }
-    }
-
-matrix = []
-
-def expect(label, event_name, event, allowed):
-    got = privileged_workflows_for(event_name, event)
-    matrix.append({"label": label, "got": got, "allowed": sorted(allowed)})
-    assert sorted(got) == sorted(allowed), f"{label}: got={got} want={allowed}"
+def check(label, event_name, event, role, *, relevant, reason_substr=None, token="", api_prs=None):
+    # Monkeypatch API when provided
+    import resolve_event_pr as mod
+    orig = mod._prs_for_sha
+    if api_prs is not None:
+        mod._prs_for_sha = lambda token, repo, s: api_prs
+    try:
+        out = resolve_candidate(event_name, event, token or "t", "o/r", role=role)
+    finally:
+        mod._prs_for_sha = orig
+    rows.append((label, out))
+    assert out["relevant"] == ("true" if relevant else "false"), (label, out)
+    if reason_substr:
+        assert reason_substr in out["reason"], (label, out["reason"])
 
 # Feature PR → development
-expect("feature PR→dev pull_request_target", "pull_request_target",
-       prt("development", "issue/x"), {"packager-evaluate", "integrator"})
-expect("feature PR CI workflow_run", "workflow_run",
-       wr("pull_request", "issue/x", base="development"),
-       {"packager-evaluate", "integrator"})
-expect("feature PR Branch Source workflow_run", "workflow_run",
-       {**wr("pull_request", "issue/x", base="development"),
-        **{"workflow_run": {**wr("pull_request", "issue/x", base="development")["workflow_run"], "name": "Branch Source Policy"}}},
-       {"packager-evaluate", "integrator"})
-expect("feature Bugbot check_run", "check_run",
-       cr("Cursor Bugbot", "development", "issue/x"),
-       {"packager-evaluate", "integrator"})
+check("feature prt packager", "pull_request_target", {
+  "pull_request": {"number": 1, "draft": False, "base": {"ref": "development", "repo": {"full_name": "o/r"}},
+                   "head": {"ref": "issue/x", "sha": sha, "repo": {"full_name": "o/r"}}}
+}, "packager", relevant=True)
+check("feature prt integrator", "pull_request_target", {
+  "pull_request": {"number": 1, "draft": False, "base": {"ref": "development"}, "head": {"ref": "issue/x", "sha": sha}}
+}, "integrator", relevant=True)
+check("feature prt staging", "pull_request_target", {
+  "pull_request": {"number": 1, "base": {"ref": "development"}, "head": {"ref": "issue/x", "sha": sha}}
+}, "staging", relevant=False, reason_substr="base_not_staging")
 
-# promote/staging → staging
-expect("promote staging PR", "pull_request_target",
-       prt("staging", "promote/staging/abc"), {"staging-promote"})
-expect("promote staging CI", "workflow_run",
-       wr("pull_request", "promote/staging/abc", base="staging"), {"staging-promote"})
-expect("promote staging Bugbot", "check_run",
-       cr("Cursor Bugbot", "staging", "promote/staging/abc"), {"staging-promote"})
+# workflow_run with PR array
+check("wr with prs packager", "workflow_run", {
+  "workflow_run": {"conclusion": "success", "event": "pull_request", "head_sha": sha, "head_branch": "issue/x",
+                   "pull_requests": [{"number": 1, "state": "open", "base": {"ref": "development"}, "head": {"ref": "issue/x", "sha": sha}}]}
+}, "packager", relevant=True)
 
-# promote/main → main
-expect("promote main PR", "pull_request_target",
-       prt("main", "promote/main/abc"), {"main-promote"})
-expect("promote main CI", "workflow_run",
-       wr("pull_request", "promote/main/abc", base="main"), {"main-promote"})
-expect("promote main Bugbot", "check_run",
-       cr("Cursor Bugbot", "main", "promote/main/abc"), {"main-promote"})
+# workflow_run empty PR array → API finds development PR
+check("wr empty prs api hit", "workflow_run", {
+  "workflow_run": {"conclusion": "success", "event": "pull_request", "head_sha": sha, "head_branch": "issue/x", "pull_requests": []}
+}, "packager", relevant=True, api_prs=[{
+  "number": 9, "state": "open", "base": {"ref": "development"}, "head": {"ref": "issue/x", "sha": sha}
+}], reason_substr="api_commits_pulls")
 
-# Ordinary push CI — no PR
-for branch in ("development", "staging", "main"):
-    expect(f"push CI {branch}", "workflow_run",
-           wr("push", branch, base=None), set())
+# workflow_run empty + no matching PR
+check("wr empty no match", "workflow_run", {
+  "workflow_run": {"conclusion": "success", "event": "push", "head_sha": sha, "head_branch": "development", "pull_requests": []}
+}, "packager", relevant=False, api_prs=[], reason_substr="no_matching_open_pr")
 
-# Outcome checks must not awaken unrelated workflows
+# check_run empty PR array
+check("cr empty api hit", "check_run", {
+  "check_run": {"name": "Cursor Bugbot", "head_sha": sha, "app": {"slug": "cursor"}, "pull_requests": []}
+}, "packager", relevant=True, api_prs=[{
+  "number": 3, "state": "open", "base": {"ref": "development"}, "head": {"ref": "issue/x", "sha": sha}
+}])
+check("cr empty no match", "check_run", {
+  "check_run": {"name": "Cursor Bugbot", "head_sha": sha, "app": {"slug": "cursor"}, "pull_requests": []}
+}, "packager", relevant=False, api_prs=[], reason_substr="no_matching_open_pr")
+
+# Outcome checks filtered
+check("outcome filtered", "check_run", {
+  "check_run": {"name": "Linktrend Packager Result", "head_sha": sha, "app": {"slug": "github-actions"}, "pull_requests": []}
+}, "packager", relevant=False, reason_substr="github_actions_check_filtered")
+
+# Staging / main promote
+check("staging promote prt", "pull_request_target", {
+  "pull_request": {"number": 2, "base": {"ref": "staging"}, "head": {"ref": "promote/staging/abc", "sha": sha}}
+}, "staging", relevant=True)
+check("main promote prt", "pull_request_target", {
+  "pull_request": {"number": 3, "base": {"ref": "main"}, "head": {"ref": "promote/main/abc", "sha": sha}}
+}, "main", relevant=True)
+check("staging wr empty unresolved", "workflow_run", {
+  "workflow_run": {"conclusion": "success", "head_sha": sha, "head_branch": "promote/staging/abc", "pull_requests": []}
+}, "staging", relevant=False, api_prs=[], reason_substr="empty_pr_array_unresolved")
+check("staging wr empty api hit", "workflow_run", {
+  "workflow_run": {"conclusion": "success", "head_sha": sha, "head_branch": "promote/staging/abc", "pull_requests": []}
+}, "staging", relevant=True, api_prs=[{
+  "number": 8, "state": "open", "base": {"ref": "staging"}, "head": {"ref": "promote/staging/abc", "sha": sha}
+}])
+
+# Fork-backed candidate (different head.repo) — still relevant when base/head match role
+check("fork feature", "pull_request_target", {
+  "pull_request": {"number": 4, "draft": False,
+                   "base": {"ref": "development", "repo": {"full_name": "o/r"}},
+                   "head": {"ref": "issue/fork", "sha": sha, "repo": {"full_name": "fork/r"}}}
+}, "packager", relevant=True)
+# Ambiguous API matches fail closed
+check("ambiguous api", "workflow_run", {
+  "workflow_run": {"conclusion": "success", "head_sha": sha, "head_branch": "issue/x", "pull_requests": []}
+}, "packager", relevant=False, api_prs=[
+  {"number": 1, "state": "open", "base": {"ref": "development"}, "head": {"ref": "issue/x", "sha": sha}},
+  {"number": 2, "state": "open", "base": {"ref": "development"}, "head": {"ref": "issue/y", "sha": sha}},
+], reason_substr="ambiguous_prs")
+
+# Managed/live byte-identical for resolver-using workflows
 for name in (
-    "Linktrend Packager Result",
-    "Linktrend Integrator Result",
-    "Linktrend Staging Outcome",
-    "Linktrend Main Outcome",
+  "linktrend-review-packager.yml",
+  "linktrend-integrator-merge.yml",
+  "linktrend-development-to-staging.yml",
+  "linktrend-staging-to-main.yml",
 ):
-    expect(f"outcome {name} on feature", "check_run",
-           cr(name, "development", "issue/x", slug="github-actions"), set())
-    expect(f"outcome {name} external slug still excluded by name", "check_run",
-           cr(name, "development", "issue/x", slug="cursor"), set())
+    a = (Path(sys.argv[1]) / "core/github/managed-workflows" / name).read_bytes()
+    b = (Path(sys.argv[1]) / ".github/workflows" / name).read_bytes()
+    assert a == b, name
 
-# Feature PR must not start promotion
-expect("feature not staging", "pull_request_target",
-       prt("development", "issue/x"), {"packager-evaluate", "integrator"})
-assert "staging-promote" not in privileged_workflows_for(
-    "pull_request_target", prt("development", "issue/x")
-)
-assert "main-promote" not in privileged_workflows_for(
-    "pull_request_target", prt("development", "issue/x")
-)
-
-print("matrix rows", len(matrix))
-print("event matrix ok")
+print("resolver matrix rows", len(rows))
+print("resolver matrix ok")
 PY
-pass "privileged event-filter matrix"
+pass "actual resolver event matrix (incl. empty PR arrays)"
 
 echo ""
 echo "PASS: behavioral gitops tests (${PASS} groups)"
