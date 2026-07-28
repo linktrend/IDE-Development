@@ -22,7 +22,7 @@ Define the operational behavior for natural-language session end and close-out r
 7. if suspicious staged content is found, stop and ask
 8. otherwise generate a meaningful commit message
 9. commit staged work
-10. push the active branch
+10. push the active branch (**checkpoint only** — do not open a PR; do not request Bugbot; do not mark review-ready unless the issue is actually finished)
 11. generate `docs/handoff/YYYY-MM-DD.md`
 12. finish only after the repository is in a resumable state
 

@@ -1,20 +1,22 @@
 name: LiNKtrend Integrator Merge To Development
 
-# Merge-only Integrator for PRs into development.
+# Privileged jobs checkout the default branch only (never PR head/merge).
+# Resolve (read-only GITHUB_TOKEN) then evaluate (App token) only when relevant.
 #
-# Pass gate (authoritative — matches Cursor Bugbot docs):
-#   - Check named exactly "Cursor Bugbot" reports SUCCESS on every row
-#   - Named required CI checks (repo var or defaults) are present and SUCCESS
-#   - No other non-integrator checks in FAILURE / NEUTRAL / pending
+# Concurrency: exact candidate head SHA for automatic events; workflow_dispatch may
+# use explicit pr_number when no SHA is present. cancel-in-progress=false.
 #
-# Bugbot posts COMMENTED reviews; do not wait for GitHub APPROVE.
-# Polls until gates pass so pull_request runs that start before Bugbot still merge.
-# Ruleset helper: scripts/apply-development-merge-ruleset.sh
+# Consumers: workflow_run.workflows is STATIC YAML (IDE: CI + Branch Source Policy).
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [development]
+  workflow_run:
+    workflows:
+      - CI
+      - Branch Source Policy
+    types: [completed]
   check_run:
     types: [completed]
   workflow_dispatch:
@@ -24,228 +26,148 @@ on:
         required: false
         type: string
 
-permissions:
-  contents: write
-  pull-requests: write
-  checks: read
+permissions: {}
 
 concurrency:
-  # Prefer head SHA so pull_request and check_run for the same commit share a group.
-  group: integrator-pr-${{ github.event.pull_request.number || github.event.check_run.pull_requests[0].number || github.event.inputs.pr_number || github.run_id }}
-  cancel-in-progress: true
+  group: linktrend-integrator-eval-${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha || github.event.check_run.head_sha || github.event.inputs.pr_number || format('misc-{0}', github.run_id) }}
+  cancel-in-progress: false
 
 jobs:
-  integrate:
-    name: integrate
+  resolve:
+    name: Resolve candidate (read-only)
     if: >
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
-      (github.event_name == 'check_run' &&
-       github.event.check_run.name != 'integrate' &&
-       github.event.check_run.name != 'enable-auto-merge' &&
-       github.event.check_run.name != 'merge-when-ready')
+      github.event_name == 'pull_request_target' ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success'
+      ) ||
+      (
+        github.event_name == 'check_run' &&
+        github.event.check_run.app.slug != 'github-actions' &&
+        github.event.check_run.name != 'evaluate' &&
+        github.event.check_run.name != 'Linktrend Integrator Result' &&
+        github.event.check_run.name != 'Linktrend Packager Result' &&
+        github.event.check_run.name != 'Linktrend Staging Outcome' &&
+        github.event.check_run.name != 'Linktrend Main Outcome' &&
+        github.event.check_run.name != 'enable-auto-merge' &&
+        github.event.check_run.name != 'merge-when-ready'
+      )
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.r.outputs.relevant }}
+      pr: ${{ steps.r.outputs.pr }}
+      base: ${{ steps.r.outputs.base }}
+      head_ref: ${{ steps.r.outputs.head_ref }}
+      head_sha: ${{ steps.r.outputs.head_sha }}
+      reason: ${{ steps.r.outputs.reason }}
     steps:
-      - name: Merge when CI green and Bugbot success
+      - name: Checkout trusted default branch only
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Resolve PR/base/head (no App token)
+        id: r
         env:
           GH_TOKEN: ${{ github.token }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RESOLVE_ROLE: integrator
+        run: python3 scripts/gitops/resolve_event_pr.py
+
+  evaluate:
+    name: evaluate
+    needs: resolve
+    if: needs.resolve.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: read
+    steps:
+      - name: Checkout trusted default branch only
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Mint GitHub App token
+        id: app
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        continue-on-error: true
+        with:
+          app-id: ${{ vars.LINKTREND_GITOPS_APP_ID }}
+          private-key: ${{ secrets.LINKTREND_GITOPS_APP_PRIVATE_KEY }}
+
+      - name: Evaluate and maybe merge
+        env:
+          LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
+          LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
           GH_REPO: ${{ github.repository }}
-          EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER: ${{ github.event.pull_request.number || github.event.check_run.pull_requests[0].number || github.event.inputs.pr_number || '' }}
-          HEAD_SHA: ${{ github.event.check_run.head_sha || github.event.pull_request.head.sha || '' }}
-          GATE_WAIT_SECONDS: "900"
-          GATE_POLL_SECONDS: "20"
-          # Comma-separated CI job names that must be SUCCESS (in addition to Cursor Bugbot).
-          # Default empty so consumers are not stuck on IDE-only job names. Set repo variable
-          # LINKTREND_INTEGRATOR_REQUIRED_CHECKS (e.g. "Verify IDE Development,Enforce allowed PR source branches").
-          REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || '' }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr }}
+          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development,Enforce allowed PR source branches' }}
+          BUGBOT_SUCCESS_CHECK_NAME: Cursor Bugbot
+          GATE_WAIT_SECONDS: "120"
+          GATE_POLL_SECONDS: "15"
+          REQUIRE_APP_TOKEN: "1"
         run: |
           set -euo pipefail
-
-          is_ignored_check() {
-            case "$1" in
-              integrate|enable-auto-merge|merge-when-ready|Cursor\ Bugbot\ Autofix) return 0 ;;
-              *) return 1 ;;
-            esac
-          }
-
-          collect_prs() {
-            # Exactly one PR per run (triggering PR, else first match for head SHA).
-            if [ -n "${PR_NUMBER}" ]; then
-              printf '%s\n' "${PR_NUMBER}"
-            elif [ -n "${HEAD_SHA}" ]; then
-              gh pr list --base development --state open \
-                --json number,isDraft,headRefOid \
-                --jq "[.[] | select(.isDraft==false and .headRefOid==\"${HEAD_SHA}\") | .number] | .[0] // empty"
-            else
-              echo "No PR_NUMBER or HEAD_SHA — refusing to scan all open PRs in one wait budget." >&2
-            fi
-          }
-
-          # Newest row wins per check name (cancel-in-progress leaves stale CANCELLED/SUCCESS pairs).
-          latest_checks() {
-            echo "$1" | jq -c '
-              group_by(.name) | map(
-                sort_by(.completedAt // .startedAt // "") | last
-                | {name, state}
-              )'
-          }
-
-          bugbot_state_from_checks() {
-            echo "$1" | jq -r '
-              [.[] | select(.name=="Cursor Bugbot")] as $b
-              | if ($b|length)==0 then "missing"
-                else
-                  ($b | sort_by(.completedAt // .startedAt // "") | last | .state) as $s
-                  | if ($s=="PENDING" or $s=="QUEUED" or $s=="IN_PROGRESS") then "pending"
-                    elif ($s=="SUCCESS") then "success"
-                    else "not_success"
-                    end
-                end'
-          }
-
-          aggregate_checks() {
-            latest_checks "$1"
-          }
-
-          pr_meta_ok() {
-            local pr="$1"
-            local meta
-            # Must return false (not abort the job) when gh/jq fail under set -e.
-            meta="$(gh pr view "${pr}" --json baseRefName,isDraft,state 2>/dev/null)" || return 1
-            echo "${meta}" | jq -e '.baseRefName=="development" and .isDraft==false and .state=="OPEN"' >/dev/null 2>&1
-          }
-
-          gates_pass() {
-            local pr="$1"
-            local checks bugbot_state name state required IFS
-
-            if ! pr_meta_ok "${pr}"; then
-              echo "PR #${pr}: not an open non-draft PR into development"
-              return 1
-            fi
-
-            if ! checks_raw="$(gh pr checks "${pr}" --json name,state,completedAt,startedAt 2>/tmp/gh-pr-checks.err)"; then
-              echo "PR #${pr}: gh pr checks failed — not treating as missing"
-              cat /tmp/gh-pr-checks.err >&2 || true
-              return 1
-            fi
-            if [ -z "${checks_raw}" ]; then
-              echo "PR #${pr}: gh pr checks returned empty payload"
-              return 1
-            fi
-            bugbot_state="$(bugbot_state_from_checks "${checks_raw}")"
-            if [ "${bugbot_state}" != "success" ]; then
-              echo "PR #${pr}: Bugbot gate not passed (state=${bugbot_state})"
-              return 1
-            fi
-
-            checks="$(aggregate_checks "${checks_raw}")"
-
-            IFS=',' read -r -a required <<< "${REQUIRED_CHECKS}"
-            for name in "${required[@]}"; do
-              name="$(echo "${name}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-              [ -n "${name}" ] || continue
-              state="$(
-                echo "${checks}" | jq -r --arg n "${name}" '
-                  [.[] | select(.name==$n) | .state] as $s
-                  | if ($s|length)==0 then "missing"
-                    else $s[0]
-                    end'
-              )"
-              if [ "${state}" != "SUCCESS" ]; then
-                echo "PR #${pr}: required check '${name}' not success (state=${state})"
-                return 1
-              fi
-            done
-
-            while IFS=$'\t' read -r name state; do
-              [ -n "${name}" ] || continue
-              is_ignored_check "${name}" && continue
-              [ "${name}" = "Cursor Bugbot" ] && continue
-              case "${state}" in
-                SUCCESS|SKIPPED) ;;
-                PENDING|QUEUED|IN_PROGRESS)
-                  echo "PR #${pr}: check still pending: ${name}"
-                  return 1
-                  ;;
-                *)
-                  echo "PR #${pr}: check not green: ${name}=${state}"
-                  return 1
-                  ;;
-              esac
-            done < <(echo "${checks}" | jq -r '.[] | [.name,.state] | @tsv')
-
-            echo "PR #${pr}: gates passed (Bugbot success + required checks green)"
-            return 0
-          }
-
-          try_merge() {
-            local pr="$1"
-            if gh pr merge "${pr}" --squash --auto; then
-              echo "PR #${pr}: auto-merge armed or completed"
-              return 0
-            elif gh pr merge "${pr}" --squash; then
-              echo "PR #${pr}: merged"
-              return 0
-            fi
-            echo "PR #${pr}: merge attempt failed (policy/conflict) — not force-merging"
-            return 1
-          }
-
-          echo "Event=${EVENT_NAME} PR_NUMBER=${PR_NUMBER:-none} HEAD_SHA=${HEAD_SHA:-none}"
-          echo "REQUIRED_CHECKS=${REQUIRED_CHECKS}"
-
-          mapfile -t prs < <(collect_prs)
-          if [ "${#prs[@]}" -eq 0 ] || [ -z "${prs[0]:-}" ]; then
-            echo "No candidate development PRs to evaluate."
-            exit 0
+          if ! source scripts/gitops/resolve_automation_token.sh; then
+            GITHUB_TOKEN="${{ github.token }}" python3 scripts/gitops/write_outcome.py \
+              --file integrator-result.json \
+              --status automation_credentials_blocked \
+              --detail "Integrator requires GitHub App token for autonomous merge" \
+              --check-name "Linktrend Integrator Result" \
+              --head-sha "${HEAD_SHA}" \
+              --token-env GITHUB_TOKEN
+            cp integrator-result.json gitops-outcome.json
+            echo "### Integrator status: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
           fi
+          export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE
+          export GH_TOKEN="${AUTOMATION_TOKEN}"
+          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
+          bash scripts/gitops/integrator_evaluate.sh
 
-          for pr in "${prs[@]}"; do
-            [ -n "${pr}" ] || continue
-            echo "Evaluating PR #${pr} (wait up to ${GATE_WAIT_SECONDS}s)"
-            if ! pr_meta_ok "${pr}"; then
-              echo "PR #${pr}: invalid target/state — skipping without wait"
-              continue
-            fi
+      - name: Upload integrator result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integrator-result
+          path: |
+            integrator-result.json
+            gitops-outcome.json
+          if-no-files-found: ignore
 
-            deadline=$((SECONDS + GATE_WAIT_SECONDS))
-            merged=0
-            while true; do
-              if gates_pass "${pr}"; then
-                if try_merge "${pr}"; then
-                  merged=1
-                  break
-                fi
-                echo "PR #${pr}: gates green but merge failed — will retry"
-              fi
-
-              if ! pr_meta_ok "${pr}"; then
-                echo "PR #${pr}: no longer an open development PR — stopping wait"
-                break
-              fi
-
-              if ! checks_now="$(gh pr checks "${pr}" --json name,state,completedAt,startedAt 2>/tmp/gh-pr-checks.err)"; then
-                echo "PR #${pr}: gh pr checks failed while waiting — will retry"
-                cat /tmp/gh-pr-checks.err >&2 || true
-                bugbot_now="pending"
-              else
-                bugbot_now="$(bugbot_state_from_checks "${checks_now}")"
-              fi
-              if [ "${bugbot_now}" = "not_success" ]; then
-                echo "PR #${pr}: Bugbot not clear (state=${bugbot_now}) — leaving open for Fix agent"
-                break
-              fi
-              if [ "${SECONDS}" -ge "${deadline}" ]; then
-                echo "PR #${pr}: timed out waiting for gates — leaving open"
-                break
-              fi
-              echo "PR #${pr}: waiting ${GATE_POLL_SECONDS}s for gates (bugbot=${bugbot_now})..."
-              sleep "${GATE_POLL_SECONDS}"
-            done
-            if [ "${merged}" -eq 0 ]; then
-              echo "PR #${pr}: not merged this run"
-            fi
-          done
+      - name: Summarize honest status
+        if: always()
+        run: |
+          set -euo pipefail
+          f=""
+          if [ -f integrator-result.json ]; then f=integrator-result.json
+          elif [ -f gitops-outcome.json ]; then f=gitops-outcome.json
+          fi
+          if [ -n "$f" ]; then
+            status="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$f")"
+            detail="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("detail",""))' "$f")"
+            echo "### Integrator status: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
+            echo "resolve_reason=${{ needs.resolve.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
+            case "${status}" in
+              failed|automation_credentials_blocked) exit 1 ;;
+              *) exit 0 ;;
+            esac
+          else
+            echo "missing outcome file" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
