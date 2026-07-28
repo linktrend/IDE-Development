@@ -39,7 +39,6 @@ jobs:
         # Skipped in CI (not runnable / side-effecting):
         #   scripts/wire-repo.sh — needs a consumer repo path
         #   scripts/install-git-hooks.sh — mutates local git config
-        #   scripts/vendor-hybrid-skills.sh — needs local gstack/skills clones
         # Local-only archive directory checks are skipped when CI=true.
         env:
           CI: "true"

@@ -14,6 +14,13 @@ Preferred commands for new work are:
 
 `small-change` is the lightweight path for tiny low-risk bugs or simple bounded changes. It reduces planning ceremony, but it does not remove proof, review, integration, or the rule that `done` means verified.
 
+## Agent session branching
+
+- `agentsetup` (`/agentsetup`) — NEW agent bootstrap onto short-lived `issue/*`
+- `agentcomply` (`/agentcomply`) — ALREADY-OPEN agent migration/compliance onto `issue/*`
+
+House rule: one short-lived `issue/<id>-slug` per governed work — not forever `dev/*`. Cloud uses `cursor/*`; `dev/*` rare ad-hoc only.
+
 ## Archive And Compatibility
 
 Legacy `linkdev-*` and related commands are quarantined under [`compatibility-archive/`](compatibility-archive/README.md).
