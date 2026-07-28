@@ -35,7 +35,7 @@ IDE Development itself uses the same managed workflows (it is in scope).
 |---|---|---|---|
 | Ship 05 | 05:00 | Lisa cron → Cursor ACP shipper | One repo at a time: **checkpoint** = commit + push on work branch → **STOP**. No PR. No Bugbot. |
 | Pull 07 | 07:00 | Lisa cron → Cursor ACP puller | Merge latest `origin/development` into unfinished work branches; **skip frozen reviewed SHAs**; unfinished rolls forward |
-| Review Packager | Tue & Fri **08:00** | GitHub (`0 0 * * 2,5` UTC) | Discover `.linktrend/review-ready.json` where `commitSha == HEAD` → open/ready PR → comment configurable Bugbot command (default `cursor review`) once with hidden SHA marker |
+| Review Packager | Tue & Fri **08:00** | GitHub (`0 0 * * 2,5` UTC) | Discover valid review-ready marker tips on allowed work branches → open **draft** PR → wait for **fast-gate** on that exact head → mark ready → comment configurable Bugbot command (default `cursor review`) once; hidden SHA marker only after the comment succeeds |
 | Staging promote | Tue & Fri **10:00** | GitHub (`0 2 * * 2,5` UTC) | Promote only what is already safely in `development`. If not ready: **skip and report why**. Never force. |
 | Ship 16 | 16:00 | Lisa cron → Cursor ACP shipper | Same as Ship 05 (checkpoint only) |
 | Pull 18 | 18:00 | Lisa cron → Cursor ACP puller | Same as Pull 07 |
@@ -80,8 +80,8 @@ ACP prompts and absolute paths: openclaw_prime `linkbots/lisa/Personality files/
 | Review Packager | Tue/Fri 08:00 | Yes | Yes, once per SHA |
 | Urgent package | `workflow_dispatch` on packager | Yes | Yes, once per SHA |
 
-Record path: `.linktrend/review-ready.json` — see `core/github/REVIEW-READY.md`.  
-Helpers: `scripts/mark-review-ready.sh`, `scripts/validate-review-ready.sh`, `scripts/clear-review-ready.sh`.
+Record path: `.linktrend/review-ready.json` — see `core/github/REVIEW-READY.md` (`contentSha` + marker-only commit).
+Helpers: `scripts/mark-review-ready.sh`, `scripts/commit-review-ready.sh`, `scripts/validate-review-ready.sh`, `scripts/clear-review-ready.sh`.
 
 ## Bugbot contract
 
@@ -114,14 +114,17 @@ Merge only when all are true:
 ## Staging promotion
 
 - Tue/Fri **10:00** Asia/Taipei
-- Promote only commits already on `development`
-- No prefer-incoming; on conflict → skip + report
-- If staging not ready at 10:00 → skip safely and report why
+- Build temporary `promote/staging/<sha>` from staging tip; merge development; open PR into staging
+- **staging-gate** must pass on the **combined promotion PR head**
+- Merge only that PR — **never** direct-push staging
+- No prefer-incoming; on conflict → `conflict_blocked` durable repair task + skip
+- If not ready at 10:00 → skip safely and report why
 
 ## Main promotion
 
-- Mon 08:00 package PR
-- Principal Approve → dispatch merge of **exact** package SHA after `release-gate`
+- Mon 08:00 package: temporary `promote/main/<sha>` PR into main
+- Principal Approve binds **staging SHA** and **promote PR head SHA**
+- **release-gate** on the combined promote PR head; merge only that PR — **never** direct-push main
 - Lisa dispatch interface: `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`
 
 ## Conflict recovery

@@ -46,19 +46,21 @@ If `Verify IDE Development` did not run for the head SHA, treat as **not ready**
 
 ### `staging-gate`
 
-For development→staging promotion PRs / temp branches:
+For development→staging **promotion PRs** from temporary `promote/staging/*` branches:
 
 | Check name | Source |
 |------------|--------|
-| `Verify IDE Development` | same as above, on the promotion ref |
+| `Verify IDE Development` | Must be **success on the promotion PR head** (combined staging candidate), not merely on `development` alone |
 
 ### `release-gate`
 
-For staging→main Approve merge of exact package SHA:
+For staging→main **promotion PRs** from temporary `promote/main/*` branches (Approve path):
 
 | Check name | Source |
 |------------|--------|
-| `Verify IDE Development` | on the exact package SHA / PR head |
+| `Verify IDE Development` | Must be **success on the promotion PR head** (combined main candidate), not merely on `staging` alone |
+
+Prior green results on source branches are **not** proof of the combined promotion.
 
 ---
 

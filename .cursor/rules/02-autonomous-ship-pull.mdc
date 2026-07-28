@@ -27,10 +27,11 @@ At Ship 05 / Ship 16, at 17:00 EOD, or whenever you need a safe save:
 
 1. Satisfy acceptance criteria; keep `PROOF.md` (or equivalent).
 2. Pass inexpensive deterministic checks locally.
-3. Run `scripts/mark-review-ready.sh` (writes `.linktrend/review-ready.json` for **current HEAD**).
-4. Commit that file and push.
-5. Set issue status to `review_ready`.
-6. Stop. The **Review Packager** (Tue/Fri 08:00 Asia/Taipei) opens the PR and requests Bugbot once.
+3. Run `scripts/mark-review-ready.sh` (writes `.linktrend/review-ready.json` with **`contentSha` = current HEAD**).
+4. Run `scripts/commit-review-ready.sh` (marker-only commit).
+5. Push.
+6. Set issue status to `review_ready`.
+7. Stop. The **Review Packager** (Tue/Fri 08:00 Asia/Taipei) opens a **draft** PR, waits for fast-gate, then requests Bugbot once.
 
 A new functional commit **invalidates** the reviewed SHA — rewrite the marker or clear it.
 

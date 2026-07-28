@@ -1,12 +1,8 @@
 name: LiNKtrend Staging To Main
 
-# Mon 08:00 Asia/Taipei = 00:00 UTC — package only (open/refresh promote PR).
-# Merge runs only when Principal Approves via workflow_dispatch action=approve-merge
-# (Lisa asks on Telegram ~08:30 and may dispatch this workflow).
-#
-# Approve path merges the exact package SHA after release-gate success.
-# No Bugbot re-review. No prefer-incoming.
-# Lisa/OpenClaw follow-up contract: docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md
+# Mon 08:00 Asia/Taipei = 00:00 UTC — package temporary promote/main/* PR.
+# Merge only on workflow_dispatch action=approve-merge with exact SHA bindings.
+# Never direct-push main.
 
 on:
   schedule:
@@ -14,16 +10,25 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "package = open/refresh staging→main PR; approve-merge = merge after Principal Approve"
+        description: "package = open/refresh promote PR; approve-merge = merge after Principal Approve"
         type: choice
         options:
           - package
           - approve-merge
         default: package
       expected_sha:
-        description: "Optional exact staging SHA that must match before approve-merge (idempotency)"
+        description: "Exact staging SHA required for approve-merge"
         required: false
         type: string
+      expected_promote_head:
+        description: "Exact promote PR head SHA required for approve-merge"
+        required: false
+        type: string
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+  check_run:
+    types: [completed]
 
 permissions:
   contents: write
@@ -31,6 +36,7 @@ permissions:
   checks: read
   statuses: read
   actions: read
+  issues: write
 
 env:
   TIMEZONE_LABEL: "Asia/Taipei"
@@ -40,134 +46,53 @@ jobs:
   package:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.action == 'package')
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Open or refresh staging → main PR
+      - name: Package main promote candidate
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          git fetch origin main staging
-          STG_SHA="$(git rev-parse origin/staging)"
-          if git merge-base --is-ancestor origin/staging origin/main; then
-            echo "staging is already fully contained in main — nothing to package."
-            echo "PACKAGE_STATUS=skipped" >> "${GITHUB_STEP_SUMMARY}"
-            exit 0
-          fi
-          existing="$(gh pr list --base main --head staging --state open --json number --jq '.[0].number // empty')"
-          body="$(cat <<EOF
-          ## Main promote package (autonomous Git ops)
-
-          Scheduled Monday 08:00 ${TIMEZONE_LABEL} package.
-
-          - **Do not merge** until Principal Approves via Lisa (Telegram) ~08:30.
-          - After Approve, run this workflow with \`action=approve-merge\` (or Lisa dispatches it).
-          - Optional \`expected_sha\` must match staging tip for idempotent approve.
-          - release-gate must be green on the exact SHA (see \`core/github/CI-GATE-CONTRACTS.md\`).
-
-          - Package staging SHA: \`${STG_SHA}\`
-
-          See IDE Development \`docs/AUTONOMOUS-GIT-OPERATIONS.md\` and \`docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md\`.
-          EOF
-          )"
-          if [ -n "${existing}" ]; then
-            echo "PR #${existing} already open."
-            gh pr edit "${existing}" --title "chore(promote): staging → main (awaiting Principal Approve)" --body "${body}"
-            gh pr comment "${existing}" --body "Package refresh: staging SHA \`${STG_SHA}\`" || true
-          else
-            gh pr create --base main --head staging \
-              --title "chore(promote): staging → main (awaiting Principal Approve)" \
-              --body "${body}"
-          fi
-          echo "PACKAGE_SHA=${STG_SHA}" >> "${GITHUB_STEP_SUMMARY}"
+          GH_REPO: ${{ github.repository }}
+          MODE: package
+          RELEASE_GATE_CHECKS: ${{ env.RELEASE_GATE_CHECKS }}
+        run: bash scripts/gitops/promote_main.sh
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-package-report
+          path: |
+            main-promote-report.md
+            .linktrend/conflict-tasks/
+          if-no-files-found: ignore
 
   merge-on-approve:
     if: github.event_name == 'workflow_dispatch' && inputs.action == 'approve-merge'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Merge exact staging SHA after release-gate
+      - name: Approve-merge exact candidate
         env:
           GH_TOKEN: ${{ github.token }}
-          EXPECTED_SHA: ${{ inputs.expected_sha || '' }}
-        run: |
-          set -euo pipefail
-          git fetch origin main staging
-
-          STG_SHA="$(git rev-parse origin/staging)"
-          echo "staging tip: ${STG_SHA}"
-
-          if [ -n "${EXPECTED_SHA}" ] && [ "${EXPECTED_SHA}" != "${STG_SHA}" ]; then
-            echo "FAIL: expected_sha ${EXPECTED_SHA} != staging tip ${STG_SHA} — refusing merge (idempotency)"
-            exit 1
-          fi
-
-          if git merge-base --is-ancestor origin/staging origin/main; then
-            echo "staging already in main — nothing to merge."
-            exit 0
-          fi
-
-          # Conflict check (no prefer-incoming)
-          WORK="/tmp/main-promote-check-$$"
-          git worktree add --detach "${WORK}" origin/main
-          cleanup() { git worktree remove --force "${WORK}" 2>/dev/null || rm -rf "${WORK}"; }
-          trap cleanup EXIT
-          if ! git -C "${WORK}" merge --no-commit --no-ff origin/staging; then
-            git -C "${WORK}" merge --abort 2>/dev/null || true
-            echo "FAIL: conflict merging staging into main — conflict_blocked; not force-merging"
-            exit 1
-          fi
-          git -C "${WORK}" merge --abort 2>/dev/null || true
-
-          # release-gate on exact staging SHA
-          IFS=',' read -r -a required <<< "${RELEASE_GATE_CHECKS}"
-          for name in "${required[@]}"; do
-            name="$(echo "${name}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-            [ -n "${name}" ] || continue
-            state="$(
-              gh api "repos/${GITHUB_REPOSITORY}/commits/${STG_SHA}/check-runs" \
-                --paginate \
-                --jq "[.check_runs[] | select(.name==\"${name}\")] | sort_by(.completed_at // .started_at // \"\") | last | .conclusion // \"missing\"" \
-                2>/dev/null || echo "missing"
-            )"
-            state="$(echo "${state}" | tr '[:upper:]' '[:lower:]')"
-            if [ "${state}" = "null" ] || [ -z "${state}" ]; then
-              state="missing"
-            fi
-            if [ "${state}" != "success" ]; then
-              echo "FAIL: release-gate check '${name}' not success on ${STG_SHA} (state=${state}); missing≠success"
-              exit 1
-            fi
-          done
-
-          pr="$(gh pr list --base main --head staging --state open --json number --jq '.[0].number // empty')"
-          if [ -n "${pr}" ]; then
-            head="$(gh pr view "${pr}" --json headRefOid --jq .headRefOid)"
-            if [ "${head}" != "${STG_SHA}" ]; then
-              echo "FAIL: PR #${pr} head ${head} != staging tip ${STG_SHA}"
-              exit 1
-            fi
-            if gh pr merge "${pr}" --merge; then
-              echo "Merged PR #${pr} at exact SHA ${STG_SHA}"
-              exit 0
-            fi
-            echo "PR merge failed — refusing force-merge"
-            exit 1
-          fi
-
-          # Fallback direct merge push of exact SHA
-          if ! git -C "${WORK}" merge --no-ff origin/staging -m "chore(promote): staging → main (${STG_SHA})"; then
-            echo "FAIL: direct merge failed"
-            exit 1
-          fi
-          git -C "${WORK}" push origin HEAD:main
-          echo "Pushed main at staging SHA ${STG_SHA}"
+          GH_REPO: ${{ github.repository }}
+          MODE: approve-merge
+          EXPECTED_STAGING_SHA: ${{ inputs.expected_sha || '' }}
+          EXPECTED_PROMOTE_HEAD: ${{ inputs.expected_promote_head || '' }}
+          RELEASE_GATE_CHECKS: ${{ env.RELEASE_GATE_CHECKS }}
+        run: bash scripts/gitops/promote_main.sh
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-approve-report
+          path: |
+            main-promote-report.md
+            release-gate-wait.json
+          if-no-files-found: ignore

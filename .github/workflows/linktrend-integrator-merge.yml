@@ -1,16 +1,8 @@
 name: LiNKtrend Integrator Merge To Development
 
-# Merge-only Integrator for PRs into development.
-#
-# Pass gate (named contracts only — never "every visible check"):
-#   - Check named exactly "Cursor Bugbot" reports SUCCESS for the head SHA
-#   - fast-gate required CI checks (repo var or IDE default) are present and SUCCESS
-#   - Head SHA equals the reviewed SHA recorded in the Bugbot hidden marker
-#
-# Bugbot posts COMMENTED reviews; do not wait for GitHub APPROVE.
-# Missing required checks ≠ success. No force-merge.
-# Ruleset helper: scripts/apply-development-merge-ruleset.sh
-# Gate names: core/github/CI-GATE-CONTRACTS.md
+# Evaluate/merge PRs into development using named fast-gate + Cursor Bugbot +
+# reviewed SHA marker. Emits honest integrator-result.json and check run
+# "Linktrend Integrator Result" (success only when merged).
 
 on:
   pull_request:
@@ -28,252 +20,67 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  checks: read
+  checks: write
 
 concurrency:
   group: integrator-pr-${{ github.event.pull_request.number || github.event.check_run.pull_requests[0].number || github.event.inputs.pr_number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  integrate:
-    name: integrate
+  evaluate:
+    name: evaluate
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
       (github.event_name == 'check_run' &&
-       github.event.check_run.name != 'integrate' &&
+       github.event.check_run.name != 'evaluate' &&
+       github.event.check_run.name != 'Linktrend Integrator Result' &&
        github.event.check_run.name != 'enable-auto-merge' &&
        github.event.check_run.name != 'merge-when-ready')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Merge when fast-gate green and Bugbot success
+      - name: Checkout scripts
+        uses: actions/checkout@v4
+
+      - name: Evaluate and maybe merge
+        id: integrate
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          EVENT_NAME: ${{ github.event_name }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.check_run.pull_requests[0].number || github.event.inputs.pr_number || '' }}
           HEAD_SHA: ${{ github.event.check_run.head_sha || github.event.pull_request.head.sha || '' }}
+          REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development' }}
+          BUGBOT_SUCCESS_CHECK_NAME: Cursor Bugbot
           GATE_WAIT_SECONDS: "900"
           GATE_POLL_SECONDS: "20"
-          BUGBOT_SUCCESS_CHECK_NAME: "Cursor Bugbot"
-          BUGBOT_MARKER_PREFIX: "<!-- linktrend-bugbot-requested:"
-          # Comma-separated fast-gate check names. IDE Development default below;
-          # consumers override via repo variable LINKTREND_INTEGRATOR_REQUIRED_CHECKS.
-          REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development' }}
+        run: bash scripts/gitops/integrator_evaluate.sh
+
+      - name: Upload integrator result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integrator-result
+          path: integrator-result.json
+          if-no-files-found: ignore
+
+      - name: Summarize honest status
+        if: always()
         run: |
           set -euo pipefail
-
-          is_ignored_check() {
-            case "$1" in
-              integrate|enable-auto-merge|merge-when-ready|Cursor\ Bugbot\ Autofix) return 0 ;;
-              *) return 1 ;;
+          if [ -f integrator-result.json ]; then
+            status="$(python3 -c 'import json; print(json.load(open("integrator-result.json"))["status"])')"
+            detail="$(python3 -c 'import json; print(json.load(open("integrator-result.json"))["detail"])')"
+            echo "### Integrator status: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
+            # Fail the job for blocked/failed so a green "evaluate" check never
+            # implies a merge that did not happen. waiting/merged exit 0.
+            case "${status}" in
+              blocked|failed) exit 1 ;;
+              *) exit 0 ;;
             esac
-          }
-
-          collect_prs() {
-            if [ -n "${PR_NUMBER}" ]; then
-              printf '%s\n' "${PR_NUMBER}"
-            elif [ -n "${HEAD_SHA}" ]; then
-              gh pr list --base development --state open \
-                --json number,isDraft,headRefOid \
-                --jq "[.[] | select(.isDraft==false and .headRefOid==\"${HEAD_SHA}\") | .number] | .[0] // empty"
-            else
-              echo "No PR_NUMBER or HEAD_SHA — refusing to scan all open PRs in one wait budget." >&2
-            fi
-          }
-
-          latest_checks() {
-            echo "$1" | jq -c '
-              group_by(.name) | map(
-                sort_by(.completedAt // .startedAt // "") | last
-                | {name, state}
-              )'
-          }
-
-          bugbot_state_from_checks() {
-            local check_name="${BUGBOT_SUCCESS_CHECK_NAME}"
-            echo "$1" | jq -r --arg n "${check_name}" '
-              [.[] | select(.name==$n)] as $b
-              | if ($b|length)==0 then "missing"
-                else
-                  ($b | sort_by(.completedAt // .startedAt // "") | last | .state) as $s
-                  | if ($s=="PENDING" or $s=="QUEUED" or $s=="IN_PROGRESS") then "pending"
-                    elif ($s=="SUCCESS") then "success"
-                    else "not_success"
-                    end
-                end'
-          }
-
-          pr_meta_ok() {
-            local pr="$1"
-            local meta
-            meta="$(gh pr view "${pr}" --json baseRefName,isDraft,state,mergeable 2>/dev/null)" || return 1
-            echo "${meta}" | jq -e '.baseRefName=="development" and .isDraft==false and .state=="OPEN"' >/dev/null 2>&1
-          }
-
-          reviewed_sha_from_pr() {
-            local pr="$1"
-            local body comments
-            body="$(gh pr view "${pr}" --json body --jq .body 2>/dev/null || true)"
-            # Prefer explicit hidden marker: <!-- linktrend-bugbot-requested: <sha> -->
-            echo "${body}" | grep -oE '<!-- linktrend-bugbot-requested:[[:space:]]*[0-9a-fA-F]+[[:space:]]*-->' \
-              | head -n1 \
-              | sed -E 's/.*linktrend-bugbot-requested:[[:space:]]*([0-9a-fA-F]+).*/\1/' \
-              | tr 'A-F' 'a-f' || true
-            comments="$(gh api "repos/${GH_REPO}/issues/${pr}/comments" --paginate --jq '.[].body' 2>/dev/null || true)"
-            echo "${comments}" | grep -oE '<!-- linktrend-bugbot-requested:[[:space:]]*[0-9a-fA-F]+[[:space:]]*-->' \
-              | tail -n1 \
-              | sed -E 's/.*linktrend-bugbot-requested:[[:space:]]*([0-9a-fA-F]+).*/\1/' \
-              | tr 'A-F' 'a-f' || true
-          }
-
-          resolve_reviewed_sha() {
-            local pr="$1"
-            # Last non-empty marker wins (comment marker after body).
-            reviewed_sha_from_pr "${pr}" | awk 'NF{line=$0} END{print line}'
-          }
-
-          gates_pass() {
-            local pr="$1"
-            local checks_raw checks bugbot_state name state required IFS
-            local head_sha reviewed_sha mergeable
-
-            if ! pr_meta_ok "${pr}"; then
-              echo "PR #${pr}: not an open non-draft PR into development"
-              return 1
-            fi
-
-            head_sha="$(gh pr view "${pr}" --json headRefOid --jq .headRefOid)"
-            reviewed_sha="$(resolve_reviewed_sha "${pr}")"
-            if [ -z "${reviewed_sha}" ]; then
-              echo "PR #${pr}: no reviewed SHA marker (<!-- linktrend-bugbot-requested: <sha> -->) — not merging"
-              return 1
-            fi
-            if [ "${head_sha}" != "${reviewed_sha}" ]; then
-              echo "PR #${pr}: head ${head_sha} != reviewed SHA ${reviewed_sha} — new commit invalidated review"
-              return 1
-            fi
-
-            mergeable="$(gh pr view "${pr}" --json mergeable --jq .mergeable)"
-            if [ "${mergeable}" = "CONFLICTING" ]; then
-              echo "PR #${pr}: mergeable=CONFLICTING — conflict_blocked; leave open for repair"
-              return 1
-            fi
-
-            if ! checks_raw="$(gh pr checks "${pr}" --json name,state,completedAt,startedAt 2>/tmp/gh-pr-checks.err)"; then
-              echo "PR #${pr}: gh pr checks failed — not treating as success"
-              cat /tmp/gh-pr-checks.err >&2 || true
-              return 1
-            fi
-            if [ -z "${checks_raw}" ]; then
-              echo "PR #${pr}: gh pr checks returned empty payload"
-              return 1
-            fi
-
-            bugbot_state="$(bugbot_state_from_checks "${checks_raw}")"
-            if [ "${bugbot_state}" != "success" ]; then
-              echo "PR #${pr}: Bugbot gate not passed (state=${bugbot_state}; need ${BUGBOT_SUCCESS_CHECK_NAME}=SUCCESS)"
-              return 1
-            fi
-
-            checks="$(latest_checks "${checks_raw}")"
-
-            # Named fast-gate only — do NOT iterate every visible check.
-            IFS=',' read -r -a required <<< "${REQUIRED_CHECKS}"
-            local any_required=0
-            for name in "${required[@]}"; do
-              name="$(echo "${name}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-              [ -n "${name}" ] || continue
-              any_required=1
-              is_ignored_check "${name}" && continue
-              state="$(
-                echo "${checks}" | jq -r --arg n "${name}" '
-                  [.[] | select(.name==$n) | .state] as $s
-                  | if ($s|length)==0 then "missing"
-                    else $s[0]
-                    end'
-              )"
-              if [ "${state}" != "SUCCESS" ]; then
-                echo "PR #${pr}: fast-gate check '${name}' not success (state=${state}); missing≠success"
-                return 1
-              fi
-            done
-            if [ "${any_required}" -eq 0 ]; then
-              echo "PR #${pr}: REQUIRED_CHECKS empty — refusing to treat as green"
-              return 1
-            fi
-
-            echo "PR #${pr}: gates passed (reviewed SHA match + ${BUGBOT_SUCCESS_CHECK_NAME} + fast-gate)"
-            return 0
-          }
-
-          try_merge() {
-            local pr="$1"
-            if gh pr merge "${pr}" --squash --auto; then
-              echo "PR #${pr}: auto-merge armed or completed"
-              return 0
-            elif gh pr merge "${pr}" --squash; then
-              echo "PR #${pr}: merged"
-              return 0
-            fi
-            echo "PR #${pr}: merge attempt failed (policy/conflict) — not force-merging"
-            return 1
-          }
-
-          echo "Event=${EVENT_NAME} PR_NUMBER=${PR_NUMBER:-none} HEAD_SHA=${HEAD_SHA:-none}"
-          echo "REQUIRED_CHECKS(fast-gate)=${REQUIRED_CHECKS}"
-          echo "BUGBOT_SUCCESS_CHECK_NAME=${BUGBOT_SUCCESS_CHECK_NAME}"
-
-          mapfile -t prs < <(collect_prs)
-          if [ "${#prs[@]}" -eq 0 ] || [ -z "${prs[0]:-}" ]; then
-            echo "No candidate development PRs to evaluate."
-            exit 0
+          else
+            echo "### Integrator status: \`failed\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "missing integrator-result.json" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
           fi
-
-          for pr in "${prs[@]}"; do
-            [ -n "${pr}" ] || continue
-            echo "Evaluating PR #${pr} (wait up to ${GATE_WAIT_SECONDS}s)"
-            if ! pr_meta_ok "${pr}"; then
-              echo "PR #${pr}: invalid target/state — skipping without wait"
-              continue
-            fi
-
-            deadline=$((SECONDS + GATE_WAIT_SECONDS))
-            merged=0
-            while true; do
-              if gates_pass "${pr}"; then
-                if try_merge "${pr}"; then
-                  merged=1
-                  break
-                fi
-                echo "PR #${pr}: gates green but merge failed — will retry"
-              fi
-
-              if ! pr_meta_ok "${pr}"; then
-                echo "PR #${pr}: no longer an open development PR — stopping wait"
-                break
-              fi
-
-              if ! checks_now="$(gh pr checks "${pr}" --json name,state,completedAt,startedAt 2>/tmp/gh-pr-checks.err)"; then
-                echo "PR #${pr}: gh pr checks failed while waiting — will retry"
-                cat /tmp/gh-pr-checks.err >&2 || true
-                bugbot_now="pending"
-              else
-                bugbot_now="$(bugbot_state_from_checks "${checks_now}")"
-              fi
-              if [ "${bugbot_now}" = "not_success" ]; then
-                echo "PR #${pr}: Bugbot not clear (state=${bugbot_now}) — leaving open for Fix agent"
-                break
-              fi
-              if [ "${SECONDS}" -ge "${deadline}" ]; then
-                echo "PR #${pr}: timed out waiting for gates — leaving open"
-                break
-              fi
-              echo "PR #${pr}: waiting ${GATE_POLL_SECONDS}s for gates (bugbot=${bugbot_now})..."
-              sleep "${GATE_POLL_SECONDS}"
-            done
-            if [ "${merged}" -eq 0 ]; then
-              echo "PR #${pr}: not merged this run"
-            fi
-          done

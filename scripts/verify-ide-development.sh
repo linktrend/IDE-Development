@@ -284,6 +284,12 @@ else
   fail "Missing scripts/tests/test-gitops-review-packager.sh"
 fi
 
+if [ -x "scripts/tests/test-gitops-behavioral.sh" ]; then
+  bash scripts/tests/test-gitops-behavioral.sh || fail "GitOps behavioral test failed"
+else
+  fail "Missing scripts/tests/test-gitops-behavioral.sh"
+fi
+
 # --- Feasibility fixture still valid ---
 if [ -x "scripts/feasibility/run-fixed-pipeline-feasibility.sh" ]; then
   bash scripts/feasibility/run-fixed-pipeline-feasibility.sh >/dev/null \

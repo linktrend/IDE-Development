@@ -31,7 +31,7 @@ This PR updates **IDE Development only**. It does **not** edit consumer reposito
 - Apply development merge rulesets on consumers
 - Modify LiNKplatform / LiNKskills / LiNKbrain / LiNKsites / LiNKdeveloper / LiNKlibraries / LiNKautowork branches or workflows
 
-Consumer adoption is **staged** after this PR merges to `development` on IDE Development.
+Consumer adoption is **staged** only after this change reaches IDE Development’s **default branch (`main`)** and first-adopter smoke passes. Merging to `development` alone does **not** activate new scheduled workflows.
 
 ---
 
@@ -55,22 +55,45 @@ Drift reports and Ship/Pull waves use this **exact sequential order** (one repo 
 
 ---
 
-## Staged rollout (after GITOPS-01 merges)
+## Activation constraint (GitHub default branch)
 
-### Stage 1 — IDE Development first
+GitHub loads **scheduled** workflows and reliable `workflow_dispatch` definitions from the repository’s **default branch** (for IDE Development: `main`).
 
-1. Merge GITOPS-01 to `development` on IDE Development.
-2. Confirm managed workflows in `.github/workflows/` match `core/github/managed-workflows/`.
-3. Run `scripts/verify-ide-development.sh`.
-4. Set repo variables on IDE Development as needed:
-   - `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (e.g. `Verify IDE Development,Enforce allowed PR source branches`)
+Therefore:
+
+1. Merging PR #19 **only into `development` does not activate** the new Review Packager cron (or other new workflow files) for the org.
+2. The corrected central change must pass IDE Development **`development` → `staging` → `main`** first.
+3. Only after the workflows exist on the **default branch (`main`)** can Packager/promote schedules run reliably and be manually smoked with confidence.
+4. **Only after that first-adopter smoke on `main`** should consumer rollout (Stage 2+) begin.
+
+A one-time administrator bootstrap merge may be used to land this PR into `development` while Bugbot is unavailable due to spending limits — that is **not** a permanent product bypass.
+
+---
+
+## Staged rollout (after GITOPS-01 reaches default branch)
+
+### Stage 0 — Promote through IDE Development protected branches
+
+1. Independent non-Bugbot review of PR #19 (or successor) into `development`.
+2. Integrator or documented one-time admin bootstrap merge into `development` (Bugbot may be unavailable; do not add a permanent Bugbot bypass).
+3. Tue/Fri staging promote (or manual) of the combined candidate via `promote/staging/*` PR after staging-gate on that PR head.
+4. Monday main package + Principal Approve of exact staging SHA **and** promote PR head; merge via `promote/main/*` only.
+5. Confirm workflows are present on `main` (default branch).
+
+### Stage 1 — IDE Development smoke on default branch
+
+1. Confirm managed workflows in `.github/workflows/` on `main` match `core/github/managed-workflows/`.
+2. Run `scripts/verify-ide-development.sh`.
+3. Set repo variables on IDE Development as needed:
+   - `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (e.g. `Verify IDE Development`)
+   - `LINKTREND_BUGBOT_REVIEW_COMMAND` (default `cursor review` if unset)
    - `LINKTREND_STAGING_GATE_CHECKS` / `LINKTREND_RELEASE_GATE_CHECKS` if non-default
-5. Apply development merge ruleset: `./scripts/apply-development-merge-ruleset.sh`
-6. Smoke: review-ready marker → Packager dispatch → Integrator path (dry or test branch).
+4. Apply development merge ruleset: `./scripts/apply-development-merge-ruleset.sh`
+5. Smoke: functional commit → mark/commit review-ready → Packager `workflow_dispatch` → draft PR → fast-gate → ready + Bugbot (when funded) → Integrator.
 
 ### Stage 2 — Wire sync managed workflows
 
-After Stage 1 is stable on IDE Development:
+After Stage 1 smoke is green on IDE Development **default branch**:
 
 ```bash
 # Per consumer (from IDE Development repo root):
@@ -97,11 +120,12 @@ For each wired consumer:
 2. Set GitHub Actions repository variable `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (comma-separated).
 3. Map job names to gate ids in consumer docs or workflow comments (`fast-gate` / `staging-gate` / `release-gate` per `CI-GATE-CONTRACTS.md`).
 4. Optionally set `LINKTREND_STAGING_GATE_CHECKS` and `LINKTREND_RELEASE_GATE_CHECKS`.
+5. Optionally set `LINKTREND_BUGBOT_REVIEW_COMMAND` (exact default if unset: `cursor review`).
 
 Example (IDE Development):
 
 ```
-Verify IDE Development,Enforce allowed PR source branches
+Verify IDE Development
 ```
 
 ### Stage 4 — Bugbot checklist
