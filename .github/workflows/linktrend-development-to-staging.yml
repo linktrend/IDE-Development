@@ -79,11 +79,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: write
-      pull-requests: write
-      issues: write
+      contents: read
       checks: write
       statuses: read
+      pull-requests: read
     env:
       GH_TOKEN: ${{ needs.resolve-token.outputs.token_ready == 'true' && needs.resolve-token.outputs.app_token || github.token }}
       GITHUB_TOKEN: ${{ needs.resolve-token.outputs.token_ready == 'true' && needs.resolve-token.outputs.app_token || github.token }}
