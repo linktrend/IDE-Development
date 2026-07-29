@@ -21,7 +21,7 @@ IDE Development itself uses the same managed workflows (it is in scope).
 | Implementer | Long-lived local / Remote Control / Cloud agents | Branch → checkpoint commit/push → mark `review_ready` when finished |
 | Review Packager | GitHub Action (`linktrend-review-packager.yml`) | Tue/Fri 08:00: discover review-ready → open PR → request Bugbot once |
 | Reviewer | **Bugbot** | Review PRs into `development` (pass = GitHub check `Cursor Bugbot` → `success`) |
-| Fix agent | Short-lived **Cloud** agent on same branch | Repair CI/Bugbot failures; max **3** attempts; new SHA re-enters packaging |
+| Repair (Lisa ACP) | GitHub records failure task; **Lisa ACP Repair Dispatcher** dispatches Cursor ACP | Repair CI/Bugbot/ordinary conflicts; max **3** attempts; no prefer-incoming; immediate types do not auto-repair; new SHA re-enters packaging |
 | Integrator | GitHub Action (`linktrend-integrator-merge.yml`) | Merge into `development` when **fast-gate** + `Cursor Bugbot` success + head SHA = reviewed SHA |
 | Promoter | GitHub Actions schedules | Tue/Fri **10:00** staging; Mon main package |
 | Lisa | OpenClaw / Telegram (**primary Ship/Pull clock**) | Cron → spawn Cursor ACP shipper/puller on Mini; one-line checkpoint status; ask Principal to Approve main |
@@ -173,7 +173,7 @@ No lists or links in those lines. Detail stays in `memory/pipeline-status.md` (L
 
 ## Fix path
 
-On CI red or Bugbot fail: spawn Cloud Fix agent on that branch (not “send back to original implementer”). Consolidate corrections, then at most one additional Bugbot request. After 3 failed attempts: stop; Lisa one-liner `Issues`; no force-merge.
+On CI red or Bugbot fail: GitHub records a durable repair task (`docs/contracts/REPAIR-DISPATCHER.md`). **Lisa ACP Repair Dispatcher** dispatches a Cursor ACP repair agent on that branch (GitHub never spawns Cursor; not “send back to original implementer”). Consolidate corrections, then at most one additional Bugbot request. After 3 failed attempts: escalate to Issues; Lisa one-liner `Issues`; no force-merge; no prefer-incoming.
 
 ## Worktrees
 

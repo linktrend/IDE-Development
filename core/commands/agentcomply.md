@@ -8,11 +8,11 @@ Operational summary:
 
 - role / touch gate first (Orchestrator vs Implementer)
 - inspect git status, branch, dirty files, remotes
-- ask only if needed for issue id/slug (or allow `issue/cleanup-<topic>`) and target repo if multi-root / ambiguous
-- from latest `development`, create the proper branch for this work package
-- move dirty work safely (stash/checkout/pop or equivalent); never dump onto development/staging/main
+- ask only if needed for **task description** (helper creates issue id/slug) or `issue/cleanup-<topic>`, and target repo if multi-root / ambiguous
+- run `scripts/gitops/create_issue_branch.py` when filing/reusing an issue branch from latest `development`
+- move dirty work safely (stash/checkout/pop, worktree, or equivalent); never dump onto development/staging/main
 - commit only when Carlos wants or the commit is clearly ready; never commit secrets
-- push the branch as a **checkpoint** (no PR). When the issue is finished, mark review-ready — Review Packager opens the PR. Do not self-merge.
+- push the branch as a **checkpoint** (no PR). When the issue is finished, mark review-ready via completion gate — Review Packager opens the PR. Do not self-merge.
 - tell the session: this work package lives on `issue/…`; no forever `dev/*`
 - plain English summary of what was done
 

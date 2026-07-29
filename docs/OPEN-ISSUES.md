@@ -131,3 +131,18 @@ The bullet above that mentions discovering `.linktrend/review-ready.json` is **o
 4. No `.linktrend/review-ready.json` and no readiness marker commit.
 
 **Pull/freeze skip:** successful `Linktrend Review Ready` on the tip SHA, or an open review PR whose head equals that tip, or an explicit operator freeze — never a JSON-file condition.
+
+---
+
+## 12. GitOps lifecycle repair control — 2026-07-30
+
+Branch `issue/23-gitops-lifecycle-repair-control`.
+
+**Corrections (append-only):**
+
+- Implementer / Ship / agentcomply: **checkpoint only** (commit+push). No implementer PR; Packager opens PR after review-ready.
+- Staging schedule in branching rule: Tue & Fri **10:00** (aligned with ADR 2026-07-28 amendment).
+- Cloud Fix language replaced by **Lisa ACP Repair Dispatcher** + durable GitHub repair tasks (max 3; no prefer-incoming).
+- Completion gate, create_issue_branch helper, cleanup workflow, Actions cost controls, platform AGENTS (Cursor/Codex/ChatGPT).
+
+See ADR 0003 amendment 2026-07-30 and `docs/contracts/*`.

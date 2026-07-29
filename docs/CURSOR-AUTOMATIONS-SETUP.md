@@ -53,8 +53,8 @@ Process ONE REPO AT A TIME in this exact order (skip missing paths):
 
 For each repo with local changes or unpushed commits on a work branch (prefer issue/*; also cursor/*, rare dev/*):
 1) Commit with conventional commits if there are changes.
-2) Push the branch.
-3) Open or update a PR targeting development.
+2) Push the branch (checkpoint only).
+3) Do NOT open a PR. Do NOT request Bugbot. Do NOT mark review-ready unless the issue is actually finished (Packager opens PRs).
 4) Do not merge. Do not self-review. Do not touch staging/main.
 
 If you can write local files, set the first line of
@@ -110,15 +110,17 @@ Same as Ship 05; replace labels with `Ship 16`.
 
 Same as Pull 07; replace labels with `Pull 18`.
 
-## Fix agent Automation (recommended either way)
+## Repair Automation (backup only — Lisa ACP is primary)
 
-**Trigger:** CI failure or Bugbot request-changes on a PR into `development` (if Cursor supports PR/check triggers); otherwise manual / Lisa escalate.
+**Primary path:** GitHub records durable repair tasks; **Lisa ACP Repair Dispatcher** dispatches Cursor ACP (see `docs/contracts/REPAIR-DISPATCHER.md`). Max 3 attempts; no prefer-incoming. Immediate failure types do not auto-repair. GitHub never spawns Cursor.
 
-**Prompt:**
+**Backup trigger:** Manual / Lisa escalate only (do not rely on Cursor Automations to spawn Fix agents).
+
+**Prompt (if manually invoked):**
 
 ```text
-You are the Cloud Fix agent (not the original Implementer).
-Same PR branch. Investigate CI/Bugbot failure. Fix with minimal diff.
-Max 3 attempts total across Fix agents for this PR. If still failing, stop and surface Issues.
-Do not merge. Do not touch staging/main.
+You are a Lisa-dispatched Cursor ACP repair agent (not the original Implementer).
+Same branch. Investigate CI/Bugbot/ordinary conflict failure. Fix with minimal diff.
+Max 3 attempts total for this failure identity. If still failing, stop and surface Issues.
+Do not merge. Do not prefer-incoming. Do not touch staging/main.
 ```

@@ -25,7 +25,8 @@ grep -q 'Enforce allowed PR source branches' "$PKG" || fail "packager FAST_GATE 
 pass "Workflow phases + crons + workflow_run wake"
 
 for f in linktrend-review-packager.yml linktrend-development-to-staging.yml \
-         linktrend-staging-to-main.yml linktrend-integrator-merge.yml branch-source-policy.yml; do
+         linktrend-staging-to-main.yml linktrend-integrator-merge.yml branch-source-policy.yml \
+         linktrend-cleanup-merged.yml; do
   cmp -s "core/github/managed-workflows/$f" ".github/workflows/$f" || fail "Diverged: $f"
 done
 pass "Managed workflows match live copies"
@@ -301,5 +302,24 @@ grep -q "Linktrend Main Outcome" "$STG" || fail "staging must exclude Linktrend 
 ! test -f scripts/gitops/event_relevance.py || fail "test-only event_relevance.py must be removed"
 ! test -f scripts/gitops/bugbot_request_once.py || fail "test-only bugbot_request_once.py must be removed"
 pass "Uniform SHA concurrency + resolve-before-mint; test-only helpers removed"
+
+# ---- actionlint on managed workflows (expression errors only; ignore SC2129 style) ----
+if command -v actionlint >/dev/null 2>&1; then
+  set +e
+  al_out="$(actionlint -shellcheck= core/github/managed-workflows/*.yml .github/workflows/linktrend-*.yml .github/workflows/branch-source-policy.yml 2>&1)"
+  al_ec=$?
+  set -e
+  # Filter style/shellcheck noise; fail on expression / YAML / workflow errors
+  if [ "$al_ec" -ne 0 ]; then
+    filtered="$(printf '%s\n' "$al_out" | grep -vE 'SC2129|shellcheck is not installed|SC[0-9]{4}' || true)"
+    if printf '%s' "$filtered" | grep -Eq 'error:|expression|unexpected|invalid'; then
+      echo "$filtered" >&2
+      fail "actionlint reported expression/workflow errors"
+    fi
+  fi
+  pass "actionlint managed workflows (expression-safe)"
+else
+  echo "WARN: actionlint not installed — skipped expression lint"
+fi
 
 echo "PASS: gitops static redesign + trust-boundary checks"

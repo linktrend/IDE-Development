@@ -190,6 +190,8 @@ info "Wire summary: SUCCESS"
 info "Consumer: $TARGET_REPO"
 info "Link: $TARGET_CURSOR -> $(readlink "$TARGET_CURSOR")"
 info "Managed workflows: synced (see core/github/managed-workflows/README.md)"
+info "Platform entrypoints: ensure chatgpt/AGENTS.md + codex/AGENTS.md are present in IDE Development (copied/referenced for consumers as needed)"
 info "Next: complete Bugbot checklist — core/checklists/BUGBOT-INHERITANCE.md"
 info "Next: Cursor Automations — docs/CURSOR-AUTOMATIONS-SETUP.md"
+info "Next: run scripts/verify-platform-adoption.sh from IDE Development"
 exit 0

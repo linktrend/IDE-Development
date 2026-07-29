@@ -31,7 +31,16 @@ This PR updates **IDE Development only**. It does **not** edit consumer reposito
 - Apply development merge rulesets on consumers
 - Modify LiNKplatform / LiNKskills / LiNKbrain / LiNKsites / LiNKdeveloper / LiNKlibraries / LiNKautowork branches or workflows
 
-Consumer adoption is **staged** only after:
+Consumer adoption is **staged** only after these gates pass:
+
+1. **Corrected IDE managed workflows are valid on default branch (`main`)** (managed == live; expression-safe — no job-level `${{ env.* }}`).
+2. **GitHub App smoke** succeeds (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`).
+3. **Bugbot Manual Only + cost settings verified** (`docs/contracts/BUGBOT-MENTION-ONLY.md`, `docs/contracts/ACTIONS-COST-CONTROLS.md`).
+4. **Repair task contract valid** (`docs/contracts/REPAIR-DISPATCHER.md` + `scripts/gitops/repair_task.py`).
+5. **OpenClaw Lisa consumer follow-up passes** (ACP Repair Dispatcher + ship/pull clock — checklist in `LISA-OPENCLAW-FOLLOW-UP.md`; no edits in this PR).
+6. **Platform adoption checks** — Cursor / Codex / ChatGPT entrypoints present (`scripts/verify-platform-adoption.sh`).
+
+Also required before Stage 2+ wire:
 
 1. this change reaches IDE Development’s **default branch (`main`)** and first-adopter smoke passes, and
 2. **Bugbot mention-only** (`manualTriggerOnly`) is confirmed per repository (`docs/contracts/BUGBOT-MENTION-ONLY.md`).

@@ -119,3 +119,12 @@ Principal locked (IDE Development redesign):
    - Skip when an open review PR into `development` has head equal to that tip; **or**
    - Skip on an explicit operator freeze.
    - Do **not** use a deleted JSON-file condition.
+
+## Amendment — 2026-07-30 (lifecycle repair control)
+
+Factual corrections (do not rewrite earlier amendments):
+
+1. **Staging promote** remains Tue & Fri **10:00** Asia/Taipei (not 08:00). Older calendar rows in this ADR that say staging 08:00 are obsolete.
+2. **Ship / Implementer:** checkpoint = commit + push only. Implementers do **not** open PRs; Review Packager opens PRs after `Linktrend Review Ready`.
+3. **Repair path:** GitHub records durable repair tasks only. **Lisa ACP Repair Dispatcher** dispatches Cursor ACP repair agents. GitHub never spawns Cursor. Max **3** attempts; no prefer-incoming. Immediate failure types do not auto-repair.
+4. Contracts: `docs/contracts/AGENT-COMPLETION.md`, `docs/contracts/REPAIR-DISPATCHER.md`, `docs/contracts/ACTIONS-COST-CONTROLS.md`, `docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md`.

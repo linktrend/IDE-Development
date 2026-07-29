@@ -15,6 +15,7 @@ Templates synced into consumer repos (and IDE Development itself) by:
 | `linktrend-development-to-staging.yml` | Build (Tue/Fri 10:00) + exact-candidate reevaluate |
 | `linktrend-staging-to-main.yml` | Package / approve-merge (bound SHAs) / observe |
 | `linktrend-integrator-merge.yml` | Merge to development when fast-gate + Bugbot + reviewed SHA |
+| `linktrend-cleanup-merged.yml` | Weekly remote cleanup of merged/abandoned branches (no local worktrees) |
 
 ## Trust boundary (all privileged workflows)
 

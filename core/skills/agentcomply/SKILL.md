@@ -5,7 +5,7 @@ description: >-
   short-lived issue/* (or cleanup) branch for the repo being touched, safely
   moving dirty work. Use when Carlos runs /agentcomply or asks to comply with
   studio branching rules.
-version: 1.2.0
+version: 1.3.0
 status: active
 tags: [git, agent, migration, compliance, branching, ship-pull]
 related_commands:
@@ -54,10 +54,10 @@ Migrate an **already-open agent** onto a proper short-lived `issue/*` branch for
 
 ## Inputs (ask only if needed)
 
-1. **Issue id + short slug** for `issue/<id>-<slug>`
-2. Or allow **`issue/cleanup-<topic>`** if no issue id exists yet
+1. **Task description** if missing (helper creates/reuses the GitHub issue — do not ask Carlos for id/slug)
+2. Or allow **`issue/cleanup-<topic>`** only when a cleanup branch is explicitly appropriate and no issue should be filed
 3. **Target repo** if multi-root / ambiguous
-4. Whether to **commit/push a checkpoint** and/or **mark review-ready** (ask if commit message or readiness is ambiguous). Do not open a PR yourself — Review Packager does that.
+4. Whether to **commit/push a checkpoint** and/or **mark review-ready** (ask if commit message or readiness is ambiguous). Do not open a PR yourself — Review Packager does that. Prefer `scripts/gitops/completion_gate.py`.
 
 ## Workflow
 
@@ -88,10 +88,14 @@ Note: current branch, dirty files, unpushed commits, whether HEAD is `developmen
 
 ### 2. Resolve branch name
 
-- Prefer `issue/<id>-<slug>` when id is known.
-- Else `issue/cleanup-<topic>` (kebab-case topic).
-- Ask only if both are missing.
-- Never adopt an unrelated open branch just because it exists in the same repo — the branch must match **this work package**.
+Prefer:
+
+```bash
+python3 scripts/gitops/create_issue_branch.py "<task description>" [--prefer-worktree]
+```
+
+Use returned `BRANCH` / `WORKTREE`. Else `issue/cleanup-<topic>` only when cleanup is explicit.
+Never invent local issue IDs. Never adopt an unrelated open branch just because it exists.
 
 ### 3. Park dirty work safely
 
@@ -119,16 +123,16 @@ If stash pop conflicts: stop, report conflicted paths, help resolve — do not a
 - If message/content is ambiguous: ask once, then proceed.
 - Do not commit unrelated pre-existing dirty files without Carlos confirmation.
 
-### 5. Push and PR policy
+### 5. Checkpoint push (no PR)
 
 Prefer this order:
 
 1. Get onto the correct `issue/*` (or cleanup) branch.
-2. **Push** the branch (`git push -u origin HEAD`) once there is at least one commit to share, or Carlos asks to publish the branch tip.
-3. **Open or update PR → `development`** when commits are ready for review.
-4. If work is unfinished/dirty and should wait for a Ship wave: leave **ready-to-ship** on the issue branch; state clearly that no PR was opened yet.
+2. **Push** the branch (`git push -u origin HEAD`) as a **checkpoint** once there is at least one commit to share, or Carlos asks to publish the branch tip.
+3. If the issue is **finished**: mark review-ready (`scripts/mark-review-ready.sh` / completion gate). Do **not** open a PR — the **Review Packager** opens the PR.
+4. If work is unfinished: leave the checkpoint on the issue branch; state clearly that no PR was opened and review-ready was not claimed.
 
-Never open a PR from `development`/`staging`/`main`. Never merge the PR.
+Never open a PR yourself. Never open a PR from `development`/`staging`/`main`. Never merge.
 
 ### 6. Session contract
 
@@ -145,8 +149,8 @@ Plain English summary of exactly what was done:
 - previous branch → new branch
 - stash/move outcome
 - commits created (yes/no + message)
-- push (yes/no)
-- PR (opened / updated / skipped + why)
+- checkpoint push (yes/no)
+- review-ready (yes / no — Packager opens PR when ready)
 - remaining dirty files, if any
 - next step for this session
 
@@ -160,9 +164,9 @@ Agent comply done
 - Now: issue/<id>-<slug>   # branch for this work package
 - Moved: stash pop / cherry-pick / already clean
 - Commit: <none | conventional message>
-- Push: <yes | no>
-- PR → development: <url | none — waiting for Ship / unfinished>
-- Hard stops: no merge, no self-review, no staging/main
+- Checkpoint push: <yes | no>
+- Review-ready: <yes | no — unfinished / Packager opens PR>
+- Hard stops: no implementer PR, no merge, no self-review, no staging/main
 - Reminder: work package lives on issue/… — not forever dev/*
 ```
 

@@ -9,6 +9,7 @@
 # Candidate marker in PR body (machine-readable):
 #   <!-- linktrend-promote: {...json...} -->
 set -euo pipefail
+# Note: gh 403/429 → simple retry 2x with sleep (gh_retry).
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "FAIL: not a git repository" >&2
@@ -31,6 +32,42 @@ PROMOTE_PR_NUMBER="${PROMOTE_PR_NUMBER:-}"
 EXPECTED_PROMOTE_HEAD="${EXPECTED_PROMOTE_HEAD:-}"
 
 OUTCOME="${OUTCOME_FILE:-gitops-outcome.json}"
+
+
+# Rate-limit backoff: on gh 403/429, retry up to 2 times with sleep (see ACTIONS-COST-CONTROLS.md).
+gh_retry() {
+  local attempt=1
+  local max=3
+  local delay=5
+  local out ec
+  while true; do
+    set +e
+    out="$("$@" 2>&1)"
+    ec=$?
+    set -e
+    if [ "$ec" -eq 0 ]; then
+      printf '%s
+' "$out"
+      return 0
+    fi
+    if printf '%s' "$out" | grep -Eq 'HTTP 403|HTTP 429|rate limit|secondary rate'; then
+      if [ "$attempt" -ge "$max" ]; then
+        printf '%s
+' "$out" >&2
+        return "$ec"
+      fi
+      echo "WARN: gh rate-limit/403/429 — retry ${attempt}/${max} after ${delay}s" >&2
+      sleep "$delay"
+      delay=$((delay * 2))
+      attempt=$((attempt + 1))
+      continue
+    fi
+    printf '%s
+' "$out" >&2
+    return "$ec"
+  done
+}
+
 
 write_out() {
   python3 "${SCRIPT_DIR}/write_outcome.py" --file "${OUTCOME}" --status "$1" --detail "$2"
@@ -76,7 +113,7 @@ reevaluate_exact() {
   local pr="$1"
   local meta body marker src tgt cand base head_branch head_sha mergeable
 
-  meta="$(gh pr view "${pr}" --json number,baseRefName,headRefName,headRefOid,body,mergeable,state)"
+  meta="$(gh_retry gh pr view "${pr}" --json number,baseRefName,headRefName,headRefOid,body,mergeable,state)"
   echo "${meta}" | jq -e '.state=="OPEN" and .baseRefName=="staging"' >/dev/null \
     || { write_out "skipped" "PR #${pr} not open into staging"; exit 0; }
 
@@ -123,7 +160,7 @@ reevaluate_exact() {
   fi
 
   # Reread head immediately before gate/merge decisions
-  head_now="$(gh pr view "${pr}" --json headRefOid --jq .headRefOid)"
+  head_now="$(gh_retry gh pr view "${pr}" --json headRefOid --jq .headRefOid)"
   if [ "${head_now}" != "${head_sha}" ]; then
     write_out "skipped" "head changed before gate ${head_now}"
     exit 0
@@ -151,7 +188,7 @@ reevaluate_exact() {
     exit 0
   fi
 
-  head_now="$(gh pr view "${pr}" --json headRefOid --jq .headRefOid)"
+  head_now="$(gh_retry gh pr view "${pr}" --json headRefOid --jq .headRefOid)"
   if [ "${head_now}" != "${head_sha}" ]; then
     write_out "skipped" "head changed during gate wait"
     exit 0
@@ -165,7 +202,7 @@ reevaluate_exact() {
     exit 0
   fi
 
-  if gh pr merge "${pr}" --merge; then
+  if gh_retry gh pr merge "${pr}" --merge; then
     write_out "merged" "merged staging promote PR #${pr} at ${head_sha}"
     exit 0
   fi
@@ -195,7 +232,7 @@ SHORT="$(echo "${DEV_SHA}" | cut -c1-12)"
 PROMOTE_BRANCH="promote/staging/${SHORT}"
 
 # If open PR already exists for this exact source/target pair, reevaluate it — do not rebuild
-existing_json="$(gh pr list --base staging --state open --json number,headRefName,headRefOid,body)"
+existing_json="$(gh_retry gh pr list --base staging --state open --json number,headRefName,headRefOid,body)"
 exist_pr="$(echo "${existing_json}" | python3 -c '
 import json,re,sys
 dev,stg=sys.argv[1],sys.argv[2]
@@ -250,10 +287,10 @@ Temporary promotion branch (never a direct push to staging).
 EOF
 )"
 
-URL="$(gh pr create --base staging --head "${PROMOTE_BRANCH}" \
+URL="$(gh_retry gh pr create --base staging --head "${PROMOTE_BRANCH}" \
   --title "chore(promote): development → staging (${SHORT})" \
   --body "${BODY}")"
-PR="$(gh pr view "${URL}" --json number --jq .number)"
+PR="$(gh_retry gh pr view "${URL}" --json number --jq .number)"
 write_out "packaged" "opened staging promote PR #${PR} head ${CANDIDATE}"
 [ "$(git rev-parse --abbrev-ref HEAD)" = "${START_BRANCH}" ]
 [ "$(git rev-parse HEAD)" = "${START_SHA}" ]

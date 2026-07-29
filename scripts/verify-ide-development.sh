@@ -290,6 +290,18 @@ else
   fail "Missing scripts/tests/test-gitops-behavioral.sh"
 fi
 
+if [ -x "scripts/tests/test-gitops-lifecycle.sh" ]; then
+  bash scripts/tests/test-gitops-lifecycle.sh || fail "GitOps lifecycle test failed"
+else
+  fail "Missing scripts/tests/test-gitops-lifecycle.sh"
+fi
+
+if [ -x "scripts/verify-platform-adoption.sh" ]; then
+  bash scripts/verify-platform-adoption.sh || fail "Platform adoption verify failed"
+else
+  fail "Missing scripts/verify-platform-adoption.sh"
+fi
+
 # --- Feasibility fixture still valid ---
 if [ -x "scripts/feasibility/run-fixed-pipeline-feasibility.sh" ]; then
   bash scripts/feasibility/run-fixed-pipeline-feasibility.sh >/dev/null \

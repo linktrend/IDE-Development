@@ -149,6 +149,7 @@ jobs:
             gitops-outcome.json
           if-no-files-found: ignore
 
+          retention-days: 5
       - name: Summarize honest status
         if: always()
         run: |

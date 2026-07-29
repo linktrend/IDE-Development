@@ -104,6 +104,7 @@ jobs:
             packager-discover-report.json
             gitops-outcome.json
           if-no-files-found: ignore
+          retention-days: 5
 
   resolve:
     name: Resolve candidate (read-only)
@@ -221,3 +222,4 @@ jobs:
             packager-evaluate-report.json
             gitops-outcome.json
           if-no-files-found: ignore
+          retention-days: 5

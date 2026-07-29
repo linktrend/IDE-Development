@@ -10,3 +10,4 @@ build/
 .idea/
 *.log
 core/library/.cache/
+__pycache__/

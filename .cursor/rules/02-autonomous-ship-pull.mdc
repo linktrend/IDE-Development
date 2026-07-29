@@ -63,9 +63,10 @@ Any agent that touches a repo uses `/agentsetup` or `/agentcomply` for **that** 
 - Never promote to `staging` or `main`.
 - Never act as Reviewer on your own PR.
 - Never force work through a promotion window.
-- After CI/Bugbot failure: expect a **Cloud Fix agent** (not you) unless you are that Fix agent.
-- Fix agent: max **3** attempts on the same branch, then stop and leave `Issues`.
+- After CI/Bugbot/promotion failure: GitHub records a durable **repair task** (never spawns Cursor). **Lisa ACP Repair Dispatcher** dispatches a Cursor ACP repair agent. Max **3** attempts; no prefer-incoming. Immediate failure types do not auto-repair.
+- If you are the dispatched repair agent: max **3** attempts on the same branch, then stop and leave `Issues`.
 - Normal Bugbot maximum: one initial request + one after a consolidated correction batch.
+- Completion: use `scripts/gitops/completion_gate.py` — checkpoint vs review-ready vs blocked (`docs/contracts/AGENT-COMPLETION.md`).
 
 ## Worktrees
 

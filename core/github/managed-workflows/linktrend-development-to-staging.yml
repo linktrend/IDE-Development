@@ -42,16 +42,22 @@ concurrency:
 
 permissions: {}
 
+# Cost note: never use ${{ env.* }} at job-level env (invalid context → zero-job runs).
+# Skip irrelevant wakes: non-promote PR heads, own outcome checks, failed workflow_run.
 jobs:
   resolve:
     name: Resolve candidate (read-only)
     if: >
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'pull_request_target' ||
+      (
+        github.event_name == 'pull_request_target' &&
+        startsWith(github.event.pull_request.head.ref, 'promote/')
+      ) ||
       (
         github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success'
+        github.event.workflow_run.conclusion == 'success' &&
+        startsWith(github.event.workflow_run.head_branch, 'promote/')
       ) ||
       (
         github.event_name == 'check_run' &&
@@ -203,3 +209,12 @@ jobs:
             failed|automation_credentials_blocked) exit 1 ;;
             *) exit 0 ;;
           esac
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: staging-promote-report
+          path: |
+            gitops-outcome.json
+          if-no-files-found: ignore
+          retention-days: 5

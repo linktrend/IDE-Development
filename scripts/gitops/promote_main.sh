@@ -3,6 +3,7 @@
 # MODE=package|approve-merge|reevaluate
 # approve-merge REQUIRES EXPECTED_STAGING_SHA, EXPECTED_PROMOTE_HEAD, EXPECTED_MAIN_SHA (prior main tip).
 set -euo pipefail
+# Note: gh 403/429 → simple retry 2x with sleep (gh_retry).
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "FAIL: not a git repository" >&2
@@ -25,6 +26,42 @@ TOKEN="${AUTOMATION_TOKEN:-${GH_TOKEN:-}}"
 export GH_TOKEN="${TOKEN}"
 export GITHUB_TOKEN="${TOKEN}"
 OUTCOME="${OUTCOME_FILE:-gitops-outcome.json}"
+
+
+# Rate-limit backoff: on gh 403/429, retry up to 2 times with sleep (see ACTIONS-COST-CONTROLS.md).
+gh_retry() {
+  local attempt=1
+  local max=3
+  local delay=5
+  local out ec
+  while true; do
+    set +e
+    out="$("$@" 2>&1)"
+    ec=$?
+    set -e
+    if [ "$ec" -eq 0 ]; then
+      printf '%s
+' "$out"
+      return 0
+    fi
+    if printf '%s' "$out" | grep -Eq 'HTTP 403|HTTP 429|rate limit|secondary rate'; then
+      if [ "$attempt" -ge "$max" ]; then
+        printf '%s
+' "$out" >&2
+        return "$ec"
+      fi
+      echo "WARN: gh rate-limit/403/429 — retry ${attempt}/${max} after ${delay}s" >&2
+      sleep "$delay"
+      delay=$((delay * 2))
+      attempt=$((attempt + 1))
+      continue
+    fi
+    printf '%s
+' "$out" >&2
+    return "$ec"
+  done
+}
+
 
 write_out() {
   python3 "${SCRIPT_DIR}/write_outcome.py" --file "${OUTCOME}" --status "$1" --detail "$2"
@@ -129,10 +166,10 @@ Approve must bind:
 <!-- linktrend-promote: ${MARKER} -->
 EOF
 )"
-  URL="$(gh pr create --base main --head "${PROMOTE_BRANCH}" \
+  URL="$(gh_retry gh pr create --base main --head "${PROMOTE_BRANCH}" \
     --title "chore(promote): staging → main (awaiting Approve ${SHORT})" \
     --body "${BODY}")"
-  PR="$(gh pr view "${URL}" --json number --jq .number)"
+  PR="$(gh_retry gh pr view "${URL}" --json number --jq .number)"
   write_out "packaged" "opened main promote PR #${PR} head ${CANDIDATE}"
   [ "$(git rev-parse --abbrev-ref HEAD)" = "${START_BRANCH}" ]
   [ "$(git rev-parse HEAD)" = "${START_SHA}" ]
@@ -218,7 +255,7 @@ if [ "$(git rev-parse origin/staging)" != "${EXPECTED_STAGING_SHA}" ] \
   exit 1
 fi
 
-if gh pr merge "${PROMOTE_PR_NUMBER}" --merge; then
+if gh_retry gh pr merge "${PROMOTE_PR_NUMBER}" --merge; then
   write_out "merged" "merged main promote PR #${PROMOTE_PR_NUMBER}"
   exit 0
 fi
