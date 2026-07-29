@@ -109,8 +109,27 @@ A one-time administrator bootstrap merge may be used to land this PR into `devel
    - `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (e.g. `Verify IDE Development`)
    - `LINKTREND_BUGBOT_REVIEW_COMMAND` (default `cursor review` if unset)
    - `LINKTREND_STAGING_GATE_CHECKS` / `LINKTREND_RELEASE_GATE_CHECKS` if non-default
+   - `LINKTREND_CI_WORKFLOW_NAME` (default `CI`) — used by repair observer / docs
+   - `LINKTREND_BRANCH_POLICY_WORKFLOW_NAME` (default `Branch Source Policy`)
+   - `LINKTREND_BUGBOT_CHECK_NAME` (default `Cursor Bugbot`)
 4. Apply development merge ruleset: `./scripts/apply-development-merge-ruleset.sh`
 5. Smoke: functional commit → mark/commit review-ready → Packager `workflow_dispatch` → draft PR → fast-gate → ready + Bugbot (when funded) → Integrator.
+
+### Consumer check-name variables (`LINKTREND_*_CHECKS`)
+
+Managed workflows already read repository variables for named gate check display names.
+Consumers **must** set these so Integrator / Packager / promote / repair-observer match their `ci.yml` job names:
+
+| Variable | Purpose | IDE default |
+|---|---|---|
+| `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` | fast-gate comma-separated check names | `Verify IDE Development,Enforce allowed PR source branches` |
+| `LINKTREND_STAGING_GATE_CHECKS` | staging promote gate | `Verify IDE Development` |
+| `LINKTREND_RELEASE_GATE_CHECKS` | main promote gate | `Verify IDE Development` |
+| `LINKTREND_CI_WORKFLOW_NAME` | `workflow_run` / observer CI name | `CI` |
+| `LINKTREND_BRANCH_POLICY_WORKFLOW_NAME` | branch policy workflow display name | `Branch Source Policy` |
+| `LINKTREND_BUGBOT_CHECK_NAME` | Bugbot check run name | `Cursor Bugbot` |
+
+Note: `workflow_run.workflows` lists in YAML are **static** and must still be substituted when a consumer renames `CI` / `Branch Source Policy`.
 
 ### Stage 2 — Wire sync managed workflows
 
@@ -119,9 +138,13 @@ After Stage 1 smoke is green on IDE Development **default branch**:
 ```bash
 # Per consumer (from IDE Development repo root):
 ./scripts/wire-repo.sh /Users/linktrend/Projects/<ConsumerRepo>
-# or sync workflows only:
+# or sync pieces:
 ./scripts/sync-managed-workflows.sh /Users/linktrend/Projects/<ConsumerRepo>
+./scripts/sync-managed-runtime.sh /Users/linktrend/Projects/<ConsumerRepo>
+./scripts/sync-agents-managed-section.sh /Users/linktrend/Projects/<ConsumerRepo>
 ```
+
+`wire-repo.sh` also copies `cursor-gitops-bootstrap.mdc` into `.cursor/rules/` and upserts the AGENTS managed section.
 
 Follow consumer order 2–9. **Never overwrite** consumer `ci.yml`.
 
@@ -131,6 +154,7 @@ Verify each consumer:
 cmp core/github/managed-workflows/linktrend-review-packager.yml \
   /path/to/consumer/.github/workflows/linktrend-review-packager.yml
 # repeat for other managed files
+bash scripts/verify-platform-adoption.sh   # uses a temp consumer; does not wire real repos
 ```
 
 ### Stage 3 — `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` per repo
@@ -142,6 +166,7 @@ For each wired consumer:
 3. Map job names to gate ids in consumer docs or workflow comments (`fast-gate` / `staging-gate` / `release-gate` per `CI-GATE-CONTRACTS.md`).
 4. Optionally set `LINKTREND_STAGING_GATE_CHECKS` and `LINKTREND_RELEASE_GATE_CHECKS`.
 5. Optionally set `LINKTREND_BUGBOT_REVIEW_COMMAND` (exact default if unset: `cursor review`).
+6. Set `LINKTREND_CI_WORKFLOW_NAME` / `LINKTREND_BRANCH_POLICY_WORKFLOW_NAME` / `LINKTREND_BUGBOT_CHECK_NAME` when display names differ from IDE defaults.
 
 Example (IDE Development):
 

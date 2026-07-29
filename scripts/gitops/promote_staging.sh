@@ -75,6 +75,14 @@ write_out() {
 
 if [ -z "${TOKEN}" ] || [ "${AUTOMATION_TOKEN_SOURCE:-}" != "github_app" ]; then
   write_out "automation_credentials_blocked" "staging promote requires GitHub App token"
+  export GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+  python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+    --repo "${REPO}" \
+    --failure-type automation_credentials_blocked \
+    --severity immediate \
+    --branch "development->staging" \
+    --next-action "Configure GitHub App credentials for staging promote; do not auto-repair." \
+    >/dev/null 2>&1 || true
   exit 0
 fi
 
@@ -144,13 +152,15 @@ reevaluate_exact() {
   live_tgt="$(git rev-parse origin/staging)"
   if [ "${tgt}" != "${live_tgt}" ]; then
     write_out "blocked" "target staging advanced (${tgt} -> ${live_tgt}); old candidate invalidated"
-    python3 "${SCRIPT_DIR}/conflict_task.py" upsert \
-      --repo "${REPO}" --stage staging \
+    python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+      --repo "${REPO}" --failure-type promotion_conflict \
+      --stage staging \
       --source-branch development --target-branch staging \
-      --source-sha "${src}" --target-sha "${live_tgt}" \
-      --promote-pr "${pr}" --status conflict_blocked \
+      --branch "development->staging" \
+      --head-sha "${src}" --base-sha "${live_tgt}" \
+      --pr "${pr}" --status conflict_blocked \
       --next-action "Target advanced; build a new candidate from current staging tip." \
-      --increment-attempt >/dev/null || true
+      >/dev/null || true
     exit 0
   fi
 
@@ -167,13 +177,15 @@ reevaluate_exact() {
   fi
 
   if [ "${mergeable}" = "CONFLICTING" ]; then
-    python3 "${SCRIPT_DIR}/conflict_task.py" upsert \
-      --repo "${REPO}" --stage staging \
+    python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+      --repo "${REPO}" --failure-type promotion_conflict \
+      --stage staging \
       --source-branch development --target-branch staging \
-      --source-sha "${src}" --target-sha "${tgt}" \
-      --promote-pr "${pr}" --status conflict_blocked \
+      --branch "development->staging" \
+      --head-sha "${src}" --base-sha "${tgt}" \
+      --pr "${pr}" --status conflict_blocked \
       --next-action "Repair existing promote PR #${pr} without replacing branch tip randomly." \
-      --increment-attempt >/dev/null || true
+      >/dev/null || true
     write_out "blocked" "conflict_blocked on PR #${pr}"
     exit 0
   fi
@@ -260,13 +272,15 @@ git -C "${WT}" checkout -B "${PROMOTE_BRANCH}" >/dev/null
 
 if ! git -C "${WT}" merge --no-ff origin/development -m "chore(promote): merge development ${SHORT} into staging candidate"; then
   git -C "${WT}" merge --abort 2>/dev/null || true
-  python3 "${SCRIPT_DIR}/conflict_task.py" upsert \
-    --repo "${REPO}" --stage staging \
+  python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+    --repo "${REPO}" --failure-type promotion_conflict \
+    --stage staging \
     --source-branch development --target-branch staging \
-    --source-sha "${DEV_SHA}" --target-sha "${STG_SHA}" \
+    --branch "development->staging" \
+    --head-sha "${DEV_SHA}" --base-sha "${STG_SHA}" \
     --status conflict_blocked \
     --next-action "Repair merge onto promote/staging/* from staging@${STG_SHA}." \
-    --increment-attempt >/dev/null || true
+    >/dev/null || true
   write_out "blocked" "conflict building staging candidate; protected branches unchanged"
   exit 0
 fi

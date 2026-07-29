@@ -1,7 +1,7 @@
 # Cursor Automations Setup (Optional Backup — Not Primary Clock)
 
-**Timezone:** Asia/Taipei  
-**Doctrine:** `docs/AUTONOMOUS-GIT-OPERATIONS.md`  
+**Timezone:** Asia/Taipei
+**Doctrine:** `docs/AUTONOMOUS-GIT-OPERATIONS.md`
 **Status:** Optional / backup only (Principal locked 2026-07-25)
 
 ## Primary clock is Lisa Option A
@@ -32,7 +32,7 @@ Otherwise skip creating Automations; Lisa owns the schedule (Ship 05, Pull 07, S
 
 ## Automation 1 — Ship 05 — backup only
 
-**Schedule:** Daily 05:00 Asia/Taipei  
+**Schedule:** Daily 05:00 Asia/Taipei
 
 **Prompt:**
 
@@ -68,7 +68,7 @@ Reply with that same one line only.
 
 ## Automation 2 — Pull 07 — backup only
 
-**Schedule:** Daily 07:00 Asia/Taipei  
+**Schedule:** Daily 07:00 Asia/Taipei
 
 **Prompt:**
 

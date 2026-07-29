@@ -15,6 +15,7 @@ MANAGED_FILES=(
   "linktrend-staging-to-main.yml"
   "linktrend-integrator-merge.yml"
   "linktrend-cleanup-merged.yml"
+  "linktrend-repair-observer.yml"
 )
 
 fail() {

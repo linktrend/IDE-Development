@@ -16,6 +16,7 @@ Templates synced into consumer repos (and IDE Development itself) by:
 | `linktrend-staging-to-main.yml` | Package / approve-merge (bound SHAs) / observe |
 | `linktrend-integrator-merge.yml` | Merge to development when fast-gate + Bugbot + reviewed SHA |
 | `linktrend-cleanup-merged.yml` | Weekly remote cleanup of merged/abandoned branches (no local worktrees) |
+| `linktrend-repair-observer.yml` | Upsert repair tasks on CI/Bugbot failures (GITHUB_TOKEN issues:write; no App mint) |
 
 ## Trust boundary (all privileged workflows)
 

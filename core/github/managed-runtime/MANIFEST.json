@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "name": "linktrend-managed-runtime",
+  "description": "Scripts and paths required by managed LiNKtrend GitOps workflows. Synced into consumers by scripts/sync-managed-runtime.sh.",
+  "files": [
+    "scripts/gitops/completion_gate.py",
+    "scripts/gitops/conflict_task.py",
+    "scripts/gitops/create_issue_branch.py",
+    "scripts/gitops/integrator_evaluate.sh",
+    "scripts/gitops/packager_discover.py",
+    "scripts/gitops/packager_evaluate.py",
+    "scripts/gitops/packager_logic.py",
+    "scripts/gitops/promote_main.sh",
+    "scripts/gitops/promote_staging.sh",
+    "scripts/gitops/readiness_status.py",
+    "scripts/gitops/repair_task.py",
+    "scripts/gitops/resolve_automation_token.sh",
+    "scripts/gitops/resolve_event_pr.py",
+    "scripts/gitops/wait_named_gate.py",
+    "scripts/gitops/work-branch-allowlist.sh",
+    "scripts/gitops/write_outcome.py",
+    "scripts/mark-review-ready.sh",
+    "scripts/validate-review-ready.sh",
+    "scripts/clear-review-ready.sh",
+    "scripts/cleanup-merged-branches.sh",
+    "scripts/pull-update-work-branches.sh",
+    "scripts/apply-development-merge-ruleset.sh"
+  ],
+  "cursorRules": [
+    "core/github/managed-runtime/cursor-gitops-bootstrap.mdc"
+  ],
+  "agentsSection": "core/github/managed-runtime/AGENTS.managed-section.md"
+}

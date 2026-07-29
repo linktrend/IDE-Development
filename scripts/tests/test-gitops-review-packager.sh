@@ -26,7 +26,7 @@ pass "Workflow phases + crons + workflow_run wake"
 
 for f in linktrend-review-packager.yml linktrend-development-to-staging.yml \
          linktrend-staging-to-main.yml linktrend-integrator-merge.yml branch-source-policy.yml \
-         linktrend-cleanup-merged.yml; do
+         linktrend-cleanup-merged.yml linktrend-repair-observer.yml; do
   cmp -s "core/github/managed-workflows/$f" ".github/workflows/$f" || fail "Diverged: $f"
 done
 pass "Managed workflows match live copies"

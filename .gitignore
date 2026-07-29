@@ -11,3 +11,5 @@ build/
 *.log
 core/library/.cache/
 __pycache__/
+# Local durable agent state (completion blockers, etc.) — never commit
+.linktrend/

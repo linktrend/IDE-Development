@@ -1,7 +1,7 @@
 # Actions Cost Controls
 
-**Status:** Active guidance  
-**Date:** 2026-07-30  
+**Status:** Active guidance
+**Date:** 2026-07-30
 **Owner:** IDE Development
 
 ## Reality check

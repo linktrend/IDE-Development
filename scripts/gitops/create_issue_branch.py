@@ -3,16 +3,22 @@
 
 Fail closed on auth/create/sync failure — never invent local issue IDs.
 Prints machine-readable KEY=value lines: ISSUE_NUMBER, BRANCH, WORKTREE, SLUG.
+
+Idempotent reuse requires matching title AND label `linktrend-agentsetup`.
+Rejects closed issues when --issue-number is given.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+AGENTSETUP_LABEL = "linktrend-agentsetup"
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -80,7 +86,6 @@ def gh_auth_ok(repo: str) -> None:
     )
     if p.returncode != 0:
         die("gh auth failed — refuse to invent local issue IDs", 1)
-    # Touch API for the repo
     p2 = subprocess.run(
         ["gh", "api", f"repos/{repo}", "--jq", ".full_name"],
         text=True,
@@ -90,7 +95,41 @@ def gh_auth_ok(repo: str) -> None:
         die(f"cannot access repo {repo}: {(p2.stderr or '').strip()}", 1)
 
 
-def find_open_issue_by_title(repo: str, title: str) -> int | None:
+def ensure_agentsetup_label(repo: str) -> None:
+    p = subprocess.run(
+        ["gh", "label", "list", "--repo", repo, "--json", "name", "--limit", "100"],
+        text=True,
+        capture_output=True,
+    )
+    names = []
+    if p.returncode == 0:
+        try:
+            names = [r.get("name") for r in json.loads(p.stdout or "[]")]
+        except json.JSONDecodeError:
+            names = []
+    if AGENTSETUP_LABEL in names:
+        return
+    subprocess.run(
+        [
+            "gh",
+            "label",
+            "create",
+            AGENTSETUP_LABEL,
+            "--repo",
+            repo,
+            "--color",
+            "0E8A16",
+            "--description",
+            "LiNKtrend agentsetup issue",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def find_open_issue_by_title_and_label(repo: str, title: str) -> int | None:
+    """Reuse only when title matches AND label linktrend-agentsetup is present."""
     p = subprocess.run(
         [
             "gh",
@@ -100,21 +139,30 @@ def find_open_issue_by_title(repo: str, title: str) -> int | None:
             repo,
             "--state",
             "open",
+            "--label",
+            AGENTSETUP_LABEL,
             "--limit",
             "100",
             "--json",
-            "number,title",
+            "number,title,labels",
         ],
         text=True,
         capture_output=True,
     )
     if p.returncode != 0:
         die(f"gh issue list failed: {(p.stderr or '').strip()}")
-    import json
-
     for row in json.loads(p.stdout or "[]"):
-        if (row.get("title") or "") == title:
-            return int(row["number"])
+        if (row.get("title") or "") != title:
+            continue
+        labels = {
+            lab.get("name")
+            for lab in (row.get("labels") or [])
+            if isinstance(lab, dict)
+        }
+        # --label already filtered; if labels array is present, require membership.
+        if labels and AGENTSETUP_LABEL not in labels:
+            continue
+        return int(row["number"])
     return None
 
 
@@ -135,30 +183,63 @@ def validate_issue(repo: str, number: int) -> str:
     )
     if p.returncode != 0:
         die(f"gh issue view #{number} failed: {(p.stderr or '').strip()}")
-    import json
-
     data = json.loads(p.stdout)
     if int(data.get("number") or 0) != number:
         die(f"issue number mismatch for #{number}")
+    state = str(data.get("state") or "").upper()
+    if state == "CLOSED":
+        die(f"issue #{number} is CLOSED — refuse to attach work branch", 1)
     return str(data.get("title") or f"issue-{number}")
 
 
 def create_issue(repo: str, title: str) -> int:
-    existing = find_open_issue_by_title(repo, title)
+    ensure_agentsetup_label(repo)
+    existing = find_open_issue_by_title_and_label(repo, title)
     if existing is not None:
         return existing
     p = subprocess.run(
-        ["gh", "issue", "create", "--repo", repo, "--title", title, "--body", "Created by create_issue_branch.py"],
+        [
+            "gh",
+            "issue",
+            "create",
+            "--repo",
+            repo,
+            "--title",
+            title,
+            "--body",
+            "Created by create_issue_branch.py",
+            "--label",
+            AGENTSETUP_LABEL,
+        ],
         text=True,
         capture_output=True,
     )
+    if p.returncode != 0:
+        # Label may be missing mid-race — retry without relying on create flags
+        ensure_agentsetup_label(repo)
+        p = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "create",
+                "--repo",
+                repo,
+                "--title",
+                title,
+                "--body",
+                "Created by create_issue_branch.py",
+                "--label",
+                AGENTSETUP_LABEL,
+            ],
+            text=True,
+            capture_output=True,
+        )
     if p.returncode != 0:
         die(f"gh issue create failed: {(p.stderr or '').strip()}")
     url = (p.stdout or "").strip()
     m = re.search(r"/issues/(\d+)", url)
     if not m:
-        # Idempotent race: search again
-        again = find_open_issue_by_title(repo, title)
+        again = find_open_issue_by_title_and_label(repo, title)
         if again is not None:
             return again
         die(f"could not parse issue number from: {url}")
@@ -178,6 +259,47 @@ def on_development_tip(workdir: Path) -> bool:
     return branch == "development" and head == tip
 
 
+def remote_branch_exists(workdir: Path, branch: str) -> bool:
+    p = subprocess.run(
+        ["git", "ls-remote", "--heads", "origin", branch],
+        cwd=str(workdir),
+        text=True,
+        capture_output=True,
+    )
+    if p.returncode != 0:
+        # Fall back to local remote-tracking ref
+        return (
+            subprocess.run(
+                ["git", "show-ref", "--verify", "--quiet", f"refs/remotes/origin/{branch}"],
+                cwd=str(workdir),
+            ).returncode
+            == 0
+        )
+    return bool((p.stdout or "").strip())
+
+
+def worktree_path_registered(workdir: Path, wt_path: Path) -> bool:
+    p = subprocess.run(
+        ["git", "worktree", "list", "--porcelain"],
+        cwd=str(workdir),
+        text=True,
+        capture_output=True,
+    )
+    if p.returncode != 0:
+        return False
+    target = str(wt_path.resolve())
+    for line in (p.stdout or "").splitlines():
+        if line.startswith("worktree "):
+            listed = line[len("worktree ") :].strip()
+            try:
+                if Path(listed).resolve() == Path(target).resolve():
+                    return True
+            except OSError:
+                if listed == target:
+                    return True
+    return False
+
+
 def ensure_branch(
     workdir: Path,
     branch: str,
@@ -186,7 +308,6 @@ def ensure_branch(
 ) -> str:
     """Return worktree path (may equal workdir)."""
     run(["git", "fetch", "origin", "development"], cwd=workdir)
-    # Already on branch?
     cur = run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=workdir).stdout.strip()
     if cur == branch:
         return str(workdir)
@@ -198,18 +319,11 @@ def ensure_branch(
         ).returncode
         == 0
     )
-    exists_remote = (
-        subprocess.run(
-            ["git", "show-ref", "--verify", "--quiet", f"refs/remotes/origin/{branch}"],
-            cwd=str(workdir),
-        ).returncode
-        == 0
-    )
+    exists_remote = remote_branch_exists(workdir, branch)
 
+    # Collision: remote exists but we would create a divergent local tip — reuse remote.
     need_wt = prefer_worktree or git_dirty(workdir) or not on_development_tip(workdir)
     if need_wt:
-        wt_root = workdir / ".git" / "linktrend-worktrees"
-        # Prefer sibling under /tmp when .git is a file (worktree)
         git_dir = run(["git", "rev-parse", "--git-common-dir"], cwd=workdir).stdout.strip()
         common = Path(git_dir)
         if not common.is_absolute():
@@ -218,10 +332,23 @@ def ensure_branch(
         wt_root.mkdir(parents=True, exist_ok=True)
         wt_path = wt_root / branch.replace("/", "-")
         if wt_path.exists():
-            # Already a worktree for this branch?
-            return str(wt_path)
+            if worktree_path_registered(workdir, wt_path):
+                return str(wt_path)
+            die(
+                f"path exists but is not a registered git worktree: {wt_path} "
+                f"(run git worktree list). Refuse to reuse stale directory.",
+            )
         if exists_local or exists_remote:
             ref = branch if exists_local else f"origin/{branch}"
+            if exists_remote and not exists_local:
+                subprocess.run(
+                    ["git", "fetch", "origin", f"{branch}:refs/remotes/origin/{branch}"],
+                    cwd=str(workdir),
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                ref = f"origin/{branch}"
             run(["git", "worktree", "add", str(wt_path), ref], cwd=workdir)
         else:
             run(
@@ -230,10 +357,16 @@ def ensure_branch(
             )
         return str(wt_path)
 
-    # In-place checkout
     if exists_local:
         run(["git", "checkout", branch], cwd=workdir)
     elif exists_remote:
+        subprocess.run(
+            ["git", "fetch", "origin", f"{branch}:refs/remotes/origin/{branch}"],
+            cwd=str(workdir),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
         run(["git", "checkout", "-b", branch, f"origin/{branch}"], cwd=workdir)
     else:
         run(["git", "checkout", "-b", branch, "origin/development"], cwd=workdir)
@@ -259,7 +392,6 @@ def main(argv: list[str]) -> int:
 
     workdir = Path(args.workdir).resolve()
     if not (workdir / ".git").exists() and not (workdir / ".git").is_file():
-        # allow worktree
         try:
             run(["git", "rev-parse", "--show-toplevel"], cwd=workdir)
         except SystemExit:

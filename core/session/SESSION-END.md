@@ -16,7 +16,11 @@ Define the operational behavior for natural-language session end and close-out r
 1. determine the active repository from the files visible to the current chat
 2. if no active repository is clear, stop and ask which repository is intended
 3. run `git status`
-4. run `git add .`
+4. **Owned-path staging only** — never `git add .` / `git add -A` / `git add --all`:
+   - Determine the paths this session owns or touched (from the session diff, handoff notes, and explicit task scope).
+   - Stage with `git add -- <path> [<path> ...]` for those paths only.
+   - Refuse broad add. Never stage credentials, `.env`, secrets, or dirty files owned by another session.
+   - If ownership is ambiguous, stop and ask rather than staging everything.
 5. run `git diff --cached`
 6. inspect staged changes for obvious secrets, credentials, or suspicious files
 7. if suspicious staged content is found, stop and ask

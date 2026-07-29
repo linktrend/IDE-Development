@@ -186,12 +186,34 @@ SYNC_SCRIPT="${SYSTEM_ROOT}/scripts/sync-managed-workflows.sh"
 bash "$SYNC_SCRIPT" "$TARGET_REPO"
 
 info ""
+info "=== Layer C: sync managed runtime scripts ==="
+RUNTIME_SYNC="${SYSTEM_ROOT}/scripts/sync-managed-runtime.sh"
+[ -f "$RUNTIME_SYNC" ] || fail "Missing runtime sync: $RUNTIME_SYNC"
+bash "$RUNTIME_SYNC" "$TARGET_REPO"
+
+info ""
+info "=== Layer D: cursor gitops bootstrap rule ==="
+RULE_SRC="${SYSTEM_ROOT}/core/github/managed-runtime/cursor-gitops-bootstrap.mdc"
+RULE_DEST="${TARGET_REPO}/.cursor/rules/cursor-gitops-bootstrap.mdc"
+mkdir -p "${TARGET_REPO}/.cursor/rules"
+if [ -f "$RULE_SRC" ]; then
+  cp "$RULE_SRC" "$RULE_DEST"
+  info "PASS: synced cursor-gitops-bootstrap.mdc"
+fi
+
+info ""
+info "=== Layer E: AGENTS.md managed section ==="
+AGENTS_SYNC="${SYSTEM_ROOT}/scripts/sync-agents-managed-section.sh"
+[ -f "$AGENTS_SYNC" ] || fail "Missing agents sync: $AGENTS_SYNC"
+bash "$AGENTS_SYNC" "$TARGET_REPO"
+
+info ""
 info "Wire summary: SUCCESS"
 info "Consumer: $TARGET_REPO"
 info "Link: $TARGET_CURSOR -> $(readlink "$TARGET_CURSOR")"
-info "Managed workflows: synced (see core/github/managed-workflows/README.md)"
-info "Platform entrypoints: ensure chatgpt/AGENTS.md + codex/AGENTS.md are present in IDE Development (copied/referenced for consumers as needed)"
+info "Managed workflows + runtime + AGENTS section: synced"
 info "Next: complete Bugbot checklist — core/checklists/BUGBOT-INHERITANCE.md"
 info "Next: Cursor Automations — docs/CURSOR-AUTOMATIONS-SETUP.md"
+info "Next: set LINKTREND_*_CHECKS variables (docs/GITOPS-CONSUMER-ROLLOUT.md)"
 info "Next: run scripts/verify-platform-adoption.sh from IDE Development"
 exit 0

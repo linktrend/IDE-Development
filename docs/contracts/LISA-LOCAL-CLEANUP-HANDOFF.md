@@ -1,11 +1,11 @@
 # Lisa Local Cleanup Handoff
 
-**Status:** Contract (IDE-owned) — Lisa implements later in openclaw_prime  
+**Status:** Contract (IDE-owned) — Lisa implements later in openclaw_prime
 **Date:** 2026-07-30
 
 ## Purpose
 
-GitHub Actions may delete **remote** merged/abandoned branches (`linktrend-cleanup-merged.yml`).  
+GitHub Actions may delete **remote** merged/abandoned branches (`linktrend-cleanup-merged.yml`).
 **Local** worktree / branch cleanup on the Mac Mini remains Lisa’s responsibility and must not run inside GitHub.
 
 ## GitHub must never

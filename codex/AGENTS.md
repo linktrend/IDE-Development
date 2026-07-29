@@ -27,7 +27,8 @@ Use the shared development core as a portable knowledge asset while preserving c
 
 - Bootstrap: `scripts/gitops/create_issue_branch.py` + `/agentsetup` — do **not** ask the Principal for issue id/slug; do **not** invent local IDs.
 - Ship / session save = **checkpoint only** (commit + push). Implementers do **not** open PRs.
-- Finished work = mark **Linktrend Review Ready** + `scripts/gitops/completion_gate.py review-ready`. Review Packager opens the PR.
+- Finished work = run appropriate tests/checks; auto-repair ordinary failures with at most 3 bounded repair cycles; write machine-readable evidence with `scripts/gitops/completion_gate.py write-evidence`; then call `scripts/gitops/completion_gate.py review-ready`. The gate is authoritative, fail-closed, and publishes **Linktrend Review Ready**. Do not call `scripts/mark-review-ready.sh` as a pre-gate publisher; it is only a compatibility wrapper that requires evidence and delegates to the gate. Review Packager opens the PR.
+- If validation or repair cannot complete, call `scripts/gitops/completion_gate.py blocked` so `.linktrend/completion-blocker.json` records the durable blocker and the branch stays ineligible.
 - Repair: durable GitHub tasks; Lisa ACP Repair Dispatcher; max 3; no prefer-incoming; GitHub never spawns Cursor.
 - Hard stops: no self-merge, no self-review, no staging/main promotion.
 

@@ -69,6 +69,14 @@ write_out() {
 
 if [ -z "${TOKEN}" ] || [ "${AUTOMATION_TOKEN_SOURCE:-}" != "github_app" ]; then
   write_out "automation_credentials_blocked" "main promote requires GitHub App token"
+  export GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+  python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+    --repo "${REPO}" \
+    --failure-type automation_credentials_blocked \
+    --severity immediate \
+    --branch "staging->main" \
+    --next-action "Configure GitHub App credentials for main promote; do not auto-repair." \
+    >/dev/null 2>&1 || true
   exit 0
 fi
 
@@ -142,13 +150,15 @@ for r in json.load(sys.stdin):
   git -C "${WT}" checkout -B "${PROMOTE_BRANCH}" >/dev/null
   if ! git -C "${WT}" merge --no-ff origin/staging -m "chore(promote): merge staging ${SHORT} into main candidate"; then
     git -C "${WT}" merge --abort 2>/dev/null || true
-    python3 "${SCRIPT_DIR}/conflict_task.py" upsert \
-      --repo "${REPO}" --stage main \
+    python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+      --repo "${REPO}" --failure-type promotion_conflict \
+      --stage main \
       --source-branch staging --target-branch main \
-      --source-sha "${STG_SHA}" --target-sha "${MAIN_SHA}" \
+      --branch "staging->main" \
+      --head-sha "${STG_SHA}" --base-sha "${MAIN_SHA}" \
       --status conflict_blocked \
       --next-action "Repair promote/main/* from main@${MAIN_SHA}." \
-      --increment-attempt >/dev/null || true
+      >/dev/null || true
     write_out "blocked" "conflict building main candidate"
     exit 0
   fi

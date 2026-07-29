@@ -21,8 +21,10 @@ This file is the ChatGPT entrypoint. **Do not assume `.cursor` is read.**
 |---|---|
 | Checkpoint (commit + push) | Yes |
 | Open / update PR | **No** — Review Packager only |
-| Mark review-ready | Yes, when finished — `scripts/mark-review-ready.sh` + `scripts/gitops/completion_gate.py review-ready` |
+| Mark review-ready | Yes, when finished — run appropriate tests/checks, auto-repair ordinary failures with at most 3 bounded repair cycles, write machine-readable evidence with `scripts/gitops/completion_gate.py write-evidence`, then call `scripts/gitops/completion_gate.py review-ready` |
 | Merge / promote | **No** |
+
+`review-ready` is the authoritative fail-closed gate that publishes **Linktrend Review Ready**. Do not call `scripts/mark-review-ready.sh` as a pre-gate publisher; it is only a compatibility wrapper that requires evidence and delegates to the gate. If validation or repair cannot complete, call `scripts/gitops/completion_gate.py blocked` so `.linktrend/completion-blocker.json` records the durable blocker and the branch stays ineligible.
 
 ## Repair
 
