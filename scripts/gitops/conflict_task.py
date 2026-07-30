@@ -70,45 +70,44 @@ def main(argv: list[str]) -> int:
     if args.cmd == "upsert":
         # Delegate to repair_task (promotion_conflict). Do not increment on upsert;
         # --increment-attempt maps to a follow-up dispatch-attempt for compat.
-        cmd = [
-            "--repo",
+        fid = rt.failure_id(
             args.repo,
-            "--failure-type",
             "promotion_conflict",
-            "--stage",
-            args.stage,
-            "--source-branch",
-            args.source_branch,
-            "--target-branch",
-            args.target_branch,
-            "--branch",
-            f"{args.source_branch}->{args.target_branch}",
-            "--head-sha",
-            args.source_sha,
-            "--base-sha",
-            args.target_sha,
-            "--promote-pr",
-            args.promote_pr,
-            "--status",
-            args.status,
-            "--next-action",
-            args.next_action,
-        ]
-        rc = rt.main(["upsert", *cmd])
-        if rc != 0:
-            return rc
+            pr=args.promote_pr,
+            workflow="",
+            check="",
+            branch=f"{args.source_branch}->{args.target_branch}",
+        )
+        task: dict[str, Any] = {
+            "failureId": fid,
+            "id": fid,
+            "repository": args.repo,
+            "failureType": "promotion_conflict",
+            "prNumber": args.promote_pr,
+            "pr": args.promote_pr,
+            "branch": f"{args.source_branch}->{args.target_branch}",
+            "headSha": args.source_sha,
+            "baseSha": args.target_sha,
+            "severity": "ordinary",
+            "attemptCount": 0,
+            "maxAttempts": rt.MAX_ATTEMPTS,
+            "repairStatus": "recorded",
+            "evidence": {},
+            "nextAction": args.next_action,
+            "lisaDispatchState": "pending",
+            "resolutionState": "open",
+            "stage": args.stage,
+            "sourceBranch": args.source_branch,
+            "targetBranch": args.target_branch,
+            "sourceSha": args.source_sha,
+            "targetSha": args.target_sha,
+            "promotePr": args.promote_pr,
+            "status": args.status,
+        }
+        out = rt.upsert_task(task, increment=False)
         if args.increment_attempt:
-            # Compat: old promote scripts used --increment-attempt on conflict upsert.
-            # Map to dispatch-attempt on the computed failureId.
-            fid = rt.failure_id(
-                args.repo,
-                "promotion_conflict",
-                pr=args.promote_pr,
-                workflow="",
-                check="",
-                branch=f"{args.source_branch}->{args.target_branch}",
-            )
-            return rt.main(["dispatch-attempt", "--repo", args.repo, "--id", fid])
+            out = get_backend(args.repo).dispatch_attempt(fid) or {}
+        print(json.dumps(out, indent=2))
         return 0
 
     backend = get_backend(args.repo)

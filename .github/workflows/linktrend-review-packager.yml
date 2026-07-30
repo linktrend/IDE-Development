@@ -75,10 +75,18 @@ jobs:
           LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
           LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
           REQUIRE_APP_TOKEN: "1"
         run: |
           set -euo pipefail
           if ! source scripts/gitops/resolve_automation_token.sh; then
+            GH_TOKEN="${GITHUB_TOKEN}" python3 scripts/gitops/repair_task.py upsert \
+              --repo "${GITHUB_REPOSITORY}" \
+              --failure-type automation_credentials_blocked \
+              --severity immediate \
+              --workflow "Linktrend Review Packager" \
+              --next-action "Configure GitHub App credentials; do not auto-repair." \
+              || true
             python3 scripts/gitops/write_outcome.py \
               --status automation_credentials_blocked \
               --detail "App token unavailable for Packager discover"
@@ -183,6 +191,7 @@ jobs:
           LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
           LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr }}
           HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
           BUGBOT_REVIEW_COMMAND: ${{ env.BUGBOT_REVIEW_COMMAND }}
@@ -191,6 +200,13 @@ jobs:
         run: |
           set -euo pipefail
           if ! source scripts/gitops/resolve_automation_token.sh; then
+            GH_TOKEN="${GITHUB_TOKEN}" python3 scripts/gitops/repair_task.py upsert \
+              --repo "${GITHUB_REPOSITORY}" \
+              --failure-type automation_credentials_blocked \
+              --severity immediate \
+              --workflow "Linktrend Review Packager" \
+              --next-action "Configure GitHub App credentials; do not auto-repair." \
+              || true
             GITHUB_TOKEN="${{ github.token }}" python3 scripts/gitops/write_outcome.py \
               --status automation_credentials_blocked \
               --detail "App token unavailable for Packager evaluate" \

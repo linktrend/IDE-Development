@@ -34,6 +34,17 @@ EXPECTED_PROMOTE_HEAD="${EXPECTED_PROMOTE_HEAD:-}"
 OUTCOME="${OUTCOME_FILE:-gitops-outcome.json}"
 
 
+record_usage_limit_repair_task() {
+  python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+    --repo "${REPO}" \
+    --failure-type usage_limit \
+    --severity immediate \
+    --workflow "staging-promote" \
+    --next-action "Wait for GitHub API quota; do not ACP-repair usage limits." \
+    >/dev/null 2>&1 || true
+}
+
+
 # Rate-limit backoff: on gh 403/429, retry up to 2 times with sleep (see ACTIONS-COST-CONTROLS.md).
 gh_retry() {
   local attempt=1
@@ -52,6 +63,7 @@ gh_retry() {
     fi
     if printf '%s' "$out" | grep -Eq 'HTTP 403|HTTP 429|rate limit|secondary rate'; then
       if [ "$attempt" -ge "$max" ]; then
+        record_usage_limit_repair_task
         printf '%s
 ' "$out" >&2
         return "$ec"

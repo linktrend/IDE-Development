@@ -23,6 +23,7 @@ make_repo() {
 seed_scripts() {
   local d="$1"
   mkdir -p "$d/scripts/gitops"
+  printf '%s\n' "__pycache__/" "*.py[cod]" >"$d/.gitignore"
   cp "$ROOT/scripts/mark-review-ready.sh" "$d/scripts/"
   cp "$ROOT/scripts/validate-review-ready.sh" "$d/scripts/"
   cp "$ROOT/scripts/clear-review-ready.sh" "$d/scripts/"
@@ -31,8 +32,26 @@ seed_scripts() {
   cp "$ROOT/scripts/gitops/"*.sh "$d/scripts/gitops/" 2>/dev/null || true
   cp "$ROOT/scripts/gitops/"*.py "$d/scripts/gitops/"
   chmod +x "$d/scripts/"*.sh "$d/scripts/gitops/"*.sh "$d/scripts/gitops/"*.py
-  git -C "$d" add scripts
+  git -C "$d" add .gitignore scripts
   git -C "$d" commit -q -m "chore: seed gitops scripts"
+}
+
+mark_ready_with_evidence() {
+  local issue_id="$1"
+  local notes="${2:-}"
+  local evidence_file="${TMP}/evidence-${issue_id}.json"
+
+  python3 scripts/gitops/completion_gate.py write-evidence \
+    --evidence-file "${evidence_file}" \
+    --classification tests \
+    --acceptance "behavioral fixture" \
+    --command "0|behavioral-fixture" >/dev/null
+
+  if [ -n "${notes}" ]; then
+    COMPLETION_EVIDENCE_FILE="${evidence_file}" bash scripts/mark-review-ready.sh "${issue_id}" "${notes}"
+  else
+    COMPLETION_EVIDENCE_FILE="${evidence_file}" bash scripts/mark-review-ready.sh "${issue_id}"
+  fi
 }
 
 TMP="$(mktemp -d)"
@@ -41,6 +60,7 @@ trap cleanup EXIT
 
 export LINKTREND_STATUS_BACKEND=file
 export LINKTREND_CONFLICT_BACKEND=file
+export LINKTREND_REPAIR_BACKEND=file
 
 # ============================================================================
 # 1) Readiness status on exact tip; later commit invalidates; no shared file
@@ -59,7 +79,7 @@ git checkout -q -b issue/A-one
 echo a >a.txt && git add a.txt && git commit -q -m "feat: a"
 SHA_A="$(git rev-parse HEAD)"
 # no origin — file backend allows mark
-bash scripts/mark-review-ready.sh A "notes-a" >/dev/null
+mark_ready_with_evidence A "notes-a" >/dev/null
 bash scripts/validate-review-ready.sh "$SHA_A" >/dev/null
 # concurrent other branch/repo must not create shared readiness file in tree
 [ ! -f .linktrend/review-ready.json ] || fail "must not write review-ready.json into feature tree"
@@ -73,7 +93,7 @@ pushd "$R2" >/dev/null
 git checkout -q -b issue/B-two
 echo b >b.txt && git add b.txt && git commit -q -m "feat: b"
 SHA_B="$(git rev-parse HEAD)"
-bash scripts/mark-review-ready.sh B >/dev/null
+mark_ready_with_evidence B >/dev/null
 bash scripts/validate-review-ready.sh "$SHA_B" >/dev/null
 [ ! -f .linktrend/review-ready.json ] || fail "branch B must not have readiness file"
 popd >/dev/null
@@ -179,6 +199,7 @@ pass "promotion reevaluate does not rebuild; head stable across events"
 # 4) Durable conflict attempts across runs; stop at 3
 # ============================================================================
 export LINKTREND_CONFLICT_DIR="$TMP/conflicts"
+export LINKTREND_REPAIR_DIR="$LINKTREND_CONFLICT_DIR"
 mkdir -p "$LINKTREND_CONFLICT_DIR"
 python3 "$ROOT/scripts/gitops/conflict_task.py" upsert --repo r --stage staging \
   --source-branch development --target-branch staging --source-sha aaa --target-sha bbb \
@@ -195,7 +216,7 @@ python3 "$ROOT/scripts/gitops/conflict_task.py" upsert --repo r --stage staging 
 [ "$(python3 -c 'import json;print(json.load(open("'"$TMP"'/c3.json"))["status"])')" = "Issues" ]
 # persists on disk across process
 python3 "$ROOT/scripts/gitops/conflict_task.py" show --repo r --id "$ID" | grep -q Issues
-grep -q -- '--increment-attempt' "$ROOT/scripts/gitops/promote_staging.sh"
+grep -q -- '--failure-type promotion_conflict' "$ROOT/scripts/gitops/promote_staging.sh"
 pass "durable conflict attempts persist and stop at three"
 
 # ============================================================================
@@ -224,7 +245,7 @@ git -C "$PULL" checkout -q -b issue/frozen issue/unfinished
 echo f >"$PULL/f.txt" && git -C "$PULL" add f.txt && git -C "$PULL" commit -q -m "frozen feat"
 FR="$(git -C "$PULL" rev-parse HEAD)"
 pushd "$PULL" >/dev/null
-bash scripts/mark-review-ready.sh frozen >/dev/null
+mark_ready_with_evidence frozen >/dev/null
 # Caller stays on development (not on unfinished)
 git checkout -q development
 BEFORE_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
