@@ -588,11 +588,20 @@ grep -q 'schemaVersion' docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md \
   || fail "LISA-MAIN-APPROVE-DISPATCH missing marker schemaVersion"
 grep -q 'main_approve_package_discover.py' docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md \
   || fail "LISA-MAIN-APPROVE-DISPATCH missing discover CLI"
+grep -q 'claimExpiresAt' docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md \
+  || fail "LISA-MAIN-APPROVE-DISPATCH missing claimExpiresAt / expiry policy"
+grep -q 'requiresRepackage' docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md \
+  || fail "LISA-MAIN-APPROVE-DISPATCH missing freshness/repackage rules"
 grep -q 'Do not use JSON/Markdown OpenClaw sidecar\|No JSON/Markdown OpenClaw sidecar' docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md \
   || fail "LISA-MAIN-APPROVE-DISPATCH missing no-sidecar rule"
 [ -f scripts/gitops/main_approve_package_discover.py ] || fail "missing main_approve_package_discover.py"
+[ -f scripts/gitops/main_approve_package_reuse.py ] || fail "missing main_approve_package_reuse.py"
+[ -f docs/contracts/fixtures/lisa-main-approve-package.schema.json ] \
+  || fail "missing Lisa package schema fixture"
 grep -q 'main_approve_package_discover.py' core/github/managed-runtime/MANIFEST.json \
   || fail "MANIFEST missing main_approve_package_discover.py"
+grep -q 'main_approve_package_reuse.py' core/github/managed-runtime/MANIFEST.json \
+  || fail "MANIFEST missing main_approve_package_reuse.py"
 
 BODY="$TMP/main-approve-body.md"
 cat >"$BODY" <<'EOF'
@@ -605,28 +614,59 @@ Approve must bind:
 
 <!-- linktrend-promote: {"schemaVersion":1,"stage":"main","sourceBranch":"staging","targetBranch":"main","sourceSha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","targetSha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","candidateHead":"cccccccccccccccccccccccccccccccccccccccc","promoteBranch":"promote/main/aaaaaaaaaaaa"} -->
 EOF
+CHECKS="$TMP/main-approve-checks.json"
+cat >"$CHECKS" <<'EOF'
+[
+  {"name":"Verify IDE Development","state":"SUCCESS"},
+  {"name":"Enforce allowed PR source branches","state":"SUCCESS"}
+]
+EOF
 disc="$(python3 "$ROOT/scripts/gitops/main_approve_package_discover.py" \
   --from-body-file "$BODY" \
   --repository linktrend/IDE-Development \
   --pr-number 99 \
   --head-sha cccccccccccccccccccccccccccccccccccccccc \
-  --head-branch promote/main/aaaaaaaaaaaa)"
+  --head-branch promote/main/aaaaaaaaaaaa \
+  --staging-tip aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  --main-tip bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+  --checks-json "$CHECKS" \
+  --now 2026-08-03T10:00:00+08:00 \
+  --created-at 2026-08-03T02:00:00Z)"
 echo "$disc" | python3 -c '
-import json,sys
+import json,sys,re
+from pathlib import Path
 d=json.load(sys.stdin)
 assert d.get("available") is True, d
 assert d.get("store")=="github_promote_pr_marker", d
 assert d.get("contract","").endswith("LISA-MAIN-APPROVE-DISPATCH.md"), d
 assert d.get("itemCount")==1, d
+pkg=d["package"]
+assert pkg["packageId"].startswith("main-approve-2026-08-03-"), pkg
+assert pkg["mondayDate"]=="2026-08-03", pkg
+assert pkg["claimExpiresAt"].startswith("2026-08-03T23:59:59"), pkg
+assert "+08:00" in pkg["claimExpiresAt"] or pkg["claimExpiresAt"].endswith("+08:00"), pkg
+assert pkg["createdAt"], pkg
+assert pkg.get("expired") is False, pkg
 it=d["items"][0]
 assert it["repository"]=="linktrend/IDE-Development"
 assert it["promotionPrNumber"]==99
-assert it["stagingSha"].startswith("aaa")
-assert it["priorMainSha"].startswith("bbb")
-assert it["promotionHeadSha"].startswith("ccc")
+assert it["stagingSha"]=="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+assert it["priorMainSha"]=="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+assert it["promotionHeadSha"]=="cccccccccccccccccccccccccccccccccccccccc"
+assert it["gateResult"]=="Clear"
+assert it["gateEvidence"]["requiredChecks"]
 assert "aaaaaaaa" not in it["plainDescription"]
 assert it["workflowInputs"]["expected_main_sha"].startswith("bbb")
-assert __import__("re").search(r"\b[0-9a-f]{7,40}\b", it["plainDescription"], __import__("re").I) is None
+assert re.search(r"\b[0-9a-f]{7,40}\b", it["plainDescription"], re.I) is None
+# Lisa-compatible package.items shape
+lit=pkg["items"][0]
+for k in ("index","plainDescription","repository","promotionPrNumber","stagingSha","priorMainSha","promotionHeadSha","gateResult"):
+    assert k in lit, lit
+# Schema fixture structural check (stdlib only)
+schema=json.loads(Path("docs/contracts/fixtures/lisa-main-approve-package.schema.json").read_text())
+assert set(schema["required"]) <= set(pkg.keys())
+assert set(schema["properties"]["items"]["items"]["required"]) <= set(lit.keys())
+assert lit["gateResult"] in ("Clear","Issues")
 '
 # Drifted head must be omitted (stale package)
 set +e
@@ -635,7 +675,11 @@ python3 "$ROOT/scripts/gitops/main_approve_package_discover.py" \
   --repository linktrend/IDE-Development \
   --pr-number 99 \
   --head-sha dddddddddddddddddddddddddddddddddddddddd \
-  --head-branch promote/main/aaaaaaaaaaaa >/tmp/main-approve-drift.out 2>/tmp/main-approve-drift.err
+  --head-branch promote/main/aaaaaaaaaaaa \
+  --staging-tip aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  --main-tip bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+  --checks-json "$CHECKS" \
+  --now 2026-08-03T10:00:00+08:00 >/tmp/main-approve-drift.out 2>/tmp/main-approve-drift.err
 dec=$?
 set -e
 [ "$dec" -ne 0 ] || fail "drifted head should not yield a sealed item"

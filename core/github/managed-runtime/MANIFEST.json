@@ -11,6 +11,7 @@
     "scripts/gitops/packager_evaluate.py",
     "scripts/gitops/packager_logic.py",
     "scripts/gitops/main_approve_package_discover.py",
+    "scripts/gitops/main_approve_package_reuse.py",
     "scripts/gitops/promote_main.sh",
     "scripts/gitops/promote_staging.sh",
     "scripts/gitops/readiness_status.py",

@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/work-branch-allowlist.sh"
 
 MODE="${MODE:-package}"
-RELEASE_GATE_CHECKS="${RELEASE_GATE_CHECKS:-Verify IDE Development}"
+RELEASE_GATE_CHECKS="${RELEASE_GATE_CHECKS:-Verify IDE Development,Enforce allowed PR source branches}"
 TIMEZONE_LABEL="${TIMEZONE_LABEL:-Asia/Taipei}"
 EXPECTED_STAGING_SHA="${EXPECTED_STAGING_SHA:-}"
 EXPECTED_PROMOTE_HEAD="${EXPECTED_PROMOTE_HEAD:-}"
@@ -152,19 +152,31 @@ if [ "${MODE}" = "package" ]; then
   SHORT="$(echo "${STG_SHA}" | cut -c1-12)"
   PROMOTE_BRANCH="promote/main/${SHORT}"
 
-  existing="$(gh pr list --base main --state open --json number,body \
-    | python3 -c '
-import json,re,sys
-stg,main=sys.argv[1],sys.argv[2]
-for r in json.load(sys.stdin):
-    m=re.search(r"<!-- linktrend-promote:\s*(\{.*?\})\s*-->", r.get("body") or "", re.S)
-    if not m: continue
-    meta=json.loads(m.group(1))
-    if meta.get("sourceSha")==stg and meta.get("targetSha")==main:
-        print(r["number"]); break
-' "${STG_SHA}" "${MAIN_SHA}" || true)"
-  if [ -n "${existing}" ]; then
-    write_out "packaged" "main promote PR #${existing} already open for this source/target (no rebuild)"
+  existing_json="$(gh_retry gh pr list --base main --state open \
+    --json number,body,headRefName,headRefOid,baseRefName,state,isCrossRepository,headRepository)"
+  reuse_json="$(printf '%s\n' "${existing_json}" | python3 "${SCRIPT_DIR}/main_approve_package_reuse.py" \
+    --expected-source "${STG_SHA}" \
+    --expected-target "${MAIN_SHA}" \
+    --expected-branch "${PROMOTE_BRANCH}" \
+    --repository "${REPO}")"
+  reuse_action="$(printf '%s\n' "${reuse_json}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("action",""))')"
+  reuse_pr="$(printf '%s\n' "${reuse_json}" | python3 -c 'import json,sys; v=json.load(sys.stdin).get("pr"); print(v if v is not None else "")')"
+  reuse_reason="$(printf '%s\n' "${reuse_json}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("reason",""))')"
+  if [ "${reuse_action}" = "reuse" ] && [ -n "${reuse_pr}" ]; then
+    write_out "packaged" "main promote PR #${reuse_pr} already open and valid for reuse (open/same-repo/base/branch/marker/head)"
+    exit 0
+  fi
+  if [ "${reuse_action}" = "repackage" ]; then
+    python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+      --repo "${REPO}" --failure-type promotion_conflict \
+      --stage main \
+      --source-branch staging --target-branch main \
+      --branch "staging->main" \
+      --head-sha "${STG_SHA}" --base-sha "${MAIN_SHA}" \
+      --pr "${reuse_pr:-0}" --status conflict_blocked \
+      --next-action "Existing main promote package invalid (${reuse_reason}); close/repair and repackage; do not silently reuse or overwrite." \
+      >/dev/null || true
+    write_out "blocked" "existing main promote package invalid (${reuse_reason}); requires repackage"
     exit 0
   fi
 

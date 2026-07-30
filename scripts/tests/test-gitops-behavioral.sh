@@ -415,6 +415,8 @@ assert "stale event" in stg
 assert "marker candidateHead" in stg
 assert "EXPECTED_MAIN_SHA" in main
 assert "target advanced" in main or "expected main target" in main
+assert "main_approve_package_reuse.py" in main
+assert "requires repackage" in main or "valid for reuse" in main
 # development tip advance must not rebuild an existing exact candidate
 assert "already exists for this exact source/target" in stg or "sourceSha" in stg
 wf = (root / "core/github/managed-workflows/linktrend-development-to-staging.yml").read_text()
@@ -1147,6 +1149,230 @@ print("ok", sys.argv[1])
 PY
 done
 pass "App-credential failure creates/updates repair task; upserts not masked"
+
+# ============================================================================
+# Main Approve store: gates, freshness, trust, expiry, Lisa schema, reuse
+# ============================================================================
+python3 - "$ROOT" <<'PY'
+import json, re, subprocess, sys, tempfile
+from pathlib import Path
+
+root = Path(sys.argv[1])
+disc = root / "scripts/gitops/main_approve_package_discover.py"
+reuse = root / "scripts/gitops/main_approve_package_reuse.py"
+schema = json.loads((root / "docs/contracts/fixtures/lisa-main-approve-package.schema.json").read_text())
+
+SRC = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+MAIN = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+HEAD = "cccccccccccccccccccccccccccccccccccccccc"
+BRANCH = "promote/main/aaaaaaaaaaaa"
+BODY = f"""## pkg
+<!-- linktrend-promote: {{"schemaVersion":1,"stage":"main","sourceBranch":"staging","targetBranch":"main","sourceSha":"{SRC}","targetSha":"{MAIN}","candidateHead":"{HEAD}","promoteBranch":"{BRANCH}"}} -->
+"""
+
+def run(args, checks=None, body=BODY, extra=None):
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        bf = td / "body.md"
+        bf.write_text(body, encoding="utf-8")
+        cmd = [
+            sys.executable, str(disc),
+            "--from-body-file", str(bf),
+            "--repository", "linktrend/IDE-Development",
+            "--pr-number", "42",
+            "--head-sha", HEAD,
+            "--head-branch", BRANCH,
+            "--staging-tip", SRC,
+            "--main-tip", MAIN,
+            "--now", "2026-08-03T10:00:00+08:00",
+            "--release-gate-checks",
+            "Verify IDE Development,Enforce allowed PR source branches",
+        ]
+        if checks is not None:
+            cf = td / "checks.json"
+            cf.write_text(json.dumps(checks), encoding="utf-8")
+            cmd += ["--checks-json", str(cf)]
+        if extra:
+            cmd += extra
+        p = subprocess.run(cmd, capture_output=True, text=True)
+        out = p.stdout.strip() or p.stderr.strip()
+        try:
+            data = json.loads(p.stdout)
+        except Exception:
+            data = {"_raw": out, "_err": p.stderr}
+        return p.returncode, data
+
+ok_checks = [
+    {"name": "Verify IDE Development", "state": "SUCCESS"},
+    {"name": "Enforce allowed PR source branches", "state": "SUCCESS"},
+]
+
+# all gates successful
+rc, d = run([], checks=ok_checks)
+assert rc == 0 and d["itemCount"] == 1 and d["items"][0]["gateResult"] == "Clear", d
+assert "Unknown" not in {i.get("gateResult") for i in d["items"]}
+pkg = d["package"]
+assert set(schema["required"]) <= set(pkg.keys())
+lit = pkg["items"][0]
+assert set(schema["properties"]["items"]["items"]["required"]) <= set(lit.keys())
+assert lit["gateResult"] in ("Clear", "Issues")
+assert re.search(r"\b[0-9a-f]{7,40}\b", lit["plainDescription"], re.I) is None
+
+# missing gate
+rc, d = run([], checks=[{"name": "Verify IDE Development", "state": "SUCCESS"}])
+assert rc == 0 and d["items"][0]["gateResult"] == "Issues", d
+assert d["items"][0]["gateEvidence"]["status"] == "missing"
+
+# pending gate
+rc, d = run([], checks=[
+    {"name": "Verify IDE Development", "state": "SUCCESS"},
+    {"name": "Enforce allowed PR source branches", "state": "PENDING"},
+])
+assert d["items"][0]["gateResult"] == "Issues" and d["items"][0]["gateEvidence"]["status"] == "pending"
+
+# failed gate
+rc, d = run([], checks=[
+    {"name": "Verify IDE Development", "state": "FAILURE"},
+    {"name": "Enforce allowed PR source branches", "state": "SUCCESS"},
+])
+assert d["items"][0]["gateResult"] == "Issues" and d["items"][0]["gateEvidence"]["status"] == "failed"
+
+# staging drift
+rc, d = run([], checks=ok_checks, extra=["--staging-tip", "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"])
+assert rc != 0 and d["itemCount"] == 0
+assert any(r.get("reason") == "staging_tip_drift" for r in d["rejected"]), d
+
+# main drift
+rc, d = run([], checks=ok_checks, extra=["--main-tip", "ffffffffffffffffffffffffffffffffffffffff"])
+assert rc != 0 and any(r.get("reason") == "main_tip_drift" for r in d["rejected"]), d
+
+# candidate-head drift
+rc, d = run([], checks=ok_checks, extra=["--head-sha", "dddddddddddddddddddddddddddddddddddddddd"])
+assert rc != 0 and any(r.get("reason") == "candidate_head_drift" for r in d["rejected"]), d
+
+# fork / cross-repo
+rc, d = run([], checks=ok_checks, extra=["--is-cross-repository"])
+assert rc != 0 and any(r.get("reason") == "cross_repository_head" for r in d["rejected"]), d
+rc, d = run([], checks=ok_checks, extra=["--head-repository", "evil/fork"])
+assert rc != 0 and any(r.get("reason") == "head_repository_mismatch" for r in d["rejected"]), d
+
+# invalid / short / non-hex SHA
+bad_body = BODY.replace(SRC, "not-a-sha")
+rc, d = run([], checks=ok_checks, body=bad_body)
+assert rc != 0 and any("sha_invalid" in str(r.get("reason")) for r in d["rejected"]), d
+short_body = BODY.replace(SRC, "aaaaaaaaaaaa")
+# short breaks JSON length in marker — use 39 hex
+short = "a" * 39
+short_body = f"""<!-- linktrend-promote: {{"schemaVersion":1,"stage":"main","sourceBranch":"staging","targetBranch":"main","sourceSha":"{short}","targetSha":"{MAIN}","candidateHead":"{HEAD}","promoteBranch":"promote/main/aaaaaaaaaaaa"}} -->"""
+rc, d = run([], checks=ok_checks, body=short_body)
+assert rc != 0 and any(r.get("reason") == "marker_source_sha_invalid" for r in d["rejected"]), d
+
+# wrong stage / source / base / branch
+for field, val, reason in [
+    ("stage", "staging", "marker_stage_not_main"),
+    ("sourceBranch", "development", "marker_source_branch_not_staging"),
+    ("targetBranch", "staging", "marker_target_branch_not_main"),
+]:
+    body = BODY.replace(f'"{field}":"main"' if field != "sourceBranch" else '"sourceBranch":"staging"',
+                        f'"{field}":"{val}"' if field != "sourceBranch" else f'"sourceBranch":"{val}"')
+    if field == "stage":
+        body = BODY.replace('"stage":"main"', '"stage":"staging"')
+    elif field == "sourceBranch":
+        body = BODY.replace('"sourceBranch":"staging"', '"sourceBranch":"development"')
+    elif field == "targetBranch":
+        body = BODY.replace('"targetBranch":"main"', '"targetBranch":"staging"')
+    rc, d = run([], checks=ok_checks, body=body)
+    assert any(r.get("reason") == reason for r in d["rejected"]), (field, d)
+
+rc, d = run([], checks=ok_checks, extra=["--base-ref", "staging"])
+assert any(r.get("reason") == "base_not_main" for r in d["rejected"]), d
+rc, d = run([], checks=ok_checks, extra=["--head-branch", "promote/main/bbbbbbbbbbbb"])
+assert rc != 0, d
+
+# duplicate packages
+body2 = BODY.replace(HEAD, "dddddddddddddddddddddddddddddddddddddddd").replace(
+    '"candidateHead":"cccccccccccccccccccccccccccccccccccccccc"',
+    '"candidateHead":"dddddddddddddddddddddddddddddddddddddddd"',
+)
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    b1, b2 = td / "b1.md", td / "b2.md"
+    b1.write_text(BODY, encoding="utf-8")
+    b2.write_text(body2, encoding="utf-8")
+    cf = td / "c.json"
+    cf.write_text(json.dumps(ok_checks), encoding="utf-8")
+    p = subprocess.run([
+        sys.executable, str(disc),
+        "--from-body-file", str(b1),
+        "--second-body-file", str(b2),
+        "--second-pr-number", "43",
+        "--second-head-sha", "dddddddddddddddddddddddddddddddddddddddd",
+        "--repository", "linktrend/IDE-Development",
+        "--pr-number", "42",
+        "--head-sha", HEAD,
+        "--head-branch", BRANCH,
+        "--staging-tip", SRC,
+        "--main-tip", MAIN,
+        "--checks-json", str(cf),
+        "--now", "2026-08-03T10:00:00+08:00",
+        "--release-gate-checks",
+        "Verify IDE Development,Enforce allowed PR source branches",
+    ], capture_output=True, text=True)
+    d = json.loads(p.stdout)
+    assert d["itemCount"] == 0, d
+    assert any(r.get("reason") == "ambiguous_duplicate_packages" for r in d["rejected"]), d
+
+# expired package
+rc, d = run([], checks=ok_checks, extra=["--now", "2026-08-04T00:00:01+08:00"])
+assert d["package"]["expired"] is True and d["itemCount"] == 0, d
+assert any(r.get("reason") == "package_expired" for r in d["rejected"]), d
+assert rc == 3
+
+# valid same-repository package already covered by Clear case
+
+# invalid existing-package reuse (source/target match but head drift)
+prs = [{
+    "number": 7,
+    "body": BODY,
+    "headRefName": BRANCH,
+    "headRefOid": "dddddddddddddddddddddddddddddddddddddddd",
+    "baseRefName": "main",
+    "state": "OPEN",
+    "isCrossRepository": False,
+    "headRepositoryNameWithOwner": "linktrend/IDE-Development",
+}]
+p = subprocess.run([
+    sys.executable, str(reuse),
+    "--expected-source", SRC,
+    "--expected-target", MAIN,
+    "--expected-branch", BRANCH,
+    "--repository", "linktrend/IDE-Development",
+], input=json.dumps(prs), capture_output=True, text=True)
+assert p.returncode == 0, p.stderr
+out = json.loads(p.stdout)
+assert out["action"] == "repackage" and out["reason"] == "candidate_head_drift", out
+
+# valid reuse
+prs[0]["headRefOid"] = HEAD
+p = subprocess.run([
+    sys.executable, str(reuse),
+    "--expected-source", SRC,
+    "--expected-target", MAIN,
+    "--expected-branch", BRANCH,
+    "--repository", "linktrend/IDE-Development",
+], input=json.dumps(prs), capture_output=True, text=True)
+out = json.loads(p.stdout)
+assert out == {"action": "reuse", "pr": 7}, out
+
+# promote_main wires reuse validator
+main_sh = (root / "scripts/gitops/promote_main.sh").read_text()
+assert "main_approve_package_reuse.py" in main_sh
+assert "requires repackage" in main_sh
+assert "Verify IDE Development,Enforce allowed PR source branches" in main_sh
+
+print("main approve store behavioral ok")
+PY
+pass "Main Approve store gates/freshness/trust/expiry/schema/reuse"
 
 echo ""
 echo "PASS: behavioral gitops tests (${PASS} groups)"
