@@ -18,8 +18,8 @@ Lisa package type (OpenClaw `MainApprovePackage`) is produced under `package` wi
 |---|---|
 | `packageId` | Stable id: `main-approve-<mondayDate>-<digest16>` (or `...-empty`) |
 | `mondayDate` | Asia/Taipei Monday date (`YYYY-MM-DD`) for the claim window |
+| `createdAt` | Time this approval package payload was **discovered/sealed** (UTC `Z`). Not the promote PR `createdAt`. |
 | `claimExpiresAt` | Explicit expiry timestamp (see Expiry policy) |
-| `createdAt` | Package creation time (UTC `Z`) |
 | `items[]` | Numbered `MainApproveItem` rows |
 
 ---
@@ -64,7 +64,9 @@ Before sealing an item / approve-merge inputs, verify:
 | `targetSha` | current remote **`main`** tip |
 | `candidateHead` | live PR head OID |
 
-Any mismatch → omit/block the item with `requiresRepackage=true` and a precise reason (`staging_tip_drift`, `main_tip_drift`, `candidate_head_drift`, or `*_on_reread`). Discover **re-reads** tips/head again before emitting `workflowInputs`.
+Any mismatch → omit/block the item with `requiresRepackage=true` and a precise reason (`staging_tip_drift`, `main_tip_drift`, `candidate_head_drift`, or `*_on_reread`).
+
+**Final live reread** (immediately before sealing dispatch inputs) also re-validates: PR still open, base `main`, allowed `promote/main/*` head, same-repo/fork trust, marker still matches, tips/head still match, and **re-queries the exact configured release gates** on the current promotion head. If gates are pending/failed, the sealed item is `Issues` (never sealed as `Clear`).
 
 ---
 
@@ -72,17 +74,21 @@ Any mismatch → omit/block the item with `requiresRepackage=true` and a precise
 
 Configured check names (in order):
 
-1. `LINKTREND_RELEASE_GATE_CHECKS` / `RELEASE_GATE_CHECKS` env, else
-2. GitHub Actions variable `LINKTREND_RELEASE_GATE_CHECKS`, else
+1. Explicit `--release-gate-checks` / env `LINKTREND_RELEASE_GATE_CHECKS` / `RELEASE_GATE_CHECKS`, else
+2. GitHub Actions variable `LINKTREND_RELEASE_GATE_CHECKS` via `gh api`, else
 3. Default: `Verify IDE Development,Enforce allowed PR source branches`
+
+**Variable resolution fail-closed:** defaults are used **only** when the repository variable is positively confirmed absent (`404` / Not Found) or empty. Authentication, rate-limit, network, permission, malformed-response, or other API failures **stop** package discovery with `available: false` and `error=release_gate_config_failed:…`.
 
 Rules:
 
 - Live discovery **never** returns `Unknown` as a usable `gateResult`.
 - `gateResult = Clear` **only** when every required named check is **SUCCESS** on the exact promotion head.
 - Missing, pending, neutral, cancelled, or failed required checks → `Issues`.
+- `gh pr checks` exit `0` (pass), `8` (pending), or other nonzero (fail/mixed) are **informational** when stdout is valid JSON — classify into Clear/Issues. Fail closed only for auth, rate-limit, malformed JSON, or unavailable data (`gate_query_failed`).
 - Items include machine-readable `gateEvidence` (`requiredChecks`, per-check state, status/detail).
 - Fixture mode may pass `--checks-json`; **production live mode must query GitHub** (`gh pr checks`).
+- Final live reread re-queries the same named gates on the current promotion head; pending/failed updates the item to `Issues` (does not seal `Clear`).
 
 ---
 

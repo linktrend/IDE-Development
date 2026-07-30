@@ -1374,5 +1374,259 @@ print("main approve store behavioral ok")
 PY
 pass "Main Approve store gates/freshness/trust/expiry/schema/reuse"
 
+# ============================================================================
+# Main Approve: live gh subprocess path (fake gh) — checks exit codes,
+# final reread gate refresh, release-gate variable fail-closed
+# ============================================================================
+python3 - "$ROOT" <<'PY'
+import json, os, stat, subprocess, sys, tempfile
+from pathlib import Path
+
+root = Path(sys.argv[1])
+disc = root / "scripts/gitops/main_approve_package_discover.py"
+SRC = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+MAIN = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+HEAD = "cccccccccccccccccccccccccccccccccccccccc"
+BRANCH = "promote/main/aaaaaaaaaaaa"
+REPO = "linktrend/IDE-Development"
+BODY = (
+    "## pkg\n"
+    f'<!-- linktrend-promote: {{"schemaVersion":1,"stage":"main","sourceBranch":"staging",'
+    f'"targetBranch":"main","sourceSha":"{SRC}","targetSha":"{MAIN}",'
+    f'"candidateHead":"{HEAD}","promoteBranch":"{BRANCH}"}} -->\n'
+)
+PR = {
+    "number": 42,
+    "title": "promote",
+    "body": BODY,
+    "headRefName": BRANCH,
+    "headRefOid": HEAD,
+    "baseRefName": "main",
+    "state": "OPEN",
+    "isCrossRepository": False,
+    "headRepository": {"nameWithOwner": REPO},
+    "url": "https://example.invalid/pr/42",
+    "createdAt": "2026-08-03T01:00:00Z",
+}
+
+def write_fake_gh(td: Path) -> Path:
+    script = td / "gh"
+    script.write_text(
+        r'''#!/usr/bin/env bash
+set -euo pipefail
+LOG="${FAKE_GH_LOG:-/dev/null}"
+printf '%s\n' "$*" >>"$LOG"
+ARGS=("$@")
+
+ok_checks='[{"name":"Verify IDE Development","state":"SUCCESS"},{"name":"Enforce allowed PR source branches","state":"SUCCESS"}]'
+pending_checks='[{"name":"Verify IDE Development","state":"SUCCESS"},{"name":"Enforce allowed PR source branches","state":"PENDING"}]'
+failed_checks='[{"name":"Verify IDE Development","state":"FAILURE"},{"name":"Enforce allowed PR source branches","state":"SUCCESS"}]'
+
+if [[ "${1:-}" == "pr" && "${2:-}" == "checks" ]]; then
+  COUNT_FILE="${FAKE_GH_CHECKS_COUNT:-}"
+  if [[ -n "$COUNT_FILE" ]]; then
+    n=0
+    [[ -f "$COUNT_FILE" ]] && n=$(cat "$COUNT_FILE")
+    n=$((n + 1))
+    echo "$n" >"$COUNT_FILE"
+  else
+    n=1
+  fi
+  mode="${FAKE_GH_CHECKS_MODE:-success}"
+  if [[ "$mode" == "reread_pending" ]]; then
+    if [[ "$n" -eq 1 ]]; then
+      printf '%s\n' "$ok_checks"
+      exit 0
+    fi
+    printf '%s\n' "$pending_checks"
+    exit 8
+  fi
+  case "$mode" in
+    success) printf '%s\n' "$ok_checks"; exit 0 ;;
+    pending) printf '%s\n' "$pending_checks"; exit 8 ;;
+    failed) printf '%s\n' "$failed_checks"; exit 1 ;;
+    auth)
+      echo "gh: HTTP 401: Bad credentials (https://api.github.com/repos/x/y/commits/abc/status)" >&2
+      exit 1
+      ;;
+    badjson) printf '%s\n' "not-json"; exit 8 ;;
+    *) echo "unknown checks mode" >&2; exit 99 ;;
+  esac
+fi
+
+if [[ "${1:-}" == "pr" && "${2:-}" == "list" ]]; then
+  cat <<'JSON'
+__PR_LIST_JSON__
+JSON
+  exit 0
+fi
+
+if [[ "${1:-}" == "pr" && "${2:-}" == "view" ]]; then
+  cat <<'JSON'
+__PR_VIEW_JSON__
+JSON
+  exit 0
+fi
+
+if [[ "${1:-}" == "api" ]]; then
+  path="${2:-}"
+  if [[ "$path" == *"/actions/variables/LINKTREND_RELEASE_GATE_CHECKS"* ]]; then
+    case "${FAKE_GH_VAR_MODE:-absent}" in
+      absent)
+        echo '{"message":"Not Found","documentation_url":"https://docs.github.com"}' >&2
+        exit 1
+        ;;
+      empty)
+        printf '\n'
+        exit 0
+        ;;
+      value)
+        printf '%s\n' "Verify IDE Development,Enforce allowed PR source branches"
+        exit 0
+        ;;
+      auth)
+        echo "gh: HTTP 401: Bad credentials" >&2
+        exit 1
+        ;;
+      ratelimit)
+        echo "gh: HTTP 429: API rate limit exceeded" >&2
+        exit 1
+        ;;
+      *)
+        echo "gh: HTTP 500: boom" >&2
+        exit 1
+        ;;
+    esac
+  fi
+  if [[ "$path" == *"/git/ref/heads/staging"* ]]; then
+    printf '%s\n' "__SRC__"
+    exit 0
+  fi
+  if [[ "$path" == *"/git/ref/heads/main"* ]]; then
+    printf '%s\n' "__MAIN__"
+    exit 0
+  fi
+fi
+
+echo "unexpected gh $*" >&2
+exit 90
+'''.replace("__PR_LIST_JSON__", json.dumps([PR]))
+        .replace("__PR_VIEW_JSON__", json.dumps(PR))
+        .replace("__SRC__", SRC)
+        .replace("__MAIN__", MAIN),
+        encoding="utf-8",
+    )
+    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    return script
+
+
+def run_live(*, checks_mode: str, var_mode: str = "absent", extra_env=None):
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        write_fake_gh(td)
+        env = os.environ.copy()
+        for k in (
+            "LINKTREND_RELEASE_GATE_CHECKS",
+            "RELEASE_GATE_CHECKS",
+            "GH_TOKEN",
+            "GITHUB_TOKEN",
+        ):
+            env.pop(k, None)
+        env["PATH"] = f"{td}:{env.get('PATH', '')}"
+        env["FAKE_GH_CHECKS_MODE"] = checks_mode
+        env["FAKE_GH_VAR_MODE"] = var_mode
+        env["FAKE_GH_LOG"] = str(td / "gh.log")
+        env["FAKE_GH_CHECKS_COUNT"] = str(td / "checks.count")
+        if extra_env:
+            env.update(extra_env)
+        p = subprocess.run(
+            [
+                sys.executable,
+                str(disc),
+                "--repo",
+                REPO,
+                "--staging-tip",
+                SRC,
+                "--main-tip",
+                MAIN,
+                "--now",
+                "2026-08-03T10:00:00+08:00",
+                "--created-at",
+                "2026-08-03T02:05:00Z",
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        try:
+            data = json.loads(p.stdout)
+        except Exception:
+            data = {"_raw": p.stdout, "_err": p.stderr}
+        log = (td / "gh.log").read_text(encoding="utf-8") if (td / "gh.log").exists() else ""
+        return p.returncode, data, log
+
+
+# exit 8 + pending JSON → usable Issues item
+rc, d, log = run_live(checks_mode="pending")
+assert rc == 0, (rc, d, log)
+assert d.get("itemCount") == 1 and d["items"][0]["gateResult"] == "Issues", d
+assert d["items"][0]["gateEvidence"]["status"] == "pending", d
+assert "pr checks" in log
+
+# failed-check nonzero + valid JSON → Issues
+rc, d, log = run_live(checks_mode="failed")
+assert rc == 0 and d["items"][0]["gateResult"] == "Issues", d
+assert d["items"][0]["gateEvidence"]["status"] == "failed", d
+
+# exit 0 + success → Clear
+rc, d, log = run_live(checks_mode="success")
+assert rc == 0 and d["items"][0]["gateResult"] == "Clear", d
+assert d["package"]["createdAt"] == "2026-08-03T02:05:00Z", d["package"]
+assert any("discovery/seal" in n for n in d.get("notes", [])), d.get("notes")
+
+# auth failure → fail closed (no usable item; gate_query_failed)
+rc, d, log = run_live(checks_mode="auth")
+assert d.get("itemCount", 0) == 0, d
+assert any(
+    r.get("reason") in {"gate_query_failed", "gate_query_failed_on_reread"}
+    for r in d.get("rejected", [])
+), d
+
+# invalid JSON → fail closed
+rc, d, log = run_live(checks_mode="badjson")
+assert d.get("itemCount", 0) == 0, d
+assert any("gate_query_failed" in str(r.get("reason")) for r in d.get("rejected", [])), d
+
+# final reread: first Clear, second pending → sealed Issues
+rc, d, log = run_live(checks_mode="reread_pending")
+assert rc == 0 and d["itemCount"] == 1, d
+assert d["items"][0]["gateResult"] == "Issues", d
+assert d["items"][0]["gateEvidence"]["status"] == "pending", d
+assert log.count("pr checks") >= 2, log
+
+# absent variable → defaults (success path)
+rc, d, log = run_live(checks_mode="success", var_mode="absent")
+assert rc == 0 and d["items"][0]["gateResult"] == "Clear", d
+assert "LINKTREND_RELEASE_GATE_CHECKS" in log
+
+# empty variable → defaults
+rc, d, log = run_live(checks_mode="success", var_mode="empty")
+assert rc == 0 and d["itemCount"] == 1, d
+
+# auth on variable query → discovery fail closed (available false)
+rc, d, log = run_live(checks_mode="success", var_mode="auth")
+assert rc == 1 and d.get("available") is False, d
+assert "release_gate_config_failed" in str(d.get("error")), d
+assert d.get("itemCount") == 0
+
+# rate-limit on variable → fail closed
+rc, d, log = run_live(checks_mode="success", var_mode="ratelimit")
+assert rc == 1 and d.get("available") is False, d
+assert "release_gate_config_failed" in str(d.get("error")), d
+
+print("live gh subprocess path ok")
+PY
+pass "Main Approve live gh checks/reread/variable fail-closed"
+
 echo ""
 echo "PASS: behavioral gitops tests (${PASS} groups)"

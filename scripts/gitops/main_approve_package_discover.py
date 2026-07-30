@@ -52,6 +52,39 @@ def run_gh(args: list[str]) -> str:
     return subprocess.check_output(["gh", *args], text=True, env=env).strip()
 
 
+class GateQueryError(RuntimeError):
+    """Genuine gh pr checks failure (auth/rate-limit/malformed/unavailable)."""
+
+
+class ReleaseGateConfigError(RuntimeError):
+    """Cannot resolve LINKTREND_RELEASE_GATE_CHECKS safely."""
+
+
+def _looks_like_auth_or_rate_limit(text: str) -> str | None:
+    low = (text or "").lower()
+    if any(
+        t in low
+        for t in (
+            "http 401",
+            "http 403",
+            "bad credentials",
+            "requires authentication",
+            "authentication failed",
+            "must authenticate",
+            "gh auth login",
+        )
+    ):
+        return "authentication_failed"
+    if any(t in low for t in ("http 429", "rate limit", "secondary rate")):
+        return "rate_limited"
+    return None
+
+
+def _looks_like_not_found(text: str) -> bool:
+    low = (text or "").lower()
+    return "404" in low or "not found" in low
+
+
 def normalize_sha(value: Any) -> str | None:
     s = str(value or "").strip().lower()
     if SHA40_RE.match(s):
@@ -152,21 +185,42 @@ def resolve_release_gate_checks(
         return parse_required_checks(env)
     if fixture:
         return parse_required_checks(DEFAULT_RELEASE_GATE_CHECKS)
-    # Live: read Actions variable when present
+
+    # Live: read Actions variable. Defaults only when positively absent/empty.
     try:
-        raw = run_gh(
+        proc = subprocess.run(
             [
+                "gh",
                 "api",
                 f"repos/{repo}/actions/variables/LINKTREND_RELEASE_GATE_CHECKS",
                 "--jq",
                 ".value",
-            ]
+            ],
+            text=True,
+            capture_output=True,
+            env=os.environ.copy(),
+            check=False,
         )
-        if raw.strip():
-            return parse_required_checks(raw)
-    except subprocess.CalledProcessError:
-        pass
-    return parse_required_checks(DEFAULT_RELEASE_GATE_CHECKS)
+    except OSError as exc:
+        raise ReleaseGateConfigError(f"gh_exec_failed:{exc}") from exc
+
+    stdout = (proc.stdout or "").strip()
+    stderr = (proc.stderr or "").strip()
+    combined = f"{stdout}\n{stderr}"
+    if proc.returncode == 0:
+        if stdout:
+            return parse_required_checks(stdout)
+        return parse_required_checks(DEFAULT_RELEASE_GATE_CHECKS)
+
+    if _looks_like_not_found(combined):
+        return parse_required_checks(DEFAULT_RELEASE_GATE_CHECKS)
+
+    auth = _looks_like_auth_or_rate_limit(combined)
+    if auth:
+        raise ReleaseGateConfigError(auth)
+    raise ReleaseGateConfigError(
+        f"variable_query_failed:exit={proc.returncode}:{(stderr or stdout)[:200]}"
+    )
 
 
 def remote_tip(repo: str, branch: str) -> str | None:
@@ -185,18 +239,56 @@ def remote_tip(repo: str, branch: str) -> str | None:
 
 
 def live_pr_checks(repo: str, pr_number: int) -> list[dict[str, Any]]:
-    raw = run_gh(
-        [
-            "pr",
-            "checks",
-            str(pr_number),
-            "--repo",
-            repo,
-            "--json",
-            "name,state,bucket,completedAt,startedAt",
-        ]
-    )
-    return json.loads(raw or "[]")
+    """Query GitHub check runs for a PR.
+
+    `gh pr checks` exit codes are informational when stdout is valid JSON:
+      0 = pass, 8 = pending, other nonzero = fail/mixed.
+    Fail closed only for auth, rate-limit, malformed JSON, or unavailable data.
+    """
+    try:
+        proc = subprocess.run(
+            [
+                "gh",
+                "pr",
+                "checks",
+                str(pr_number),
+                "--repo",
+                repo,
+                "--json",
+                "name,state,bucket,completedAt,startedAt",
+            ],
+            text=True,
+            capture_output=True,
+            env=os.environ.copy(),
+            check=False,
+        )
+    except OSError as exc:
+        raise GateQueryError(f"gh_exec_failed:{exc}") from exc
+
+    stdout = (proc.stdout or "").strip()
+    stderr = (proc.stderr or "").strip()
+    combined = f"{stdout}\n{stderr}"
+    auth = _looks_like_auth_or_rate_limit(combined)
+    if auth and not stdout:
+        raise GateQueryError(auth)
+    if auth and stdout and not stdout.lstrip().startswith(("[", "{")):
+        raise GateQueryError(auth)
+
+    if not stdout:
+        raise GateQueryError(
+            f"checks_unavailable:exit={proc.returncode}:{(stderr or 'empty_stdout')[:200]}"
+        )
+
+    try:
+        data = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        if auth:
+            raise GateQueryError(auth) from exc
+        raise GateQueryError(f"checks_json_invalid:exit={proc.returncode}") from exc
+
+    if not isinstance(data, list):
+        raise GateQueryError("checks_not_array")
+    return data
 
 
 def evaluate_gates(
@@ -247,11 +339,15 @@ def validate_candidate(
     head_repo = ""
     head_repo_obj = pr.get("headRepository")
     if isinstance(head_repo_obj, dict):
-        owner = (head_repo_obj.get("owner") or {})
-        if isinstance(owner, dict):
-            head_repo = f"{owner.get('login')}/{head_repo_obj.get('name')}"
+        nwo = head_repo_obj.get("nameWithOwner")
+        if nwo:
+            head_repo = str(nwo)
         else:
-            head_repo = str(head_repo_obj.get("nameWithOwner") or "")
+            owner = head_repo_obj.get("owner") if isinstance(head_repo_obj.get("owner"), dict) else {}
+            login = owner.get("login") if isinstance(owner, dict) else None
+            name = head_repo_obj.get("name")
+            if login and name:
+                head_repo = f"{login}/{name}"
     if not head_repo:
         head_repo = str(pr.get("headRepositoryNameWithOwner") or "")
 
@@ -321,7 +417,7 @@ def validate_candidate(
             return reject("fixture_checks_required")
         try:
             checks = live_pr_checks(repository, pr_number)
-        except subprocess.CalledProcessError as exc:
+        except GateQueryError as exc:
             return reject("gate_query_failed", detail=str(exc))
 
     gate_result, gate_evidence = evaluate_gates(required=required_checks, checks=checks)
@@ -369,6 +465,7 @@ def build_package(
     monday_date = monday.date().isoformat()
     expires = claim_expires_at(monday)
     created = (created_at or now).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # createdAt = discovery/seal time for this package payload (not PR createdAt).
     for i, it in enumerate(items, start=1):
         it["index"] = i
     # Ambiguous: >1 valid item for same repository → reject all for that repo
@@ -456,6 +553,8 @@ def build_package(
             "Carlos-facing text must omit SHAs; use plainDescription only.",
             "Usable items never have gateResult=Unknown; Clear requires all named release-gate checks SUCCESS.",
             "Stale tips/heads and fork/cross-repo PRs are rejected with requiresRepackage=true.",
+            "createdAt is the discovery/seal time of this package payload, not the promote PR createdAt.",
+            "gh pr checks exit 0/8/nonzero with valid JSON are classified; auth/malformed fail closed.",
         ],
     }
 
@@ -466,10 +565,12 @@ def reread_before_dispatch(
     item: dict[str, Any],
     staging_tip: str | None,
     main_tip: str | None,
+    required_checks: list[str],
     now: datetime,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-    """Re-verify tips/head before sealing approve-merge inputs. Fail closed on drift."""
+    """Re-verify trust/freshness/gates before sealing approve-merge inputs."""
     pr_num = int(item["promotionPrNumber"])
+    marker = item.get("marker") if isinstance(item.get("marker"), dict) else {}
 
     def reject(reason: str, **extra: Any) -> tuple[None, dict[str, Any]]:
         return None, {
@@ -490,7 +591,7 @@ def reread_before_dispatch(
                     "--repo",
                     repository,
                     "--json",
-                    "headRefOid,state,headRefName,baseRefName,isCrossRepository",
+                    "body,headRefOid,state,headRefName,baseRefName,isCrossRepository,headRepository",
                 ]
             )
         )
@@ -499,29 +600,101 @@ def reread_before_dispatch(
 
     if str(live.get("state") or "").upper() not in {"OPEN", ""}:
         return reject("pr_not_open_on_reread", state=live.get("state"))
+    if str(live.get("baseRefName") or "") != "main":
+        return reject("base_not_main_on_reread", base=live.get("baseRefName"))
     if bool(live.get("isCrossRepository")):
         return reject("cross_repository_head_on_reread")
+
+    head_repo = ""
+    hr = live.get("headRepository")
+    if isinstance(hr, dict):
+        nwo = hr.get("nameWithOwner")
+        if nwo:
+            head_repo = str(nwo)
+        else:
+            owner = hr.get("owner") if isinstance(hr.get("owner"), dict) else {}
+            login = owner.get("login") if isinstance(owner, dict) else None
+            name = hr.get("name")
+            if login and name:
+                head_repo = f"{login}/{name}"
+    if head_repo and head_repo.lower() != repository.lower():
+        return reject("head_repository_mismatch_on_reread", headRepository=head_repo)
+
+    head_branch = str(live.get("headRefName") or "")
+    bm = PROMOTE_BRANCH_RE.match(head_branch)
+    if not bm:
+        return reject("head_branch_invalid_on_reread", headBranch=head_branch)
+
+    meta, mreason = parse_marker(str(live.get("body") or ""))
+    if not meta:
+        return reject(mreason or "marker_invalid_on_reread")
+    if meta["promoteBranch"] != head_branch:
+        return reject(
+            "promote_branch_mismatch_on_reread",
+            markerBranch=meta["promoteBranch"],
+            headBranch=head_branch,
+        )
+    if bm.group(1) != meta["sourceSha"][:12]:
+        return reject("head_branch_prefix_mismatch_on_reread")
+
+    # Marker bindings must still match the previously sealed item SHAs.
+    if (
+        meta["sourceSha"] != item["stagingSha"]
+        or meta["targetSha"] != item["priorMainSha"]
+        or meta["candidateHead"] != item["promotionHeadSha"]
+    ):
+        return reject(
+            "marker_binding_changed_on_reread",
+            prior={
+                "stagingSha": item["stagingSha"],
+                "priorMainSha": item["priorMainSha"],
+                "promotionHeadSha": item["promotionHeadSha"],
+            },
+            liveMarker={
+                "sourceSha": meta["sourceSha"],
+                "targetSha": meta["targetSha"],
+                "candidateHead": meta["candidateHead"],
+            },
+        )
+
     head = normalize_sha(live.get("headRefOid"))
-    if staging_tip != item["stagingSha"]:
+    if staging_tip != meta["sourceSha"]:
         return reject(
             "staging_tip_drift_on_reread",
-            markerSource=item["stagingSha"],
+            markerSource=meta["sourceSha"],
             liveStaging=staging_tip,
         )
-    if main_tip != item["priorMainSha"]:
+    if main_tip != meta["targetSha"]:
         return reject(
             "main_tip_drift_on_reread",
-            markerTarget=item["priorMainSha"],
+            markerTarget=meta["targetSha"],
             liveMain=main_tip,
         )
-    if head != item["promotionHeadSha"]:
+    if head != meta["candidateHead"]:
         return reject(
             "candidate_head_drift_on_reread",
-            markerCandidate=item["promotionHeadSha"],
+            markerCandidate=meta["candidateHead"],
             liveHead=head,
         )
+
+    # Re-query exact configured release gates on the current promotion head.
+    try:
+        checks = live_pr_checks(repository, pr_num)
+    except GateQueryError as exc:
+        return reject("gate_query_failed_on_reread", detail=str(exc))
+    gate_result, gate_evidence = evaluate_gates(required=required_checks, checks=checks)
+    if gate_result not in {"Clear", "Issues"}:
+        return reject("gate_result_invalid_on_reread", gateResult=gate_result)
+
     item = {
         **item,
+        "stagingSha": meta["sourceSha"],
+        "priorMainSha": meta["targetSha"],
+        "promotionHeadSha": meta["candidateHead"],
+        "promoteBranch": meta["promoteBranch"],
+        "marker": meta,
+        "gateResult": gate_result,  # pending/failed → Issues; do not seal Clear
+        "gateEvidence": gate_evidence,
         "freshness": {
             "stagingTip": staging_tip,
             "mainTip": main_tip,
@@ -529,12 +702,13 @@ def reread_before_dispatch(
         },
         "workflowInputs": {
             "action": "approve-merge",
-            "expected_sha": item["stagingSha"],
-            "expected_main_sha": item["priorMainSha"],
-            "expected_promote_head": item["promotionHeadSha"],
+            "expected_sha": meta["sourceSha"],
+            "expected_main_sha": meta["targetSha"],
+            "expected_promote_head": meta["candidateHead"],
             "promote_pr_number": str(pr_num),
         },
     }
+    _ = marker
     return item, None
 
 
@@ -581,7 +755,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--checks-json", default="", help="Fixture: path to gh pr checks JSON array")
     ap.add_argument("--release-gate-checks", default="", help="Override release-gate check names")
     ap.add_argument("--now", default="", help="ISO timestamp for expiry/monday calculation")
-    ap.add_argument("--created-at", default="", help="ISO package createdAt override")
+    ap.add_argument(
+        "--created-at",
+        default="",
+        help="ISO package createdAt override (discovery/seal time, not PR createdAt)",
+    )
     ap.add_argument(
         "--second-body-file",
         default="",
@@ -732,6 +910,24 @@ def main(argv: list[str] | None = None) -> int:
     all_rejected: list[dict[str, Any]] = []
     for repo in repos:
         try:
+            required_checks = resolve_release_gate_checks(
+                repo, args.release_gate_checks or None, fixture=False
+            )
+        except ReleaseGateConfigError as exc:
+            emit(
+                {
+                    "schemaVersion": 1,
+                    "available": False,
+                    "store": STORE,
+                    "contract": CONTRACT,
+                    "error": f"release_gate_config_failed:{repo}:{exc}",
+                    "itemCount": 0,
+                    "items": [],
+                    "rejected": [],
+                }
+            )
+            return 1
+        try:
             staging_tip = normalize_sha(args.staging_tip) or remote_tip(repo, "staging")
             main_tip = normalize_sha(args.main_tip) or remote_tip(repo, "main")
             prs = list_open_promote_prs(repo)
@@ -769,7 +965,7 @@ def main(argv: list[str] | None = None) -> int:
             if rej:
                 all_rejected.append(rej)
 
-        # Re-read tips/heads before sealing approval-dispatch inputs.
+        # Re-read tips/heads/gates before sealing approval-dispatch inputs.
         live_stg = normalize_sha(args.staging_tip) or remote_tip(repo, "staging")
         live_main = normalize_sha(args.main_tip) or remote_tip(repo, "main")
         for it in repo_items:
@@ -778,6 +974,7 @@ def main(argv: list[str] | None = None) -> int:
                 item=it,
                 staging_tip=live_stg,
                 main_tip=live_main,
+                required_checks=required_checks,
                 now=now,
             )
             if sealed:
