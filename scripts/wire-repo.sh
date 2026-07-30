@@ -1,132 +1,73 @@
 #!/usr/bin/env bash
-# Wire a consumer repository to IDE Development via .cursor symlink.
-# Stdlib/bash only. Exit 0 on success or already-wired; non-zero on failure.
-
+# Wire a consumer repository for LiNKtrend GitOps portability.
+# Installs managed workflows (rendered from consumer config), runtime scripts,
+# a physical Cursor bootstrap rule, and an AGENTS.md managed section.
+#
+# Does NOT symlink consumer .cursor to IDE Development (that is Mac-local and
+# breaks Cursor Cloud / other machines).
 set -euo pipefail
 
 SYSTEM_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CURSOR_SOURCE="${SYSTEM_ROOT}/.cursor"
 
-fail() {
-  echo "FAIL: $1" >&2
-  exit 1
-}
+fail() { echo "FAIL: $1" >&2; exit 1; }
+info() { echo "$1"; }
 
-info() {
-  echo "$1"
-}
-
-# Resolve a path to an absolute, symlink-expanded location.
 canonicalize() {
-  local target="$1"
-  local dir
-
-  if [ -d "$target" ]; then
-    (cd "$target" && pwd -P)
-  elif [ -e "$target" ]; then
-    dir="$(cd "$(dirname "$target")" && pwd -P)"
-    echo "${dir}/$(basename "$target")"
-  else
-    echo "$target"
-  fi
-}
-
-# Follow symlinks until a non-link path is reached.
-resolve_symlink() {
   local path="$1"
-  local link dir
-
-  while [ -L "$path" ]; do
-    link="$(readlink "$path")"
-    if [[ "$link" != /* ]]; then
-      dir="$(cd "$(dirname "$path")" && pwd -P)"
-      path="${dir}/${link}"
-    else
-      path="$link"
-    fi
-    path="$(canonicalize "$path")"
-  done
-  echo "$path"
-}
-
-# Compute a relative path from $1 (directory) to $2 (file or directory).
-relpath() {
-  local from to from_parts to_parts i common_len rel up
-
-  from="$(canonicalize "$1")"
-  to="$(canonicalize "$2")"
-
-  IFS='/' read -r -a from_parts <<< "${from#/}"
-  IFS='/' read -r -a to_parts <<< "${to#/}"
-
-  common_len=0
-  for ((i = 0; i < ${#from_parts[@]} && i < ${#to_parts[@]}; i++)); do
-    if [ "${from_parts[$i]}" = "${to_parts[$i]}" ]; then
-      common_len=$((i + 1))
-    else
-      break
-    fi
-  done
-
-  rel=""
-  for ((i = common_len; i < ${#from_parts[@]}; i++)); do
-    rel="${rel}../"
-  done
-
-  for ((i = common_len; i < ${#to_parts[@]}; i++)); do
-    rel="${rel}${to_parts[$i]}"
-    if [ "$i" -lt $(( ${#to_parts[@]} - 1 )) ]; then
-      rel="${rel}/"
-    fi
-  done
-
-  if [ -z "$rel" ]; then
-    rel="."
+  if command -v realpath >/dev/null 2>&1; then
+    realpath "$path"
+  else
+    (cd "$path" && pwd -P)
   fi
-
-  echo "$rel"
 }
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") <consumer-repo-path>
+Usage: $(basename "$0") <consumer-repo-path> [--ci-workflow-name NAME] [--branch-policy-workflow-name NAME] [--bugbot-check-name NAME]
 
-Wire a consumer repository to IDE Development by creating:
-  <consumer-repo>/.cursor -> <relative path to IDE Development>/.cursor
-
-Also syncs managed GitHub workflows (Layer B) from:
-  core/github/managed-workflows/
-into the consumer .github/workflows/ (never overwrites ci.yml).
-
-The script backs up an existing .cursor directory or mismatched symlink before wiring.
-It verifies required runtime paths after wiring and is idempotent when already correct.
+Wires managed GitOps into a consumer repository:
+  - requires/creates .github/linktrend-gitops-consumer.json
+  - syncs managed workflows (rendered names) + runtime scripts
+  - installs physical .cursor/rules/cursor-gitops-bootstrap.mdc
+  - upserts IDE-managed AGENTS.md section (never overwrites consumer text)
 
 Examples:
-  $(basename "$0") /Users/you/Projects/SomeProductRepo
-  $(basename "$0") ../AnotherRepo
+  $(basename "$0") /path/to/LiNKsites --ci-workflow-name "Consumer CI"
+  $(basename "$0") .
 EOF
 }
 
-if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-  usage
-  exit 0
-fi
+TARGET_INPUT=""
+CI_NAME=""
+BRANCH_POLICY_NAME=""
+BUGBOT_NAME=""
 
-if [ $# -ne 1 ]; then
-  usage >&2
-  exit 1
-fi
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --ci-workflow-name)
+      [ $# -ge 2 ] || fail "--ci-workflow-name requires a value"
+      CI_NAME="$2"; shift 2 ;;
+    --branch-policy-workflow-name)
+      [ $# -ge 2 ] || fail "--branch-policy-workflow-name requires a value"
+      BRANCH_POLICY_NAME="$2"; shift 2 ;;
+    --bugbot-check-name)
+      [ $# -ge 2 ] || fail "--bugbot-check-name requires a value"
+      BUGBOT_NAME="$2"; shift 2 ;;
+    *)
+      if [ -z "$TARGET_INPUT" ]; then
+        TARGET_INPUT="$1"; shift
+      else
+        fail "Unexpected argument: $1"
+      fi
+      ;;
+  esac
+done
 
-TARGET_INPUT="$1"
+[ -n "$TARGET_INPUT" ] || { usage >&2; exit 1; }
+[ -d "$TARGET_INPUT" ] || fail "Target path is not a directory: $TARGET_INPUT"
 
-if [ ! -d "$TARGET_INPUT" ]; then
-  fail "Target path is not a directory: $TARGET_INPUT"
-fi
-
-TARGET_REPO="$(cd "$TARGET_INPUT" && pwd -P)"
-TARGET_CURSOR="${TARGET_REPO}/.cursor"
-EXPECTED_CURSOR="$(canonicalize "$CURSOR_SOURCE")"
-
+TARGET_REPO="$(canonicalize "$TARGET_INPUT")"
 info "System repository: $SYSTEM_ROOT"
 info "Consumer repository: $TARGET_REPO"
 
@@ -134,62 +75,84 @@ if [ "$TARGET_REPO" = "$(canonicalize "$SYSTEM_ROOT")" ]; then
   fail "Refusing to wire the system repository to itself"
 fi
 
-[ -d "$CURSOR_SOURCE" ] || fail "System .cursor surface missing: $CURSOR_SOURCE"
-[ -f "${CURSOR_SOURCE}/README.md" ] || fail "System .cursor/README.md missing"
+CONFIG_PATH="${TARGET_REPO}/.github/linktrend-gitops-consumer.json"
+mkdir -p "${TARGET_REPO}/.github"
 
-already_wired=0
-if [ -L "$TARGET_CURSOR" ]; then
-  resolved="$(resolve_symlink "$TARGET_CURSOR")"
-  if [ "$resolved" = "$EXPECTED_CURSOR" ]; then
-    already_wired=1
-    info "PASS: Already wired — $TARGET_CURSOR resolves to $EXPECTED_CURSOR"
+if [ ! -f "$CONFIG_PATH" ]; then
+  if [ -z "$CI_NAME" ] || [ -z "$BRANCH_POLICY_NAME" ]; then
+    fail "Missing $CONFIG_PATH. Create it or pass --ci-workflow-name and --branch-policy-workflow-name (fail closed)."
   fi
-elif [ -e "$TARGET_CURSOR" ]; then
-  timestamp="$(date +%Y%m%d-%H%M%S)"
-  backup_path="${TARGET_REPO}/.cursor-backup-${timestamp}"
-  info "Backing up existing .cursor to $backup_path"
-  mv "$TARGET_CURSOR" "$backup_path"
-  info "PASS: Backup created at $backup_path"
+  BUGBOT_NAME="${BUGBOT_NAME:-Cursor Bugbot}"
+  python3 - "$CONFIG_PATH" "$CI_NAME" "$BRANCH_POLICY_NAME" "$BUGBOT_NAME" <<'PY'
+import json, sys
+from pathlib import Path
+path, ci, branch, bugbot = sys.argv[1:5]
+Path(path).write_text(json.dumps({
+    "schemaVersion": 1,
+    "ciWorkflowName": ci,
+    "branchPolicyWorkflowName": branch,
+    "bugbotCheckName": bugbot,
+}, indent=2) + "\n", encoding="utf-8")
+print(f"PASS: wrote consumer config {path}")
+PY
+elif [ -n "$CI_NAME" ] || [ -n "$BRANCH_POLICY_NAME" ] || [ -n "$BUGBOT_NAME" ]; then
+  fail "Config already exists at $CONFIG_PATH; refuse to overwrite with CLI flags. Edit the JSON instead."
 fi
 
-if [ "$already_wired" -eq 0 ]; then
-  rel_link="$(relpath "$TARGET_REPO" "$CURSOR_SOURCE")"
-  info "Creating symlink: $TARGET_CURSOR -> $rel_link"
-  ln -sfn "$rel_link" "$TARGET_CURSOR"
-
-  resolved="$(resolve_symlink "$TARGET_CURSOR")"
-  if [ "$resolved" != "$EXPECTED_CURSOR" ]; then
-    fail "Symlink created but resolves incorrectly: $resolved (expected $EXPECTED_CURSOR)"
-  fi
-  info "PASS: Symlink created and resolves correctly"
-fi
-
-required_paths=(
-  ".cursor/README.md"
-  ".cursor/execution/INDEX.yaml"
-  ".cursor/templates/INDEX.yaml"
-  ".cursor/commands/INDEX.yaml"
-)
-
-(
-  cd "$TARGET_REPO"
-  for rel in "${required_paths[@]}"; do
-    [ -e "$rel" ] || fail "Verification failed — not reachable from consumer repo: $rel"
-    info "PASS: $rel reachable"
-  done
-)
+[ -f "$CONFIG_PATH" ] || fail "Consumer config missing after setup: $CONFIG_PATH"
 
 info ""
-info "=== Layer B: sync managed GitHub workflows ==="
+info "=== Layer A: physical .cursor tree (no IDE Development symlink) ==="
+TARGET_CURSOR="${TARGET_REPO}/.cursor"
+timestamp="$(date +%Y%m%d-%H%M%S)"
+if [ -L "$TARGET_CURSOR" ]; then
+  backup_path="${TARGET_REPO}/.cursor-symlink-backup-${timestamp}"
+  info "Migrating symlink .cursor -> physical tree; backup: $backup_path"
+  mv "$TARGET_CURSOR" "$backup_path"
+elif [ -e "$TARGET_CURSOR" ] && [ ! -d "$TARGET_CURSOR" ]; then
+  fail "Ambiguous .cursor path exists and is not a directory/symlink: $TARGET_CURSOR"
+fi
+mkdir -p "${TARGET_CURSOR}/rules" "${TARGET_CURSOR}/commands" "${TARGET_CURSOR}/skills"
+[ ! -L "$TARGET_CURSOR" ] || fail "Consumer .cursor must not be a symlink after wire"
+
+info ""
+info "=== Layer B: sync managed GitHub workflows (rendered names) ==="
 SYNC_SCRIPT="${SYSTEM_ROOT}/scripts/sync-managed-workflows.sh"
 [ -f "$SYNC_SCRIPT" ] || fail "Missing sync script: $SYNC_SCRIPT"
-bash "$SYNC_SCRIPT" "$TARGET_REPO"
+bash "$SYNC_SCRIPT" "$TARGET_REPO" --config "$CONFIG_PATH"
+
+info ""
+info "=== Layer C: sync managed runtime scripts + Cursor entrypoints ==="
+RUNTIME_SYNC="${SYSTEM_ROOT}/scripts/sync-managed-runtime.sh"
+[ -f "$RUNTIME_SYNC" ] || fail "Missing runtime sync: $RUNTIME_SYNC"
+bash "$RUNTIME_SYNC" "$TARGET_REPO"
+
+# Prove managed Cursor entrypoints exist as regular files
+for rel in \
+  ".cursor/rules/cursor-gitops-bootstrap.mdc" \
+  ".cursor/rules/linktrend-git-branching.mdc" \
+  ".cursor/commands/agentsetup.md" \
+  ".cursor/commands/agentcomply.md" \
+  ".cursor/skills/agentsetup/SKILL.md" \
+  ".cursor/skills/agentcomply/SKILL.md"; do
+  [ -f "${TARGET_REPO}/${rel}" ] || fail "Missing managed entrypoint after sync: $rel"
+  [ ! -L "${TARGET_REPO}/${rel}" ] || fail "Managed entrypoint must be a regular file: $rel"
+done
+info "PASS: managed agentsetup/agentcomply Cursor entrypoints installed"
+
+info ""
+info "=== Layer D: AGENTS.md managed section ==="
+AGENTS_SYNC="${SYSTEM_ROOT}/scripts/sync-agents-managed-section.sh"
+[ -f "$AGENTS_SYNC" ] || fail "Missing agents sync: $AGENTS_SYNC"
+bash "$AGENTS_SYNC" "$TARGET_REPO"
 
 info ""
 info "Wire summary: SUCCESS"
 info "Consumer: $TARGET_REPO"
-info "Link: $TARGET_CURSOR -> $(readlink "$TARGET_CURSOR")"
-info "Managed workflows: synced (see core/github/managed-workflows/README.md)"
+info "Cursor: physical managed entrypoints under .cursor/ (not a symlink to IDE Development)"
+info "Config: $CONFIG_PATH"
+info "Managed workflows + runtime + agentsetup/agentcomply + AGENTS section: synced"
 info "Next: complete Bugbot checklist — core/checklists/BUGBOT-INHERITANCE.md"
 info "Next: Cursor Automations — docs/CURSOR-AUTOMATIONS-SETUP.md"
+info "Next: commit .github/linktrend-gitops-consumer.json and managed .cursor entrypoints"
 exit 0

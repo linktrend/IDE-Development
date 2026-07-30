@@ -42,4 +42,4 @@ Validate: `scripts/validate-review-ready.sh [sha]`
 ## Packager behavior
 
 1. **Discover** (schedule/manual): ready tips → draft PRs only (no Bugbot, no serial CI wait)
-2. **Evaluate** (PR/check): reread head → confirm readiness + fast-gate → reread head → mark ready → reread head → comment `cursor review` once → marker only in that comment
+2. **Evaluate** (PR/check): reread head → confirm readiness + fast-gate → reread head → mark ready → reread head → comment `@cursor review` once → marker only in that comment. Request accounting counts only comments with an executable trigger (`@cursor review` or `bugbot run`) **plus** `<!-- linktrend-bugbot-requested: <sha> -->`; bare historical `cursor review` + marker does **not** consume the 2-request limit.

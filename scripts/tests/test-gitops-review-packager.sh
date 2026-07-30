@@ -18,21 +18,43 @@ grep -q 'packager_discover.py' "$PKG" || fail "discover phase missing"
 grep -q 'packager_evaluate.py' "$PKG" || fail "evaluate phase missing"
 grep -q 'workflow_run:' "$PKG" || fail "packager missing workflow_run wake"
 grep -q 'workflows:' "$PKG" || fail "packager missing workflows list"
-grep -q 'CI' "$PKG" || fail "packager must wake on CI workflow_run"
-grep -q 'Branch Source Policy' "$PKG" || fail "packager must wake on Branch Source Policy"
-grep -q 'Branch Source Policy' "$INT" || fail "integrator must wake on Branch Source Policy"
+grep -Eq 'CI|__LINKTREND_CI_WORKFLOW_NAME__' "$PKG" || fail "packager must wake on CI workflow_run"
+grep -Eq 'Branch Source Policy|__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__' "$PKG" \
+  || fail "packager must wake on Branch Source Policy"
+grep -Eq 'Branch Source Policy|__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__' "$INT" \
+  || fail "integrator must wake on Branch Source Policy"
 grep -q 'Enforce allowed PR source branches' "$PKG" || fail "packager FAST_GATE must include Branch Source check"
 pass "Workflow phases + crons + workflow_run wake"
 
-for f in linktrend-review-packager.yml linktrend-development-to-staging.yml \
-         linktrend-staging-to-main.yml linktrend-integrator-merge.yml branch-source-policy.yml; do
-  cmp -s "core/github/managed-workflows/$f" ".github/workflows/$f" || fail "Diverged: $f"
-done
-pass "Managed workflows match live copies"
+python3 - <<'PY'
+from pathlib import Path
+
+def render(text: str) -> str:
+    return (
+        text.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
+        .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
+        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+    )
+
+for name in (
+    "linktrend-review-packager.yml",
+    "linktrend-development-to-staging.yml",
+    "linktrend-staging-to-main.yml",
+    "linktrend-integrator-merge.yml",
+    "branch-source-policy.yml",
+    "linktrend-cleanup-merged.yml",
+    "linktrend-repair-observer.yml",
+):
+    managed = Path(f"core/github/managed-workflows/{name}").read_text()
+    live = Path(f".github/workflows/{name}").read_text()
+    assert render(managed) == live, f"Diverged after render: {name}"
+print("ok")
+PY
+pass "Managed workflows match live copies (after consumer-name render)"
 
 grep -q 'Linktrend Review Ready' core/github/REVIEW-READY.md || fail "status context missing"
 grep -q 'LINKTREND_BUGBOT_REVIEW_COMMAND' "$PKG" || fail "bugbot command var"
-grep -q 'cursor review' "$PKG" || fail "default cursor review"
+grep -q '@cursor review' "$PKG" || fail "default @cursor review"
 pass "Readiness status + Bugbot command"
 
 if grep -nE 'push origin HEAD:(staging|main)' scripts/gitops/promote_*.sh "$STG" "$MAIN"; then
@@ -301,5 +323,24 @@ grep -q "Linktrend Main Outcome" "$STG" || fail "staging must exclude Linktrend 
 ! test -f scripts/gitops/event_relevance.py || fail "test-only event_relevance.py must be removed"
 ! test -f scripts/gitops/bugbot_request_once.py || fail "test-only bugbot_request_once.py must be removed"
 pass "Uniform SHA concurrency + resolve-before-mint; test-only helpers removed"
+
+# ---- actionlint on managed workflows (expression errors only; ignore SC2129 style) ----
+if command -v actionlint >/dev/null 2>&1; then
+  set +e
+  al_out="$(actionlint -shellcheck= core/github/managed-workflows/*.yml .github/workflows/linktrend-*.yml .github/workflows/branch-source-policy.yml 2>&1)"
+  al_ec=$?
+  set -e
+  # Filter style/shellcheck noise; fail on expression / YAML / workflow errors
+  if [ "$al_ec" -ne 0 ]; then
+    filtered="$(printf '%s\n' "$al_out" | grep -vE 'SC2129|shellcheck is not installed|SC[0-9]{4}' || true)"
+    if printf '%s' "$filtered" | grep -Eq 'error:|expression|unexpected|invalid'; then
+      echo "$filtered" >&2
+      fail "actionlint reported expression/workflow errors"
+    fi
+  fi
+  pass "actionlint managed workflows (expression-safe)"
+else
+  echo "WARN: actionlint not installed — skipped expression lint"
+fi
 
 echo "PASS: gitops static redesign + trust-boundary checks"

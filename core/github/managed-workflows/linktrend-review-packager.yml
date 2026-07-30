@@ -9,7 +9,8 @@
 # Empty pull_requests arrays: trusted resolve job uses GITHUB_TOKEN + commits API
 # and fails closed if zero/ambiguous. App token is minted only in evaluate when relevant.
 #
-# Consumers: workflow_run.workflows is STATIC YAML (IDE: CI + Branch Source Policy).
+# Consumers: workflow_run.workflows is STATIC YAML rendered from
+# .github/linktrend-gitops-consumer.json by scripts/sync-managed-workflows.sh.
 
 name: Linktrend Review Packager
 
@@ -27,8 +28,8 @@ on:
     branches: [development]
   workflow_run:
     workflows:
-      - CI
-      - Branch Source Policy
+      - __LINKTREND_CI_WORKFLOW_NAME__
+      - __LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__
     types: [completed]
   check_run:
     types: [completed]
@@ -44,7 +45,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BUGBOT_REVIEW_COMMAND: ${{ vars.LINKTREND_BUGBOT_REVIEW_COMMAND || 'cursor review' }}
+  BUGBOT_REVIEW_COMMAND: ${{ vars.LINKTREND_BUGBOT_REVIEW_COMMAND || '@cursor review' }}
   FAST_GATE_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development,Enforce allowed PR source branches' }}
 
 jobs:
@@ -55,6 +56,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      issues: write
     steps:
       - name: Checkout trusted default branch only
         uses: actions/checkout@v4
@@ -75,10 +77,17 @@ jobs:
           LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
           LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
           REQUIRE_APP_TOKEN: "1"
         run: |
           set -euo pipefail
           if ! source scripts/gitops/resolve_automation_token.sh; then
+            GH_TOKEN="${GITHUB_TOKEN}" python3 scripts/gitops/repair_task.py upsert \
+              --repo "${GITHUB_REPOSITORY}" \
+              --failure-type automation_credentials_blocked \
+              --severity immediate \
+              --workflow "Linktrend Review Packager" \
+              --next-action "Configure GitHub App credentials; do not auto-repair."
             python3 scripts/gitops/write_outcome.py \
               --status automation_credentials_blocked \
               --detail "App token unavailable for Packager discover"
@@ -104,6 +113,7 @@ jobs:
             packager-discover-report.json
             gitops-outcome.json
           if-no-files-found: ignore
+          retention-days: 5
 
   resolve:
     name: Resolve candidate (read-only)
@@ -160,6 +170,7 @@ jobs:
     permissions:
       contents: read
       checks: write
+      issues: write
       statuses: read
       pull-requests: read
     steps:
@@ -182,6 +193,7 @@ jobs:
           LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
           LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr }}
           HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
           BUGBOT_REVIEW_COMMAND: ${{ env.BUGBOT_REVIEW_COMMAND }}
@@ -190,6 +202,12 @@ jobs:
         run: |
           set -euo pipefail
           if ! source scripts/gitops/resolve_automation_token.sh; then
+            GH_TOKEN="${GITHUB_TOKEN}" python3 scripts/gitops/repair_task.py upsert \
+              --repo "${GITHUB_REPOSITORY}" \
+              --failure-type automation_credentials_blocked \
+              --severity immediate \
+              --workflow "Linktrend Review Packager" \
+              --next-action "Configure GitHub App credentials; do not auto-repair."
             GITHUB_TOKEN="${{ github.token }}" python3 scripts/gitops/write_outcome.py \
               --status automation_credentials_blocked \
               --detail "App token unavailable for Packager evaluate" \
@@ -221,3 +239,4 @@ jobs:
             packager-evaluate-report.json
             gitops-outcome.json
           if-no-files-found: ignore
+          retention-days: 5

@@ -4,7 +4,7 @@ description: >-
   Bootstrap a NEW agent session onto a short-lived issue/* work branch from
   latest development for the repo being touched. Use when Carlos runs
   /agentsetup or asks to start a new agent on the correct governed branch.
-version: 1.2.0
+version: 1.3.0
 status: active
 tags: [git, agent, bootstrap, branching, ship-pull]
 related_commands:
@@ -23,6 +23,7 @@ Bootstrap a **new agent** onto a short-lived `issue/<id>-<slug>` branch for the 
 - `.cursor/rules/01-git-branching.mdc`
 - `.cursor/rules/02-autonomous-ship-pull.mdc`
 - `docs/AUTONOMOUS-GIT-OPERATIONS.md`
+- `docs/contracts/AGENT-COMPLETION.md`
 
 ## House rules (locked)
 
@@ -36,6 +37,7 @@ Bootstrap a **new agent** onto a short-lived `issue/<id>-<slug>` branch for the 
 - `cursor/*` for cloud/dashboard agents.
 - `dev/*` rare ad-hoc only.
 - Never merge own PR; never self-review; never touch `staging`/`main`. Bugbot reviews; Integrator merges.
+- **Do not ask Carlos for issue id or slug.** Use `scripts/gitops/create_issue_branch.py` (creates or reuses the GitHub issue and branch).
 
 ## Use When
 
@@ -51,13 +53,12 @@ Bootstrap a **new agent** onto a short-lived `issue/<id>-<slug>` branch for the 
 
 ## Inputs (ask only if missing)
 
-Ask Carlos only for missing required info — few sharp questions, then proceed:
+Ask Carlos only when truly missing:
 
-1. **Issue id** (e.g. `123` or `LAW-05`)
-2. **Short slug** (kebab-case, e.g. `agent-setup-commands`)
-3. **Target repo** if multi-root / ambiguous
+1. **Task description** (title for the GitHub issue) if not already clear from the message
+2. **Target repo** if multi-root / ambiguous
 
-Do not re-ask what is already clear from the message or workspace.
+Do **not** ask for issue number or slug. Optional: if Carlos already named an issue number, pass `--issue-number`.
 
 ## Workflow
 
@@ -67,27 +68,20 @@ Do not re-ask what is already clear from the message or workspace.
 - Multi-root workspace: if more than one product repo is in play and Carlos did not name one, ask which repo is being touched.
 - Confirm remote and that `development` exists as the integration branch.
 
-### 2. Sync to latest development
+### 2. Create issue + branch via helper
+
+Run from the target repo (fail closed — never invent local IDs):
 
 ```bash
-git fetch origin
-git checkout development
-git pull --ff-only origin development
+python3 scripts/gitops/create_issue_branch.py "<task description>" [--repo owner/name] [--prefer-worktree]
+# or with known issue:
+python3 scripts/gitops/create_issue_branch.py --issue-number N "<optional title override>"
 ```
 
-If checkout/pull is blocked (dirty tree on a fresh session), stop and report — do not invent stashes unless Carlos confirms. Prefer a clean start for `/agentsetup`.
+Parse KEY=value lines: `ISSUE_NUMBER`, `BRANCH`, `WORKTREE`, `SLUG`.
+`cd` into `WORKTREE` when it differs from the current checkout.
 
-### 3. Create and checkout issue branch
-
-```bash
-git checkout -b issue/<id>-<slug>
-```
-
-Normalize: lowercase slug, hyphens only, no spaces. Branch name form: `issue/<id>-<slug>`.
-
-Do not reuse an unrelated open branch/PR — create (or checkout) the branch that matches **this work package**.
-
-### 4. Confirm ready + hard stops
+### 3. Confirm ready + hard stops
 
 Confirm:
 
@@ -100,27 +94,32 @@ Remind hard stops in plain English:
 - Do **not** merge into `development`
 - Do **not** self-review (Bugbot reviews)
 - Do **not** promote to `staging` or `main`
+- Do **not** open a PR (Review Packager opens PRs)
 - Ship waves: **checkpoint only** = commit → push → stop (no PR, no Bugbot)
-- When finished: mark review-ready + push; Review Packager opens the PR
+- When finished: `scripts/gitops/completion_gate.py review-ready` after `mark-review-ready.sh`
 
-### 5. Report
+### 4. Report
 
 Plain English summary:
 
 - **Repo:** path or name
+- **Issue:** number from helper
 - **Branch:** `issue/<id>-<slug>`
+- **Worktree:** path if used
 - **Base:** latest `origin/development`
-- **Next:** implement the issue; at Ship, checkpoint commit+push only; when finished, mark review-ready
+- **Next:** implement; Ship = checkpoint; finish = review-ready (Packager opens PR)
 
 ## Output template
 
 ```text
 Agent setup ready
 - Repo: <name>
+- Issue: #<n>
 - Branch: issue/<id>-<slug>
+- Worktree: <path|same>
 - Base: origin/development (fetched)
-- Hard stops: no merge, no self-review, no staging/main
-- Next: do the work on this branch; Ship = checkpoint commit+push; finish = mark review-ready
+- Hard stops: no implementer PR, no merge, no self-review, no staging/main
+- Next: do the work; Ship = checkpoint commit+push; finish = completion_gate review-ready
 ```
 
 ## Blockers
@@ -128,10 +127,10 @@ Agent setup ready
 Stop and ask when:
 
 - multi-root and target repo is ambiguous
-- issue id or slug still missing after one tight question set
-- cannot reach `origin/development`
-- working tree is dirty in a way that would risk losing work
+- task description still missing after one tight question
+- `create_issue_branch.py` fails (auth / API / sync) — do not invent IDs
+- working tree is dirty in a way that would risk losing work and worktree creation failed
 
 ## Progressive Disclosure
 
-Read only this skill, git status/branch/remote for the target repo, and the three authority docs above if needed. Do not scan unrelated modules or catalogs.
+Read only this skill, the helper script help text, git status/branch/remote for the target repo, and the authority docs above if needed.

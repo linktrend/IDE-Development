@@ -6,7 +6,8 @@ name: LiNKtrend Integrator Merge To Development
 # Concurrency: exact candidate head SHA for automatic events; workflow_dispatch may
 # use explicit pr_number when no SHA is present. cancel-in-progress=false.
 #
-# Consumers: workflow_run.workflows is STATIC YAML (IDE: CI + Branch Source Policy).
+# Consumers: workflow_run.workflows is STATIC YAML rendered from
+# .github/linktrend-gitops-consumer.json by scripts/sync-managed-workflows.sh.
 
 on:
   pull_request_target:
@@ -91,6 +92,7 @@ jobs:
     permissions:
       contents: read
       checks: write
+      issues: write
       pull-requests: read
     steps:
       - name: Checkout trusted default branch only
@@ -113,6 +115,7 @@ jobs:
           LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
           GH_REPO: ${{ github.repository }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr }}
           HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
           REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development,Enforce allowed PR source branches' }}
@@ -123,6 +126,12 @@ jobs:
         run: |
           set -euo pipefail
           if ! source scripts/gitops/resolve_automation_token.sh; then
+            GH_TOKEN="${GITHUB_TOKEN}" python3 scripts/gitops/repair_task.py upsert \
+              --repo "${GITHUB_REPOSITORY}" \
+              --failure-type automation_credentials_blocked \
+              --severity immediate \
+              --workflow "LiNKtrend Integrator Merge To Development" \
+              --next-action "Configure GitHub App credentials; do not auto-repair."
             GITHUB_TOKEN="${{ github.token }}" python3 scripts/gitops/write_outcome.py \
               --file integrator-result.json \
               --status automation_credentials_blocked \
@@ -149,6 +158,7 @@ jobs:
             gitops-outcome.json
           if-no-files-found: ignore
 
+          retention-days: 5
       - name: Summarize honest status
         if: always()
         run: |

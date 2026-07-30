@@ -26,11 +26,16 @@ At Ship 05 / Ship 16, at 17:00 EOD, or whenever you need a safe save:
 ### Review-ready (when the issue is finished)
 
 1. Satisfy acceptance criteria; keep `PROOF.md` (or equivalent).
-2. Pass inexpensive deterministic checks locally.
-3. Ensure the working tree is fully clean and `HEAD` matches `origin/<branch>` (push first).
-4. Run `scripts/mark-review-ready.sh` — publishes GitHub commit status `Linktrend Review Ready` on that exact SHA (no readiness file in the diff).
-5. Set issue status to `review_ready`.
-6. Stop. The **Review Packager** opens a **draft** PR, then requests Bugbot only after fast-gate on that exact SHA.
+2. Run the appropriate tests/checks for the touched surface.
+3. Auto-repair ordinary failures, with at most **3** bounded repair cycles.
+4. Write machine-readable evidence via `python3 scripts/gitops/completion_gate.py write-evidence` (or an equivalent schema-versioned JSON file under `.linktrend/`) tied to the exact `HEAD` SHA.
+5. Ensure the working tree is fully clean and `HEAD` matches `origin/<branch>` (push first).
+6. Call `python3 scripts/gitops/completion_gate.py review-ready` only after validation succeeds. The gate publishes GitHub commit status `Linktrend Review Ready` on that exact SHA.
+7. Do **not** call `scripts/mark-review-ready.sh` as a pre-gate publisher. It is only a compatibility wrapper that requires evidence and delegates to the gate.
+8. Set issue status to `review_ready`.
+9. Stop. The **Review Packager** opens a **draft** PR, then requests Bugbot only after fast-gate on that exact SHA.
+
+If completion cannot pass after bounded repair, call `python3 scripts/gitops/completion_gate.py blocked` to write `.linktrend/completion-blocker.json` and leave the branch ineligible.
 
 A new functional commit is automatically unready (new SHA has no success status).
 
@@ -63,9 +68,10 @@ Any agent that touches a repo uses `/agentsetup` or `/agentcomply` for **that** 
 - Never promote to `staging` or `main`.
 - Never act as Reviewer on your own PR.
 - Never force work through a promotion window.
-- After CI/Bugbot failure: expect a **Cloud Fix agent** (not you) unless you are that Fix agent.
-- Fix agent: max **3** attempts on the same branch, then stop and leave `Issues`.
+- After CI/Bugbot/promotion failure: GitHub records a durable **repair task** (never spawns Cursor). **Lisa ACP Repair Dispatcher** dispatches a Cursor ACP repair agent. Max **3** attempts; no prefer-incoming. Immediate failure types do not auto-repair.
+- If you are the dispatched repair agent: max **3** attempts on the same branch, then stop and leave `Issues`.
 - Normal Bugbot maximum: one initial request + one after a consolidated correction batch.
+- Completion: use `scripts/gitops/completion_gate.py` — checkpoint vs review-ready vs blocked (`docs/contracts/AGENT-COMPLETION.md`).
 
 ## Worktrees
 
