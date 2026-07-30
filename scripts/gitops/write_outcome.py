@@ -20,6 +20,7 @@ VALID = {
     "bugbot_requested",
     "merged",
     "automation_credentials_blocked",
+    "bugbot_user_credentials_blocked",
 }
 
 
@@ -48,7 +49,7 @@ def post_check_run(
     conclusion = "neutral"
     if status in {"merged", "bugbot_requested", "packaged"}:
         conclusion = "success"
-    elif status in {"failed", "automation_credentials_blocked"}:
+    elif status in {"failed", "automation_credentials_blocked", "bugbot_user_credentials_blocked"}:
         conclusion = "failure"
     elif status in {"blocked"}:
         conclusion = "neutral"

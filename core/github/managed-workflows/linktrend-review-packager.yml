@@ -76,9 +76,11 @@ jobs:
         env:
           LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
           LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
+          LINKTREND_BUGBOT_USER_TOKEN: ${{ secrets.LINKTREND_BUGBOT_USER_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ github.token }}
           REQUIRE_APP_TOKEN: "1"
+          REQUIRE_BUGBOT_USER_TOKEN: "1"
         run: |
           set -euo pipefail
           if ! source scripts/gitops/resolve_automation_token.sh; then
@@ -95,13 +97,28 @@ jobs:
             exit 1
           fi
           export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE AUTOMATION_CREDENTIALS_STATUS
+          if ! source scripts/gitops/resolve_bugbot_user_token.sh; then
+            GH_TOKEN="${GITHUB_TOKEN}" python3 scripts/gitops/repair_task.py upsert \
+              --repo "${GITHUB_REPOSITORY}" \
+              --failure-type automation_credentials_blocked \
+              --severity immediate \
+              --workflow "Linktrend Review Packager" \
+              --next-action "Configure LINKTREND_BUGBOT_USER_TOKEN for Packager PR create; do not auto-repair."
+            python3 scripts/gitops/write_outcome.py \
+              --status bugbot_user_credentials_blocked \
+              --detail "Carlos user token unavailable for Packager discover PR create"
+            echo "### Packager discover: \`bugbot_user_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          export BUGBOT_USER_TOKEN BUGBOT_USER_TOKEN_SOURCE BUGBOT_USER_CREDENTIALS_STATUS
+          # App token for reads/edits; BUGBOT_USER_TOKEN only reaches packager_discover create path.
           export GH_TOKEN="${AUTOMATION_TOKEN}"
           export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
           python3 scripts/gitops/packager_discover.py
           status="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json"))["status"])')"
           echo "### Packager discover: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
           case "${status}" in
-            failed|automation_credentials_blocked) exit 1 ;;
+            failed|automation_credentials_blocked|bugbot_user_credentials_blocked) exit 1 ;;
             *) exit 0 ;;
           esac
 
@@ -192,6 +209,7 @@ jobs:
         env:
           LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
           LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
+          LINKTREND_BUGBOT_USER_TOKEN: ${{ secrets.LINKTREND_BUGBOT_USER_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr }}
@@ -199,6 +217,7 @@ jobs:
           BUGBOT_REVIEW_COMMAND: ${{ env.BUGBOT_REVIEW_COMMAND }}
           FAST_GATE_CHECKS: ${{ env.FAST_GATE_CHECKS }}
           REQUIRE_APP_TOKEN: "1"
+          REQUIRE_BUGBOT_USER_TOKEN: "1"
         run: |
           set -euo pipefail
           if ! source scripts/gitops/resolve_automation_token.sh; then
@@ -218,6 +237,24 @@ jobs:
             exit 1
           fi
           export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE AUTOMATION_CREDENTIALS_STATUS
+          if ! source scripts/gitops/resolve_bugbot_user_token.sh; then
+            GH_TOKEN="${GITHUB_TOKEN}" python3 scripts/gitops/repair_task.py upsert \
+              --repo "${GITHUB_REPOSITORY}" \
+              --failure-type automation_credentials_blocked \
+              --severity immediate \
+              --workflow "Linktrend Review Packager" \
+              --next-action "Configure LINKTREND_BUGBOT_USER_TOKEN for Packager Bugbot comment; do not auto-repair."
+            GITHUB_TOKEN="${{ github.token }}" python3 scripts/gitops/write_outcome.py \
+              --status bugbot_user_credentials_blocked \
+              --detail "Carlos user token unavailable for Packager Bugbot comment" \
+              --check-name "Linktrend Packager Result" \
+              --head-sha "${HEAD_SHA}" \
+              --token-env GITHUB_TOKEN
+            echo "### Packager evaluate: \`bugbot_user_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          export BUGBOT_USER_TOKEN BUGBOT_USER_TOKEN_SOURCE BUGBOT_USER_CREDENTIALS_STATUS
+          # App token for reads/undraft/freeze/check-runs; user token only for @cursor review.
           export GH_TOKEN="${AUTOMATION_TOKEN}"
           export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
           python3 scripts/gitops/packager_evaluate.py
@@ -227,7 +264,7 @@ jobs:
           echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
           echo "resolve_reason=${{ needs.resolve.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
           case "${status}" in
-            failed|automation_credentials_blocked) exit 1 ;;
+            failed|automation_credentials_blocked|bugbot_user_credentials_blocked) exit 1 ;;
             *) exit 0 ;;
           esac
 

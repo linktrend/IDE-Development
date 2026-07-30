@@ -2,7 +2,9 @@
 """Packager discovery: ready tips → draft PRs. Preserves existing PR title/body.
 
 Updates only a delimited managed section. No Bugbot. No serial CI wait.
-Requires automation App token (fail closed).
+Requires:
+  - GitHub App token for reads / draft body refresh / non-create mutations
+  - Carlos BUGBOT_USER_TOKEN for feature PR *creation* only (fail closed)
 """
 
 from __future__ import annotations
@@ -17,6 +19,10 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bugbot_user_credentials import (  # noqa: E402
+    BugbotUserCredentialsError,
+    require_bugbot_user_token,
+)
 from packager_logic import is_allowed_work_branch  # noqa: E402
 from readiness_status import is_sha_review_ready  # noqa: E402
 from write_outcome import write_outcome  # noqa: E402
@@ -100,7 +106,12 @@ def list_branches(token: str, repo: str) -> list[dict]:
     return branches
 
 
-def ensure_draft_pr(token: str, branch: str, sha: str) -> dict:
+def ensure_draft_pr(app_token: str, branch: str, sha: str) -> dict:
+    """Ensure an open development draft PR exists for branch@sha.
+
+    Reads and draft-body refresh use the GitHub App token.
+    PR *creation* uses BUGBOT_USER_TOKEN only (Carlos identity) — fail closed.
+    """
     existing = json.loads(
         run(
             [
@@ -116,7 +127,7 @@ def ensure_draft_pr(token: str, branch: str, sha: str) -> dict:
                 "--json",
                 "number,url,isDraft,headRefOid,title,body",
             ],
-            token,
+            app_token,
         )
         or "[]"
     )
@@ -131,10 +142,11 @@ def ensure_draft_pr(token: str, branch: str, sha: str) -> dict:
                 "created": False,
                 "title_preserved": True,
                 "body_untouched": True,
+                "author_token": "github_app",
             }
         new_body = merge_body(pr.get("body") or "", sha, branch)
         if new_body != (pr.get("body") or ""):
-            run(["gh", "pr", "edit", str(pr["number"]), "--body", new_body], token)
+            run(["gh", "pr", "edit", str(pr["number"]), "--body", new_body], app_token)
         # Never overwrite title
         return {
             "number": pr["number"],
@@ -142,8 +154,11 @@ def ensure_draft_pr(token: str, branch: str, sha: str) -> dict:
             "isDraft": bool(pr.get("isDraft")),
             "created": False,
             "title_preserved": True,
+            "author_token": "github_app",
         }
 
+    # Create path — Carlos user token only. Never App / GITHUB_TOKEN.
+    user_token = require_bugbot_user_token("pr_create")
     title = f"Review: {branch}"
     body = merge_body("", sha, branch)
     url = run(
@@ -161,10 +176,22 @@ def ensure_draft_pr(token: str, branch: str, sha: str) -> dict:
             body,
             "--draft",
         ],
-        token,
+        user_token,
     )
-    num = int(run(["gh", "pr", "view", url, "--json", "number", "--jq", ".number"], token))
-    return {"number": num, "url": url, "isDraft": True, "created": True, "title_preserved": True}
+    num = int(
+        run(
+            ["gh", "pr", "view", url, "--json", "number", "--jq", ".number"],
+            app_token,
+        )
+    )
+    return {
+        "number": num,
+        "url": url,
+        "isDraft": True,
+        "created": True,
+        "title_preserved": True,
+        "author_token": "bugbot_user",
+    }
 
 
 def main() -> int:
@@ -174,6 +201,17 @@ def main() -> int:
             Path("gitops-outcome.json"),
             "automation_credentials_blocked",
             "Packager discover requires GitHub App token (LINKTREND_GITOPS_APP_*)",
+        )
+        return 0
+
+    # Fail closed before any create: Carlos user token required for PR authorship.
+    try:
+        require_bugbot_user_token("pr_create")
+    except BugbotUserCredentialsError as e:
+        write_outcome(
+            Path("gitops-outcome.json"),
+            "bugbot_user_credentials_blocked",
+            f"Packager discover requires LINKTREND_BUGBOT_USER_TOKEN for PR create ({e})",
         )
         return 0
 
@@ -196,14 +234,44 @@ def main() -> int:
         try:
             pr = ensure_draft_pr(token, name, sha)
             head = run(
-                ["gh", "pr", "view", str(pr["number"]), "--json", "headRefOid", "--jq", ".headRefOid"],
+                [
+                    "gh",
+                    "pr",
+                    "view",
+                    str(pr["number"]),
+                    "--json",
+                    "headRefOid",
+                    "--jq",
+                    ".headRefOid",
+                ],
                 token,
             ).lower()
             if head != sha:
                 entry.update({"action": "skipped_head_drift", "pr": pr["number"]})
             else:
-                entry.update({"action": "draft_ensured", "pr": pr["number"], "pr_url": pr["url"]})
+                entry.update(
+                    {
+                        "action": "draft_ensured",
+                        "pr": pr["number"],
+                        "pr_url": pr["url"],
+                        "author_token": pr.get("author_token"),
+                    }
+                )
                 packaged += 1
+        except BugbotUserCredentialsError as e:
+            entry.update({"action": "bugbot_user_credentials_blocked", "reason": str(e)})
+            report.append(entry)
+            Path("packager-discover-report.json").write_text(
+                json.dumps(report, indent=2) + "\n", encoding="utf-8"
+            )
+            write_outcome(
+                Path("gitops-outcome.json"),
+                "bugbot_user_credentials_blocked",
+                str(e),
+                report=report,
+            )
+            print(json.dumps(report, indent=2))
+            return 0
         except Exception as e:  # noqa: BLE001
             entry.update({"action": "error", "reason": str(e)})
         report.append(entry)

@@ -583,6 +583,158 @@ PY
 pass "App credentials fail closed; no silent GITHUB_TOKEN autonomy"
 
 # ============================================================================
+# 13b) Carlos BUGBOT_USER_TOKEN: fail closed; no App/GITHUB_TOKEN substitution;
+#      Packager create + Bugbot comment only; other mutations stay App-scoped
+# ============================================================================
+python3 - "$ROOT" <<'PY'
+from pathlib import Path
+import os, subprocess, sys, tempfile
+
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root / "scripts" / "gitops"))
+from bugbot_user_credentials import (
+    ALLOWED_OPERATIONS,
+    BugbotUserCredentialsError,
+    require_bugbot_user_token,
+    resolve_bugbot_user_token,
+)
+
+assert ALLOWED_OPERATIONS == frozenset({"pr_create", "bugbot_comment"})
+
+def clear_env(env):
+    for k in (
+        "BUGBOT_USER_TOKEN", "LINKTREND_BUGBOT_USER_TOKEN",
+        "AUTOMATION_TOKEN", "LINKTREND_APP_TOKEN", "GH_TOKEN", "GITHUB_TOKEN",
+        "BUGBOT_USER_TOKEN_SOURCE", "BUGBOT_USER_CREDENTIALS_STATUS",
+    ):
+        env.pop(k, None)
+    return env
+
+# Missing → fail closed
+clear_env(os.environ)
+tok, src, st = resolve_bugbot_user_token()
+assert tok is None and src == "none" and st == "missing"
+try:
+    require_bugbot_user_token("pr_create")
+    raise SystemExit("expected missing user token to raise")
+except BugbotUserCredentialsError as e:
+    assert "bugbot_user_credentials_blocked" in str(e) or "missing" in str(e)
+
+# Configured unique user token
+os.environ["BUGBOT_USER_TOKEN"] = "user_pat_unique_value_abc"
+os.environ["AUTOMATION_TOKEN"] = "app_token_different_value_xyz"
+tok, src, st = resolve_bugbot_user_token()
+assert tok == "user_pat_unique_value_abc" and src == "user_secret" and st == "configured"
+assert require_bugbot_user_token("pr_create") == "user_pat_unique_value_abc"
+assert require_bugbot_user_token("bugbot_comment") == "user_pat_unique_value_abc"
+
+# Disallowed operations
+try:
+    require_bugbot_user_token("merge")
+    raise SystemExit("merge must not be allowed")
+except BugbotUserCredentialsError:
+    pass
+for op in ("promote", "repair", "status", "cleanup", "branch_push", "pr_ready", "freeze_comment"):
+    try:
+        require_bugbot_user_token(op)
+        raise SystemExit(f"{op} must not be allowed")
+    except BugbotUserCredentialsError:
+        pass
+
+# App/GITHUB_TOKEN equality → reject (no silent substitution)
+os.environ["BUGBOT_USER_TOKEN"] = "same_secret_value"
+os.environ["AUTOMATION_TOKEN"] = "same_secret_value"
+tok, src, st = resolve_bugbot_user_token()
+assert tok is None and st == "must_not_equal_automation_or_github_token"
+clear_env(os.environ)
+os.environ["BUGBOT_USER_TOKEN"] = "same_gh"
+os.environ["GITHUB_TOKEN"] = "same_gh"
+tok, src, st = resolve_bugbot_user_token()
+assert tok is None and st == "must_not_equal_automation_or_github_token"
+
+# Shell resolver mirrors Python contract; never prints token
+script = str(root / "scripts/gitops/resolve_bugbot_user_token.sh")
+def run_shell(extra):
+    env = clear_env(os.environ.copy())
+    env["REQUIRE_BUGBOT_USER_TOKEN"] = "1"
+    env.update(extra)
+    return subprocess.run(["bash", script], capture_output=True, text=True, env=env)
+
+secret = "user_pat_shell_secret_do_not_echo"
+r = run_shell({"LINKTREND_BUGBOT_USER_TOKEN": secret, "AUTOMATION_TOKEN": "app_other"})
+assert r.returncode == 0, (r.returncode, r.stderr, r.stdout)
+assert "BUGBOT_USER_TOKEN_SOURCE=user_secret" in r.stdout
+assert secret not in r.stdout and secret not in r.stderr
+
+r = run_shell({"AUTOMATION_TOKEN": "app_only"})
+assert r.returncode != 0
+assert "bugbot_user_credentials_blocked" in (r.stderr + r.stdout)
+
+r = run_shell({"LINKTREND_BUGBOT_USER_TOKEN": "dup", "AUTOMATION_TOKEN": "dup"})
+assert r.returncode != 0
+assert "bugbot_user_credentials_blocked" in (r.stderr + r.stdout)
+
+# Static: Packager create + Bugbot comment use user token; freeze stays App
+disc = (root / "scripts/gitops/packager_discover.py").read_text()
+ev = (root / "scripts/gitops/packager_evaluate.py").read_text()
+assert "require_bugbot_user_token(\"pr_create\")" in disc
+assert "require_bugbot_user_token(\"bugbot_comment\")" in ev
+assert "bugbot_user_credentials_blocked" in disc and "bugbot_user_credentials_blocked" in ev
+# Bugbot post_comment must use user_token variable, not app_token
+assert "post_comment(user_token, repo, pr, build_bugbot_comment" in ev
+assert "post_comment(\n        app_token," in ev  # freeze comment stays App-authored
+# Create path must require user token before gh pr create and pass user_token to run()
+create_idx = disc.index('"create"')
+assert disc.index('require_bugbot_user_token("pr_create")') < create_idx
+assert "],\n        user_token,\n    )" in disc
+# Must not create with app_token
+assert "],\n        app_token,\n    )" not in disc.split("pr_create")[1].split("num = int")[0]
+
+# Other mutation paths must NOT reference the user token secret
+forbidden_paths = [
+    "scripts/gitops/promote_main.sh",
+    "scripts/gitops/promote_staging.sh",
+    "scripts/gitops/integrator_evaluate.sh",
+    "scripts/gitops/repair_task.py",
+    "scripts/gitops/repair_observer.py",
+    "scripts/cleanup-merged-branches.sh",
+    ".github/workflows/linktrend-integrator-merge.yml",
+    ".github/workflows/linktrend-development-to-staging.yml",
+    ".github/workflows/linktrend-staging-to-main.yml",
+    ".github/workflows/linktrend-cleanup-merged.yml",
+]
+for rel in forbidden_paths:
+    text = (root / rel).read_text()
+    assert "LINKTREND_BUGBOT_USER_TOKEN" not in text, rel
+    assert "BUGBOT_USER_TOKEN" not in text, rel
+
+# Workflow injects secret only into Packager discover/evaluate; persist-credentials false
+pkg = (root / ".github/workflows/linktrend-review-packager.yml").read_text()
+assert "secrets.LINKTREND_BUGBOT_USER_TOKEN" in pkg
+assert "resolve_bugbot_user_token.sh" in pkg
+assert pkg.count("persist-credentials: false") >= 3
+assert "bugbot_user_credentials_blocked" in pkg
+# Untrusted PR head must never be checked out; trusted default branch only.
+# (concurrency may reference pull_request.head.sha as a group key — that is not a checkout.)
+assert "ref: ${{ github.event.repository.default_branch }}" in pkg
+assert pkg.count("persist-credentials: false") >= 3
+checkout_blocks = pkg.split("actions/checkout@")[1:]
+for block in checkout_blocks:
+    chunk = block.split("uses:")[0] if "uses:" in block else block[:800]
+    assert "pull_request.head" not in chunk, chunk[:200]
+    assert "persist-credentials: false" in chunk
+assert "github.event.repository.default_branch" in pkg
+
+doc = (root / "docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md").read_text()
+assert "LINKTREND_BUGBOT_USER_TOKEN" in doc
+assert "dual" in doc.lower() or "Dual credentials" in doc
+mention = (root / "docs/contracts/BUGBOT-MENTION-ONLY.md").read_text()
+assert "LINKTREND_BUGBOT_USER_TOKEN" in mention
+print("bugbot user credential boundary ok")
+PY
+pass "Carlos user token fail-closed; Packager-only; no App substitution"
+
+# ============================================================================
 # 14) Event target resolver (trusted fields + production resolve_candidate)
 # ============================================================================
 python3 - "$ROOT" <<'PY'

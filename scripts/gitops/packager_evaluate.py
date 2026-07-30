@@ -2,6 +2,10 @@
 """Packager evaluate: wake on PR / workflow_run / external check_run.
 
 Trusted scripts only (caller must checkout default branch). Race-safe head rereads.
+
+Credentials:
+  - GitHub App (AUTOMATION_TOKEN): reads, undraft, freeze comment, check-runs
+  - Carlos BUGBOT_USER_TOKEN: the single `@cursor review` comment only (fail closed)
 """
 
 from __future__ import annotations
@@ -15,6 +19,10 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bugbot_user_credentials import (  # noqa: E402
+    BugbotUserCredentialsError,
+    require_bugbot_user_token,
+)
 from packager_logic import (  # noqa: E402
     DEFAULT_BUGBOT_COMMAND,
     build_bugbot_comment,
@@ -132,7 +140,7 @@ def resolve_pr_number(token: str) -> int | None:
     return None
 
 
-def evaluate_pr(pr: int, token: str) -> dict:
+def evaluate_pr(pr: int, app_token: str) -> dict:
     repo = os.environ["GITHUB_REPOSITORY"]
     command = (
         os.environ.get("BUGBOT_REVIEW_COMMAND")
@@ -145,7 +153,7 @@ def evaluate_pr(pr: int, token: str) -> dict:
         or "Verify IDE Development"
     )
 
-    meta = pr_meta(pr, token)
+    meta = pr_meta(pr, app_token)
     result: dict = {"pr": pr}
     if meta.get("baseRefName") != "development" or meta.get("state") != "OPEN":
         result["status"] = "skipped"
@@ -167,7 +175,7 @@ def evaluate_pr(pr: int, token: str) -> dict:
         result["detail"] = f"not_ready:{detail}"
         return result
 
-    checks = pr_checks(pr, token)
+    checks = pr_checks(pr, app_token)
     gate_status, gate_detail = fast_gate_status(checks, parse_required_checks(required))
     result["fast_gate"] = {"status": gate_status, "detail": gate_detail}
     if gate_status != "success":
@@ -175,7 +183,7 @@ def evaluate_pr(pr: int, token: str) -> dict:
         result["detail"] = f"fast_gate:{gate_status}:{gate_detail}"
         return result
 
-    sha2 = pr_head(pr, token)
+    sha2 = pr_head(pr, app_token)
     if sha2 != sha1:
         result["status"] = "skipped"
         result["detail"] = f"abort_head_changed_after_gate:{sha2}"
@@ -188,27 +196,37 @@ def evaluate_pr(pr: int, token: str) -> dict:
         return result
 
     if meta.get("isDraft"):
-        run(["gh", "pr", "ready", str(pr)], token)
+        run(["gh", "pr", "ready", str(pr)], app_token)
 
-    sha3 = pr_head(pr, token)
+    sha3 = pr_head(pr, app_token)
     if sha3 != sha1:
         result["status"] = "skipped"
         result["detail"] = f"abort_head_changed_before_bugbot:{sha3}"
         return result
 
-    comments = list_comments(token, repo, pr)
+    comments = list_comments(app_token, repo, pr)
     ok, reason = should_request_bugbot(comments=comments, head_sha=sha3, fast_gate_ok=True)
     if not ok:
         result["status"] = "skipped" if reason.startswith("skipped_") else "blocked"
         result["detail"] = reason
         return result
 
-    post_comment(token, repo, pr, build_bugbot_comment(command, sha3))
+    # Bugbot trigger comment — Carlos user token only. Never App / GITHUB_TOKEN.
+    try:
+        user_token = require_bugbot_user_token("bugbot_comment")
+    except BugbotUserCredentialsError as e:
+        result["status"] = "bugbot_user_credentials_blocked"
+        result["detail"] = str(e)
+        return result
+
+    post_comment(user_token, repo, pr, build_bugbot_comment(command, sha3))
     result["status"] = "bugbot_requested"
     result["detail"] = f"requested_for_{sha3}"
     result["headSha"] = sha3
+    result["bugbot_comment_token"] = "bugbot_user"
+    # Freeze comment remains App-authored (not a Bugbot trigger).
     post_comment(
-        token,
+        app_token,
         repo,
         pr,
         (
@@ -229,6 +247,27 @@ def main() -> int:
             Path("gitops-outcome.json"),
             "automation_credentials_blocked",
             "Packager evaluate requires GitHub App token",
+        )
+        return 0
+
+    # Fail closed early: Bugbot comment path requires Carlos user token.
+    try:
+        require_bugbot_user_token("bugbot_comment")
+    except BugbotUserCredentialsError as e:
+        write_outcome(
+            Path("gitops-outcome.json"),
+            "bugbot_user_credentials_blocked",
+            f"Packager evaluate requires LINKTREND_BUGBOT_USER_TOKEN for Bugbot comment ({e})",
+        )
+        head = os.environ.get("HEAD_SHA") or ""
+        check_token = os.environ.get("GITHUB_TOKEN") or token
+        post_check_run(
+            name="Linktrend Packager Result",
+            head_sha=head,
+            status="bugbot_user_credentials_blocked",
+            detail=str(e),
+            repo=os.environ.get("GITHUB_REPOSITORY") or "",
+            token=check_token,
         )
         return 0
 
