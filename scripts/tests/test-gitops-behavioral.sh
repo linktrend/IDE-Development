@@ -479,8 +479,8 @@ for rel in (
     "core/github/managed-workflows/linktrend-integrator-merge.yml",
 ):
     text = Path(sys.argv[1], rel).read_text()
-    assert "Branch Source Policy" in text
-    assert "- CI" in text or "CI" in text
+    assert "Branch Source Policy" in text or "__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__" in text
+    assert "- CI" in text or "__LINKTREND_CI_WORKFLOW_NAME__" in text
     # Must not claim dynamic workflow_run names via vars
     assert "vars.LINKTREND_WORKFLOW_RUN" not in text
 print("wake+bugbot dual-gate scenarios ok")
@@ -799,14 +799,201 @@ for name in (
   "linktrend-development-to-staging.yml",
   "linktrend-staging-to-main.yml",
 ):
-    a = (Path(sys.argv[1]) / "core/github/managed-workflows" / name).read_bytes()
-    b = (Path(sys.argv[1]) / ".github/workflows" / name).read_bytes()
-    assert a == b, name
+    managed = (Path(sys.argv[1]) / "core/github/managed-workflows" / name).read_text()
+    live = (Path(sys.argv[1]) / ".github/workflows" / name).read_text()
+    rendered = managed.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
+    rendered = rendered.replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
+    rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+    assert rendered == live, name
 
 print("resolver matrix rows", len(rows))
 print("resolver matrix ok")
 PY
 pass "actual resolver event matrix (incl. empty PR arrays)"
+
+# ============================================================================
+# 18) Repair observer lifecycle: failure → dispatch → current-head success resolve;
+#     stale success ignored; neutral Bugbot usage_limit; workflow permissions
+# ============================================================================
+python3 - "$ROOT" "$TMP" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+tmp = Path(sys.argv[2])
+sys.path.insert(0, str(root / "scripts" / "gitops"))
+import repair_observer
+import repair_task
+
+repo = "owner/repo"
+repair_dir = tmp / "observer-repair"
+os.environ["LINKTREND_REPAIR_BACKEND"] = "file"
+os.environ["LINKTREND_REPAIR_DIR"] = str(repair_dir)
+os.environ.pop("LINKTREND_CONSUMER_GITOPS_CONFIG", None)
+
+current_pr_heads = {}
+current_branch_heads = {}
+repair_observer.current_pr_head = lambda repo, pr: current_pr_heads.get(str(pr), ("", ""))
+repair_observer.current_branch_head = lambda repo, branch: current_branch_heads.get(str(branch), "")
+repair_observer.lookup_pr_for_sha = lambda repo, sha: ("", "")
+
+def write_event(name, payload):
+    path = tmp / f"{name}.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return str(path)
+
+def workflow_payload(conclusion, pr, branch, sha):
+    return {
+        "repository": {"full_name": repo},
+        "workflow_run": {
+            "name": "CI",
+            "conclusion": conclusion,
+            "head_sha": sha,
+            "head_branch": branch,
+            "pull_requests": [
+                {"number": pr, "head": {"ref": branch, "sha": sha}},
+            ],
+        },
+    }
+
+sha_ok = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+failure_path = write_event("workflow-failure", workflow_payload("failure", 23, "issue/ok", sha_ok))
+out = repair_observer.handle_event_path(failure_path, repo)
+assert out["action"] == "upserted", out
+fid = repair_task.failure_id(repo, "ci_failure", pr="23", workflow="CI", check="CI", branch="issue/ok")
+backend = repair_task.get_backend(repo)
+assert backend.dispatch_attempt(fid)["repairStatus"] == "dispatched"
+current_pr_heads["23"] = (sha_ok, "issue/ok")
+success_path = write_event("workflow-success", workflow_payload("success", 23, "issue/ok", sha_ok))
+out = repair_observer.handle_event_path(success_path, repo)
+assert out["action"] == "resolved", out
+assert backend.get(fid)["resolutionState"] == "resolved"
+
+sha_old = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+sha_new = "cccccccccccccccccccccccccccccccccccccccc"
+failure_path = write_event("workflow-stale-failure", workflow_payload("failure", 24, "issue/stale", sha_old))
+assert repair_observer.handle_event_path(failure_path, repo)["action"] == "upserted"
+stale_id = repair_task.failure_id(repo, "ci_failure", pr="24", workflow="CI", check="CI", branch="issue/stale")
+backend.dispatch_attempt(stale_id)
+current_pr_heads["24"] = (sha_new, "issue/stale")
+success_path = write_event("workflow-stale-success", workflow_payload("success", 24, "issue/stale", sha_old))
+out = repair_observer.handle_event_path(success_path, repo)
+assert out["action"] == "skip" and out["reason"] == "event_head_not_current_pr_head", out
+assert backend.get(stale_id)["resolutionState"] != "resolved"
+
+bugbot_sha = "dddddddddddddddddddddddddddddddddddddddd"
+usage_path = write_event(
+    "bugbot-neutral-usage",
+    {
+        "repository": {"full_name": repo},
+        "check_run": {
+            "name": "Cursor Bugbot",
+            "conclusion": "neutral",
+            "head_sha": bugbot_sha,
+            "pull_requests": [{"number": 25, "head": {"ref": "issue/bugbot", "sha": bugbot_sha}}],
+            "output": {"title": "Usage limit", "summary": "Payment required: out of credits."},
+        },
+    },
+)
+out = repair_observer.handle_event_path(usage_path, repo)
+assert out["action"] == "upserted" and out["failureType"] == "usage_limit", out
+usage_id = repair_task.failure_id(repo, "usage_limit", pr="25", check="Cursor Bugbot", branch="issue/bugbot")
+assert backend.get(usage_id)["severity"] == "immediate"
+
+ordinary_path = write_event(
+    "bugbot-neutral-ordinary",
+    {
+        "repository": {"full_name": repo},
+        "check_run": {
+            "name": "Cursor Bugbot",
+            "conclusion": "neutral",
+            "head_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "pull_requests": [{"number": 26, "head": {"ref": "issue/skip"}}],
+            "output": {"title": "Skipped", "summary": "Review not requested."},
+        },
+    },
+)
+out = repair_observer.handle_event_path(ordinary_path, repo)
+assert out == {"action": "skip", "reason": "neutral_without_usage_limit"}, out
+ordinary_id = repair_task.failure_id(repo, "usage_limit", pr="26", check="Cursor Bugbot", branch="issue/skip")
+assert backend.get(ordinary_id) is None
+print("repair observer lifecycle ok")
+PY
+pass "repair observer resolves current-head successes, skips stale, handles neutral Bugbot usage"
+
+python3 - "$ROOT" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+workflow_paths = list((root / ".github" / "workflows").glob("*.yml"))
+workflow_paths += list((root / "core" / "github" / "managed-workflows").glob("*.yml"))
+
+def job_blocks(path):
+    lines = path.read_text().splitlines()
+    in_jobs = False
+    current = None
+    block = []
+    for line in lines:
+        if re.match(r"^jobs:\s*$", line):
+            in_jobs = True
+            continue
+        if not in_jobs:
+            continue
+        m = re.match(r"^  ([A-Za-z0-9_-]+):\s*$", line)
+        if m:
+            if current:
+                yield current, "\n".join(block)
+            current = m.group(1)
+            block = [line]
+            continue
+        if current:
+            block.append(line)
+    if current:
+        yield current, "\n".join(block)
+
+def job_permissions(block):
+    lines = block.splitlines()
+    out = []
+    in_permissions = False
+    perm_indent = None
+    for line in lines:
+        m = re.match(r"^(\s*)permissions:\s*$", line)
+        if m:
+            in_permissions = True
+            perm_indent = len(m.group(1))
+            continue
+        if in_permissions:
+            if line.strip() == "":
+                continue
+            indent = len(line) - len(line.lstrip(" "))
+            if indent <= perm_indent:
+                break
+            out.append(line)
+    return "\n".join(out)
+
+failures = []
+for path in workflow_paths:
+    for job, block in job_blocks(path):
+        needs_issue_write = "repair_task.py upsert" in block or "repair_observer" in block
+        if not needs_issue_write:
+            continue
+        perms = job_permissions(block)
+        if not re.search(r"(?m)^\s+issues:\s*write\s*$", perms):
+            failures.append(f"{path.relative_to(root)}:{job}")
+if failures:
+    raise SystemExit("jobs missing issues: write: " + ", ".join(failures))
+
+observer = (root / "scripts" / "gitops" / "repair_observer.py").read_text()
+assert "repair_task.resolve_task(" in observer
+assert "failure_type=\"ci_failure\"" in observer
+assert "failure_type=\"bugbot_failure\"" in observer
+print("repair observer permissions + resolve caller proof ok")
+PY
+pass "repair observer/upsert jobs carry issues:write and production resolve caller exists"
 
 echo ""
 echo "PASS: behavioral gitops tests (${PASS} groups)"

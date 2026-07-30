@@ -1,12 +1,13 @@
 name: LiNKtrend Repair Observer
 
-# Observes CI / Branch Source Policy / Cursor Bugbot failures and upserts
-# durable repair tasks. Does NOT mint a GitHub App token. Does NOT spawn Cursor.
+# Observes CI / Branch Source Policy / Cursor Bugbot lifecycle events and
+# maintains durable repair tasks. Does NOT mint a GitHub App token. Does NOT
+# spawn Cursor.
 #
 # Trust boundary:
 #   - checkout repository default branch only (never PR head)
 #   - GITHUB_TOKEN with issues:write is enough to create/update Issues
-#   - resolve relevance before any write
+#   - repair_observer.py proves current PR/branch head before resolving
 
 on:
   workflow_run:
@@ -25,11 +26,14 @@ concurrency:
 
 jobs:
   observe:
-    name: Upsert repair task on failure
+    name: Observe repair lifecycle
     if: >
       (
         github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'failure' &&
+        (
+          github.event.workflow_run.conclusion == 'failure' ||
+          github.event.workflow_run.conclusion == 'success'
+        ) &&
         (
           github.event.workflow_run.name == 'CI' ||
           github.event.workflow_run.name == 'Branch Source Policy'
@@ -37,8 +41,12 @@ jobs:
       ) ||
       (
         github.event_name == 'check_run' &&
-        github.event.check_run.conclusion == 'failure' &&
-        github.event.check_run.name == 'Cursor Bugbot'
+        github.event.check_run.name == 'Cursor Bugbot' &&
+        (
+          github.event.check_run.conclusion == 'failure' ||
+          github.event.check_run.conclusion == 'success' ||
+          github.event.check_run.conclusion == 'neutral'
+        )
       )
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -54,100 +62,13 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
-      - name: Upsert repair task (GITHUB_TOKEN only — no App mint)
+      - name: Observe repair lifecycle (GITHUB_TOKEN only - no App mint)
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
-          # Consumer CI / gate display names (document in GITOPS-CONSUMER-ROLLOUT.md)
-          LINKTREND_CI_WORKFLOW_NAME: ${{ vars.LINKTREND_CI_WORKFLOW_NAME || 'CI' }}
-          LINKTREND_BRANCH_POLICY_WORKFLOW_NAME: ${{ vars.LINKTREND_BRANCH_POLICY_WORKFLOW_NAME || 'Branch Source Policy' }}
-          LINKTREND_BUGBOT_CHECK_NAME: ${{ vars.LINKTREND_BUGBOT_CHECK_NAME || 'Cursor Bugbot' }}
-        run: |
-          set -euo pipefail
-          python3 <<'PY'
-          import json, os, subprocess, sys
-          from pathlib import Path
-
-          event_name = os.environ["GITHUB_EVENT_NAME"]
-          repo = os.environ["GITHUB_REPOSITORY"]
-          payload = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
-
-          failure_type = ""
-          pr = ""
-          branch = ""
-          head_sha = ""
-          workflow = ""
-          check = ""
-          next_action = ""
-
-          if event_name == "workflow_run":
-              wr = payload.get("workflow_run") or {}
-              if wr.get("conclusion") != "failure":
-                  print("skip: workflow_run not failure")
-                  sys.exit(0)
-              workflow = wr.get("name") or ""
-              head_sha = wr.get("head_sha") or ""
-              branch = wr.get("head_branch") or ""
-              # Prefer associated PR when present
-              prs = wr.get("pull_requests") or []
-              if prs:
-                  pr = str(prs[0].get("number") or "")
-                  branch = prs[0].get("head", {}).get("ref") or branch
-              failure_type = "ci_failure"
-              check = workflow
-              next_action = f"Investigate CI/gate failure in workflow {workflow!r}; ordinary Lisa dispatch allowed."
-          elif event_name == "check_run":
-              cr = payload.get("check_run") or {}
-              if cr.get("conclusion") != "failure":
-                  print("skip: check_run not failure")
-                  sys.exit(0)
-              bugbot = os.environ.get("LINKTREND_BUGBOT_CHECK_NAME") or "Cursor Bugbot"
-              if cr.get("name") != bugbot:
-                  print(f"skip: check name {cr.get('name')!r} != {bugbot!r}")
-                  sys.exit(0)
-              failure_type = "bugbot_failure"
-              check = cr.get("name") or bugbot
-              head_sha = (cr.get("head_sha") or "")
-              # Resolve PR via gh if possible
-              try:
-                  out = subprocess.check_output(
-                      [
-                          "gh", "pr", "list",
-                          "--repo", repo,
-                          "--state", "open",
-                          "--search", head_sha,
-                          "--json", "number,headRefName,headRefOid",
-                          "--limit", "5",
-                      ],
-                      text=True,
-                  )
-                  for row in json.loads(out or "[]"):
-                      if row.get("headRefOid") == head_sha:
-                          pr = str(row.get("number") or "")
-                          branch = row.get("headRefName") or branch
-                          break
-              except Exception as e:
-                  print(f"warn: pr lookup failed: {e}", file=sys.stderr)
-              next_action = "Address Cursor Bugbot findings; ordinary Lisa dispatch allowed."
-          else:
-              print(f"skip: unsupported event {event_name}")
-              sys.exit(0)
-
-          cmd = [
-              "python3", "scripts/gitops/repair_task.py", "upsert",
-              "--repo", repo,
-              "--failure-type", failure_type,
-              "--head-sha", head_sha,
-              "--branch", branch,
-              "--workflow", workflow,
-              "--check", check,
-              "--next-action", next_action,
-          ]
-          if pr:
-              cmd.extend(["--pr", pr])
-          print("Running:", " ".join(cmd))
-          subprocess.check_call(cmd)
-          PY
+          LINKTREND_CI_WORKFLOW_NAME: CI
+          LINKTREND_BRANCH_POLICY_WORKFLOW_NAME: Branch Source Policy
+          LINKTREND_BUGBOT_CHECK_NAME: Cursor Bugbot
+        run: python3 scripts/gitops/repair_observer.py handle-event --event-path "$GITHUB_EVENT_PATH" --repo "$GITHUB_REPOSITORY"

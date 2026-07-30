@@ -49,9 +49,21 @@ pass "No job-level env context in promote workflows"
 
 cmp -s core/github/managed-workflows/linktrend-staging-to-main.yml \
   .github/workflows/linktrend-staging-to-main.yml || fail "staging-to-main managed!=live"
-cmp -s core/github/managed-workflows/linktrend-repair-observer.yml \
-  .github/workflows/linktrend-repair-observer.yml || fail "repair-observer managed!=live"
-pass "managed==live for staging-to-main and repair-observer"
+python3 - "$ROOT" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+managed = (root / "core/github/managed-workflows/linktrend-repair-observer.yml").read_text()
+live = (root / ".github/workflows/linktrend-repair-observer.yml").read_text()
+assert "__LINKTREND_CI_WORKFLOW_NAME__" in managed
+assert "__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__" in managed
+rendered = managed.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
+rendered = rendered.replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
+rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+assert rendered == live
+PY
+pass "managed==live for staging-to-main; repair-observer live is rendered managed template"
 
 ! grep -q 'Open or update PR' core/skills/agentcomply/SKILL.md \
   || fail "agentcomply still has Open or update PR"

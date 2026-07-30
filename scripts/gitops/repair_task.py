@@ -585,6 +585,29 @@ def upsert_task(task: dict[str, Any], *, increment: bool = False) -> dict[str, A
     return escalate_if_needed(normalize_task(out))
 
 
+def resolve_task(
+    repository: str,
+    *,
+    task_id: str = "",
+    failure_type: str = "",
+    pr: str = "",
+    workflow: str = "",
+    check: str = "",
+    branch: str = "",
+    head_sha: str = "",
+) -> dict[str, Any] | None:
+    tid = task_id or failure_id(
+        repository,
+        failure_type,
+        pr=pr,
+        workflow=workflow,
+        check=check,
+        branch=branch,
+    )
+    backend = get_backend(repository)
+    return backend.resolve(tid, head_sha=head_sha)
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -620,7 +643,12 @@ def main(argv: list[str]) -> int:
 
     rs = sub.add_parser("resolve", help="Close when repaired; optional --head-sha of repaired tip")
     rs.add_argument("--repo", required=True)
-    rs.add_argument("--id", "--failure-id", dest="id", required=True)
+    rs.add_argument("--id", "--failure-id", dest="id", default="")
+    rs.add_argument("--failure-type", default="")
+    rs.add_argument("--pr", "--pr-number", dest="pr", default="")
+    rs.add_argument("--workflow", "--workflow-name", "--workflow-id", dest="workflow", default="")
+    rs.add_argument("--check", "--check-name", "--check-id", dest="check", default="")
+    rs.add_argument("--branch", default="")
     rs.add_argument("--head-sha", default="")
 
     sh = sub.add_parser("show")
@@ -712,7 +740,19 @@ def main(argv: list[str]) -> int:
         print(json.dumps(out, indent=2))
         return 0
     if args.cmd == "resolve":
-        out = backend.resolve(args.id, head_sha=args.head_sha)
+        if not args.id and not args.failure_type:
+            print("resolve requires --id or --failure-type identity fields", file=sys.stderr)
+            return 2
+        out = resolve_task(
+            args.repo,
+            task_id=args.id,
+            failure_type=args.failure_type,
+            pr=args.pr,
+            workflow=args.workflow,
+            check=args.check,
+            branch=args.branch,
+            head_sha=args.head_sha,
+        )
         print(json.dumps(out or {}, indent=2))
         return 0 if out else 1
     if args.cmd == "show":

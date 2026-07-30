@@ -55,6 +55,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      issues: write
     steps:
       - name: Checkout trusted default branch only
         uses: actions/checkout@v4
@@ -85,8 +86,7 @@ jobs:
               --failure-type automation_credentials_blocked \
               --severity immediate \
               --workflow "Linktrend Review Packager" \
-              --next-action "Configure GitHub App credentials; do not auto-repair." \
-              || true
+              --next-action "Configure GitHub App credentials; do not auto-repair."
             python3 scripts/gitops/write_outcome.py \
               --status automation_credentials_blocked \
               --detail "App token unavailable for Packager discover"
@@ -169,6 +169,7 @@ jobs:
     permissions:
       contents: read
       checks: write
+      issues: write
       statuses: read
       pull-requests: read
     steps:
@@ -205,8 +206,7 @@ jobs:
               --failure-type automation_credentials_blocked \
               --severity immediate \
               --workflow "Linktrend Review Packager" \
-              --next-action "Configure GitHub App credentials; do not auto-repair." \
-              || true
+              --next-action "Configure GitHub App credentials; do not auto-repair."
             GITHUB_TOKEN="${{ github.token }}" python3 scripts/gitops/write_outcome.py \
               --status automation_credentials_blocked \
               --detail "App token unavailable for Packager evaluate" \

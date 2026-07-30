@@ -91,6 +91,7 @@ jobs:
     permissions:
       contents: read
       checks: write
+      issues: write
       pull-requests: read
     steps:
       - name: Checkout trusted default branch only
@@ -129,8 +130,7 @@ jobs:
               --failure-type automation_credentials_blocked \
               --severity immediate \
               --workflow "LiNKtrend Integrator Merge To Development" \
-              --next-action "Configure GitHub App credentials; do not auto-repair." \
-              || true
+              --next-action "Configure GitHub App credentials; do not auto-repair."
             GITHUB_TOKEN="${{ github.token }}" python3 scripts/gitops/write_outcome.py \
               --file integrator-result.json \
               --status automation_credentials_blocked \

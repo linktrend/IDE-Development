@@ -34,14 +34,30 @@ EXPECTED_PROMOTE_HEAD="${EXPECTED_PROMOTE_HEAD:-}"
 OUTCOME="${OUTCOME_FILE:-gitops-outcome.json}"
 
 
+repair_task_upsert() {
+  local ec
+  set +e
+  python3 "${SCRIPT_DIR}/repair_task.py" upsert "$@" >/dev/null
+  ec=$?
+  set -e
+  if [ "$ec" -ne 0 ]; then
+    if [ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]; then
+      echo "FAIL: repair_task.py upsert failed with GitHub token present" >&2
+      return "$ec"
+    fi
+    echo "WARN: repair_task.py upsert failed without GitHub token; continuing without repair task" >&2
+  fi
+  return 0
+}
+
+
 record_usage_limit_repair_task() {
-  python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+  repair_task_upsert \
     --repo "${REPO}" \
     --failure-type usage_limit \
     --severity immediate \
     --workflow "staging-promote" \
-    --next-action "Wait for GitHub API quota; do not ACP-repair usage limits." \
-    >/dev/null 2>&1 || true
+    --next-action "Wait for GitHub API quota; do not ACP-repair usage limits."
 }
 
 
@@ -88,13 +104,12 @@ write_out() {
 if [ -z "${TOKEN}" ] || [ "${AUTOMATION_TOKEN_SOURCE:-}" != "github_app" ]; then
   write_out "automation_credentials_blocked" "staging promote requires GitHub App token"
   export GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
-  python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+  repair_task_upsert \
     --repo "${REPO}" \
     --failure-type automation_credentials_blocked \
     --severity immediate \
     --branch "development->staging" \
-    --next-action "Configure GitHub App credentials for staging promote; do not auto-repair." \
-    >/dev/null 2>&1 || true
+    --next-action "Configure GitHub App credentials for staging promote; do not auto-repair."
   exit 0
 fi
 

@@ -136,6 +136,7 @@ jobs:
     permissions:
       contents: read
       checks: write
+      issues: write
       statuses: read
       pull-requests: read
     env:
@@ -186,8 +187,7 @@ jobs:
             --failure-type automation_credentials_blocked \
             --severity immediate \
             --workflow "LiNKtrend Staging To Main" \
-            --next-action "Configure GitHub App credentials; do not auto-repair." \
-            || true
+            --next-action "Configure GitHub App credentials; do not auto-repair."
           python3 scripts/gitops/write_outcome.py \
             --status automation_credentials_blocked \
             --detail "LINKTREND_GITOPS_APP_ID / minted App token required for autonomous main promotion." \
