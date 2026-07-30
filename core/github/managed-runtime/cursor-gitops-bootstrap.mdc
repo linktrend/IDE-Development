@@ -24,7 +24,10 @@ alwaysApply: true
 - Write machine-readable evidence with `python3 scripts/gitops/completion_gate.py write-evidence`, tied to the exact `HEAD` SHA.
 - Call `python3 scripts/gitops/completion_gate.py review-ready` only after validation succeeds. It is fail-closed and authoritative for publishing **Linktrend Review Ready**.
 - Do not call `mark-review-ready.sh` as a pre-gate publisher. It is only a compatibility wrapper that requires evidence and delegates to the gate.
-- If validation or repair cannot complete, call `python3 scripts/gitops/completion_gate.py blocked` so `.linktrend/completion-blocker.json` records the durable blocker and the branch stays ineligible.
+- If validation or repair cannot complete, call `python3 scripts/gitops/completion_gate.py blocked`.
+  - `.linktrend/completion-blocker.json` is only a **local cache**.
+  - The durable record is the GitHub repair issue (when authenticated repo resolution succeeds).
+  - If the command reports `durableRecord=false`, do **not** claim the blocker was durably registered.
 
 ## Repair control
 

@@ -356,6 +356,7 @@ git -C "$WT" checkout -q "$ALLOWED_BR"
 export LINKTREND_REPAIR_BACKEND=file
 export LINKTREND_REPAIR_DIR="$TMP/repair-blocked"
 mkdir -p "$LINKTREND_REPAIR_DIR"
+# Env-backed durable write (GH_REPO still set from earlier fixtures)
 set +e
 python3 "$ROOT/scripts/gitops/completion_gate.py" blocked \
   --workdir "$WT" \
@@ -364,9 +365,144 @@ python3 "$ROOT/scripts/gitops/completion_gate.py" blocked \
 bec=$?
 set -e
 [ "$bec" -eq 2 ] || fail "blocked expected exit 2, got $bec ($(cat /tmp/blocked.out /tmp/blocked.err))"
-echo "$(cat /tmp/blocked.out)" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("durableRecord") is True, d; assert d.get("durableFailureId"), d'
+echo "$(cat /tmp/blocked.out)" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("durableRecord") is True, d; assert d.get("durableFailureId"), d; assert "LOCAL_CACHE_ONLY" not in (d.get("warning") or ""), d'
 [ -f "$WT/.linktrend/completion-blocker.json" ] || fail "local blocker cache missing"
 pass "completion_gate blocked writes local cache and durable repair task"
+
+# Restore gh mock for local checkout resolution (after earlier auth-fail mock)
+cat >"$TMP/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-}" in
+  repo)
+    # gh repo view --json nameWithOwner -q .nameWithOwner
+    if [ "${GH_REPO_VIEW_FAIL:-}" = "1" ]; then
+      echo "gh repo view failed" >&2
+      exit 1
+    fi
+    echo "${GH_REPO_VIEW_NAME:-fixture/from-gh}"
+    exit 0
+    ;;
+esac
+echo "unexpected gh $*" >&2
+exit 1
+EOF
+chmod +x "$TMP/bin/gh"
+
+# Normal local session: no env repo vars → resolve via authenticated gh repo view
+unset GITHUB_REPOSITORY GH_REPO LINKTREND_REPAIR_REPO || true
+export LINKTREND_REPAIR_DIR="$TMP/repair-blocked-gh"
+mkdir -p "$LINKTREND_REPAIR_DIR"
+export GH_REPO_VIEW_NAME="fixture/from-gh"
+set +e
+python3 "$ROOT/scripts/gitops/completion_gate.py" blocked \
+  --workdir "$WT" \
+  --reason "local session via gh repo view" >/tmp/blocked-gh.out 2>/tmp/blocked-gh.err
+bec=$?
+set -e
+[ "$bec" -eq 2 ] || fail "gh-resolve blocked expected exit 2 ($(cat /tmp/blocked-gh.out /tmp/blocked-gh.err))"
+python3 - <<'PY'
+import json
+d=json.load(open("/tmp/blocked-gh.out"))
+assert d.get("durableRecord") is True, d
+assert d.get("repository") == "fixture/from-gh", d
+assert d.get("repositorySource") == "gh_repo_view", d
+assert "token" not in json.dumps(d).lower()
+assert "://" not in (d.get("repository") or "")
+PY
+pass "blocked resolves repository from gh repo view without env"
+
+# Origin remote resolution when gh fails; strip credentials; never print secrets
+export GH_REPO_VIEW_FAIL=1
+git -C "$WT" remote remove origin 2>/dev/null || true
+git -C "$WT" remote add origin "https://x-access-token:ghs_NOT_A_REAL_SECRET@github.com/fixture/from-origin.git"
+export LINKTREND_REPAIR_DIR="$TMP/repair-blocked-origin"
+mkdir -p "$LINKTREND_REPAIR_DIR"
+set +e
+python3 "$ROOT/scripts/gitops/completion_gate.py" blocked \
+  --workdir "$WT" \
+  --reason "local session via origin" >/tmp/blocked-origin.out 2>/tmp/blocked-origin.err
+bec=$?
+set -e
+[ "$bec" -eq 2 ] || fail "origin-resolve blocked expected exit 2 ($(cat /tmp/blocked-origin.out /tmp/blocked-origin.err))"
+python3 - <<'PY'
+import json
+raw=open("/tmp/blocked-origin.out").read()+open("/tmp/blocked-origin.err").read()
+assert "ghs_NOT_A_REAL_SECRET" not in raw, raw
+assert "x-access-token" not in raw, raw
+d=json.loads(open("/tmp/blocked-origin.out").read())
+assert d.get("durableRecord") is True, d
+assert d.get("repository") == "fixture/from-origin", d
+assert d.get("repositorySource") == "origin_remote", d
+PY
+pass "blocked resolves sanitized origin remote; credentials never printed"
+
+# Ambiguous origin+upstream → local cache only
+git -C "$WT" remote add upstream "https://github.com/other/upstream.git"
+export LINKTREND_REPAIR_DIR="$TMP/repair-blocked-ambiguous"
+mkdir -p "$LINKTREND_REPAIR_DIR"
+set +e
+python3 "$ROOT/scripts/gitops/completion_gate.py" blocked \
+  --workdir "$WT" \
+  --reason "ambiguous remotes" >/tmp/blocked-amb.out 2>/tmp/blocked-amb.err
+bec=$?
+set -e
+[ "$bec" -eq 2 ] || fail "ambiguous blocked expected exit 2"
+python3 - <<'PY'
+import json
+d=json.load(open("/tmp/blocked-amb.out"))
+assert d.get("durableRecord") is False, d
+assert "LOCAL_CACHE_ONLY" in (d.get("warning") or ""), d
+assert "ambiguous" in (d.get("repositorySource") or d.get("durableError") or ""), d
+PY
+git -C "$WT" remote remove upstream
+pass "blocked rejects ambiguous origin+upstream (local cache only)"
+
+# Missing/unrecognized origin (file remote) + gh fail → local cache only
+git -C "$WT" remote remove origin
+git -C "$WT" remote add origin "file://$TMP/repo"
+export LINKTREND_REPAIR_DIR="$TMP/repair-blocked-missing"
+mkdir -p "$LINKTREND_REPAIR_DIR"
+set +e
+python3 "$ROOT/scripts/gitops/completion_gate.py" blocked \
+  --workdir "$WT" \
+  --reason "missing github origin" >/tmp/blocked-miss.out 2>/tmp/blocked-miss.err
+bec=$?
+set -e
+[ "$bec" -eq 2 ] || fail "missing-repo blocked expected exit 2"
+python3 - <<'PY'
+import json
+d=json.load(open("/tmp/blocked-miss.out"))
+assert d.get("durableRecord") is False, d
+assert "LOCAL_CACHE_ONLY" in (d.get("warning") or ""), d
+assert d.get("localCacheOnly") is True, d
+PY
+pass "blocked reports LOCAL_CACHE_ONLY when repository unresolved"
+
+# Durable write failure with resolved repo → still local cache only warning
+unset GH_REPO_VIEW_FAIL
+export GH_REPO_VIEW_NAME="fixture/write-fail"
+export LINKTREND_REPAIR_BACKEND=github
+unset GH_TOKEN GITHUB_TOKEN || true
+set +e
+python3 "$ROOT/scripts/gitops/completion_gate.py" blocked \
+  --workdir "$WT" \
+  --reason "durable write should fail" >/tmp/blocked-dwf.out 2>/tmp/blocked-dwf.err
+bec=$?
+set -e
+[ "$bec" -eq 2 ] || fail "durable-write-fail blocked expected exit 2"
+python3 - <<'PY'
+import json
+d=json.load(open("/tmp/blocked-dwf.out"))
+assert d.get("repository") == "fixture/write-fail", d
+assert d.get("durableRecord") is False, d
+assert "LOCAL_CACHE_ONLY" in (d.get("warning") or ""), d
+assert d.get("durableError"), d
+assert "ghs_" not in json.dumps(d).lower()
+PY
+# Restore file backend for remaining tests
+export LINKTREND_REPAIR_BACKEND=file
+pass "blocked durable-write failure keeps local cache and warns LOCAL_CACHE_ONLY"
 
 # ---- repair_task: re-upsert does not increment; dispatch-attempt does; 3rd → Issues ----
 export LINKTREND_REPAIR_BACKEND=file

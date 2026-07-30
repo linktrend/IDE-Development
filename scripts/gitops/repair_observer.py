@@ -265,6 +265,10 @@ def _matches_task(
             return False
         if task_workflow and workflow and task_workflow != workflow:
             return False
+    elif failure_type == "usage_limit":
+        # Funding/usage tasks are keyed by Bugbot check (+ optional PR/branch).
+        if task_check and task_check != check:
+            return False
     else:
         return False
 
@@ -447,14 +451,33 @@ def _check_event(payload: dict[str, Any], repo: str, config: ObserverConfig) -> 
         )
         return {"action": "upserted", "failureId": out.get("failureId"), "failureType": "bugbot_failure"}
 
-    return _resolve_matching(
-        repo=repo,
-        failure_type="bugbot_failure",
-        head_sha=head_sha,
-        pr=pr,
-        check=check,
-        branch=branch,
-    )
+    # Success: resolve matching bugbot_failure AND matching usage_limit (funding recovery).
+    results = []
+    for ft in ("bugbot_failure", "usage_limit"):
+        results.append(
+            _resolve_matching(
+                repo=repo,
+                failure_type=ft,
+                head_sha=head_sha,
+                pr=pr,
+                check=check,
+                branch=branch,
+            )
+        )
+    resolved = [r for r in results if r.get("action") == "resolved"]
+    if resolved:
+        return {
+            "action": "resolved",
+            "resolved": resolved,
+            "alsoTried": results,
+            "headSha": head_sha,
+        }
+    # Prefer the most informative skip reason
+    return {
+        "action": "skip",
+        "reason": "no_matching_open_bugbot_or_usage_task",
+        "attempts": results,
+    }
 
 
 def handle_event(payload: dict[str, Any], repo: str, event_name: str = "") -> dict[str, Any]:

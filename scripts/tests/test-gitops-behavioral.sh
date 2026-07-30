@@ -919,9 +919,47 @@ out = repair_observer.handle_event_path(ordinary_path, repo)
 assert out == {"action": "skip", "reason": "neutral_without_usage_limit"}, out
 ordinary_id = repair_task.failure_id(repo, "usage_limit", pr="26", check="Cursor Bugbot", branch="issue/skip")
 assert backend.get(ordinary_id) is None
+
+# Successful Bugbot on exact current head must also resolve matching open usage_limit
+usage_open_sha = "ffffffffffffffffffffffffffffffffffffffff"
+usage_again = write_event(
+    "bugbot-usage-open",
+    {
+        "repository": {"full_name": repo},
+        "check_run": {
+            "name": "Cursor Bugbot",
+            "conclusion": "neutral",
+            "head_sha": usage_open_sha,
+            "pull_requests": [{"number": 27, "head": {"ref": "issue/fund", "sha": usage_open_sha}}],
+            "output": {"title": "Usage limit", "summary": "out of credits / payment required"},
+        },
+    },
+)
+assert repair_observer.handle_event_path(usage_again, repo)["action"] == "upserted"
+usage_open_id = repair_task.failure_id(
+    repo, "usage_limit", pr="27", check="Cursor Bugbot", branch="issue/fund"
+)
+assert backend.get(usage_open_id)["resolutionState"] != "resolved"
+current_pr_heads["27"] = (usage_open_sha, "issue/fund")
+success_bugbot = write_event(
+    "bugbot-success-clears-usage",
+    {
+        "repository": {"full_name": repo},
+        "check_run": {
+            "name": "Cursor Bugbot",
+            "conclusion": "success",
+            "head_sha": usage_open_sha,
+            "pull_requests": [{"number": 27, "head": {"ref": "issue/fund", "sha": usage_open_sha}}],
+            "output": {"title": "OK", "summary": "review complete"},
+        },
+    },
+)
+out = repair_observer.handle_event_path(success_bugbot, repo)
+assert out["action"] == "resolved", out
+assert backend.get(usage_open_id)["resolutionState"] == "resolved"
 print("repair observer lifecycle ok")
 PY
-pass "repair observer resolves current-head successes, skips stale, handles neutral Bugbot usage"
+pass "repair observer resolves current-head successes, skips stale, handles/clears Bugbot usage_limit"
 
 python3 - "$ROOT" <<'PY'
 import re
@@ -989,8 +1027,9 @@ if failures:
 
 observer = (root / "scripts" / "gitops" / "repair_observer.py").read_text()
 assert "repair_task.resolve_task(" in observer
-assert "failure_type=\"ci_failure\"" in observer
-assert "failure_type=\"bugbot_failure\"" in observer
+assert 'failure_type="ci_failure"' in observer
+assert "bugbot_failure" in observer and "usage_limit" in observer
+assert '("bugbot_failure", "usage_limit")' in observer or "('bugbot_failure', 'usage_limit')" in observer
 print("repair observer permissions + resolve caller proof ok")
 PY
 pass "repair observer/upsert jobs carry issues:write and production resolve caller exists"

@@ -102,13 +102,8 @@ fi
 [ -f "$CONFIG_PATH" ] || fail "Consumer config missing after setup: $CONFIG_PATH"
 
 info ""
-info "=== Layer A: physical Cursor bootstrap (no IDE Development symlink) ==="
+info "=== Layer A: physical .cursor tree (no IDE Development symlink) ==="
 TARGET_CURSOR="${TARGET_REPO}/.cursor"
-RULE_SRC="${SYSTEM_ROOT}/core/github/managed-runtime/cursor-gitops-bootstrap.mdc"
-RULE_REL="rules/cursor-gitops-bootstrap.mdc"
-RULE_DEST="${TARGET_CURSOR}/${RULE_REL}"
-[ -f "$RULE_SRC" ] || fail "Missing managed cursor rule: $RULE_SRC"
-
 timestamp="$(date +%Y%m%d-%H%M%S)"
 if [ -L "$TARGET_CURSOR" ]; then
   backup_path="${TARGET_REPO}/.cursor-symlink-backup-${timestamp}"
@@ -117,32 +112,8 @@ if [ -L "$TARGET_CURSOR" ]; then
 elif [ -e "$TARGET_CURSOR" ] && [ ! -d "$TARGET_CURSOR" ]; then
   fail "Ambiguous .cursor path exists and is not a directory/symlink: $TARGET_CURSOR"
 fi
-
-mkdir -p "${TARGET_CURSOR}/rules"
-
-if [ -e "$RULE_DEST" ] && [ ! -f "$RULE_DEST" ]; then
-  fail "Ambiguous collision at managed rule path (not a regular file): $RULE_DEST"
-fi
-
-if [ -f "$RULE_DEST" ]; then
-  if cmp -s "$RULE_SRC" "$RULE_DEST"; then
-    info "PASS: managed cursor bootstrap already up to date"
-  else
-    # Managed filename — replace after backup if content differs
-    bak="${RULE_DEST}.bak-${timestamp}"
-    info "Updating managed bootstrap rule; backup: $bak"
-    cp "$RULE_DEST" "$bak"
-    cp "$RULE_SRC" "$RULE_DEST"
-    info "PASS: updated physical cursor-gitops-bootstrap.mdc"
-  fi
-else
-  cp "$RULE_SRC" "$RULE_DEST"
-  info "PASS: installed physical cursor-gitops-bootstrap.mdc"
-fi
-
+mkdir -p "${TARGET_CURSOR}/rules" "${TARGET_CURSOR}/commands" "${TARGET_CURSOR}/skills"
 [ ! -L "$TARGET_CURSOR" ] || fail "Consumer .cursor must not be a symlink after wire"
-[ -f "$RULE_DEST" ] || fail "Managed bootstrap rule missing after install"
-[ ! -L "$RULE_DEST" ] || fail "Managed bootstrap rule must be a regular file"
 
 info ""
 info "=== Layer B: sync managed GitHub workflows (rendered names) ==="
@@ -151,10 +122,23 @@ SYNC_SCRIPT="${SYSTEM_ROOT}/scripts/sync-managed-workflows.sh"
 bash "$SYNC_SCRIPT" "$TARGET_REPO" --config "$CONFIG_PATH"
 
 info ""
-info "=== Layer C: sync managed runtime scripts ==="
+info "=== Layer C: sync managed runtime scripts + Cursor entrypoints ==="
 RUNTIME_SYNC="${SYSTEM_ROOT}/scripts/sync-managed-runtime.sh"
 [ -f "$RUNTIME_SYNC" ] || fail "Missing runtime sync: $RUNTIME_SYNC"
 bash "$RUNTIME_SYNC" "$TARGET_REPO"
+
+# Prove managed Cursor entrypoints exist as regular files
+for rel in \
+  ".cursor/rules/cursor-gitops-bootstrap.mdc" \
+  ".cursor/rules/linktrend-git-branching.mdc" \
+  ".cursor/commands/agentsetup.md" \
+  ".cursor/commands/agentcomply.md" \
+  ".cursor/skills/agentsetup/SKILL.md" \
+  ".cursor/skills/agentcomply/SKILL.md"; do
+  [ -f "${TARGET_REPO}/${rel}" ] || fail "Missing managed entrypoint after sync: $rel"
+  [ ! -L "${TARGET_REPO}/${rel}" ] || fail "Managed entrypoint must be a regular file: $rel"
+done
+info "PASS: managed agentsetup/agentcomply Cursor entrypoints installed"
 
 info ""
 info "=== Layer D: AGENTS.md managed section ==="
@@ -165,10 +149,10 @@ bash "$AGENTS_SYNC" "$TARGET_REPO"
 info ""
 info "Wire summary: SUCCESS"
 info "Consumer: $TARGET_REPO"
-info "Cursor: physical $RULE_DEST (not a symlink)"
+info "Cursor: physical managed entrypoints under .cursor/ (not a symlink to IDE Development)"
 info "Config: $CONFIG_PATH"
-info "Managed workflows + runtime + AGENTS section: synced"
+info "Managed workflows + runtime + agentsetup/agentcomply + AGENTS section: synced"
 info "Next: complete Bugbot checklist — core/checklists/BUGBOT-INHERITANCE.md"
 info "Next: Cursor Automations — docs/CURSOR-AUTOMATIONS-SETUP.md"
-info "Next: commit .github/linktrend-gitops-consumer.json and .cursor/rules/cursor-gitops-bootstrap.mdc"
+info "Next: commit .github/linktrend-gitops-consumer.json and managed .cursor entrypoints"
 exit 0

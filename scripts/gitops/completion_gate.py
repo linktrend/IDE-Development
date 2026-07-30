@@ -376,6 +376,65 @@ def cmd_review_ready(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def resolve_repository(workdir: Path) -> tuple[str | None, str]:
+    """Resolve owner/repo for durable repair records without printing secrets.
+
+    Preference:
+      1) env GITHUB_REPOSITORY / GH_REPO / LINKTREND_REPAIR_REPO
+      2) authenticated `gh repo view --json nameWithOwner`
+      3) validated `origin` remote URL (HTTPS or SSH), rejecting upstream-only remotes
+    """
+    for key in ("GITHUB_REPOSITORY", "GH_REPO", "LINKTREND_REPAIR_REPO"):
+        val = (os.environ.get(key) or "").strip()
+        if val and "/" in val and " " not in val and "local/" not in val:
+            return val, f"env:{key}"
+
+    gh = run(
+        ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
+        cwd=workdir,
+    )
+    if gh.returncode == 0:
+        name = (gh.stdout or "").strip()
+        if name.count("/") == 1 and " " not in name:
+            return name, "gh_repo_view"
+
+    # origin only — never fall back to upstream (fork ambiguity)
+    origin = run(["git", "remote", "get-url", "--push", "origin"], cwd=workdir)
+    if origin.returncode != 0:
+        origin = run(["git", "remote", "get-url", "origin"], cwd=workdir)
+    if origin.returncode != 0:
+        return None, "missing_origin_remote"
+    url = (origin.stdout or "").strip()
+    # Strip credentials if present in URL without echoing them
+    # e.g. https://user:token@github.com/owner/repo.git
+    sanitized = url
+    if "://" in sanitized and "@" in sanitized.split("://", 1)[1]:
+        scheme, rest = sanitized.split("://", 1)
+        sanitized = f"{scheme}://" + rest.split("@", 1)[1]
+    owner_repo = ""
+    if sanitized.startswith("git@") and ":" in sanitized:
+        # git@github.com:owner/repo.git
+        path = sanitized.split(":", 1)[1]
+        owner_repo = path
+    elif "github.com/" in sanitized:
+        owner_repo = sanitized.split("github.com/", 1)[1]
+    elif "github.com:" in sanitized:
+        owner_repo = sanitized.split("github.com:", 1)[1]
+    else:
+        return None, "origin_not_github_or_unrecognized"
+    owner_repo = owner_repo.strip()
+    if owner_repo.endswith(".git"):
+        owner_repo = owner_repo[:-4]
+    owner_repo = owner_repo.strip("/")
+    if owner_repo.count("/") != 1 or " " in owner_repo:
+        return None, "origin_ambiguous_owner_repo"
+    # Reject if both origin and upstream exist and disagree (ambiguous fork layout)
+    upstream = run(["git", "remote", "get-url", "upstream"], cwd=workdir)
+    if upstream.returncode == 0:
+        return None, "ambiguous_origin_and_upstream"
+    return owner_repo, "origin_remote"
+
+
 def cmd_blocked(args: argparse.Namespace) -> int:
     """Write local cache AND attempt a durable repair-task record.
 
@@ -383,12 +442,7 @@ def cmd_blocked(args: argparse.Namespace) -> int:
     Durable cross-machine state is the repair task (GitHub Issue or file backend).
     """
     workdir = Path(args.workdir).resolve()
-    repo = (
-        os.environ.get("GITHUB_REPOSITORY")
-        or os.environ.get("GH_REPO")
-        or os.environ.get("LINKTREND_REPAIR_REPO")
-        or "local/completion-blocked"
-    )
+    repo, repo_source = resolve_repository(workdir)
     reason = args.reason or os.environ.get("COMPLETION_BLOCKER_REASON") or "unspecified"
     next_action = (
         args.next_action
@@ -399,7 +453,8 @@ def cmd_blocked(args: argparse.Namespace) -> int:
         "schemaVersion": 1,
         "state": "blocked",
         "at": utc_now(),
-        "repository": repo,
+        "repository": repo or "",
+        "repositorySource": repo_source,
         "branch": branch_name(workdir),
         "sha": head_sha(workdir),
         "failure": reason,
@@ -417,7 +472,11 @@ def cmd_blocked(args: argparse.Namespace) -> int:
 
     durable: dict | None = None
     durable_error = ""
-    if repair_task_mod is not None:
+    if not repo:
+        durable_error = f"repository_unresolved:{repo_source}"
+    elif repair_task_mod is None:
+        durable_error = "repair_task_unavailable"
+    else:
         try:
             fid = repair_task_mod.failure_id(
                 repo,
@@ -455,6 +514,11 @@ def cmd_blocked(args: argparse.Namespace) -> int:
         "blockerFile": str(out),
         "durableRecord": bool(blocker.get("durableRecord")),
         "durableError": durable_error,
+        "warning": (
+            ""
+            if blocker.get("durableRecord")
+            else "LOCAL_CACHE_ONLY: do not claim durable GitHub blocker registration"
+        ),
         **blocker,
     }
     if durable:

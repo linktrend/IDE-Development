@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "linktrend-managed-runtime",
-  "description": "Scripts and paths required by managed LiNKtrend GitOps workflows. Synced into consumers by scripts/sync-managed-runtime.sh.",
+  "description": "Scripts, Cursor entrypoints, and AGENTS section required by managed LiNKtrend GitOps. Synced by scripts/sync-managed-runtime.sh / wire-repo.sh.",
   "files": [
     "scripts/gitops/completion_gate.py",
     "scripts/gitops/conflict_task.py",
@@ -27,8 +27,31 @@
     "scripts/pull-update-work-branches.sh",
     "scripts/apply-development-merge-ruleset.sh"
   ],
-  "cursorRules": [
-    "core/github/managed-runtime/cursor-gitops-bootstrap.mdc"
+  "cursorEntrypoints": [
+    {
+      "src": "core/github/managed-runtime/cursor-gitops-bootstrap.mdc",
+      "dest": ".cursor/rules/cursor-gitops-bootstrap.mdc"
+    },
+    {
+      "src": "core/github/managed-runtime/entrypoints/rules/linktrend-git-branching.mdc",
+      "dest": ".cursor/rules/linktrend-git-branching.mdc"
+    },
+    {
+      "src": "core/github/managed-runtime/entrypoints/commands/agentsetup.md",
+      "dest": ".cursor/commands/agentsetup.md"
+    },
+    {
+      "src": "core/github/managed-runtime/entrypoints/commands/agentcomply.md",
+      "dest": ".cursor/commands/agentcomply.md"
+    },
+    {
+      "src": "core/github/managed-runtime/entrypoints/skills/agentsetup/SKILL.md",
+      "dest": ".cursor/skills/agentsetup/SKILL.md"
+    },
+    {
+      "src": "core/github/managed-runtime/entrypoints/skills/agentcomply/SKILL.md",
+      "dest": ".cursor/skills/agentcomply/SKILL.md"
+    }
   ],
   "agentsSection": "core/github/managed-runtime/AGENTS.managed-section.md"
 }
