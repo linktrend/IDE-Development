@@ -11,6 +11,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bugbot_user_credentials import scrub_carlos_token_env  # noqa: E402
+
 VALID = {
     "packaged",
     "waiting",
@@ -45,11 +48,18 @@ def post_check_run(
 ) -> None:
     if not head_sha or not token or not repo:
         return
+    env = scrub_carlos_token_env(os.environ)
+    env["GH_TOKEN"] = token
+    env["GITHUB_TOKEN"] = token
     # Map outcome → check conclusion. success only for documented terminal successes.
     conclusion = "neutral"
     if status in {"merged", "bugbot_requested", "packaged"}:
         conclusion = "success"
-    elif status in {"failed", "automation_credentials_blocked", "bugbot_user_credentials_blocked"}:
+    elif status in {
+        "failed",
+        "automation_credentials_blocked",
+        "bugbot_user_credentials_blocked",
+    }:
         conclusion = "failure"
     elif status in {"blocked"}:
         conclusion = "neutral"
@@ -78,7 +88,7 @@ def post_check_run(
         input=json.dumps(body),
         text=True,
         check=False,
-        env={**os.environ, "GH_TOKEN": token, "GITHUB_TOKEN": token},
+        env=env,
     )
 
 
@@ -95,17 +105,24 @@ def main() -> int:
     extra = {}
     write_outcome(Path(args.file), args.status, args.detail, **extra)
     if args.check_name and args.head_sha:
-        token = os.environ.get(args.token_env) or os.environ.get("GH_TOKEN") or ""
-        # Prefer non-app token for check-runs if app missing — checks:write on GITHUB_TOKEN ok
-        token = token or os.environ.get("GITHUB_TOKEN") or ""
-        post_check_run(
-            name=args.check_name,
-            head_sha=args.head_sha,
-            status=args.status,
-            detail=args.detail,
-            repo=args.repo,
-            token=token,
-        )
+        # Autonomous check mutations require an explicit token env (App).
+        # Never silently fall back to the ordinary workflow GITHUB_TOKEN.
+        token = (os.environ.get(args.token_env) or os.environ.get("GH_TOKEN") or "").strip()
+        if not token:
+            print(
+                "WARN: skipping check-run post; no App/automation token in "
+                f"--token-env={args.token_env}",
+                file=sys.stderr,
+            )
+        else:
+            post_check_run(
+                name=args.check_name,
+                head_sha=args.head_sha,
+                status=args.status,
+                detail=args.detail,
+                repo=args.repo,
+                token=token,
+            )
     return 0
 
 

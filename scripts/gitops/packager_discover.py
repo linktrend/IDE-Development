@@ -5,6 +5,7 @@ Updates only a delimited managed section. No Bugbot. No serial CI wait.
 Requires:
   - GitHub App token for reads / draft body refresh / non-create mutations
   - Carlos BUGBOT_USER_TOKEN for feature PR *creation* only (fail closed)
+  - Existing/open Packager PRs must be authored by ``linktrend`` (fail closed)
 """
 
 from __future__ import annotations
@@ -17,13 +18,19 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Any, Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bugbot_user_credentials import (  # noqa: E402
     BugbotUserCredentialsError,
     require_bugbot_user_token,
+    subprocess_env_for_token,
 )
-from packager_logic import is_allowed_work_branch  # noqa: E402
+from packager_logic import (  # noqa: E402
+    REQUIRED_PACKAGER_PR_AUTHOR,
+    is_allowed_work_branch,
+    require_packager_pr_author,
+)
 from readiness_status import is_sha_review_ready  # noqa: E402
 from write_outcome import write_outcome  # noqa: E402
 
@@ -34,12 +41,19 @@ SECTION_RE = re.compile(
     re.DOTALL,
 )
 
+# Test hook: (args, env) -> stdout string. When set, skips real subprocess.
+_RUN_HOOK: Callable[[list[str], dict[str, str]], str] | None = None
 
-def run(args: list[str], token: str | None = None) -> str:
-    env = os.environ.copy()
-    if token:
-        env["GH_TOKEN"] = token
-        env["GITHUB_TOKEN"] = token
+
+class PackagerAuthorError(RuntimeError):
+    """Open Packager PR is not authored by the required Carlos identity."""
+
+
+def run(args: list[str], token: str, *, role: str = "app") -> str:
+    """Run a command with a scrubbed env; Carlos secret names never leak to App kids."""
+    env = subprocess_env_for_token(token, role=role)
+    if _RUN_HOOK is not None:
+        return _RUN_HOOK(list(args), dict(env)).strip()
     return subprocess.check_output(args, text=True, env=env).strip()
 
 
@@ -106,11 +120,55 @@ def list_branches(token: str, repo: str) -> list[dict]:
     return branches
 
 
+def record_author_blocked_repair(
+    app_token: str,
+    *,
+    repo: str,
+    pr: int,
+    branch: str,
+    head_sha: str,
+    detail: str,
+) -> None:
+    """Durable App-authored repair; never auto-close/recreate the unexpected PR."""
+    env = subprocess_env_for_token(app_token, role="app")
+    script = str(Path(__file__).resolve().parent / "repair_task.py")
+    cmd = [
+        sys.executable,
+        script,
+        "upsert",
+        "--repo",
+        repo,
+        "--failure-type",
+        "packager_author_blocked",
+        "--severity",
+        "immediate",
+        "--pr",
+        str(pr),
+        "--branch",
+        branch,
+        "--head-sha",
+        head_sha,
+        "--workflow",
+        "Linktrend Review Packager",
+        "--next-action",
+        (
+            f"Packager PR author invalid ({detail}). Expected login "
+            f"`{REQUIRED_PACKAGER_PR_AUTHOR}`. Do not auto-close/recreate; "
+            "supersede only via a separately proven safe lifecycle."
+        ),
+    ]
+    if _RUN_HOOK is not None:
+        _RUN_HOOK(cmd, dict(env))
+        return
+    subprocess.run(cmd, check=False, env=env, capture_output=True, text=True)
+
+
 def ensure_draft_pr(app_token: str, branch: str, sha: str) -> dict:
     """Ensure an open development draft PR exists for branch@sha.
 
     Reads and draft-body refresh use the GitHub App token.
     PR *creation* uses BUGBOT_USER_TOKEN only (Carlos identity) — fail closed.
+    Existing PRs must already be authored by ``linktrend``.
     """
     existing = json.loads(
         run(
@@ -125,14 +183,20 @@ def ensure_draft_pr(app_token: str, branch: str, sha: str) -> dict:
                 "--state",
                 "open",
                 "--json",
-                "number,url,isDraft,headRefOid,title,body",
+                "number,url,isDraft,headRefOid,title,body,author",
             ],
             app_token,
+            role="app",
         )
         or "[]"
     )
     if existing:
         pr = existing[0]
+        ok_author, author_detail = require_packager_pr_author(pr)
+        if not ok_author:
+            raise PackagerAuthorError(
+                f"existing_pr#{pr.get('number')}:{author_detail}"
+            )
         # Ready/frozen PRs: never rewrite title/body (preserve human/agent content).
         if not bool(pr.get("isDraft")):
             return {
@@ -142,11 +206,16 @@ def ensure_draft_pr(app_token: str, branch: str, sha: str) -> dict:
                 "created": False,
                 "title_preserved": True,
                 "body_untouched": True,
-                "author_token": "github_app",
+                "author": author_detail,
+                "author_token": "preexisting",
             }
         new_body = merge_body(pr.get("body") or "", sha, branch)
         if new_body != (pr.get("body") or ""):
-            run(["gh", "pr", "edit", str(pr["number"]), "--body", new_body], app_token)
+            run(
+                ["gh", "pr", "edit", str(pr["number"]), "--body", new_body],
+                app_token,
+                role="app",
+            )
         # Never overwrite title
         return {
             "number": pr["number"],
@@ -154,7 +223,8 @@ def ensure_draft_pr(app_token: str, branch: str, sha: str) -> dict:
             "isDraft": bool(pr.get("isDraft")),
             "created": False,
             "title_preserved": True,
-            "author_token": "github_app",
+            "author": author_detail,
+            "author_token": "preexisting",
         }
 
     # Create path — Carlos user token only. Never App / GITHUB_TOKEN.
@@ -177,19 +247,32 @@ def ensure_draft_pr(app_token: str, branch: str, sha: str) -> dict:
             "--draft",
         ],
         user_token,
+        role="pr_create",
     )
-    num = int(
+    meta = json.loads(
         run(
-            ["gh", "pr", "view", url, "--json", "number", "--jq", ".number"],
+            [
+                "gh",
+                "pr",
+                "view",
+                url,
+                "--json",
+                "number,author,headRefOid",
+            ],
             app_token,
+            role="app",
         )
     )
+    ok_author, author_detail = require_packager_pr_author(meta)
+    if not ok_author:
+        raise PackagerAuthorError(f"created_pr_author_reread:{author_detail}")
     return {
-        "number": num,
+        "number": int(meta["number"]),
         "url": url,
         "isDraft": True,
         "created": True,
         "title_preserved": True,
+        "author": author_detail,
         "author_token": "bugbot_user",
     }
 
@@ -216,7 +299,7 @@ def main() -> int:
         return 0
 
     repo = os.environ["GITHUB_REPOSITORY"]
-    report = []
+    report: list[dict[str, Any]] = []
     packaged = 0
     for b in list_branches(token, repo):
         name = b.get("name") or ""
@@ -226,26 +309,38 @@ def main() -> int:
         if not sha:
             continue
         ok, detail = is_sha_review_ready(sha)
-        entry: dict = {"branch": name, "headSha": sha, "ready": ok, "detail": detail}
+        entry: dict[str, Any] = {
+            "branch": name,
+            "headSha": sha,
+            "ready": ok,
+            "detail": detail,
+        }
         if not ok:
             entry["action"] = "skipped_not_ready"
             report.append(entry)
             continue
         try:
             pr = ensure_draft_pr(token, name, sha)
-            head = run(
-                [
-                    "gh",
-                    "pr",
-                    "view",
-                    str(pr["number"]),
-                    "--json",
-                    "headRefOid",
-                    "--jq",
-                    ".headRefOid",
-                ],
-                token,
-            ).lower()
+            viewed = json.loads(
+                run(
+                    [
+                        "gh",
+                        "pr",
+                        "view",
+                        str(pr["number"]),
+                        "--json",
+                        "headRefOid,author",
+                    ],
+                    token,
+                    role="app",
+                )
+            )
+            head = (viewed.get("headRefOid") or "").lower()
+            ok_author, author_detail = require_packager_pr_author(viewed)
+            if not ok_author:
+                raise PackagerAuthorError(
+                    f"post_ensure_reread:#{pr['number']}:{author_detail}"
+                )
             if head != sha:
                 entry.update({"action": "skipped_head_drift", "pr": pr["number"]})
             else:
@@ -254,10 +349,47 @@ def main() -> int:
                         "action": "draft_ensured",
                         "pr": pr["number"],
                         "pr_url": pr["url"],
+                        "author": author_detail,
                         "author_token": pr.get("author_token"),
                     }
                 )
                 packaged += 1
+        except PackagerAuthorError as e:
+            detail = str(e)
+            entry.update(
+                {
+                    "action": "blocked_wrong_author",
+                    "reason": detail,
+                    "status": "blocked",
+                }
+            )
+            # Best-effort PR number from detail
+            pr_num = 0
+            m = re.search(r"#(\d+)", detail)
+            if m:
+                pr_num = int(m.group(1))
+            if pr_num:
+                entry["pr"] = pr_num
+                record_author_blocked_repair(
+                    token,
+                    repo=repo,
+                    pr=pr_num,
+                    branch=name,
+                    head_sha=sha,
+                    detail=detail,
+                )
+            report.append(entry)
+            Path("packager-discover-report.json").write_text(
+                json.dumps(report, indent=2) + "\n", encoding="utf-8"
+            )
+            write_outcome(
+                Path("gitops-outcome.json"),
+                "blocked",
+                f"superseded_wrong_author:{detail}",
+                report=report,
+            )
+            print(json.dumps(report, indent=2))
+            return 0
         except BugbotUserCredentialsError as e:
             entry.update({"action": "bugbot_user_credentials_blocked", "reason": str(e)})
             report.append(entry)

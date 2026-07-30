@@ -42,7 +42,7 @@
 
 **Immediate** (`lisaDispatchState=do_not_dispatch`):
 
-- `automation_credentials_blocked`, `usage_limit`
+- `automation_credentials_blocked`, `usage_limit`, `packager_author_blocked`
 - `immediate_security`, `immediate_destructive`, `immediate_approval_required`, `immediate_product_decision`
 
 Promotion conflicts also keep compat fields (`stage`, `sourceBranch`, `targetBranch`, `status=conflict_blocked`, …).

@@ -3,21 +3,23 @@
 # Never prints secret material. Sets BUGBOT_USER_TOKEN / SOURCE / STATUS.
 #
 # Workflow contract:
-#   - Secret LINKTREND_BUGBOT_USER_TOKEN is injected into the Packager job env.
+#   - Secret LINKTREND_BUGBOT_USER_TOKEN is the ONLY accepted input.
 #   - This script exports BUGBOT_USER_TOKEN for the two allowed Python call sites.
-#   - Must not equal AUTOMATION_TOKEN / LINKTREND_APP_TOKEN / GITHUB_TOKEN.
+#   - Must not equal AUTOMATION_TOKEN / LINKTREND_APP_TOKEN / GITHUB_TOKEN / GH_TOKEN.
 #   - Never write the token to outputs, artifacts, summaries, or files.
 #
 # See docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md (dual-credential section).
 set -euo pipefail
 
-BUGBOT_USER_TOKEN=""
 BUGBOT_USER_TOKEN_SOURCE="none"
 BUGBOT_USER_CREDENTIALS_STATUS="missing"
 
-RAW="${LINKTREND_BUGBOT_USER_TOKEN:-${BUGBOT_USER_TOKEN:-}}"
+# Accept only the repository secret name — no BUGBOT_USER_TOKEN input fallback.
+RAW="${LINKTREND_BUGBOT_USER_TOKEN:-}"
 
 if [ -z "${RAW}" ]; then
+  BUGBOT_USER_TOKEN=""
+  BUGBOT_USER_TOKEN_SOURCE="none"
   BUGBOT_USER_CREDENTIALS_STATUS="missing"
 else
   # Fail closed if the "user" token is actually the App/workflow token.
@@ -25,6 +27,7 @@ else
      { [ -n "${LINKTREND_APP_TOKEN:-}" ] && [ "${RAW}" = "${LINKTREND_APP_TOKEN}" ]; } ||
      { [ -n "${GITHUB_TOKEN:-}" ] && [ "${RAW}" = "${GITHUB_TOKEN}" ]; } ||
      { [ -n "${GH_TOKEN:-}" ] && [ "${RAW}" = "${GH_TOKEN}" ]; }; then
+    BUGBOT_USER_TOKEN=""
     BUGBOT_USER_TOKEN_SOURCE="invalid"
     BUGBOT_USER_CREDENTIALS_STATUS="must_not_equal_automation_or_github_token"
   else
