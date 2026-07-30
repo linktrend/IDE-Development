@@ -109,23 +109,65 @@ python3 - "$ROOT" <<'PY'
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
-from packager_logic import should_request_bugbot, build_bugbot_comment, marker_for, fast_gate_status
+from packager_logic import (
+    should_request_bugbot,
+    build_bugbot_comment,
+    marker_for,
+    fast_gate_status,
+    count_bugbot_requests,
+    DEFAULT_BUGBOT_COMMAND,
+)
 
+assert DEFAULT_BUGBOT_COMMAND == "@cursor review"
 sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 ok, reason = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=False)
 assert not ok and reason == "fast_gate_not_green"
 ok, reason = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=True)
 assert ok and reason == "request"
-comments = [{"body": build_bugbot_comment("cursor review", sha)}]
+
+# Generated comment is exactly @cursor review + exact-SHA hidden marker
+body = build_bugbot_comment(DEFAULT_BUGBOT_COMMAND, sha)
+assert body.startswith("@cursor review\n\n")
+assert marker_for(sha) in body
+assert body == f"@cursor review\n\n{marker_for(sha)}\n"
+
+# Genuine request + marker → same-SHA idempotent
+comments = [{"body": body}]
 ok, reason = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
 assert not ok and reason == "skipped_duplicate_marker"
-# max 2
-c2 = [
+
+# Historical invalid "cursor review" + marker does NOT consume the limit
+hist = [
   {"body": "cursor review\n\n" + marker_for("1111111111111111111111111111111111111111")},
   {"body": "cursor review\n\n" + marker_for("2222222222222222222222222222222222222222")},
 ]
+assert count_bugbot_requests(hist) == 0
+ok, reason = should_request_bugbot(comments=hist, head_sha=sha, fast_gate_ok=True)
+assert ok and reason == "request"
+
+# @cursor review + marker counts
+c_at = [{"body": "@cursor review\n\n" + marker_for("1111111111111111111111111111111111111111")}]
+assert count_bugbot_requests(c_at) == 1
+
+# bugbot run + marker counts
+c_run = [{"body": "bugbot run\n\n" + marker_for("2222222222222222222222222222222222222222")}]
+assert count_bugbot_requests(c_run) == 1
+
+# Two genuine requests block a third
+c2 = [
+  {"body": "@cursor review\n\n" + marker_for("1111111111111111111111111111111111111111")},
+  {"body": "bugbot run\n\n" + marker_for("2222222222222222222222222222222222222222")},
+]
+assert count_bugbot_requests(c2) == 2
 ok, reason = should_request_bugbot(comments=c2, head_sha=sha, fast_gate_ok=True)
 assert not ok and reason == "skipped_max_requests"
+
+# Invalid history + one genuine still allows another genuine for a new SHA
+mixed = hist + c_at
+assert count_bugbot_requests(mixed) == 1
+ok, reason = should_request_bugbot(comments=mixed, head_sha=sha, fast_gate_ok=True)
+assert ok and reason == "request"
+
 st,_=fast_gate_status([],["Verify IDE Development"]); assert st=="missing"
 st,_=fast_gate_status([{"name":"Verify IDE Development","state":"FAILURE","completedAt":"t"}],["Verify IDE Development"]); assert st=="failed"
 print("packager policy ok")
@@ -471,7 +513,7 @@ assert st2 == "success"
 ok2, reason2 = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=True)
 assert ok2 and reason2 == "request"
 # Exactly one request
-comments = [{"body": build_bugbot_comment("cursor review", sha)}]
+comments = [{"body": build_bugbot_comment("@cursor review", sha)}]
 ok3, reason3 = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
 assert not ok3 and reason3 == "skipped_duplicate_marker"
 
@@ -682,10 +724,12 @@ assert "cancel-in-progress: false" in (root / "core/github/managed-workflows/lin
 comments = []
 ok, reason = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
 assert ok and reason == "request"
-comments.append({"body": build_bugbot_comment("cursor review", sha)})
+comments.append({"body": build_bugbot_comment("@cursor review", sha)})
 ok2, reason2 = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
 assert not ok2 and reason2 == "skipped_duplicate_marker"
-assert sum(1 for c in comments if "cursor review" in c["body"].lower()) == 1
+assert sum(1 for c in comments if c["body"].startswith("@cursor review")) == 1
+# Invalid historical bare trigger must not count as genuine
+assert sum(1 for c in comments if "cursor review" in c["body"] and not c["body"].lstrip().startswith("@")) == 0
 # Document honesty: cross-run serialization is Actions concurrency; this proves
 # the second serialized evaluator's comment-reread idempotency only.
 print("sha concurrency + serialized idempotency ok")

@@ -54,7 +54,7 @@ pass "Managed workflows match live copies (after consumer-name render)"
 
 grep -q 'Linktrend Review Ready' core/github/REVIEW-READY.md || fail "status context missing"
 grep -q 'LINKTREND_BUGBOT_REVIEW_COMMAND' "$PKG" || fail "bugbot command var"
-grep -q 'cursor review' "$PKG" || fail "default cursor review"
+grep -q '@cursor review' "$PKG" || fail "default @cursor review"
 pass "Readiness status + Bugbot command"
 
 if grep -nE 'push origin HEAD:(staging|main)' scripts/gitops/promote_*.sh "$STG" "$MAIN"; then

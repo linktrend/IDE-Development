@@ -107,7 +107,7 @@ A one-time administrator bootstrap merge may be used to land this PR into `devel
 2. Run `scripts/verify-ide-development.sh`.
 3. Set repo variables on IDE Development as needed:
    - `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (e.g. `Verify IDE Development`)
-   - `LINKTREND_BUGBOT_REVIEW_COMMAND` (default `cursor review` if unset)
+   - `LINKTREND_BUGBOT_REVIEW_COMMAND` (default `@cursor review` if unset)
    - `LINKTREND_STAGING_GATE_CHECKS` / `LINKTREND_RELEASE_GATE_CHECKS` if non-default
    - `LINKTREND_CI_WORKFLOW_NAME` (default `CI`) — used by repair observer / docs
    - `LINKTREND_BRANCH_POLICY_WORKFLOW_NAME` (default `Branch Source Policy`)
@@ -165,7 +165,7 @@ For each wired consumer:
 2. Set GitHub Actions repository variable `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (comma-separated).
 3. Map job names to gate ids in consumer docs or workflow comments (`fast-gate` / `staging-gate` / `release-gate` per `CI-GATE-CONTRACTS.md`).
 4. Optionally set `LINKTREND_STAGING_GATE_CHECKS` and `LINKTREND_RELEASE_GATE_CHECKS`.
-5. Optionally set `LINKTREND_BUGBOT_REVIEW_COMMAND` (exact default if unset: `cursor review`).
+5. Optionally set `LINKTREND_BUGBOT_REVIEW_COMMAND` (exact default if unset: `@cursor review`).
 6. Set `LINKTREND_CI_WORKFLOW_NAME` / `LINKTREND_BRANCH_POLICY_WORKFLOW_NAME` / `LINKTREND_BUGBOT_CHECK_NAME` when display names differ from IDE defaults.
 
 Example (IDE Development):

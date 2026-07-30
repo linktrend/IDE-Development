@@ -35,7 +35,7 @@ IDE Development itself uses the same managed workflows (it is in scope).
 |---|---|---|---|
 | Ship 05 | 05:00 | Lisa cron → Cursor ACP shipper | One repo at a time: **checkpoint** = commit + push on work branch → **STOP**. No PR. No Bugbot. |
 | Pull 07 | 07:00 | Lisa cron → Cursor ACP puller | Merge latest `origin/development` into unfinished work branches; **skip frozen reviewed SHAs**; unfinished rolls forward |
-| Review Packager | Tue & Fri **08:00** | GitHub (`0 0 * * 2,5` UTC) | **Discover:** ready commit-status tips → draft PRs only (no Bugbot, no serial CI wait). **Evaluate** (PR/check): readiness + fast-gate on exact head → ready → `cursor review` once |
+| Review Packager | Tue & Fri **08:00** | GitHub (`0 0 * * 2,5` UTC) | **Discover:** ready commit-status tips → draft PRs only (no Bugbot, no serial CI wait). **Evaluate** (PR/check): readiness + fast-gate on exact head → ready → `@cursor review` once |
 | Staging promote | Tue & Fri **10:00** | GitHub (`0 2 * * 2,5` UTC) | Promote only what is already safely in `development`. If not ready: **skip and report why**. Never force. |
 | Ship 16 | 16:00 | Lisa cron → Cursor ACP shipper | Same as Ship 05 (checkpoint only) |
 | Pull 18 | 18:00 | Lisa cron → Cursor ACP puller | Same as Pull 07 |
@@ -87,8 +87,9 @@ Bugbot mention-only: `docs/contracts/BUGBOT-MENTION-ONLY.md` (required before co
 ## Bugbot contract
 
 - Success check name remains exactly **`Cursor Bugbot`**.
-- Request command is **configurable**; safe default is exactly: `cursor review` (no `@` unless live testing proves this installation requires it).
+- Request command is **configurable**; authoritative default is exactly: `@cursor review` (with the `@`).
 - Idempotent hidden marker: `<!-- linktrend-bugbot-requested: <sha> -->`.
+- **Request accounting** (2-request limit): count only comments that contain an **executable** trigger (`@cursor review` or `bugbot run`) **and** the `<!-- linktrend-bugbot-requested: <sha> -->` marker. Bare historical `cursor review` + marker does **not** consume the limit.
 - A new functional commit invalidates the previous reviewed SHA and marker.
 - Normal maximum: one initial Bugbot request + one after a consolidated correction batch.
 
