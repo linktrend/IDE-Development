@@ -31,7 +31,16 @@ This PR updates **IDE Development only**. It does **not** edit consumer reposito
 - Apply development merge rulesets on consumers
 - Modify LiNKplatform / LiNKskills / LiNKbrain / LiNKsites / LiNKdeveloper / LiNKlibraries / LiNKautowork branches or workflows
 
-Consumer adoption is **staged** only after:
+Consumer adoption is **staged** only after these gates pass:
+
+1. **Corrected IDE managed workflows are valid on default branch (`main`)** (managed == live; expression-safe — no job-level `${{ env.* }}`).
+2. **GitHub App smoke** succeeds (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`).
+3. **Bugbot Manual Only + cost settings verified** (`docs/contracts/BUGBOT-MENTION-ONLY.md`, `docs/contracts/ACTIONS-COST-CONTROLS.md`).
+4. **Repair task contract valid** (`docs/contracts/REPAIR-DISPATCHER.md` + `scripts/gitops/repair_task.py`).
+5. **OpenClaw Lisa consumer follow-up passes** (ACP Repair Dispatcher + ship/pull clock — checklist in `LISA-OPENCLAW-FOLLOW-UP.md`; no edits in this PR).
+6. **Platform adoption checks** — Cursor / Codex / ChatGPT entrypoints present (`scripts/verify-platform-adoption.sh`).
+
+Also required before Stage 2+ wire:
 
 1. this change reaches IDE Development’s **default branch (`main`)** and first-adopter smoke passes, and
 2. **Bugbot mention-only** (`manualTriggerOnly`) is confirmed per repository (`docs/contracts/BUGBOT-MENTION-ONLY.md`).
@@ -98,10 +107,29 @@ A one-time administrator bootstrap merge may be used to land this PR into `devel
 2. Run `scripts/verify-ide-development.sh`.
 3. Set repo variables on IDE Development as needed:
    - `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (e.g. `Verify IDE Development`)
-   - `LINKTREND_BUGBOT_REVIEW_COMMAND` (default `cursor review` if unset)
+   - `LINKTREND_BUGBOT_REVIEW_COMMAND` (default `@cursor review` if unset)
    - `LINKTREND_STAGING_GATE_CHECKS` / `LINKTREND_RELEASE_GATE_CHECKS` if non-default
+   - `LINKTREND_CI_WORKFLOW_NAME` (default `CI`) — used by repair observer / docs
+   - `LINKTREND_BRANCH_POLICY_WORKFLOW_NAME` (default `Branch Source Policy`)
+   - `LINKTREND_BUGBOT_CHECK_NAME` (default `Cursor Bugbot`)
 4. Apply development merge ruleset: `./scripts/apply-development-merge-ruleset.sh`
 5. Smoke: functional commit → mark/commit review-ready → Packager `workflow_dispatch` → draft PR → fast-gate → ready + Bugbot (when funded) → Integrator.
+
+### Consumer check-name variables (`LINKTREND_*_CHECKS`)
+
+Managed workflows already read repository variables for named gate check display names.
+Consumers **must** set these so Integrator / Packager / promote / repair-observer match their `ci.yml` job names:
+
+| Variable | Purpose | IDE default |
+|---|---|---|
+| `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` | fast-gate comma-separated check names | `Verify IDE Development,Enforce allowed PR source branches` |
+| `LINKTREND_STAGING_GATE_CHECKS` | staging promote gate | `Verify IDE Development` |
+| `LINKTREND_RELEASE_GATE_CHECKS` | main promote gate | `Verify IDE Development` |
+| `LINKTREND_CI_WORKFLOW_NAME` | `workflow_run` / observer CI name | `CI` |
+| `LINKTREND_BRANCH_POLICY_WORKFLOW_NAME` | branch policy workflow display name | `Branch Source Policy` |
+| `LINKTREND_BUGBOT_CHECK_NAME` | Bugbot check run name | `Cursor Bugbot` |
+
+Note: `workflow_run.workflows` lists in YAML are **static** and must still be substituted when a consumer renames `CI` / `Branch Source Policy`.
 
 ### Stage 2 — Wire sync managed workflows
 
@@ -110,9 +138,13 @@ After Stage 1 smoke is green on IDE Development **default branch**:
 ```bash
 # Per consumer (from IDE Development repo root):
 ./scripts/wire-repo.sh /Users/linktrend/Projects/<ConsumerRepo>
-# or sync workflows only:
+# or sync pieces:
 ./scripts/sync-managed-workflows.sh /Users/linktrend/Projects/<ConsumerRepo>
+./scripts/sync-managed-runtime.sh /Users/linktrend/Projects/<ConsumerRepo>
+./scripts/sync-agents-managed-section.sh /Users/linktrend/Projects/<ConsumerRepo>
 ```
+
+`wire-repo.sh` also copies `cursor-gitops-bootstrap.mdc` into `.cursor/rules/` and upserts the AGENTS managed section.
 
 Follow consumer order 2–9. **Never overwrite** consumer `ci.yml`.
 
@@ -122,6 +154,7 @@ Verify each consumer:
 cmp core/github/managed-workflows/linktrend-review-packager.yml \
   /path/to/consumer/.github/workflows/linktrend-review-packager.yml
 # repeat for other managed files
+bash scripts/verify-platform-adoption.sh   # uses a temp consumer; does not wire real repos
 ```
 
 ### Stage 3 — `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` per repo
@@ -132,7 +165,8 @@ For each wired consumer:
 2. Set GitHub Actions repository variable `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (comma-separated).
 3. Map job names to gate ids in consumer docs or workflow comments (`fast-gate` / `staging-gate` / `release-gate` per `CI-GATE-CONTRACTS.md`).
 4. Optionally set `LINKTREND_STAGING_GATE_CHECKS` and `LINKTREND_RELEASE_GATE_CHECKS`.
-5. Optionally set `LINKTREND_BUGBOT_REVIEW_COMMAND` (exact default if unset: `cursor review`).
+5. Optionally set `LINKTREND_BUGBOT_REVIEW_COMMAND` (exact default if unset: `@cursor review`).
+6. Set `LINKTREND_CI_WORKFLOW_NAME` / `LINKTREND_BRANCH_POLICY_WORKFLOW_NAME` / `LINKTREND_BUGBOT_CHECK_NAME` when display names differ from IDE defaults.
 
 Example (IDE Development):
 
@@ -193,3 +227,26 @@ Record gaps in adoption notes; do not auto-fix consumers from GITOPS-01 PR.
 - `core/github/managed-workflows/README.md`
 - `core/checklists/BUGBOT-INHERITANCE.md`
 - `scripts/wire-repo.sh`, `scripts/sync-managed-workflows.sh`, `scripts/backfill-managed-workflows.sh`
+
+## Consumer workflow display names
+
+Managed workflows contain `__LINKTREND_*` placeholders. Install via `scripts/wire-repo.sh` or
+`scripts/sync-managed-workflows.sh`, which render names from the committed consumer config:
+
+`.github/linktrend-gitops-consumer.json`
+
+```json
+{
+  "schemaVersion": 1,
+  "ciWorkflowName": "Consumer CI",
+  "branchPolicyWorkflowName": "Branch Source Policy",
+  "bugbotCheckName": "Cursor Bugbot"
+}
+```
+
+Repository variables cannot change `workflow_run.workflows` — names must be rendered into static YAML.
+
+## Physical Cursor bootstrap
+
+`wire-repo.sh` installs a **physical** `.cursor/rules/cursor-gitops-bootstrap.mdc`.
+It does **not** symlink consumer `.cursor` to IDE Development (that breaks Cursor Cloud).

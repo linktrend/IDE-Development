@@ -29,7 +29,7 @@ Bootstrap new sessions with `/agentsetup`. Migrate already-open dirty/wrong-bran
 ```
 issue/* or dev/* or cursor/*  →  PR to development
   →  Bugbot reviews  →  Integrator merges when CI green + Bugbot pass
-development  →  staging   (Tue & Fri 08:00 Asia/Taipei, auto)
+development  →  staging   (Tue & Fri 10:00 Asia/Taipei, auto)
 staging      →  main      (Mon 08:00 package; Principal Approve ~08:30 via Lisa/Telegram)
 ```
 

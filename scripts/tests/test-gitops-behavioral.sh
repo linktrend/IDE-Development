@@ -23,6 +23,7 @@ make_repo() {
 seed_scripts() {
   local d="$1"
   mkdir -p "$d/scripts/gitops"
+  printf '%s\n' "__pycache__/" "*.py[cod]" >"$d/.gitignore"
   cp "$ROOT/scripts/mark-review-ready.sh" "$d/scripts/"
   cp "$ROOT/scripts/validate-review-ready.sh" "$d/scripts/"
   cp "$ROOT/scripts/clear-review-ready.sh" "$d/scripts/"
@@ -31,8 +32,26 @@ seed_scripts() {
   cp "$ROOT/scripts/gitops/"*.sh "$d/scripts/gitops/" 2>/dev/null || true
   cp "$ROOT/scripts/gitops/"*.py "$d/scripts/gitops/"
   chmod +x "$d/scripts/"*.sh "$d/scripts/gitops/"*.sh "$d/scripts/gitops/"*.py
-  git -C "$d" add scripts
+  git -C "$d" add .gitignore scripts
   git -C "$d" commit -q -m "chore: seed gitops scripts"
+}
+
+mark_ready_with_evidence() {
+  local issue_id="$1"
+  local notes="${2:-}"
+  local evidence_file="${TMP}/evidence-${issue_id}.json"
+
+  python3 scripts/gitops/completion_gate.py write-evidence \
+    --evidence-file "${evidence_file}" \
+    --classification tests \
+    --acceptance "behavioral fixture" \
+    --command "0|behavioral-fixture" >/dev/null
+
+  if [ -n "${notes}" ]; then
+    COMPLETION_EVIDENCE_FILE="${evidence_file}" bash scripts/mark-review-ready.sh "${issue_id}" "${notes}"
+  else
+    COMPLETION_EVIDENCE_FILE="${evidence_file}" bash scripts/mark-review-ready.sh "${issue_id}"
+  fi
 }
 
 TMP="$(mktemp -d)"
@@ -41,6 +60,7 @@ trap cleanup EXIT
 
 export LINKTREND_STATUS_BACKEND=file
 export LINKTREND_CONFLICT_BACKEND=file
+export LINKTREND_REPAIR_BACKEND=file
 
 # ============================================================================
 # 1) Readiness status on exact tip; later commit invalidates; no shared file
@@ -59,7 +79,7 @@ git checkout -q -b issue/A-one
 echo a >a.txt && git add a.txt && git commit -q -m "feat: a"
 SHA_A="$(git rev-parse HEAD)"
 # no origin — file backend allows mark
-bash scripts/mark-review-ready.sh A "notes-a" >/dev/null
+mark_ready_with_evidence A "notes-a" >/dev/null
 bash scripts/validate-review-ready.sh "$SHA_A" >/dev/null
 # concurrent other branch/repo must not create shared readiness file in tree
 [ ! -f .linktrend/review-ready.json ] || fail "must not write review-ready.json into feature tree"
@@ -73,7 +93,7 @@ pushd "$R2" >/dev/null
 git checkout -q -b issue/B-two
 echo b >b.txt && git add b.txt && git commit -q -m "feat: b"
 SHA_B="$(git rev-parse HEAD)"
-bash scripts/mark-review-ready.sh B >/dev/null
+mark_ready_with_evidence B >/dev/null
 bash scripts/validate-review-ready.sh "$SHA_B" >/dev/null
 [ ! -f .linktrend/review-ready.json ] || fail "branch B must not have readiness file"
 popd >/dev/null
@@ -89,23 +109,65 @@ python3 - "$ROOT" <<'PY'
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
-from packager_logic import should_request_bugbot, build_bugbot_comment, marker_for, fast_gate_status
+from packager_logic import (
+    should_request_bugbot,
+    build_bugbot_comment,
+    marker_for,
+    fast_gate_status,
+    count_bugbot_requests,
+    DEFAULT_BUGBOT_COMMAND,
+)
 
+assert DEFAULT_BUGBOT_COMMAND == "@cursor review"
 sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 ok, reason = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=False)
 assert not ok and reason == "fast_gate_not_green"
 ok, reason = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=True)
 assert ok and reason == "request"
-comments = [{"body": build_bugbot_comment("cursor review", sha)}]
+
+# Generated comment is exactly @cursor review + exact-SHA hidden marker
+body = build_bugbot_comment(DEFAULT_BUGBOT_COMMAND, sha)
+assert body.startswith("@cursor review\n\n")
+assert marker_for(sha) in body
+assert body == f"@cursor review\n\n{marker_for(sha)}\n"
+
+# Genuine request + marker → same-SHA idempotent
+comments = [{"body": body}]
 ok, reason = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
 assert not ok and reason == "skipped_duplicate_marker"
-# max 2
-c2 = [
+
+# Historical invalid "cursor review" + marker does NOT consume the limit
+hist = [
   {"body": "cursor review\n\n" + marker_for("1111111111111111111111111111111111111111")},
   {"body": "cursor review\n\n" + marker_for("2222222222222222222222222222222222222222")},
 ]
+assert count_bugbot_requests(hist) == 0
+ok, reason = should_request_bugbot(comments=hist, head_sha=sha, fast_gate_ok=True)
+assert ok and reason == "request"
+
+# @cursor review + marker counts
+c_at = [{"body": "@cursor review\n\n" + marker_for("1111111111111111111111111111111111111111")}]
+assert count_bugbot_requests(c_at) == 1
+
+# bugbot run + marker counts
+c_run = [{"body": "bugbot run\n\n" + marker_for("2222222222222222222222222222222222222222")}]
+assert count_bugbot_requests(c_run) == 1
+
+# Two genuine requests block a third
+c2 = [
+  {"body": "@cursor review\n\n" + marker_for("1111111111111111111111111111111111111111")},
+  {"body": "bugbot run\n\n" + marker_for("2222222222222222222222222222222222222222")},
+]
+assert count_bugbot_requests(c2) == 2
 ok, reason = should_request_bugbot(comments=c2, head_sha=sha, fast_gate_ok=True)
 assert not ok and reason == "skipped_max_requests"
+
+# Invalid history + one genuine still allows another genuine for a new SHA
+mixed = hist + c_at
+assert count_bugbot_requests(mixed) == 1
+ok, reason = should_request_bugbot(comments=mixed, head_sha=sha, fast_gate_ok=True)
+assert ok and reason == "request"
+
 st,_=fast_gate_status([],["Verify IDE Development"]); assert st=="missing"
 st,_=fast_gate_status([{"name":"Verify IDE Development","state":"FAILURE","completedAt":"t"}],["Verify IDE Development"]); assert st=="failed"
 print("packager policy ok")
@@ -179,6 +241,7 @@ pass "promotion reevaluate does not rebuild; head stable across events"
 # 4) Durable conflict attempts across runs; stop at 3
 # ============================================================================
 export LINKTREND_CONFLICT_DIR="$TMP/conflicts"
+export LINKTREND_REPAIR_DIR="$LINKTREND_CONFLICT_DIR"
 mkdir -p "$LINKTREND_CONFLICT_DIR"
 python3 "$ROOT/scripts/gitops/conflict_task.py" upsert --repo r --stage staging \
   --source-branch development --target-branch staging --source-sha aaa --target-sha bbb \
@@ -195,7 +258,7 @@ python3 "$ROOT/scripts/gitops/conflict_task.py" upsert --repo r --stage staging 
 [ "$(python3 -c 'import json;print(json.load(open("'"$TMP"'/c3.json"))["status"])')" = "Issues" ]
 # persists on disk across process
 python3 "$ROOT/scripts/gitops/conflict_task.py" show --repo r --id "$ID" | grep -q Issues
-grep -q -- '--increment-attempt' "$ROOT/scripts/gitops/promote_staging.sh"
+grep -q -- '--failure-type promotion_conflict' "$ROOT/scripts/gitops/promote_staging.sh"
 pass "durable conflict attempts persist and stop at three"
 
 # ============================================================================
@@ -224,7 +287,7 @@ git -C "$PULL" checkout -q -b issue/frozen issue/unfinished
 echo f >"$PULL/f.txt" && git -C "$PULL" add f.txt && git -C "$PULL" commit -q -m "frozen feat"
 FR="$(git -C "$PULL" rev-parse HEAD)"
 pushd "$PULL" >/dev/null
-bash scripts/mark-review-ready.sh frozen >/dev/null
+mark_ready_with_evidence frozen >/dev/null
 # Caller stays on development (not on unfinished)
 git checkout -q development
 BEFORE_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
@@ -394,6 +457,8 @@ assert "stale event" in stg
 assert "marker candidateHead" in stg
 assert "EXPECTED_MAIN_SHA" in main
 assert "target advanced" in main or "expected main target" in main
+assert "main_approve_package_reuse.py" in main
+assert "requires repackage" in main or "valid for reuse" in main
 # development tip advance must not rebuild an existing exact candidate
 assert "already exists for this exact source/target" in stg or "sourceSha" in stg
 wf = (root / "core/github/managed-workflows/linktrend-development-to-staging.yml").read_text()
@@ -448,7 +513,7 @@ assert st2 == "success"
 ok2, reason2 = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=True)
 assert ok2 and reason2 == "request"
 # Exactly one request
-comments = [{"body": build_bugbot_comment("cursor review", sha)}]
+comments = [{"body": build_bugbot_comment("@cursor review", sha)}]
 ok3, reason3 = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
 assert not ok3 and reason3 == "skipped_duplicate_marker"
 
@@ -458,8 +523,8 @@ for rel in (
     "core/github/managed-workflows/linktrend-integrator-merge.yml",
 ):
     text = Path(sys.argv[1], rel).read_text()
-    assert "Branch Source Policy" in text
-    assert "- CI" in text or "CI" in text
+    assert "Branch Source Policy" in text or "__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__" in text
+    assert "- CI" in text or "__LINKTREND_CI_WORKFLOW_NAME__" in text
     # Must not claim dynamic workflow_run names via vars
     assert "vars.LINKTREND_WORKFLOW_RUN" not in text
 print("wake+bugbot dual-gate scenarios ok")
@@ -659,10 +724,12 @@ assert "cancel-in-progress: false" in (root / "core/github/managed-workflows/lin
 comments = []
 ok, reason = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
 assert ok and reason == "request"
-comments.append({"body": build_bugbot_comment("cursor review", sha)})
+comments.append({"body": build_bugbot_comment("@cursor review", sha)})
 ok2, reason2 = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
 assert not ok2 and reason2 == "skipped_duplicate_marker"
-assert sum(1 for c in comments if "cursor review" in c["body"].lower()) == 1
+assert sum(1 for c in comments if c["body"].startswith("@cursor review")) == 1
+# Invalid historical bare trigger must not count as genuine
+assert sum(1 for c in comments if "cursor review" in c["body"] and not c["body"].lstrip().startswith("@")) == 0
 # Document honesty: cross-run serialization is Actions concurrency; this proves
 # the second serialized evaluator's comment-reread idempotency only.
 print("sha concurrency + serialized idempotency ok")
@@ -778,14 +845,832 @@ for name in (
   "linktrend-development-to-staging.yml",
   "linktrend-staging-to-main.yml",
 ):
-    a = (Path(sys.argv[1]) / "core/github/managed-workflows" / name).read_bytes()
-    b = (Path(sys.argv[1]) / ".github/workflows" / name).read_bytes()
-    assert a == b, name
+    managed = (Path(sys.argv[1]) / "core/github/managed-workflows" / name).read_text()
+    live = (Path(sys.argv[1]) / ".github/workflows" / name).read_text()
+    rendered = managed.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
+    rendered = rendered.replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
+    rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+    assert rendered == live, name
 
 print("resolver matrix rows", len(rows))
 print("resolver matrix ok")
 PY
 pass "actual resolver event matrix (incl. empty PR arrays)"
+
+# ============================================================================
+# 18) Repair observer lifecycle: failure → dispatch → current-head success resolve;
+#     stale success ignored; neutral Bugbot usage_limit; workflow permissions
+# ============================================================================
+python3 - "$ROOT" "$TMP" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+tmp = Path(sys.argv[2])
+sys.path.insert(0, str(root / "scripts" / "gitops"))
+import repair_observer
+import repair_task
+
+repo = "owner/repo"
+repair_dir = tmp / "observer-repair"
+os.environ["LINKTREND_REPAIR_BACKEND"] = "file"
+os.environ["LINKTREND_REPAIR_DIR"] = str(repair_dir)
+os.environ.pop("LINKTREND_CONSUMER_GITOPS_CONFIG", None)
+# PR CI sets GITHUB_EVENT_NAME=pull_request. Synthetic fixtures are workflow_run /
+# check_run. Tests must control event identity explicitly and must not inherit
+# ambient Actions event names (that produced unsupported_event on PR #24 CI).
+os.environ.pop("GITHUB_EVENT_NAME", None)
+
+current_pr_heads = {}
+current_branch_heads = {}
+repair_observer.current_pr_head = lambda repo, pr: current_pr_heads.get(str(pr), ("", ""))
+repair_observer.current_branch_head = lambda repo, branch: current_branch_heads.get(str(branch), "")
+repair_observer.lookup_pr_for_sha = lambda repo, sha: ("", "")
+
+def write_event(name, payload):
+    path = tmp / f"{name}.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return str(path)
+
+def handle_path(path, event_name):
+    """Hermetic: always pass explicit event identity (never ambient CI env)."""
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    return repair_observer.handle_event(payload, repo, event_name=event_name)
+
+def workflow_payload(conclusion, pr, branch, sha):
+    return {
+        "repository": {"full_name": repo},
+        "workflow_run": {
+            "name": "CI",
+            "conclusion": conclusion,
+            "head_sha": sha,
+            "head_branch": branch,
+            "pull_requests": [
+                {"number": pr, "head": {"ref": branch, "sha": sha}},
+            ],
+        },
+    }
+
+sha_ok = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+failure_path = write_event("workflow-failure", workflow_payload("failure", 23, "issue/ok", sha_ok))
+out = handle_path(failure_path, "workflow_run")
+assert out["action"] == "upserted", out
+fid = repair_task.failure_id(repo, "ci_failure", pr="23", workflow="CI", check="CI", branch="issue/ok")
+backend = repair_task.get_backend(repo)
+assert backend.dispatch_attempt(fid)["repairStatus"] == "dispatched"
+current_pr_heads["23"] = (sha_ok, "issue/ok")
+success_path = write_event("workflow-success", workflow_payload("success", 23, "issue/ok", sha_ok))
+out = handle_path(success_path, "workflow_run")
+assert out["action"] == "resolved", out
+assert backend.get(fid)["resolutionState"] == "resolved"
+
+sha_old = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+sha_new = "cccccccccccccccccccccccccccccccccccccccc"
+failure_path = write_event("workflow-stale-failure", workflow_payload("failure", 24, "issue/stale", sha_old))
+assert handle_path(failure_path, "workflow_run")["action"] == "upserted"
+stale_id = repair_task.failure_id(repo, "ci_failure", pr="24", workflow="CI", check="CI", branch="issue/stale")
+backend.dispatch_attempt(stale_id)
+current_pr_heads["24"] = (sha_new, "issue/stale")
+success_path = write_event("workflow-stale-success", workflow_payload("success", 24, "issue/stale", sha_old))
+out = handle_path(success_path, "workflow_run")
+assert out["action"] == "skip" and out["reason"] == "event_head_not_current_pr_head", out
+assert backend.get(stale_id)["resolutionState"] != "resolved"
+
+bugbot_sha = "dddddddddddddddddddddddddddddddddddddddd"
+usage_path = write_event(
+    "bugbot-neutral-usage",
+    {
+        "repository": {"full_name": repo},
+        "check_run": {
+            "name": "Cursor Bugbot",
+            "conclusion": "neutral",
+            "head_sha": bugbot_sha,
+            "pull_requests": [{"number": 25, "head": {"ref": "issue/bugbot", "sha": bugbot_sha}}],
+            "output": {"title": "Usage limit", "summary": "Payment required: out of credits."},
+        },
+    },
+)
+out = handle_path(usage_path, "check_run")
+assert out["action"] == "upserted" and out["failureType"] == "usage_limit", out
+usage_id = repair_task.failure_id(repo, "usage_limit", pr="25", check="Cursor Bugbot", branch="issue/bugbot")
+assert backend.get(usage_id)["severity"] == "immediate"
+
+ordinary_path = write_event(
+    "bugbot-neutral-ordinary",
+    {
+        "repository": {"full_name": repo},
+        "check_run": {
+            "name": "Cursor Bugbot",
+            "conclusion": "neutral",
+            "head_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "pull_requests": [{"number": 26, "head": {"ref": "issue/skip"}}],
+            "output": {"title": "Skipped", "summary": "Review not requested."},
+        },
+    },
+)
+out = handle_path(ordinary_path, "check_run")
+assert out == {"action": "skip", "reason": "neutral_without_usage_limit"}, out
+ordinary_id = repair_task.failure_id(repo, "usage_limit", pr="26", check="Cursor Bugbot", branch="issue/skip")
+assert backend.get(ordinary_id) is None
+
+# Successful Bugbot on exact current head must also resolve matching open usage_limit
+usage_open_sha = "ffffffffffffffffffffffffffffffffffffffff"
+usage_again = write_event(
+    "bugbot-usage-open",
+    {
+        "repository": {"full_name": repo},
+        "check_run": {
+            "name": "Cursor Bugbot",
+            "conclusion": "neutral",
+            "head_sha": usage_open_sha,
+            "pull_requests": [{"number": 27, "head": {"ref": "issue/fund", "sha": usage_open_sha}}],
+            "output": {"title": "Usage limit", "summary": "out of credits / payment required"},
+        },
+    },
+)
+assert handle_path(usage_again, "check_run")["action"] == "upserted"
+usage_open_id = repair_task.failure_id(
+    repo, "usage_limit", pr="27", check="Cursor Bugbot", branch="issue/fund"
+)
+assert backend.get(usage_open_id)["resolutionState"] != "resolved"
+current_pr_heads["27"] = (usage_open_sha, "issue/fund")
+success_bugbot = write_event(
+    "bugbot-success-clears-usage",
+    {
+        "repository": {"full_name": repo},
+        "check_run": {
+            "name": "Cursor Bugbot",
+            "conclusion": "success",
+            "head_sha": usage_open_sha,
+            "pull_requests": [{"number": 27, "head": {"ref": "issue/fund", "sha": usage_open_sha}}],
+            "output": {"title": "OK", "summary": "review complete"},
+        },
+    },
+)
+out = handle_path(success_bugbot, "check_run")
+assert out["action"] == "resolved", out
+assert backend.get(usage_open_id)["resolutionState"] == "resolved"
+
+# Ambient PR-CI pollution: uncontrolled path still rejects; explicit path still works.
+# (Production validation must remain fail-closed for unsupported events.)
+os.environ["GITHUB_EVENT_NAME"] = "pull_request"
+poison_sha = "1212121212121212121212121212121212121212"
+poison_path = write_event("poison-ambient", workflow_payload("failure", 28, "issue/poison", poison_sha))
+poisoned = repair_observer.handle_event_path(poison_path, repo)
+assert poisoned == {
+    "action": "skip",
+    "reason": "unsupported_event",
+    "event": "pull_request",
+}, poisoned
+controlled = handle_path(poison_path, "workflow_run")
+assert controlled["action"] == "upserted", controlled
+os.environ.pop("GITHUB_EVENT_NAME", None)
+print("repair observer lifecycle ok")
+PY
+pass "repair observer resolves current-head successes, skips stale, handles/clears Bugbot usage_limit"
+
+# Regression: surrounding process has GITHUB_EVENT_NAME=pull_request (PR CI shape).
+GITHUB_EVENT_NAME=pull_request python3 - "$ROOT" "$TMP" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+tmp = Path(sys.argv[2]) / "ambient-pr-ci"
+tmp.mkdir(parents=True, exist_ok=True)
+sys.path.insert(0, str(root / "scripts" / "gitops"))
+import repair_observer
+import repair_task
+
+assert os.environ.get("GITHUB_EVENT_NAME") == "pull_request"
+repo = "owner/repo"
+os.environ["LINKTREND_REPAIR_BACKEND"] = "file"
+os.environ["LINKTREND_REPAIR_DIR"] = str(tmp / "repair")
+os.environ.pop("LINKTREND_CONSUMER_GITOPS_CONFIG", None)
+repair_observer.current_pr_head = lambda repo, pr: ("", "")
+repair_observer.current_branch_head = lambda repo, branch: ""
+repair_observer.lookup_pr_for_sha = lambda repo, sha: ("", "")
+
+sha = "3434343434343434343434343434343434343434"
+payload = {
+    "repository": {"full_name": repo},
+    "workflow_run": {
+        "name": "CI",
+        "conclusion": "failure",
+        "head_sha": sha,
+        "head_branch": "issue/ambient",
+        "pull_requests": [{"number": 29, "head": {"ref": "issue/ambient", "sha": sha}}],
+    },
+}
+path = tmp / "ambient-failure.json"
+path.write_text(json.dumps(payload), encoding="utf-8")
+# Uncontrolled inherits ambient pull_request → unsupported (production intact)
+poisoned = repair_observer.handle_event_path(str(path), repo)
+assert poisoned["reason"] == "unsupported_event" and poisoned["event"] == "pull_request", poisoned
+# Controlled explicit identity works despite ambient PR CI env
+ok = repair_observer.handle_event(payload, repo, event_name="workflow_run")
+assert ok["action"] == "upserted", ok
+print("ambient GITHUB_EVENT_NAME=pull_request hermetic ok")
+PY
+pass "repair observer hermetic under ambient GITHUB_EVENT_NAME=pull_request"
+
+python3 - "$ROOT" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+workflow_paths = list((root / ".github" / "workflows").glob("*.yml"))
+workflow_paths += list((root / "core" / "github" / "managed-workflows").glob("*.yml"))
+
+def job_blocks(path):
+    lines = path.read_text().splitlines()
+    in_jobs = False
+    current = None
+    block = []
+    for line in lines:
+        if re.match(r"^jobs:\s*$", line):
+            in_jobs = True
+            continue
+        if not in_jobs:
+            continue
+        m = re.match(r"^  ([A-Za-z0-9_-]+):\s*$", line)
+        if m:
+            if current:
+                yield current, "\n".join(block)
+            current = m.group(1)
+            block = [line]
+            continue
+        if current:
+            block.append(line)
+    if current:
+        yield current, "\n".join(block)
+
+def job_permissions(block):
+    lines = block.splitlines()
+    out = []
+    in_permissions = False
+    perm_indent = None
+    for line in lines:
+        m = re.match(r"^(\s*)permissions:\s*$", line)
+        if m:
+            in_permissions = True
+            perm_indent = len(m.group(1))
+            continue
+        if in_permissions:
+            if line.strip() == "":
+                continue
+            indent = len(line) - len(line.lstrip(" "))
+            if indent <= perm_indent:
+                break
+            out.append(line)
+    return "\n".join(out)
+
+failures = []
+for path in workflow_paths:
+    for job, block in job_blocks(path):
+        needs_issue_write = "repair_task.py upsert" in block or "repair_observer" in block
+        if not needs_issue_write:
+            continue
+        perms = job_permissions(block)
+        if not re.search(r"(?m)^\s+issues:\s*write\s*$", perms):
+            failures.append(f"{path.relative_to(root)}:{job}")
+if failures:
+    raise SystemExit("jobs missing issues: write: " + ", ".join(failures))
+
+observer = (root / "scripts" / "gitops" / "repair_observer.py").read_text()
+assert "repair_task.resolve_task(" in observer
+assert 'failure_type="ci_failure"' in observer
+assert "bugbot_failure" in observer and "usage_limit" in observer
+assert '("bugbot_failure", "usage_limit")' in observer or "('bugbot_failure', 'usage_limit')" in observer
+print("repair observer permissions + resolve caller proof ok")
+PY
+pass "repair observer/upsert jobs carry issues:write and production resolve caller exists"
+
+# ============================================================================
+# App-credential failure actually creates/updates a repair task (file backend)
+# ============================================================================
+CRED_REPAIR="$TMP/cred-repair"
+mkdir -p "$CRED_REPAIR"
+export LINKTREND_REPAIR_BACKEND=file
+export LINKTREND_REPAIR_DIR="$CRED_REPAIR"
+out="$(python3 "$ROOT/scripts/gitops/repair_task.py" upsert \
+  --repo owner/appcred \
+  --failure-type automation_credentials_blocked \
+  --severity immediate \
+  --workflow "Linktrend Review Packager" \
+  --next-action "Configure GitHub App credentials; do not auto-repair.")"
+printf '%s\n' "$out" | python3 -c 'import json,sys; t=json.load(sys.stdin); assert t["failureType"]=="automation_credentials_blocked"; assert t["severity"]=="immediate"; assert t["failureId"]'
+FID="$(printf '%s\n' "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin)["failureId"])')"
+# Idempotent update
+out2="$(python3 "$ROOT/scripts/gitops/repair_task.py" upsert \
+  --repo owner/appcred \
+  --failure-type automation_credentials_blocked \
+  --severity immediate \
+  --workflow "Linktrend Review Packager" \
+  --next-action "Configure GitHub App credentials; do not auto-repair.")"
+FID2="$(printf '%s\n' "$out2" | python3 -c 'import json,sys; print(json.load(sys.stdin)["failureId"])')"
+[ "$FID" = "$FID2" ] || fail "credential repair identity drifted: $FID vs $FID2"
+# Workflows must not mask credential upsert with || true
+for wf in \
+  .github/workflows/linktrend-review-packager.yml \
+  .github/workflows/linktrend-integrator-merge.yml \
+  .github/workflows/linktrend-development-to-staging.yml \
+  .github/workflows/linktrend-staging-to-main.yml; do
+  python3 - "$wf" <<'PY'
+from pathlib import Path
+import re, sys
+text = Path(sys.argv[1]).read_text()
+# Find automation_credentials_blocked upsert blocks; ensure no || true on same logical command
+for m in re.finditer(r"repair_task\.py upsert[\s\S]{0,400}?automation_credentials_blocked[\s\S]{0,200}", text):
+    chunk = m.group(0)
+    if "|| true" in chunk:
+        raise SystemExit(f"credential upsert masked with || true in {sys.argv[1]}")
+print("ok", sys.argv[1])
+PY
+done
+pass "App-credential failure creates/updates repair task; upserts not masked"
+
+# ============================================================================
+# Main Approve store: gates, freshness, trust, expiry, Lisa schema, reuse
+# ============================================================================
+python3 - "$ROOT" <<'PY'
+import json, re, subprocess, sys, tempfile
+from pathlib import Path
+
+root = Path(sys.argv[1])
+disc = root / "scripts/gitops/main_approve_package_discover.py"
+reuse = root / "scripts/gitops/main_approve_package_reuse.py"
+schema = json.loads((root / "docs/contracts/fixtures/lisa-main-approve-package.schema.json").read_text())
+
+SRC = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+MAIN = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+HEAD = "cccccccccccccccccccccccccccccccccccccccc"
+BRANCH = "promote/main/aaaaaaaaaaaa"
+BODY = f"""## pkg
+<!-- linktrend-promote: {{"schemaVersion":1,"stage":"main","sourceBranch":"staging","targetBranch":"main","sourceSha":"{SRC}","targetSha":"{MAIN}","candidateHead":"{HEAD}","promoteBranch":"{BRANCH}"}} -->
+"""
+
+def run(args, checks=None, body=BODY, extra=None):
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        bf = td / "body.md"
+        bf.write_text(body, encoding="utf-8")
+        cmd = [
+            sys.executable, str(disc),
+            "--from-body-file", str(bf),
+            "--repository", "linktrend/IDE-Development",
+            "--pr-number", "42",
+            "--head-sha", HEAD,
+            "--head-branch", BRANCH,
+            "--staging-tip", SRC,
+            "--main-tip", MAIN,
+            "--now", "2026-08-03T10:00:00+08:00",
+            "--release-gate-checks",
+            "Verify IDE Development,Enforce allowed PR source branches",
+        ]
+        if checks is not None:
+            cf = td / "checks.json"
+            cf.write_text(json.dumps(checks), encoding="utf-8")
+            cmd += ["--checks-json", str(cf)]
+        if extra:
+            cmd += extra
+        p = subprocess.run(cmd, capture_output=True, text=True)
+        out = p.stdout.strip() or p.stderr.strip()
+        try:
+            data = json.loads(p.stdout)
+        except Exception:
+            data = {"_raw": out, "_err": p.stderr}
+        return p.returncode, data
+
+ok_checks = [
+    {"name": "Verify IDE Development", "state": "SUCCESS"},
+    {"name": "Enforce allowed PR source branches", "state": "SUCCESS"},
+]
+
+# all gates successful
+rc, d = run([], checks=ok_checks)
+assert rc == 0 and d["itemCount"] == 1 and d["items"][0]["gateResult"] == "Clear", d
+assert "Unknown" not in {i.get("gateResult") for i in d["items"]}
+pkg = d["package"]
+assert set(schema["required"]) <= set(pkg.keys())
+lit = pkg["items"][0]
+assert set(schema["properties"]["items"]["items"]["required"]) <= set(lit.keys())
+assert lit["gateResult"] in ("Clear", "Issues")
+assert re.search(r"\b[0-9a-f]{7,40}\b", lit["plainDescription"], re.I) is None
+
+# missing gate
+rc, d = run([], checks=[{"name": "Verify IDE Development", "state": "SUCCESS"}])
+assert rc == 0 and d["items"][0]["gateResult"] == "Issues", d
+assert d["items"][0]["gateEvidence"]["status"] == "missing"
+
+# pending gate
+rc, d = run([], checks=[
+    {"name": "Verify IDE Development", "state": "SUCCESS"},
+    {"name": "Enforce allowed PR source branches", "state": "PENDING"},
+])
+assert d["items"][0]["gateResult"] == "Issues" and d["items"][0]["gateEvidence"]["status"] == "pending"
+
+# failed gate
+rc, d = run([], checks=[
+    {"name": "Verify IDE Development", "state": "FAILURE"},
+    {"name": "Enforce allowed PR source branches", "state": "SUCCESS"},
+])
+assert d["items"][0]["gateResult"] == "Issues" and d["items"][0]["gateEvidence"]["status"] == "failed"
+
+# staging drift
+rc, d = run([], checks=ok_checks, extra=["--staging-tip", "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"])
+assert rc != 0 and d["itemCount"] == 0
+assert any(r.get("reason") == "staging_tip_drift" for r in d["rejected"]), d
+
+# main drift
+rc, d = run([], checks=ok_checks, extra=["--main-tip", "ffffffffffffffffffffffffffffffffffffffff"])
+assert rc != 0 and any(r.get("reason") == "main_tip_drift" for r in d["rejected"]), d
+
+# candidate-head drift
+rc, d = run([], checks=ok_checks, extra=["--head-sha", "dddddddddddddddddddddddddddddddddddddddd"])
+assert rc != 0 and any(r.get("reason") == "candidate_head_drift" for r in d["rejected"]), d
+
+# fork / cross-repo
+rc, d = run([], checks=ok_checks, extra=["--is-cross-repository"])
+assert rc != 0 and any(r.get("reason") == "cross_repository_head" for r in d["rejected"]), d
+rc, d = run([], checks=ok_checks, extra=["--head-repository", "evil/fork"])
+assert rc != 0 and any(r.get("reason") == "head_repository_mismatch" for r in d["rejected"]), d
+
+# invalid / short / non-hex SHA
+bad_body = BODY.replace(SRC, "not-a-sha")
+rc, d = run([], checks=ok_checks, body=bad_body)
+assert rc != 0 and any("sha_invalid" in str(r.get("reason")) for r in d["rejected"]), d
+short_body = BODY.replace(SRC, "aaaaaaaaaaaa")
+# short breaks JSON length in marker — use 39 hex
+short = "a" * 39
+short_body = f"""<!-- linktrend-promote: {{"schemaVersion":1,"stage":"main","sourceBranch":"staging","targetBranch":"main","sourceSha":"{short}","targetSha":"{MAIN}","candidateHead":"{HEAD}","promoteBranch":"promote/main/aaaaaaaaaaaa"}} -->"""
+rc, d = run([], checks=ok_checks, body=short_body)
+assert rc != 0 and any(r.get("reason") == "marker_source_sha_invalid" for r in d["rejected"]), d
+
+# wrong stage / source / base / branch
+for field, val, reason in [
+    ("stage", "staging", "marker_stage_not_main"),
+    ("sourceBranch", "development", "marker_source_branch_not_staging"),
+    ("targetBranch", "staging", "marker_target_branch_not_main"),
+]:
+    body = BODY.replace(f'"{field}":"main"' if field != "sourceBranch" else '"sourceBranch":"staging"',
+                        f'"{field}":"{val}"' if field != "sourceBranch" else f'"sourceBranch":"{val}"')
+    if field == "stage":
+        body = BODY.replace('"stage":"main"', '"stage":"staging"')
+    elif field == "sourceBranch":
+        body = BODY.replace('"sourceBranch":"staging"', '"sourceBranch":"development"')
+    elif field == "targetBranch":
+        body = BODY.replace('"targetBranch":"main"', '"targetBranch":"staging"')
+    rc, d = run([], checks=ok_checks, body=body)
+    assert any(r.get("reason") == reason for r in d["rejected"]), (field, d)
+
+rc, d = run([], checks=ok_checks, extra=["--base-ref", "staging"])
+assert any(r.get("reason") == "base_not_main" for r in d["rejected"]), d
+rc, d = run([], checks=ok_checks, extra=["--head-branch", "promote/main/bbbbbbbbbbbb"])
+assert rc != 0, d
+
+# duplicate packages
+body2 = BODY.replace(HEAD, "dddddddddddddddddddddddddddddddddddddddd").replace(
+    '"candidateHead":"cccccccccccccccccccccccccccccccccccccccc"',
+    '"candidateHead":"dddddddddddddddddddddddddddddddddddddddd"',
+)
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    b1, b2 = td / "b1.md", td / "b2.md"
+    b1.write_text(BODY, encoding="utf-8")
+    b2.write_text(body2, encoding="utf-8")
+    cf = td / "c.json"
+    cf.write_text(json.dumps(ok_checks), encoding="utf-8")
+    p = subprocess.run([
+        sys.executable, str(disc),
+        "--from-body-file", str(b1),
+        "--second-body-file", str(b2),
+        "--second-pr-number", "43",
+        "--second-head-sha", "dddddddddddddddddddddddddddddddddddddddd",
+        "--repository", "linktrend/IDE-Development",
+        "--pr-number", "42",
+        "--head-sha", HEAD,
+        "--head-branch", BRANCH,
+        "--staging-tip", SRC,
+        "--main-tip", MAIN,
+        "--checks-json", str(cf),
+        "--now", "2026-08-03T10:00:00+08:00",
+        "--release-gate-checks",
+        "Verify IDE Development,Enforce allowed PR source branches",
+    ], capture_output=True, text=True)
+    d = json.loads(p.stdout)
+    assert d["itemCount"] == 0, d
+    assert any(r.get("reason") == "ambiguous_duplicate_packages" for r in d["rejected"]), d
+
+# expired package
+rc, d = run([], checks=ok_checks, extra=["--now", "2026-08-04T00:00:01+08:00"])
+assert d["package"]["expired"] is True and d["itemCount"] == 0, d
+assert any(r.get("reason") == "package_expired" for r in d["rejected"]), d
+assert rc == 3
+
+# valid same-repository package already covered by Clear case
+
+# invalid existing-package reuse (source/target match but head drift)
+prs = [{
+    "number": 7,
+    "body": BODY,
+    "headRefName": BRANCH,
+    "headRefOid": "dddddddddddddddddddddddddddddddddddddddd",
+    "baseRefName": "main",
+    "state": "OPEN",
+    "isCrossRepository": False,
+    "headRepositoryNameWithOwner": "linktrend/IDE-Development",
+}]
+p = subprocess.run([
+    sys.executable, str(reuse),
+    "--expected-source", SRC,
+    "--expected-target", MAIN,
+    "--expected-branch", BRANCH,
+    "--repository", "linktrend/IDE-Development",
+], input=json.dumps(prs), capture_output=True, text=True)
+assert p.returncode == 0, p.stderr
+out = json.loads(p.stdout)
+assert out["action"] == "repackage" and out["reason"] == "candidate_head_drift", out
+
+# valid reuse
+prs[0]["headRefOid"] = HEAD
+p = subprocess.run([
+    sys.executable, str(reuse),
+    "--expected-source", SRC,
+    "--expected-target", MAIN,
+    "--expected-branch", BRANCH,
+    "--repository", "linktrend/IDE-Development",
+], input=json.dumps(prs), capture_output=True, text=True)
+out = json.loads(p.stdout)
+assert out == {"action": "reuse", "pr": 7}, out
+
+# promote_main wires reuse validator
+main_sh = (root / "scripts/gitops/promote_main.sh").read_text()
+assert "main_approve_package_reuse.py" in main_sh
+assert "requires repackage" in main_sh
+assert "Verify IDE Development,Enforce allowed PR source branches" in main_sh
+
+print("main approve store behavioral ok")
+PY
+pass "Main Approve store gates/freshness/trust/expiry/schema/reuse"
+
+# ============================================================================
+# Main Approve: live gh subprocess path (fake gh) — checks exit codes,
+# final reread gate refresh, release-gate variable fail-closed
+# ============================================================================
+python3 - "$ROOT" <<'PY'
+import json, os, stat, subprocess, sys, tempfile
+from pathlib import Path
+
+root = Path(sys.argv[1])
+disc = root / "scripts/gitops/main_approve_package_discover.py"
+SRC = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+MAIN = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+HEAD = "cccccccccccccccccccccccccccccccccccccccc"
+BRANCH = "promote/main/aaaaaaaaaaaa"
+REPO = "linktrend/IDE-Development"
+BODY = (
+    "## pkg\n"
+    f'<!-- linktrend-promote: {{"schemaVersion":1,"stage":"main","sourceBranch":"staging",'
+    f'"targetBranch":"main","sourceSha":"{SRC}","targetSha":"{MAIN}",'
+    f'"candidateHead":"{HEAD}","promoteBranch":"{BRANCH}"}} -->\n'
+)
+PR = {
+    "number": 42,
+    "title": "promote",
+    "body": BODY,
+    "headRefName": BRANCH,
+    "headRefOid": HEAD,
+    "baseRefName": "main",
+    "state": "OPEN",
+    "isCrossRepository": False,
+    "headRepository": {"nameWithOwner": REPO},
+    "url": "https://example.invalid/pr/42",
+    "createdAt": "2026-08-03T01:00:00Z",
+}
+
+def write_fake_gh(td: Path) -> Path:
+    script = td / "gh"
+    script.write_text(
+        r'''#!/usr/bin/env bash
+set -euo pipefail
+LOG="${FAKE_GH_LOG:-/dev/null}"
+printf '%s\n' "$*" >>"$LOG"
+ARGS=("$@")
+
+ok_checks='[{"name":"Verify IDE Development","state":"SUCCESS"},{"name":"Enforce allowed PR source branches","state":"SUCCESS"}]'
+pending_checks='[{"name":"Verify IDE Development","state":"SUCCESS"},{"name":"Enforce allowed PR source branches","state":"PENDING"}]'
+failed_checks='[{"name":"Verify IDE Development","state":"FAILURE"},{"name":"Enforce allowed PR source branches","state":"SUCCESS"}]'
+
+if [[ "${1:-}" == "pr" && "${2:-}" == "checks" ]]; then
+  COUNT_FILE="${FAKE_GH_CHECKS_COUNT:-}"
+  if [[ -n "$COUNT_FILE" ]]; then
+    n=0
+    [[ -f "$COUNT_FILE" ]] && n=$(cat "$COUNT_FILE")
+    n=$((n + 1))
+    echo "$n" >"$COUNT_FILE"
+  else
+    n=1
+  fi
+  mode="${FAKE_GH_CHECKS_MODE:-success}"
+  if [[ "$mode" == "reread_pending" ]]; then
+    if [[ "$n" -eq 1 ]]; then
+      printf '%s\n' "$ok_checks"
+      exit 0
+    fi
+    printf '%s\n' "$pending_checks"
+    exit 8
+  fi
+  case "$mode" in
+    success) printf '%s\n' "$ok_checks"; exit 0 ;;
+    pending) printf '%s\n' "$pending_checks"; exit 8 ;;
+    failed) printf '%s\n' "$failed_checks"; exit 1 ;;
+    auth)
+      echo "gh: HTTP 401: Bad credentials (https://api.github.com/repos/x/y/commits/abc/status)" >&2
+      exit 1
+      ;;
+    badjson) printf '%s\n' "not-json"; exit 8 ;;
+    *) echo "unknown checks mode" >&2; exit 99 ;;
+  esac
+fi
+
+if [[ "${1:-}" == "pr" && "${2:-}" == "list" ]]; then
+  cat <<'JSON'
+__PR_LIST_JSON__
+JSON
+  exit 0
+fi
+
+if [[ "${1:-}" == "pr" && "${2:-}" == "view" ]]; then
+  cat <<'JSON'
+__PR_VIEW_JSON__
+JSON
+  exit 0
+fi
+
+if [[ "${1:-}" == "api" ]]; then
+  path="${2:-}"
+  if [[ "$path" == *"/actions/variables/LINKTREND_RELEASE_GATE_CHECKS"* ]]; then
+    case "${FAKE_GH_VAR_MODE:-absent}" in
+      absent)
+        echo '{"message":"Not Found","documentation_url":"https://docs.github.com"}' >&2
+        exit 1
+        ;;
+      empty)
+        printf '\n'
+        exit 0
+        ;;
+      value)
+        printf '%s\n' "Verify IDE Development,Enforce allowed PR source branches"
+        exit 0
+        ;;
+      auth)
+        echo "gh: HTTP 401: Bad credentials" >&2
+        exit 1
+        ;;
+      ratelimit)
+        echo "gh: HTTP 429: API rate limit exceeded" >&2
+        exit 1
+        ;;
+      *)
+        echo "gh: HTTP 500: boom" >&2
+        exit 1
+        ;;
+    esac
+  fi
+  if [[ "$path" == *"/git/ref/heads/staging"* ]]; then
+    printf '%s\n' "__SRC__"
+    exit 0
+  fi
+  if [[ "$path" == *"/git/ref/heads/main"* ]]; then
+    printf '%s\n' "__MAIN__"
+    exit 0
+  fi
+fi
+
+echo "unexpected gh $*" >&2
+exit 90
+'''.replace("__PR_LIST_JSON__", json.dumps([PR]))
+        .replace("__PR_VIEW_JSON__", json.dumps(PR))
+        .replace("__SRC__", SRC)
+        .replace("__MAIN__", MAIN),
+        encoding="utf-8",
+    )
+    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    return script
+
+
+def run_live(*, checks_mode: str, var_mode: str = "absent", extra_env=None):
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        write_fake_gh(td)
+        env = os.environ.copy()
+        for k in (
+            "LINKTREND_RELEASE_GATE_CHECKS",
+            "RELEASE_GATE_CHECKS",
+            "GH_TOKEN",
+            "GITHUB_TOKEN",
+        ):
+            env.pop(k, None)
+        env["PATH"] = f"{td}:{env.get('PATH', '')}"
+        env["FAKE_GH_CHECKS_MODE"] = checks_mode
+        env["FAKE_GH_VAR_MODE"] = var_mode
+        env["FAKE_GH_LOG"] = str(td / "gh.log")
+        env["FAKE_GH_CHECKS_COUNT"] = str(td / "checks.count")
+        if extra_env:
+            env.update(extra_env)
+        p = subprocess.run(
+            [
+                sys.executable,
+                str(disc),
+                "--repo",
+                REPO,
+                "--staging-tip",
+                SRC,
+                "--main-tip",
+                MAIN,
+                "--now",
+                "2026-08-03T10:00:00+08:00",
+                "--created-at",
+                "2026-08-03T02:05:00Z",
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        try:
+            data = json.loads(p.stdout)
+        except Exception:
+            data = {"_raw": p.stdout, "_err": p.stderr}
+        log = (td / "gh.log").read_text(encoding="utf-8") if (td / "gh.log").exists() else ""
+        return p.returncode, data, log
+
+
+# exit 8 + pending JSON → usable Issues item
+rc, d, log = run_live(checks_mode="pending")
+assert rc == 0, (rc, d, log)
+assert d.get("itemCount") == 1 and d["items"][0]["gateResult"] == "Issues", d
+assert d["items"][0]["gateEvidence"]["status"] == "pending", d
+assert "pr checks" in log
+
+# failed-check nonzero + valid JSON → Issues
+rc, d, log = run_live(checks_mode="failed")
+assert rc == 0 and d["items"][0]["gateResult"] == "Issues", d
+assert d["items"][0]["gateEvidence"]["status"] == "failed", d
+
+# exit 0 + success → Clear
+rc, d, log = run_live(checks_mode="success")
+assert rc == 0 and d["items"][0]["gateResult"] == "Clear", d
+assert d["package"]["createdAt"] == "2026-08-03T02:05:00Z", d["package"]
+assert any("discovery/seal" in n for n in d.get("notes", [])), d.get("notes")
+
+# auth failure → fail closed (no usable item; gate_query_failed)
+rc, d, log = run_live(checks_mode="auth")
+assert d.get("itemCount", 0) == 0, d
+assert any(
+    r.get("reason") in {"gate_query_failed", "gate_query_failed_on_reread"}
+    for r in d.get("rejected", [])
+), d
+
+# invalid JSON → fail closed
+rc, d, log = run_live(checks_mode="badjson")
+assert d.get("itemCount", 0) == 0, d
+assert any("gate_query_failed" in str(r.get("reason")) for r in d.get("rejected", [])), d
+
+# final reread: first Clear, second pending → sealed Issues
+rc, d, log = run_live(checks_mode="reread_pending")
+assert rc == 0 and d["itemCount"] == 1, d
+assert d["items"][0]["gateResult"] == "Issues", d
+assert d["items"][0]["gateEvidence"]["status"] == "pending", d
+assert log.count("pr checks") >= 2, log
+
+# absent variable → defaults (success path)
+rc, d, log = run_live(checks_mode="success", var_mode="absent")
+assert rc == 0 and d["items"][0]["gateResult"] == "Clear", d
+assert "LINKTREND_RELEASE_GATE_CHECKS" in log
+
+# empty variable → defaults
+rc, d, log = run_live(checks_mode="success", var_mode="empty")
+assert rc == 0 and d["itemCount"] == 1, d
+
+# auth on variable query → discovery fail closed (available false)
+rc, d, log = run_live(checks_mode="success", var_mode="auth")
+assert rc == 1 and d.get("available") is False, d
+assert "release_gate_config_failed" in str(d.get("error")), d
+assert d.get("itemCount") == 0
+
+# rate-limit on variable → fail closed
+rc, d, log = run_live(checks_mode="success", var_mode="ratelimit")
+assert rc == 1 and d.get("available") is False, d
+assert "release_gate_config_failed" in str(d.get("error")), d
+
+print("live gh subprocess path ok")
+PY
+pass "Main Approve live gh checks/reread/variable fail-closed"
 
 echo ""
 echo "PASS: behavioral gitops tests (${PASS} groups)"

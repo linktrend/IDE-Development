@@ -11,7 +11,16 @@ For each repository (starting with `linktrend/IDE-Development`):
 
 `manualTriggerOnly: true` (API) / **Only run when mentioned** (dashboard)
 
-Manual triggers remain: comment exactly `cursor review` or `bugbot run`.
+Manual triggers remain: comment exactly `@cursor review` or `bugbot run`.
+
+### Request accounting (packager 2-request limit)
+
+A comment counts toward the normal max of **2** Bugbot requests per PR only when it contains **both**:
+
+1. An **executable** trigger line: `@cursor review` or `bugbot run`
+2. The idempotency marker: `<!-- linktrend-bugbot-requested: <sha> -->`
+
+Bare historical `cursor review` (no `@`) plus the marker does **not** consume the limit.
 
 ## API (team Admin API key)
 
@@ -35,8 +44,8 @@ List: `GET https://api.cursor.com/bugbot/repos`
 3. Enable Bugbot if needed
 4. Set **Only run when mentioned** / repository `manualTriggerOnly` equivalent
 5. Optional team setting: **Run only once per PR** (reduces spend if auto mode cannot be cleared)
-6. Verify: push a trivial commit to a draft test PR **without** commenting `cursor review` — Bugbot must **not** start a billable review
-7. Verify mention path: comment `cursor review` once — Bugbot runs
+6. Verify: push a trivial commit to a draft test PR **without** commenting `@cursor review` — Bugbot must **not** start a billable review
+7. Verify mention path: comment `@cursor review` once — Bugbot runs
 
 ## Rollout gate
 
@@ -44,4 +53,4 @@ Consumer rollout is **blocked** until mention-only is confirmed per repository. 
 
 ## This PR
 
-Agents must not post additional `cursor review` comments on PR #19 while the spending limit is active. Integrator correctly blocks on SHA/marker mismatch; bootstrap merge (if any) is a documented one-time admin exception outside the product workflow.
+Agents must not post additional `@cursor review` comments on PR #19 while the spending limit is active. Integrator correctly blocks on SHA/marker mismatch; bootstrap merge (if any) is a documented one-time admin exception outside the product workflow.

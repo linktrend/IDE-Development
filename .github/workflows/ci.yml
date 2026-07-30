@@ -20,6 +20,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history so git diff --check origin/development...HEAD can resolve
+          # a merge-base on pull_request jobs (default depth=1 is too shallow).
+          fetch-depth: 0
+
+      - name: Ensure origin/development ref
+        run: |
+          set -euo pipefail
+          if git rev-parse --verify origin/development >/dev/null 2>&1; then
+            echo "origin/development already present"
+            exit 0
+          fi
+          git fetch --no-tags origin "development:refs/remotes/origin/development"
+          git rev-parse --verify origin/development
 
       - name: Setup Node
         uses: actions/setup-node@v4

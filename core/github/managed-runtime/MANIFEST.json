@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 2,
+  "name": "linktrend-managed-runtime",
+  "description": "Scripts, Cursor entrypoints, and AGENTS section required by managed LiNKtrend GitOps. Synced by scripts/sync-managed-runtime.sh / wire-repo.sh.",
+  "files": [
+    "scripts/gitops/completion_gate.py",
+    "scripts/gitops/conflict_task.py",
+    "scripts/gitops/create_issue_branch.py",
+    "scripts/gitops/integrator_evaluate.sh",
+    "scripts/gitops/packager_discover.py",
+    "scripts/gitops/packager_evaluate.py",
+    "scripts/gitops/packager_logic.py",
+    "scripts/gitops/main_approve_package_discover.py",
+    "scripts/gitops/main_approve_package_reuse.py",
+    "scripts/gitops/promote_main.sh",
+    "scripts/gitops/promote_staging.sh",
+    "scripts/gitops/readiness_status.py",
+    "scripts/gitops/repair_task.py",
+    "scripts/gitops/repair_observer.py",
+    "scripts/gitops/resolve_automation_token.sh",
+    "scripts/gitops/resolve_event_pr.py",
+    "scripts/gitops/wait_named_gate.py",
+    "scripts/gitops/work-branch-allowlist.sh",
+    "scripts/gitops/write_outcome.py",
+    "scripts/mark-review-ready.sh",
+    "scripts/validate-review-ready.sh",
+    "scripts/clear-review-ready.sh",
+    "scripts/cleanup-merged-branches.sh",
+    "scripts/pull-update-work-branches.sh",
+    "scripts/apply-development-merge-ruleset.sh"
+  ],
+  "cursorEntrypoints": [
+    {
+      "src": "core/github/managed-runtime/cursor-gitops-bootstrap.mdc",
+      "dest": ".cursor/rules/cursor-gitops-bootstrap.mdc"
+    },
+    {
+      "src": "core/github/managed-runtime/entrypoints/rules/linktrend-git-branching.mdc",
+      "dest": ".cursor/rules/linktrend-git-branching.mdc"
+    },
+    {
+      "src": "core/github/managed-runtime/entrypoints/commands/agentsetup.md",
+      "dest": ".cursor/commands/agentsetup.md"
+    },
+    {
+      "src": "core/github/managed-runtime/entrypoints/commands/agentcomply.md",
+      "dest": ".cursor/commands/agentcomply.md"
+    },
+    {
+      "src": "core/github/managed-runtime/entrypoints/skills/agentsetup/SKILL.md",
+      "dest": ".cursor/skills/agentsetup/SKILL.md"
+    },
+    {
+      "src": "core/github/managed-runtime/entrypoints/skills/agentcomply/SKILL.md",
+      "dest": ".cursor/skills/agentcomply/SKILL.md"
+    }
+  ],
+  "agentsSection": "core/github/managed-runtime/AGENTS.managed-section.md"
+}
