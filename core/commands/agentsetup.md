@@ -8,11 +8,11 @@ Operational summary:
 
 - role / touch gate: Orchestrator vs Implementer
 - detect current repo / multi-root context
-- ask Carlos only for missing issue id, short slug, and target repo if ambiguous
-- sync to latest `origin/development`
-- create and checkout `issue/<id>-<slug>`
-- confirm ready; remind Ship/Pull hard stops (no merge, no self-review, no staging/main; Ship = checkpoint only)
-- report branch, repo, and next steps in plain English
+- ask Carlos only for missing **task description** and target repo if ambiguous — **never** ask for issue id/slug
+- run `scripts/gitops/create_issue_branch.py` (creates/reuses GitHub issue + `issue/<n>-<slug>` from `origin/development`; prefer worktree when dirty)
+- confirm ready; remind Ship/Pull hard stops (no implementer PR, no merge, no self-review, no staging/main; Ship = checkpoint only)
+- when finished later: `scripts/gitops/completion_gate.py` + review-ready; Packager opens the PR
+- report branch, issue, repo, and next steps in plain English
 
 House rule: one short-lived `issue/*` per governed work package — not forever `dev/*`. Cloud uses `cursor/*`; `dev/*` rare ad-hoc only.
 

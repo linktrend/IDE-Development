@@ -21,7 +21,7 @@ IDE Development itself uses the same managed workflows (it is in scope).
 | Implementer | Long-lived local / Remote Control / Cloud agents | Branch → checkpoint commit/push → mark `review_ready` when finished |
 | Review Packager | GitHub Action (`linktrend-review-packager.yml`) | Tue/Fri 08:00: discover review-ready → open PR → request Bugbot once |
 | Reviewer | **Bugbot** | Review PRs into `development` (pass = GitHub check `Cursor Bugbot` → `success`) |
-| Fix agent | Short-lived **Cloud** agent on same branch | Repair CI/Bugbot failures; max **3** attempts; new SHA re-enters packaging |
+| Repair (Lisa ACP) | GitHub records failure task; **Lisa ACP Repair Dispatcher** dispatches Cursor ACP | Repair CI/Bugbot/ordinary conflicts; max **3** attempts; no prefer-incoming; immediate types do not auto-repair; new SHA re-enters packaging |
 | Integrator | GitHub Action (`linktrend-integrator-merge.yml`) | Merge into `development` when **fast-gate** + `Cursor Bugbot` success + head SHA = reviewed SHA |
 | Promoter | GitHub Actions schedules | Tue/Fri **10:00** staging; Mon main package |
 | Lisa | OpenClaw / Telegram (**primary Ship/Pull clock**) | Cron → spawn Cursor ACP shipper/puller on Mini; one-line checkpoint status; ask Principal to Approve main |
@@ -35,7 +35,7 @@ IDE Development itself uses the same managed workflows (it is in scope).
 |---|---|---|---|
 | Ship 05 | 05:00 | Lisa cron → Cursor ACP shipper | One repo at a time: **checkpoint** = commit + push on work branch → **STOP**. No PR. No Bugbot. |
 | Pull 07 | 07:00 | Lisa cron → Cursor ACP puller | Merge latest `origin/development` into unfinished work branches; **skip frozen reviewed SHAs**; unfinished rolls forward |
-| Review Packager | Tue & Fri **08:00** | GitHub (`0 0 * * 2,5` UTC) | **Discover:** ready commit-status tips → draft PRs only (no Bugbot, no serial CI wait). **Evaluate** (PR/check): readiness + fast-gate on exact head → ready → `cursor review` once |
+| Review Packager | Tue & Fri **08:00** | GitHub (`0 0 * * 2,5` UTC) | **Discover:** ready commit-status tips → draft PRs only (no Bugbot, no serial CI wait). **Evaluate** (PR/check): readiness + fast-gate on exact head → ready → `@cursor review` once |
 | Staging promote | Tue & Fri **10:00** | GitHub (`0 2 * * 2,5` UTC) | Promote only what is already safely in `development`. If not ready: **skip and report why**. Never force. |
 | Ship 16 | 16:00 | Lisa cron → Cursor ACP shipper | Same as Ship 05 (checkpoint only) |
 | Pull 18 | 18:00 | Lisa cron → Cursor ACP puller | Same as Pull 07 |
@@ -87,8 +87,9 @@ Bugbot mention-only: `docs/contracts/BUGBOT-MENTION-ONLY.md` (required before co
 ## Bugbot contract
 
 - Success check name remains exactly **`Cursor Bugbot`**.
-- Request command is **configurable**; safe default is exactly: `cursor review` (no `@` unless live testing proves this installation requires it).
+- Request command is **configurable**; authoritative default is exactly: `@cursor review` (with the `@`).
 - Idempotent hidden marker: `<!-- linktrend-bugbot-requested: <sha> -->`.
+- **Request accounting** (2-request limit): count only comments that contain an **executable** trigger (`@cursor review` or `bugbot run`) **and** the `<!-- linktrend-bugbot-requested: <sha> -->` marker. Bare historical `cursor review` + marker does **not** consume the limit.
 - A new functional commit invalidates the previous reviewed SHA and marker.
 - Normal maximum: one initial Bugbot request + one after a consolidated correction batch.
 
@@ -124,9 +125,9 @@ Merge only when all are true:
 ## Main promotion
 
 - Mon 08:00 package: temporary `promote/main/<sha>` PR into main
-- Principal Approve binds **staging SHA** and **promote PR head SHA**
+- Principal Approve binds **staging SHA**, **prior main SHA**, and **promote PR head SHA**
 - **release-gate** on the combined promote PR head; merge only that PR — **never** direct-push main
-- Lisa dispatch interface: `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`
+- Authoritative Main Approve **package store**: GitHub `promote/main/*` PR marker + discover CLI — `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`
 
 ## Conflict recovery
 
@@ -173,7 +174,7 @@ No lists or links in those lines. Detail stays in `memory/pipeline-status.md` (L
 
 ## Fix path
 
-On CI red or Bugbot fail: spawn Cloud Fix agent on that branch (not “send back to original implementer”). Consolidate corrections, then at most one additional Bugbot request. After 3 failed attempts: stop; Lisa one-liner `Issues`; no force-merge.
+On CI red or Bugbot fail: GitHub records a durable repair task (`docs/contracts/REPAIR-DISPATCHER.md`). **Lisa ACP Repair Dispatcher** dispatches a Cursor ACP repair agent on that branch (GitHub never spawns Cursor; not “send back to original implementer”). Consolidate corrections, then at most one additional Bugbot request. After 3 failed attempts: escalate to Issues; Lisa one-liner `Issues`; no force-merge; no prefer-incoming.
 
 ## Worktrees
 
