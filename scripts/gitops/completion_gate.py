@@ -208,9 +208,17 @@ def cmd_write_evidence(args: argparse.Namespace) -> int:
     payload["commands"] = cmds
     if classification == "docs_only":
         payload["docsOnlyJustification"] = args.docs_justification
-    out = Path(args.evidence_file)
+    rel = (
+        args.evidence_file
+        or os.environ.get("COMPLETION_EVIDENCE_FILE")
+        or ".linktrend/completion-evidence.json"
+    )
+    out = Path(rel)
     if not out.is_absolute():
         out = workdir / out
+    if out.exists() and out.is_dir():
+        emit({"state": "failed", "error": f"evidence_file_is_directory:{out}"})
+        return EXIT_FAILED
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     emit({"mode": "write-evidence", "path": str(out), "headSha": sha})
