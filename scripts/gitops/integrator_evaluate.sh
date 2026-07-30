@@ -21,6 +21,17 @@ if [ -z "${TOKEN}" ] || [ "${AUTOMATION_TOKEN_SOURCE:-}" != "github_app" ]; then
     --status automation_credentials_blocked \
     --detail "Integrator requires GitHub App token for autonomous merge"
   cp integrator-result.json gitops-outcome.json 2>/dev/null || true
+  # Immediate repair record (no Lisa auto-dispatch). Prefer GITHUB_TOKEN if App missing.
+  export GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+  python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+    --repo "${GH_REPO}" \
+    --failure-type automation_credentials_blocked \
+    --severity immediate \
+    --pr "${PR_NUMBER}" \
+    --head-sha "${HEAD_SHA}" \
+    --branch "${HEAD_REF:-}" \
+    --next-action "Configure GitHub App credentials; do not auto-repair." \
+    >/dev/null 2>&1 || true
   exit 0
 fi
 export GH_TOKEN="${TOKEN}"
@@ -129,6 +140,15 @@ fi
 
 mergeable="$(echo "${meta}" | jq -r .mergeable)"
 if [ "${mergeable}" = "CONFLICTING" ]; then
+  head_ref="$(echo "${meta}" | jq -r .headRefName)"
+  python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+    --repo "${GH_REPO}" \
+    --failure-type merge_conflict \
+    --pr "${pr}" \
+    --branch "${head_ref}" \
+    --head-sha "${head_sha}" \
+    --next-action "Resolve merge conflict on PR #${pr}; Lisa may dispatch ordinary repair." \
+    >/dev/null || true
   write_result "blocked" "PR #${pr}: conflict_blocked" "${pr}" "${head_sha}"
   post_check "blocked" "merge conflict" "${head_sha}"
   exit 0
@@ -178,6 +198,15 @@ print(json.dumps({"status":status,"detail":detail}))
       post_check "merged" "merged ${head_sha}" "${head_sha}"
       exit 0
     fi
+    head_ref="$(gh pr view "${pr}" --json headRefName --jq .headRefName 2>/dev/null || true)"
+    python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+      --repo "${GH_REPO}" \
+      --failure-type merge_conflict \
+      --pr "${pr}" \
+      --branch "${head_ref}" \
+      --head-sha "${head_sha}" \
+      --next-action "Merge failed on PR #${pr} after green gates; inspect policy/conflict." \
+      >/dev/null || true
     write_result "blocked" "PR #${pr}: gates green but merge failed (policy/conflict)" "${pr}" "${head_sha}"
     post_check "blocked" "merge failed" "${head_sha}"
     exit 0

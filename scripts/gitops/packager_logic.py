@@ -16,32 +16,45 @@ from pathlib import Path
 from typing import Any, Callable
 
 MARKER_PREFIX = "<!-- linktrend-bugbot-requested:"
-DEFAULT_BUGBOT_COMMAND = "cursor review"
+DEFAULT_BUGBOT_COMMAND = "@cursor review"
 MAX_BUGBOT_REQUESTS = 2
+
+# Executable Bugbot triggers (Cursor Manual Only). Bare "cursor review" is NOT executable.
+_EXECUTABLE_TRIGGER_RE = re.compile(
+    r"(?im)^\s*(?:@cursor\s+review|bugbot\s+run)\s*$"
+)
 
 
 def marker_for(sha: str) -> str:
     return f"{MARKER_PREFIX} {sha.lower()} -->"
 
 
+def has_executable_bugbot_trigger(body: str) -> bool:
+    """True when the comment includes a trigger Bugbot can actually execute."""
+    return bool(_EXECUTABLE_TRIGGER_RE.search(body or ""))
+
+
 def count_bugbot_requests(comments: list[dict[str, Any]], sha: str | None = None) -> int:
-    """Count prior Bugbot request comments (marker+command or legacy command lines)."""
+    """Count genuine Bugbot request comments.
+
+    A slot is consumed only when the comment contains:
+      - an executable trigger line (`@cursor review` or `bugbot run`), AND
+      - the SHA marker (`<!-- linktrend-bugbot-requested: … -->`).
+
+    Historical invalid `cursor review` + marker pairs do NOT count.
+    Optional ``sha`` restricts to markers mentioning that full SHA.
+    """
     n = 0
     sha_l = (sha or "").lower()
     for c in comments:
         body = c.get("body") or ""
-        has_marker = MARKER_PREFIX in body
-        has_cmd = bool(
-            re.search(r"(?im)^\s*cursor\s+review\s*$", body)
-            or re.search(r"(?im)^\s*bugbot\s+run\s*$", body)
-            or re.search(r"(?im)^\s*@?cursor\s+bugbot\b", body)
-        )
-        if has_marker and (not sha_l or sha_l in body.lower()):
-            n += 1
-        elif has_cmd and has_marker:
-            n += 1
-        elif has_cmd and sha_l and sha_l[:12] in body.lower():
-            n += 1
+        if MARKER_PREFIX not in body:
+            continue
+        if not has_executable_bugbot_trigger(body):
+            continue
+        if sha_l and sha_l not in body.lower():
+            continue
+        n += 1
     return n
 
 
@@ -56,7 +69,8 @@ def should_request_bugbot(
     needle = marker_for(head_sha)
     for c in comments:
         body = c.get("body") or ""
-        if needle in body:
+        # Same-SHA idempotency: only a genuine prior request blocks a duplicate.
+        if needle in body and has_executable_bugbot_trigger(body):
             return False, "skipped_duplicate_marker"
     if count_bugbot_requests(comments) >= MAX_BUGBOT_REQUESTS:
         return False, "skipped_max_requests"

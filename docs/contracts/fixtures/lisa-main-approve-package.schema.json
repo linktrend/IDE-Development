@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://linktrend.local/contracts/lisa-main-approve-package.schema.json",
+  "title": "Lisa MainApprovePackage (IDE store output)",
+  "type": "object",
+  "required": ["packageId", "mondayDate", "claimExpiresAt", "items"],
+  "additionalProperties": true,
+  "properties": {
+    "packageId": { "type": "string", "minLength": 1 },
+    "mondayDate": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "claimExpiresAt": { "type": "string", "minLength": 1 },
+    "createdAt": { "type": "string" },
+    "timezone": { "type": "string" },
+    "expired": { "type": "boolean" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "index",
+          "plainDescription",
+          "repository",
+          "promotionPrNumber",
+          "stagingSha",
+          "priorMainSha",
+          "promotionHeadSha",
+          "gateResult"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "index": { "type": "integer", "minimum": 1 },
+          "plainDescription": { "type": "string", "minLength": 1 },
+          "repository": { "type": "string", "pattern": "^[^/]+/[^/]+$" },
+          "promotionPrNumber": { "type": "integer", "minimum": 1 },
+          "stagingSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+          "priorMainSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+          "promotionHeadSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+          "gateResult": { "type": "string", "enum": ["Clear", "Issues"] }
+        }
+      }
+    }
+  }
+}
