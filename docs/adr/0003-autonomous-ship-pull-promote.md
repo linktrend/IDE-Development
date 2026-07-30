@@ -96,7 +96,7 @@ Principal locked (IDE Development redesign):
 2. **`review_ready`:** branch-local `.linktrend/review-ready.json` with `commitSha == HEAD`. Later commits invalidate.
 3. **Review Packager:** Tuesday & Friday **08:00** Asia/Taipei (`0 0 * * 2,5` UTC). Discover eligible review-ready work → deterministic readiness → open/ready PR → Bugbot once.
 4. **Staging promote:** Tuesday & Friday **10:00** Asia/Taipei (`0 2 * * 2,5` UTC). Promote only work already merged into `development`. If not ready: skip and report why. Never force. No prefer-incoming.
-5. **Bugbot:** request command configurable; default exactly `cursor review` (no `@` unless live-proven). Success check remains `Cursor Bugbot`. Hidden idempotency marker `<!-- linktrend-bugbot-requested: <sha> -->`. Normal max 2 requests per PR (initial + one after consolidated corrections).
+5. **Bugbot:** request command configurable; authoritative default exactly `@cursor review` (with the `@`). Success check remains `Cursor Bugbot`. Hidden idempotency marker `<!-- linktrend-bugbot-requested: <sha> -->`. Normal max 2 requests per PR (initial + one after consolidated corrections). Request accounting counts only comments that contain an executable trigger (`@cursor review` or `bugbot run`) **plus** that marker; bare historical `cursor review` + marker does **not** consume the limit.
 6. **Named CI gates:** `fast-gate` / `staging-gate` / `release-gate` — never “wait for every visible check.” Missing ≠ success.
 7. **Integrator:** auto-merge only when non-draft → `development`, head SHA = reviewed SHA, fast-gate green, `Cursor Bugbot` success.
 8. **Review freeze:** do not modify the frozen reviewed branch; continue on another issue branch/worktree.
@@ -119,3 +119,12 @@ Principal locked (IDE Development redesign):
    - Skip when an open review PR into `development` has head equal to that tip; **or**
    - Skip on an explicit operator freeze.
    - Do **not** use a deleted JSON-file condition.
+
+## Amendment — 2026-07-30 (lifecycle repair control)
+
+Factual corrections (do not rewrite earlier amendments):
+
+1. **Staging promote** remains Tue & Fri **10:00** Asia/Taipei (not 08:00). Older calendar rows in this ADR that say staging 08:00 are obsolete.
+2. **Ship / Implementer:** checkpoint = commit + push only. Implementers do **not** open PRs; Review Packager opens PRs after `Linktrend Review Ready`.
+3. **Repair path:** GitHub records durable repair tasks only. **Lisa ACP Repair Dispatcher** dispatches Cursor ACP repair agents. GitHub never spawns Cursor. Max **3** attempts; no prefer-incoming. Immediate failure types do not auto-repair.
+4. Contracts: `docs/contracts/AGENT-COMPLETION.md`, `docs/contracts/REPAIR-DISPATCHER.md`, `docs/contracts/ACTIONS-COST-CONTROLS.md`, `docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md`.

@@ -181,7 +181,12 @@ Update these files in `openclaw_prime` — **not in GITOPS-01**:
 - [ ] Live sync: `~/.openclaw-lisa/workspace/` mirrors for edited personality files
 - [ ] `docs/handoffs/` — dated note when follow-up PR lands
 
-**Optional:** `agents/pipeline-status.md` Main Approve `gh workflow run` should pass `expected_sha` per `LISA-MAIN-APPROVE-DISPATCH.md`.
+**Main Approve store (IDE #23 SOT):** `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md` +
+`scripts/gitops/main_approve_package_discover.py`. Store = GitHub `promote/main/*`→`main`
+PR marker (`<!-- linktrend-promote: … -->`). Lisa must pass **all three** bindings on
+`approve-merge`: `expected_sha`, `expected_main_sha`, `expected_promote_head`.
+Do **not** use OpenClaw JSON/Markdown sidecars. After this interface exists on the
+consumer, Lisa may flip `MAIN_APPROVE_RUNTIME_STORE.available` in openclaw_prime.
 
 ---
 

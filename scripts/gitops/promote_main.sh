@@ -3,6 +3,7 @@
 # MODE=package|approve-merge|reevaluate
 # approve-merge REQUIRES EXPECTED_STAGING_SHA, EXPECTED_PROMOTE_HEAD, EXPECTED_MAIN_SHA (prior main tip).
 set -euo pipefail
+# Note: gh 403/429 → simple retry 2x with sleep (gh_retry).
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "FAIL: not a git repository" >&2
@@ -14,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/work-branch-allowlist.sh"
 
 MODE="${MODE:-package}"
-RELEASE_GATE_CHECKS="${RELEASE_GATE_CHECKS:-Verify IDE Development}"
+RELEASE_GATE_CHECKS="${RELEASE_GATE_CHECKS:-Verify IDE Development,Enforce allowed PR source branches}"
 TIMEZONE_LABEL="${TIMEZONE_LABEL:-Asia/Taipei}"
 EXPECTED_STAGING_SHA="${EXPECTED_STAGING_SHA:-}"
 EXPECTED_PROMOTE_HEAD="${EXPECTED_PROMOTE_HEAD:-}"
@@ -26,12 +27,83 @@ export GH_TOKEN="${TOKEN}"
 export GITHUB_TOKEN="${TOKEN}"
 OUTCOME="${OUTCOME_FILE:-gitops-outcome.json}"
 
+
+repair_task_upsert() {
+  local ec
+  set +e
+  python3 "${SCRIPT_DIR}/repair_task.py" upsert "$@" >/dev/null
+  ec=$?
+  set -e
+  if [ "$ec" -ne 0 ]; then
+    if [ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]; then
+      echo "FAIL: repair_task.py upsert failed with GitHub token present" >&2
+      return "$ec"
+    fi
+    echo "WARN: repair_task.py upsert failed without GitHub token; continuing without repair task" >&2
+  fi
+  return 0
+}
+
+
+record_usage_limit_repair_task() {
+  repair_task_upsert \
+    --repo "${REPO}" \
+    --failure-type usage_limit \
+    --severity immediate \
+    --workflow "main-promote" \
+    --next-action "Wait for GitHub API quota; do not ACP-repair usage limits."
+}
+
+
+# Rate-limit backoff: on gh 403/429, retry up to 2 times with sleep (see ACTIONS-COST-CONTROLS.md).
+gh_retry() {
+  local attempt=1
+  local max=3
+  local delay=5
+  local out ec
+  while true; do
+    set +e
+    out="$("$@" 2>&1)"
+    ec=$?
+    set -e
+    if [ "$ec" -eq 0 ]; then
+      printf '%s
+' "$out"
+      return 0
+    fi
+    if printf '%s' "$out" | grep -Eq 'HTTP 403|HTTP 429|rate limit|secondary rate'; then
+      if [ "$attempt" -ge "$max" ]; then
+        record_usage_limit_repair_task
+        printf '%s
+' "$out" >&2
+        return "$ec"
+      fi
+      echo "WARN: gh rate-limit/403/429 — retry ${attempt}/${max} after ${delay}s" >&2
+      sleep "$delay"
+      delay=$((delay * 2))
+      attempt=$((attempt + 1))
+      continue
+    fi
+    printf '%s
+' "$out" >&2
+    return "$ec"
+  done
+}
+
+
 write_out() {
   python3 "${SCRIPT_DIR}/write_outcome.py" --file "${OUTCOME}" --status "$1" --detail "$2"
 }
 
 if [ -z "${TOKEN}" ] || [ "${AUTOMATION_TOKEN_SOURCE:-}" != "github_app" ]; then
   write_out "automation_credentials_blocked" "main promote requires GitHub App token"
+  export GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+  repair_task_upsert \
+    --repo "${REPO}" \
+    --failure-type automation_credentials_blocked \
+    --severity immediate \
+    --branch "staging->main" \
+    --next-action "Configure GitHub App credentials for main promote; do not auto-repair."
   exit 0
 fi
 
@@ -80,19 +152,31 @@ if [ "${MODE}" = "package" ]; then
   SHORT="$(echo "${STG_SHA}" | cut -c1-12)"
   PROMOTE_BRANCH="promote/main/${SHORT}"
 
-  existing="$(gh pr list --base main --state open --json number,body \
-    | python3 -c '
-import json,re,sys
-stg,main=sys.argv[1],sys.argv[2]
-for r in json.load(sys.stdin):
-    m=re.search(r"<!-- linktrend-promote:\s*(\{.*?\})\s*-->", r.get("body") or "", re.S)
-    if not m: continue
-    meta=json.loads(m.group(1))
-    if meta.get("sourceSha")==stg and meta.get("targetSha")==main:
-        print(r["number"]); break
-' "${STG_SHA}" "${MAIN_SHA}" || true)"
-  if [ -n "${existing}" ]; then
-    write_out "packaged" "main promote PR #${existing} already open for this source/target (no rebuild)"
+  existing_json="$(gh_retry gh pr list --base main --state open \
+    --json number,body,headRefName,headRefOid,baseRefName,state,isCrossRepository,headRepository)"
+  reuse_json="$(printf '%s\n' "${existing_json}" | python3 "${SCRIPT_DIR}/main_approve_package_reuse.py" \
+    --expected-source "${STG_SHA}" \
+    --expected-target "${MAIN_SHA}" \
+    --expected-branch "${PROMOTE_BRANCH}" \
+    --repository "${REPO}")"
+  reuse_action="$(printf '%s\n' "${reuse_json}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("action",""))')"
+  reuse_pr="$(printf '%s\n' "${reuse_json}" | python3 -c 'import json,sys; v=json.load(sys.stdin).get("pr"); print(v if v is not None else "")')"
+  reuse_reason="$(printf '%s\n' "${reuse_json}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("reason",""))')"
+  if [ "${reuse_action}" = "reuse" ] && [ -n "${reuse_pr}" ]; then
+    write_out "packaged" "main promote PR #${reuse_pr} already open and valid for reuse (open/same-repo/base/branch/marker/head)"
+    exit 0
+  fi
+  if [ "${reuse_action}" = "repackage" ]; then
+    python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+      --repo "${REPO}" --failure-type promotion_conflict \
+      --stage main \
+      --source-branch staging --target-branch main \
+      --branch "staging->main" \
+      --head-sha "${STG_SHA}" --base-sha "${MAIN_SHA}" \
+      --pr "${reuse_pr:-0}" --status conflict_blocked \
+      --next-action "Existing main promote package invalid (${reuse_reason}); close/repair and repackage; do not silently reuse or overwrite." \
+      >/dev/null || true
+    write_out "blocked" "existing main promote package invalid (${reuse_reason}); requires repackage"
     exit 0
   fi
 
@@ -105,13 +189,15 @@ for r in json.load(sys.stdin):
   git -C "${WT}" checkout -B "${PROMOTE_BRANCH}" >/dev/null
   if ! git -C "${WT}" merge --no-ff origin/staging -m "chore(promote): merge staging ${SHORT} into main candidate"; then
     git -C "${WT}" merge --abort 2>/dev/null || true
-    python3 "${SCRIPT_DIR}/conflict_task.py" upsert \
-      --repo "${REPO}" --stage main \
+    python3 "${SCRIPT_DIR}/repair_task.py" upsert \
+      --repo "${REPO}" --failure-type promotion_conflict \
+      --stage main \
       --source-branch staging --target-branch main \
-      --source-sha "${STG_SHA}" --target-sha "${MAIN_SHA}" \
+      --branch "staging->main" \
+      --head-sha "${STG_SHA}" --base-sha "${MAIN_SHA}" \
       --status conflict_blocked \
       --next-action "Repair promote/main/* from main@${MAIN_SHA}." \
-      --increment-attempt >/dev/null || true
+      >/dev/null || true
     write_out "blocked" "conflict building main candidate"
     exit 0
   fi
@@ -129,10 +215,10 @@ Approve must bind:
 <!-- linktrend-promote: ${MARKER} -->
 EOF
 )"
-  URL="$(gh pr create --base main --head "${PROMOTE_BRANCH}" \
+  URL="$(gh_retry gh pr create --base main --head "${PROMOTE_BRANCH}" \
     --title "chore(promote): staging → main (awaiting Approve ${SHORT})" \
     --body "${BODY}")"
-  PR="$(gh pr view "${URL}" --json number --jq .number)"
+  PR="$(gh_retry gh pr view "${URL}" --json number --jq .number)"
   write_out "packaged" "opened main promote PR #${PR} head ${CANDIDATE}"
   [ "$(git rev-parse --abbrev-ref HEAD)" = "${START_BRANCH}" ]
   [ "$(git rev-parse HEAD)" = "${START_SHA}" ]
@@ -218,7 +304,7 @@ if [ "$(git rev-parse origin/staging)" != "${EXPECTED_STAGING_SHA}" ] \
   exit 1
 fi
 
-if gh pr merge "${PROMOTE_PR_NUMBER}" --merge; then
+if gh_retry gh pr merge "${PROMOTE_PR_NUMBER}" --merge; then
   write_out "merged" "merged main promote PR #${PROMOTE_PR_NUMBER}"
   exit 0
 fi

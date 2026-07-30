@@ -42,16 +42,22 @@ concurrency:
 
 permissions: {}
 
+# Cost note: never use ${{ env.* }} at job-level env (invalid context → zero-job runs).
+# Skip irrelevant wakes: non-promote PR heads, own outcome checks, failed workflow_run.
 jobs:
   resolve:
     name: Resolve candidate (read-only)
     if: >
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'pull_request_target' ||
+      (
+        github.event_name == 'pull_request_target' &&
+        startsWith(github.event.pull_request.head.ref, 'promote/')
+      ) ||
       (
         github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success'
+        github.event.workflow_run.conclusion == 'success' &&
+        startsWith(github.event.workflow_run.head_branch, 'promote/')
       ) ||
       (
         github.event_name == 'check_run' &&
@@ -111,6 +117,7 @@ jobs:
     permissions:
       contents: read
       checks: write
+      issues: write
       statuses: read
       pull-requests: read
     env:
@@ -150,9 +157,16 @@ jobs:
         if: steps.creds.outputs.ready != 'true'
         env:
           HEAD_SHA: ${{ needs.resolve.outputs.head_sha || github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          GH_TOKEN="${GITHUB_TOKEN}" python3 scripts/gitops/repair_task.py upsert \
+            --repo "${GITHUB_REPOSITORY}" \
+            --failure-type automation_credentials_blocked \
+            --severity immediate \
+            --workflow "Development → Staging Promotion" \
+            --next-action "Configure GitHub App credentials; do not auto-repair."
           python3 scripts/gitops/write_outcome.py \
             --status automation_credentials_blocked \
             --detail "LINKTREND_GITOPS_APP_ID / minted App token required for autonomous promotion." \
@@ -203,3 +217,12 @@ jobs:
             failed|automation_credentials_blocked) exit 1 ;;
             *) exit 0 ;;
           esac
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: staging-promote-report
+          path: |
+            gitops-outcome.json
+          if-no-files-found: ignore
+          retention-days: 5

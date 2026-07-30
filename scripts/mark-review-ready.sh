@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Publish Linktrend Review Ready commit status for the current branch tip.
-# Does not modify the feature diff. Does not open a PR. Does not request Bugbot.
+# Compatibility wrapper — authoritative path is completion_gate.py review-ready.
+# Validates evidence + branch state, THEN publishes Linktrend Review Ready.
+# Do not call readiness_status mark directly from agents.
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
@@ -8,56 +9,25 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   exit 1
 }
 cd "$ROOT"
-# shellcheck source=gitops/work-branch-allowlist.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gitops/work-branch-allowlist.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ISSUE_ID="${1:-}"
 NOTES="${2:-}"
-BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-SHA="$(git rev-parse HEAD)"
+EVIDENCE_FILE="${COMPLETION_EVIDENCE_FILE:-.linktrend/completion-evidence.json}"
 
-case "$BRANCH" in
-  development|staging|main|HEAD)
-    echo "FAIL: refuse to mark review_ready on protected/detached ref $BRANCH" >&2
-    exit 1
-    ;;
-esac
-
-if ! is_allowed_work_branch "$BRANCH"; then
-  echo "FAIL: branch '$BRANCH' is not an allowed work-branch form" >&2
-  exit 1
+if [ ! -f "${EVIDENCE_FILE}" ]; then
+  echo "FAIL: missing evidence file ${EVIDENCE_FILE}" >&2
+  echo "Write one via: python3 scripts/gitops/completion_gate.py write-evidence ..." >&2
+  echo "Or set COMPLETION_EVIDENCE_FILE to a machine-readable JSON tied to HEAD." >&2
+  exit 78
 fi
 
-if [ -n "$(git status --porcelain)" ]; then
-  echo "FAIL: working tree must be fully clean before marking review-ready" >&2
-  git status --porcelain >&2 || true
-  exit 1
+ARGS=(review-ready --workdir "$ROOT" --evidence-file "$EVIDENCE_FILE")
+if [ -n "$ISSUE_ID" ]; then
+  ARGS+=(--issue-id "$ISSUE_ID")
+fi
+if [ -n "$NOTES" ]; then
+  ARGS+=(--notes "$NOTES")
 fi
 
-# Local HEAD must equal remote branch tip (when remote tracking exists / origin present)
-if git rev-parse --verify "refs/remotes/origin/${BRANCH}" >/dev/null 2>&1; then
-  REMOTE="$(git rev-parse "refs/remotes/origin/${BRANCH}")"
-  if [ "$SHA" != "$REMOTE" ]; then
-    echo "FAIL: local HEAD ($SHA) != origin/${BRANCH} ($REMOTE). Push first." >&2
-    exit 1
-  fi
-elif git remote get-url origin >/dev/null 2>&1; then
-  echo "FAIL: origin/${BRANCH} missing — push the branch before marking review-ready" >&2
-  exit 1
-fi
-# File backend tests may have no origin; allowed when LINKTREND_STATUS_BACKEND=file
-
-if [ -z "$ISSUE_ID" ]; then
-  if [[ "$BRANCH" =~ ^issue/([A-Za-z0-9._-]+)- ]]; then
-    ISSUE_ID="${BASH_REMATCH[1]}"
-  elif [[ "$BRANCH" =~ ^cursor/ ]]; then
-    ISSUE_ID="cursor"
-  else
-    echo "FAIL: provide issue id: $0 <issue-id> [notes]" >&2
-    exit 1
-  fi
-fi
-
-python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gitops/readiness_status.py" mark "$SHA" "$ISSUE_ID" "$NOTES"
-echo "PASS: Linktrend Review Ready status published for ${SHA}"
-echo "Next: push is already required; Review Packager will open a draft PR (no Bugbot until fast-gate)."
+exec python3 "${SCRIPT_DIR}/gitops/completion_gate.py" "${ARGS[@]}"
