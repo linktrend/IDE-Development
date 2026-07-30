@@ -832,6 +832,10 @@ repair_dir = tmp / "observer-repair"
 os.environ["LINKTREND_REPAIR_BACKEND"] = "file"
 os.environ["LINKTREND_REPAIR_DIR"] = str(repair_dir)
 os.environ.pop("LINKTREND_CONSUMER_GITOPS_CONFIG", None)
+# PR CI sets GITHUB_EVENT_NAME=pull_request. Synthetic fixtures are workflow_run /
+# check_run. Tests must control event identity explicitly and must not inherit
+# ambient Actions event names (that produced unsupported_event on PR #24 CI).
+os.environ.pop("GITHUB_EVENT_NAME", None)
 
 current_pr_heads = {}
 current_branch_heads = {}
@@ -843,6 +847,11 @@ def write_event(name, payload):
     path = tmp / f"{name}.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     return str(path)
+
+def handle_path(path, event_name):
+    """Hermetic: always pass explicit event identity (never ambient CI env)."""
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    return repair_observer.handle_event(payload, repo, event_name=event_name)
 
 def workflow_payload(conclusion, pr, branch, sha):
     return {
@@ -860,26 +869,26 @@ def workflow_payload(conclusion, pr, branch, sha):
 
 sha_ok = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 failure_path = write_event("workflow-failure", workflow_payload("failure", 23, "issue/ok", sha_ok))
-out = repair_observer.handle_event_path(failure_path, repo)
+out = handle_path(failure_path, "workflow_run")
 assert out["action"] == "upserted", out
 fid = repair_task.failure_id(repo, "ci_failure", pr="23", workflow="CI", check="CI", branch="issue/ok")
 backend = repair_task.get_backend(repo)
 assert backend.dispatch_attempt(fid)["repairStatus"] == "dispatched"
 current_pr_heads["23"] = (sha_ok, "issue/ok")
 success_path = write_event("workflow-success", workflow_payload("success", 23, "issue/ok", sha_ok))
-out = repair_observer.handle_event_path(success_path, repo)
+out = handle_path(success_path, "workflow_run")
 assert out["action"] == "resolved", out
 assert backend.get(fid)["resolutionState"] == "resolved"
 
 sha_old = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 sha_new = "cccccccccccccccccccccccccccccccccccccccc"
 failure_path = write_event("workflow-stale-failure", workflow_payload("failure", 24, "issue/stale", sha_old))
-assert repair_observer.handle_event_path(failure_path, repo)["action"] == "upserted"
+assert handle_path(failure_path, "workflow_run")["action"] == "upserted"
 stale_id = repair_task.failure_id(repo, "ci_failure", pr="24", workflow="CI", check="CI", branch="issue/stale")
 backend.dispatch_attempt(stale_id)
 current_pr_heads["24"] = (sha_new, "issue/stale")
 success_path = write_event("workflow-stale-success", workflow_payload("success", 24, "issue/stale", sha_old))
-out = repair_observer.handle_event_path(success_path, repo)
+out = handle_path(success_path, "workflow_run")
 assert out["action"] == "skip" and out["reason"] == "event_head_not_current_pr_head", out
 assert backend.get(stale_id)["resolutionState"] != "resolved"
 
@@ -897,7 +906,7 @@ usage_path = write_event(
         },
     },
 )
-out = repair_observer.handle_event_path(usage_path, repo)
+out = handle_path(usage_path, "check_run")
 assert out["action"] == "upserted" and out["failureType"] == "usage_limit", out
 usage_id = repair_task.failure_id(repo, "usage_limit", pr="25", check="Cursor Bugbot", branch="issue/bugbot")
 assert backend.get(usage_id)["severity"] == "immediate"
@@ -915,7 +924,7 @@ ordinary_path = write_event(
         },
     },
 )
-out = repair_observer.handle_event_path(ordinary_path, repo)
+out = handle_path(ordinary_path, "check_run")
 assert out == {"action": "skip", "reason": "neutral_without_usage_limit"}, out
 ordinary_id = repair_task.failure_id(repo, "usage_limit", pr="26", check="Cursor Bugbot", branch="issue/skip")
 assert backend.get(ordinary_id) is None
@@ -935,7 +944,7 @@ usage_again = write_event(
         },
     },
 )
-assert repair_observer.handle_event_path(usage_again, repo)["action"] == "upserted"
+assert handle_path(usage_again, "check_run")["action"] == "upserted"
 usage_open_id = repair_task.failure_id(
     repo, "usage_limit", pr="27", check="Cursor Bugbot", branch="issue/fund"
 )
@@ -954,12 +963,73 @@ success_bugbot = write_event(
         },
     },
 )
-out = repair_observer.handle_event_path(success_bugbot, repo)
+out = handle_path(success_bugbot, "check_run")
 assert out["action"] == "resolved", out
 assert backend.get(usage_open_id)["resolutionState"] == "resolved"
+
+# Ambient PR-CI pollution: uncontrolled path still rejects; explicit path still works.
+# (Production validation must remain fail-closed for unsupported events.)
+os.environ["GITHUB_EVENT_NAME"] = "pull_request"
+poison_sha = "1212121212121212121212121212121212121212"
+poison_path = write_event("poison-ambient", workflow_payload("failure", 28, "issue/poison", poison_sha))
+poisoned = repair_observer.handle_event_path(poison_path, repo)
+assert poisoned == {
+    "action": "skip",
+    "reason": "unsupported_event",
+    "event": "pull_request",
+}, poisoned
+controlled = handle_path(poison_path, "workflow_run")
+assert controlled["action"] == "upserted", controlled
+os.environ.pop("GITHUB_EVENT_NAME", None)
 print("repair observer lifecycle ok")
 PY
 pass "repair observer resolves current-head successes, skips stale, handles/clears Bugbot usage_limit"
+
+# Regression: surrounding process has GITHUB_EVENT_NAME=pull_request (PR CI shape).
+GITHUB_EVENT_NAME=pull_request python3 - "$ROOT" "$TMP" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+tmp = Path(sys.argv[2]) / "ambient-pr-ci"
+tmp.mkdir(parents=True, exist_ok=True)
+sys.path.insert(0, str(root / "scripts" / "gitops"))
+import repair_observer
+import repair_task
+
+assert os.environ.get("GITHUB_EVENT_NAME") == "pull_request"
+repo = "owner/repo"
+os.environ["LINKTREND_REPAIR_BACKEND"] = "file"
+os.environ["LINKTREND_REPAIR_DIR"] = str(tmp / "repair")
+os.environ.pop("LINKTREND_CONSUMER_GITOPS_CONFIG", None)
+repair_observer.current_pr_head = lambda repo, pr: ("", "")
+repair_observer.current_branch_head = lambda repo, branch: ""
+repair_observer.lookup_pr_for_sha = lambda repo, sha: ("", "")
+
+sha = "3434343434343434343434343434343434343434"
+payload = {
+    "repository": {"full_name": repo},
+    "workflow_run": {
+        "name": "CI",
+        "conclusion": "failure",
+        "head_sha": sha,
+        "head_branch": "issue/ambient",
+        "pull_requests": [{"number": 29, "head": {"ref": "issue/ambient", "sha": sha}}],
+    },
+}
+path = tmp / "ambient-failure.json"
+path.write_text(json.dumps(payload), encoding="utf-8")
+# Uncontrolled inherits ambient pull_request → unsupported (production intact)
+poisoned = repair_observer.handle_event_path(str(path), repo)
+assert poisoned["reason"] == "unsupported_event" and poisoned["event"] == "pull_request", poisoned
+# Controlled explicit identity works despite ambient PR CI env
+ok = repair_observer.handle_event(payload, repo, event_name="workflow_run")
+assert ok["action"] == "upserted", ok
+print("ambient GITHUB_EVENT_NAME=pull_request hermetic ok")
+PY
+pass "repair observer hermetic under ambient GITHUB_EVENT_NAME=pull_request"
 
 python3 - "$ROOT" <<'PY'
 import re
