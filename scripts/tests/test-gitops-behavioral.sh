@@ -2075,5 +2075,304 @@ print("live gh subprocess path ok")
 PY
 pass "Main Approve live gh checks/reread/variable fail-closed"
 
+# ============================================================================
+# Identity boundary: write_outcome exact --token-env; App-missing zero mutation
+# ============================================================================
+python3 - "$ROOT" "$TMP" <<'PY'
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+root = Path(sys.argv[1])
+tmp = Path(sys.argv[2])
+sys.path.insert(0, str(root / "scripts" / "gitops"))
+import write_outcome as wo
+
+# --- write_outcome: AUTOMATION_TOKEN absent; ambient GH/GITHUB present → zero API ---
+calls = []
+
+def fake_run(*args, **kwargs):
+    calls.append({"args": args, "kwargs": kwargs})
+    raise AssertionError("check-run API must not be invoked without exact token-env")
+
+orig = wo.subprocess.run
+wo.subprocess.run = fake_run
+try:
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "gitops-outcome.json"
+        # In-process: ambient credentials must not authorize check mutation
+        saved = {k: os.environ.get(k) for k in (
+            "AUTOMATION_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "github.token"
+        )}
+        os.environ.pop("AUTOMATION_TOKEN", None)
+        os.environ["GH_TOKEN"] = "ghs_FAKE_GH_MUST_NOT_AUTHORIZE"
+        os.environ["GITHUB_TOKEN"] = "ghs_FAKE_GITHUB_MUST_NOT_AUTHORIZE"
+        os.environ["github.token"] = "ghs_FAKE_DOT_MUST_NOT_AUTHORIZE"
+        argv = [
+            "write_outcome.py",
+            "--file", str(out),
+            "--status", "automation_credentials_blocked",
+            "--detail", "App missing; ambient tokens must not post checks",
+            "--check-name", "Linktrend Test Check",
+            "--head-sha", "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+            "--repo", "linktrend/IDE-Development",
+            "--token-env", "AUTOMATION_TOKEN",
+        ]
+        old_argv = sys.argv
+        sys.argv = argv
+        try:
+            import io
+            from contextlib import redirect_stderr, redirect_stdout
+            buf_err, buf_out = io.StringIO(), io.StringIO()
+            with redirect_stderr(buf_err), redirect_stdout(buf_out):
+                rc = wo.main()
+            err = buf_err.getvalue() + buf_out.getvalue()
+        finally:
+            sys.argv = old_argv
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        assert rc == 0, err
+        payload = json.loads(out.read_text())
+        assert payload["status"] == "automation_credentials_blocked"
+        assert "skipping check-run" in err
+        assert "no ambient" in err
+        assert calls == [], f"unexpected API calls: {calls}"
+
+    # Unit: resolve_check_token never falls back
+    saved2 = {k: os.environ.get(k) for k in ("AUTOMATION_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")}
+    os.environ.pop("AUTOMATION_TOKEN", None)
+    os.environ["GH_TOKEN"] = "ambient_gh"
+    os.environ["GITHUB_TOKEN"] = "ambient_github"
+    try:
+        assert wo.resolve_check_token("AUTOMATION_TOKEN") is None
+        assert wo.resolve_check_token("GH_TOKEN") == "ambient_gh"
+        assert wo.resolve_check_token("") is None
+        assert wo.resolve_check_token("MISSING_ENV") is None
+    finally:
+        for k, v in saved2.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+    src = (root / "scripts/gitops/write_outcome.py").read_text()
+    assert "or os.environ.get(\"GH_TOKEN\")" not in src
+    assert "or os.environ.get('GH_TOKEN')" not in src
+    assert "resolve_check_token" in src
+finally:
+    wo.subprocess.run = orig
+
+# --- App-missing paths: local outcome only; zero mutation helpers ---
+wf_names = [
+    "linktrend-review-packager.yml",
+    "linktrend-integrator-merge.yml",
+    "linktrend-development-to-staging.yml",
+    "linktrend-staging-to-main.yml",
+]
+for name in wf_names:
+    live = (root / ".github/workflows" / name).read_text()
+    managed = (root / "core/github/managed-workflows" / name).read_text()
+    rendered = (
+        managed.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
+        .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
+        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+    )
+    assert rendered == live, name
+
+    # No ordinary-token mutation for repair/check/comment/PR/branch/merge
+    assert 'GH_TOKEN="${GITHUB_TOKEN}"' not in live, name
+    assert "--token-env GITHUB_TOKEN" not in live, name
+    assert "--token-env GH_TOKEN" not in live, name
+    # App-unavailable blocks must not call repair_task / check-run with github.token
+    for marker in (
+        "App unavailable",
+        "automation_credentials_blocked",
+    ):
+        pass
+    # Split on resolve_automation_token failure branches (avoid splitting on "--file")
+    if "if ! source scripts/gitops/resolve_automation_token.sh" in live:
+        for chunk in live.split("if ! source scripts/gitops/resolve_automation_token.sh")[1:]:
+            # End at the matching `fi` line (indent + fi), not substring "fi" in "--file"
+            end = None
+            for i, line in enumerate(chunk.splitlines()):
+                if line.strip() == "fi":
+                    end = i
+                    break
+            fail_block = "\n".join(chunk.splitlines()[: end if end is not None else 40])
+            assert "repair_task.py" not in fail_block, f"{name} App-miss repair"
+            assert "--check-name" not in fail_block, f"{name} App-miss check-run"
+            assert "github.token" not in fail_block, f"{name} App-miss github.token"
+            assert "automation_credentials_blocked" in fail_block
+            assert "exit 1" in fail_block
+    if "Report credentials blocked" in live:
+        block = live.split("Report credentials blocked")[1].split("Configure git remote")[0]
+        assert "repair_task.py" not in block, f"{name} Report credentials repair"
+        assert "--check-name" not in block, f"{name} Report credentials check"
+        assert "github.token" not in block, f"{name} Report credentials github.token"
+        assert "exit 1" in block
+
+# Success paths prefer explicit AUTOMATION_TOKEN for write_outcome mutations
+for name in (
+    "linktrend-integrator-merge.yml",
+    "linktrend-development-to-staging.yml",
+    "linktrend-staging-to-main.yml",
+    "linktrend-review-packager.yml",
+):
+    live = (root / ".github/workflows" / name).read_text()
+    if "--token-env" in live:
+        assert "--token-env AUTOMATION_TOKEN" in live, name
+        assert "--token-env GITHUB_TOKEN" not in live, name
+        assert "--token-env GH_TOKEN" not in live, name
+
+# Scripts: App-missing = local outcome only
+for rel in (
+    "scripts/gitops/integrator_evaluate.sh",
+    "scripts/gitops/promote_staging.sh",
+    "scripts/gitops/promote_main.sh",
+):
+    text = (root / rel).read_text()
+    assert "AUTOMATION_TOKEN_SOURCE" in text
+    # Find App-missing block
+    idx = text.find('!= "github_app"')
+    assert idx > 0, rel
+    block = text[idx : idx + 500]
+    assert "write_outcome" in block or "write_out" in block or "automation_credentials_blocked" in block
+    assert "repair_task" not in block, rel
+    assert 'GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN' not in text, rel
+
+# Behavioral: promote/integrator App-missing with ambient tokens → local only, exit 0, no gh
+fake_bin = tmp / "fake-bin-zero-mut"
+fake_bin.mkdir(exist_ok=True)
+(fake_bin / "gh").write_text(
+    "#!/bin/bash\necho 'UNEXPECTED_GH_CALL' >&2; echo args:\"$*\" >&2; exit 99\n",
+    encoding="utf-8",
+)
+os.chmod(fake_bin / "gh", 0o755)
+
+def run_script(script, extra_env=None):
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env.get('PATH','')}"
+    env.pop("AUTOMATION_TOKEN", None)
+    env.pop("AUTOMATION_TOKEN_SOURCE", None)
+    env.pop("LINKTREND_APP_TOKEN", None)
+    env["GH_TOKEN"] = "ghs_FAKE_AMBIENT_GH"
+    env["GITHUB_TOKEN"] = "ghs_FAKE_AMBIENT_GITHUB"
+    env["GH_REPO"] = "linktrend/IDE-Development"
+    env["GITHUB_REPOSITORY"] = "linktrend/IDE-Development"
+    outcome = tmp / f"outcome-{Path(script).stem}.json"
+    env["OUTCOME_FILE"] = str(outcome)
+    if extra_env:
+        env.update(extra_env)
+    # promote_*.sh require a git toplevel; run from repo root with absolute OUTCOME_FILE
+    if "promote_" in script:
+        cwd = root
+    else:
+        cwd = tmp / f"cwd-{Path(script).stem}"
+        cwd.mkdir(exist_ok=True)
+    r = subprocess.run(
+        ["bash", str(root / script)],
+        cwd=str(cwd),
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    return r, cwd, env, outcome
+
+for script in (
+    "scripts/gitops/integrator_evaluate.sh",
+    "scripts/gitops/promote_staging.sh",
+    "scripts/gitops/promote_main.sh",
+):
+    r, cwd, env, outcome = run_script(script)
+    assert r.returncode == 0, (script, r.returncode, r.stderr, r.stdout)
+    assert "UNEXPECTED_GH_CALL" not in (r.stderr + r.stdout), script
+    candidates = [
+        outcome,
+        cwd / "integrator-result.json",
+        cwd / "gitops-outcome.json",
+    ]
+    found = None
+    for c in candidates:
+        if c.is_file():
+            found = json.loads(c.read_text())
+            break
+    assert found is not None, (script, candidates)
+    assert found["status"] == "automation_credentials_blocked", (script, found)
+
+# App-success path still posts checks via AUTOMATION_TOKEN (unit of write_outcome)
+posted = []
+
+def capture_run(cmd, **kwargs):
+    posted.append({"cmd": cmd, "env": dict(kwargs.get("env") or {})})
+    class R:
+        returncode = 0
+    return R()
+
+wo.subprocess.run = capture_run
+try:
+    os.environ["AUTOMATION_TOKEN"] = "ghs_APP_SUCCESS_TOKEN"
+    os.environ["GH_TOKEN"] = "ghs_SHOULD_NOT_BE_USED"
+    os.environ["GITHUB_TOKEN"] = "ghs_SHOULD_NOT_BE_USED"
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "out.json"
+        wo.main = wo.main  # keep
+        r = subprocess.run(
+            [
+                sys.executable,
+                str(root / "scripts/gitops/write_outcome.py"),
+                "--file", str(out),
+                "--status", "merged",
+                "--detail", "ok",
+                "--check-name", "Linktrend Integrator Result",
+                "--head-sha", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "--repo", "linktrend/IDE-Development",
+                "--token-env", "AUTOMATION_TOKEN",
+            ],
+            env={**os.environ},
+            capture_output=True,
+            text=True,
+        )
+        # Can't easily inject capture into subprocess child — use resolve + post_check_run directly
+    posted.clear()
+    wo.post_check_run(
+        name="Linktrend Integrator Result",
+        head_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        status="merged",
+        detail="ok",
+        repo="linktrend/IDE-Development",
+        token=wo.resolve_check_token("AUTOMATION_TOKEN"),
+    )
+    assert len(posted) == 1
+    assert posted[0]["env"]["GH_TOKEN"] == "ghs_APP_SUCCESS_TOKEN"
+    assert posted[0]["env"]["GITHUB_TOKEN"] == "ghs_APP_SUCCESS_TOKEN"
+    assert "check-runs" in " ".join(str(x) for x in posted[0]["cmd"])
+finally:
+    wo.subprocess.run = orig
+    os.environ.pop("AUTOMATION_TOKEN", None)
+
+# Carlos token remains Packager-only for PR create + Bugbot comment
+pkg = (root / ".github/workflows/linktrend-review-packager.yml").read_text()
+assert "secrets.LINKTREND_BUGBOT_USER_TOKEN" in pkg
+assert "REQUIRED_PACKAGER_PR_AUTHOR" in (root / "scripts/gitops/packager_logic.py").read_text()
+assert 'REQUIRED_PACKAGER_PR_AUTHOR = "linktrend"' in (
+    root / "scripts/gitops/packager_logic.py"
+).read_text()
+for rel in (
+    "scripts/gitops/promote_staging.sh",
+    "scripts/gitops/promote_main.sh",
+    "scripts/gitops/integrator_evaluate.sh",
+):
+    assert "BUGBOT_USER_TOKEN" not in (root / rel).read_text()
+    assert "LINKTREND_BUGBOT_USER_TOKEN" not in (root / rel).read_text()
+
+print("identity boundary zero-mutation proofs ok")
+PY
+pass "write_outcome/App-missing zero-mutation + App-success AUTOMATION_TOKEN + managed≡live"
+
 echo ""
 echo "PASS: behavioral gitops tests (${PASS} groups)"

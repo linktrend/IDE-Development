@@ -157,22 +157,14 @@ jobs:
         if: steps.creds.outputs.ready != 'true'
         env:
           HEAD_SHA: ${{ needs.resolve.outputs.head_sha || github.sha }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          GH_TOKEN="${GITHUB_TOKEN}" python3 scripts/gitops/repair_task.py upsert \
-            --repo "${GITHUB_REPOSITORY}" \
-            --failure-type automation_credentials_blocked \
-            --severity immediate \
-            --workflow "Development → Staging Promotion" \
-            --next-action "Configure GitHub App credentials; do not auto-repair."
+          # App unavailable: local outcome + failed workflow only — no GITHUB_TOKEN mutations.
           python3 scripts/gitops/write_outcome.py \
             --status automation_credentials_blocked \
-            --detail "LINKTREND_GITOPS_APP_ID / minted App token required for autonomous promotion." \
-            --check-name "$OUTCOME_CHECK_NAME" \
-            --head-sha "$HEAD_SHA" \
-            --token-env GITHUB_TOKEN
+            --detail "LINKTREND_GITOPS_APP_ID / minted App token required for autonomous promotion."
+          echo "### Staging outcome: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "head_sha=${HEAD_SHA}" >> "$GITHUB_STEP_SUMMARY"
           exit 1
 
       - name: Configure git remote for App token pushes
@@ -209,7 +201,7 @@ jobs:
             --detail "$detail" \
             --check-name "$OUTCOME_CHECK_NAME" \
             --head-sha "$sha" \
-            --token-env GH_TOKEN
+            --token-env AUTOMATION_TOKEN
           echo "### Staging outcome: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
           echo "resolve_reason=${{ needs.resolve.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"

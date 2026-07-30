@@ -92,6 +92,23 @@ def post_check_run(
     )
 
 
+def resolve_check_token(token_env: str) -> str | None:
+    """Return token from the exact env name only — no ambient fallbacks.
+
+    Autonomous check mutations must be authorized solely by ``token_env``
+    (normally ``AUTOMATION_TOKEN``). Never fall back to ``GH_TOKEN``,
+    ``GITHUB_TOKEN``, or any other ambient credential.
+    """
+    name = (token_env or "").strip()
+    if not name:
+        return None
+    raw = os.environ.get(name)
+    if raw is None:
+        return None
+    token = raw.strip()
+    return token or None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--file", default="gitops-outcome.json")
@@ -100,18 +117,21 @@ def main() -> int:
     ap.add_argument("--check-name", default="")
     ap.add_argument("--head-sha", default="")
     ap.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", ""))
-    ap.add_argument("--token-env", default="AUTOMATION_TOKEN")
+    ap.add_argument(
+        "--token-env",
+        default="AUTOMATION_TOKEN",
+        help="Exact env var name whose non-empty value authorizes check-run posts",
+    )
     args = ap.parse_args()
-    extra = {}
-    write_outcome(Path(args.file), args.status, args.detail, **extra)
+    write_outcome(Path(args.file), args.status, args.detail)
     if args.check_name and args.head_sha:
-        # Autonomous check mutations require an explicit token env (App).
-        # Never silently fall back to the ordinary workflow GITHUB_TOKEN.
-        token = (os.environ.get(args.token_env) or os.environ.get("GH_TOKEN") or "").strip()
+        token = resolve_check_token(args.token_env)
         if not token:
+            # Local outcome already written. Failed workflow / redacted warn only.
             print(
-                "WARN: skipping check-run post; no App/automation token in "
-                f"--token-env={args.token_env}",
+                "WARN: skipping check-run post; "
+                f"--token-env={args.token_env} empty or unset "
+                "(no ambient GH_TOKEN/GITHUB_TOKEN fallback)",
                 file=sys.stderr,
             )
         else:

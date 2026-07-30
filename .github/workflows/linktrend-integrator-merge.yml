@@ -115,7 +115,6 @@ jobs:
           LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
           GH_REPO: ${{ github.repository }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr }}
           HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
           REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development,Enforce allowed PR source branches' }}
@@ -126,19 +125,11 @@ jobs:
         run: |
           set -euo pipefail
           if ! source scripts/gitops/resolve_automation_token.sh; then
-            GH_TOKEN="${GITHUB_TOKEN}" python3 scripts/gitops/repair_task.py upsert \
-              --repo "${GITHUB_REPOSITORY}" \
-              --failure-type automation_credentials_blocked \
-              --severity immediate \
-              --workflow "LiNKtrend Integrator Merge To Development" \
-              --next-action "Configure GitHub App credentials; do not auto-repair."
-            GITHUB_TOKEN="${{ github.token }}" python3 scripts/gitops/write_outcome.py \
+            # App unavailable: local outcome + failed workflow only — no GITHUB_TOKEN mutations.
+            python3 scripts/gitops/write_outcome.py \
               --file integrator-result.json \
               --status automation_credentials_blocked \
-              --detail "Integrator requires GitHub App token for autonomous merge" \
-              --check-name "Linktrend Integrator Result" \
-              --head-sha "${HEAD_SHA}" \
-              --token-env GITHUB_TOKEN
+              --detail "Integrator requires GitHub App token for autonomous merge"
             cp integrator-result.json gitops-outcome.json
             echo "### Integrator status: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
             exit 1
