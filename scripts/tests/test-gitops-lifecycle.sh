@@ -579,4 +579,66 @@ if [ "$wt_ec" -ne 0 ]; then
 fi
 pass "git diff --check working tree clean"
 
+# ---- Main Approve package/store interface (Lisa) ----
+grep -q 'github_promote_pr_marker\|Package store' docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md \
+  || fail "LISA-MAIN-APPROVE-DISPATCH missing package store declaration"
+grep -q 'expected_main_sha' docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md \
+  || fail "LISA-MAIN-APPROVE-DISPATCH missing expected_main_sha"
+grep -q 'schemaVersion' docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md \
+  || fail "LISA-MAIN-APPROVE-DISPATCH missing marker schemaVersion"
+grep -q 'main_approve_package_discover.py' docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md \
+  || fail "LISA-MAIN-APPROVE-DISPATCH missing discover CLI"
+grep -q 'Do not use JSON/Markdown OpenClaw sidecar\|No JSON/Markdown OpenClaw sidecar' docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md \
+  || fail "LISA-MAIN-APPROVE-DISPATCH missing no-sidecar rule"
+[ -f scripts/gitops/main_approve_package_discover.py ] || fail "missing main_approve_package_discover.py"
+grep -q 'main_approve_package_discover.py' core/github/managed-runtime/MANIFEST.json \
+  || fail "MANIFEST missing main_approve_package_discover.py"
+
+BODY="$TMP/main-approve-body.md"
+cat >"$BODY" <<'EOF'
+## Main promote package (awaiting Principal Approve)
+
+Approve must bind:
+- expected_sha (staging source) = `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
+- expected_main_sha (prior main target) = `bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb`
+- expected_promote_head = `cccccccccccccccccccccccccccccccccccccccc`
+
+<!-- linktrend-promote: {"schemaVersion":1,"stage":"main","sourceBranch":"staging","targetBranch":"main","sourceSha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","targetSha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","candidateHead":"cccccccccccccccccccccccccccccccccccccccc","promoteBranch":"promote/main/aaaaaaaaaaaa"} -->
+EOF
+disc="$(python3 "$ROOT/scripts/gitops/main_approve_package_discover.py" \
+  --from-body-file "$BODY" \
+  --repository linktrend/IDE-Development \
+  --pr-number 99 \
+  --head-sha cccccccccccccccccccccccccccccccccccccccc \
+  --head-branch promote/main/aaaaaaaaaaaa)"
+echo "$disc" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+assert d.get("available") is True, d
+assert d.get("store")=="github_promote_pr_marker", d
+assert d.get("contract","").endswith("LISA-MAIN-APPROVE-DISPATCH.md"), d
+assert d.get("itemCount")==1, d
+it=d["items"][0]
+assert it["repository"]=="linktrend/IDE-Development"
+assert it["promotionPrNumber"]==99
+assert it["stagingSha"].startswith("aaa")
+assert it["priorMainSha"].startswith("bbb")
+assert it["promotionHeadSha"].startswith("ccc")
+assert "aaaaaaaa" not in it["plainDescription"]
+assert it["workflowInputs"]["expected_main_sha"].startswith("bbb")
+assert __import__("re").search(r"\b[0-9a-f]{7,40}\b", it["plainDescription"], __import__("re").I) is None
+'
+# Drifted head must be omitted (stale package)
+set +e
+python3 "$ROOT/scripts/gitops/main_approve_package_discover.py" \
+  --from-body-file "$BODY" \
+  --repository linktrend/IDE-Development \
+  --pr-number 99 \
+  --head-sha dddddddddddddddddddddddddddddddddddddddd \
+  --head-branch promote/main/aaaaaaaaaaaa >/tmp/main-approve-drift.out 2>/tmp/main-approve-drift.err
+dec=$?
+set -e
+[ "$dec" -ne 0 ] || fail "drifted head should not yield a sealed item"
+pass "Main Approve package/store contract + discover CLI"
+
 echo "test-gitops-lifecycle: OK"

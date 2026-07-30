@@ -124,9 +124,9 @@ Merge only when all are true:
 ## Main promotion
 
 - Mon 08:00 package: temporary `promote/main/<sha>` PR into main
-- Principal Approve binds **staging SHA** and **promote PR head SHA**
+- Principal Approve binds **staging SHA**, **prior main SHA**, and **promote PR head SHA**
 - **release-gate** on the combined promote PR head; merge only that PR — **never** direct-push main
-- Lisa dispatch interface: `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`
+- Authoritative Main Approve **package store**: GitHub `promote/main/*` PR marker + discover CLI — `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`
 
 ## Conflict recovery
 
