@@ -551,6 +551,14 @@ bash "$ROOT/scripts/verify-platform-adoption.sh"
 pass "platform adoption entrypoints + temp consumer"
 
 # ---- git diff --check (required range + working-tree gate) ----
+# PR CI checkouts often lack refs/remotes/origin/development even when the
+# remote exists. Fetch the ref when missing; still fail closed if unavailable.
+if ! git rev-parse --verify origin/development >/dev/null 2>&1; then
+  if ! git fetch --no-tags origin "development:refs/remotes/origin/development" >/tmp/fetch-development.out 2>/tmp/fetch-development.err; then
+    cat /tmp/fetch-development.out /tmp/fetch-development.err >&2 || true
+    fail "origin/development missing — cannot run git diff --check (fetch failed)"
+  fi
+fi
 if ! git rev-parse --verify origin/development >/dev/null 2>&1; then
   fail "origin/development missing — cannot run git diff --check"
 fi
