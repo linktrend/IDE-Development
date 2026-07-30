@@ -6,7 +6,8 @@ name: LiNKtrend Integrator Merge To Development
 # Concurrency: exact candidate head SHA for automatic events; workflow_dispatch may
 # use explicit pr_number when no SHA is present. cancel-in-progress=false.
 #
-# Consumers: workflow_run.workflows is STATIC YAML (IDE: CI + Branch Source Policy).
+# Consumers: workflow_run.workflows is STATIC YAML rendered from
+# .github/linktrend-gitops-consumer.json by scripts/sync-managed-workflows.sh.
 
 on:
   pull_request_target:
@@ -14,8 +15,8 @@ on:
     branches: [development]
   workflow_run:
     workflows:
-      - CI
-      - Branch Source Policy
+      - __LINKTREND_CI_WORKFLOW_NAME__
+      - __LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__
     types: [completed]
   check_run:
     types: [completed]
@@ -118,7 +119,7 @@ jobs:
           PR_NUMBER: ${{ needs.resolve.outputs.pr }}
           HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
           REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development,Enforce allowed PR source branches' }}
-          BUGBOT_SUCCESS_CHECK_NAME: Cursor Bugbot
+          BUGBOT_SUCCESS_CHECK_NAME: __LINKTREND_BUGBOT_CHECK_NAME__
           GATE_WAIT_SECONDS: "120"
           GATE_POLL_SECONDS: "15"
           REQUIRE_APP_TOKEN: "1"

@@ -995,5 +995,49 @@ print("repair observer permissions + resolve caller proof ok")
 PY
 pass "repair observer/upsert jobs carry issues:write and production resolve caller exists"
 
+# ============================================================================
+# App-credential failure actually creates/updates a repair task (file backend)
+# ============================================================================
+CRED_REPAIR="$TMP/cred-repair"
+mkdir -p "$CRED_REPAIR"
+export LINKTREND_REPAIR_BACKEND=file
+export LINKTREND_REPAIR_DIR="$CRED_REPAIR"
+out="$(python3 "$ROOT/scripts/gitops/repair_task.py" upsert \
+  --repo owner/appcred \
+  --failure-type automation_credentials_blocked \
+  --severity immediate \
+  --workflow "Linktrend Review Packager" \
+  --next-action "Configure GitHub App credentials; do not auto-repair.")"
+printf '%s\n' "$out" | python3 -c 'import json,sys; t=json.load(sys.stdin); assert t["failureType"]=="automation_credentials_blocked"; assert t["severity"]=="immediate"; assert t["failureId"]'
+FID="$(printf '%s\n' "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin)["failureId"])')"
+# Idempotent update
+out2="$(python3 "$ROOT/scripts/gitops/repair_task.py" upsert \
+  --repo owner/appcred \
+  --failure-type automation_credentials_blocked \
+  --severity immediate \
+  --workflow "Linktrend Review Packager" \
+  --next-action "Configure GitHub App credentials; do not auto-repair.")"
+FID2="$(printf '%s\n' "$out2" | python3 -c 'import json,sys; print(json.load(sys.stdin)["failureId"])')"
+[ "$FID" = "$FID2" ] || fail "credential repair identity drifted: $FID vs $FID2"
+# Workflows must not mask credential upsert with || true
+for wf in \
+  .github/workflows/linktrend-review-packager.yml \
+  .github/workflows/linktrend-integrator-merge.yml \
+  .github/workflows/linktrend-development-to-staging.yml \
+  .github/workflows/linktrend-staging-to-main.yml; do
+  python3 - "$wf" <<'PY'
+from pathlib import Path
+import re, sys
+text = Path(sys.argv[1]).read_text()
+# Find automation_credentials_blocked upsert blocks; ensure no || true on same logical command
+for m in re.finditer(r"repair_task\.py upsert[\s\S]{0,400}?automation_credentials_blocked[\s\S]{0,200}", text):
+    chunk = m.group(0)
+    if "|| true" in chunk:
+        raise SystemExit(f"credential upsert masked with || true in {sys.argv[1]}")
+print("ok", sys.argv[1])
+PY
+done
+pass "App-credential failure creates/updates repair task; upserts not masked"
+
 echo ""
 echo "PASS: behavioral gitops tests (${PASS} groups)"

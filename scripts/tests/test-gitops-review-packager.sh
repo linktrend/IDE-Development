@@ -18,18 +18,39 @@ grep -q 'packager_discover.py' "$PKG" || fail "discover phase missing"
 grep -q 'packager_evaluate.py' "$PKG" || fail "evaluate phase missing"
 grep -q 'workflow_run:' "$PKG" || fail "packager missing workflow_run wake"
 grep -q 'workflows:' "$PKG" || fail "packager missing workflows list"
-grep -q 'CI' "$PKG" || fail "packager must wake on CI workflow_run"
-grep -q 'Branch Source Policy' "$PKG" || fail "packager must wake on Branch Source Policy"
-grep -q 'Branch Source Policy' "$INT" || fail "integrator must wake on Branch Source Policy"
+grep -Eq 'CI|__LINKTREND_CI_WORKFLOW_NAME__' "$PKG" || fail "packager must wake on CI workflow_run"
+grep -Eq 'Branch Source Policy|__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__' "$PKG" \
+  || fail "packager must wake on Branch Source Policy"
+grep -Eq 'Branch Source Policy|__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__' "$INT" \
+  || fail "integrator must wake on Branch Source Policy"
 grep -q 'Enforce allowed PR source branches' "$PKG" || fail "packager FAST_GATE must include Branch Source check"
 pass "Workflow phases + crons + workflow_run wake"
 
-for f in linktrend-review-packager.yml linktrend-development-to-staging.yml \
-         linktrend-staging-to-main.yml linktrend-integrator-merge.yml branch-source-policy.yml \
-         linktrend-cleanup-merged.yml linktrend-repair-observer.yml; do
-  cmp -s "core/github/managed-workflows/$f" ".github/workflows/$f" || fail "Diverged: $f"
-done
-pass "Managed workflows match live copies"
+python3 - <<'PY'
+from pathlib import Path
+
+def render(text: str) -> str:
+    return (
+        text.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
+        .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
+        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+    )
+
+for name in (
+    "linktrend-review-packager.yml",
+    "linktrend-development-to-staging.yml",
+    "linktrend-staging-to-main.yml",
+    "linktrend-integrator-merge.yml",
+    "branch-source-policy.yml",
+    "linktrend-cleanup-merged.yml",
+    "linktrend-repair-observer.yml",
+):
+    managed = Path(f"core/github/managed-workflows/{name}").read_text()
+    live = Path(f".github/workflows/{name}").read_text()
+    assert render(managed) == live, f"Diverged after render: {name}"
+print("ok")
+PY
+pass "Managed workflows match live copies (after consumer-name render)"
 
 grep -q 'Linktrend Review Ready' core/github/REVIEW-READY.md || fail "status context missing"
 grep -q 'LINKTREND_BUGBOT_REVIEW_COMMAND' "$PKG" || fail "bugbot command var"

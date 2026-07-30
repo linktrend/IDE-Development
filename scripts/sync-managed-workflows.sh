@@ -29,34 +29,49 @@ info() {
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") <repo-path> [--dry-run]
+Usage: $(basename "$0") <repo-path> [--config PATH] [--dry-run]
 
 Copy managed GitHub workflow templates into <repo-path>/.github/workflows/.
 Never overwrites ci.yml. Idempotent when files already match.
 
+Workflow templates may contain __LINKTREND_* placeholders. They are rendered
+from <repo-path>/.github/linktrend-gitops-consumer.json unless --config is set.
+
 Examples:
   $(basename "$0") /Users/you/Projects/SomeProductRepo
-  $(basename "$0") . --dry-run
+  $(basename "$0") . --config .github/linktrend-gitops-consumer.json --dry-run
 EOF
 }
 
 DRY_RUN=0
 TARGET_INPUT=""
+CONFIG_INPUT=""
 
-for arg in "$@"; do
-  case "$arg" in
+while [ $# -gt 0 ]; do
+  case "$1" in
     -h|--help)
       usage
       exit 0
       ;;
     --dry-run)
       DRY_RUN=1
+      shift
+      ;;
+    --config)
+      [ $# -ge 2 ] || fail "--config requires a path"
+      CONFIG_INPUT="$2"
+      shift 2
+      ;;
+    --config=*)
+      CONFIG_INPUT="${1#--config=}"
+      shift
       ;;
     *)
       if [ -z "$TARGET_INPUT" ]; then
-        TARGET_INPUT="$arg"
+        TARGET_INPUT="$1"
+        shift
       else
-        fail "Unexpected argument: $arg"
+        fail "Unexpected argument: $1"
       fi
       ;;
   esac
@@ -72,14 +87,83 @@ fi
 
 TARGET_REPO="$(cd "$TARGET_INPUT" && pwd -P)"
 DEST_DIR="${TARGET_REPO}/.github/workflows"
+if [ -n "$CONFIG_INPUT" ]; then
+  [ -f "$CONFIG_INPUT" ] || fail "Consumer config missing: $CONFIG_INPUT"
+  CONFIG_PATH="$(cd "$(dirname "$CONFIG_INPUT")" && pwd -P)/$(basename "$CONFIG_INPUT")"
+else
+  CONFIG_PATH="${TARGET_REPO}/.github/linktrend-gitops-consumer.json"
+fi
 
 info "System repository: $SYSTEM_ROOT"
 info "Target repository: $TARGET_REPO"
 info "Template source: $TEMPLATE_DIR"
+info "Consumer config: $CONFIG_PATH"
+
+[ -f "$CONFIG_PATH" ] || fail "Consumer config missing: $CONFIG_PATH (create .github/linktrend-gitops-consumer.json or pass --config)"
 
 if [ "$DRY_RUN" -eq 0 ]; then
   mkdir -p "$DEST_DIR"
 fi
+
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/linktrend-workflows.XXXXXX")"
+cleanup() {
+  rm -rf "$TMP_DIR"
+}
+trap cleanup EXIT
+
+render_template() {
+  local src="$1"
+  local out="$2"
+  python3 - "$CONFIG_PATH" "$src" "$out" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+src = Path(sys.argv[2])
+out = Path(sys.argv[3])
+
+try:
+    cfg = json.loads(config_path.read_text(encoding="utf-8"))
+except Exception as exc:
+    raise SystemExit(f"invalid consumer config {config_path}: {exc}")
+
+required = {
+    "schemaVersion": int,
+    "ciWorkflowName": str,
+    "branchPolicyWorkflowName": str,
+    "bugbotCheckName": str,
+}
+for key, typ in required.items():
+    if key not in cfg:
+        raise SystemExit(f"consumer config missing required field: {key}")
+    if typ is int:
+        try:
+            value = int(cfg[key])
+        except (TypeError, ValueError):
+            raise SystemExit(f"consumer config field must be integer: {key}")
+        if value != 1:
+            raise SystemExit(f"unsupported consumer config schemaVersion: {value}")
+        continue
+    value = str(cfg[key]).strip()
+    if not value:
+        raise SystemExit(f"consumer config field must be non-empty: {key}")
+    if "__LINKTREND_" in value:
+        raise SystemExit(f"consumer config field still contains placeholder: {key}")
+
+text = src.read_text(encoding="utf-8")
+rendered = text
+rendered = rendered.replace("__LINKTREND_CI_WORKFLOW_NAME__", str(cfg["ciWorkflowName"]).strip())
+rendered = rendered.replace(
+    "__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__",
+    str(cfg["branchPolicyWorkflowName"]).strip(),
+)
+rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", str(cfg["bugbotCheckName"]).strip())
+if "__LINKTREND_" in rendered:
+    raise SystemExit(f"unrendered __LINKTREND_ placeholder remains in {src}")
+out.write_text(rendered, encoding="utf-8")
+PY
+}
 
 copied=0
 unchanged=0
@@ -87,9 +171,15 @@ unchanged=0
 for file in "${MANAGED_FILES[@]}"; do
   src="${TEMPLATE_DIR}/${file}"
   dest="${DEST_DIR}/${file}"
+  rendered="${TMP_DIR}/${file}"
   [ -f "$src" ] || fail "Missing template: $src"
+  render_template "$src" "$rendered"
 
-  if [ -f "$dest" ] && cmp -s "$src" "$dest"; then
+  if grep -q '__LINKTREND_' "$rendered"; then
+    fail "Rendered workflow still contains placeholder: $file"
+  fi
+
+  if [ -f "$dest" ] && cmp -s "$rendered" "$dest"; then
     info "PASS: unchanged $file"
     unchanged=$((unchanged + 1))
     continue
@@ -105,7 +195,7 @@ for file in "${MANAGED_FILES[@]}"; do
     continue
   fi
 
-  cp "$src" "$dest"
+  cp "$rendered" "$dest"
   info "PASS: synced $file"
   copied=$((copied + 1))
 done

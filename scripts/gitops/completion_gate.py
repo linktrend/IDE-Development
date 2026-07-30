@@ -44,6 +44,28 @@ try:
 except ImportError:  # pragma: no cover
     rs = None  # type: ignore
 
+try:
+    from packager_logic import is_allowed_work_branch
+except ImportError:  # pragma: no cover
+    def is_allowed_work_branch(name: str) -> bool:
+        prefixes = (
+            "issue/",
+            "feature/",
+            "fix/",
+            "chore/",
+            "codex/",
+            "cursor/",
+            "antigravity/",
+            "dependabot/",
+            "dev/",
+        )
+        return any(name.startswith(p) for p in prefixes)
+
+try:
+    import repair_task as repair_task_mod
+except ImportError:  # pragma: no cover
+    repair_task_mod = None  # type: ignore
+
 EXIT_OK = 0
 EXIT_FAILED = 1
 EXIT_BLOCKED = 2
@@ -85,13 +107,20 @@ def origin_tip_matches(workdir: Path) -> tuple[bool, str]:
         return False, "detached_or_missing_branch"
     if branch in {"development", "staging", "main"}:
         return False, f"protected_branch:{branch}"
-    run(["git", "fetch", "origin", branch], cwd=workdir)
+    if not is_allowed_work_branch(branch):
+        return False, f"disallowed_branch:{branch}"
+    # File-backend unit fixtures may omit a real origin remote.
+    if os.environ.get("LINKTREND_STATUS_BACKEND") == "file":
+        remotes = run(["git", "remote"], cwd=workdir)
+        if remotes.returncode != 0 or "origin" not in (remotes.stdout or "").split():
+            return True, head_sha(workdir)
+    fetch = run(["git", "fetch", "origin", branch], cwd=workdir)
+    if fetch.returncode != 0:
+        err = ((fetch.stderr or fetch.stdout or "fetch_failed").strip())[:200]
+        return False, f"fetch_failed:{err}"
     head = head_sha(workdir)
     p = run(["git", "rev-parse", f"origin/{branch}"], cwd=workdir)
     if p.returncode != 0:
-        # Allow file-backend tests without origin remote
-        if os.environ.get("LINKTREND_STATUS_BACKEND") == "file":
-            return True, head
         return False, "missing_origin_tip"
     tip = (p.stdout or "").strip()
     if head != tip:
@@ -249,8 +278,11 @@ def cmd_review_ready(args: argparse.Namespace) -> int:
     if not sha:
         missing.append("no_sha")
 
-    if branch_name(workdir) in {"development", "staging", "main", "HEAD", ""}:
+    br = branch_name(workdir)
+    if br in {"development", "staging", "main", "HEAD", ""}:
         missing.append("protected_or_detached_branch")
+    elif not is_allowed_work_branch(br):
+        missing.append(f"disallowed_branch:{br}")
 
     if not tree_clean(workdir):
         missing.append("dirty_tree")
@@ -345,27 +377,93 @@ def cmd_review_ready(args: argparse.Namespace) -> int:
 
 
 def cmd_blocked(args: argparse.Namespace) -> int:
+    """Write local cache AND attempt a durable repair-task record.
+
+    `.linktrend/completion-blocker.json` is machine-local/gitignored — a cache only.
+    Durable cross-machine state is the repair task (GitHub Issue or file backend).
+    """
     workdir = Path(args.workdir).resolve()
+    repo = (
+        os.environ.get("GITHUB_REPOSITORY")
+        or os.environ.get("GH_REPO")
+        or os.environ.get("LINKTREND_REPAIR_REPO")
+        or "local/completion-blocked"
+    )
+    reason = args.reason or os.environ.get("COMPLETION_BLOCKER_REASON") or "unspecified"
+    next_action = (
+        args.next_action
+        or os.environ.get("COMPLETION_BLOCKER_NEXT")
+        or "Resolve blocker then re-run completion_gate review-ready"
+    )
     blocker = {
         "schemaVersion": 1,
         "state": "blocked",
         "at": utc_now(),
-        "repository": os.environ.get("GITHUB_REPOSITORY") or os.environ.get("GH_REPO") or "",
+        "repository": repo,
         "branch": branch_name(workdir),
         "sha": head_sha(workdir),
-        "failure": args.reason or os.environ.get("COMPLETION_BLOCKER_REASON") or "unspecified",
+        "failure": reason,
         "evidence": args.evidence or os.environ.get("COMPLETION_EVIDENCE") or "",
         "attemptedRepairs": int(args.attempted_repairs or 0),
         "owner": args.owner or "agent",
-        "nextAction": args.next_action
-        or os.environ.get("COMPLETION_BLOCKER_NEXT")
-        or "Resolve blocker then re-run completion_gate review-ready",
+        "nextAction": next_action,
+        "localCacheOnly": True,
+        "durableRecord": False,
     }
     out = Path(args.blocker_file or os.environ.get("COMPLETION_BLOCKER_FILE") or str(BLOCKER_REL))
     if not out.is_absolute():
         out = workdir / out
     write_blocker(out, blocker)
-    emit({"mode": "blocked", "state": "blocked", "blockerFile": str(out), **blocker})
+
+    durable: dict | None = None
+    durable_error = ""
+    if repair_task_mod is not None:
+        try:
+            fid = repair_task_mod.failure_id(
+                repo,
+                "immediate_approval_required",
+                workflow="completion_gate",
+                check="blocked",
+                branch=str(blocker["branch"] or ""),
+            )
+            task = {
+                "failureId": fid,
+                "id": fid,
+                "repository": repo,
+                "failureType": "immediate_approval_required",
+                "severity": "immediate",
+                "branch": blocker["branch"],
+                "headSha": blocker["sha"],
+                "workflowName": "completion_gate",
+                "workflowId": "completion_gate",
+                "checkName": "blocked",
+                "checkId": "blocked",
+                "nextAction": next_action,
+                "evidence": {"reason": reason, "localBlocker": str(out)},
+            }
+            durable = repair_task_mod.upsert_task(repair_task_mod.normalize_task(task))
+            blocker["durableRecord"] = True
+            blocker["durableFailureId"] = durable.get("failureId")
+            blocker["localCacheOnly"] = False
+            write_blocker(out, blocker)
+        except Exception as exc:  # noqa: BLE001
+            durable_error = str(exc)
+
+    payload = {
+        "mode": "blocked",
+        "state": "blocked",
+        "blockerFile": str(out),
+        "durableRecord": bool(blocker.get("durableRecord")),
+        "durableError": durable_error,
+        **blocker,
+    }
+    if durable:
+        payload["durableTask"] = {
+            "failureId": durable.get("failureId"),
+            "issueNumber": durable.get("issueNumber"),
+            "status": durable.get("status") or durable.get("repairStatus"),
+        }
+    emit(payload)
     return EXIT_BLOCKED
 
 

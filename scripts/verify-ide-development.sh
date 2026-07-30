@@ -258,19 +258,31 @@ else
   fail "Missing scripts/test-gate-stop-progression.sh"
 fi
 
-if ! cmp -s \
-  "core/github/managed-workflows/linktrend-integrator-merge.yml" \
-  ".github/workflows/linktrend-integrator-merge.yml"; then
-  fail "Integrator workflow diverged: core/github/managed-workflows vs .github/workflows"
-fi
-pass "Integrator managed template matches live workflow"
+python3 - <<'PY'
+from pathlib import Path
 
-for wf in linktrend-review-packager.yml linktrend-development-to-staging.yml linktrend-staging-to-main.yml; do
-  if ! cmp -s "core/github/managed-workflows/${wf}" ".github/workflows/${wf}"; then
-    fail "Managed workflow diverged: ${wf}"
-  fi
-done
-pass "Packager/staging/main managed templates match live workflows"
+def render(text: str) -> str:
+    return (
+        text.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
+        .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
+        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+    )
+
+pairs = [
+    "linktrend-integrator-merge.yml",
+    "linktrend-review-packager.yml",
+    "linktrend-development-to-staging.yml",
+    "linktrend-staging-to-main.yml",
+    "linktrend-repair-observer.yml",
+]
+for name in pairs:
+    managed = Path(f"core/github/managed-workflows/{name}").read_text()
+    live = Path(f".github/workflows/{name}").read_text()
+    if render(managed) != live:
+        raise SystemExit(f"Managed workflow diverged after render: {name}")
+print("ok")
+PY
+pass "Integrator/packager/promote/observer managed templates match live (after name render)"
 
 if [ -x "scripts/tests/test-integrator-bugbot-gate.sh" ]; then
   bash scripts/tests/test-integrator-bugbot-gate.sh || fail "Integrator Bugbot gate test failed"

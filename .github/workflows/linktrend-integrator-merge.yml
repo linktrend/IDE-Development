@@ -6,7 +6,8 @@ name: LiNKtrend Integrator Merge To Development
 # Concurrency: exact candidate head SHA for automatic events; workflow_dispatch may
 # use explicit pr_number when no SHA is present. cancel-in-progress=false.
 #
-# Consumers: workflow_run.workflows is STATIC YAML (IDE: CI + Branch Source Policy).
+# Consumers: workflow_run.workflows is STATIC YAML rendered from
+# .github/linktrend-gitops-consumer.json by scripts/sync-managed-workflows.sh.
 
 on:
   pull_request_target:

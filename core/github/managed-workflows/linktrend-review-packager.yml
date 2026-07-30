@@ -9,7 +9,8 @@
 # Empty pull_requests arrays: trusted resolve job uses GITHUB_TOKEN + commits API
 # and fails closed if zero/ambiguous. App token is minted only in evaluate when relevant.
 #
-# Consumers: workflow_run.workflows is STATIC YAML (IDE: CI + Branch Source Policy).
+# Consumers: workflow_run.workflows is STATIC YAML rendered from
+# .github/linktrend-gitops-consumer.json by scripts/sync-managed-workflows.sh.
 
 name: Linktrend Review Packager
 
@@ -27,8 +28,8 @@ on:
     branches: [development]
   workflow_run:
     workflows:
-      - CI
-      - Branch Source Policy
+      - __LINKTREND_CI_WORKFLOW_NAME__
+      - __LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__
     types: [completed]
   check_run:
     types: [completed]

@@ -96,16 +96,17 @@ python3 scripts/gitops/completion_gate.py blocked \
   --attempted-repairs 3
 ```
 
-The blocker is written to `.linktrend/completion-blocker.json`.
-
 ## Related
 
 - `docs/AUTONOMOUS-GIT-OPERATIONS.md`
 - `core/github/REVIEW-READY.md`
 - `docs/contracts/REPAIR-DISPATCHER.md`
 
-## Blocked completion (local durable)
+## Blocked completion (local cache + durable record)
 
 `completion_gate.py blocked` writes `.linktrend/completion-blocker.json` under the workdir.
-`.linktrend/` is **gitignored** so the blocker is durable on disk without risk of accidental commit.
-Do not force-add or commit that path.
+`.linktrend/` is **gitignored**, so that file is only a **machine-local cache** — it is not by itself a durable cross-machine blocker.
+
+The same `blocked` mode also upserts a durable **repair task** (`immediate_approval_required`) via `repair_task.py` (GitHub Issue backend in production, or `LINKTREND_REPAIR_BACKEND=file` in tests). That repair record is the cross-machine source of truth.
+
+Do not force-add or commit `.linktrend/`.

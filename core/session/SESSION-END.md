@@ -21,15 +21,22 @@ Define the operational behavior for natural-language session end and close-out r
    - Stage with `git add -- <path> [<path> ...]` for those paths only.
    - Refuse broad add. Never stage credentials, `.env`, secrets, or dirty files owned by another session.
    - If ownership is ambiguous, stop and ask rather than staging everything.
-5. run `git diff --cached`
-6. inspect staged changes for obvious secrets, credentials, or suspicious files
-7. if suspicious staged content is found, stop and ask
-8. otherwise generate a meaningful commit message
-9. commit staged work
-10. push the active branch (**checkpoint only** — do not open a PR; do not request Bugbot; do not mark review-ready unless the issue is actually finished)
-11. optional: `python3 scripts/gitops/completion_gate.py checkpoint` (or `review-ready` only when finished and Ready status is set — see `docs/contracts/AGENT-COMPLETION.md`)
-12. generate `docs/handoff/YYYY-MM-DD.md`
-13. finish only after the repository is in a resumable state
+5. generate or update `docs/handoff/YYYY-MM-DD.md` (owned path) **before** the final commit whenever a handoff is required
+6. stage the handoff with owned-path staging
+7. run `git diff --cached`
+8. inspect staged changes for obvious secrets, credentials, or suspicious files
+9. if suspicious staged content is found, stop and ask
+10. otherwise generate a meaningful commit message
+11. commit staged work
+12. push the active branch (**checkpoint only** — do not open a PR; do not request Bugbot; do not mark review-ready unless the issue is actually finished)
+13. optional unfinished path: `python3 scripts/gitops/completion_gate.py checkpoint`
+14. finished path only:
+    - write machine-readable evidence with `python3 scripts/gitops/completion_gate.py write-evidence`
+    - then run `python3 scripts/gitops/completion_gate.py review-ready`
+    - the gate validates first and **only then** publishes **Linktrend Review Ready**
+    - do **not** require Review Ready to already be set before calling the gate
+    - do **not** call `mark-review-ready.sh` as a pre-gate publisher
+15. finish only after the repository is in a resumable state
 
 ## Commit Message Rule
 
@@ -79,3 +86,4 @@ Minimum outputs:
 - use `.cursor/bootstrap/SESSION-SHUTDOWN.md` for shutdown responsibilities
 - preserve active artifact truth rather than relying on chat memory
 - use the handoff report as a continuity layer above execution artifacts, not in place of them
+- completion contract: `docs/contracts/AGENT-COMPLETION.md`

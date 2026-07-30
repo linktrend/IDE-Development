@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "ciWorkflowName": "CI",
+  "branchPolicyWorkflowName": "Branch Source Policy",
+  "bugbotCheckName": "Cursor Bugbot"
+}

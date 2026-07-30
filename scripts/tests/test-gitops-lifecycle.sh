@@ -47,23 +47,33 @@ PY
 done
 pass "No job-level env context in promote workflows"
 
-cmp -s core/github/managed-workflows/linktrend-staging-to-main.yml \
-  .github/workflows/linktrend-staging-to-main.yml || fail "staging-to-main managed!=live"
 python3 - "$ROOT" <<'PY'
 from pathlib import Path
 import sys
 
 root = Path(sys.argv[1])
-managed = (root / "core/github/managed-workflows/linktrend-repair-observer.yml").read_text()
-live = (root / ".github/workflows/linktrend-repair-observer.yml").read_text()
-assert "__LINKTREND_CI_WORKFLOW_NAME__" in managed
-assert "__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__" in managed
-rendered = managed.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
-rendered = rendered.replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
-rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
-assert rendered == live
+
+def render(text: str) -> str:
+    return (
+        text.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
+        .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
+        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+    )
+
+for name in (
+    "linktrend-staging-to-main.yml",
+    "linktrend-repair-observer.yml",
+    "linktrend-review-packager.yml",
+    "linktrend-integrator-merge.yml",
+    "linktrend-development-to-staging.yml",
+):
+    managed = (root / "core/github/managed-workflows" / name).read_text()
+    live = (root / ".github/workflows" / name).read_text()
+    if name != "branch-source-policy.yml":
+        assert "__LINKTREND_CI_WORKFLOW_NAME__" in managed, name
+    assert render(managed) == live, f"{name} live != rendered managed"
 PY
-pass "managed==live for staging-to-main; repair-observer live is rendered managed template"
+pass "managed templates render to live IDE workflow names"
 
 ! grep -q 'Open or update PR' core/skills/agentcomply/SKILL.md \
   || fail "agentcomply still has Open or update PR"
@@ -87,7 +97,15 @@ if grep -nE 'git add \.|git add -A|git add --all' core/session/SESSION-END.md \
   | grep -viE 'never|refuse|not |Do not|do not|Owned-path|broad add'; then
   fail "SESSION-END still instructs broad git add"
 fi
-pass "SESSION-END owned-path staging"
+grep -q 'completion_gate.py review-ready' core/session/SESSION-END.md \
+  || fail "SESSION-END missing authoritative review-ready gate"
+grep -qi 'validates first\|only then' core/session/SESSION-END.md \
+  || fail "SESSION-END missing validate-then-publish ordering"
+if grep -niE 'Ready status is set|already be set|already set before' core/session/SESSION-END.md \
+  | grep -viE 'do \*\*not\*\*|do not|not require'; then
+  fail "SESSION-END still requires Ready status before gate"
+fi
+pass "SESSION-END owned-path staging + review-ready ordering"
 
 grep -q '^\.linktrend/' .gitignore || fail ".linktrend/ not gitignored"
 pass ".linktrend/ gitignored"
@@ -294,6 +312,61 @@ write_completion_evidence ".linktrend/new-failed-evidence.json" 1
 run_review_ready_expect 78 ".linktrend/new-failed-evidence.json"
 assert_no_success_status "$new_sha"
 pass "failed gate leaves branch ineligible"
+
+# ---- fetch failure fail-closed ----
+(
+  cd "$WT"
+  git remote remove origin 2>/dev/null || true
+  git remote add origin "https://invalid.example.invalid/no-such-repo.git"
+)
+# STATUS_BACKEND=file but origin exists → fetch must be attempted and fail closed
+write_completion_evidence ".linktrend/fetch-fail-evidence.json" 0
+run_review_ready_expect 78 ".linktrend/fetch-fail-evidence.json"
+assert_no_success_status "$(git -C "$WT" rev-parse HEAD)"
+pass "completion_gate fails closed when git fetch origin fails"
+
+# restore file-backend style origin tip for later tests
+(
+  cd "$WT"
+  git remote remove origin 2>/dev/null || true
+  git remote add origin "$TMP/repo"
+  branch="$(git rev-parse --abbrev-ref HEAD)"
+  git fetch -q origin "$branch" 2>/dev/null || true
+  git update-ref "refs/remotes/origin/${branch}" HEAD
+)
+
+# ---- disallowed branch ----
+(
+  cd "$WT"
+  git checkout -q -b "random/not-allowed"
+  git commit -q --allow-empty -m "disallowed branch tip"
+  git update-ref "refs/remotes/origin/random/not-allowed" HEAD
+)
+write_completion_evidence ".linktrend/disallowed-evidence.json" 0
+run_review_ready_expect 78 ".linktrend/disallowed-evidence.json"
+assert_no_success_status "$(git -C "$WT" rev-parse HEAD)"
+pass "completion_gate rejects disallowed work branch"
+
+# return to allowed branch for remaining tests
+ALLOWED_BR="$(git -C "$WT" branch --list 'issue/*' | head -1 | tr -d ' *')"
+[ -n "$ALLOWED_BR" ] || ALLOWED_BR="issue/42-exact-title-match"
+git -C "$WT" checkout -q "$ALLOWED_BR"
+
+# ---- durable blocked record ----
+export LINKTREND_REPAIR_BACKEND=file
+export LINKTREND_REPAIR_DIR="$TMP/repair-blocked"
+mkdir -p "$LINKTREND_REPAIR_DIR"
+set +e
+python3 "$ROOT/scripts/gitops/completion_gate.py" blocked \
+  --workdir "$WT" \
+  --reason "fixture blocker for durable record" \
+  --attempted-repairs 2 >/tmp/blocked.out 2>/tmp/blocked.err
+bec=$?
+set -e
+[ "$bec" -eq 2 ] || fail "blocked expected exit 2, got $bec ($(cat /tmp/blocked.out /tmp/blocked.err))"
+echo "$(cat /tmp/blocked.out)" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("durableRecord") is True, d; assert d.get("durableFailureId"), d'
+[ -f "$WT/.linktrend/completion-blocker.json" ] || fail "local blocker cache missing"
+pass "completion_gate blocked writes local cache and durable repair task"
 
 # ---- repair_task: re-upsert does not increment; dispatch-attempt does; 3rd → Issues ----
 export LINKTREND_REPAIR_BACKEND=file

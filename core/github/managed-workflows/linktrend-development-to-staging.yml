@@ -32,8 +32,8 @@ on:
     types: [completed]
   workflow_run:
     workflows:
-      - CI
-      - Branch Source Policy
+      - __LINKTREND_CI_WORKFLOW_NAME__
+      - __LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__
     types: [completed]
 
 concurrency:

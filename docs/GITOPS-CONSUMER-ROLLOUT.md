@@ -227,3 +227,26 @@ Record gaps in adoption notes; do not auto-fix consumers from GITOPS-01 PR.
 - `core/github/managed-workflows/README.md`
 - `core/checklists/BUGBOT-INHERITANCE.md`
 - `scripts/wire-repo.sh`, `scripts/sync-managed-workflows.sh`, `scripts/backfill-managed-workflows.sh`
+
+## Consumer workflow display names
+
+Managed workflows contain `__LINKTREND_*` placeholders. Install via `scripts/wire-repo.sh` or
+`scripts/sync-managed-workflows.sh`, which render names from the committed consumer config:
+
+`.github/linktrend-gitops-consumer.json`
+
+```json
+{
+  "schemaVersion": 1,
+  "ciWorkflowName": "Consumer CI",
+  "branchPolicyWorkflowName": "Branch Source Policy",
+  "bugbotCheckName": "Cursor Bugbot"
+}
+```
+
+Repository variables cannot change `workflow_run.workflows` — names must be rendered into static YAML.
+
+## Physical Cursor bootstrap
+
+`wire-repo.sh` installs a **physical** `.cursor/rules/cursor-gitops-bootstrap.mdc`.
+It does **not** symlink consumer `.cursor` to IDE Development (that breaks Cursor Cloud).
