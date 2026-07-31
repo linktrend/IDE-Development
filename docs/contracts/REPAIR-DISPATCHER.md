@@ -42,7 +42,7 @@
 
 **Immediate** (`lisaDispatchState=do_not_dispatch`):
 
-- `automation_credentials_blocked`, `usage_limit`
+- `automation_credentials_blocked`, `usage_limit`, `packager_author_blocked`
 - `immediate_security`, `immediate_destructive`, `immediate_approval_required`, `immediate_product_decision`
 
 Promotion conflicts also keep compat fields (`stage`, `sourceBranch`, `targetBranch`, `status=conflict_blocked`, …).
@@ -83,5 +83,9 @@ File backend (tests): `LINKTREND_REPAIR_BACKEND=file` + `LINKTREND_REPAIR_DIR=..
 ## Observer
 
 Managed workflow `linktrend-repair-observer.yml` upserts `ci_failure` / `bugbot_failure` on
-workflow_run / check_run failures using read-only checkout of the default branch and
-`GITHUB_TOKEN` with `issues: write` (no App mint).
+workflow_run / check_run failures using read-only checkout of the default branch and the
+LiNKtrend GitOps GitHub App (`AUTOMATION_TOKEN` via `resolve_automation_token.sh`).
+
+- Ordinary workflow token: not used for Issue upsert/resolve (job grants `contents: read` only).
+- App unavailable: write local `automation_credentials_blocked` outcome / step summary and fail the workflow; no GitHub mutations.
+- `repair_observer.py` proves current PR/branch head before resolving.
