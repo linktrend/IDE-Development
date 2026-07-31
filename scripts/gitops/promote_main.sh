@@ -22,7 +22,7 @@ EXPECTED_PROMOTE_HEAD="${EXPECTED_PROMOTE_HEAD:-}"
 EXPECTED_MAIN_SHA="${EXPECTED_MAIN_SHA:-}"
 PROMOTE_PR_NUMBER="${PROMOTE_PR_NUMBER:-}"
 REPO="${GH_REPO:-${GITHUB_REPOSITORY:-}}"
-TOKEN="${AUTOMATION_TOKEN:-${GH_TOKEN:-}}"
+TOKEN="${AUTOMATION_TOKEN:-}"
 export GH_TOKEN="${TOKEN}"
 export GITHUB_TOKEN="${TOKEN}"
 OUTCOME="${OUTCOME_FILE:-gitops-outcome.json}"
@@ -96,14 +96,8 @@ write_out() {
 }
 
 if [ -z "${TOKEN}" ] || [ "${AUTOMATION_TOKEN_SOURCE:-}" != "github_app" ]; then
+  # App unavailable: local outcome only — no repair/check mutation via workflow token.
   write_out "automation_credentials_blocked" "main promote requires GitHub App token"
-  export GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
-  repair_task_upsert \
-    --repo "${REPO}" \
-    --failure-type automation_credentials_blocked \
-    --severity immediate \
-    --branch "staging->main" \
-    --next-action "Configure GitHub App credentials for main promote; do not auto-repair."
   exit 0
 fi
 

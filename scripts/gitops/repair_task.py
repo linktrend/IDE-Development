@@ -45,6 +45,7 @@ IMMEDIATE_TYPES = frozenset(
     {
         "automation_credentials_blocked",
         "usage_limit",
+        "packager_author_blocked",
         "immediate_security",
         "immediate_destructive",
         "immediate_approval_required",
@@ -60,6 +61,7 @@ TYPE_LABELS = {
     "promotion_conflict": "linktrend-repair-promotion-conflict",
     "automation_credentials_blocked": "linktrend-repair-credentials",
     "usage_limit": "linktrend-repair-usage-limit",
+    "packager_author_blocked": "linktrend-repair-packager-author",
     "immediate_security": "linktrend-repair-immediate-security",
     "immediate_destructive": "linktrend-repair-immediate-destructive",
     "immediate_approval_required": "linktrend-repair-immediate-approval",

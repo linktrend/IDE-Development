@@ -602,6 +602,10 @@ grep -q 'main_approve_package_discover.py' core/github/managed-runtime/MANIFEST.
   || fail "MANIFEST missing main_approve_package_discover.py"
 grep -q 'main_approve_package_reuse.py' core/github/managed-runtime/MANIFEST.json \
   || fail "MANIFEST missing main_approve_package_reuse.py"
+grep -q 'resolve_bugbot_user_token.sh' core/github/managed-runtime/MANIFEST.json \
+  || fail "MANIFEST missing resolve_bugbot_user_token.sh"
+grep -q 'bugbot_user_credentials.py' core/github/managed-runtime/MANIFEST.json \
+  || fail "MANIFEST missing bugbot_user_credentials.py"
 
 BODY="$TMP/main-approve-body.md"
 cat >"$BODY" <<'EOF'
