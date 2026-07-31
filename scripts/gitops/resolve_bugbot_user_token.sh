@@ -48,6 +48,10 @@ echo "BUGBOT_USER_CREDENTIALS_STATUS=${BUGBOT_USER_CREDENTIALS_STATUS}"
 if [ "${REQUIRE_BUGBOT_USER_TOKEN:-1}" = "1" ]; then
   if [ "${BUGBOT_USER_TOKEN_SOURCE}" != "user_secret" ] || [ -z "${BUGBOT_USER_TOKEN}" ]; then
     echo "bugbot_user_credentials_blocked" >&2
+    # When sourced, return so Packager can write local outcomes; when executed, exit.
+    if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+      return 78
+    fi
     exit 78
   fi
 fi

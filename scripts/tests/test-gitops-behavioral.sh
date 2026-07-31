@@ -1470,14 +1470,27 @@ print("ambient GITHUB_EVENT_NAME=pull_request hermetic ok")
 PY
 pass "repair observer hermetic under ambient GITHUB_EVENT_NAME=pull_request"
 
-python3 - "$ROOT" <<'PY'
+python3 - "$ROOT" "$TMP" <<'PY'
+import json
+import os
 import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 root = Path(sys.argv[1])
-workflow_paths = list((root / ".github" / "workflows").glob("*.yml"))
-workflow_paths += list((root / "core" / "github" / "managed-workflows").glob("*.yml"))
+tmp = Path(sys.argv[2])
+workflow_paths = list((root / ".github" / "workflows").glob("linktrend-*.yml"))
+workflow_paths += list((root / "core" / "github" / "managed-workflows").glob("linktrend-*.yml"))
+
+WRITE_PERMS = (
+    "issues: write",
+    "checks: write",
+    "pull-requests: write",
+    "contents: write",
+    "statuses: write",
+)
 
 def job_blocks(path):
     lines = path.read_text().splitlines()
@@ -1519,24 +1532,87 @@ def job_permissions(block):
             indent = len(line) - len(line.lstrip(" "))
             if indent <= perm_indent:
                 break
-            out.append(line)
-    return "\n".join(out)
+            out.append(line.strip())
+    return out
 
+def render(text: str) -> str:
+    return (
+        text.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
+        .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
+        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+    )
+
+# Live ≡ rendered managed for entire managed set
+for name in (
+    "linktrend-repair-observer.yml",
+    "linktrend-integrator-merge.yml",
+    "linktrend-development-to-staging.yml",
+    "linktrend-staging-to-main.yml",
+    "linktrend-review-packager.yml",
+    "linktrend-cleanup-merged.yml",
+):
+    managed = (root / "core/github/managed-workflows" / name).read_text()
+    live = (root / ".github/workflows" / name).read_text()
+    assert render(managed) == live, name
+    assert "LINKTREND___" not in managed, name
+
+# Repair Observer: App mint + resolve; no ordinary-token mutations
+obs_live = (root / ".github/workflows/linktrend-repair-observer.yml").read_text()
+assert "create-github-app-token@" in obs_live
+assert "resolve_automation_token.sh" in obs_live
+assert 'export GH_TOKEN="${AUTOMATION_TOKEN}"' in obs_live
+assert 'export GITHUB_TOKEN="${AUTOMATION_TOKEN}"' in obs_live
+assert "repair_observer.py" in obs_live
+assert "automation_credentials_blocked" in obs_live
+assert "GH_TOKEN: ${{ github.token }}" not in obs_live
+assert "GITHUB_TOKEN: ${{ github.token }}" not in obs_live
+assert "issues: write" not in obs_live
+assert "Does NOT mint" not in obs_live
+assert "GITHUB_TOKEN only" not in obs_live
+assert "persist-credentials: false" in obs_live
+
+# Privileged mutation jobs must not grant write scopes to ordinary workflow token.
+# Mutation jobs = those that mint App / run repair_observer / promote / evaluate / cleanup apply.
+mutation_markers = (
+    "create-github-app-token@",
+    "repair_observer.py",
+    "promote_staging.sh",
+    "promote_main.sh",
+    "integrator_evaluate.sh",
+    "packager_discover.py",
+    "packager_evaluate.py",
+    "cleanup-merged-branches.sh",
+)
 failures = []
 for path in workflow_paths:
     for job, block in job_blocks(path):
-        needs_issue_write = "repair_task.py upsert" in block or "repair_observer" in block
-        if not needs_issue_write:
-            continue
-        # Packager repairs use the App installation token (AUTOMATION_TOKEN), not the
-        # ordinary workflow GITHUB_TOKEN — job-level issues:write is not required.
-        if "linktrend-review-packager.yml" in str(path) and "AUTOMATION_TOKEN" in block:
+        if not any(m in block for m in mutation_markers):
             continue
         perms = job_permissions(block)
-        if not re.search(r"(?m)^\s+issues:\s*write\s*$", perms):
-            failures.append(f"{path.relative_to(root)}:{job}")
+        for wp in WRITE_PERMS:
+            if wp in perms:
+                failures.append(f"{path.relative_to(root)}:{job}:{wp}")
 if failures:
-    raise SystemExit("jobs missing issues: write: " + ", ".join(failures))
+    raise SystemExit("mutation jobs still grant workflow-token writes: " + ", ".join(failures))
+
+# Read-only resolve jobs may still use github.token
+for name in (
+    "linktrend-integrator-merge.yml",
+    "linktrend-development-to-staging.yml",
+    "linktrend-staging-to-main.yml",
+    "linktrend-review-packager.yml",
+):
+    live = (root / ".github/workflows" / name).read_text()
+    assert "resolve:" in live
+    resolve_block = None
+    for job, block in job_blocks(root / ".github/workflows" / name):
+        if job == "resolve":
+            resolve_block = block
+            break
+    assert resolve_block is not None, name
+    assert "github.token" in resolve_block, name
+    perms = job_permissions(resolve_block)
+    assert not any(wp in perms for wp in WRITE_PERMS), (name, perms)
 
 # Packager must not mutate via ordinary GITHUB_TOKEN on credential failure
 pkg = (root / ".github/workflows/linktrend-review-packager.yml").read_text()
@@ -1549,9 +1625,77 @@ assert "repair_task.resolve_task(" in observer
 assert 'failure_type="ci_failure"' in observer
 assert "bugbot_failure" in observer and "usage_limit" in observer
 assert '("bugbot_failure", "usage_limit")' in observer or "('bugbot_failure', 'usage_limit')" in observer
-print("repair observer permissions + resolve caller proof ok")
+
+# Docs no longer claim GITHUB_TOKEN observer / no App mint
+readme = (root / "core/github/managed-workflows/README.md").read_text()
+assert "no App mint" not in readme
+assert "GITHUB_TOKEN issues:write" not in readme
+assert "AUTOMATION_TOKEN" in readme or "GitHub App" in readme
+disp = (root / "docs/contracts/REPAIR-DISPATCHER.md").read_text()
+assert "no App mint" not in disp
+assert "issues: write" not in disp.split("## Observer")[1].split("##")[0]
+assert "AUTOMATION_TOKEN" in disp.split("## Observer")[1].split("##")[0]
+
+# Behavioral: App-missing observer workflow path → local outcome, exit 1, zero gh
+fake_bin = tmp / "fake-bin-observer"
+fake_bin.mkdir(exist_ok=True)
+(fake_bin / "gh").write_text(
+    "#!/bin/bash\necho UNEXPECTED_GH_CALL >&2; echo args:\"$*\" >&2; exit 99\n",
+    encoding="utf-8",
+)
+os.chmod(fake_bin / "gh", 0o755)
+cwd = tmp / "observer-app-miss"
+cwd.mkdir(exist_ok=True)
+# Simulate the workflow App-miss branch (same commands as YAML)
+env = os.environ.copy()
+env["PATH"] = f"{fake_bin}:{env.get('PATH','')}"
+env.pop("AUTOMATION_TOKEN", None)
+env.pop("AUTOMATION_TOKEN_SOURCE", None)
+env.pop("LINKTREND_APP_TOKEN", None)
+env["GH_TOKEN"] = "ghs_FAKE_AMBIENT_GH"
+env["GITHUB_TOKEN"] = "ghs_FAKE_AMBIENT_GITHUB"
+env["GITHUB_REPOSITORY"] = "linktrend/IDE-Development"
+env["GITHUB_STEP_SUMMARY"] = str(cwd / "summary.md")
+Path(env["GITHUB_STEP_SUMMARY"]).write_text("", encoding="utf-8")
+script = f"""
+set -euo pipefail
+cd "{cwd}"
+# force resolve failure by leaving App vars empty while REQUIRE_APP_TOKEN=1
+export REQUIRE_APP_TOKEN=1
+export LINKTREND_GITOPS_APP_ID=""
+export LINKTREND_APP_TOKEN=""
+if ! source "{root}/scripts/gitops/resolve_automation_token.sh"; then
+  python3 "{root}/scripts/gitops/write_outcome.py" \\
+    --status automation_credentials_blocked \\
+    --detail "Repair Observer requires GitHub App token for durable repair mutations"
+  echo "### Repair Observer: \\`automation_credentials_blocked\\`" >> "$GITHUB_STEP_SUMMARY"
+  exit 1
+fi
+echo SHOULD_NOT_REACH
+exit 2
+"""
+r = subprocess.run(["bash", "-lc", script], env=env, capture_output=True, text=True)
+assert r.returncode == 1, (r.returncode, r.stdout, r.stderr)
+assert "UNEXPECTED_GH_CALL" not in (r.stdout + r.stderr)
+outcome = json.loads((cwd / "gitops-outcome.json").read_text())
+assert outcome["status"] == "automation_credentials_blocked"
+assert "automation_credentials_blocked" in Path(env["GITHUB_STEP_SUMMARY"]).read_text()
+
+# Ambient tokens must not authorize observer mutation when App path not taken:
+# repair_observer with only fake GH/GITHUB and file backend still uses ambient token for gh reads,
+# but workflow contract forbids exporting github.token — static proof above + App-miss zero gh.
+
+# App-success path exports AUTOMATION_TOKEN into GH_TOKEN/GITHUB_TOKEN before observer
+run_section = obs_live.split("name: Observe repair lifecycle")[-1]
+assert "resolve_automation_token.sh" in run_section
+assert 'GH_TOKEN="${AUTOMATION_TOKEN}"' in run_section
+assert 'GITHUB_TOKEN="${AUTOMATION_TOKEN}"' in run_section
+assert run_section.index("resolve_automation_token.sh") < run_section.index('GH_TOKEN="${AUTOMATION_TOKEN}"')
+assert run_section.index('GH_TOKEN="${AUTOMATION_TOKEN}"') < run_section.index("repair_observer.py handle-event")
+
+print("repair observer App identity + no workflow-token writes ok")
 PY
-pass "repair observer/upsert jobs carry issues:write and production resolve caller exists"
+pass "Repair Observer App identity; mutation jobs deny workflow-token writes; managed≡live"
 
 # ============================================================================
 # App-credential failure actually creates/updates a repair task (file backend)

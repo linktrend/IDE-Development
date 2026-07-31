@@ -116,10 +116,6 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-      checks: write
-      issues: write
-      statuses: read
-      pull-requests: read
     env:
       OUTCOME_CHECK_NAME: Linktrend Staging Outcome
       STAGING_GATE_CHECKS: ${{ vars.LINKTREND_STAGING_GATE_CHECKS || 'Verify IDE Development,Enforce allowed PR source branches' }}
