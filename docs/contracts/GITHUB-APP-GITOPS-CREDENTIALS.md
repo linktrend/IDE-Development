@@ -19,6 +19,24 @@ A dedicated **GitHub App** installed on the org/repos, used only by managed GitO
 | Repository/org variable | `LINKTREND_GITOPS_APP_ID` | Numeric App ID (non-secret) |
 | Repository/org secret | `LINKTREND_GITOPS_APP_PRIVATE_KEY` | PEM private key — **never** commit |
 
+### Dual credentials (Packager identity boundary)
+
+Cursor Bugbot requires a **human user** PR author and a **human user** `@cursor review` comment. The GitHub App alone cannot satisfy that trigger path.
+
+| Kind | Name | Allowed operations only |
+|------|------|-------------------------|
+| Repository secret | `LINKTREND_BUGBOT_USER_TOKEN` | (1) Review Packager **feature PR create** into `development`; (2) the single `@cursor review` + exact-SHA marker comment |
+
+Resolved in-job as `BUGBOT_USER_TOKEN` by `scripts/gitops/resolve_bugbot_user_token.sh` / `bugbot_user_credentials.py`.
+
+**Hard rules:**
+
+1. Fail closed when the user token is missing for either permitted operation (`bugbot_user_credentials_blocked`).
+2. Never silently substitute `AUTOMATION_TOKEN`, `LINKTREND_APP_TOKEN`, or `GITHUB_TOKEN`.
+3. Never use the user token for merge, promote, repair, status/check writes, cleanup, or branch pushes.
+4. Never print, artifact, summarize, or cross-job-output the user token value.
+5. All other Packager/Integrator/promote mutations continue to use the GitHub App installation token.
+
 ### Token minting contract (same job only)
 
 1. Only the official mint step receives the private key:
@@ -68,8 +86,9 @@ If App ID or minted token are unavailable:
 2. Create private key; store PEM in org or repo secret `LINKTREND_GITOPS_APP_PRIVATE_KEY`
 3. Note App ID → variable `LINKTREND_GITOPS_APP_ID`
 4. Install the App on `IDE-Development` (later each consumer)
-5. Re-run a Packager `workflow_dispatch` smoke after this change is on the **default branch**
-6. Confirm logs show `AUTOMATION_TOKEN_SOURCE=github_app` and a draft PR whose subsequent CI runs without manual workflow approval
+5. Store a narrowly scoped Carlos user PAT as repository secret `LINKTREND_BUGBOT_USER_TOKEN` (PR write + issue comment only; no admin)
+6. Re-run a Packager `workflow_dispatch` smoke after this change is on the **default branch**
+7. Confirm logs show `AUTOMATION_TOKEN_SOURCE=github_app`, `BUGBOT_USER_TOKEN_SOURCE=user_secret`, a draft PR **authored by `linktrend`**, and exactly one `@cursor review` comment also authored by `linktrend`
 
 ## Rollout gate
 

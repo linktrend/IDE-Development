@@ -18,11 +18,45 @@ from typing import Any, Callable
 MARKER_PREFIX = "<!-- linktrend-bugbot-requested:"
 DEFAULT_BUGBOT_COMMAND = "@cursor review"
 MAX_BUGBOT_REQUESTS = 2
+# Packager feature PRs into development must be authored by Carlos (human user).
+REQUIRED_PACKAGER_PR_AUTHOR = "linktrend"
 
 # Executable Bugbot triggers (Cursor Manual Only). Bare "cursor review" is NOT executable.
 _EXECUTABLE_TRIGGER_RE = re.compile(
     r"(?im)^\s*(?:@cursor\s+review|bugbot\s+run)\s*$"
 )
+
+
+def packager_pr_author_login(pr_payload: dict[str, Any] | None) -> str | None:
+    """Extract GitHub login from gh/API PR payload (author or user)."""
+    if not isinstance(pr_payload, dict):
+        return None
+    for key in ("author", "user"):
+        node = pr_payload.get(key)
+        if isinstance(node, dict):
+            login = node.get("login")
+            if isinstance(login, str) and login.strip():
+                return login.strip()
+        elif isinstance(node, str) and node.strip():
+            return node.strip()
+    return None
+
+
+def require_packager_pr_author(pr_payload: dict[str, Any] | None) -> tuple[bool, str]:
+    """Require exact Packager PR author login ``linktrend``.
+
+    Returns (ok, detail). detail is the login on success, or an error code.
+    """
+    login = packager_pr_author_login(pr_payload)
+    if not login:
+        return False, "missing_packager_pr_author"
+    if login != REQUIRED_PACKAGER_PR_AUTHOR:
+        return (
+            False,
+            f"wrong_packager_pr_author:expected={REQUIRED_PACKAGER_PR_AUTHOR}:got={login}",
+        )
+    return True, login
+
 
 
 def marker_for(sha: str) -> str:

@@ -24,7 +24,7 @@ MODE="${MODE:-build}"
 STAGING_GATE_CHECKS="${STAGING_GATE_CHECKS:-Verify IDE Development}"
 TIMEZONE_LABEL="${TIMEZONE_LABEL:-Asia/Taipei}"
 REPO="${GH_REPO:-${GITHUB_REPOSITORY:-}}"
-TOKEN="${AUTOMATION_TOKEN:-${GH_TOKEN:-}}"
+TOKEN="${AUTOMATION_TOKEN:-}"
 export GH_TOKEN="${TOKEN}"
 export GITHUB_TOKEN="${TOKEN}"
 
@@ -102,14 +102,8 @@ write_out() {
 }
 
 if [ -z "${TOKEN}" ] || [ "${AUTOMATION_TOKEN_SOURCE:-}" != "github_app" ]; then
+  # App unavailable: local outcome only — no repair/check mutation via workflow token.
   write_out "automation_credentials_blocked" "staging promote requires GitHub App token"
-  export GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
-  repair_task_upsert \
-    --repo "${REPO}" \
-    --failure-type automation_credentials_blocked \
-    --severity immediate \
-    --branch "development->staging" \
-    --next-action "Configure GitHub App credentials for staging promote; do not auto-repair."
   exit 0
 fi
 

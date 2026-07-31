@@ -13,6 +13,15 @@ For each repository (starting with `linktrend/IDE-Development`):
 
 Manual triggers remain: comment exactly `@cursor review` or `bugbot run`.
 
+### Packager authorship (Carlos user token)
+
+GitHub App–authored PRs / comments do **not** reliably wake Bugbot. The Review Packager therefore uses repository secret `LINKTREND_BUGBOT_USER_TOKEN` for **only**:
+
+1. Creating the feature draft PR into `development` (author must be `linktrend`)
+2. Posting the single `@cursor review` + `<!-- linktrend-bugbot-requested: <sha> -->` comment (author must be `linktrend`)
+
+Freeze comments, undraft, readiness, merges, promotion, and repair stay on the GitHub App. Missing user token → `bugbot_user_credentials_blocked` (fail closed; no App substitution).
+
 ### Request accounting (packager 2-request limit)
 
 A comment counts toward the normal max of **2** Bugbot requests per PR only when it contains **both**:

@@ -116,9 +116,15 @@ for s in scripts/mark-review-ready.sh scripts/validate-review-ready.sh \
          scripts/pull-update-work-branches.sh scripts/cleanup-merged-branches.sh \
          scripts/gitops/promote_staging.sh scripts/gitops/promote_main.sh \
          scripts/gitops/integrator_evaluate.sh scripts/tests/test-gitops-behavioral.sh \
-         scripts/gitops/resolve_automation_token.sh; do
+         scripts/gitops/resolve_automation_token.sh scripts/gitops/resolve_bugbot_user_token.sh; do
   [ -x "$s" ] || fail "not executable: $s"
 done
+[ -f scripts/gitops/bugbot_user_credentials.py ] || fail "missing bugbot_user_credentials.py"
+grep -q 'LINKTREND_BUGBOT_USER_TOKEN' "$PKG" || fail "packager must inject Carlos user token secret"
+grep -q 'resolve_bugbot_user_token.sh' "$PKG" || fail "packager must resolve Carlos user token"
+grep -q 'bugbot_user_credentials_blocked' "$PKG" || fail "packager must fail closed on missing user token"
+grep -q 'LINKTREND_BUGBOT_USER_TOKEN' docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md \
+  || fail "App credentials doc must describe dual-credential user token"
 [ ! -f scripts/commit-review-ready.sh ] || fail "commit-review-ready.sh must be removed"
 [ ! -f core/templates/REVIEW-READY.json ] || fail "REVIEW-READY.json template must be removed"
 pass "Executable modes + obsolete readiness file artifacts removed"
@@ -230,10 +236,10 @@ from pathlib import Path
 import sys
 sys.path.insert(0, "scripts/gitops")
 from write_outcome import VALID
-need = {"packaged","waiting","skipped","blocked","failed","bugbot_requested","merged","automation_credentials_blocked"}
+need = {"packaged","waiting","skipped","blocked","failed","bugbot_requested","merged","automation_credentials_blocked","bugbot_user_credentials_blocked"}
 assert need <= VALID, need - VALID
 text = Path("scripts/gitops/packager_evaluate.py").read_text()
-for s in ("waiting","skipped","blocked","bugbot_requested","automation_credentials_blocked"):
+for s in ("waiting","skipped","blocked","bugbot_requested","automation_credentials_blocked","bugbot_user_credentials_blocked"):
     assert s in text
 print("outcomes ok")
 PY
