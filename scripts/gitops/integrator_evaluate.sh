@@ -16,22 +16,12 @@ GH_REPO="${GH_REPO:-${GITHUB_REPOSITORY:-}}"
 
 TOKEN="${AUTOMATION_TOKEN:-}"
 if [ -z "${TOKEN}" ] || [ "${AUTOMATION_TOKEN_SOURCE:-}" != "github_app" ]; then
+  # App unavailable: local outcome only — no repair/check mutation via workflow token.
   python3 "${SCRIPT_DIR}/write_outcome.py" \
     --file integrator-result.json \
     --status automation_credentials_blocked \
     --detail "Integrator requires GitHub App token for autonomous merge"
   cp integrator-result.json gitops-outcome.json 2>/dev/null || true
-  # Immediate repair record (no Lisa auto-dispatch). Prefer GITHUB_TOKEN if App missing.
-  export GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
-  python3 "${SCRIPT_DIR}/repair_task.py" upsert \
-    --repo "${GH_REPO}" \
-    --failure-type automation_credentials_blocked \
-    --severity immediate \
-    --pr "${PR_NUMBER}" \
-    --head-sha "${HEAD_SHA}" \
-    --branch "${HEAD_REF:-}" \
-    --next-action "Configure GitHub App credentials; do not auto-repair." \
-    >/dev/null 2>&1 || true
   exit 0
 fi
 export GH_TOKEN="${TOKEN}"
@@ -65,7 +55,7 @@ post_check() {
     --check-name "Linktrend Integrator Result" \
     --head-sha "${sha}" \
     --repo "${GH_REPO}" \
-    --token-env GH_TOKEN >/dev/null || true
+    --token-env AUTOMATION_TOKEN >/dev/null || true
 }
 
 bugbot_state_from_checks() {
