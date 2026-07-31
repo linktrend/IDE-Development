@@ -11,6 +11,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bugbot_user_credentials import scrub_carlos_token_env  # noqa: E402
+
 VALID = {
     "packaged",
     "waiting",
@@ -20,6 +23,7 @@ VALID = {
     "bugbot_requested",
     "merged",
     "automation_credentials_blocked",
+    "bugbot_user_credentials_blocked",
 }
 
 
@@ -44,11 +48,18 @@ def post_check_run(
 ) -> None:
     if not head_sha or not token or not repo:
         return
+    env = scrub_carlos_token_env(os.environ)
+    env["GH_TOKEN"] = token
+    env["GITHUB_TOKEN"] = token
     # Map outcome → check conclusion. success only for documented terminal successes.
     conclusion = "neutral"
     if status in {"merged", "bugbot_requested", "packaged"}:
         conclusion = "success"
-    elif status in {"failed", "automation_credentials_blocked"}:
+    elif status in {
+        "failed",
+        "automation_credentials_blocked",
+        "bugbot_user_credentials_blocked",
+    }:
         conclusion = "failure"
     elif status in {"blocked"}:
         conclusion = "neutral"
@@ -77,8 +88,25 @@ def post_check_run(
         input=json.dumps(body),
         text=True,
         check=False,
-        env={**os.environ, "GH_TOKEN": token, "GITHUB_TOKEN": token},
+        env=env,
     )
+
+
+def resolve_check_token(token_env: str) -> str | None:
+    """Return token from the exact env name only — no ambient fallbacks.
+
+    Autonomous check mutations must be authorized solely by ``token_env``
+    (normally ``AUTOMATION_TOKEN``). Never fall back to ``GH_TOKEN``,
+    ``GITHUB_TOKEN``, or any other ambient credential.
+    """
+    name = (token_env or "").strip()
+    if not name:
+        return None
+    raw = os.environ.get(name)
+    if raw is None:
+        return None
+    token = raw.strip()
+    return token or None
 
 
 def main() -> int:
@@ -89,22 +117,32 @@ def main() -> int:
     ap.add_argument("--check-name", default="")
     ap.add_argument("--head-sha", default="")
     ap.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", ""))
-    ap.add_argument("--token-env", default="AUTOMATION_TOKEN")
+    ap.add_argument(
+        "--token-env",
+        default="AUTOMATION_TOKEN",
+        help="Exact env var name whose non-empty value authorizes check-run posts",
+    )
     args = ap.parse_args()
-    extra = {}
-    write_outcome(Path(args.file), args.status, args.detail, **extra)
+    write_outcome(Path(args.file), args.status, args.detail)
     if args.check_name and args.head_sha:
-        token = os.environ.get(args.token_env) or os.environ.get("GH_TOKEN") or ""
-        # Prefer non-app token for check-runs if app missing — checks:write on GITHUB_TOKEN ok
-        token = token or os.environ.get("GITHUB_TOKEN") or ""
-        post_check_run(
-            name=args.check_name,
-            head_sha=args.head_sha,
-            status=args.status,
-            detail=args.detail,
-            repo=args.repo,
-            token=token,
-        )
+        token = resolve_check_token(args.token_env)
+        if not token:
+            # Local outcome already written. Failed workflow / redacted warn only.
+            print(
+                "WARN: skipping check-run post; "
+                f"--token-env={args.token_env} empty or unset "
+                "(no ambient GH_TOKEN/GITHUB_TOKEN fallback)",
+                file=sys.stderr,
+            )
+        else:
+            post_check_run(
+                name=args.check_name,
+                head_sha=args.head_sha,
+                status=args.status,
+                detail=args.detail,
+                repo=args.repo,
+                token=token,
+            )
     return 0
 
 

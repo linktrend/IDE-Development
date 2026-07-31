@@ -16,13 +16,16 @@ Templates synced into consumer repos (and IDE Development itself) by:
 | `linktrend-staging-to-main.yml` | Package / approve-merge (bound SHAs) / observe |
 | `linktrend-integrator-merge.yml` | Merge to development when fast-gate + Bugbot + reviewed SHA |
 | `linktrend-cleanup-merged.yml` | Weekly remote cleanup of merged/abandoned branches (no local worktrees) |
-| `linktrend-repair-observer.yml` | Upsert repair tasks on CI/Bugbot failures (GITHUB_TOKEN issues:write; no App mint) |
+| `linktrend-repair-observer.yml` | Upsert/resolve repair tasks on CI/Bugbot lifecycle (GitHub App `AUTOMATION_TOKEN` only) |
 
 ## Trust boundary (all privileged workflows)
 
 - Checkout **default branch only** (`persist-credentials: false`)
 - Never run PR head/merge scripts with write credentials
-- Autonomous mutation requires GitHub App token (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`)
+- Read-only event/candidate resolution may use the ordinary workflow token (`github.token`) with read scopes only
+- Durable repair and all other autonomous mutations require the GitHub App token (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`)
+- App unavailable → local `automation_credentials_blocked` outcome / step summary and failed workflow only (no ordinary-token Issue/check/comment/PR/branch/status mutations)
+- Mutation jobs must not grant write permissions to the ordinary workflow token (`issues`/`checks`/`pull-requests`/`contents`/`statuses` write)
 - Honest outcomes via `gitops-outcome.json` / result checks (green job ≠ packaged)
 
 ## Contracts

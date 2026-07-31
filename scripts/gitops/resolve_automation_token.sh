@@ -9,8 +9,20 @@
 #        - LINKTREND_APP_TOKEN       (minted installation token from step output)
 #   3. Private key must NEVER be present in consuming steps.
 #
+# When sourced, fail-closed uses `return` so callers can run
+# `if ! source …; then` local-outcome branches. When executed, uses `exit`.
+#
 # See docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md
 set -euo pipefail
+
+_automation_fail_closed() {
+  echo "automation_credentials_blocked" >&2
+  # EX_CONFIG — fail closed for autonomous path
+  if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    return 78
+  fi
+  exit 78
+}
 
 AUTOMATION_TOKEN=""
 AUTOMATION_TOKEN_SOURCE="none"
@@ -28,8 +40,7 @@ if [ -n "${LINKTREND_GITOPS_APP_PRIVATE_KEY:-}" ]; then
   echo "AUTOMATION_TOKEN_SOURCE=${AUTOMATION_TOKEN_SOURCE}"
   echo "AUTOMATION_CREDENTIALS_STATUS=${AUTOMATION_CREDENTIALS_STATUS}"
   if [ "${REQUIRE_APP_TOKEN:-1}" = "1" ]; then
-    echo "automation_credentials_blocked" >&2
-    exit 78
+    _automation_fail_closed || return $?
   fi
 fi
 
@@ -58,7 +69,6 @@ echo "AUTOMATION_CREDENTIALS_STATUS=${AUTOMATION_CREDENTIALS_STATUS}"
 
 if [ "${REQUIRE_APP_TOKEN:-1}" = "1" ]; then
   if [ "${AUTOMATION_TOKEN_SOURCE}" != "github_app" ] || [ -z "${AUTOMATION_TOKEN}" ]; then
-    echo "automation_credentials_blocked" >&2
-    exit 78  # EX_CONFIG — fail closed for autonomous path
+    _automation_fail_closed || return $?
   fi
 fi

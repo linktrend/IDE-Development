@@ -18,6 +18,8 @@
     "scripts/gitops/repair_task.py",
     "scripts/gitops/repair_observer.py",
     "scripts/gitops/resolve_automation_token.sh",
+    "scripts/gitops/resolve_bugbot_user_token.sh",
+    "scripts/gitops/bugbot_user_credentials.py",
     "scripts/gitops/resolve_event_pr.py",
     "scripts/gitops/wait_named_gate.py",
     "scripts/gitops/work-branch-allowlist.sh",
