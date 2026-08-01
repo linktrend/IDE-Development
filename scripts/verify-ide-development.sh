@@ -271,6 +271,7 @@ def render(text: str) -> str:
 pairs = [
     "linktrend-integrator-merge.yml",
     "linktrend-review-packager.yml",
+    "linktrend-review-ready-publisher.yml",
     "linktrend-development-to-staging.yml",
     "linktrend-staging-to-main.yml",
     "linktrend-repair-observer.yml",

@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Stable test contract for App-backed Review Ready publisher (Wave 2 packet 3).",
+  "productionPaths": {
+    "workflow": ".github/workflows/linktrend-review-ready-publisher.yml",
+    "dispatchValidator": "scripts/gitops/review_ready_dispatch.py"
+  },
+  "workflowInputs": {
+    "branch": "issue/<number>-<slug>",
+    "sha": "exact 40-char hex immutable tip (normalized lowercase)",
+    "action": "publish|withdraw (default publish)",
+    "reason": "withdrawal reason when action=withdraw",
+    "dry_run": "true|false",
+    "evidence_path": "relative tip-tree path (publish only)",
+    "evidence_json": "optional inline evidence JSON (publish only)",
+    "issue_number": "optional; must match branch"
+  },
+  "dispatchRoute": "gh workflow run linktrend-review-ready-publisher.yml -f branch=<branch> -f sha=<sha> -f action=<publish|withdraw> -f dry_run=<true|false>",
+  "withdrawRoute": "gh workflow run linktrend-review-ready-publisher.yml -f branch=<branch> -f sha=<sha> -f action=withdraw -f reason=<reason> -f dry_run=<true|false>",
+  "statusContext": "Linktrend Review Ready",
+  "validatorPublicApi": {
+    "function": "validate_dispatch_inputs",
+    "raises": "DispatchValidationError",
+    "cli": "python3 scripts/gitops/review_ready_dispatch.py validate --branch BRANCH --sha SHA [--dry-run BOOL] [--evidence-path PATH] [--evidence-json JSON] [--github-repository OWNER/NAME] [--repository OWNER/NAME] [--issue-number N]",
+    "selfTest": "python3 scripts/gitops/review_ready_dispatch.py self-test"
+  },
+  "evidenceValidation": "completion_gate.validate_evidence against immutable requested SHA (workflow publish step)",
+  "remoteTipValidation": "workflow verifies GitHub branches API tip == requested sha",
+  "rules": [
+    "Trusted scripts checkout must use github.event.repository.default_branch with persist-credentials: false.",
+    "Issue branch/SHA may be checked out as data only under a separate path.",
+    "Branch must match issue/<number>-<slug> (lowercase slug); reject refs/heads/ and protected branches.",
+    "completion_gate / readiness_status must emit App dispatch routes only for verified issue/<number>-<slug>; legacy allowlist branches get migration remediation, never a doomed -f branch=feature/… command.",
+    "SHA must be full 40-char hex; reject abbreviated SHAs and mutable refs.",
+    "Evidence headSha must equal requested sha; schemaVersion>=1; commands exitCode 0.",
+    "repository must match GITHUB_REPOSITORY when provided (no cross-repo publish).",
+    "Privileged publish uses GitHub App token only; no GITHUB_TOKEN or BUGBOT_USER_TOKEN human fallback.",
+    "Private key only in create-github-app-token mint step.",
+    "Fail closed with automation_credentials_blocked when App token missing."
+  ]
+}
