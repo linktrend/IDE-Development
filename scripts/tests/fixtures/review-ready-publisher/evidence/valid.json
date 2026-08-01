@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "classification": "tests",
+  "acceptance": "App-backed publisher adversarial fixture acceptance",
+  "commands": [
+    {
+      "cmd": "scripts/tests/test-review-ready-publisher.sh",
+      "exitCode": 0,
+      "evidencePath": ".linktrend/test-review-ready-publisher.out"
+    }
+  ]
+}

@@ -38,6 +38,7 @@ def render(text: str) -> str:
 
 for name in (
     "linktrend-review-packager.yml",
+    "linktrend-review-ready-publisher.yml",
     "linktrend-development-to-staging.yml",
     "linktrend-staging-to-main.yml",
     "linktrend-integrator-merge.yml",
@@ -348,5 +349,319 @@ if command -v actionlint >/dev/null 2>&1; then
 else
   echo "WARN: actionlint not installed — skipped expression lint"
 fi
+
+# ============================================================================
+# Exact-SHA compatibility with App-backed Review Ready publisher
+# ============================================================================
+# Packager must treat a successful ``Linktrend Review Ready`` status on the
+# immutable tip SHA as eligible — same contract whether the status was posted
+# by the local completion gate or the App-backed Actions publisher. No live
+# credentials or GitHub mutation required (file status backend + hooks).
+python3 - <<'PY'
+from __future__ import annotations
+
+import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(".").resolve()
+sys.path.insert(0, str(ROOT / "scripts" / "gitops"))
+
+import packager_discover as disc_mod
+import packager_evaluate as eval_mod
+import readiness_status as rs
+from readiness_status import CONTEXT
+
+assert CONTEXT == "Linktrend Review Ready"
+
+# Static: discover/evaluate gate on exact-SHA readiness; no JSON marker path.
+disc_src = (ROOT / "scripts/gitops/packager_discover.py").read_text(encoding="utf-8")
+eval_src = (ROOT / "scripts/gitops/packager_evaluate.py").read_text(encoding="utf-8")
+assert "is_sha_review_ready" in disc_src
+assert "is_sha_review_ready" in eval_src
+assert "skipped_head_drift" in disc_src
+assert "readiness_lost" in eval_src
+assert "stale_event_head" in eval_src
+assert "abort_head_changed_after_gate" in eval_src
+assert ".linktrend/review-ready.json" not in disc_src
+assert ".linktrend/review-ready.json" not in eval_src
+assert "review-ready.json" not in disc_src
+assert "review-ready.json" not in eval_src
+
+status_dir = Path(tempfile.mkdtemp(prefix="packager-exact-sha-"))
+os.environ["LINKTREND_STATUS_BACKEND"] = "file"
+os.environ["LINKTREND_STATUS_DIR"] = str(status_dir)
+
+# App-publisher-shaped success on immutable tip (same context + success state).
+READY_SHA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+OTHER_SHA = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+DRIFT_SHA = "cccccccccccccccccccccccccccccccccccccccc"
+BRANCH = "issue/44-add-app-backed-review-ready-publisher-and-produc"
+
+# Simulate App-backed publisher: post success for CONTEXT on exact SHA only.
+rs.mark_sha(READY_SHA, "44", "app_backed_publish")
+ok, detail = rs.is_sha_review_ready(READY_SHA)
+assert ok and "issue=44" in detail, (ok, detail)
+ok_other, detail_other = rs.is_sha_review_ready(OTHER_SHA)
+assert not ok_other and detail_other == "no_ready_status", (ok_other, detail_other)
+
+# Production GitHub backend filters to CONTEXT only (file backend is test-local).
+gh_src = (ROOT / "scripts/gitops/readiness_status.py").read_text(encoding="utf-8")
+assert 'CONTEXT = "Linktrend Review Ready"' in gh_src
+assert '(r.get("context") or "") == CONTEXT' in gh_src
+
+# ---- Discover: packages exact ready tip; skips not-ready / head drift ----
+os.environ["AUTOMATION_TOKEN"] = "ghs_app_token_for_packager_test"
+os.environ["AUTOMATION_TOKEN_SOURCE"] = "github_app"
+os.environ["LINKTREND_BUGBOT_USER_TOKEN"] = "user_pat_for_packager_test"
+os.environ["BUGBOT_USER_TOKEN"] = "user_pat_for_packager_test"
+os.environ["GITHUB_REPOSITORY"] = "linktrend/IDE-Development"
+# Ensure workflow token cannot substitute for App automation in this process.
+os.environ["GITHUB_TOKEN"] = "ghs_workflow_must_not_substitute"
+os.environ.pop("GH_TOKEN", None)
+
+recorded: list[dict] = []
+
+
+def list_branches_hook(token: str, repo: str) -> list[dict]:
+    assert token == "ghs_app_token_for_packager_test"
+    assert repo == "linktrend/IDE-Development"
+    return [
+        {
+            "name": BRANCH,
+            "commit": {"sha": READY_SHA},
+        },
+        {
+            "name": "issue/99-not-ready-yet",
+            "commit": {"sha": OTHER_SHA},
+        },
+        {
+            "name": "development",  # protected — must be ignored by allowlist
+            "commit": {"sha": READY_SHA},
+        },
+        {
+            "name": "issue/77-head-will-drift",
+            "commit": {"sha": READY_SHA},
+        },
+    ]
+
+
+def run_hook(args: list[str], env: dict[str, str]) -> str:
+    recorded.append({"args": list(args), "env": dict(env)})
+    # Never leak Carlos secret names into App-role children.
+    if env.get("GH_TOKEN") == "ghs_app_token_for_packager_test":
+        assert "LINKTREND_BUGBOT_USER_TOKEN" not in env
+        assert "BUGBOT_USER_TOKEN" not in env
+    joined = " ".join(args)
+    if args[:3] == ["gh", "pr", "list"]:
+        head = args[args.index("--head") + 1] if "--head" in args else ""
+        if head == "issue/77-head-will-drift":
+            # Existing draft authored by Carlos; head already drifted vs tip.
+            return json.dumps(
+                [
+                    {
+                        "number": 77,
+                        "url": "https://example.test/pr/77",
+                        "isDraft": True,
+                        "headRefOid": DRIFT_SHA,
+                        "title": "Review: issue/77-head-will-drift",
+                        "body": "",
+                        "author": {"login": "linktrend"},
+                    }
+                ]
+            )
+        return "[]"
+    if args[:3] == ["gh", "pr", "create"]:
+        # Only the ready non-drift branch should create.
+        assert BRANCH in args
+        return "https://example.test/pr/44"
+    if args[:3] == ["gh", "pr", "view"]:
+        if "number,author,headRefOid" in joined:
+            return json.dumps(
+                {
+                    "number": 44,
+                    "author": {"login": "linktrend"},
+                    "headRefOid": READY_SHA,
+                }
+            )
+        # Post-ensure reread: return tip SHA for packaged branch; drift for #77.
+        target = args[3]
+        if target == "77":
+            return json.dumps(
+                {"headRefOid": DRIFT_SHA, "author": {"login": "linktrend"}}
+            )
+        return json.dumps(
+            {"headRefOid": READY_SHA, "author": {"login": "linktrend"}}
+        )
+    if args[:3] == ["gh", "pr", "edit"]:
+        return ""
+    if "repair_task.py" in joined:
+        raise AssertionError("repair must not run on success/drift skip paths")
+    raise AssertionError(f"unexpected run: {args}")
+
+
+disc_mod._LIST_BRANCHES_HOOK = list_branches_hook
+disc_mod._RUN_HOOK = run_hook
+cwd = Path.cwd()
+tmpdir = Path(tempfile.mkdtemp(prefix="packager-discover-cwd-"))
+os.chdir(tmpdir)
+try:
+    rc = disc_mod.main()
+    assert rc == 0
+    report = json.loads(Path("packager-discover-report.json").read_text(encoding="utf-8"))
+    by_branch = {row["branch"]: row for row in report}
+    assert by_branch[BRANCH]["action"] == "draft_ensured"
+    assert by_branch[BRANCH]["ready"] is True
+    assert by_branch[BRANCH]["headSha"] == READY_SHA
+    assert by_branch["issue/99-not-ready-yet"]["action"] == "skipped_not_ready"
+    assert by_branch["issue/99-not-ready-yet"]["ready"] is False
+    assert by_branch["issue/77-head-will-drift"]["action"] == "skipped_head_drift"
+    assert "development" not in by_branch
+    outcome = json.loads(Path("gitops-outcome.json").read_text(encoding="utf-8"))
+    assert outcome["status"] == "packaged"
+finally:
+    os.chdir(cwd)
+    disc_mod._LIST_BRANCHES_HOOK = None
+    disc_mod._RUN_HOOK = None
+
+# Withdrawal on the tip must make discover skip (no success status).
+rs.withdraw_sha(READY_SHA, "publisher_withdrawn")
+ok_w, detail_w = rs.is_sha_review_ready(READY_SHA)
+assert not ok_w and detail_w.startswith("status_"), (ok_w, detail_w)
+
+# ---- Evaluate: exact head ready vs waiting / readiness_lost / stale event ----
+# Re-mark ready for evaluate success path.
+rs.mark_sha(READY_SHA, "44", "app_backed_publish")
+
+os.environ["FAST_GATE_CHECKS"] = "Verify IDE Development"
+os.environ["BUGBOT_REVIEW_COMMAND"] = "@cursor review"
+os.environ["HEAD_SHA"] = READY_SHA
+
+api_calls: list[dict] = []
+eval_recorded: list[dict] = []
+
+
+def eval_run(args: list[str], env: dict[str, str]) -> str:
+    eval_recorded.append({"args": list(args), "env": dict(env)})
+    joined = " ".join(args)
+    if args[:3] == ["gh", "pr", "view"] and "author" in joined:
+        return json.dumps(
+            {
+                "number": 44,
+                "url": "https://example.test/pr/44",
+                "isDraft": True,
+                "headRefOid": READY_SHA,
+                "baseRefName": "development",
+                "state": "OPEN",
+                "headRefName": BRANCH,
+                "author": {"login": "linktrend"},
+            }
+        )
+    if args[:3] == ["gh", "pr", "view"] and "headRefOid" in joined and "author" not in joined:
+        return READY_SHA
+    if args[:3] == ["gh", "pr", "checks"]:
+        return json.dumps([{"name": "Verify IDE Development", "state": "SUCCESS"}])
+    if args[:3] == ["gh", "pr", "ready"]:
+        return ""
+    raise AssertionError(f"unexpected evaluate run: {args}")
+
+
+def eval_api(method: str, url: str, token: str, body, snap: dict[str, str]):
+    api_calls.append(
+        {"method": method, "url": url, "token": token, "body": body, "snap": snap}
+    )
+    if method == "GET":
+        return []
+    return {}
+
+
+# Waiting: tip not ready
+rs.withdraw_sha(READY_SHA, "not_yet")
+eval_mod._RUN_HOOK = eval_run
+eval_mod._API_HOOK = eval_api
+try:
+    waiting = eval_mod.evaluate_pr(44, "ghs_app_token_for_packager_test")
+    assert waiting["status"] == "waiting"
+    assert waiting["detail"].startswith("not_ready:")
+    assert waiting["headSha"] == READY_SHA
+finally:
+    eval_mod._RUN_HOOK = None
+    eval_mod._API_HOOK = None
+
+# Success path: App-published status on exact head → bugbot_requested
+rs.mark_sha(READY_SHA, "44", "app_backed_publish")
+api_calls.clear()
+eval_recorded.clear()
+eval_mod._RUN_HOOK = eval_run
+eval_mod._API_HOOK = eval_api
+try:
+    ok_eval = eval_mod.evaluate_pr(44, "ghs_app_token_for_packager_test")
+    assert ok_eval["status"] == "bugbot_requested", ok_eval
+    assert ok_eval["headSha"] == READY_SHA
+    assert ok_eval["bugbot_comment_token"] == "bugbot_user"
+    bugbot = [
+        c
+        for c in api_calls
+        if c["method"] == "POST" and c["token"] == "user_pat_for_packager_test"
+    ]
+    assert len(bugbot) == 1
+    assert READY_SHA in (bugbot[0]["body"] or {}).get("body", "")
+finally:
+    eval_mod._RUN_HOOK = None
+    eval_mod._API_HOOK = None
+
+# Stale event head (dispatch/event SHA ≠ live PR head) → skipped
+os.environ["HEAD_SHA"] = OTHER_SHA
+eval_mod._RUN_HOOK = eval_run
+eval_mod._API_HOOK = eval_api
+try:
+    stale = eval_mod.evaluate_pr(44, "ghs_app_token_for_packager_test")
+    assert stale["status"] == "skipped"
+    assert stale["detail"].startswith("stale_event_head:")
+finally:
+    eval_mod._RUN_HOOK = None
+    eval_mod._API_HOOK = None
+os.environ["HEAD_SHA"] = READY_SHA
+
+# readiness_lost: gate green on sha1, but readiness withdrawn before re-check
+# Simulate by making the second is_sha_review_ready fail via tip change after
+# first check — withdraw after checks, before second ready read. We do this by
+# patching pr_head to keep SHA while withdrawing status between gate and recheck.
+# Here: head stays READY_SHA but we withdraw after first ready check by using a
+# custom is_sha_review_ready sequence.
+
+
+class _FlipReady:
+    def __init__(self) -> None:
+        self.n = 0
+
+    def __call__(self, sha: str):
+        self.n += 1
+        if self.n == 1:
+            assert sha == READY_SHA
+            return True, "ready"
+        return False, "status_failure"
+
+
+flip = _FlipReady()
+orig = eval_mod.is_sha_review_ready
+eval_mod.is_sha_review_ready = flip  # type: ignore[assignment]
+eval_mod._RUN_HOOK = eval_run
+eval_mod._API_HOOK = eval_api
+try:
+    lost = eval_mod.evaluate_pr(44, "ghs_app_token_for_packager_test")
+    assert lost["status"] == "skipped"
+    assert lost["detail"] == "readiness_lost"
+    assert flip.n == 2
+finally:
+    eval_mod.is_sha_review_ready = orig
+    eval_mod._RUN_HOOK = None
+    eval_mod._API_HOOK = None
+
+print("exact-SHA App-publisher packager compatibility ok")
+PY
+pass "Exact-SHA App-publisher compatibility (discover + evaluate)"
 
 echo "PASS: gitops static redesign + trust-boundary checks"

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "classification": "tests",
+  "acceptance": "Evidence tied to a different SHA must fail closed",
+  "commands": [
+    {"cmd": "true", "exitCode": 0}
+  ]
+}
