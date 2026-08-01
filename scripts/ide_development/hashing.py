@@ -14,7 +14,11 @@ def sha256_bytes(data: bytes) -> str:
 
 
 def sha256_file(path: Path) -> str:
-    """Hash a physical file. Refuses symlink-following (fail closed)."""
+    """Hash a physical file. Refuses symlink-following (fail closed).
+
+    Uses ``O_NOFOLLOW`` where available and re-checks ``is_symlink`` on open
+    failure so a TOCTOU symlink swap between check and open cannot follow.
+    """
     if path_is_symlink(path):
         raise OSError(f"Refusing to hash through symlink: {path}")
     digest = hashlib.sha256()
@@ -25,17 +29,32 @@ def sha256_file(path: Path) -> str:
         flags |= os.O_NOFOLLOW
     try:
         fd = os.open(str(path), flags)
-    except OSError:
+    except OSError as exc:
         # TOCTOU: path may have become a symlink between check and open.
         if path_is_symlink(path):
             raise OSError(f"Refusing to hash through symlink: {path}") from None
+        # ELOOP/EMLINK-style failures also indicate a symlink race on some platforms.
+        err = getattr(exc, "errno", None)
+        if err in {getattr(os, "ELOOP", -1), getattr(os, "EMLINK", -2)}:
+            raise OSError(f"Refusing to hash through symlink: {path}") from exc
         raise
-    with os.fdopen(fd, "rb") as handle:
-        while True:
-            chunk = handle.read(1024 * 1024)
-            if not chunk:
-                break
-            digest.update(chunk)
+    try:
+        # Post-open belt: refuse if the path is a symlink (platforms without O_NOFOLLOW).
+        if path_is_symlink(path):
+            raise OSError(f"Refusing to hash through symlink: {path}")
+        with os.fdopen(fd, "rb") as handle:
+            fd = -1  # ownership transferred
+            while True:
+                chunk = handle.read(1024 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+    finally:
+        if fd >= 0:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
     return "sha256:" + digest.hexdigest()
 
 

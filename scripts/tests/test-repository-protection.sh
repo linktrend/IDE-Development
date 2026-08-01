@@ -244,6 +244,182 @@ print("classic-create-null ok")
 PY
 pass "classic create leaves reviews/restrictions null"
 
+# ---- classic GET normalization + semantic review/restriction drift helpers ----
+python3 - <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path("scripts/gitops").resolve()))
+import repository_protection as rp
+
+# Nested actors + url noise normalize without inventing review counts.
+reviews = rp._classic_field_for_put(
+    "required_pull_request_reviews",
+    {
+        "url": "https://example/reviews",
+        "html_url": "https://example/html",
+        "enabled": True,
+        "required_approving_review_count": 2,
+        "bypass_pull_request_allowances": {
+            "users": [{"login": "ops-bot", "id": 1, "html_url": "x"}],
+            "teams": [{"slug": "release-managers", "id": 2}],
+            "apps": [{"slug": "linktrend-integrator", "id": 3}],
+        },
+    },
+)
+assert reviews["required_approving_review_count"] == 2
+assert reviews["bypass_pull_request_allowances"]["users"] == ["ops-bot"]
+assert reviews["bypass_pull_request_allowances"]["teams"] == ["release-managers"]
+assert reviews["bypass_pull_request_allowances"]["apps"] == ["linktrend-integrator"]
+
+# Sparse url/enabled-only shells fail closed (do not invent count=1).
+try:
+    rp._classic_field_for_put(
+        "required_pull_request_reviews",
+        {"url": "https://example/reviews", "enabled": True},
+    )
+    raise SystemExit("expected ProtectionError for sparse reviews")
+except rp.ProtectionError as exc:
+    assert exc.exit_code == rp.EXIT_FAILED
+    assert "invent" in str(exc).lower() or "preservable" in str(exc).lower()
+
+rest = rp._classic_field_for_put(
+    "restrictions",
+    {
+        "url": "https://example/restrictions",
+        "users": [{"login": "ops-bot", "id": 1, "html_url": "x"}],
+        "teams": [{"slug": "release-managers", "name": "Release Managers"}],
+        "apps": [{"slug": "linktrend-integrator"}],
+    },
+)
+assert rest == {
+    "users": ["ops-bot"],
+    "teams": ["release-managers"],
+    "apps": ["linktrend-integrator"],
+}
+
+# GET-shaped vs PUT-shaped with same semantics → no write (no perpetual update).
+existing = {
+    "required_status_checks": {
+        "strict": True,
+        "contexts": ["Cursor Bugbot"],
+        "url": "https://example/checks",
+        "checks": [{"context": "Cursor Bugbot", "app_id": -1}],
+    },
+    "enforce_admins": {"enabled": True, "url": "https://example/admins"},
+    "allow_force_pushes": {"enabled": False},
+    "allow_deletions": {"enabled": False},
+    "required_pull_request_reviews": {
+        "url": "https://example/reviews",
+        "required_approving_review_count": 2,
+        "require_code_owner_reviews": True,
+    },
+    "restrictions": {
+        "url": "https://example/restrictions",
+        "users": [{"login": "ops-bot"}],
+        "teams": [],
+        "apps": [],
+    },
+}
+desired = rp.classic_protection_body(["Cursor Bugbot"], existing=existing)
+needs, reason = rp.classic_bodies_need_write(existing, desired)
+assert needs is False, (needs, reason)
+
+# Already PUT-shaped with matching semantics → no write.
+needs2, reason2 = rp.classic_bodies_need_write(desired, desired)
+assert needs2 is False, (needs2, reason2)
+
+# Semantic review/restriction drift: desired would wipe preserved reviews.
+bad_desired = dict(desired)
+bad_desired["required_pull_request_reviews"] = None
+bad_desired["restrictions"] = {"users": [], "teams": [], "apps": []}
+needs3, reason3 = rp.classic_bodies_need_write(existing, bad_desired)
+assert needs3 is True, (needs3, reason3)
+assert reason3 == "review/restriction drift", reason3
+
+# Unexpected actor type fails closed (does not null).
+try:
+    rp._classic_field_for_put("restrictions", {"users": [123], "teams": [], "apps": []})
+    raise SystemExit("expected ProtectionError for non-string actor")
+except rp.ProtectionError as exc:
+    assert exc.exit_code == rp.EXIT_FAILED
+print("classic-normalize-and-drift-helpers ok")
+PY
+pass "classic GET normalization and drift helpers"
+
+"$TOOL" plan --repo linktrend/Fixture --fixture-dir "${FX}/branch-protection-review-drift" \
+  >"${TMP}/plan-bp-review-drift.json"
+python3 - <<PY
+import json
+from pathlib import Path
+p = json.loads(Path("${TMP}/plan-bp-review-drift.json").read_text())
+assert p["capability"]["mechanism"] == "branch_protection"
+dev = p["branches"]["development"]
+assert dev["requiredChecks"]["desired"] == [
+    "Cursor Bugbot",
+    "Verify IDE Development",
+    "Enforce allowed PR source branches",
+], dev["requiredChecks"]["desired"]
+# Checks match and GET-shaped reviews/restrictions are semantically equal → durable noop.
+assert dev["action"] == "noop", dev["action"]
+body = dev["after"]["body"]
+assert body["required_pull_request_reviews"]["required_approving_review_count"] == 2
+assert body["restrictions"]["users"] == ["ops-bot"]
+assert body["restrictions"]["teams"] == ["release-managers"]
+assert body["restrictions"]["apps"] == ["linktrend-integrator"]
+assert body["required_conversation_resolution"] is True
+assert p["branches"]["staging"]["action"] == "noop"
+assert p["branches"]["main"]["action"] == "noop"
+print("bp-review-get-shaped noop ok")
+PY
+
+set +e
+"$TOOL" verify --repo linktrend/Fixture --fixture-dir "${FX}/branch-protection-review-drift" \
+  >"${TMP}/verify-bp-review-drift.json"
+rc=$?
+set -e
+[ "$rc" -eq 0 ] || fail "GET-shaped semantic match verify expected 0 got $rc"
+python3 - <<PY
+import json
+from pathlib import Path
+p = json.loads(Path("${TMP}/verify-bp-review-drift.json").read_text())
+assert p["verify"]["ok"] is True, p.get("verify")
+# Source fixture must remain GET-shaped (nested actors / url noise).
+src = json.loads(Path("${FX}/branch-protection-review-drift/state.json").read_text())
+assert isinstance(src["branch_protections"]["development"]["restrictions"]["users"][0], dict)
+assert "url" in src["branch_protections"]["development"]["required_pull_request_reviews"]
+print("bp-review-get-shaped verify ok")
+PY
+pass "classic GET-shaped reviews/restrictions stay durable noop (no perpetual update)"
+
+# Sparse url/enabled-only reviews fail closed on plan (no invented count).
+SPARSE_FX="$(python3 - <<'PY'
+import json
+import tempfile
+from pathlib import Path
+
+fx = Path("scripts/tests/fixtures/repository-protection/branch-protection-review-drift/state.json")
+raw = json.loads(fx.read_text())
+raw["branch_protections"]["development"]["required_pull_request_reviews"] = {
+    "url": "https://api.github.com/example/reviews",
+    "enabled": True,
+}
+tmp = Path(tempfile.mkdtemp()) / "sparse-reviews"
+tmp.mkdir()
+(tmp / "state.json").write_text(json.dumps(raw), encoding="utf-8")
+print(tmp)
+PY
+)"
+set +e
+"$TOOL" plan --repo linktrend/Fixture --fixture-dir "${SPARSE_FX}" \
+  >"${TMP}/plan-bp-sparse-reviews.json" 2>"${TMP}/plan-bp-sparse-reviews.err"
+rc=$?
+set -e
+[ "$rc" -ne 0 ] || fail "sparse reviews plan should fail closed"
+grep -Eqi 'invent|preservable|required_pull_request_reviews' \
+  "${TMP}/plan-bp-sparse-reviews.err" "${TMP}/plan-bp-sparse-reviews.json" \
+  || fail "sparse reviews failure should mention preservable/invent reviews"
+pass "sparse url/enabled-only reviews fail closed without inventing policy"
+
 # ---- verify matched = clean; verify empty = drift ----
 set +e
 "$TOOL" verify --repo linktrend/Fixture --fixture-dir "${FX}/rulesets-matched" \
@@ -465,6 +641,7 @@ grep -q 'main-autonomous-release' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.
 grep -q 'Plan / dry-run' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
 grep -q 'Non-check ruleset rules' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
 grep -q 'required_pull_request_reviews' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
+grep -q 'review/restriction drift' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
 pass "contract documents three-branch dry-run-first protections"
 
 echo "PASS: repository protection suite"

@@ -34,7 +34,7 @@ dirty during parallel installer work).
 
 | Fixture | Live proof |
 |---------|------------|
-| `01-external-cursor-symlink` | Fail-closed / replace; never follow outside consumer |
+| `01-external-cursor-symlink` | Physical migrate required; outside untouched; rollback restores symlink |
 | `07-interrupted-transaction` | Recover via next mutating `update` |
 | `08-byte-exact-rollback` | CLI `rollback` restores bytes+modes |
 | `09-idempotent-repeat` | Repeat install/update byte-identical |

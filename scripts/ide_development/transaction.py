@@ -16,9 +16,15 @@ from .hashing import normalize_mode, sha256_file
 from .io_atomic import atomic_write_bytes, copy_file_physical, read_file_bytes, remove_file
 from .lock import exclusive_transaction_lock
 from .manifest import Manifest, ManifestEntry
-from .paths import encode_backup_name, git_meta_dir, join_under, path_is_symlink
+from .paths import encode_backup_name, git_meta_dir, join_under, join_under_nofollow, path_is_symlink
 from .plan import OpKind, Plan, PlanAction
 from .state import FileState, InstalledState, save_installed_state, utc_now
+from .symlink_migrate import (
+    apply_migrate_symlink,
+    is_under_any,
+    path_crosses_symlink_ancestor,
+    restore_migrated_symlink,
+)
 
 MANIFEST_DEST = f"{MANAGED_CORE_DIR}/MANIFEST.json"
 
@@ -36,15 +42,21 @@ class BackupRecord:
     mode: str | None
     content_hash: str | None
     backup_name: str | None
+    was_symlink: bool = False
+    symlink_target: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "path": self.path,
             "existed": self.existed,
             "mode": self.mode,
             "contentHash": self.content_hash,
             "backupName": self.backup_name,
         }
+        if self.was_symlink:
+            payload["wasSymlink"] = True
+            payload["symlinkTarget"] = self.symlink_target
+        return payload
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "BackupRecord":
@@ -54,6 +66,8 @@ class BackupRecord:
             mode=raw.get("mode"),
             content_hash=raw.get("contentHash"),
             backup_name=raw.get("backupName"),
+            was_symlink=bool(raw.get("wasSymlink")),
+            symlink_target=raw.get("symlinkTarget"),
         )
 
 
@@ -88,6 +102,36 @@ def write_journal(tx_dir: Path, payload: dict[str, Any]) -> None:
 
 def _entry_map(manifest: Manifest) -> dict[str, ManifestEntry]:
     return {e.destination: e for e in manifest.active_entries()}
+
+
+def backup_migrate_symlink(target_root: Path, action: PlanAction) -> BackupRecord:
+    """Record original symlink target for rollback; never read outside contents."""
+    dest = join_under_nofollow(target_root, action.path)
+    if not path_is_symlink(dest):
+        raise ConflictError(
+            f"MIGRATE_SYMLINK backup expected symlink at {action.path}",
+            details={"path": action.path},
+        )
+    target = action.symlink_target
+    if target is None:
+        target = os.readlink(dest)
+    else:
+        # Confirm link text without following.
+        current = os.readlink(dest)
+        if current != target:
+            raise ConflictError(
+                f"Symlink target changed since plan for {action.path}",
+                details={"path": action.path, "expected": target, "actual": current},
+            )
+    return BackupRecord(
+        path=action.path,
+        existed=True,
+        mode=None,
+        content_hash=None,
+        backup_name=None,
+        was_symlink=True,
+        symlink_target=target,
+    )
 
 
 def backup_path(target_root: Path, action: PlanAction) -> BackupRecord:
@@ -137,9 +181,16 @@ def apply_action(
     action: PlanAction,
     entries: dict[str, ManifestEntry],
 ) -> None:
-    dest = join_under(target_root, action.path)
     if action.op in {OpKind.NOOP, OpKind.EXTERNAL_PLAN}:
         return
+    if action.op == OpKind.MIGRATE_SYMLINK:
+        apply_migrate_symlink(
+            target_root,
+            path=action.path,
+            expected_target=action.symlink_target,
+        )
+        return
+    dest = join_under(target_root, action.path)
     if action.op == OpKind.REMOVE:
         if dest.exists():
             remove_file(dest)
@@ -164,11 +215,24 @@ def apply_action(
 
 
 def restore_backup(target_root: Path, tx_dir: Path, record: BackupRecord) -> None:
-    dest = join_under(target_root, record.path)
+    if record.was_symlink:
+        if not record.symlink_target:
+            raise RollbackError(f"Missing symlink target for rollback of {record.path}")
+        restore_migrated_symlink(
+            target_root,
+            path=record.path,
+            symlink_target=record.symlink_target,
+        )
+        return
     if not record.existed:
-        if dest.exists():
+        # Never follow a symlink ancestor into an outside tree when cleaning creates.
+        if path_crosses_symlink_ancestor(target_root, record.path):
+            return
+        dest = join_under_nofollow(target_root, record.path)
+        if path_is_symlink(dest) or dest.is_file():
             remove_file(dest)
         return
+    dest = join_under(target_root, record.path)
     if not record.backup_name:
         raise RollbackError(f"Missing backup blob for {record.path}")
     blob = backups_dir(tx_dir) / record.backup_name
@@ -190,6 +254,8 @@ def build_next_state(
         files.update(prior.files)
     entries = _entry_map(manifest)
     for action in actions:
+        if action.op == OpKind.MIGRATE_SYMLINK:
+            continue
         if action.op == OpKind.REMOVE:
             files.pop(action.path, None)
             continue
@@ -393,8 +459,25 @@ def _apply_plan_unlocked(
         write_backup_file(current, target_root, state_record)
         backups.append(state_record)
 
+        migrate_ancestors = {
+            a.path for a in mutating if a.op == OpKind.MIGRATE_SYMLINK
+        }
+
         for action in mutating:
-            record = backup_path(target_root, action)
+            if action.op == OpKind.MIGRATE_SYMLINK:
+                record = backup_migrate_symlink(target_root, action)
+            elif is_under_any(action.path, migrate_ancestors):
+                # Destinations under the migrating symlink must not be probed
+                # through the outside target; treat as non-existent for backup.
+                record = BackupRecord(
+                    path=action.path,
+                    existed=False,
+                    mode=None,
+                    content_hash=None,
+                    backup_name=None,
+                )
+            else:
+                record = backup_path(target_root, action)
             write_backup_file(current, target_root, record)
             backups.append(record)
             journal["backups"] = [b.to_dict() for b in backups]

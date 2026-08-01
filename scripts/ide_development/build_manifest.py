@@ -526,19 +526,65 @@ def write_manifest(path: Path = MANIFEST_PATH) -> dict[str, Any]:
     return obj
 
 
+def _version_alignment_errors() -> list[str]:
+    """Ensure root VERSION, managed VERSION, and packageVersion stay aligned at 2.0.0 identity."""
+    errors: list[str] = []
+    root_ver_path = REPO_ROOT / "VERSION"
+    if not root_ver_path.is_file():
+        return ["VERSION missing at repo root"]
+    if not VERSION_PATH.is_file():
+        return ["core/managed-core/VERSION missing"]
+    root_ver = root_ver_path.read_text(encoding="utf-8").strip()
+    pkg_ver = VERSION_PATH.read_text(encoding="utf-8").strip()
+    root_norm = root_ver.lstrip("v")
+    pkg_norm = pkg_ver.lstrip("v")
+    if root_norm != pkg_norm:
+        errors.append(f"VERSION alignment drift: root={root_ver!r} managed={pkg_ver!r}")
+    if pkg_norm != "2.0.0":
+        errors.append(f"package VERSION must remain 2.0.0 identity (got {pkg_ver!r})")
+    return errors
+
+
+def _doctrine_sync_errors() -> list[str]:
+    """Ensure CONTENT_DOCTRINE docs sources match packaged content/doctrine bytes."""
+    errors: list[str] = []
+    for src_rel, dest_rel in CONTENT_DOCTRINE:
+        src = REPO_ROOT / src_rel
+        dest = MANAGED / dest_rel
+        if not src.is_file():
+            errors.append(f"doctrine source missing: {src_rel}")
+            continue
+        if not dest.is_file():
+            errors.append(f"doctrine package missing: core/managed-core/{dest_rel}")
+            continue
+        if sha256_file(src) != sha256_file(dest):
+            errors.append(f"doctrine sync drift: {src_rel} → core/managed-core/{dest_rel}")
+    return errors
+
+
 def verify_manifest(path: Path = MANIFEST_PATH) -> list[str]:
     """Read-only verify: compare on-disk MANIFEST hashes to source files.
 
     Does **not** call ``sync_package_payload()`` — verify must not mutate the tree.
     Use ``--write`` / ``write_manifest`` to sync payload then regenerate.
+
+    Also checks VERSION alignment and CONTENT_DOCTRINE docs→package sync.
     """
-    expected = build_manifest_object()
     errors: list[str] = []
+    errors.extend(_version_alignment_errors())
+    errors.extend(_doctrine_sync_errors())
     if not path.is_file():
-        return ["MANIFEST.json missing"]
+        errors.append("MANIFEST.json missing")
+        return errors
+    expected = build_manifest_object()
     actual = json.loads(path.read_text(encoding="utf-8"))
     if actual.get("packageVersion") != expected["packageVersion"]:
         errors.append("packageVersion drift")
+    if actual.get("packageVersion") != "2.0.0":
+        errors.append(
+            f"packageVersion must remain 2.0.0 identity "
+            f"(got {actual.get('packageVersion')!r})"
+        )
     if actual.get("schemaVersion") != expected["schemaVersion"]:
         errors.append("schemaVersion drift")
     exp_files = {(f["id"], f["destination"], f["sourceHash"]) for f in expected["files"]}

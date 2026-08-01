@@ -22,14 +22,15 @@
     "preserve": [
       "CONSUMER.md"
     ],
-    "fail_closed_if_unresolved_symlink": true,
-    "notes": "Installer must replace external .cursor symlink with physical managed tree; never follow outside consumer."
+    "notes": "Installer must physically migrate external .cursor symlink to an in-repo directory, install managed files under it, never follow outside consumer, and support transactional rollback that restores the original symlink."
   },
   "live_installer": {
     "proof": "external_cursor_symlink",
     "asserts": [
-      "install fail-closes or replaces .cursor without following outside",
-      "outside symlink target bytes/children untouched"
+      "install succeeds with physical .cursor directory (migration required)",
+      "outside symlink target bytes/children untouched",
+      "CONSUMER.md preserved",
+      "rollback restores original .cursor symlink; outside still untouched"
     ]
   }
 }

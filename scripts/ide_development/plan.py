@@ -11,8 +11,9 @@ from .hashing import normalize_mode, sha256_bytes, sha256_file
 from .manifest import Manifest, ManifestEntry, MigrationCatalog
 from .markers import extract_marker_block, render_marker_file
 from .errors import ConflictError
-from .paths import join_under, path_is_symlink
+from .paths import join_under, join_under_nofollow, path_is_symlink
 from .state import InstalledState
+from .symlink_migrate import detect_cursor_symlink, is_under_any, path_crosses_symlink_ancestor
 
 
 class OpKind(str, Enum):
@@ -20,6 +21,7 @@ class OpKind(str, Enum):
     REPLACE = "replace"
     REMOVE = "remove"
     MARKER_UPSERT = "marker_upsert"
+    MIGRATE_SYMLINK = "migrate_symlink"
     EXTERNAL_PLAN = "external_plan"
     NOOP = "noop"
 
@@ -54,6 +56,8 @@ class PlanAction:
     source_hash: str | None = None
     mode: str | None = None
     classification: str = "missing"
+    # Exact os.readlink() string for MIGRATE_SYMLINK (rollback restores it).
+    symlink_target: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -68,6 +72,8 @@ class PlanAction:
             payload["sourceHash"] = self.source_hash
         if self.mode is not None:
             payload["mode"] = self.mode
+        if self.symlink_target is not None:
+            payload["symlinkTarget"] = self.symlink_target
         return payload
 
 
@@ -370,6 +376,22 @@ def _classify_existing(
     return OpKind.REPLACE, None, None, "update managed content", "managed_upgrade"
 
 
+def _plan_as_missing_under_migrate(
+    entry: ManifestEntry,
+) -> tuple[OpKind | None, str, str]:
+    """Classify managed destinations under a migrating symlink as absent.
+
+    Must not probe through the outside target (exists/read/hash/list).
+    """
+    if entry.merge_strategy == "external-plan-only" or entry.ownership_class == "external-state":
+        return OpKind.EXTERNAL_PLAN, "external-state plan only", "match"
+    if entry.merge_strategy == "remove-if-matches":
+        return OpKind.NOOP, "already absent (under migrating symlink)", "match"
+    if entry.merge_strategy == "marker-upsert" or entry.ownership_class == "managed-marker":
+        return OpKind.MARKER_UPSERT, "create marker file after symlink migrate", "missing"
+    return OpKind.CREATE, "missing destination after symlink migrate", "missing"
+
+
 def build_plan(
     *,
     command: str,
@@ -390,8 +412,72 @@ def build_plan(
     active_entries = list(manifest.active_entries())
     managed_paths = {e.destination for e in active_entries}
 
+    # Migratable consumer `.cursor` symlink → physical empty dir (then normal creates).
+    migrate_ancestors: set[str] = set()
+    cursor_link = detect_cursor_symlink(target_root)
+    if cursor_link is not None:
+        plan.actions.append(
+            PlanAction(
+                op=OpKind.MIGRATE_SYMLINK,
+                path=cursor_link.path,
+                entry_id="migrate-cursor-symlink",
+                reason="migrate .cursor symlink to physical directory (never follow outside)",
+                classification="unsafe_link",
+                symlink_target=cursor_link.target,
+            )
+        )
+        migrate_ancestors.add(cursor_link.path)
+
+    def dest_for(rel: str) -> Path:
+        if is_under_any(rel, migrate_ancestors):
+            return join_under_nofollow(target_root, rel)
+        logical = join_under_nofollow(target_root, rel)
+        # Leaf or ancestor symlink (other than migratable .cursor) must fail closed
+        # as unsafe_link — do not resolve-follow into PATH_ESCAPE.
+        if path_is_symlink(logical) or path_crosses_symlink_ancestor(target_root, rel):
+            return logical
+        return join_under(target_root, rel)
+
     for entry in active_entries:
-        dest = join_under(target_root, entry.destination)
+        if is_under_any(entry.destination, migrate_ancestors):
+            # Do not resolve/stat/read through the external `.cursor` symlink.
+            op, reason, classification = _plan_as_missing_under_migrate(entry)
+            if op is None:
+                continue
+            plan.actions.append(
+                PlanAction(
+                    op=op,
+                    path=entry.destination,
+                    entry_id=entry.id,
+                    reason=reason,
+                    source_hash=entry.source_hash,
+                    mode=entry.mode,
+                    classification=classification,
+                )
+            )
+            continue
+
+        dest = dest_for(entry.destination)
+        if path_crosses_symlink_ancestor(target_root, entry.destination) and not path_is_symlink(
+            dest
+        ):
+            plan.conflicts.append(
+                ConflictItem(
+                    ConflictKind.SYMLINK,
+                    entry.destination,
+                    "path crosses a non-migratable symlink ancestor",
+                )
+            )
+            if command in {"drift", "verify"}:
+                plan.drift.append(
+                    DriftItem(
+                        DriftKind.UNEXPECTED_SYMLINK,
+                        entry.destination,
+                        "symlink ancestor blocks managed path",
+                    )
+                )
+            continue
+
         op, conflict, drift, reason, classification = _classify_existing(
             package_root=package_root,
             dest=dest,
@@ -419,7 +505,19 @@ def build_plan(
     for mig in migration.entries:
         if mig.path in managed_paths:
             continue
-        dest = join_under(target_root, mig.path)
+        if is_under_any(mig.path, migrate_ancestors):
+            # Obsolete paths under migrating symlink are absent in-repo; no-op.
+            plan.actions.append(
+                PlanAction(
+                    op=OpKind.NOOP,
+                    path=mig.path,
+                    entry_id=mig.identity,
+                    reason="migration target absent (under migrating symlink)",
+                    classification="match",
+                )
+            )
+            continue
+        dest = dest_for(mig.path)
         if path_is_symlink(dest):
             plan.conflicts.append(
                 ConflictItem(ConflictKind.SYMLINK, mig.path, "migration target is symlink")
@@ -477,7 +575,18 @@ def build_plan(
         for rel, file_state in sorted(prior.files.items()):
             if rel in managed_paths or rel in remove_paths:
                 continue
-            dest = join_under(target_root, rel)
+            if is_under_any(rel, migrate_ancestors):
+                # Prior state under migrating symlink cannot be probed safely.
+                if command in {"drift", "verify"}:
+                    plan.drift.append(
+                        DriftItem(
+                            DriftKind.ORPHAN_MANAGED,
+                            rel,
+                            "state entry under migrating symlink (not probed)",
+                        )
+                    )
+                continue
+            dest = dest_for(rel)
             if not dest.exists():
                 if command in {"drift", "verify"}:
                     plan.drift.append(
@@ -528,7 +637,7 @@ def build_plan(
 
     manifest_dest = f"{MANAGED_CORE_DIR}/MANIFEST.json"
     manifest_hash = sha256_file(manifest.path)
-    dest = join_under(target_root, manifest_dest)
+    dest = dest_for(manifest_dest)
     if path_is_symlink(dest):
         plan.conflicts.append(
             ConflictItem(ConflictKind.SYMLINK, manifest_dest, "MANIFEST destination is symlink")
@@ -580,7 +689,16 @@ def build_plan(
                 )
             )
 
-    plan.actions.sort(key=lambda a: (a.path, a.op.value, a.entry_id or ""))
+    # migrate_symlink must run before creates under that path; path sort does this
+    # (".cursor" < ".cursor/..."). Op tie-break keeps migrate before other ops.
+    plan.actions.sort(
+        key=lambda a: (
+            a.path,
+            0 if a.op == OpKind.MIGRATE_SYMLINK else 1,
+            a.op.value,
+            a.entry_id or "",
+        )
+    )
     plan.conflicts.sort(key=lambda c: (c.path, c.kind.value))
     plan.drift.sort(key=lambda d: (d.path, d.kind.value))
     return plan
@@ -594,8 +712,20 @@ def build_drift_report(
     prior: InstalledState | None,
 ) -> list[DriftItem]:
     items: list[DriftItem] = []
+    cursor_link = detect_cursor_symlink(target_root)
+    migrate_ancestors = {cursor_link.path} if cursor_link is not None else set()
+
     for entry in manifest.active_entries():
         if entry.merge_strategy == "external-plan-only":
+            continue
+        if is_under_any(entry.destination, migrate_ancestors):
+            items.append(
+                DriftItem(
+                    DriftKind.UNEXPECTED_SYMLINK,
+                    entry.destination,
+                    "ancestor .cursor symlink pending physical migrate",
+                )
+            )
             continue
         dest = join_under(target_root, entry.destination)
         prior_file = prior.files.get(entry.destination) if prior else None

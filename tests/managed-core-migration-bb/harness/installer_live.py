@@ -197,7 +197,7 @@ def _plant_interrupted_current_transaction(
 
 
 def prove_external_cursor_symlink(scenario: dict[str, Any]) -> list[str]:
-    """Fail-closed on external .cursor symlink; never write outside consumer."""
+    """Require physical .cursor migration; never write outside; rollback restores link."""
     errors: list[str] = []
     src = resolve_live_package()
     tmp = Path(tempfile.mkdtemp(prefix="wp4-live-01-"))
@@ -217,20 +217,31 @@ def prove_external_cursor_symlink(scenario: dict[str, Any]) -> list[str]:
         if link.exists() or link.is_symlink():
             link.unlink()
         os.symlink(str(outside), link)
+        original_target = os.readlink(link)
+
+        consumer = repo / "CONSUMER.md"
+        consumer_before = consumer.read_bytes() if consumer.is_file() else None
 
         result = run_installer("install", package=package, target=repo)
-        # Fail-closed (conflict / escape / invalid) — never success while symlink remains.
-        if result.returncode == EXIT_OK:
-            if (repo / ".cursor").is_symlink():
-                errors.append("install succeeded while .cursor remained an external symlink")
-            # Replace path: success only if physical managed tree replaced the link.
-            elif not (repo / ".cursor").is_dir():
-                errors.append("install succeeded but .cursor is not a physical directory")
-        elif result.returncode not in {EXIT_CONFLICT, EXIT_INVALID_PACKAGE, 1}:
+        if result.returncode != EXIT_OK:
             errors.append(
-                f"unexpected install exit={result.returncode} "
-                f"stdout={result.stdout[:300]} stderr={result.stderr[:200]}"
+                f"install must succeed with physical migrate; exit={result.returncode} "
+                f"stdout={result.stdout[:400]} stderr={result.stderr[:200]}"
             )
+        else:
+            cursor = repo / ".cursor"
+            if cursor.is_symlink():
+                errors.append("install succeeded while .cursor remained an external symlink")
+            elif not cursor.is_dir():
+                errors.append("install succeeded but .cursor is not a physical directory")
+            else:
+                # Managed cursor adapter should exist as a physical file under .cursor.
+                sample = cursor / "rules" / "sample-rule.mdc"
+                if not sample.is_file() or sample.is_symlink():
+                    errors.append("managed .cursor entry missing after physical migrate")
+
+        if consumer_before is not None and consumer.read_bytes() != consumer_before:
+            errors.append("consumer-owned CONSUMER.md was modified")
 
         if secret.read_bytes() != before:
             errors.append("outside symlink target bytes were modified")
@@ -239,6 +250,34 @@ def prove_external_cursor_symlink(scenario: dict[str, Any]) -> list[str]:
         # Never materialize managed paths under the outside tree.
         if (outside / "rules").exists() or (outside / "sample-rule.mdc").exists():
             errors.append("installer followed .cursor symlink and wrote outside consumer")
+
+        # Rollback must restore the original symlink byte-for-byte; outside stays untouched.
+        if result.returncode == EXIT_OK and not errors:
+            rolled = run_installer("rollback", package=package, target=repo)
+            if rolled.returncode != EXIT_OK:
+                errors.append(
+                    f"rollback failed exit={rolled.returncode} "
+                    f"stdout={rolled.stdout[:300]} stderr={rolled.stderr[:200]}"
+                )
+            else:
+                cursor = repo / ".cursor"
+                if not cursor.is_symlink():
+                    errors.append("rollback did not restore .cursor as a symlink")
+                else:
+                    restored = os.readlink(cursor)
+                    if restored != original_target:
+                        errors.append(
+                            f"rollback symlink target mismatch: "
+                            f"expected={original_target!r} actual={restored!r}"
+                        )
+                if secret.read_bytes() != before:
+                    errors.append("outside symlink target bytes changed during rollback")
+                if {p.name for p in outside.iterdir()} != outside_listing:
+                    errors.append("outside symlink target children changed during rollback")
+                if (outside / "rules").exists() or (outside / "sample-rule.mdc").exists():
+                    errors.append("rollback touched outside symlink target tree")
+                if consumer_before is not None and consumer.read_bytes() != consumer_before:
+                    errors.append("CONSUMER.md changed during rollback")
     finally:
         if "repo" in locals():
             _cleanup_temp_repo(repo)

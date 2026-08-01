@@ -204,6 +204,73 @@ def ruleset_body(
     }
 
 
+_CLASSIC_MANAGED_BOOL_KEYS = ("enforce_admins", "allow_force_pushes", "allow_deletions")
+_CLASSIC_REVIEW_RESTRICTION_KEYS = ("required_pull_request_reviews", "restrictions")
+
+
+def _classic_actor_id(item: Any, *, id_keys: tuple[str, ...], field: str) -> str:
+    """Extract a PUT-ready actor id from a GET nested object or bare string."""
+    if isinstance(item, str):
+        if not item.strip():
+            raise ProtectionError(
+                f"classic protection field {field!r} has empty actor id; "
+                "refusing to invent or drop actors on update",
+                EXIT_FAILED,
+            )
+        return item
+    if not isinstance(item, dict):
+        raise ProtectionError(
+            f"classic protection field {field!r} actor has unexpected type "
+            f"{type(item).__name__}; refusing to null it on update",
+            EXIT_FAILED,
+        )
+    for key in id_keys:
+        val = item.get(key)
+        if isinstance(val, str) and val.strip():
+            return val
+    raise ProtectionError(
+        f"classic protection field {field!r} actor missing "
+        f"{'/'.join(id_keys)}; refusing to drop actors on update",
+        EXIT_FAILED,
+    )
+
+
+def _classic_actor_list(items: Any, *, id_keys: tuple[str, ...], field: str) -> list[str]:
+    if items is None:
+        return []
+    if not isinstance(items, list):
+        raise ProtectionError(
+            f"classic protection field {field!r} must be a list; "
+            f"got {type(items).__name__}",
+            EXIT_FAILED,
+        )
+    return [_classic_actor_id(item, id_keys=id_keys, field=field) for item in items]
+
+
+def _classic_bypass_allowances_for_put(value: Any) -> dict[str, list[str]]:
+    if value is None:
+        return {"users": [], "teams": [], "apps": []}
+    if not isinstance(value, dict):
+        raise ProtectionError(
+            "bypass_pull_request_allowances has unexpected type "
+            f"{type(value).__name__}; refusing to null it on update",
+            EXIT_FAILED,
+        )
+    return {
+        "users": _classic_actor_list(
+            value.get("users"), id_keys=("login",), field="bypass_pull_request_allowances.users"
+        ),
+        "teams": _classic_actor_list(
+            value.get("teams"), id_keys=("slug",), field="bypass_pull_request_allowances.teams"
+        ),
+        "apps": _classic_actor_list(
+            value.get("apps"),
+            id_keys=("slug", "login"),
+            field="bypass_pull_request_allowances.apps",
+        ),
+    }
+
+
 def _classic_field_for_put(key: str, value: Any) -> Any:
     """Normalize GET-shaped classic protection fields into PUT-compatible values."""
     if value is None:
@@ -228,35 +295,106 @@ def _classic_field_for_put(key: str, value: Any) -> Any:
         )
         out: dict[str, Any] = {}
         for k in allowed:
-            if k in value:
+            if k not in value:
+                continue
+            if k == "bypass_pull_request_allowances":
+                out[k] = _classic_bypass_allowances_for_put(value[k])
+            else:
                 out[k] = deepcopy(value[k])
-        # GET may only expose url/enabled; empty write object still means "reviews enabled".
-        if not out and ("url" in value or value.get("enabled") is True):
-            out = {"required_approving_review_count": 1}
+        # Ignore url/html_url/enabled noise when real review fields are present.
+        # Sparse GET shells (url/enabled only) have no preservable review policy —
+        # fail closed rather than inventing required_approving_review_count.
+        if not out:
+            noise = {"url", "html_url", "enabled"}
+            if set(value.keys()) <= noise and (
+                "url" in value or "html_url" in value or "enabled" in value
+            ):
+                raise ProtectionError(
+                    "classic required_pull_request_reviews GET payload has no "
+                    "preservable review fields (url/enabled only); refusing to "
+                    "invent required_approving_review_count on update",
+                    EXIT_FAILED,
+                )
+            raise ProtectionError(
+                "classic required_pull_request_reviews has no recognized "
+                "preservable fields; refusing to null or invent policy on update",
+                EXIT_FAILED,
+            )
         return out
 
     if key == "restrictions":
-        out = {
-            "users": [
-                (u.get("login") if isinstance(u, dict) else u)
-                for u in (value.get("users") or [])
-            ],
-            "teams": [
-                (t.get("slug") if isinstance(t, dict) else t)
-                for t in (value.get("teams") or [])
-            ],
-            "apps": [
-                (a.get("slug") if isinstance(a, dict) else a)
-                for a in (value.get("apps") or [])
-            ],
+        # Nested user/team/app objects + url noise are normal on GET; PUT wants ids only.
+        return {
+            "users": _classic_actor_list(
+                value.get("users"), id_keys=("login",), field="restrictions.users"
+            ),
+            "teams": _classic_actor_list(
+                value.get("teams"), id_keys=("slug",), field="restrictions.teams"
+            ),
+            "apps": _classic_actor_list(
+                value.get("apps"), id_keys=("slug", "login"), field="restrictions.apps"
+            ),
         }
-        return out
 
-    # Boolean-ish settings sometimes arrive as {"enabled": bool} from GET.
-    if "enabled" in value and len(value.keys()) <= 3:
+    # Boolean-ish settings sometimes arrive as {"enabled": bool, "url": ...} from GET.
+    if "enabled" in value and set(value.keys()) <= {"enabled", "url", "html_url"}:
         return bool(value.get("enabled"))
 
     return deepcopy(value)
+
+
+def _classic_comparable_value(key: str, value: Any) -> Any:
+    """Normalize a single classic field for semantic equality checks."""
+    if value is None:
+        return None
+    if key == "required_status_checks":
+        if not isinstance(value, dict):
+            raise ProtectionError(
+                f"classic protection field {key!r} has unexpected type "
+                f"{type(value).__name__}; refusing update",
+                EXIT_FAILED,
+            )
+        return {
+            "strict": bool(value.get("strict", True)),
+            "contexts": extract_classic_checks({"required_status_checks": value}),
+        }
+    if key in _CLASSIC_MANAGED_BOOL_KEYS:
+        if isinstance(value, bool):
+            return value
+        return _classic_field_for_put(key, value)
+    if key in _CLASSIC_PRESERVE_KEYS:
+        return _classic_field_for_put(key, value)
+    return deepcopy(value)
+
+
+def classic_bodies_need_write(
+    existing: dict[str, Any],
+    desired: dict[str, Any],
+) -> tuple[bool, str]:
+    """Return whether a PUT is required to make existing match desired.
+
+    Compares **semantic** equality only: desired PUT fields versus a normalized
+    view of existing (GET or PUT shaped). Nested actors, url/html_url noise, and
+    ``{enabled: bool}`` wrappers that normalize to the same values are **not**
+    drift — live GitHub re-GETs stay nested, so structural inequality must not
+    force perpetual update/verify failure.
+    """
+    drifted: list[str] = []
+
+    for key, want in desired.items():
+        raw = existing[key] if key in existing else None
+        if raw is None and want is None:
+            continue
+        have = _classic_comparable_value(key, raw) if raw is not None else None
+        if have != want:
+            drifted.append(key)
+
+    if not drifted:
+        return False, ""
+
+    if any(k in _CLASSIC_REVIEW_RESTRICTION_KEYS for k in drifted):
+        return True, "review/restriction drift"
+    return True, "classic protection drift: " + ",".join(drifted)
 
 
 def classic_protection_body(
@@ -628,6 +766,7 @@ def build_plan(
             )
 
         extras = (extra_checks or {}).get(branch, [])
+        action_reason = ""
 
         if mechanism == "rulesets":
             existing = _find_ruleset(client, capability.get("rulesetSummaries") or [], name)
@@ -685,10 +824,18 @@ def build_plan(
             }
             if existing_body is None:
                 action = "create"
-            elif existing_checks == union["desired"]:
-                action = "noop"
-            else:
+            elif existing_checks != union["desired"]:
                 action = "update"
+                action_reason = "required checks drift"
+            else:
+                needs_write, drift_reason = classic_bodies_need_write(
+                    existing_body, desired_body
+                )
+                if needs_write:
+                    action = "update"
+                    action_reason = drift_reason or "classic protection drift"
+                else:
+                    action = "noop"
             after = {
                 "exists": True,
                 "requiredChecks": union["desired"],
@@ -710,13 +857,16 @@ def build_plan(
             rollback_branches[branch] = {"mechanism": "unavailable", "before": before}
 
         actions_global.append(f"{branch}:{action}")
-        branch_plans[branch] = {
+        branch_entry: dict[str, Any] = {
             "rulesetName": name,
             "action": action,
             "requiredChecks": union,
             "before": before,
             "after": after,
         }
+        if mechanism == "branch_protection" and action_reason:
+            branch_entry["actionReason"] = action_reason
+        branch_plans[branch] = branch_entry
 
     allow_action = "noop" if allow_before else "update"
     if "development" not in branches:
@@ -773,6 +923,18 @@ def verify_plan(plan: dict[str, Any]) -> tuple[bool, list[str]]:
         action = detail.get("action")
         if action not in ("noop",):
             problems.append(f"{branch}: action={action} (not matched)")
+        # Classic path: fail closed on review/restriction (and related) drift even when
+        # required check contexts already match and action was misclassified as noop.
+        if mechanism == "branch_protection":
+            before_body = (detail.get("before") or {}).get("body")
+            after_body = (detail.get("after") or {}).get("body")
+            if before_body is not None and isinstance(after_body, dict):
+                needs_write, drift_reason = classic_bodies_need_write(before_body, after_body)
+                if needs_write:
+                    reason = drift_reason or "classic protection drift"
+                    msg = f"{branch}: {reason}"
+                    if msg not in problems:
+                        problems.append(msg)
     allow = (plan.get("repoSettings") or {}).get("allow_auto_merge") or {}
     if allow.get("action") not in ("noop",):
         problems.append(f"allow_auto_merge: action={allow.get('action')}")

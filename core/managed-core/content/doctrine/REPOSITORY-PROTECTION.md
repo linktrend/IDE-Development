@@ -82,7 +82,15 @@ When planning an update of an existing ruleset or classic protection:
 3. Never drop a previously required context solely because it is consumer-specific.
 4. Explicit `--checks` / `--extra-checks` append into the preserved set (still unioned; duplicates removed).
 
-Fail closed only when the desired set cannot be represented on the available GitHub mechanism (see capability handling).
+### Non-check ruleset rules and classic review fields
+
+On ruleset update, the tool replaces only `required_status_checks` rules. Every other legitimate rule type already on the ruleset (`pull_request`, `non_fast_forward`, `deletion`, etc.) is **preserved** in the planned/applied body. Missing or unclassified rules fail closed — never silently wipe unrelated rules while managing checks.
+
+On classic branch-protection update, existing `required_pull_request_reviews`, `restrictions`, and similar review/restriction fields are **preserved** from before-state unless managed policy explicitly changes them. The tool must not force those fields to `null` merely because it is rewriting required status checks.
+
+When required check contexts already match the desired union, plan/verify still compare a **semantic** normalized view of classic reviews/restrictions (and related preserved fields) against the desired body. Realistic GitHub GET payloads (nested user/team/app objects, `url`/`html_url` noise, `{enabled: bool}` wrappers) normalize for PUT equality checks and for actual writes — **without inventing** review policy (for example, never defaulting `required_approving_review_count` when a GET shell only exposes `url`/`enabled`). Shape-only differences that normalize to the same values are **not** drift (live re-GET stays nested; perpetual update/verify failure is forbidden). If the semantic comparison detects that desired would change or wipe preserved review/restriction fields, action is `update` with reason `review/restriction drift` — not `noop`. Sparse review shells with no preservable fields fail closed. Create still emits `null` reviews/restrictions. Unexpected field types fail closed.
+
+Fail closed only when the desired set cannot be represented on the available GitHub mechanism (see capability handling), or when preservation cannot be proven safe.
 
 ---
 
@@ -121,6 +129,7 @@ Never invent a third mechanism. Document the gap for the Principal; do not force
 - Development: required checks must include `Cursor Bugbot` + fast-gate; `allow_auto_merge=true`.
 - Staging / main: merge only via temporary `promote/*` PRs after named gates; never direct-push.
 - Preserve `bypass_actors` on ruleset update so existing App / operator bypasses are not wiped.
+- Preserve non-check ruleset rules and classic `required_pull_request_reviews` / `restrictions` (and similar) on update.
 - Tools never create GitHub Apps, install tokens, or repository secrets.
 
 ---

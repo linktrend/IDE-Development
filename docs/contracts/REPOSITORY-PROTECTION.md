@@ -88,6 +88,8 @@ On ruleset update, the tool replaces only `required_status_checks` rules. Every 
 
 On classic branch-protection update, existing `required_pull_request_reviews`, `restrictions`, and similar review/restriction fields are **preserved** from before-state unless managed policy explicitly changes them. The tool must not force those fields to `null` merely because it is rewriting required status checks.
 
+When required check contexts already match the desired union, plan/verify still compare a **semantic** normalized view of classic reviews/restrictions (and related preserved fields) against the desired body. Realistic GitHub GET payloads (nested user/team/app objects, `url`/`html_url` noise, `{enabled: bool}` wrappers) normalize for PUT equality checks and for actual writes — **without inventing** review policy (for example, never defaulting `required_approving_review_count` when a GET shell only exposes `url`/`enabled`). Shape-only differences that normalize to the same values are **not** drift (live re-GET stays nested; perpetual update/verify failure is forbidden). If the semantic comparison detects that desired would change or wipe preserved review/restriction fields, action is `update` with reason `review/restriction drift` — not `noop`. Sparse review shells with no preservable fields fail closed. Create still emits `null` reviews/restrictions. Unexpected field types fail closed.
+
 Fail closed only when the desired set cannot be represented on the available GitHub mechanism (see capability handling), or when preservation cannot be proven safe.
 
 ---

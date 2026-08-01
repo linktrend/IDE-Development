@@ -33,6 +33,82 @@ run_cmd() {
   fi
 }
 
+# ---- Packaging invariants (manifest / credentials / version alignment) ----
+
+assert_packaging() {
+  local root_ver pkg_ver pkg_json_ver
+  root_ver="$(tr -d '[:space:]' < VERSION)"
+  pkg_ver="$(tr -d '[:space:]' < core/managed-core/VERSION)"
+  [[ "${root_ver#v}" == "2.0.0" ]] || fail "root VERSION must be v2.0.0 identity (got '$root_ver')"
+  [[ "${pkg_ver#v}" == "2.0.0" ]] || fail "managed VERSION must be 2.0.0 identity (got '$pkg_ver')"
+  [[ "${root_ver#v}" == "${pkg_ver#v}" ]] || fail "VERSION alignment drift: root=$root_ver managed=$pkg_ver"
+  pkg_json_ver="$(python3 -c "import json; print(json.load(open('core/managed-core/MANIFEST.json'))['packageVersion'])")"
+  [[ "$pkg_json_ver" == "2.0.0" ]] || fail "MANIFEST packageVersion must be 2.0.0 (got '$pkg_json_ver')"
+  [[ "${pkg_ver#v}" == "$pkg_json_ver" ]] || fail "managed VERSION ($pkg_ver) != packageVersion ($pkg_json_ver)"
+  pass "VERSION / packageVersion aligned at 2.0.0"
+
+  # Doctrine docs → packaged content must stay byte-synced (Track 4 packaging contract).
+  python3 - <<'PY'
+from pathlib import Path
+import importlib
+import sys
+
+sys.path.insert(0, "scripts")
+bm = importlib.import_module("ide_development.build_manifest")
+errors = bm._doctrine_sync_errors()
+if errors:
+    raise SystemExit("; ".join(errors))
+required = {
+    "AGENT-COMPLETION.md",
+    "MANAGED-CORE-V2.md",
+    "REPOSITORY-PROTECTION.md",
+    "0003-autonomous-ship-pull-promote.md",
+    "0004-portable-managed-core-v2.md",
+    "AUTONOMOUS-GIT-OPERATIONS.md",
+}
+present = {Path(dest).name for _, dest in bm.CONTENT_DOCTRINE}
+missing = sorted(required - present)
+if missing:
+    raise SystemExit(f"CONTENT_DOCTRINE missing required doctrine: {missing}")
+print("ok")
+PY
+  pass "CONTENT_DOCTRINE covers required contracts and is byte-synced"
+
+  # No credentials / secret material in the packaged managed-core tree.
+  python3 - <<'PY'
+from pathlib import Path
+import sys
+
+sys.path.insert(0, "tests/managed-core-migration-bb")
+from harness.portability import scan_tree
+
+findings = scan_tree(Path("core/managed-core"))
+# Ignore doctrine/docs prose that mention credential policy without embedding values.
+# scan_tree already requires assignment-like / BEGIN PRIVATE KEY / ghp_ patterns.
+if findings:
+    raise SystemExit("credentials packaged:\n  " + "\n  ".join(findings[:20]))
+print("ok")
+PY
+  pass "No credentials packaged under core/managed-core"
+
+  # Manifest verify (hash/set identity). Sibling tracks may still be editing hashed
+  # installer sources during parallel Issue #66 work. Default/--docs-only warn so
+  # doctrine/credential/version gates remain useful; --with-peers/--full require OK.
+  if env PYTHONPATH=scripts python3 -m ide_development.build_manifest --verify; then
+    pass "managed-core MANIFEST verify OK"
+  else
+    case "$MODE" in
+      --with-peers|with-peers|--full|full)
+        fail "managed-core MANIFEST verify (tree not stable or doctrine/manifest drift)"
+        ;;
+      *)
+        echo "WARN: MANIFEST verify failed (tree unstable — lead re-runs --write at integration)" >&2
+        skip "managed-core MANIFEST verify (warn-only in default mode while siblings edit)"
+        ;;
+    esac
+  fi
+}
+
 # ---- WP6 documentation / version invariants ----
 
 assert_docs() {
@@ -159,9 +235,10 @@ discover_and_run_new_suites() {
   local found=0
   local f
 
-  # WP1 package integrity gate (read-only)
+  # WP1 package integrity gate — assert_packaging already covers verify / credentials /
+  # VERSION alignment; keep an explicit peer-label for harness logs.
   found=1
-  run_cmd "managed-core MANIFEST verify" \
+  run_cmd "managed-core MANIFEST verify (peer gate)" \
     env PYTHONPATH=scripts python3 -m ide_development.build_manifest --verify
 
   # WP2 installer unit/black-box tests
@@ -250,10 +327,11 @@ run_existing_suites() {
 
 echo "=== portable v2 integration harness (mode=$MODE) ==="
 assert_docs
+assert_packaging
 
 case "$MODE" in
   --docs-only|docs-only|default|"")
-    info "Focused WP6 mode: documentation/version invariants only"
+    info "Focused mode: documentation/version + packaging invariants"
     ;;
   --with-peers|with-peers)
     discover_and_run_new_suites

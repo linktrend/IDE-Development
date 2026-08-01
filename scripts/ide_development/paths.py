@@ -87,13 +87,38 @@ def as_posix_rel(path: str | PurePosixPath | Path) -> str:
 
 
 def join_under(root: Path, rel: str | PurePosixPath) -> Path:
-    """Join a relative path under root and ensure the result stays inside root."""
+    """Join a relative path under root and ensure the result stays inside root.
+
+    Uses ``Path.resolve()`` so intermediate symlinks that escape the repo are
+    detected as ``PATH_ESCAPE``. Prefer ``join_under_nofollow`` when a planned
+    migrate covers an ancestor symlink (e.g. external ``.cursor``).
+    """
     rel_posix = as_posix_rel(rel)
     candidate = root.joinpath(*PurePosixPath(rel_posix).parts)
     root_resolved = root.resolve()
     candidate_resolved = candidate.resolve(strict=False)
     try:
         candidate_resolved.relative_to(root_resolved)
+    except ValueError as exc:
+        raise ConflictError(
+            f"Path escapes repository root: {rel_posix}",
+            details={"path": rel_posix, "root": str(root_resolved)},
+        ) from exc
+    return candidate
+
+
+def join_under_nofollow(root: Path, rel: str | PurePosixPath) -> Path:
+    """Join under root without resolving intermediate symlinks.
+
+    Containment is logical: ``as_posix_rel`` already rejects ``..`` and absolute
+    segments, so the joined path cannot escape ``root`` without following links.
+    Use this when planning/applying under a migratable ancestor symlink.
+    """
+    rel_posix = as_posix_rel(rel)
+    root_resolved = root.resolve()
+    candidate = root_resolved.joinpath(*PurePosixPath(rel_posix).parts)
+    try:
+        candidate.relative_to(root_resolved)
     except ValueError as exc:
         raise ConflictError(
             f"Path escapes repository root: {rel_posix}",

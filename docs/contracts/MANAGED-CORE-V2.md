@@ -192,7 +192,8 @@ Every mutating operation (`install`, `update`, `rollback`) must:
 | Destination hash == previous installed-state hash, differs from new package | `managed_upgrade` | Plan replace (mutating ops) |
 | Destination exists, no installed-state, path not in prior managed set, bytes ≠ package | `consumer_owned` | Preserve; do not overwrite |
 | Destination hash ≠ package and ≠ previous installed-state hash | `unknown_conflict` | **Fail closed** |
-| Destination is symlink or resolves outside repo root | `unsafe_link` | **Fail closed** |
+| Consumer `.cursor` is an absolute, external, or directory symlink | `unsafe_link` | **Migrate/replace**: unlink the symlink itself (never follow outside), create a physical empty `.cursor`, then continue normal managed creates. Transaction journal records the original `readlink` target; `rollback` restores that symlink byte-for-byte and removes only the in-repo physical tree the installer created under `.cursor`. Outside target bytes/children must remain untouched. |
+| Other destination is symlink or resolves outside repo root | `unsafe_link` | **Fail closed** |
 | Managed marker begin/end missing or corrupted | `marker_conflict` | **Fail closed** |
 | File listed for supersession removal; identity+hash exact match | `supersede_exact` | Allow removal in plan |
 | File listed for supersession; identity or hash mismatch | `supersede_mismatch` | **Fail closed** (do not delete) |

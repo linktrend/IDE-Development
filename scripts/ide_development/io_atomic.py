@@ -15,7 +15,12 @@ def ensure_parent(path: Path) -> None:
 
 
 def atomic_write_bytes(dest: Path, data: bytes, *, mode: str | int) -> None:
-    """Write bytes to dest via temp file + os.replace. Never creates symlinks."""
+    """Write bytes to dest via temp file + os.replace. Never creates symlinks.
+
+    Fail-closed against symlink destinations: pre-check, refuse replace when
+    ``dest`` became a symlink (TOCTOU), and set mode via ``fchmod`` on the
+    temp fd when available so a swapped symlink temp cannot be followed.
+    """
     if path_is_symlink(dest):
         raise OSError(f"Refusing to overwrite symlink: {dest}")
     ensure_parent(dest)
@@ -31,11 +36,19 @@ def atomic_write_bytes(dest: Path, data: bytes, *, mode: str | int) -> None:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
-        os.chmod(tmp_path, mode_value)
+            # Mode on the open fd — avoids chmod following a raced symlink at tmp_path.
+            if hasattr(os, "fchmod"):
+                os.fchmod(handle.fileno(), mode_value)
+            else:
+                os.chmod(tmp_path, mode_value)
+        # TOCTOU: dest may have become a symlink between the initial check and replace.
+        # Policy refuses overwriting symlink paths (even though replace would not follow).
+        if path_is_symlink(dest):
+            raise OSError(f"Refusing to overwrite symlink: {dest}")
         os.replace(tmp_path, dest)
     except Exception:
         try:
-            if tmp_path.exists():
+            if tmp_path.exists() or path_is_symlink(tmp_path):
                 tmp_path.unlink()
         except OSError:
             pass
@@ -43,7 +56,11 @@ def atomic_write_bytes(dest: Path, data: bytes, *, mode: str | int) -> None:
 
 
 def read_file_bytes(path: Path) -> bytes:
-    """Read physical file bytes. Refuses symlink-following (fail closed)."""
+    """Read physical file bytes. Refuses symlink-following (fail closed).
+
+    Uses ``O_NOFOLLOW`` where available and re-checks ``is_symlink`` on open
+    failure / post-open so a TOCTOU symlink swap cannot follow into a target.
+    """
     if path_is_symlink(path):
         raise OSError(f"Refusing to read through symlink: {path}")
     flags = os.O_RDONLY
@@ -51,12 +68,25 @@ def read_file_bytes(path: Path) -> bytes:
         flags |= os.O_NOFOLLOW
     try:
         fd = os.open(str(path), flags)
-    except OSError:
+    except OSError as exc:
         if path_is_symlink(path):
             raise OSError(f"Refusing to read through symlink: {path}") from None
+        err = getattr(exc, "errno", None)
+        if err in {getattr(os, "ELOOP", -1), getattr(os, "EMLINK", -2)}:
+            raise OSError(f"Refusing to read through symlink: {path}") from exc
         raise
-    with os.fdopen(fd, "rb") as handle:
-        return handle.read()
+    try:
+        if path_is_symlink(path):
+            raise OSError(f"Refusing to read through symlink: {path}")
+        with os.fdopen(fd, "rb") as handle:
+            fd = -1
+            return handle.read()
+    finally:
+        if fd >= 0:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
 
 
 def remove_file(path: Path) -> None:
