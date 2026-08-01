@@ -15,6 +15,8 @@
     "scripts/gitops/promote_main.sh",
     "scripts/gitops/promote_staging.sh",
     "scripts/gitops/readiness_status.py",
+    "scripts/gitops/review_ready_dispatch.py",
+    "scripts/gitops/external_state_audit.py",
     "scripts/gitops/repair_task.py",
     "scripts/gitops/repair_observer.py",
     "scripts/gitops/resolve_automation_token.sh",

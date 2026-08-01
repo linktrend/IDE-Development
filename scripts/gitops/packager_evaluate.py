@@ -2,6 +2,8 @@
 """Packager evaluate: wake on PR / workflow_run / external check_run.
 
 Trusted scripts only (caller must checkout default branch). Race-safe head rereads.
+Readiness is re-checked on the exact live head SHA (``Linktrend Review Ready``),
+whether that status came from the local gate or the App-backed publisher.
 
 Credentials:
   - GitHub App (AUTOMATION_TOKEN): reads, undraft, freeze comment, check-runs, repair

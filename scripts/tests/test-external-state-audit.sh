@@ -1,0 +1,339 @@
+#!/usr/bin/env bash
+# Contract tests for scripts/gitops/external_state_audit.py
+# All cases use fixtures or dry-run — no live GitHub mutation or secret value reads.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PY="${ROOT}/scripts/gitops/external_state_audit.py"
+CONTRACT="${ROOT}/docs/contracts/EXTERNAL-STATE-AUDIT.md"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+pass() { echo "PASS: $*"; }
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+[ -f "$PY" ] || fail "missing external_state_audit.py"
+[ -f "$CONTRACT" ] || fail "missing EXTERNAL-STATE-AUDIT.md"
+chmod +x "$PY" 2>/dev/null || true
+
+write_fixture() {
+  local dir="$1"
+  mkdir -p "$dir"
+  cat >"${dir}/state.json"
+}
+
+# ---- unit: dry-run default is unchecked, mutations empty, exit 0 ----
+cd "$ROOT"
+python3 "$PY" report --repo linktrend/Fixture --json-output "${TMP}/dry.json" >/dev/null
+python3 - <<PY
+import json
+from pathlib import Path
+p = json.loads(Path("${TMP}/dry.json").read_text())
+assert p["schemaVersion"] == 1
+assert p["dryRun"] is True
+assert p["mode"] == "report"
+assert p["mutations"] == []
+assert p["source"] == "dry-run"
+assert p["statusContext"] == "Linktrend Review Ready"
+assert p["summary"]["ready"] is False
+statuses = {c["id"]: c["status"] for c in p["checks"]}
+assert statuses["github_app.app_id_variable"] == "unchecked"
+assert statuses["github_app.private_key_secret"] == "unchecked"
+assert statuses["bugbot.user_token_secret"] == "unchecked"
+assert statuses["bugbot.manual_trigger_only"] == "unchecked"
+assert statuses["protection.development_ruleset"] == "unchecked"
+assert statuses["protection.allow_auto_merge"] == "unchecked"
+assert statuses["completion.status_context"] == "ok"
+assert "LINKTREND_GITOPS_APP_PRIVATE_KEY" in json.dumps(p["checklist"])
+# Ensure no accidental secret-looking PEM blob markers in output
+text = Path("${TMP}/dry.json").read_text()
+assert "BEGIN PRIVATE KEY" not in text
+assert "BEGIN RSA PRIVATE KEY" not in text
+print("dry-run ok")
+PY
+pass "dry-run default report is unchecked with empty mutations"
+
+# verify on dry-run must be not-ready (exit 3)
+set +e
+python3 "$PY" verify --repo linktrend/Fixture >"${TMP}/dry-verify.json" 2>"${TMP}/dry-verify.err"
+rc=$?
+set -e
+[ "$rc" -eq 3 ] || fail "dry-run verify expected exit 3 got $rc"
+pass "dry-run verify exits 3 (not ready)"
+
+# ---- refuse --live with --fixture-dir ----
+set +e
+python3 "$PY" report --repo linktrend/Fixture --live --fixture-dir "$TMP" \
+  >"${TMP}/refuse.out" 2>"${TMP}/refuse.err"
+rc=$?
+set -e
+[ "$rc" -eq 5 ] || fail "live+fixture expected exit 5 got $rc"
+pass "refuses --live combined with --fixture-dir"
+
+# ---- mutate method refused ----
+python3 - <<PY
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path("${ROOT}/scripts/gitops").resolve()))
+import external_state_audit as esa
+client = esa.ReadOnlyGitHubClient("linktrend/Fixture")
+try:
+    client.mutate("POST", "/repos/x")
+except esa.AuditError as e:
+    assert e.exit_code == esa.EXIT_REFUSED
+else:
+    raise SystemExit("mutate POST should refuse")
+for method in ("PUT", "PATCH", "DELETE"):
+    try:
+        client.mutate(method)
+    except esa.AuditError as e:
+        assert e.exit_code == esa.EXIT_REFUSED
+    else:
+        raise SystemExit(f"mutate {method} should refuse")
+print("mutate refused")
+PY
+pass "mutating HTTP methods refused"
+
+# ---- fixture: ready ----
+write_fixture "${TMP}/ready" <<'EOF'
+{
+  "actions_variables": [
+    { "name": "LINKTREND_GITOPS_APP_ID", "value": "12345" }
+  ],
+  "actions_secret_names": [
+    "LINKTREND_GITOPS_APP_PRIVATE_KEY",
+    "LINKTREND_BUGBOT_USER_TOKEN"
+  ],
+  "installation": { "id": 99, "app_slug": "linktrend-gitops" },
+  "bugbot": { "manualTriggerOnly": true, "enabled": true },
+  "rulesets": [
+    { "id": 10, "name": "development-autonomous-merge", "enforcement": "active" }
+  ],
+  "ruleset_details": {
+    "10": {
+      "id": 10,
+      "name": "development-autonomous-merge",
+      "enforcement": "active",
+      "rules": [
+        {
+          "type": "required_status_checks",
+          "parameters": {
+            "required_status_checks": [
+              { "context": "Cursor Bugbot" },
+              { "context": "Verify IDE Development" },
+              { "context": "Enforce allowed PR source branches" }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "repo": { "allow_auto_merge": true }
+}
+EOF
+
+python3 "$PY" verify --repo linktrend/Fixture --fixture-dir "${TMP}/ready" \
+  --json-output "${TMP}/ready-out.json" >/dev/null
+python3 - <<PY
+import json
+from pathlib import Path
+p = json.loads(Path("${TMP}/ready-out.json").read_text())
+assert p["dryRun"] is True
+assert p["mutations"] == []
+assert p["source"] == "fixture"
+assert p["summary"]["ready"] is True
+assert p["summary"]["missing"] == 0
+assert p["summary"]["drift"] == 0
+assert p["summary"]["unchecked"] == 0
+for c in p["checks"]:
+    assert c["status"] == "ok", c
+# Fixture must not have embedded private key material
+text = Path("${TMP}/ready/state.json").read_text()
+assert "PRIVATE KEY" not in text
+assert "ghs_" not in text
+assert "github_pat_" not in text
+print("ready ok")
+PY
+pass "fixture ready verify exits 0 with all ok"
+
+# ---- fixture: missing secrets / installation / ruleset ----
+write_fixture "${TMP}/missing" <<'EOF'
+{
+  "actions_variables": [],
+  "actions_secret_names": [],
+  "installation": false,
+  "bugbot": { "manualTriggerOnly": false },
+  "rulesets": [],
+  "ruleset_details": {},
+  "repo": { "allow_auto_merge": false }
+}
+EOF
+
+set +e
+python3 "$PY" verify --repo linktrend/Fixture --fixture-dir "${TMP}/missing" \
+  --json-output "${TMP}/missing-out.json" >/dev/null
+rc=$?
+set -e
+[ "$rc" -eq 3 ] || fail "missing fixture verify expected exit 3 got $rc"
+python3 - <<PY
+import json
+from pathlib import Path
+p = json.loads(Path("${TMP}/missing-out.json").read_text())
+assert p["summary"]["ready"] is False
+by = {c["id"]: c for c in p["checks"]}
+assert by["github_app.app_id_variable"]["status"] == "missing"
+assert by["github_app.private_key_secret"]["status"] == "missing"
+assert by["github_app.installation"]["status"] == "missing"
+assert by["bugbot.user_token_secret"]["status"] == "missing"
+assert by["bugbot.manual_trigger_only"]["status"] == "drift"
+assert by["protection.development_ruleset"]["status"] == "missing"
+assert by["protection.allow_auto_merge"]["status"] == "drift"
+assert p["mutations"] == []
+print("missing ok")
+PY
+pass "missing/drift fixture verify exits 3"
+
+# ---- fixture: drift on ruleset checks + non-numeric app id ----
+write_fixture "${TMP}/drift" <<'EOF'
+{
+  "actions_variables": [
+    { "name": "LINKTREND_GITOPS_APP_ID", "value": "not-a-number" },
+    { "name": "LINKTREND_BUGBOT_CHECK_NAME", "value": "Wrong Bot" }
+  ],
+  "actions_secret_names": [
+    "LINKTREND_GITOPS_APP_PRIVATE_KEY",
+    "LINKTREND_BUGBOT_USER_TOKEN"
+  ],
+  "installation": { "id": 1, "app_slug": "linktrend-gitops" },
+  "bugbot": { "manualTriggerOnly": true },
+  "rulesets": [
+    { "id": 10, "name": "development-autonomous-merge", "enforcement": "active" }
+  ],
+  "ruleset_details": {
+    "10": {
+      "id": 10,
+      "name": "development-autonomous-merge",
+      "enforcement": "active",
+      "rules": [
+        {
+          "type": "required_status_checks",
+          "parameters": {
+            "required_status_checks": [
+              { "context": "Verify IDE Development" }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "repo": { "allow_auto_merge": true }
+}
+EOF
+
+set +e
+python3 "$PY" verify --repo linktrend/Fixture --fixture-dir "${TMP}/drift" \
+  --json-output "${TMP}/drift-out.json" >/dev/null
+rc=$?
+set -e
+[ "$rc" -eq 3 ] || fail "drift fixture verify expected exit 3 got $rc"
+python3 - <<PY
+import json
+from pathlib import Path
+p = json.loads(Path("${TMP}/drift-out.json").read_text())
+by = {c["id"]: c for c in p["checks"]}
+assert by["github_app.app_id_variable"]["status"] == "drift"
+assert by["bugbot.check_name"]["status"] == "drift"
+assert by["protection.development_ruleset"]["status"] == "drift"
+assert "Cursor Bugbot" in by["protection.development_ruleset"]["detail"]
+assert p["mutations"] == []
+print("drift ok")
+PY
+pass "drift fixture reports non-numeric app id and incomplete ruleset"
+
+# ---- secret name present even if fixture wrongly includes a value key ----
+write_fixture "${TMP}/secret-value-ignored" <<'EOF'
+{
+  "actions_variables": [
+    { "name": "LINKTREND_GITOPS_APP_ID", "value": "42" }
+  ],
+  "actions_secrets": [
+    { "name": "LINKTREND_GITOPS_APP_PRIVATE_KEY", "value": "SHOULD_NEVER_APPEAR_IN_OUTPUT" },
+    { "name": "LINKTREND_BUGBOT_USER_TOKEN", "value": "ALSO_SHOULD_NEVER_APPEAR" }
+  ],
+  "installation": { "id": 1 },
+  "bugbot": { "manualTriggerOnly": true },
+  "rulesets": [
+    { "id": 10, "name": "development-autonomous-merge", "enforcement": "active" }
+  ],
+  "ruleset_details": {
+    "10": {
+      "id": 10,
+      "name": "development-autonomous-merge",
+      "enforcement": "active",
+      "rules": [
+        {
+          "type": "required_status_checks",
+          "parameters": {
+            "required_status_checks": [
+              { "context": "Cursor Bugbot" },
+              { "context": "Enforce allowed PR source branches" }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "repo": { "allow_auto_merge": true }
+}
+EOF
+
+python3 "$PY" report --repo linktrend/Fixture --fixture-dir "${TMP}/secret-value-ignored" \
+  --json-output "${TMP}/secret-out.json" >/dev/null
+python3 - <<PY
+import json
+from pathlib import Path
+text = Path("${TMP}/secret-out.json").read_text()
+assert "SHOULD_NEVER_APPEAR_IN_OUTPUT" not in text
+assert "ALSO_SHOULD_NEVER_APPEAR" not in text
+p = json.loads(text)
+by = {c["id"]: c for c in p["checks"]}
+assert by["github_app.private_key_secret"]["status"] == "ok"
+assert by["bugbot.user_token_secret"]["status"] == "ok"
+assert by["github_app.private_key_secret"]["observed"] == "name_present"
+print("secret values ignored")
+PY
+pass "fixture secret values never appear in report output"
+
+# ---- process-env secret presence warns without printing value ----
+SECRET_VAL="pem-material-MUST-NOT-LEAK-into-json-output-$$"
+export LINKTREND_GITOPS_APP_PRIVATE_KEY="${SECRET_VAL}"
+python3 "$PY" report --repo linktrend/Fixture --json-output "${TMP}/leak-warn.json" >/dev/null
+python3 - <<PY
+import json
+from pathlib import Path
+text = Path("${TMP}/leak-warn.json").read_text()
+assert "pem-material-MUST-NOT-LEAK-into-json-output" not in text
+p = json.loads(text)
+assert any("LINKTREND_GITOPS_APP_PRIVATE_KEY=present_in_process_env" in w for w in p["warnings"])
+print("env warn ok")
+PY
+unset LINKTREND_GITOPS_APP_PRIVATE_KEY
+pass "secret env presence warns without leaking value"
+
+# ---- contract doc mentions hard rules ----
+grep -q 'dry-run' "$CONTRACT" || fail "contract missing dry-run"
+grep -q 'Never' "$CONTRACT" || fail "contract missing Never prohibition language"
+grep -q 'LINKTREND_GITOPS_APP_PRIVATE_KEY' "$CONTRACT" || fail "contract missing App private key name"
+grep -q 'manualTriggerOnly' "$CONTRACT" || fail "contract missing manualTriggerOnly"
+grep -q 'development-autonomous-merge' "$CONTRACT" || fail "contract missing ruleset name"
+grep -q 'Linktrend Review Ready' "$CONTRACT" || fail "contract missing status context"
+grep -q 'mutations' "$CONTRACT" || fail "contract missing mutations empty guarantee"
+pass "contract documents App/Bugbot/protection audit surface"
+
+# ---- default argv (no mode) equals report ----
+python3 "$PY" --repo linktrend/Fixture >"${TMP}/default-mode.json"
+python3 -c 'import json,sys; p=json.load(open(sys.argv[1])); assert p["mode"]=="report"' \
+  "${TMP}/default-mode.json"
+pass "default mode is report"
+
+echo "PASS: all external-state audit contract tests"

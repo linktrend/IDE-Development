@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "classification": "tests",
+  "acceptance": "Missing headSha must fail closed",
+  "commands": [
+    {"cmd": "true", "exitCode": 0}
+  ]
+}
