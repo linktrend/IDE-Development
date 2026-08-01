@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "canonicalSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "otherSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "dispatchCases": [
+    {
+      "id": "valid_issue_branch_exact_sha",
+      "expectOk": true,
+      "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development"
+    },
+    {
+      "id": "accept_uppercase_sha_normalized",
+      "expectOk": true,
+      "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+      "sha": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "github_repository": "linktrend/IDE-Development",
+      "expectSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "id": "reject_abbreviated_sha",
+      "expectOk": false,
+      "errorCode": "sha_not_full",
+      "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+      "sha": "aaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development"
+    },
+    {
+      "id": "reject_mutable_ref_as_sha",
+      "expectOk": false,
+      "errorCode": "sha_not_immutable",
+      "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+      "sha": "HEAD",
+      "github_repository": "linktrend/IDE-Development"
+    },
+    {
+      "id": "reject_protected_branch_development",
+      "expectOk": false,
+      "errorCode": "branch_protected",
+      "branch": "development",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development"
+    },
+    {
+      "id": "reject_protected_branch_main",
+      "expectOk": false,
+      "errorCode": "branch_protected",
+      "branch": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development"
+    },
+    {
+      "id": "reject_feature_branch_not_issue",
+      "expectOk": false,
+      "errorCode": "branch_not_issue_slug",
+      "branch": "feature/44-not-allowed-for-publisher",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development"
+    },
+    {
+      "id": "reject_refs_heads_prefix",
+      "expectOk": false,
+      "errorCode": "branch_mutable_ref",
+      "branch": "refs/heads/issue/44-add-app-backed-review-ready-publisher-and-produc",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development"
+    },
+    {
+      "id": "reject_issue_branch_without_number",
+      "expectOk": false,
+      "errorCode": "branch_not_issue_slug",
+      "branch": "issue/no-number-slug",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development"
+    },
+    {
+      "id": "reject_cross_repository_publish",
+      "expectOk": false,
+      "errorCode": "repository_mismatch",
+      "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development",
+      "repository": "evil/other-repo"
+    },
+    {
+      "id": "reject_issue_number_mismatch",
+      "expectOk": false,
+      "errorCode": "issue_branch_mismatch",
+      "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development",
+      "issue_number": "99"
+    },
+    {
+      "id": "reject_absolute_evidence_path",
+      "expectOk": false,
+      "errorCode": "evidence_path_absolute",
+      "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development",
+      "evidence_path": "/tmp/evil.json"
+    },
+    {
+      "id": "reject_evidence_json_not_object",
+      "expectOk": false,
+      "errorCode": "evidence_json_not_object",
+      "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development",
+      "evidence_json": "[]"
+    },
+    {
+      "id": "reject_evidence_json_missing_fields",
+      "expectOk": false,
+      "errorCode": "evidence_json_missing_fields",
+      "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development",
+      "evidence_json": "{\"classification\": \"tests\"}"
+    },
+    {
+      "id": "valid_withdraw_action_no_evidence",
+      "expectOk": true,
+      "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development",
+      "action": "withdraw",
+      "reason": "rollback-test"
+    },
+    {
+      "id": "reject_invalid_action",
+      "expectOk": false,
+      "errorCode": "action_invalid",
+      "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development",
+      "action": "delete"
+    }
+  ],
+  "evidenceCases": [
+    {
+      "id": "evidence_valid",
+      "expectOk": true,
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "evidence": "evidence/valid.json"
+    },
+    {
+      "id": "evidence_sha_mismatch",
+      "expectOk": false,
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "evidence": "evidence/sha-mismatch.json",
+      "errorSubstrings": ["evidence_sha_mismatch"]
+    },
+    {
+      "id": "evidence_malformed_schema",
+      "expectOk": false,
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "evidence": "evidence/malformed-schema.json",
+      "errorSubstrings": ["evidence_schemaVersion", "classification_invalid", "acceptance_missing", "commands_missing"]
+    },
+    {
+      "id": "evidence_failed_command",
+      "expectOk": false,
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "evidence": "evidence/failed-command.json",
+      "errorSubstrings": ["exitCode"]
+    },
+    {
+      "id": "evidence_missing_head_sha",
+      "expectOk": false,
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "evidence": "evidence/missing-head-sha.json",
+      "errorSubstrings": ["evidence_sha_mismatch"]
+    }
+  ],
+  "remoteTipCases": [
+    {
+      "id": "remote_tip_matches",
+      "expectOk": true,
+      "requested": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "remote_tip": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "id": "remote_tip_mismatch",
+      "expectOk": false,
+      "requested": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "remote_tip": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "id": "remote_tip_missing",
+      "expectOk": false,
+      "requested": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "remote_tip": ""
+    }
+  ]
+}

@@ -146,3 +146,28 @@ Branch `issue/23-gitops-lifecycle-repair-control`.
 - Completion gate, create_issue_branch helper, cleanup workflow, Actions cost controls, platform AGENTS (Cursor/Codex/ChatGPT).
 
 See ADR 0003 amendment 2026-07-30 and `docs/contracts/*`.
+
+---
+
+## 13. App-backed Review Ready publisher + production completion bridge — 2026-08-01
+
+Branch `issue/44-add-app-backed-review-ready-publisher-and-produc` (Issue #44). Wave 2 work packet: `docs/work-packets/2026-08-01-wave-2-app-backed-completion.md`.
+
+**Goal:** A normal local implementer can complete an already-verified `issue/<n>-<slug>` branch without a privileged credential. Only the GitHub App publishes `Linktrend Review Ready`, from a trusted Actions workflow that re-validates branch, immutable SHA, and machine-readable evidence.
+
+**Authoritative docs (this wave):**
+
+- `docs/contracts/AGENT-COMPLETION.md` — fail-closed local gate + App-backed route diagnostics; no readiness file
+- `core/github/REVIEW-READY.md` — publisher authority, dispatch contract, rollback
+- `docs/AUTONOMOUS-GIT-OPERATIONS.md` — Ship/Packager doctrine aligned to App publish path
+- Managed-runtime v2 payloads under `core/github/managed-runtime/` (AGENTS section + gitops bootstrap)
+
+**Still true (supersedes any older file-marker wording above):**
+
+1. Push the completed work branch first.
+2. Publish successful commit status **`Linktrend Review Ready`** on the exact tip SHA (App-backed publisher / privileged App token only).
+3. A later commit becomes unready automatically.
+4. No `.linktrend/review-ready.json` and no readiness marker commit — do not discover or consult that path.
+5. Carlos's restricted user identity must not publish this status (Packager/Bugbot scope unchanged).
+
+**Out of this documentation packet:** workflow/script/test implementation, credential creation, consumer wire, PR/Bugbot/promote.

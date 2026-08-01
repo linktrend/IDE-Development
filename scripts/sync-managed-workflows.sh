@@ -11,6 +11,7 @@ TEMPLATE_DIR="${SYSTEM_ROOT}/core/github/managed-workflows"
 MANAGED_FILES=(
   "branch-source-policy.yml"
   "linktrend-review-packager.yml"
+  "linktrend-review-ready-publisher.yml"
   "linktrend-development-to-staging.yml"
   "linktrend-staging-to-main.yml"
   "linktrend-integrator-merge.yml"
