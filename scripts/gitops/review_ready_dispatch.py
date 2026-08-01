@@ -47,6 +47,8 @@ class ValidatedDispatch:
     dry_run: bool
     repository: str
     evidence_json: str  # empty when not supplied; raw JSON text when supplied
+    action: str  # publish | withdraw
+    reason: str  # withdrawal reason when action=withdraw; else empty
 
 
 def _reject(code: str, message: str) -> None:
@@ -190,6 +192,31 @@ def validate_issue_number_binding(issue_number: int, explicit_issue: str | None)
         )
 
 
+def validate_action(raw: Any) -> str:
+    """Normalize action to publish|withdraw. Fail closed on unknown values."""
+    if raw is None:
+        return "publish"
+    text = str(raw).strip().lower()
+    if text in {"", "publish", "mark"}:
+        return "publish"
+    if text == "withdraw":
+        return "withdraw"
+    _reject("action_invalid", f"action must be publish or withdraw, got {raw!r}")
+    raise AssertionError("unreachable")
+
+
+def validate_reason(raw: Any, *, action: str) -> str:
+    """Withdrawal reason; ignored for publish. Fail closed on newlines."""
+    if action != "withdraw":
+        return ""
+    if raw is None:
+        return "withdrawn"
+    text = str(raw).strip() or "withdrawn"
+    if "\n" in text or "\r" in text:
+        _reject("reason_invalid", "reason must be a single line")
+    return text[:140]
+
+
 def validate_dispatch_inputs(
     *,
     branch: str,
@@ -200,18 +227,27 @@ def validate_dispatch_inputs(
     github_repository: str,
     repository: str | None = None,
     issue_number: str | None = None,
+    action: Any = "publish",
+    reason: Any = None,
 ) -> ValidatedDispatch:
     """Validate and normalize all dispatch inputs. Raises DispatchValidationError."""
     issue_num, slug = validate_branch(branch)
     tip = validate_sha(sha)
-    path = validate_evidence_path(evidence_path)
+    act = validate_action(action)
+    why = validate_reason(reason, action=act)
     dry = parse_dry_run(dry_run)
     repo = validate_repository(
         github_repository=github_repository,
         requested_repository=repository,
     )
     validate_issue_number_binding(issue_num, issue_number)
-    ev_json = validate_evidence_json(evidence_json)
+    # Withdraw does not require completion evidence; publish still does.
+    if act == "withdraw":
+        path = DEFAULT_EVIDENCE_PATH
+        ev_json = ""
+    else:
+        path = validate_evidence_path(evidence_path)
+        ev_json = validate_evidence_json(evidence_json)
     return ValidatedDispatch(
         branch=f"issue/{issue_num}-{slug}",
         sha=tip,
@@ -221,6 +257,8 @@ def validate_dispatch_inputs(
         dry_run=dry,
         repository=repo,
         evidence_json=ev_json,
+        action=act,
+        reason=why,
     )
 
 
@@ -236,6 +274,8 @@ def _write_github_output(validated: ValidatedDispatch) -> None:
         f"evidence_path={validated.evidence_path}",
         f"dry_run={'true' if validated.dry_run else 'false'}",
         f"repository={validated.repository}",
+        f"action={validated.action}",
+        f"reason={validated.reason}",
         f"has_evidence_json={'true' if validated.evidence_json else 'false'}",
     ]
     with open(out_path, "a", encoding="utf-8") as fh:
@@ -276,6 +316,8 @@ def cmd_validate(args: argparse.Namespace) -> int:
             or os.environ.get("GITHUB_REPOSITORY", ""),
             repository=args.repository,
             issue_number=args.issue_number,
+            action=args.action,
+            reason=args.reason,
         )
     except DispatchValidationError as e:
         payload = {"ok": False, "error": e.code, "detail": e.message}
@@ -374,6 +416,17 @@ def _self_test() -> int:
         evidence_json="[]",
     )
     expect_err("dry_run_invalid", branch="issue/44-x", sha=good_sha, dry_run="maybe")
+    expect_err("action_invalid", branch="issue/44-x", sha=good_sha, action="delete")
+    ok_w = expect_ok(
+        branch="issue/44-add-app-backed-review-ready-publisher-and-produc",
+        sha=good_sha,
+        action="withdraw",
+        reason="rollback",
+    )
+    if ok_w:
+        assert ok_w.action == "withdraw"
+        assert ok_w.reason == "rollback"
+        assert ok_w.evidence_json == ""
 
     if failures:
         print(json.dumps({"ok": False, "failures": failures}, indent=2))
@@ -390,6 +443,16 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("--branch", required=True)
     v.add_argument("--sha", required=True)
     v.add_argument("--dry-run", default="false")
+    v.add_argument(
+        "--action",
+        default="publish",
+        help="publish (default) or withdraw Linktrend Review Ready",
+    )
+    v.add_argument(
+        "--reason",
+        default="withdrawn",
+        help="Withdrawal reason when --action withdraw",
+    )
     v.add_argument("--evidence-path", default=DEFAULT_EVIDENCE_PATH)
     v.add_argument(
         "--evidence-json",

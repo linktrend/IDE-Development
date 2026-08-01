@@ -41,6 +41,7 @@ route = rs.app_backed_review_ready_route(
 assert route.startswith("gh workflow run linktrend-review-ready-publisher.yml ")
 assert "-f branch=issue/44-add-app-backed-review-ready-publisher-and-produc" in route
 assert "-f sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" in route
+assert "-f action=publish" in route
 assert "-f dry_run=false" in route
 
 posted = []

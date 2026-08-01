@@ -110,7 +110,7 @@ for block in blocks:
             "github.token bound in a block that also publishes/readiness statuses"
         )
 
-for key in ("branch", "sha", "dry_run"):
+for key in ("branch", "sha", "dry_run", "action", "reason"):
     if not re.search(rf"^\s*{key}\s*:", prod, re.M):
         raise SystemExit(f"workflow_dispatch input missing: {key}")
 
@@ -123,6 +123,8 @@ assert "completion_gate" in prod or "validate_evidence" in prod
 assert "review_ready_dispatch.py" in prod
 assert "automation_credentials_blocked" in prod
 assert "resolve_automation_token" in prod
+assert "withdraw_sha" in prod
+assert "withdraw" in prod
 print("ok")
 PY
 pass "Production workflow trusted-source + no human/token-fallback static checks"
@@ -184,7 +186,7 @@ for case in cases_doc["dispatchCases"]:
         "sha": case["sha"],
         "github_repository": case["github_repository"],
     }
-    for key in ("repository", "issue_number", "evidence_path", "evidence_json", "dry_run"):
+    for key in ("repository", "issue_number", "evidence_path", "evidence_json", "dry_run", "action", "reason"):
         if key in case:
             kwargs[key] = case[key]
     try:
@@ -368,8 +370,20 @@ route = rs.app_backed_review_ready_route(
 assert "linktrend-review-ready-publisher.yml" in route
 assert "-f branch=issue/44-add-app-backed-review-ready-publisher-and-produc" in route
 assert "-f sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" in route
+assert "-f action=publish" in route
 assert "-f dry_run=false" in route
+withdraw = rs.app_backed_review_ready_route(
+    branch="issue/44-add-app-backed-review-ready-publisher-and-produc",
+    sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    action="withdraw",
+    reason="rollback",
+    dry_run=False,
+)
+assert "-f action=withdraw" in withdraw
+assert "-f reason=rollback" in withdraw
 assert contract["statusContext"] == rs.CONTEXT
+assert "withdrawRoute" in contract
+assert "-f action=withdraw" in contract["withdrawRoute"]
 print("ok")
 PY
 pass "Fixture contract matches readiness_status App-backed route"

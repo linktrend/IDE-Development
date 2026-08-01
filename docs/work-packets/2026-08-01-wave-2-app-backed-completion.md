@@ -69,7 +69,7 @@ Canonical docs (owned by this packet):
 
 ### Rollback
 
-1. Withdraw a bad mark: `scripts/clear-review-ready.sh [sha] [reason]` (non-success status on that SHA).
+1. Withdraw a bad mark via App-backed dispatch only: `gh workflow run linktrend-review-ready-publisher.yml -f branch=<issue/…> -f sha=<40-char> -f action=withdraw -f reason=<why>` (dry-run first in test). Local `scripts/clear-review-ready.sh` fails closed without App credentials and prints that route — never withdraw with `GH_TOKEN`/`GITHUB_TOKEN`/human PAT.
 2. Disable or revert `linktrend-review-ready-publisher.yml` on the default branch if the publisher misbehaves; tips without success status stay ineligible.
 3. Intentional tip change: new commit is automatically unready — preferred roll-forward.
 4. Credential incidents: escalate to Principal/ops; agents do not rotate secrets.

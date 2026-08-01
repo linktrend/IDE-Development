@@ -11,7 +11,8 @@
 # App mint/resolve fails.
 #
 # Trigger: workflow_dispatch (manual / agent-driven). Dry-run validates without
-# publishing. Input validation: scripts/gitops/review_ready_dispatch.py
+# publishing or withdrawing. action=publish (default) or action=withdraw.
+# Input validation: scripts/gitops/review_ready_dispatch.py
 
 name: Linktrend Review Ready Publisher
 
@@ -19,25 +20,38 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: "Exact issue/<number>-<slug> branch whose remote tip will be marked"
+        description: "Exact issue/<number>-<slug> branch whose remote tip will be marked or cleared"
         required: true
         type: string
       sha:
         description: "Immutable 40-char tip SHA (must equal remote heads/<branch>)"
         required: true
         type: string
+      action:
+        description: "publish (default) or withdraw Linktrend Review Ready"
+        required: false
+        type: choice
+        options:
+          - publish
+          - withdraw
+        default: publish
+      reason:
+        description: "Withdrawal reason (action=withdraw only)"
+        required: false
+        type: string
+        default: withdrawn
       dry_run:
-        description: "Validate only; do not publish Linktrend Review Ready"
+        description: "Validate only; do not publish or withdraw Linktrend Review Ready"
         required: false
         type: boolean
         default: false
       evidence_path:
-        description: "Relative path to completion evidence JSON in the tip tree"
+        description: "Relative path to completion evidence JSON in the tip tree (publish only)"
         required: false
         type: string
         default: ".linktrend/completion-evidence.json"
       evidence_json:
-        description: "Optional inline evidence JSON when the tip file is unavailable"
+        description: "Optional inline evidence JSON when the tip file is unavailable (publish only)"
         required: false
         type: string
         default: ""
@@ -73,6 +87,8 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           INPUT_BRANCH: ${{ inputs.branch }}
           INPUT_SHA: ${{ inputs.sha }}
+          INPUT_ACTION: ${{ inputs.action }}
+          INPUT_REASON: ${{ inputs.reason }}
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
           INPUT_EVIDENCE_PATH: ${{ inputs.evidence_path }}
           INPUT_EVIDENCE_JSON: ${{ inputs.evidence_json }}
@@ -82,6 +98,8 @@ jobs:
           python3 scripts/gitops/review_ready_dispatch.py validate \
             --branch "${INPUT_BRANCH}" \
             --sha "${INPUT_SHA}" \
+            --action "${INPUT_ACTION}" \
+            --reason "${INPUT_REASON}" \
             --dry-run "${INPUT_DRY_RUN}" \
             --evidence-path "${INPUT_EVIDENCE_PATH}" \
             --evidence-json-env INPUT_EVIDENCE_JSON \
@@ -104,7 +122,7 @@ jobs:
           app-id: ${{ vars.LINKTREND_GITOPS_APP_ID }}
           private-key: ${{ secrets.LINKTREND_GITOPS_APP_PRIVATE_KEY }}
 
-      - name: Resolve App token; verify remote tip equals immutable SHA; publish
+      - name: Resolve App token; verify remote tip equals immutable SHA; publish or withdraw
         env:
           LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
           LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
@@ -112,6 +130,8 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           BRANCH: ${{ steps.inputs.outputs.branch }}
           SHA: ${{ steps.inputs.outputs.sha }}
+          ACTION: ${{ steps.inputs.outputs.action }}
+          REASON: ${{ steps.inputs.outputs.reason }}
           ISSUE_NUMBER: ${{ steps.inputs.outputs.issue_number }}
           EVIDENCE_PATH: ${{ steps.inputs.outputs.evidence_path }}
           DRY_RUN: ${{ steps.inputs.outputs.dry_run }}
@@ -158,6 +178,8 @@ jobs:
           repo = os.environ["GITHUB_REPOSITORY"]
           branch = os.environ["BRANCH"]
           sha = os.environ["SHA"].lower()
+          action = (os.environ.get("ACTION") or "publish").strip().lower() or "publish"
+          reason = (os.environ.get("REASON") or "withdrawn").strip() or "withdrawn"
           issue_number = os.environ["ISSUE_NUMBER"]
           evidence_rel = os.environ["EVIDENCE_PATH"]
           dry_run = os.environ.get("DRY_RUN", "false").lower() == "true"
@@ -200,6 +222,63 @@ jobs:
           if int(issue.get("number") or 0) != int(issue_number):
               raise SystemExit("FAIL: issue_number mismatch from API")
 
+          outcome = {
+              "mode": "review-ready-publisher",
+              "branch": branch,
+              "sha": sha,
+              "action": action,
+              "issue": issue_number,
+              "issueState": issue.get("state"),
+              "dryRun": dry_run,
+              "published": False,
+              "withdrawn": False,
+              "automationTokenSource": os.environ.get("AUTOMATION_TOKEN_SOURCE"),
+          }
+
+          if action == "withdraw":
+              outcome["reason"] = reason[:140]
+              if dry_run:
+                  outcome["status"] = "dry_run_ok"
+                  outcome["detail"] = (
+                      "Validation passed; dry_run=true so Linktrend Review Ready was not withdrawn"
+                  )
+                  Path("gitops-outcome.json").write_text(
+                      json.dumps(outcome, indent=2) + "\n", encoding="utf-8"
+                  )
+                  print(json.dumps(outcome, indent=2))
+                  sys.exit(0)
+              try:
+                  st = rs.withdraw_sha(sha, reason[:140], branch=branch)
+              except Exception as e:  # noqa: BLE001
+                  outcome["status"] = "withdraw_failed"
+                  outcome["error"] = str(e)
+                  Path("gitops-outcome.json").write_text(
+                      json.dumps(outcome, indent=2) + "\n", encoding="utf-8"
+                  )
+                  print(json.dumps(outcome, indent=2))
+                  raise SystemExit(f"FAIL: withdraw_failed:{e}") from e
+              ok, detail = rs.is_sha_review_ready(sha)
+              if ok:
+                  outcome["status"] = "post_withdraw_verify_failed"
+                  outcome["error"] = detail
+                  Path("gitops-outcome.json").write_text(
+                      json.dumps(outcome, indent=2) + "\n", encoding="utf-8"
+                  )
+                  print(json.dumps(outcome, indent=2))
+                  raise SystemExit(f"FAIL: post_withdraw_verify_failed:{detail}")
+              outcome["withdrawn"] = True
+              outcome["status"] = "withdrawn"
+              outcome["description"] = getattr(st, "description", "") or reason
+              outcome["detail"] = "Linktrend Review Ready withdrawn on immutable SHA"
+              Path("gitops-outcome.json").write_text(
+                  json.dumps(outcome, indent=2) + "\n", encoding="utf-8"
+              )
+              print(json.dumps(outcome, indent=2))
+              sys.exit(0)
+
+          if action != "publish":
+              raise SystemExit(f"FAIL: action_invalid:{action}")
+
           evidence = None
           source = ""
           if has_inline and inline.strip():
@@ -231,17 +310,7 @@ jobs:
           if missing:
               raise SystemExit("FAIL: evidence_invalid:" + ",".join(missing))
 
-          outcome = {
-              "mode": "review-ready-publisher",
-              "branch": branch,
-              "sha": sha,
-              "issue": issue_number,
-              "issueState": issue.get("state"),
-              "evidenceSource": source,
-              "dryRun": dry_run,
-              "published": False,
-              "automationTokenSource": os.environ.get("AUTOMATION_TOKEN_SOURCE"),
-          }
+          outcome["evidenceSource"] = source
 
           if dry_run:
               outcome["status"] = "dry_run_ok"
@@ -293,7 +362,7 @@ jobs:
           status="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json"))["status"])')"
           echo "### Review Ready publisher: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
           case "${status}" in
-            review_ready|dry_run_ok) exit 0 ;;
+            review_ready|withdrawn|dry_run_ok) exit 0 ;;
             *) exit 1 ;;
           esac
 

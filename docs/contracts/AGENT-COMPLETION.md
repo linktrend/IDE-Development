@@ -62,7 +62,7 @@ When `completion_gate.py review-ready` validates successfully but cannot publish
 4. The workflow re-validates branch naming, exact remote SHA, evidence schema, clean/pushed tip, and issue/branch relationship from trusted scripts; the untrusted issue branch supplies data only.
 5. On success it posts commit status context **`Linktrend Review Ready`** = `success` on that exact SHA so Review Packager discovery is unchanged.
 
-See `core/github/REVIEW-READY.md` for the dispatch contract and rollback.
+See `core/github/REVIEW-READY.md` for the dispatch contract and rollback (withdraw is App-backed `action=withdraw` on the same trusted publisher workflow; local `clear-review-ready.sh` fails closed without App credentials).
 
 ## Evidence schema (`schemaVersion: 1`)
 

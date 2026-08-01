@@ -45,8 +45,9 @@ Exact input names live in the workflow YAML / dispatch validator. The contract r
 2. **Exact branch name** matching `issue/<number>-<slug>` (reject foreign/mutable refs).
 3. **Immutable SHA** — full commit SHA that must equal the current remote tip of that branch.
 4. **Issue relationship** — issue number consistent with the branch name (reject ambiguity).
-5. **Evidence** — schema-versioned completion evidence tied to that exact SHA (see `docs/contracts/AGENT-COMPLETION.md`).
-6. **Optional dry-run** — validate everything, publish nothing.
+5. **Action** — `publish` (default) or `withdraw`. Withdraw posts non-success for the same status context and does **not** require completion evidence.
+6. **Evidence** (publish only) — schema-versioned completion evidence tied to that exact SHA (see `docs/contracts/AGENT-COMPLETION.md`).
+7. **Optional dry-run** — validate everything, publish/withdraw nothing.
 
 ### Fail closed (no success status)
 
@@ -61,16 +62,16 @@ Mismatched SHA, malformed/foreign branch, changed/missing evidence, missing App 
 5. Confirm status on that SHA: `scripts/validate-review-ready.sh <sha>`.
 6. Set issue status to `review_ready` and stop — Packager opens the draft PR.
 
-Compatibility wrappers: `scripts/mark-review-ready.sh` / `scripts/clear-review-ready.sh` still require evidence and delegate to the gate; they are not a pre-gate publisher and are not a substitute for App authority.
-
 ## Rollback
 
 | Situation | Action |
 |-----------|--------|
-| Wrong SHA marked, or need to withdraw readiness | `scripts/clear-review-ready.sh [sha] [reason]` (posts non-success for context `Linktrend Review Ready` on that SHA) |
+| Wrong SHA marked, or need to withdraw readiness | App-backed only: `gh workflow run linktrend-review-ready-publisher.yml -f branch=<issue/…> -f sha=<40-char> -f action=withdraw -f reason=<why> -f dry_run=false` (trusted default-branch workflow mints the App token and posts non-success for context `Linktrend Review Ready`). Local `scripts/clear-review-ready.sh [sha] [reason]` fails closed without App credentials and prints that exact route — never use `GH_TOKEN` / `GITHUB_TOKEN` / a human PAT to withdraw. |
 | Bad publisher workflow on default branch | Revert or disable `linktrend-review-ready-publisher.yml` on the protected default branch; Packager continues to ignore tips without a success status |
 | Suspected credential misuse | Do **not** rotate or rewrite secrets from agents; escalate to Principal / ops per `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md` |
 | Local gate noise / incomplete work | Do not dispatch; call `completion_gate.py blocked` or continue on the issue branch |
+
+Compatibility wrappers: `scripts/mark-review-ready.sh` requires evidence and delegates to the gate (not a pre-gate publisher). `scripts/clear-review-ready.sh` is a local fail-closed helper for withdraw diagnostics / App-token contexts — not a substitute for App authority and not a human-token status writer.
 
 A new functional commit on the branch is automatically unready (new tip SHA has no success status) — preferred roll-forward when the tip changed intentionally.
 

@@ -118,6 +118,24 @@
       "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "github_repository": "linktrend/IDE-Development",
       "evidence_json": "{\"classification\": \"tests\"}"
+    },
+    {
+      "id": "valid_withdraw_action_no_evidence",
+      "expectOk": true,
+      "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development",
+      "action": "withdraw",
+      "reason": "rollback-test"
+    },
+    {
+      "id": "reject_invalid_action",
+      "expectOk": false,
+      "errorCode": "action_invalid",
+      "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development",
+      "action": "delete"
     }
   ],
   "evidenceCases": [

@@ -84,7 +84,7 @@ Record: GitHub commit status context `Linktrend Review Ready` on the exact tip S
 
 **Production publish path:** GitHub App only, via trusted `workflow_dispatch` on `linktrend-review-ready-publisher.yml` (default-branch workflow source; issue branch is data only). Local `scripts/gitops/completion_gate.py review-ready` validates first and fails closed with App-backed route diagnostics when privileged credentials are unavailable. Carlos's restricted user identity must not publish this status.
 
-Helpers: `scripts/mark-review-ready.sh` (compatibility wrapper → gate), `scripts/validate-review-ready.sh`, `scripts/clear-review-ready.sh` (rollback/withdraw).
+Helpers: `scripts/mark-review-ready.sh` (compatibility wrapper → gate), `scripts/validate-review-ready.sh`, `scripts/clear-review-ready.sh` (fail-closed withdraw helper; App-backed `action=withdraw` dispatch when local App credentials are unavailable).
 Do **not** create or use `.linktrend/review-ready.json`.
 Bugbot mention-only: `docs/contracts/BUGBOT-MENTION-ONLY.md` (required before consumer rollout).
 Completion contract: `docs/contracts/AGENT-COMPLETION.md`.

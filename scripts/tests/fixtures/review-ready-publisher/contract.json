@@ -8,12 +8,15 @@
   "workflowInputs": {
     "branch": "issue/<number>-<slug>",
     "sha": "exact 40-char hex immutable tip (normalized lowercase)",
+    "action": "publish|withdraw (default publish)",
+    "reason": "withdrawal reason when action=withdraw",
     "dry_run": "true|false",
-    "evidence_path": "relative tip-tree path",
-    "evidence_json": "optional inline evidence JSON",
+    "evidence_path": "relative tip-tree path (publish only)",
+    "evidence_json": "optional inline evidence JSON (publish only)",
     "issue_number": "optional; must match branch"
   },
-  "dispatchRoute": "gh workflow run linktrend-review-ready-publisher.yml -f branch=<branch> -f sha=<sha> -f dry_run=<true|false>",
+  "dispatchRoute": "gh workflow run linktrend-review-ready-publisher.yml -f branch=<branch> -f sha=<sha> -f action=<publish|withdraw> -f dry_run=<true|false>",
+  "withdrawRoute": "gh workflow run linktrend-review-ready-publisher.yml -f branch=<branch> -f sha=<sha> -f action=withdraw -f reason=<reason> -f dry_run=<true|false>",
   "statusContext": "Linktrend Review Ready",
   "validatorPublicApi": {
     "function": "validate_dispatch_inputs",

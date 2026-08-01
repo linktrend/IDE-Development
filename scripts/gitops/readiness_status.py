@@ -9,7 +9,8 @@ Withdrawal posts a non-success status for the same context.
 Privileged publish (mark/withdraw) requires a minted GitHub App token in
 AUTOMATION_TOKEN or LINKTREND_APP_TOKEN. Ordinary GH_TOKEN / GITHUB_TOKEN must
 never authorize status publication. Local implementers without App credentials
-use the App-backed workflow dispatch route (see app_backed_review_ready_route).
+use the App-backed workflow dispatch route (see app_backed_review_ready_route;
+action=publish or action=withdraw).
 """
 
 from __future__ import annotations
@@ -62,29 +63,62 @@ def resolve_app_publish_token() -> str:
     return ""
 
 
+def normalize_status_action(action: str = "publish") -> str:
+    """Normalize privileged status action to publish|withdraw."""
+    act = (action or "publish").strip().lower()
+    if act in {"", "publish", "mark"}:
+        return "publish"
+    if act == "withdraw":
+        return "withdraw"
+    return "publish"
+
+
 def app_backed_review_ready_route(
     *,
     branch: str = "",
     sha: str = "",
     dry_run: bool = False,
+    action: str = "publish",
+    reason: str = "",
 ) -> str:
-    """Exact safe App-backed route for publishing Linktrend Review Ready."""
+    """Exact safe App-backed route for publishing or withdrawing Review Ready."""
     br = (branch or "").strip() or "<issue/<number>-<slug>>"
     tip = (sha or "").strip() or "<40-char-immutable-sha>"
     dry = "true" if dry_run else "false"
-    return (
-        f"gh workflow run {REVIEW_READY_PUBLISHER_WORKFLOW} "
-        f"-f branch={br} -f sha={tip} -f dry_run={dry}"
+    act = normalize_status_action(action)
+    parts = [
+        f"gh workflow run {REVIEW_READY_PUBLISHER_WORKFLOW}",
+        f"-f branch={br}",
+        f"-f sha={tip}",
+        f"-f action={act}",
+        f"-f dry_run={dry}",
+    ]
+    if act == "withdraw":
+        why = (reason or "withdrawn").strip() or "withdrawn"
+        # Keep reason token-safe for copy/paste diagnostics (no spaces/newlines).
+        why = why.replace("\n", " ").replace("\r", " ").strip()[:140] or "withdrawn"
+        if " " in why:
+            why = why.replace(" ", "-")
+        parts.append(f"-f reason={why}")
+    return " ".join(parts)
+
+
+def missing_app_publish_token_error(
+    *,
+    branch: str = "",
+    sha: str = "",
+    action: str = "publish",
+    reason: str = "",
+) -> str:
+    """Fail-closed diagnostic when local privileged status write lacks App credentials."""
+    act = normalize_status_action(action)
+    route = app_backed_review_ready_route(
+        branch=branch, sha=sha, action=act, reason=reason
     )
-
-
-def missing_app_publish_token_error(*, branch: str = "", sha: str = "") -> str:
-    """Fail-closed diagnostic when local privileged publish lacks App credentials."""
-    route = app_backed_review_ready_route(branch=branch, sha=sha)
     return (
         "privileged_publish_requires_github_app: "
         "AUTOMATION_TOKEN or LINKTREND_APP_TOKEN required; "
-        "no GH_TOKEN/GITHUB_TOKEN fallback for Linktrend Review Ready publish. "
+        "no GH_TOKEN/GITHUB_TOKEN fallback for Linktrend Review Ready status writes. "
         f"Use App-backed route: {route}"
     )
 
@@ -234,11 +268,20 @@ class GitHubStatusBackend:
         target_url: str = "",
         *,
         branch: str = "",
+        action: str = "publish",
+        reason: str = "",
     ) -> ReadyStatus:
-        # Privileged publish: App env vars only — never constructor/ambient human tokens.
+        # Privileged publish/withdraw: App env vars only — never constructor/ambient human tokens.
         pub = resolve_app_publish_token()
         if not pub:
-            raise RuntimeError(missing_app_publish_token_error(branch=branch, sha=sha))
+            raise RuntimeError(
+                missing_app_publish_token_error(
+                    branch=branch,
+                    sha=sha,
+                    action=action,
+                    reason=reason or description,
+                )
+            )
         existing = self.get_latest(sha) if self._read_token else None
         if (
             existing
@@ -308,36 +351,106 @@ def mark_sha(
 
 
 def withdraw_sha(sha: str, reason: str = "withdrawn", *, branch: str = "") -> ReadyStatus:
+    why = (reason or "withdrawn")[:140]
     backend = get_backend()
     if isinstance(backend, GitHubStatusBackend):
-        return backend.post(sha, "failure", reason[:140], branch=branch)
-    return backend.post(sha, "failure", reason[:140])
+        return backend.post(
+            sha,
+            "failure",
+            why,
+            branch=branch,
+            action="withdraw",
+            reason=why,
+        )
+    return backend.post(sha, "failure", why)
+
+
+def _parse_cli_branch(argv: list[str]) -> tuple[list[str], str]:
+    """Extract optional --branch <name> from argv; return (remaining, branch)."""
+    out: list[str] = []
+    branch = ""
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--branch" and i + 1 < len(argv):
+            branch = argv[i + 1]
+            i += 2
+            continue
+        if argv[i].startswith("--branch="):
+            branch = argv[i].split("=", 1)[1]
+            i += 1
+            continue
+        out.append(argv[i])
+        i += 1
+    return out, branch
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) < 2:
+    args, branch = _parse_cli_branch(argv)
+    if len(args) < 2:
         print(
-            "Usage: readiness_status.py <get|mark|withdraw> <sha> [issue_id] [notes]",
+            "Usage: readiness_status.py <get|mark|withdraw> <sha> [issue_id|reason] "
+            "[notes] [--branch issue/<n>-<slug>]",
             file=sys.stderr,
         )
         return 2
-    cmd = argv[1]
+    cmd = args[1]
     if cmd == "get":
-        sha = argv[2]
+        sha = args[2]
         ok, detail = is_sha_review_ready(sha)
         print(json.dumps({"sha": sha, "ready": ok, "detail": detail}))
         return 0 if ok else 1
     if cmd == "mark":
-        sha, issue_id = argv[2], argv[3]
-        notes = argv[4] if len(argv) > 4 else ""
-        st = mark_sha(sha, issue_id, notes)
+        sha, issue_id = args[2], args[3]
+        notes = args[4] if len(args) > 4 else ""
+        try:
+            st = mark_sha(sha, issue_id, notes, branch=branch)
+        except RuntimeError as e:
+            route = app_backed_review_ready_route(branch=branch, sha=sha, action="publish")
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "sha": sha,
+                        "error": str(e),
+                        "appBackedRoute": route,
+                    },
+                    indent=2,
+                )
+            )
+            return 78
         print(json.dumps({"sha": sha, "state": st.state, "description": st.description}))
         return 0
     if cmd == "withdraw":
-        sha = argv[2]
-        reason = argv[3] if len(argv) > 3 else "withdrawn"
-        st = withdraw_sha(sha, reason)
-        print(json.dumps({"sha": sha, "state": st.state, "description": st.description}))
+        sha = args[2]
+        reason = args[3] if len(args) > 3 else "withdrawn"
+        try:
+            st = withdraw_sha(sha, reason, branch=branch)
+        except RuntimeError as e:
+            route = app_backed_review_ready_route(
+                branch=branch, sha=sha, action="withdraw", reason=reason
+            )
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "sha": sha,
+                        "error": str(e),
+                        "appBackedRoute": route,
+                    },
+                    indent=2,
+                )
+            )
+            return 78
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "sha": sha,
+                    "state": st.state,
+                    "description": st.description,
+                }
+            )
+        )
         return 0
     print(f"unknown command {cmd}", file=sys.stderr)
     return 2
