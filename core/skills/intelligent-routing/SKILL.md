@@ -7,7 +7,7 @@ tags: [routing, skills, commands, agents, hybrid, triggers]
 source_adapted_from:
   - link-antigravity-kit/.codex/skills/intelligent-routing
   - docs/HYBRID-SKILLS-REGISTRY.md
-  - /Users/linktrend/Projects/Archive/LiNKdeveloper-Stage2-Runtime-20260710/docs/EXECUTOR_ROUTING_POLICY.md (read-only archive reference)
+  - docs/archive (historical EXECUTOR_ROUTING_POLICY reference; no absolute host paths)
 ---
 
 # Intelligent Routing

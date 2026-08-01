@@ -123,6 +123,19 @@ def parse_manifest_entry(raw: Any, *, index: int) -> ManifestEntry:
         )
     source = as_posix_rel(_require_str(obj, "source"))
     destination = as_posix_rel(_require_str(obj, "destination"))
+    for label, rel in (("source", source), ("destination", destination)):
+        lowered = rel.lower()
+        parts = PurePosixPath(lowered).parts
+        if (
+            lowered == "claude.md"
+            or lowered.endswith("/claude.md")
+            or parts[:1] == (".claude",)
+            or parts[:1] == ("claude",)
+            or ".claude/" in lowered
+        ):
+            raise InvalidPackageError(
+                f"Claude surfaces are out of scope for {entry_id} ({label}={rel})"
+            )
     mode = normalize_mode(_require_str(obj, "mode"))
     platform = _require_str(obj, "platform").lower()
     if platform not in PLATFORMS:
@@ -160,10 +173,15 @@ def parse_manifest_entry(raw: Any, *, index: int) -> ManifestEntry:
         marker_begin = marker_begin if isinstance(marker_begin, str) else None
         marker_end = marker_end if isinstance(marker_end, str) else None
 
-    if ownership == "external-state" and merge != "external-plan-only":
-        raise InvalidPackageError(
-            f"external-state requires mergeStrategy=external-plan-only for {entry_id}"
-        )
+    if ownership == "external-state":
+        if merge != "external-plan-only":
+            raise InvalidPackageError(
+                f"external-state requires mergeStrategy=external-plan-only for {entry_id}"
+            )
+        if platform != "github":
+            raise InvalidPackageError(
+                f"external-state requires platform=github for {entry_id}"
+            )
 
     notes = obj.get("notes")
     if notes is not None and not isinstance(notes, str):

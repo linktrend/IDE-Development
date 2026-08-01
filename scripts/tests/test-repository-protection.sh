@@ -219,6 +219,58 @@ set -e
 [ "$rc" -eq 4 ] || [ "$rc" -eq 1 ] || fail "unavailable apply must refuse, got $rc"
 pass "unavailable mechanism plans safely and refuses apply"
 
+# ---- ruleset detail fetch failure must fail closed (preserve checks) ----
+python3 - <<'PY'
+import json, sys, tempfile
+from pathlib import Path
+from copy import deepcopy
+sys.path.insert(0, str(Path("scripts/gitops").resolve()))
+import repository_protection as rp
+
+fx = Path("scripts/tests/fixtures/repository-protection/rulesets-partial")
+with tempfile.TemporaryDirectory() as td:
+    dest = Path(td) / "fx"
+    import shutil
+    shutil.copytree(fx, dest)
+    client = rp.FixtureClient("linktrend/Fixture", dest)
+    original = client.get_ruleset
+
+    def boom(rid: int):
+        return None
+
+    client.get_ruleset = boom  # type: ignore[method-assign]
+    try:
+        rp.build_plan(client)
+        raise SystemExit("expected ProtectionError on detail fetch failure")
+    except rp.ProtectionError as exc:
+        assert exc.exit_code == rp.EXIT_UNAVAILABLE, exc.exit_code
+        assert "detail fetch failed" in str(exc)
+print("detail-fail-closed ok")
+PY
+pass "ruleset detail fetch failure fails closed"
+
+# ---- rulesets forbidden/error must not fall through to classic BP ----
+python3 - <<'PY'
+import json, sys, tempfile, shutil
+from pathlib import Path
+sys.path.insert(0, str(Path("scripts/gitops").resolve()))
+import repository_protection as rp
+
+base = Path("scripts/tests/fixtures/repository-protection/branch-protection-fallback")
+with tempfile.TemporaryDirectory() as td:
+    dest = Path(td) / "fx"
+    shutil.copytree(base, dest)
+    state = json.loads((dest / "state.json").read_text())
+    state["capability"]["rulesets"] = "forbidden"
+    state["capability"]["rulesets_error"] = "HTTP 403"
+    (dest / "state.json").write_text(json.dumps(state, indent=2) + "\n")
+    client = rp.FixtureClient("linktrend/Fixture", dest)
+    cap = rp.detect_mechanism(client)
+    assert cap["mechanism"] == "unavailable", cap
+print("forbidden-unavailable ok")
+PY
+pass "rulesets forbidden/error treated as unavailable"
+
 # ---- no credential / secret reads in module ----
 if rg -n 'secret|private.?key|PASSWORD|TOKEN|GSM|keychain' "$PY" \
   | rg -v 'Never|never|credential|no secret|SECRET|docs/|comment|instruction|authenticate|token material|LINKTREND_.*CHECKS|environ'; then

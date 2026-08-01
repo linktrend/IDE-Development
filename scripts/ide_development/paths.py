@@ -28,6 +28,47 @@ def require_git_repo(path: Path) -> Path:
     return root
 
 
+def resolve_git_dir(repo_root: Path) -> Path:
+    """Resolve the Git directory for a repo or worktree.
+
+    Regular clones use ``<root>/.git/`` (a directory). Linked worktrees use a
+    ``.git`` *file* containing ``gitdir: <path>``. Transaction metadata must live
+    under the resolved git dir, never under a gitfile path.
+    """
+    git_entry = repo_root / ".git"
+    if git_entry.is_dir():
+        return git_entry.resolve()
+    if git_entry.is_file():
+        text = git_entry.read_text(encoding="utf-8")
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.lower().startswith("gitdir:"):
+                raw = stripped.split(":", 1)[1].strip()
+                if not raw:
+                    break
+                candidate = Path(raw)
+                if not candidate.is_absolute():
+                    candidate = (repo_root / candidate).resolve()
+                else:
+                    candidate = candidate.resolve()
+                if not candidate.is_dir():
+                    raise InvalidPackageError(
+                        f"Resolved gitdir is not a directory: {candidate}",
+                        details={"gitfile": str(git_entry), "gitdir": str(candidate)},
+                    )
+                return candidate
+        raise InvalidPackageError(
+            f"Invalid .git file (missing gitdir:): {git_entry}",
+            details={"contents": text[:200]},
+        )
+    raise InvalidPackageError(f"Missing .git entry under {repo_root}")
+
+
+def git_meta_dir(repo_root: Path) -> Path:
+    """Git-local installer metadata root (``<gitdir>/ide-development``)."""
+    return resolve_git_dir(repo_root) / "ide-development"
+
+
 def as_posix_rel(path: str | PurePosixPath | Path) -> str:
     text = str(path).replace("\\", "/")
     while text.startswith("./"):

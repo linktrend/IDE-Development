@@ -10,12 +10,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .constants import MANAGED_CORE_DIR, TX_CURRENT_REL, TX_LAST_REL
+from .constants import MANAGED_CORE_DIR
 from .errors import ConflictError, RollbackError
 from .hashing import normalize_mode, sha256_file
 from .io_atomic import atomic_write_bytes, copy_file_physical, remove_file
 from .manifest import Manifest, ManifestEntry
-from .paths import encode_backup_name, join_under, path_is_symlink
+from .paths import encode_backup_name, git_meta_dir, join_under, path_is_symlink
 from .plan import OpKind, Plan, PlanAction
 from .state import FileState, InstalledState, save_installed_state, utc_now
 
@@ -56,16 +56,12 @@ class BackupRecord:
         )
 
 
-def _tx_dir(target_root: Path, rel) -> Path:
-    return join_under(target_root, rel)
-
-
 def current_tx_dir(target_root: Path) -> Path:
-    return _tx_dir(target_root, TX_CURRENT_REL)
+    return git_meta_dir(target_root) / "current-transaction"
 
 
 def last_tx_dir(target_root: Path) -> Path:
-    return _tx_dir(target_root, TX_LAST_REL)
+    return git_meta_dir(target_root) / "last-transaction"
 
 
 def journal_path(tx_dir: Path) -> Path:
@@ -304,17 +300,31 @@ def apply_plan(
 
     mutating = plan.mutating_actions
     if not mutating:
-        # Idempotent success: no backups, no journal, no installed-state rewrite.
-        # Still ensure package MANIFEST.json is present for verify/drift.
+        # Idempotent success: no backups/journal. Still ensure MANIFEST.json and
+        # installed-state exist so update/drift/ownership remain fail-closed.
         dest = join_under(target_root, MANIFEST_DEST)
         if not dest.is_file():
             copy_file_physical(manifest.path, dest, mode="0644")
+        next_state = build_next_state(
+            prior=prior,
+            manifest=manifest,
+            target_root=target_root,
+            actions=plan.actions,
+        )
+        next_state.files[MANIFEST_DEST] = FileState(
+            id="package-manifest",
+            source_hash=sha256_file(manifest.path),
+            content_hash=sha256_file(join_under(target_root, MANIFEST_DEST)),
+            mode="0644",
+        )
+        save_installed_state(target_root, next_state)
         return {
             "transactionId": None,
             "applied": [],
             "recovery": recovery,
             "packageVersion": manifest.package_version,
             "noop": True,
+            "installedStateWritten": True,
         }
 
     current = current_tx_dir(target_root)

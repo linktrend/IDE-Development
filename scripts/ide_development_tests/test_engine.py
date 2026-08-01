@@ -118,6 +118,57 @@ class EngineTests(TempRepoTestCase):
         verify = run_verify(target=self.target, package=self.package)
         self.assertEqual(verify.exit_code, EXIT_OK, verify.payload)
 
+    def test_noop_rewrites_missing_installed_state(self) -> None:
+        first = run_install_or_update(
+            target=self.target,
+            package=self.package,
+            command="install",
+            dry_run=False,
+        )
+        self.assertEqual(first.exit_code, EXIT_OK, first.payload)
+        state = self.target / ".ide-development" / "installed-state.json"
+        self.assertTrue(state.is_file())
+        state.unlink()
+        second = run_install_or_update(
+            target=self.target,
+            package=self.package,
+            command="install",
+            dry_run=False,
+        )
+        self.assertEqual(second.exit_code, EXIT_OK, second.payload)
+        self.assertTrue(state.is_file(), "noop install must restore installed-state")
+        update = run_install_or_update(
+            target=self.target,
+            package=self.package,
+            command="update",
+            dry_run=True,
+        )
+        self.assertEqual(update.exit_code, EXIT_OK, update.payload)
+
+    def test_install_into_gitfile_worktree(self) -> None:
+        import tempfile
+        from ide_development.paths import git_meta_dir
+
+        with tempfile.TemporaryDirectory() as td:
+            real_git = Path(td) / "gitdir"
+            real_git.mkdir()
+            worktree = Path(td) / "consumer-worktree"
+            worktree.mkdir()
+            (worktree / ".git").write_text(f"gitdir: {real_git}\n", encoding="utf-8")
+            (worktree / "README.md").write_text("# wt\n", encoding="utf-8")
+            result = run_install_or_update(
+                target=worktree,
+                package=self.package,
+                command="install",
+                dry_run=False,
+            )
+            self.assertEqual(result.exit_code, EXIT_OK, result.payload)
+            self.assertTrue((worktree / ".ide-development" / "CORE.txt").is_file())
+            meta = git_meta_dir(worktree)
+            self.assertTrue(meta.is_dir())
+            self.assertTrue((meta / "last-transaction").is_dir())
+            self.assertFalse((worktree / ".git").is_dir())
+
     def test_consumer_owned_preserved_and_unknown_conflict(self) -> None:
         owned = self.target / ".cursor" / "rules" / "consumer-owned.mdc"
         owned.parent.mkdir(parents=True, exist_ok=True)

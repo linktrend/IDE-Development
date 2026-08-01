@@ -373,6 +373,18 @@ def detect_mechanism(client: GitHubClient) -> dict[str, Any]:
             "rulesetSummaries": rulesets or [],
         }
 
+    # Fail closed on permission/probe errors — do not invent classic BP while
+    # rulesets may still exist but be unlistable with the current identity.
+    if rs_status in {"forbidden", "error"}:
+        return {
+            "rulesets": False,
+            "branchProtection": False,
+            "mechanism": "unavailable",
+            "rulesetsError": rs_err,
+            "branchProtectionError": "",
+            "rulesetSummaries": [],
+        }
+
     bp_ok = False
     bp_err = ""
     # Probe one governed branch for classic protection capability.
@@ -413,7 +425,13 @@ def _find_ruleset(
             if rid is None:
                 return deepcopy(item)
             detail = client.get_ruleset(int(rid))
-            return detail or deepcopy(item)
+            if detail is None:
+                raise ProtectionError(
+                    f"ruleset detail fetch failed for {name!r} (id={rid}); "
+                    "refusing to treat missing rules as empty (would drop preserved checks)",
+                    EXIT_UNAVAILABLE,
+                )
+            return detail
     return None
 
 

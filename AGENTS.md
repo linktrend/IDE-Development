@@ -12,6 +12,7 @@ It is **not** a consumer rollout entry and must **not** receive a nested
 - Physical skills: `.agents/skills/agentsetup/SKILL.md`, `.agents/skills/agentcomply/SKILL.md`
 - Package source: `core/managed-core/`
 - Installer (for disposable/approved consumers only): `python3 scripts/ide-development.py`
+- When the managed section below mentions `.ide-development/`, that is the **consumer** install path. In this system repository open `core/managed-core/` instead (no nested self-install).
 
 <!-- BEGIN LINKTREND-IDE-MANAGED -->
 ## LiNKtrend IDE-managed development system (do not edit between markers)

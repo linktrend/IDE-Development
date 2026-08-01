@@ -527,7 +527,11 @@ def write_manifest(path: Path = MANIFEST_PATH) -> dict[str, Any]:
 
 
 def verify_manifest(path: Path = MANIFEST_PATH) -> list[str]:
-    sync_package_payload()
+    """Read-only verify: compare on-disk MANIFEST hashes to source files.
+
+    Does **not** call ``sync_package_payload()`` — verify must not mutate the tree.
+    Use ``--write`` / ``write_manifest`` to sync payload then regenerate.
+    """
     expected = build_manifest_object()
     errors: list[str] = []
     if not path.is_file():

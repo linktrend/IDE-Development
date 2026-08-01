@@ -159,6 +159,11 @@ discover_and_run_new_suites() {
   local found=0
   local f
 
+  # WP1 package integrity gate (read-only)
+  found=1
+  run_cmd "managed-core MANIFEST verify" \
+    env PYTHONPATH=scripts python3 -m ide_development.build_manifest --verify
+
   # WP2 installer unit/black-box tests
   while IFS= read -r f; do
     [[ -z "$f" ]] && continue
@@ -171,7 +176,27 @@ discover_and_run_new_suites() {
   done < <(find scripts/ide_development_tests tests/ide_development \
     -type f \( -name 'test_*.py' -o -name 'test-*.sh' -o -name '*_test.py' \) 2>/dev/null | sort)
 
-  # WP3/WP4/WP5 discovered shells under scripts/tests and tests/
+  # WP3 adapters
+  if [[ -x tests/adapters/run.sh ]]; then
+    found=1
+    run_cmd "WP3 adapters" bash tests/adapters/run.sh
+  elif [[ -f tests/adapters/test_managed_core_adapters.py ]]; then
+    found=1
+    run_cmd "WP3 adapters" python3 tests/adapters/test_managed_core_adapters.py
+  fi
+
+  # WP4 migration black-box (catalog + fixtures; live installer optional via env)
+  if [[ -f tests/managed-core-migration-bb/run_tests.py ]]; then
+    found=1
+    if [[ "${PORTABLE_V2_WITH_INSTALLER:-}" == "1" ]]; then
+      run_cmd "WP4 migration BB (+installer)" \
+        python3 tests/managed-core-migration-bb/run_tests.py --with-installer
+    else
+      run_cmd "WP4 migration BB" python3 tests/managed-core-migration-bb/run_tests.py
+    fi
+  fi
+
+  # WP3/WP5 discovered shells under scripts/tests and tests/
   while IFS= read -r f; do
     [[ -z "$f" ]] && continue
     case "$f" in
