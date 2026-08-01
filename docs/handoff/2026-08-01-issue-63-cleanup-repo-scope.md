@@ -27,8 +27,10 @@
 
 ## Checkpoint SHAs
 
-- Tip: `2246a9b5254ea17fe388a4497ac2c98da33eb0a8` — reject empty-owner `--repo` slugs in shell cleanup
-- Prior Issue #63 body: `a406165b7b30661373584c375fb4bf25514c6215` — propagate authoritative `--repo` through cleanup and repair
+- Issue #63 body: `a406165b7b30661373584c375fb4bf25514c6215` — propagate authoritative `--repo` through cleanup and repair
+- Integration repair: `2246a9b5254ea17fe388a4497ac2c98da33eb0a8` — reject empty-owner `--repo` slugs in shell cleanup
+- Handoff commit: recorded on branch tip (this file); local cache `.linktrend/issue-63-checkpoint-evidence.json` (gitignored)
+
 
 ## Validation
 
