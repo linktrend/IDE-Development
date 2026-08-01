@@ -73,16 +73,10 @@ is_protected_permanent() {
 
 decide() { echo "$1: $2 — $3"; }
 
-# True when slug looks like owner/name (reject JSON noise like "[]").
+# True when slug matches Python REPO_SLUG_RE (non-empty owner AND name).
+# Same shape as cleanup_controls.REPO_SLUG_RE / normalize_caller_repo.
 _cleanup_repo_slug_ok() {
-  case "$1" in
-    */*) ;;
-    *) return 1 ;;
-  esac
-  case "$1" in
-    *[!A-Za-z0-9._/-]*|*" "*|*/|*/*/*) return 1 ;;
-  esac
-  return 0
+  [[ "$1" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
 }
 
 # Resolve owner/repo for export-preserve gh resolution (deterministic order).

@@ -1542,6 +1542,9 @@ assert not evidence, f"invalid --repo must not query PR evidence: {evidence!r}"
 run_invalid_repo_case "empty" ""
 run_invalid_repo_case "no-slash" "notaslug"
 run_invalid_repo_case "too-many-slashes" "a/b/c"
+# Align with Python REPO_SLUG_RE: empty owner/name must fail closed (Issue #63)
+run_invalid_repo_case "empty-owner" "/IDE-Development"
+run_invalid_repo_case "empty-name" "linktrend/"
 pass "shell: empty/invalid explicit --repo → FAIL, no implicit gh, no WOULD_DELETE"
 
 # --- 14c) repair_task plan-cleanup-completed: caller --repo scopes all PR queries ---
