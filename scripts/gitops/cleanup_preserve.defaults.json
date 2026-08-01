@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "description": "Issue #51 active-work preserve list for cleanup controls. Remove entries when those issues/PRs close.",
+  "preserveIssueNumbers": [43, 44, 51],
+  "preservePrNumbers": [49],
+  "preserveBranchExact": [],
+  "notes": [
+    "Protected permanent branches (main/staging/development) are always preserved by cleanup-merged-branches.sh.",
+    "Open non-abandoned PRs already KEEP without this list; this list hard-preserves named active work even if evidence is mislabeled.",
+    "Live close/delete of external artifacts still requires MERGED or abandoned PR evidence (branches) or explicit --apply on file-backend completed repairs only."
+  ]
+}

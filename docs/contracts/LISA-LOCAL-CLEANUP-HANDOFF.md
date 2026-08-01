@@ -25,6 +25,7 @@ When implemented in openclaw_prime, Lisa should:
 
 ## Related
 
+- `docs/contracts/STALE-CLEANUP-CONTROLS.md` — preserve list, open-PR (no auto-close), exact-tip apply gates, and **keep active worktrees**
 - `scripts/cleanup-merged-branches.sh` (`--remote` for Actions; `--local` only on operator machines)
 - `docs/contracts/REPAIR-DISPATCHER.md`
 - `docs/contracts/LISA-OPENCLAW-FOLLOW-UP.md`

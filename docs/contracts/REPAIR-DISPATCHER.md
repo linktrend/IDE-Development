@@ -75,7 +75,11 @@ python3 scripts/gitops/repair_task.py dispatch-attempt --repo owner/repo --id <f
 python3 scripts/gitops/repair_task.py resolve --repo owner/repo --id <failureId> --head-sha <repaired>
 python3 scripts/gitops/repair_task.py show --repo owner/repo --id <failureId>
 python3 scripts/gitops/repair_task.py list --repo owner/repo
+python3 scripts/gitops/repair_task.py plan-cleanup-completed --repo owner/repo
 ```
+
+Completed-repair **inventory** (GitHub + preserve policy): `scripts/gitops/cleanup_stale_records.py`
+(see `docs/contracts/STALE-CLEANUP-CONTROLS.md`). Live GitHub close is deferred.
 
 File backend (tests): `LINKTREND_REPAIR_BACKEND=file` + `LINKTREND_REPAIR_DIR=...`
 (also accepts legacy `LINKTREND_CONFLICT_BACKEND` / `LINKTREND_CONFLICT_DIR`).

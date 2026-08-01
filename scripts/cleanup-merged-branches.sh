@@ -4,12 +4,19 @@
 #
 # Usage:
 #   cleanup-merged-branches.sh [--apply] [--remote] [--local]
+# Preserve (KEEP before delete):
+#   .linktrend/cleanup-preserve.json  and/or  LINKTREND_CLEANUP_PRESERVE=branch,...
+#   Built-in defaults: issue/43|44|51-* and open PR #49 head (set "defaults": false to disable).
+# --apply deletes branches only; never closes PRs/issues.
 set -euo pipefail
 
 APPLY=0
 DO_REMOTE=1
 DO_LOCAL=1
 ROOT=""
+PRESERVE_POLICY='{"branches":[],"issueNumbers":[],"prHeads":[]}'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export LINKTREND_CLEANUP_SCRIPT_DIR="$SCRIPT_DIR"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -17,7 +24,7 @@ while [ $# -gt 0 ]; do
     --remote) DO_REMOTE=1; DO_LOCAL=0; shift ;;
     --local) DO_LOCAL=1; DO_REMOTE=0; shift ;;
     --repo-root) ROOT="$2"; shift 2 ;;
-    -h|--help) sed -n '1,20p' "$0"; exit 0 ;;
+    -h|--help) sed -n '1,25p' "$0"; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -30,7 +37,7 @@ if [ -z "$ROOT" ]; then
 fi
 cd "$ROOT"
 # shellcheck source=gitops/work-branch-allowlist.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gitops/work-branch-allowlist.sh"
+source "${SCRIPT_DIR}/gitops/work-branch-allowlist.sh"
 
 START_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 START_SHA="$(git rev-parse HEAD)"
@@ -49,14 +56,144 @@ is_protected_permanent() {
 
 decide() { echo "$1: $2 — $3"; }
 
+# Load optional preserve config + built-in Issue #51 wave defaults.
+# Shape: {"branches":[...],"issueNumbers":[...],"prNumbers":[...],"defaults":false?}
+load_preserve_policy() {
+  local cfg=".linktrend/cleanup-preserve.json"
+  local env_branches="${LINKTREND_CLEANUP_PRESERVE:-}"
+  PRESERVE_POLICY="$(
+    python3 -c '
+import json, os, subprocess, sys
+
+cfg_path = sys.argv[1]
+env_branches = sys.argv[2]
+
+use_defaults = True
+branches = []
+issue_numbers = []
+pr_numbers = []
+
+if os.path.isfile(cfg_path):
+    data = json.load(open(cfg_path))
+    if data.get("defaults") is False:
+        use_defaults = False
+    for b in data.get("branches") or []:
+        if isinstance(b, str) and b.strip():
+            branches.append(b.strip())
+    for n in data.get("issueNumbers") or []:
+        try:
+            issue_numbers.append(int(n))
+        except (TypeError, ValueError):
+            pass
+    for n in data.get("prNumbers") or []:
+        try:
+            pr_numbers.append(int(n))
+        except (TypeError, ValueError):
+            pass
+
+if use_defaults:
+    for n in (43, 44, 51):
+        if n not in issue_numbers:
+            issue_numbers.append(n)
+    if 49 not in pr_numbers:
+        pr_numbers.append(49)
+
+for part in env_branches.split(","):
+    part = part.strip()
+    if part and part not in branches:
+        branches.append(part)
+
+pr_heads = []
+for n in pr_numbers:
+    try:
+        out = subprocess.check_output(
+            ["gh", "pr", "view", str(n), "--json", "headRefName,state"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        info = json.loads(out)
+        if not isinstance(info, dict):
+            continue
+        if info.get("state") != "OPEN":
+            continue
+        name = (info.get("headRefName") or "").strip()
+        if not name:
+            continue
+        pr_heads.append(name)
+        if name not in branches:
+            branches.append(name)
+    except (subprocess.CalledProcessError, FileNotFoundError, json.JSONDecodeError, OSError, TypeError, AttributeError):
+        pass
+
+# Merge committed defaults file when present (Issue #51 preserve list).
+defaults_file = os.environ.get("LINKTREND_CLEANUP_PRESERVE_DEFAULTS", "")
+if not defaults_file:
+    here = os.environ.get("LINKTREND_CLEANUP_SCRIPT_DIR", "")
+    if here:
+        defaults_file = os.path.join(here, "gitops", "cleanup_preserve.defaults.json")
+if defaults_file and os.path.isfile(defaults_file):
+    try:
+        ddata = json.load(open(defaults_file))
+        if isinstance(ddata, dict):
+            for n in ddata.get("preserveIssueNumbers") or []:
+                try:
+                    n = int(n)
+                except (TypeError, ValueError):
+                    continue
+                if n not in issue_numbers:
+                    issue_numbers.append(n)
+            for n in ddata.get("preservePrNumbers") or []:
+                try:
+                    n = int(n)
+                except (TypeError, ValueError):
+                    continue
+                if n not in pr_numbers:
+                    pr_numbers.append(n)
+            for b in ddata.get("preserveBranchExact") or []:
+                if isinstance(b, str) and b.strip() and b.strip() not in branches:
+                    branches.append(b.strip())
+    except (OSError, json.JSONDecodeError, TypeError):
+        pass
+
+print(json.dumps({
+    "branches": branches,
+    "issueNumbers": issue_numbers,
+    "prHeads": pr_heads,
+}))
+' "$cfg" "$env_branches"
+  )"
+}
+
+is_preserved_branch() {
+  local branch="$1"
+  python3 -c '
+import json, re, sys
+branch = sys.argv[1]
+policy = json.loads(sys.argv[2])
+if branch in (policy.get("branches") or []):
+    raise SystemExit(0)
+if branch in (policy.get("prHeads") or []):
+    raise SystemExit(0)
+m = re.match(r"^issue/(\d+)-", branch)
+if m and int(m.group(1)) in (policy.get("issueNumbers") or []):
+    raise SystemExit(0)
+raise SystemExit(1)
+' "$branch" "$PRESERVE_POLICY"
+}
+
 pr_evidence_for_branch() {
-  # prints: MERGED|ABANDONED|NONE <headOid or empty>
+  # prints: OPEN|MERGED|ABANDONED|NONE <headOid or empty>
+  # OPEN wins over any historical MERGED/CLOSED for the same head branch.
   local branch="$1"
   local json
   json="$(gh pr list --head "$branch" --state all --json number,state,mergedAt,labels,headRefOid --limit 10 2>/dev/null || echo '[]')"
   python3 -c '
 import json,sys
 rows=json.load(sys.stdin)
+for r in rows:
+    if r.get("state")=="OPEN":
+        print("OPEN", r.get("headRefOid") or "")
+        raise SystemExit
 for r in rows:
     if r.get("state")=="MERGED" or r.get("mergedAt"):
         print("MERGED", r.get("headRefOid") or "")
@@ -121,7 +258,15 @@ maybe_delete_remote() {
     decide "KEEP" "$branch" "not a cleanup candidate form"
     return 0
   fi
+  if is_preserved_branch "$branch"; then
+    decide "KEEP" "$branch" "preserve policy"
+    return 0
+  fi
   read -r evidence head_oid <<<"$(pr_evidence_for_branch "$branch")"
+  if [ "$evidence" = "OPEN" ]; then
+    decide "KEEP" "$branch" "open PR"
+    return 0
+  fi
   if [ "$evidence" = "NONE" ]; then
     decide "KEEP" "$branch" "no merged/abandoned PR evidence"
     return 0
@@ -158,6 +303,7 @@ maybe_delete_remote() {
 
 maybe_delete_local() {
   local branch="$1"
+  local evidence head_oid tip
   if is_protected_permanent "$branch"; then
     decide "KEEP" "local:$branch" "protected"
     return 0
@@ -166,13 +312,18 @@ maybe_delete_local() {
     decide "KEEP" "local:$branch" "not candidate"
     return 0
   fi
+  if is_preserved_branch "$branch"; then
+    decide "KEEP" "local:$branch" "preserve policy"
+    return 0
+  fi
   if [ "$branch" = "$START_BRANCH" ]; then
     decide "KEEP" "local:$branch" "caller checkout"
     return 0
   fi
   wt="$(worktree_path_for "$branch")"
-  if [ -n "$wt" ] && [ -n "$(git -C "$wt" status --porcelain 2>/dev/null || true)" ]; then
-    decide "KEEP" "local:$branch" "dirty worktree"
+  # Match remote: any attached worktree is active agent checkout — never auto-remove.
+  if [ -n "$wt" ]; then
+    decide "KEEP" "local:$branch" "active worktree attached (${wt})"
     return 0
   fi
   if session_owns "$branch"; then
@@ -180,6 +331,10 @@ maybe_delete_local() {
     return 0
   fi
   read -r evidence head_oid <<<"$(pr_evidence_for_branch "$branch")"
+  if [ "$evidence" = "OPEN" ]; then
+    decide "KEEP" "local:$branch" "open PR"
+    return 0
+  fi
   if [ "$evidence" = "NONE" ]; then
     decide "KEEP" "local:$branch" "PR not merged/abandoned"
     return 0
@@ -190,16 +345,10 @@ maybe_delete_local() {
     return 0
   fi
   if [ "$APPLY" -eq 1 ]; then
-    if [ -n "$wt" ]; then
-      git worktree remove "$wt" 2>/dev/null || {
-        decide "KEEP" "local:$branch" "worktree remove refused without force"
-        return 0
-      }
-    fi
     if git branch -d "$branch" 2>/dev/null; then
       decide "DELETED_LOCAL" "$branch" "${evidence}"
     else
-      # force only after exact merged evidence
+      # force only after exact merged evidence (no worktree attached)
       git branch -D "$branch"
       decide "DELETED_LOCAL_FORCE" "$branch" "${evidence} after exact evidence"
     fi
@@ -207,6 +356,8 @@ maybe_delete_local() {
     decide "WOULD_DELETE_LOCAL" "$branch" "${evidence}"
   fi
 }
+
+load_preserve_policy
 
 if [ "$DO_REMOTE" -eq 1 ]; then
   git fetch origin --prune >/dev/null 2>&1 || true
