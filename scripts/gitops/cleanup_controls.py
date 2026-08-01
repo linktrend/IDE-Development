@@ -269,6 +269,21 @@ def _owner_repo_from_github_url(url: str) -> str | None:
     return owner_repo
 
 
+def _remote_get_url_ok(cwd: Path, name: str) -> bool:
+    """True when ``git remote get-url <name>`` succeeds in cwd."""
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", name],
+            cwd=str(cwd),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError):
+        return False
+    return result.returncode == 0
+
+
 def resolve_cleanup_repo(
     explicit: str = "",
     *,
@@ -277,11 +292,18 @@ def resolve_cleanup_repo(
     """Resolve owner/repo for cleanup preserve PR head lookups.
 
     Preference (deterministic, no silent ambiguity):
-      1) explicit ``--repo`` / non-empty argument
-      2) env ``GITHUB_REPOSITORY``
-      3) env ``GH_REPO``
-      4) ``gh repo view --json nameWithOwner`` (from workdir/cwd)
-      5) validated ``origin`` remote URL (HTTPS/SSH github) → owner/repo
+      1) explicit ``--repo`` / non-empty argument (authoritative)
+      2) env ``GITHUB_REPOSITORY`` (authoritative)
+      3) env ``GH_REPO`` (authoritative)
+      4) if neither explicit nor env: when BOTH ``origin`` and ``upstream``
+         remotes exist (get-url succeeds for both) → fail closed with
+         ``ambiguous_origin_and_upstream`` immediately — do NOT call
+         ``gh repo view`` and do NOT return an origin slug
+      5) only if not ambiguous: ``gh repo view --json nameWithOwner``
+      6) only if not ambiguous: validated ``origin`` remote URL → owner/repo
+         (still reject if ``upstream`` appears at this stage)
+
+    Explicit/env remain authoritative even when origin+upstream both exist.
     """
     cwd = workdir if workdir is not None else Path.cwd()
 
@@ -295,6 +317,10 @@ def resolve_cleanup_repo(
         val = (os.environ.get(key) or "").strip()
         if val and "/" in val and " " not in val and "local/" not in val:
             return val, f"env:{key}"
+
+    # Fail closed before any gh/origin guess when remotes are ambiguous.
+    if _remote_get_url_ok(cwd, "origin") and _remote_get_url_ok(cwd, "upstream"):
+        return None, "ambiguous_origin_and_upstream"
 
     try:
         out = subprocess.run(
@@ -336,17 +362,8 @@ def resolve_cleanup_repo(
     if not owner_repo:
         return None, "origin_not_github_or_unrecognized"
 
-    try:
-        upstream = subprocess.run(
-            ["git", "remote", "get-url", "upstream"],
-            cwd=str(cwd),
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-    except (FileNotFoundError, OSError):
-        upstream = None
-    if upstream is not None and upstream.returncode == 0:
+    # Belt-and-suspenders: reject if upstream appeared since the early check.
+    if _remote_get_url_ok(cwd, "upstream"):
         return None, "ambiguous_origin_and_upstream"
     return owner_repo, "origin"
 
@@ -383,12 +400,34 @@ def export_preserve_for_shell(
     ``prHeads`` = headRefName for preserved PRs with a resolvable head.
     Unresolved preserve PR numbers are collected in ``unresolvedPrNumbers``;
     ``preserveResolutionOk`` is True only when that list is empty.
+
+    When ``repo_source`` is ``ambiguous_origin_and_upstream``, do not call the
+    PR head resolver / implicit gh: all preserve PR numbers are unresolved,
+    ``prHeads`` is empty, ``preserveResolutionOk`` is False, and ``repo`` is
+    cleared. Exact preserve branch names from policy still appear in ``branches``.
     """
     pol = policy or load_preserve_policy()
     exact = sorted(str(x) for x in pol["exact_set"])
     issue_numbers = sorted(int(x) for x in pol["issue_set"])
     pr_numbers = sorted(int(x) for x in pol["pr_set"])
     repo_slug = (repo or "").strip()
+    source = (repo_source or "").strip()
+
+    # Ambiguous remotes: fail closed — never guess via empty-repo implicit gh.
+    if source == "ambiguous_origin_and_upstream":
+        return {
+            "branches": list(exact),
+            "issueNumbers": issue_numbers,
+            "prHeads": [],
+            "prNumbers": pr_numbers,
+            "unresolvedPrNumbers": list(pr_numbers),
+            "preserveResolutionOk": False,
+            "repo": "",
+            "repoSource": "ambiguous_origin_and_upstream",
+            "sources": list(pol.get("sources") or []),
+            "defaultsDisabled": bool(pol.get("defaultsDisabled")),
+        }
+
     pr_heads: list[str] = []
     unresolved: list[int] = []
 
@@ -423,7 +462,7 @@ def export_preserve_for_shell(
         "unresolvedPrNumbers": unresolved,
         "preserveResolutionOk": not unresolved,
         "repo": repo_slug,
-        "repoSource": repo_source or "",
+        "repoSource": source,
         "sources": list(pol.get("sources") or []),
         "defaultsDisabled": bool(pol.get("defaultsDisabled")),
     }
@@ -629,7 +668,9 @@ def main(argv: list[str] | None = None) -> int:
         default="",
         help=(
             "Optional owner/name for gh pr view when resolving preserve PR heads "
-            "(else GITHUB_REPOSITORY / GH_REPO / gh repo view / origin)"
+            "(else GITHUB_REPOSITORY / GH_REPO; if neither explicit nor env and "
+            "both origin+upstream remotes exist, fail closed before gh/origin "
+            "guess; otherwise gh repo view / origin-only)"
         ),
     )
 

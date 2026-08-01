@@ -45,13 +45,22 @@ Optional overlays: `LINKTREND_CLEANUP_PRESERVE_FILE`, `.linktrend/cleanup-preser
 
 If any gate fails → **KEEP** (list in report; do not apply).
 
-### preservePrNumbers resolution (Issue #57)
+### preservePrNumbers resolution (Issues #57 / #59)
 
 `preservePrNumbers` resolution is **fail-closed**. If `gh` cannot resolve a preserved PR's `headRefName` (gh unavailable, error, empty head, or repo ambiguity), cleanup must **not** delete candidate branches.
 
-Shell loads preserve policy via `cleanup_controls.py export-preserve` with a **deterministic repo** (`--repo` / `GITHUB_REPOSITORY` / `GH_REPO` / `gh repo view` / `origin`). Export payload surfaces `unresolvedPrNumbers` and `preserveResolutionOk`; any unresolved PR ⇒ **KEEP** / no apply deletes.
+Shell loads preserve policy via `cleanup_controls.py export-preserve` with a **deterministic repo**. Precedence (Issue #59):
 
-Default remains dry-run (no live delete). Out of scope: consumers, credentials, App/Bugbot config, production branch-protection edits.
+1. Explicit `--repo`
+2. `GITHUB_REPOSITORY`
+3. `GH_REPO`
+4. Only if unambiguous: `gh repo view` / `origin`
+
+**Ambiguous remotes (Issue #59):** when neither `--repo` nor env is set **and** both `origin` and `upstream` remotes exist → **fail closed**. Do not guess `origin` or implicit `gh` context. Export must leave preserve PR heads unresolved (`preserveResolutionOk=false`, numbers in `unresolvedPrNumbers`) → cleanup **KEEP**; `WOULD_DELETE` / `DELETED` blocked.
+
+Explicit `--repo` / env remain authoritative even when both remotes exist. Any unresolved PR ⇒ **KEEP** / no apply deletes.
+
+Default remains dry-run (no live delete). Scope: IDE cleanup policy/runtime only — no consumer changes. Also out of scope: credentials, App/Bugbot config, production branch-protection edits.
 
 ## Local worktrees
 

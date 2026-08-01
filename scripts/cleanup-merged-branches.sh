@@ -73,6 +73,9 @@ _cleanup_repo_slug_ok() {
 }
 
 # Resolve owner/repo for export-preserve gh resolution (deterministic order).
+# Precedence: GITHUB_REPOSITORY → GH_REPO → (ambiguous origin+upstream fail-closed) →
+# gh repo view → origin URL parse. Ambiguity leaves CLEANUP_REPO empty so
+# export-preserve runs without --repo and Python fail-closes.
 resolve_cleanup_repo() {
   CLEANUP_REPO=""
   if [ -n "${GITHUB_REPOSITORY:-}" ] && _cleanup_repo_slug_ok "${GITHUB_REPOSITORY}"; then
@@ -81,6 +84,13 @@ resolve_cleanup_repo() {
   fi
   if [ -n "${GH_REPO:-}" ] && _cleanup_repo_slug_ok "${GH_REPO}"; then
     CLEANUP_REPO="$GH_REPO"
+    return 0
+  fi
+  # Both remotes present: do not call gh repo view or parse origin.
+  # Leave CLEANUP_REPO empty so load_preserve_policy calls export-preserve without --repo.
+  if git remote get-url origin >/dev/null 2>&1 \
+    && git remote get-url upstream >/dev/null 2>&1; then
+    CLEANUP_REPO=""
     return 0
   fi
   local viewed

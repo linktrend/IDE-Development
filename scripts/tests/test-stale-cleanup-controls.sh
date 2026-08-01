@@ -933,4 +933,175 @@ pass "export-preserve: --repo linktrend/IDE-Development resolves PR 905 head"
 
 # END issue-57
 
+# ============================================================================
+# 12) Issue #59 Bugbot: ambiguous origin+upstream fail-closed
+# BEGIN issue-59
+# ============================================================================
+
+# --- 12a) Ambiguous origin+upstream — Python export payload ---
+REPO59A="$TMP/issue59-ambiguous-export"
+make_repo "$REPO59A"
+seed_cleanup "$REPO59A"
+git -C "$REPO59A" remote add origin "https://github.com/linktrend/IDE-Development.git"
+git -C "$REPO59A" remote add upstream "https://github.com/other/fork-upstream.git"
+mkdir -p "$REPO59A/.linktrend"
+cat >"$REPO59A/.linktrend/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"defaults":false,"issueNumbers":[],"preservePrNumbers":[906],"branches":[]}
+EOF
+
+# Trap stub: gh would succeed on pr view / repo view if called — must NOT be trusted
+# under origin+upstream ambiguity (never guess origin or implicit gh context).
+mkdir -p "$TMP/bin"
+cat >"$TMP/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$*" == *"repo view"* ]]; then
+  echo "linktrend/IDE-Development"
+  exit 0
+fi
+if [[ "$*" == *"pr view 906"* ]]; then
+  echo '{"number":906,"state":"OPEN","headRefName":"feature/preserve-906-trap-head"}'
+  exit 0
+fi
+if [[ "$*" == *"pr view"* ]]; then
+  echo '{"number":906,"state":"OPEN","headRefName":"feature/preserve-906-trap-head"}'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+EXPORT59A_RC=0
+EXPORT59A="$(
+  cd "$REPO59A" && env -u GITHUB_REPOSITORY -u GH_REPO PATH="$TMP/bin:$PATH" \
+  python3 "$ROOT/scripts/gitops/cleanup_controls.py" export-preserve 2>/dev/null
+)" || EXPORT59A_RC=$?
+echo "$EXPORT59A" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+assert "repo" in d and "repoSource" in d, d
+assert "unresolvedPrNumbers" in d and "preserveResolutionOk" in d, d
+assert "prHeads" in d, d
+assert d.get("repoSource") == "ambiguous_origin_and_upstream", d
+assert d.get("preserveResolutionOk") is False, d
+unresolved=set(d.get("unresolvedPrNumbers") or [])
+assert 906 in unresolved, d
+assert unresolved == {906}, d
+assert (d.get("repo") or "") == "", d
+heads=set(d.get("prHeads") or [])
+# Trap head must never appear — ambiguity must not call/trust gh
+assert "feature/preserve-906-trap-head" not in heads, d
+assert heads == set(), d
+'
+# CLI may exit non-zero when preserveResolutionOk is false while still printing JSON
+[ "$EXPORT59A_RC" -ne 0 ] || true
+pass "export-preserve: ambiguous origin+upstream → 906 unresolved, preserveResolutionOk false"
+
+# --- 12b) Shell dry-run — no WOULD_DELETE / DELETED under ambiguity ---
+REPO59B="$TMP/issue59-ambiguous-shell"
+make_repo "$REPO59B"
+seed_cleanup "$REPO59B"
+git -C "$REPO59B" remote add origin "https://github.com/linktrend/IDE-Development.git"
+git -C "$REPO59B" remote add upstream "https://github.com/other/fork-upstream.git"
+mkdir -p "$REPO59B/.linktrend"
+cat >"$REPO59B/.linktrend/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"defaults":false,"issueNumbers":[],"preservePrNumbers":[906],"branches":[]}
+EOF
+
+git -C "$REPO59B" checkout -q -b issue/59-ambiguous-eligible
+echo e59b >"$REPO59B/e59b.txt" && git -C "$REPO59B" add e59b.txt \
+  && git -C "$REPO59B" commit -q -m "eligible merged under ambiguous remotes"
+HEAD59B="$(git -C "$REPO59B" rev-parse HEAD)"
+git -C "$REPO59B" checkout -q development
+
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+# Trap: would succeed if trusted — ambiguity must fail closed before these matter
+if [[ "\$*" == *"repo view"* ]]; then
+  echo "linktrend/IDE-Development"
+  exit 0
+fi
+if [[ "\$*" == *"pr view 906"* ]]; then
+  echo '{"number":906,"state":"OPEN","headRefName":"feature/preserve-906-trap-head"}'
+  exit 0
+fi
+if [[ "\$*" == *"pr view"* ]]; then
+  echo '{"number":0,"state":"CLOSED","headRefName":""}'
+  exit 0
+fi
+if [[ "\$*" == *"--head issue/59-ambiguous-eligible"* ]]; then
+  echo '[{"number":5901,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${HEAD59B}"}]'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+PATH="$TMP/bin:$PATH" env -u GITHUB_REPOSITORY -u GH_REPO \
+  bash -c "cd \"$REPO59B\" && bash scripts/cleanup-merged-branches.sh --local" \
+  >"$TMP/issue59b.out" || true
+grep -qv 'WOULD_DELETE' "$TMP/issue59b.out" \
+  || fail "ambiguous remotes must not WOULD_DELETE: $(cat "$TMP/issue59b.out")"
+if grep -q 'WOULD_DELETE' "$TMP/issue59b.out"; then
+  fail "ambiguous fail-closed must not WOULD_DELETE any candidate: $(cat "$TMP/issue59b.out")"
+fi
+grep -qv '^DELETED_' "$TMP/issue59b.out" \
+  || fail "dry-run must not DELETE under ambiguous remotes: $(cat "$TMP/issue59b.out")"
+if grep -q '^DELETED_' "$TMP/issue59b.out"; then
+  fail "ambiguous fail-closed must not emit DELETED_ lines: $(cat "$TMP/issue59b.out")"
+fi
+pass "shell dry-run: ambiguous remotes → no WOULD_DELETE/DELETED (fail-closed)"
+
+# --- 12c) Precedence: env authoritative despite ambiguous remotes ---
+REPO59C="$TMP/issue59-env-precedence"
+make_repo "$REPO59C"
+seed_cleanup "$REPO59C"
+git -C "$REPO59C" remote add origin "https://github.com/linktrend/IDE-Development.git"
+git -C "$REPO59C" remote add upstream "https://github.com/other/fork-upstream.git"
+mkdir -p "$REPO59C/.linktrend"
+cat >"$REPO59C/.linktrend/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"defaults":false,"issueNumbers":[],"preservePrNumbers":[906],"branches":[]}
+EOF
+
+cat >"$TMP/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+# Succeed only when pr view 906 targets --repo linktrend/IDE-Development
+if [[ "$*" == *"pr view 906"* ]]; then
+  if [[ "$*" == *"--repo linktrend/IDE-Development"* ]]; then
+    echo '{"number":906,"state":"OPEN","headRefName":"feature/preserve-906-env-head"}'
+    exit 0
+  fi
+  echo "error: --repo required for PR 906 (issue-59 fixture)" >&2
+  exit 1
+fi
+if [[ "$*" == *"repo view"* ]]; then
+  echo "error: no default repo (should not be needed when env set)" >&2
+  exit 1
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+EXPORT59C="$(
+  cd "$REPO59C" && env -u GH_REPO GITHUB_REPOSITORY=linktrend/IDE-Development \
+  PATH="$TMP/bin:$PATH" \
+  python3 "$ROOT/scripts/gitops/cleanup_controls.py" export-preserve
+)"
+echo "$EXPORT59C" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+src=str(d.get("repoSource") or "")
+assert src.startswith("env:"), d
+assert d.get("preserveResolutionOk") is True, d
+unresolved=set(d.get("unresolvedPrNumbers") or [])
+assert 906 not in unresolved, d
+heads=set(d.get("prHeads") or [])
+branches=set(d.get("branches") or [])
+assert "feature/preserve-906-env-head" in heads, d
+assert "feature/preserve-906-env-head" in branches, d
+assert d.get("repo") == "linktrend/IDE-Development", d
+'
+pass "export-preserve: GITHUB_REPOSITORY authoritative despite ambiguous remotes"
+
+# END issue-59
+
 echo "OK: $PASS assertions passed"
