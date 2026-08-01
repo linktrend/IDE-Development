@@ -156,7 +156,7 @@ class EngineTests(TempRepoTestCase):
         self.assertIn(verify.exit_code, {EXIT_DRIFT, EXIT_CONFLICT})
 
     def test_rollback_restores_bytes_and_modes(self) -> None:
-        # Pre-create a file that install will replace after first adopting via matching? 
+        # Pre-create a file that install will replace after first adopting via matching?
         # Better: install, modify via second package update simulation by writing then rollback.
         run_install_or_update(
             target=self.target,

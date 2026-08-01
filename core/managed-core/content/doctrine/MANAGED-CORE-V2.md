@@ -1,10 +1,10 @@
 # Managed Core v2 Contract
 
-**Status:** Active (Wave 1 — Issue #43)  
-**Date:** 2026-08-01  
-**Package version target:** `2.0.0` (identity only; no tag/release in this wave)  
-**ADR:** `docs/adr/0004-portable-managed-core-v2.md`  
-**Schemas:** `core/managed-core/schemas/`  
+**Status:** Active (Wave 1 — Issue #43)
+**Date:** 2026-08-01
+**Package version target:** `2.0.0` (identity only; no tag/release in this wave)
+**ADR:** `docs/adr/0004-portable-managed-core-v2.md`
+**Schemas:** `core/managed-core/schemas/`
 **Layout:** `core/managed-core/README.md`
 
 ## Purpose

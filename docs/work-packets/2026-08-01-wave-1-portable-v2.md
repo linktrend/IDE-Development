@@ -1,9 +1,9 @@
 # Wave 1 work packet: portable IDE Development v2
 
-**Issue:** #43  
-**Branch:** `issue/43-build-portable-ide-development-v2-managed-core-i`  
-**Base:** `origin/development` at `edbcb86cacbf99f65aed76063a3a188117bfcf86`  
-**Owner:** Cursor Grok 4.5 High lead, with Cursor Grok 4.5 High subagents only  
+**Issue:** #43
+**Branch:** `issue/43-build-portable-ide-development-v2-managed-core-i`
+**Base:** `origin/development` at `edbcb86cacbf99f65aed76063a3a188117bfcf86`
+**Owner:** Cursor Grok 4.5 High lead, with Cursor Grok 4.5 High subagents only
 **Verifier:** Codex Desktop Orchestrator
 
 ## Outcome

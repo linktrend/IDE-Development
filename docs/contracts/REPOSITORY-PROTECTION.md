@@ -1,10 +1,10 @@
 # Managed repository protection (external-state contract)
 
-**Status:** Binding for Wave 1 portable IDE Development v2  
-**Date:** 2026-08-01  
-**Audience:** Operators applying GitHub branch protections; managed installer consumers; Verifier  
-**SOT:** `docs/AUTONOMOUS-GIT-OPERATIONS.md` · `core/github/CI-GATE-CONTRACTS.md` · ADR `docs/adr/0003-autonomous-ship-pull-promote.md`  
-**Tooling:** `scripts/manage-repository-protections.sh` · `scripts/gitops/repository_protection.py`  
+**Status:** Binding for Wave 1 portable IDE Development v2
+**Date:** 2026-08-01
+**Audience:** Operators applying GitHub branch protections; managed installer consumers; Verifier
+**SOT:** `docs/AUTONOMOUS-GIT-OPERATIONS.md` · `core/github/CI-GATE-CONTRACTS.md` · ADR `docs/adr/0003-autonomous-ship-pull-promote.md`
+**Tooling:** `scripts/manage-repository-protections.sh` · `scripts/gitops/repository_protection.py`
 **Compatibility wrapper:** `scripts/apply-development-merge-ruleset.sh` (development-only apply; CLI preserved)
 
 ---
@@ -68,7 +68,7 @@ Managed baseline:
 1. Release-gate checks — default `Verify IDE Development`, or `LINKTREND_RELEASE_GATE_CHECKS`
 2. `Enforce allowed PR source branches`
 
-Do **not** require `Cursor Bugbot` on main promotion PRs.  
+Do **not** require `Cursor Bugbot` on main promotion PRs.
 Do **not** invent extra human-review rules that conflict with Lisa Main Approve (`docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`). Preserve existing `bypass_actors` on update. Main Approve remains Principal Approve of the sealed package + release-gate success on the promote head.
 
 ---

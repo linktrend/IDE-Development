@@ -164,7 +164,7 @@ discover_and_run_new_suites() {
     [[ -z "$f" ]] && continue
     found=1
     if [[ "$f" == *.py ]]; then
-      run_cmd "installer unit: $f" python3 -m unittest "$f"
+      run_cmd "installer unit: $f" env PYTHONPATH=scripts python3 -m unittest "$f"
     else
       run_cmd "installer suite: $f" bash "$f"
     fi
@@ -192,7 +192,7 @@ discover_and_run_new_suites() {
      find scripts/ide_development_tests -name 'test_*.py' -print -quit 2>/dev/null | grep -q .; then
     found=1
     run_cmd "unittest discover ide_development_tests" \
-      python3 -m unittest discover -s scripts/ide_development_tests -p 'test_*.py' -v
+      env PYTHONPATH=scripts python3 -m unittest discover -s scripts/ide_development_tests -p 'test_*.py' -v
   fi
 
   if [[ "$found" -eq 0 ]]; then

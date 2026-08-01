@@ -1,8 +1,8 @@
 # ADR 0004: Portable Managed Core v2
 
-**Status:** Accepted for Wave 1 implementation (Issue #43)  
-**Date:** 2026-08-01  
-**Version target:** `2.0.0` (no Git tag or GitHub release in this wave)  
+**Status:** Accepted for Wave 1 implementation (Issue #43)
+**Date:** 2026-08-01
+**Version target:** `2.0.0` (no Git tag or GitHub release in this wave)
 **Related:** `docs/adr/0003-autonomous-ship-pull-promote.md`, `docs/contracts/MANAGED-CORE-V2.md`, `core/managed-core/`
 
 ## Context

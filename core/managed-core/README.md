@@ -1,15 +1,15 @@
 # Managed Core (v2 package source)
 
-**Status:** Wave 1 architecture surface (Issue #43)  
-**Package version:** see `VERSION`  
-**Contract:** `docs/contracts/MANAGED-CORE-V2.md`  
+**Status:** Wave 1 architecture surface (Issue #43)
+**Package version:** see `VERSION`
+**Contract:** `docs/contracts/MANAGED-CORE-V2.md`
 **ADR:** `docs/adr/0004-portable-managed-core-v2.md`
 
 ## Purpose
 
 `core/managed-core/` is the **system-source package root** for the portable IDE Development v2 managed core.
 
-When installed into a consumer repository, the committed package root is `.ide-development/`.  
+When installed into a consumer repository, the committed package root is `.ide-development/`.
 This directory is the authoring source inside the IDE Development system repository. It is **not** a nested install of IDE Development into itself.
 
 ## Layout
