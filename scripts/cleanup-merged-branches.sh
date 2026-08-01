@@ -5,9 +5,11 @@
 # Usage:
 #   cleanup-merged-branches.sh [--apply] [--remote] [--local]
 # Preserve (KEEP before delete) comes from scripts/gitops/cleanup_controls.py
-#   (export-preserve). Overlays: .linktrend/cleanup-preserve.json and/or
-#   LINKTREND_CLEANUP_PRESERVE=branch,...  Set "defaults": false in an overlay
-#   to disable committed defaults via that helper.
+#   (export-preserve, with deterministic --repo). Overlays:
+#   .linktrend/cleanup-preserve.json and/or LINKTREND_CLEANUP_PRESERVE=branch,...
+#   Set "defaults": false in an overlay to disable committed defaults via that
+#   helper. Fail-closed: if preserve PR heads cannot be resolved
+#   (preserveResolutionOk=false / unresolvedPrNumbers), never delete candidates.
 # --apply deletes branches only; never closes PRs/issues.
 set -euo pipefail
 
@@ -16,6 +18,8 @@ DO_REMOTE=1
 DO_LOCAL=1
 ROOT=""
 PRESERVE_POLICY='{"branches":[],"issueNumbers":[],"prHeads":[]}'
+CLEANUP_REPO=""
+PRESERVE_UNRESOLVED=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 while [ $# -gt 0 ]; do
@@ -56,13 +60,92 @@ is_protected_permanent() {
 
 decide() { echo "$1: $2 — $3"; }
 
+# True when slug looks like owner/name (reject JSON noise like "[]").
+_cleanup_repo_slug_ok() {
+  case "$1" in
+    */*) ;;
+    *) return 1 ;;
+  esac
+  case "$1" in
+    *[!A-Za-z0-9._/-]*|*" "*|*/|*/*/*) return 1 ;;
+  esac
+  return 0
+}
+
+# Resolve owner/repo for export-preserve gh resolution (deterministic order).
+resolve_cleanup_repo() {
+  CLEANUP_REPO=""
+  if [ -n "${GITHUB_REPOSITORY:-}" ] && _cleanup_repo_slug_ok "${GITHUB_REPOSITORY}"; then
+    CLEANUP_REPO="$GITHUB_REPOSITORY"
+    return 0
+  fi
+  if [ -n "${GH_REPO:-}" ] && _cleanup_repo_slug_ok "${GH_REPO}"; then
+    CLEANUP_REPO="$GH_REPO"
+    return 0
+  fi
+  local viewed
+  viewed="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
+  if _cleanup_repo_slug_ok "$viewed"; then
+    CLEANUP_REPO="$viewed"
+    return 0
+  fi
+  local url
+  url="$(git remote get-url origin 2>/dev/null || true)"
+  if [ -n "$url" ]; then
+    viewed="$(python3 -c '
+import re, sys
+u = sys.argv[1].strip()
+if u.endswith(".git"):
+    u = u[:-4]
+m = re.search(r"github\.com[:/]([^/]+)/([^/]+)", u)
+print(f"{m.group(1)}/{m.group(2)}" if m else "")
+' "$url" 2>/dev/null || true)"
+    if _cleanup_repo_slug_ok "$viewed"; then
+      CLEANUP_REPO="$viewed"
+    fi
+  fi
+}
+
 # Load preserve policy via shared helper (scripts/gitops/cleanup_controls.py).
 # Shape consumed by is_preserved_branch: branches / issueNumbers / prHeads.
+# Also consumes preserveResolutionOk / unresolvedPrNumbers for fail-closed gate.
 # "defaults": false in an overlay disables committed defaults inside that helper.
 load_preserve_policy() {
-  PRESERVE_POLICY="$(
-    python3 "${SCRIPT_DIR}/gitops/cleanup_controls.py" export-preserve
-  )"
+  local export_rc
+  resolve_cleanup_repo
+  set +e
+  if [ -n "$CLEANUP_REPO" ]; then
+    PRESERVE_POLICY="$(
+      python3 "${SCRIPT_DIR}/gitops/cleanup_controls.py" export-preserve --repo "$CLEANUP_REPO" 2>/dev/null
+    )"
+  else
+    PRESERVE_POLICY="$(
+      python3 "${SCRIPT_DIR}/gitops/cleanup_controls.py" export-preserve 2>/dev/null
+    )"
+  fi
+  export_rc=$?
+  set -e
+
+  if ! python3 -c 'import json, sys; json.loads(sys.argv[1])' "$PRESERVE_POLICY" 2>/dev/null; then
+    echo "FAIL: export-preserve returned invalid JSON (rc=${export_rc})" >&2
+    exit 1
+  fi
+
+  PRESERVE_UNRESOLVED=0
+  # Fail-closed when exporter reports unresolved preserve PR heads
+  # (preserveResolutionOk=false and/or unresolvedPrNumbers non-empty).
+  # Python may also exit non-zero in that case; JSON fields are authoritative.
+  if python3 -c '
+import json, sys
+policy = json.loads(sys.argv[1])
+ok = policy.get("preserveResolutionOk")
+unresolved = policy.get("unresolvedPrNumbers") or []
+if ok is False or unresolved:
+    raise SystemExit(0)
+raise SystemExit(1)
+' "$PRESERVE_POLICY"; then
+    PRESERVE_UNRESOLVED=1
+  fi
 }
 
 is_preserved_branch() {
@@ -165,6 +248,10 @@ maybe_delete_remote() {
     decide "KEEP" "$branch" "preserve policy"
     return 0
   fi
+  if [ "${PRESERVE_UNRESOLVED:-0}" -eq 1 ]; then
+    decide "KEEP" "$branch" "preserve PR head unresolved (fail-closed)"
+    return 0
+  fi
   read -r evidence head_oid <<<"$(pr_evidence_for_branch "$branch")"
   if [ "$evidence" = "OPEN" ]; then
     decide "KEEP" "$branch" "open PR"
@@ -217,6 +304,10 @@ maybe_delete_local() {
   fi
   if is_preserved_branch "$branch"; then
     decide "KEEP" "local:$branch" "preserve policy"
+    return 0
+  fi
+  if [ "${PRESERVE_UNRESOLVED:-0}" -eq 1 ]; then
+    decide "KEEP" "local:$branch" "preserve PR head unresolved (fail-closed)"
     return 0
   fi
   if [ "$branch" = "$START_BRANCH" ]; then

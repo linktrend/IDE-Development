@@ -730,4 +730,207 @@ grep -qv '^DELETED_' "$TMP/issue55f2.out" || fail "dry-run must not DELETE findi
 pass "shell dry-run: issue/51 + issue/51-slug KEEP preserve; issue/99 WOULD_DELETE"
 # END issue-55 finding-2
 
+# ============================================================================
+# 11) Issue #57 Bugbot: fail-closed preserve PR head resolution
+# BEGIN issue-57
+# ============================================================================
+
+# --- 11a) gh unavailable / always-fails → unresolved + shell fail-closed KEEP ---
+REPO57A="$TMP/issue57-gh-unavailable"
+make_repo "$REPO57A"
+seed_cleanup "$REPO57A"
+mkdir -p "$REPO57A/.linktrend"
+cat >"$REPO57A/.linktrend/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"defaults":false,"issueNumbers":[],"preservePrNumbers":[903],"branches":[]}
+EOF
+
+# Export: PATH with gh that always fails (simulates missing/broken gh)
+mkdir -p "$TMP/bin"
+cat >"$TMP/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+echo "gh unavailable (issue-57 fixture)" >&2
+exit 127
+EOF
+chmod +x "$TMP/bin/gh"
+
+EXPORT57A_RC=0
+EXPORT57A="$(
+  cd "$REPO57A" && env -u GITHUB_REPOSITORY -u GH_REPO PATH="$TMP/bin:$PATH" \
+  python3 "$ROOT/scripts/gitops/cleanup_controls.py" export-preserve 2>/dev/null
+)" || EXPORT57A_RC=$?
+echo "$EXPORT57A" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+unresolved=set(d.get("unresolvedPrNumbers") or [])
+assert 903 in unresolved, d
+assert d.get("preserveResolutionOk") is False, d
+assert "unresolvedPrNumbers" in d and "preserveResolutionOk" in d, d
+assert "repo" in d and "repoSource" in d, d
+'
+# CLI may exit non-zero when preserveResolutionOk is false while still printing JSON
+[ "$EXPORT57A_RC" -ne 0 ] || true
+pass "export-preserve: gh unavailable → 903 unresolved, preserveResolutionOk false"
+
+# Shell dry-run: selective mock — pr view 903 fails (unresolved preserve), but MERGED
+# evidence exists for an otherwise-deletable candidate.
+git -C "$REPO57A" checkout -q -b issue/57-fail-closed-eligible
+echo e57a >"$REPO57A/e57a.txt" && git -C "$REPO57A" add e57a.txt \
+  && git -C "$REPO57A" commit -q -m "eligible merged under unresolved preserve"
+HEAD57A="$(git -C "$REPO57A" rev-parse HEAD)"
+git -C "$REPO57A" checkout -q development
+
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *"pr view 903"* ]]; then
+  echo "could not resolve PR 903" >&2
+  exit 1
+fi
+if [[ "\$*" == *"pr view"* ]]; then
+  echo "pr view failed" >&2
+  exit 1
+fi
+if [[ "\$*" == *"--head issue/57-fail-closed-eligible"* ]]; then
+  echo '[{"number":5701,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${HEAD57A}"}]'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+PATH="$TMP/bin:$PATH" env -u GITHUB_REPOSITORY -u GH_REPO \
+  bash -c "cd \"$REPO57A\" && bash scripts/cleanup-merged-branches.sh --local" \
+  >"$TMP/issue57a.out" || true
+grep -qv 'WOULD_DELETE.*issue/57-fail-closed-eligible' "$TMP/issue57a.out" \
+  || fail "unresolved preserve must not WOULD_DELETE eligible: $(cat "$TMP/issue57a.out")"
+if grep -q 'WOULD_DELETE' "$TMP/issue57a.out"; then
+  fail "fail-closed unresolved must not WOULD_DELETE any candidate: $(cat "$TMP/issue57a.out")"
+fi
+grep -qv '^DELETED_' "$TMP/issue57a.out" || fail "dry-run must not DELETE issue-57a"
+# Prefer KEEP with fail-closed / unresolved reason when the candidate is listed
+if grep -q 'issue/57-fail-closed-eligible' "$TMP/issue57a.out"; then
+  grep -qiE 'fail-closed|unresolved' "$TMP/issue57a.out" \
+    || fail "KEEP reason should mention fail-closed/unresolved: $(cat "$TMP/issue57a.out")"
+  grep -qE 'KEEP:.*issue/57-fail-closed-eligible' "$TMP/issue57a.out" \
+    || fail "eligible under unresolved preserve must KEEP: $(cat "$TMP/issue57a.out")"
+fi
+pass "shell dry-run: gh fail on preserve PR → no WOULD_DELETE (fail-closed)"
+
+# --- 11b) gh returns missing/empty headRefName → unresolved + shell fail-closed ---
+REPO57B="$TMP/issue57-empty-head"
+make_repo "$REPO57B"
+seed_cleanup "$REPO57B"
+mkdir -p "$REPO57B/.linktrend"
+cat >"$REPO57B/.linktrend/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"defaults":false,"issueNumbers":[],"preservePrNumbers":[904],"branches":[]}
+EOF
+
+git -C "$REPO57B" checkout -q -b issue/57-empty-head-eligible
+echo e57b >"$REPO57B/e57b.txt" && git -C "$REPO57B" add e57b.txt \
+  && git -C "$REPO57B" commit -q -m "eligible under empty preserve head"
+HEAD57B="$(git -C "$REPO57B" rev-parse HEAD)"
+git -C "$REPO57B" checkout -q development
+
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *"pr view 904"* ]]; then
+  echo '{"number":904,"state":"MERGED","headRefName":""}'
+  exit 0
+fi
+if [[ "\$*" == *"pr view"* ]]; then
+  echo '{"number":0,"state":"CLOSED","headRefName":""}'
+  exit 0
+fi
+if [[ "\$*" == *"--head issue/57-empty-head-eligible"* ]]; then
+  echo '[{"number":5702,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${HEAD57B}"}]'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+EXPORT57B_RC=0
+EXPORT57B="$(
+  cd "$REPO57B" && env -u GITHUB_REPOSITORY -u GH_REPO PATH="$TMP/bin:$PATH" \
+  python3 "$ROOT/scripts/gitops/cleanup_controls.py" export-preserve \
+    --repo linktrend/IDE-Development 2>/dev/null
+)" || EXPORT57B_RC=$?
+echo "$EXPORT57B" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+unresolved=set(d.get("unresolvedPrNumbers") or [])
+assert 904 in unresolved, d
+assert d.get("preserveResolutionOk") is False, d
+heads=set(d.get("prHeads") or [])
+assert "" not in heads, d
+assert "feature/" not in " ".join(heads), d
+'
+pass "export-preserve: empty headRefName → 904 unresolved, preserveResolutionOk false"
+
+PATH="$TMP/bin:$PATH" env -u GITHUB_REPOSITORY -u GH_REPO \
+  bash -c "cd \"$REPO57B\" && bash scripts/cleanup-merged-branches.sh --local" \
+  >"$TMP/issue57b.out" || true
+grep -qv 'WOULD_DELETE.*issue/57-empty-head-eligible' "$TMP/issue57b.out" \
+  || fail "empty-head unresolved must not WOULD_DELETE: $(cat "$TMP/issue57b.out")"
+if grep -q 'WOULD_DELETE' "$TMP/issue57b.out"; then
+  fail "empty-head fail-closed must not WOULD_DELETE any candidate: $(cat "$TMP/issue57b.out")"
+fi
+grep -qv '^DELETED_' "$TMP/issue57b.out" || fail "dry-run must not DELETE issue-57b"
+if grep -q 'issue/57-empty-head-eligible' "$TMP/issue57b.out"; then
+  grep -qiE 'fail-closed|unresolved' "$TMP/issue57b.out" \
+    || fail "empty-head KEEP reason should mention fail-closed/unresolved: $(cat "$TMP/issue57b.out")"
+  grep -qE 'KEEP:.*issue/57-empty-head-eligible' "$TMP/issue57b.out" \
+    || fail "empty-head eligible must KEEP: $(cat "$TMP/issue57b.out")"
+fi
+pass "shell dry-run: empty preserve head → no WOULD_DELETE (fail-closed)"
+
+# --- 11c) Deterministic --repo makes preserve head resolution succeed ---
+REPO57C="$TMP/issue57-explicit-repo"
+make_repo "$REPO57C"
+seed_cleanup "$REPO57C"
+mkdir -p "$REPO57C/.linktrend"
+cat >"$REPO57C/.linktrend/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"defaults":false,"issueNumbers":[],"preservePrNumbers":[905],"branches":[]}
+EOF
+
+cat >"$TMP/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+# Only succeed when --repo linktrend/IDE-Development is present for pr view 905
+if [[ "$*" == *"pr view 905"* ]]; then
+  if [[ "$*" == *"--repo linktrend/IDE-Development"* ]]; then
+    echo '{"number":905,"state":"OPEN","headRefName":"feature/preserve-905-head"}'
+    exit 0
+  fi
+  echo "error: --repo required for PR 905 (issue-57 fixture)" >&2
+  exit 1
+fi
+if [[ "$*" == *"repo view"* ]]; then
+  echo "error: no default repo" >&2
+  exit 1
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+EXPORT57C="$(
+  cd "$REPO57C" && env -u GITHUB_REPOSITORY -u GH_REPO PATH="$TMP/bin:$PATH" \
+  python3 "$ROOT/scripts/gitops/cleanup_controls.py" export-preserve \
+    --repo linktrend/IDE-Development
+)"
+echo "$EXPORT57C" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+unresolved=set(d.get("unresolvedPrNumbers") or [])
+assert 905 not in unresolved, d
+assert unresolved == set() or 905 not in unresolved, d
+assert d.get("preserveResolutionOk") is True, d
+heads=set(d.get("prHeads") or [])
+branches=set(d.get("branches") or [])
+assert "feature/preserve-905-head" in heads, d
+assert "feature/preserve-905-head" in branches, d
+assert d.get("repo") == "linktrend/IDE-Development", d
+'
+pass "export-preserve: --repo linktrend/IDE-Development resolves PR 905 head"
+
+# END issue-57
+
 echo "OK: $PASS assertions passed"

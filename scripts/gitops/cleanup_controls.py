@@ -245,11 +245,119 @@ def default_pr_state(pr: str, *, repo: str = "") -> str:
     return "UNKNOWN"
 
 
+def _owner_repo_from_github_url(url: str) -> str | None:
+    """Parse owner/repo from a GitHub HTTPS or SSH remote URL; else None."""
+    sanitized = (url or "").strip()
+    if "://" in sanitized and "@" in sanitized.split("://", 1)[1]:
+        scheme, rest = sanitized.split("://", 1)
+        sanitized = f"{scheme}://" + rest.split("@", 1)[1]
+    owner_repo = ""
+    if sanitized.startswith("git@") and ":" in sanitized:
+        owner_repo = sanitized.split(":", 1)[1]
+    elif "github.com/" in sanitized:
+        owner_repo = sanitized.split("github.com/", 1)[1]
+    elif "github.com:" in sanitized:
+        owner_repo = sanitized.split("github.com:", 1)[1]
+    else:
+        return None
+    owner_repo = owner_repo.strip()
+    if owner_repo.endswith(".git"):
+        owner_repo = owner_repo[:-4]
+    owner_repo = owner_repo.strip("/")
+    if owner_repo.count("/") != 1 or " " in owner_repo:
+        return None
+    return owner_repo
+
+
+def resolve_cleanup_repo(
+    explicit: str = "",
+    *,
+    workdir: Path | None = None,
+) -> tuple[str | None, str]:
+    """Resolve owner/repo for cleanup preserve PR head lookups.
+
+    Preference (deterministic, no silent ambiguity):
+      1) explicit ``--repo`` / non-empty argument
+      2) env ``GITHUB_REPOSITORY``
+      3) env ``GH_REPO``
+      4) ``gh repo view --json nameWithOwner`` (from workdir/cwd)
+      5) validated ``origin`` remote URL (HTTPS/SSH github) → owner/repo
+    """
+    cwd = workdir if workdir is not None else Path.cwd()
+
+    explicit_slug = (explicit or "").strip()
+    if explicit_slug:
+        if "/" in explicit_slug and " " not in explicit_slug:
+            return explicit_slug, "explicit"
+        return None, "explicit_invalid"
+
+    for key in ("GITHUB_REPOSITORY", "GH_REPO"):
+        val = (os.environ.get(key) or "").strip()
+        if val and "/" in val and " " not in val and "local/" not in val:
+            return val, f"env:{key}"
+
+    try:
+        out = subprocess.run(
+            ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
+            cwd=str(cwd),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError):
+        out = None
+    if out is not None and out.returncode == 0:
+        name = (out.stdout or "").strip()
+        if name.count("/") == 1 and " " not in name:
+            return name, "gh_repo_view"
+
+    try:
+        origin = subprocess.run(
+            ["git", "remote", "get-url", "--push", "origin"],
+            cwd=str(cwd),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if origin.returncode != 0:
+            origin = subprocess.run(
+                ["git", "remote", "get-url", "origin"],
+                cwd=str(cwd),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+    except (FileNotFoundError, OSError):
+        return None, "missing_origin_remote"
+    if origin.returncode != 0:
+        return None, "missing_origin_remote"
+
+    owner_repo = _owner_repo_from_github_url(origin.stdout or "")
+    if not owner_repo:
+        return None, "origin_not_github_or_unrecognized"
+
+    try:
+        upstream = subprocess.run(
+            ["git", "remote", "get-url", "upstream"],
+            cwd=str(cwd),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError):
+        upstream = None
+    if upstream is not None and upstream.returncode == 0:
+        return None, "ambiguous_origin_and_upstream"
+    return owner_repo, "origin"
+
+
 def _pr_head_ref(pr: str | int, *, repo: str = "") -> str | None:
     """Best-effort headRefName for a preserved PR in any resolvable state.
 
     Returns the non-empty ``headRefName`` for OPEN, CLOSED, or MERGED PRs.
-    Fail-soft: None on gh failures, missing data, or empty head.
+    Returns None on gh failures, missing data, or empty head.
+    Callers must treat None as fail-closed for preserve policy (do not
+    silently drop unresolved preserve PRs).
     """
     args = ["pr", "view", str(pr), "--json", "number,state,headRefName"]
     if repo:
@@ -265,6 +373,7 @@ def export_preserve_for_shell(
     *,
     policy: dict[str, Any] | None = None,
     repo: str = "",
+    repo_source: str = "",
     pr_head_fn: Callable[[str], str | None] | None = None,
 ) -> dict[str, Any]:
     """JSON payload consumable by bash (cleanup-merged-branches.sh).
@@ -272,20 +381,33 @@ def export_preserve_for_shell(
     ``branches`` = exact preserve names plus preserved-PR head refs (any
     resolvable state with a non-empty head: OPEN, CLOSED, or MERGED).
     ``prHeads`` = headRefName for preserved PRs with a resolvable head.
+    Unresolved preserve PR numbers are collected in ``unresolvedPrNumbers``;
+    ``preserveResolutionOk`` is True only when that list is empty.
     """
     pol = policy or load_preserve_policy()
     exact = sorted(str(x) for x in pol["exact_set"])
     issue_numbers = sorted(int(x) for x in pol["issue_set"])
     pr_numbers = sorted(int(x) for x in pol["pr_set"])
+    repo_slug = (repo or "").strip()
     pr_heads: list[str] = []
-    resolver = pr_head_fn or (lambda p: _pr_head_ref(p, repo=repo))
+    unresolved: list[int] = []
+
+    # Prefer a deterministic --repo when available; still attempt head lookup
+    # without a slug (gh cwd context) rather than bulk-failing before any call.
+    # Each preservePrNumber that cannot resolve a non-empty head is unresolved
+    # (fail-closed — never silently dropped).
+    resolver = pr_head_fn or (lambda p: _pr_head_ref(p, repo=repo_slug))
     for n in pr_numbers:
         try:
             head = resolver(str(n))
-        except Exception:  # noqa: BLE001 — tolerate gh failures
+        except Exception:  # noqa: BLE001 — treat resolver failures as unresolved
             head = None
         if head:
             pr_heads.append(head)
+        else:
+            unresolved.append(n)
+
+    unresolved = sorted(unresolved)
     # Dedupe while preserving order: exact first, then resolved heads.
     branches: list[str] = []
     seen: set[str] = set()
@@ -298,6 +420,10 @@ def export_preserve_for_shell(
         "issueNumbers": issue_numbers,
         "prHeads": pr_heads,
         "prNumbers": pr_numbers,
+        "unresolvedPrNumbers": unresolved,
+        "preserveResolutionOk": not unresolved,
+        "repo": repo_slug,
+        "repoSource": repo_source or "",
         "sources": list(pol.get("sources") or []),
         "defaultsDisabled": bool(pol.get("defaultsDisabled")),
     }
@@ -492,13 +618,19 @@ def main(argv: list[str] | None = None) -> int:
 
     exp = sub.add_parser(
         "export-preserve",
-        help="Print shell-consumable JSON (branches/issues/prHeads/sources)",
+        help=(
+            "Print shell-consumable JSON (branches/issues/prHeads/sources); "
+            "unresolved preserve PR heads fail closed (exit 1, JSON still printed)"
+        ),
     )
     exp.add_argument("--policy", default="", help="Override preserve JSON path")
     exp.add_argument(
         "--repo",
         default="",
-        help="Optional owner/name for gh pr view when resolving preserve PR heads",
+        help=(
+            "Optional owner/name for gh pr view when resolving preserve PR heads "
+            "(else GITHUB_REPOSITORY / GH_REPO / gh repo view / origin)"
+        ),
     )
 
     ck = sub.add_parser("check-branch", help="Classify one branch against preserve + evidence")
@@ -555,11 +687,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "export-preserve":
         pol = load_preserve_policy(policy_path)
+        repo_slug, repo_source = resolve_cleanup_repo(str(getattr(args, "repo", "") or ""))
         payload = export_preserve_for_shell(
             policy=pol,
-            repo=str(getattr(args, "repo", "") or ""),
+            repo=repo_slug or "",
+            repo_source=repo_source,
         )
         print(json.dumps(payload, indent=2))
+        if not payload.get("preserveResolutionOk", True):
+            return 1
         return 0
 
     if args.cmd == "check-branch":
