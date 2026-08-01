@@ -246,14 +246,16 @@ def default_pr_state(pr: str, *, repo: str = "") -> str:
 
 
 def _pr_head_ref(pr: str | int, *, repo: str = "") -> str | None:
-    """Best-effort headRefName for an OPEN preserved PR; None on any failure."""
+    """Best-effort headRefName for a preserved PR in any resolvable state.
+
+    Returns the non-empty ``headRefName`` for OPEN, CLOSED, or MERGED PRs.
+    Fail-soft: None on gh failures, missing data, or empty head.
+    """
     args = ["pr", "view", str(pr), "--json", "number,state,headRefName"]
     if repo:
         args.extend(["--repo", repo])
     data = _gh_json(args)
     if not isinstance(data, dict):
-        return None
-    if data.get("state") != "OPEN":
         return None
     head = str(data.get("headRefName") or "").strip()
     return head or None
@@ -267,8 +269,9 @@ def export_preserve_for_shell(
 ) -> dict[str, Any]:
     """JSON payload consumable by bash (cleanup-merged-branches.sh).
 
-    ``branches`` = exact preserve names plus OPEN preserved-PR head refs.
-    ``prHeads`` = headRefName for OPEN preserved PRs only.
+    ``branches`` = exact preserve names plus preserved-PR head refs (any
+    resolvable state with a non-empty head: OPEN, CLOSED, or MERGED).
+    ``prHeads`` = headRefName for preserved PRs with a resolvable head.
     """
     pol = policy or load_preserve_policy()
     exact = sorted(str(x) for x in pol["exact_set"])

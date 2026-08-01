@@ -67,6 +67,8 @@ load_preserve_policy() {
 
 is_preserved_branch() {
   local branch="$1"
+  # Issue-number regex must match cleanup_controls.ISSUE_BRANCH_RE
+  # (^issue/(\d+)(?:-|$)) so bare issue/<n> and issue/<n>-slug both preserve.
   python3 -c '
 import json, re, sys
 branch = sys.argv[1]
@@ -75,7 +77,7 @@ if branch in (policy.get("branches") or []):
     raise SystemExit(0)
 if branch in (policy.get("prHeads") or []):
     raise SystemExit(0)
-m = re.match(r"^issue/(\d+)-", branch)
+m = re.match(r"^issue/(\d+)(?:-|$)", branch)
 if m and int(m.group(1)) in (policy.get("issueNumbers") or []):
     raise SystemExit(0)
 raise SystemExit(1)

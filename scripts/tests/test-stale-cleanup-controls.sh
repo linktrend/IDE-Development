@@ -513,4 +513,221 @@ assert ex.get("defaultsDisabled") is True, ex
 ' "$PY8" "$EXPORT8"
 pass "shell uses cleanup_controls; no hardcoded 43/44/51; policy parity"
 
+# ============================================================================
+# 9) Issue #55 Bugbot: export-preserve retains CLOSED/MERGED preservePrNumbers heads
+# BEGIN issue-55 finding-1
+REPO9="$TMP/export-closed-pr-head"
+make_repo "$REPO9"
+seed_cleanup "$REPO9"
+mkdir -p "$REPO9/.linktrend"
+# defaults:false — only fixture preservePrNumbers matter; head is NOT an issue/* preserve
+cat >"$REPO9/.linktrend/cleanup-preserve.json" <<'EOF'
+{
+  "schemaVersion": 1,
+  "defaults": false,
+  "issueNumbers": [],
+  "preservePrNumbers": [901, 902],
+  "branches": []
+}
+EOF
+
+git -C "$REPO9" checkout -q -b feature/preserve-closed-head
+echo closed >"$REPO9/closed.txt" && git -C "$REPO9" add closed.txt && git -C "$REPO9" commit -q -m "closed preserve head"
+CLOSED_HEAD="$(git -C "$REPO9" rev-parse HEAD)"
+git -C "$REPO9" checkout -q development
+git -C "$REPO9" checkout -q -b feature/preserve-merged-head
+echo merged >"$REPO9/merged.txt" && git -C "$REPO9" add merged.txt && git -C "$REPO9" commit -q -m "merged preserve head"
+MERGED_HEAD="$(git -C "$REPO9" rev-parse HEAD)"
+git -C "$REPO9" checkout -q development
+
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *"pr view 901"* ]]; then
+  echo '{"number":901,"state":"CLOSED","headRefName":"feature/preserve-closed-head"}'
+  exit 0
+fi
+if [[ "\$*" == *"pr view 902"* ]]; then
+  echo '{"number":902,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","headRefName":"feature/preserve-merged-head"}'
+  exit 0
+fi
+if [[ "\$*" == *"--head feature/preserve-closed-head"* ]]; then
+  echo '[{"number":901,"state":"CLOSED","mergedAt":null,"labels":[],"headRefOid":"${CLOSED_HEAD}"}]'
+  exit 0
+fi
+if [[ "\$*" == *"--head feature/preserve-merged-head"* ]]; then
+  echo '[{"number":902,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${MERGED_HEAD}"}]'
+  exit 0
+fi
+if [[ "\$*" == *"pr view"* ]]; then
+  echo '{"number":0,"state":"CLOSED","headRefName":""}'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+EXPORT9="$(
+  cd "$REPO9" && PATH="$TMP/bin:$PATH" \
+  python3 "$ROOT/scripts/gitops/cleanup_controls.py" export-preserve
+)"
+echo "$EXPORT9" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+branches=set(d.get("branches") or [])
+pr_heads=set(d.get("prHeads") or [])
+prs=set(d.get("prNumbers") or [])
+assert 901 in prs and 902 in prs, d
+assert "feature/preserve-closed-head" in pr_heads, d
+assert "feature/preserve-merged-head" in pr_heads, d
+assert "feature/preserve-closed-head" in branches, d
+assert "feature/preserve-merged-head" in branches, d
+assert d.get("defaultsDisabled") is True, d
+'
+pass "export-preserve: CLOSED + MERGED preservePrNumbers heads in branches/prHeads"
+
+# Optional: shell dry-run KEEP via preserve for MERGED head listed only under preservePrNumbers
+PATH="$TMP/bin:$PATH" bash -c "cd \"$REPO9\" && bash scripts/cleanup-merged-branches.sh --local" >"$TMP/exp9.out"
+grep -q 'KEEP:.*feature/preserve-merged-head' "$TMP/exp9.out" \
+  || fail "MERGED preservePrNumbers head must KEEP via preserve: $(cat "$TMP/exp9.out")"
+grep -qi 'preserve' "$TMP/exp9.out" \
+  || fail "preserve reason missing for MERGED preservePr head: $(cat "$TMP/exp9.out")"
+grep -qv 'WOULD_DELETE.*feature/preserve-merged-head' "$TMP/exp9.out" \
+  || fail "must not WOULD_DELETE MERGED preservePr head"
+grep -qv '^DELETED_' "$TMP/exp9.out" || fail "dry-run must not DELETE export-closed-pr case"
+pass "shell dry-run: MERGED preservePrNumbers-only head → KEEP via preserve"
+# END issue-55 finding-1
+
+# ============================================================================
+# 10) Issue #55 Bugbot: shell/Python issue/<n> preserve parity
+# BEGIN issue-55 finding-2
+# ============================================================================
+# Shell is_preserved_branch must use the same ISSUE_BRANCH_RE as cleanup_controls.py
+# so bare issue/<n> (e.g. issue/51) preserves identically to issue/<n>-slug.
+REPO55F2="$TMP/issue55-finding2"
+make_repo "$REPO55F2"
+seed_cleanup "$REPO55F2"
+mkdir -p "$REPO55F2/.linktrend"
+cat >"$REPO55F2/.linktrend/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"defaults":false,"issueNumbers":[51],"prNumbers":[],"branches":[]}
+EOF
+
+# Static parity: shell embedded regex matches Python ISSUE_BRANCH_RE
+grep -q 're.match(r"^issue/(\\d+)(?:-|\$)", branch)' \
+  "$ROOT/scripts/cleanup-merged-branches.sh" \
+  || fail "shell is_preserved_branch regex must match ISSUE_BRANCH_RE ^issue/(\\d+)(?:-|\$)"
+grep -q 're.match(r"^issue/(\\d+)-", branch)' \
+  "$ROOT/scripts/cleanup-merged-branches.sh" \
+  && fail "shell still has legacy ^issue/(\\d+)- regex (must allow bare issue/<n>)"
+
+# Python preserve_reason / ISSUE_BRANCH_RE accept bare issue/51 and slugged form
+PY55F2="$(
+  cd "$REPO55F2" && python3 "$ROOT/scripts/gitops/cleanup_controls.py" check-branch \
+    --branch issue/51 --evidence MERGED
+)"
+echo "$PY55F2" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+assert d.get("decision")=="KEEP", d
+assert "preserve" in str(d.get("reason") or "").lower() or "51" in str(d.get("reason") or ""), d
+assert d.get("authorized_delete") is False, d
+'
+PY55F2_SLUG="$(
+  cd "$REPO55F2" && python3 "$ROOT/scripts/gitops/cleanup_controls.py" check-branch \
+    --branch issue/51-some-slug --evidence MERGED
+)"
+echo "$PY55F2_SLUG" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+assert d.get("decision")=="KEEP", d
+assert "51" in str(d.get("reason") or ""), d
+'
+python3 -c '
+import importlib.util
+from pathlib import Path
+p = Path(r"'"$ROOT"'") / "scripts/gitops/cleanup_controls.py"
+spec = importlib.util.spec_from_file_location("cleanup_controls", p)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+assert mod.ISSUE_BRANCH_RE.match("issue/51"), "ISSUE_BRANCH_RE must match bare issue/51"
+assert mod.ISSUE_BRANCH_RE.match("issue/51-some-slug"), "ISSUE_BRANCH_RE must match issue/51-slug"
+assert mod.ISSUE_BRANCH_RE.pattern == r"^issue/(\d+)(?:-|$)"
+'
+pass "Python ISSUE_BRANCH_RE + preserve_reason accept issue/51 and issue/51-slug"
+
+# Shell is_preserved_branch via export-preserve + embedded matcher (mirrors script)
+EXPORT55F2="$(
+  cd "$REPO55F2" && python3 "$ROOT/scripts/gitops/cleanup_controls.py" export-preserve
+)"
+python3 -c '
+import json, re, sys
+policy = json.loads(sys.argv[1])
+assert 51 in (policy.get("issueNumbers") or []), policy
+for branch in ("issue/51", "issue/51-some-slug"):
+    m = re.match(r"^issue/(\d+)(?:-|$)", branch)
+    assert m and int(m.group(1)) in (policy.get("issueNumbers") or []), (branch, policy)
+# non-preserved number must not match preserve set
+m99 = re.match(r"^issue/(\d+)(?:-|$)", "issue/99")
+assert m99 and int(m99.group(1)) not in (policy.get("issueNumbers") or [])
+' "$EXPORT55F2"
+pass "shell/Python issue regex + export issueNumbers:[51] preserve parity"
+
+# Dry-run cleanup: bare issue/51 KEEP via preserve; issue/99 WOULD_DELETE
+git -C "$REPO55F2" checkout -q -b issue/51
+echo bare51 >"$REPO55F2/bare51.txt" && git -C "$REPO55F2" add bare51.txt \
+  && git -C "$REPO55F2" commit -q -m "bare issue/51"
+HEAD51="$(git -C "$REPO55F2" rev-parse HEAD)"
+git -C "$REPO55F2" checkout -q development
+
+git -C "$REPO55F2" checkout -q -b issue/51-some-slug
+echo slug51 >"$REPO55F2/slug51.txt" && git -C "$REPO55F2" add slug51.txt \
+  && git -C "$REPO55F2" commit -q -m "slugged issue/51"
+HEAD51S="$(git -C "$REPO55F2" rev-parse HEAD)"
+git -C "$REPO55F2" checkout -q development
+
+git -C "$REPO55F2" checkout -q -b issue/99-not-preserved
+echo n99 >"$REPO55F2/n99.txt" && git -C "$REPO55F2" add n99.txt \
+  && git -C "$REPO55F2" commit -q -m "non-preserved issue/99"
+HEAD99="$(git -C "$REPO55F2" rev-parse HEAD)"
+git -C "$REPO55F2" checkout -q development
+
+mkdir -p "$TMP/bin"
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *"pr view"* ]]; then
+  echo '{"number":49,"state":"CLOSED","headRefName":"issue/43-x"}'
+  exit 0
+fi
+if [[ "\$*" == *"--head issue/51-some-slug"* ]]; then
+  echo '[{"number":5101,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${HEAD51S}"}]'
+  exit 0
+fi
+if [[ "\$*" == *"--head issue/51"* ]]; then
+  echo '[{"number":5100,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${HEAD51}"}]'
+  exit 0
+fi
+if [[ "\$*" == *"--head issue/99-not-preserved"* ]]; then
+  echo '[{"number":9900,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${HEAD99}"}]'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+PATH="$TMP/bin:$PATH" bash -c "cd \"$REPO55F2\" && bash scripts/cleanup-merged-branches.sh --local" \
+  >"$TMP/issue55f2.out"
+grep -E 'KEEP: local:issue/51 — preserve policy' "$TMP/issue55f2.out" \
+  || fail "bare issue/51 must KEEP via preserve policy: $(cat "$TMP/issue55f2.out")"
+grep -E 'KEEP: local:issue/51-some-slug — preserve policy' "$TMP/issue55f2.out" \
+  || fail "issue/51-some-slug must KEEP via preserve policy: $(cat "$TMP/issue55f2.out")"
+grep -q 'WOULD_DELETE.*issue/99-not-preserved' "$TMP/issue55f2.out" \
+  || fail "non-preserved issue/99 with MERGED should WOULD_DELETE: $(cat "$TMP/issue55f2.out")"
+# Bare or slug preserved branches must not be WOULD_DELETE (word-boundary-ish: not issue/510…)
+grep -E 'WOULD_DELETE.*(local:)?issue/51( |$|—)' "$TMP/issue55f2.out" \
+  && fail "preserved issue/51 must not WOULD_DELETE: $(cat "$TMP/issue55f2.out")"
+grep -E 'WOULD_DELETE.*issue/51-some-slug' "$TMP/issue55f2.out" \
+  && fail "preserved issue/51-some-slug must not WOULD_DELETE: $(cat "$TMP/issue55f2.out")"
+grep -qv '^DELETED_' "$TMP/issue55f2.out" || fail "dry-run must not DELETE finding-2 case"
+pass "shell dry-run: issue/51 + issue/51-slug KEEP preserve; issue/99 WOULD_DELETE"
+# END issue-55 finding-2
+
 echo "OK: $PASS assertions passed"
