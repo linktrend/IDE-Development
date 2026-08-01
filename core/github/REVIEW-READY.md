@@ -56,11 +56,12 @@ Mismatched SHA, malformed/foreign branch, changed/missing evidence, missing App 
 ### Operator / agent steps
 
 1. Finish work; keep proof; working tree clean; push so `HEAD == origin/<branch>`.
-2. Write evidence: `python3 scripts/gitops/completion_gate.py write-evidence` (or equivalent schema JSON).
-3. Run `python3 scripts/gitops/completion_gate.py review-ready`.
-4. If local privileged publish is unavailable, dispatch `linktrend-review-ready-publisher` with this repo's exact branch + SHA (dry-run first when testing).
-5. Confirm status on that SHA: `scripts/validate-review-ready.sh <sha>`.
-6. Set issue status to `review_ready` and stop — Packager opens the draft PR.
+2. Ensure the branch is verified `issue/<number>-<slug>` (App publisher rejects `feature/`, `dev/`, and other legacy allowlist prefixes). If still on a legacy allowed branch, migrate with `create_issue_branch.py` / `/agentcomply` before requesting App publish — the local gate fails closed with that remediation and will not invent a doomed dispatch command.
+3. Write evidence: `python3 scripts/gitops/completion_gate.py write-evidence` (or equivalent schema JSON).
+4. Run `python3 scripts/gitops/completion_gate.py review-ready`.
+5. If local privileged publish is unavailable **and** the branch is App-eligible, dispatch `linktrend-review-ready-publisher` with this repo's exact branch + SHA (dry-run first when testing).
+6. Confirm status on that SHA: `scripts/validate-review-ready.sh <sha>`.
+7. Set issue status to `review_ready` and stop — Packager opens the draft PR.
 
 ## Rollback
 

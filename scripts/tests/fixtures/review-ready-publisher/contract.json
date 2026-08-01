@@ -30,6 +30,7 @@
     "Trusted scripts checkout must use github.event.repository.default_branch with persist-credentials: false.",
     "Issue branch/SHA may be checked out as data only under a separate path.",
     "Branch must match issue/<number>-<slug> (lowercase slug); reject refs/heads/ and protected branches.",
+    "completion_gate / readiness_status must emit App dispatch routes only for verified issue/<number>-<slug>; legacy allowlist branches get migration remediation, never a doomed -f branch=feature/… command.",
     "SHA must be full 40-char hex; reject abbreviated SHAs and mutable refs.",
     "Evidence headSha must equal requested sha; schemaVersion>=1; commands exitCode 0.",
     "repository must match GITHUB_REPOSITORY when provided (no cross-repo publish).",

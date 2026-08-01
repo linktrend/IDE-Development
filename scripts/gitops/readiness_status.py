@@ -34,6 +34,33 @@ REVIEW_READY_PUBLISHER_WORKFLOW = "linktrend-review-ready-publisher.yml"
 REVIEW_READY_PUBLISHER_WORKFLOW_NAME = "Linktrend Review Ready Publisher"
 APP_PUBLISH_TOKEN_ENVS = ("AUTOMATION_TOKEN", "LINKTREND_APP_TOKEN")
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+try:
+    from review_ready_dispatch import (
+        app_branch_migration_remediation,
+        is_app_backed_issue_branch,
+    )
+except ImportError:  # pragma: no cover
+    import re
+
+    _ISSUE_BRANCH_RE = re.compile(
+        r"^issue/([1-9][0-9]{0,8})-([a-z0-9]+(?:-[a-z0-9]+)*)$"
+    )
+
+    def is_app_backed_issue_branch(name: str) -> bool:
+        return bool(name) and bool(_ISSUE_BRANCH_RE.fullmatch(str(name).strip()))
+
+    def app_branch_migration_remediation(branch: str) -> str:
+        br = (branch or "").strip() or "<current-branch>"
+        return (
+            "App-backed Linktrend Review Ready publisher accepts only verified "
+            "issue/<number>-<slug> branches. "
+            f"Migrate branch {br!r} via create_issue_branch.py or /agentcomply."
+        )
+
 
 @dataclass
 class ReadyStatus:
@@ -81,8 +108,14 @@ def app_backed_review_ready_route(
     action: str = "publish",
     reason: str = "",
 ) -> str:
-    """Exact safe App-backed route for publishing or withdrawing Review Ready."""
-    br = (branch or "").strip() or "<issue/<number>-<slug>>"
+    """Exact safe App-backed route for publishing or withdrawing Review Ready.
+
+    Only embeds a concrete branch when it matches verified issue/<number>-<slug>.
+    Legacy allowed prefixes (feature/, dev/, …) must never appear as a runnable
+    dispatch command — those inputs are rejected by review_ready_dispatch.
+    """
+    raw = (branch or "").strip()
+    br = raw if is_app_backed_issue_branch(raw) else "<issue/<number>-<slug>>"
     tip = (sha or "").strip() or "<40-char-immutable-sha>"
     dry = "true" if dry_run else "false"
     act = normalize_status_action(action)
@@ -112,15 +145,22 @@ def missing_app_publish_token_error(
 ) -> str:
     """Fail-closed diagnostic when local privileged status write lacks App credentials."""
     act = normalize_status_action(action)
-    route = app_backed_review_ready_route(
-        branch=branch, sha=sha, action=act, reason=reason
-    )
-    return (
+    raw = (branch or "").strip()
+    prefix = (
         "privileged_publish_requires_github_app: "
         "AUTOMATION_TOKEN or LINKTREND_APP_TOKEN required; "
         "no GH_TOKEN/GITHUB_TOKEN fallback for Linktrend Review Ready status writes. "
-        f"Use App-backed route: {route}"
     )
+    if raw and not is_app_backed_issue_branch(raw):
+        return (
+            prefix
+            + f"app_publish_requires_issue_branch:{raw}. "
+            + app_branch_migration_remediation(raw)
+        )
+    route = app_backed_review_ready_route(
+        branch=branch, sha=sha, action=act, reason=reason
+    )
+    return prefix + f"Use App-backed route: {route}"
 
 
 def _read_status_token() -> str:
@@ -405,18 +445,20 @@ def main(argv: list[str]) -> int:
         try:
             st = mark_sha(sha, issue_id, notes, branch=branch)
         except RuntimeError as e:
-            route = app_backed_review_ready_route(branch=branch, sha=sha, action="publish")
-            print(
-                json.dumps(
-                    {
-                        "ok": False,
-                        "sha": sha,
-                        "error": str(e),
-                        "appBackedRoute": route,
-                    },
-                    indent=2,
+            payload: dict[str, Any] = {
+                "ok": False,
+                "sha": sha,
+                "error": str(e),
+            }
+            if is_app_backed_issue_branch(branch):
+                payload["appBackedRoute"] = app_backed_review_ready_route(
+                    branch=branch, sha=sha, action="publish"
                 )
-            )
+            else:
+                payload["remediation"] = app_branch_migration_remediation(
+                    branch or "<issue/<number>-<slug>>"
+                )
+            print(json.dumps(payload, indent=2))
             return 78
         print(json.dumps({"sha": sha, "state": st.state, "description": st.description}))
         return 0
@@ -426,20 +468,20 @@ def main(argv: list[str]) -> int:
         try:
             st = withdraw_sha(sha, reason, branch=branch)
         except RuntimeError as e:
-            route = app_backed_review_ready_route(
-                branch=branch, sha=sha, action="withdraw", reason=reason
-            )
-            print(
-                json.dumps(
-                    {
-                        "ok": False,
-                        "sha": sha,
-                        "error": str(e),
-                        "appBackedRoute": route,
-                    },
-                    indent=2,
+            payload = {
+                "ok": False,
+                "sha": sha,
+                "error": str(e),
+            }
+            if is_app_backed_issue_branch(branch):
+                payload["appBackedRoute"] = app_backed_review_ready_route(
+                    branch=branch, sha=sha, action="withdraw", reason=reason
                 )
-            )
+            else:
+                payload["remediation"] = app_branch_migration_remediation(
+                    branch or "<issue/<number>-<slug>>"
+                )
+            print(json.dumps(payload, indent=2))
             return 78
         print(
             json.dumps(

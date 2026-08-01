@@ -28,6 +28,26 @@ DEFAULT_EVIDENCE_PATH = ".linktrend/completion-evidence.json"
 MAX_EVIDENCE_JSON_BYTES = 256_000
 
 
+def is_app_backed_issue_branch(name: str) -> bool:
+    """True only for verified issue/<number>-<slug> (App publisher allowlist)."""
+    return bool(name) and bool(ISSUE_BRANCH_RE.fullmatch(str(name).strip()))
+
+
+def app_branch_migration_remediation(branch: str) -> str:
+    """Actionable migration path when a legacy allowed branch cannot use App publish."""
+    br = (branch or "").strip() or "<current-branch>"
+    return (
+        "App-backed Linktrend Review Ready publisher accepts only verified "
+        "issue/<number>-<slug> branches (digits + lowercase slug). "
+        f"Branch {br!r} may still be allowed for ordinary work/Pull but cannot "
+        "dispatch linktrend-review-ready-publisher. "
+        "Migrate: run `python3 scripts/gitops/create_issue_branch.py \"…\"` "
+        "or `/agentcomply` onto issue/<n>-<slug>, move the tip there, push, "
+        "rewrite completion evidence for the new HEAD SHA, then re-run "
+        "`python3 scripts/gitops/completion_gate.py review-ready`."
+    )
+
+
 class DispatchValidationError(ValueError):
     """Fail-closed validation error with a stable machine-readable code."""
 
@@ -380,7 +400,17 @@ def _self_test() -> int:
     )
 
     expect_err("branch_not_issue_slug", branch="feature/44-x", sha=good_sha)
+    expect_err("branch_not_issue_slug", branch="dev/macmini", sha=good_sha)
     expect_err("branch_not_issue_slug", branch="issue/44-Bad_Slug", sha=good_sha)
+    if is_app_backed_issue_branch("feature/44-x") or is_app_backed_issue_branch("dev/x"):
+        failures.append("legacy allowed prefixes must not be App-eligible")
+    if not is_app_backed_issue_branch(
+        "issue/44-add-app-backed-review-ready-publisher-and-produc"
+    ):
+        failures.append("canonical issue branch must be App-eligible")
+    rem = app_branch_migration_remediation("feature/44-x")
+    if "create_issue_branch.py" not in rem or "feature/44-x" not in rem:
+        failures.append("migration remediation missing actionable path")
     expect_err("branch_protected", branch="development", sha=good_sha)
     expect_err("branch_mutable_ref", branch="refs/heads/issue/44-x", sha=good_sha)
     expect_err("sha_not_full", branch="issue/44-x", sha="abc")

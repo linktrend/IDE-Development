@@ -250,6 +250,117 @@ PY
 pass "completion_gate fail-closed diagnostics include exact App-backed route"
 
 # ---------------------------------------------------------------------------
+# 2b) Legacy allowed branches must not get a doomed App dispatch route
+# ---------------------------------------------------------------------------
+python3 - "$ROOT" "$TMP" <<'PY'
+import json, os, subprocess, sys, io
+from argparse import Namespace
+from contextlib import redirect_stdout
+from pathlib import Path
+
+root = Path(sys.argv[1])
+tmp = Path(sys.argv[2])
+sys.path.insert(0, str(root / "scripts" / "gitops"))
+import completion_gate as cg
+import readiness_status as rs
+import review_ready_dispatch as dispatch
+
+# Authority: App publisher rejects feature/dev; gate must not invent that route.
+assert not dispatch.is_app_backed_issue_branch("feature/44-legacy-allowed")
+assert not dispatch.is_app_backed_issue_branch("dev/macmini")
+assert dispatch.is_app_backed_issue_branch(
+    "issue/44-add-app-backed-review-ready-publisher-and-produc"
+)
+
+# readiness_status must not embed a non-issue branch into the dispatch command.
+route = rs.app_backed_review_ready_route(
+    branch="feature/44-legacy-allowed",
+    sha="dddddddddddddddddddddddddddddddddddddddd",
+)
+assert "linktrend-review-ready-publisher.yml" in route
+assert "feature/44-legacy-allowed" not in route
+assert "-f branch=<issue/<number>-<slug>>" in route or "-f branch=issue/" in route
+
+err = rs.missing_app_publish_token_error(
+    branch="feature/44-legacy-allowed",
+    sha="dddddddddddddddddddddddddddddddddddddddd",
+)
+assert "privileged_publish_requires_github_app" in err
+assert "feature/44-legacy-allowed" in err
+assert "create_issue_branch.py" in err or "agentcomply" in err
+assert "-f branch=feature/44-legacy-allowed" not in err
+
+# Gate on a legacy-allowed branch with github backend: fail closed + remediation,
+# never a dispatch command that review_ready_dispatch would reject.
+repo = tmp / "legacy-branch-repo"
+repo.mkdir()
+subprocess.check_call(["git", "init", "-q", "-b", "feature/44-legacy-allowed"], cwd=repo)
+subprocess.check_call(["git", "config", "user.email", "t@example.com"], cwd=repo)
+subprocess.check_call(["git", "config", "user.name", "t"], cwd=repo)
+subprocess.check_call(["git", "commit", "-q", "--allow-empty", "-m", "tip"], cwd=repo)
+exclude = repo / ".git" / "info" / "exclude"
+exclude.write_text(".linktrend/\n", encoding="utf-8")
+subprocess.check_call(["git", "remote", "add", "origin", str(repo)], cwd=repo)
+sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+branch = subprocess.check_output(
+    ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo, text=True
+).strip()
+subprocess.check_call(["git", "update-ref", f"refs/remotes/origin/{branch}", sha], cwd=repo)
+
+ev = repo / ".linktrend" / "completion-evidence.json"
+ev.parent.mkdir(parents=True, exist_ok=True)
+ev.write_text(
+    json.dumps(
+        {
+            "schemaVersion": 1,
+            "headSha": sha,
+            "classification": "tests",
+            "acceptance": "legacy branch must migrate to issue slug",
+            "commands": [{"cmd": "true", "exitCode": 0}],
+        }
+    )
+    + "\n",
+    encoding="utf-8",
+)
+
+os.environ.pop("AUTOMATION_TOKEN", None)
+os.environ.pop("LINKTREND_APP_TOKEN", None)
+os.environ["GITHUB_TOKEN"] = "ghs_FAKE_AMBIENT"
+os.environ["GH_TOKEN"] = "ghs_FAKE_AMBIENT"
+os.environ["GITHUB_REPOSITORY"] = "linktrend/IDE-Development"
+# Production default path (not file backend): require App-eligible issue branch.
+os.environ["LINKTREND_STATUS_BACKEND"] = "github"
+os.environ.pop("LINKTREND_STATUS_DIR", None)
+
+args = Namespace(
+    workdir=str(repo),
+    evidence_file=str(ev),
+    issue_id="44",
+    notes="diag",
+    tests_ok=False,
+)
+buf = io.StringIO()
+with redirect_stdout(buf):
+    code = cg.cmd_review_ready(args)
+out = buf.getvalue()
+payload = json.loads(out)
+assert code in (cg.EXIT_INCOMPLETE, cg.EXIT_FAILED), (code, payload)
+assert payload.get("published") is False
+# Must not advertise a doomed App route for feature/*.
+route_field = payload.get("appBackedRoute")
+if route_field:
+    assert f"branch={branch}" not in route_field, route_field
+    assert "feature/" not in route_field, route_field
+remediation = payload.get("remediation") or payload.get("detail") or ""
+blob = json.dumps(payload) + remediation
+assert "app_publish_requires_issue_branch" in blob or "issue/<number>-<slug>" in blob
+assert "create_issue_branch.py" in blob or "agentcomply" in blob
+assert f"-f branch={branch}" not in blob
+print("legacy allowed branch remediation ok")
+PY
+pass "legacy allowed branches get migration remediation, not a doomed App route"
+
+# ---------------------------------------------------------------------------
 # 3) Static: no ambient publish fallback in readiness_status source
 # ---------------------------------------------------------------------------
 python3 - "$ROOT" <<'PY'

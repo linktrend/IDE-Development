@@ -45,7 +45,7 @@ Order is part of the contract:
    - `HEAD` resolves to a SHA.
    - working tree is clean.
    - branch is not `development`, `staging`, `main`, or detached.
-   - Prefer `issue/<number>-<slug>` for App-backed publication.
+   - **App-backed publication requires** verified `issue/<number>-<slug>` (digits + lowercase slug). Ordinary allowlist prefixes (`feature/`, `dev/`, `cursor/`, …) may still exist for work/Pull, but `review-ready` on the production GitHub backend fails closed with an actionable migration path — it must never advertise a doomed `gh workflow run … -f branch=feature/…` command.
    - `HEAD == origin/<branch>` after fetch.
 2. Require machine-readable evidence JSON tied to that exact `HEAD` SHA.
 3. Only after those checks pass, publish **`Linktrend Review Ready`** through the privileged App path (`scripts/gitops/readiness_status.py` only with App automation token, or via the App-backed publisher workflow). Never publish with a user PAT / restricted Carlos identity / ordinary `GITHUB_TOKEN` fallback.
@@ -61,6 +61,8 @@ When `completion_gate.py review-ready` validates successfully but cannot publish
 3. Bind only this repository's exact `issue/<number>-<slug>` branch and immutable tip SHA (plus any inputs the workflow schema requires). Dry-run when testing.
 4. The workflow re-validates branch naming, exact remote SHA, evidence schema, clean/pushed tip, and issue/branch relationship from trusted scripts; the untrusted issue branch supplies data only.
 5. On success it posts commit status context **`Linktrend Review Ready`** = `success` on that exact SHA so Review Packager discovery is unchanged.
+
+If the current branch is still a legacy allowed name (`feature/`, `dev/`, …) rather than `issue/<number>-<slug>`, the gate **does not** emit an App dispatch command. It fails truthfully with `app_publish_requires_issue_branch` and a remediation path: migrate via `python3 scripts/gitops/create_issue_branch.py` or `/agentcomply`, move the tip, push, rewrite evidence for the new HEAD SHA, then re-run `review-ready`.
 
 See `core/github/REVIEW-READY.md` for the dispatch contract and rollback (withdraw is App-backed `action=withdraw` on the same trusted publisher workflow; local `clear-review-ready.sh` fails closed without App credentials).
 

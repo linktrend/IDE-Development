@@ -62,6 +62,26 @@ except ImportError:  # pragma: no cover
         return any(name.startswith(p) for p in prefixes)
 
 try:
+    from review_ready_dispatch import (
+        app_branch_migration_remediation,
+        is_app_backed_issue_branch,
+    )
+except ImportError:  # pragma: no cover
+    _APP_ISSUE_RE = re.compile(
+        r"^issue/([1-9][0-9]{0,8})-([a-z0-9]+(?:-[a-z0-9]+)*)$"
+    )
+
+    def is_app_backed_issue_branch(name: str) -> bool:
+        return bool(name) and bool(_APP_ISSUE_RE.fullmatch(str(name).strip()))
+
+    def app_branch_migration_remediation(branch: str) -> str:
+        br = (branch or "").strip() or "<current-branch>"
+        return (
+            "App-backed publisher requires issue/<number>-<slug>. "
+            f"Migrate {br!r} via create_issue_branch.py or /agentcomply."
+        )
+
+try:
     import repair_task as repair_task_mod
 except ImportError:  # pragma: no cover
     repair_task_mod = None  # type: ignore
@@ -191,7 +211,13 @@ def parse_evidence_commands(raw_commands: list[str]) -> tuple[list[dict], str]:
 
 
 def app_backed_route(branch: str = "", sha: str = "") -> str:
-    """Exact safe App-backed publication route when local credentials are absent."""
+    """Exact safe App-backed publication route when local credentials are absent.
+
+    Returns empty string when the branch is not App-eligible so callers never
+    advertise a dispatch command that review_ready_dispatch would reject.
+    """
+    if branch and not is_app_backed_issue_branch(branch):
+        return ""
     if rs is None:
         return (
             "gh workflow run linktrend-review-ready-publisher.yml "
@@ -199,6 +225,42 @@ def app_backed_route(branch: str = "", sha: str = "") -> str:
             "-f dry_run=false"
         )
     return rs.app_backed_review_ready_route(branch=branch, sha=sha)
+
+
+def _status_backend_name() -> str:
+    return (os.environ.get("LINKTREND_STATUS_BACKEND") or "github").strip().lower()
+
+
+def _review_ready_publish_failure_payload(
+    *,
+    sha: str,
+    branch: str,
+    error: str,
+) -> dict:
+    """Build fail-closed diagnostics: valid App route or truthful migration path."""
+    payload: dict = {
+        "mode": "review-ready",
+        "state": "failed",
+        "published": False,
+        "error": error,
+        "sha": sha,
+        "branch": branch,
+        "at": utc_now(),
+    }
+    if is_app_backed_issue_branch(branch):
+        route = app_backed_route(branch, sha)
+        payload["appBackedRoute"] = route
+        payload["detail"] = (
+            "Local review-ready publish is fail-closed without GitHub App "
+            "credentials; use the App-backed workflow route"
+        )
+    else:
+        remediation = app_branch_migration_remediation(branch)
+        payload["remediation"] = remediation
+        payload["detail"] = remediation
+        if "app_publish_requires_issue_branch" not in error:
+            payload["error"] = f"app_publish_requires_issue_branch:{branch}; {error}"
+    return payload
 
 
 def publish_ready(
@@ -314,6 +376,11 @@ def cmd_review_ready(args: argparse.Namespace) -> int:
         missing.append("protected_or_detached_branch")
     elif not is_allowed_work_branch(br):
         missing.append(f"disallowed_branch:{br}")
+    elif _status_backend_name() != "file" and not is_app_backed_issue_branch(br):
+        # Production / GitHub backend: App publisher is the only privileged path.
+        # Do not pretend feature/dev/cursor branches can dispatch the App route.
+        # File backend remains available for offline unit fixtures.
+        missing.append(f"app_publish_requires_issue_branch:{br}")
 
     if not tree_clean(workdir):
         missing.append("dirty_tree")
@@ -345,17 +412,20 @@ def cmd_review_ready(args: argparse.Namespace) -> int:
 
     if missing:
         # Ensure we did NOT publish
-        emit(
-            {
-                "mode": "review-ready",
-                "state": "failed",
-                "claim": "incomplete",
-                "published": False,
-                "missing": missing,
-                "sha": sha,
-                "at": utc_now(),
-            }
-        )
+        payload: dict = {
+            "mode": "review-ready",
+            "state": "failed",
+            "claim": "incomplete",
+            "published": False,
+            "missing": missing,
+            "sha": sha,
+            "at": utc_now(),
+        }
+        if any(m.startswith("app_publish_requires_issue_branch:") for m in missing):
+            payload["branch"] = br
+            payload["remediation"] = app_branch_migration_remediation(br)
+            payload["detail"] = payload["remediation"]
+        emit(payload)
         return EXIT_INCOMPLETE
 
     issue_id = args.issue_id or os.environ.get("COMPLETION_ISSUE_ID") or ""
@@ -363,41 +433,20 @@ def cmd_review_ready(args: argparse.Namespace) -> int:
         m = re.match(r"^issue/([A-Za-z0-9._]+)-", br)
         issue_id = m.group(1) if m else "unknown"
     notes = args.notes or os.environ.get("COMPLETION_NOTES") or "completion_gate"
-    route = app_backed_route(br, sha)
     ok, detail = publish_ready(sha, issue_id, notes, branch=br)
     if not ok:
-        emit(
-            {
-                "mode": "review-ready",
-                "state": "failed",
-                "published": False,
-                "error": detail,
-                "sha": sha,
-                "branch": br,
-                "appBackedRoute": route,
-                "detail": (
-                    "Local review-ready publish is fail-closed without GitHub App "
-                    "credentials; use the App-backed workflow route"
-                ),
-                "at": utc_now(),
-            }
-        )
+        emit(_review_ready_publish_failure_payload(sha=sha, branch=br, error=detail))
         return EXIT_FAILED
 
     # Confirm published
     ready, ready_detail = ready_status_ok(sha)
     if not ready:
         emit(
-            {
-                "mode": "review-ready",
-                "state": "failed",
-                "published": False,
-                "error": f"post_publish_verify_failed:{ready_detail}",
-                "sha": sha,
-                "branch": br,
-                "appBackedRoute": route,
-                "at": utc_now(),
-            }
+            _review_ready_publish_failure_payload(
+                sha=sha,
+                branch=br,
+                error=f"post_publish_verify_failed:{ready_detail}",
+            )
         )
         return EXIT_FAILED
 
