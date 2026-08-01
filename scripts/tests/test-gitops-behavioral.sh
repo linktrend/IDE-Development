@@ -1549,6 +1549,7 @@ for name in (
     "linktrend-development-to-staging.yml",
     "linktrend-staging-to-main.yml",
     "linktrend-review-packager.yml",
+    "linktrend-review-ready-publisher.yml",
     "linktrend-cleanup-merged.yml",
 ):
     managed = (root / "core/github/managed-workflows" / name).read_text()

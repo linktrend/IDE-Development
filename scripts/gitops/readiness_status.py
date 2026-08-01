@@ -5,6 +5,12 @@ Context: Linktrend Review Ready
 Success on exact SHA ⇒ branch tip is packager-eligible.
 Later commits are automatically unready (new SHA has no success status).
 Withdrawal posts a non-success status for the same context.
+
+Privileged publish (mark/withdraw) requires a minted GitHub App token in
+AUTOMATION_TOKEN or LINKTREND_APP_TOKEN. Ordinary GH_TOKEN / GITHUB_TOKEN must
+never authorize status publication. Local implementers without App credentials
+use the App-backed workflow dispatch route (see app_backed_review_ready_route;
+action=publish or action=withdraw).
 """
 
 from __future__ import annotations
@@ -23,6 +29,38 @@ from typing import Any
 CONTEXT = "Linktrend Review Ready"
 DEFAULT_BACKEND = "github"  # or "file" for tests (LINKTREND_STATUS_DIR)
 
+# Exact safe App-backed publication route (trusted workflow on default branch).
+REVIEW_READY_PUBLISHER_WORKFLOW = "linktrend-review-ready-publisher.yml"
+REVIEW_READY_PUBLISHER_WORKFLOW_NAME = "Linktrend Review Ready Publisher"
+APP_PUBLISH_TOKEN_ENVS = ("AUTOMATION_TOKEN", "LINKTREND_APP_TOKEN")
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+try:
+    from review_ready_dispatch import (
+        app_branch_migration_remediation,
+        is_app_backed_issue_branch,
+    )
+except ImportError:  # pragma: no cover
+    import re
+
+    _ISSUE_BRANCH_RE = re.compile(
+        r"^issue/([1-9][0-9]{0,8})-([a-z0-9]+(?:-[a-z0-9]+)*)$"
+    )
+
+    def is_app_backed_issue_branch(name: str) -> bool:
+        return bool(name) and bool(_ISSUE_BRANCH_RE.fullmatch(str(name).strip()))
+
+    def app_branch_migration_remediation(branch: str) -> str:
+        br = (branch or "").strip() or "<current-branch>"
+        return (
+            "App-backed Linktrend Review Ready publisher accepts only verified "
+            "issue/<number>-<slug> branches. "
+            f"Migrate branch {br!r} via create_issue_branch.py or /agentcomply."
+        )
+
 
 @dataclass
 class ReadyStatus:
@@ -37,16 +75,110 @@ class ReadyStatus:
         return self.state == "success"
 
 
-def _gh_token() -> str:
-    # Prefer App automation token for autonomous GitOps (discover/evaluate/promote).
-    # Do not let the workflow GITHUB_TOKEN shadow a minted App token.
-    return (
-        os.environ.get("AUTOMATION_TOKEN")
-        or os.environ.get("LINKTREND_APP_TOKEN")
-        or os.environ.get("GH_TOKEN")
-        or os.environ.get("GITHUB_TOKEN")
-        or ""
+def resolve_app_publish_token() -> str:
+    """Return App installation token for privileged status publish only.
+
+    Never falls back to GH_TOKEN, GITHUB_TOKEN, or other ambient credentials.
+    """
+    for key in APP_PUBLISH_TOKEN_ENVS:
+        raw = os.environ.get(key)
+        if raw is None:
+            continue
+        token = raw.strip()
+        if token:
+            return token
+    return ""
+
+
+def normalize_status_action(action: str = "publish") -> str:
+    """Normalize privileged status action to publish|withdraw."""
+    act = (action or "publish").strip().lower()
+    if act in {"", "publish", "mark"}:
+        return "publish"
+    if act == "withdraw":
+        return "withdraw"
+    return "publish"
+
+
+def app_backed_review_ready_route(
+    *,
+    branch: str = "",
+    sha: str = "",
+    dry_run: bool = False,
+    action: str = "publish",
+    reason: str = "",
+) -> str:
+    """Exact safe App-backed route for publishing or withdrawing Review Ready.
+
+    Only embeds a concrete branch when it matches verified issue/<number>-<slug>.
+    Legacy allowed prefixes (feature/, dev/, …) must never appear as a runnable
+    dispatch command — those inputs are rejected by review_ready_dispatch.
+    """
+    raw = (branch or "").strip()
+    br = raw if is_app_backed_issue_branch(raw) else "<issue/<number>-<slug>>"
+    tip = (sha or "").strip() or "<40-char-immutable-sha>"
+    dry = "true" if dry_run else "false"
+    act = normalize_status_action(action)
+    parts = [
+        f"gh workflow run {REVIEW_READY_PUBLISHER_WORKFLOW}",
+        f"-f branch={br}",
+        f"-f sha={tip}",
+        f"-f action={act}",
+        f"-f dry_run={dry}",
+    ]
+    if act == "withdraw":
+        why = (reason or "withdrawn").strip() or "withdrawn"
+        # Keep reason token-safe for copy/paste diagnostics (no spaces/newlines).
+        why = why.replace("\n", " ").replace("\r", " ").strip()[:140] or "withdrawn"
+        if " " in why:
+            why = why.replace(" ", "-")
+        parts.append(f"-f reason={why}")
+    return " ".join(parts)
+
+
+def missing_app_publish_token_error(
+    *,
+    branch: str = "",
+    sha: str = "",
+    action: str = "publish",
+    reason: str = "",
+) -> str:
+    """Fail-closed diagnostic when local privileged status write lacks App credentials."""
+    act = normalize_status_action(action)
+    raw = (branch or "").strip()
+    prefix = (
+        "privileged_publish_requires_github_app: "
+        "AUTOMATION_TOKEN or LINKTREND_APP_TOKEN required; "
+        "no GH_TOKEN/GITHUB_TOKEN fallback for Linktrend Review Ready status writes. "
     )
+    if raw and not is_app_backed_issue_branch(raw):
+        return (
+            prefix
+            + f"app_publish_requires_issue_branch:{raw}. "
+            + app_branch_migration_remediation(raw)
+        )
+    route = app_backed_review_ready_route(
+        branch=branch, sha=sha, action=act, reason=reason
+    )
+    return prefix + f"Use App-backed route: {route}"
+
+
+def _read_status_token() -> str:
+    """Token for status reads only. Prefer App; ambient tokens allowed for get."""
+    return (
+        resolve_app_publish_token()
+        or (os.environ.get("GH_TOKEN") or "").strip()
+        or (os.environ.get("GITHUB_TOKEN") or "").strip()
+    )
+
+
+def _gh_token() -> str:
+    """Backward-compatible alias: prefer App token, then ambient read tokens.
+
+    Privileged publish must call resolve_app_publish_token() — never this helper
+    alone — so GH_TOKEN/GITHUB_TOKEN cannot authorize mark/withdraw.
+    """
+    return _read_status_token()
 
 
 def _repo_slug() -> str:
@@ -142,16 +274,20 @@ class FileStatusBackend:
 class GitHubStatusBackend:
     def __init__(self, repo: str | None = None, token: str | None = None):
         self.repo = repo or _repo_slug()
-        self.token = token or _gh_token()
-        if not self.token:
-            raise RuntimeError(
-                "AUTOMATION_TOKEN (preferred) or GH_TOKEN/GITHUB_TOKEN required "
-                "for GitHub status backend"
-            )
+        # Explicit/ambient token is for reads only. Publish ignores it.
+        self._read_token = (token or _read_status_token()).strip()
+        # Compat attribute: never use for privileged publish.
+        self.token = self._read_token
 
     def get_latest(self, sha: str) -> ReadyStatus | None:
+        if not self._read_token:
+            raise RuntimeError(
+                "status read token missing "
+                "(AUTOMATION_TOKEN/LINKTREND_APP_TOKEN preferred; "
+                "GH_TOKEN/GITHUB_TOKEN allowed for reads only)"
+            )
         url = f"https://api.github.com/repos/{self.repo}/commits/{sha}/statuses"
-        rows = _api("GET", url, self.token)
+        rows = _api("GET", url, self._read_token)
         mine = [r for r in rows if (r.get("context") or "") == CONTEXT]
         if not mine:
             return None
@@ -164,8 +300,29 @@ class GitHubStatusBackend:
             created_at=0.0,
         )
 
-    def post(self, sha: str, state: str, description: str, target_url: str = "") -> ReadyStatus:
-        existing = self.get_latest(sha)
+    def post(
+        self,
+        sha: str,
+        state: str,
+        description: str,
+        target_url: str = "",
+        *,
+        branch: str = "",
+        action: str = "publish",
+        reason: str = "",
+    ) -> ReadyStatus:
+        # Privileged publish/withdraw: App env vars only — never constructor/ambient human tokens.
+        pub = resolve_app_publish_token()
+        if not pub:
+            raise RuntimeError(
+                missing_app_publish_token_error(
+                    branch=branch,
+                    sha=sha,
+                    action=action,
+                    reason=reason or description,
+                )
+            )
+        existing = self.get_latest(sha) if self._read_token else None
         if (
             existing
             and existing.state == state
@@ -173,6 +330,7 @@ class GitHubStatusBackend:
             and state == "success"
         ):
             return existing
+        # Idempotent success without a read token: still POST (GitHub accepts duplicates).
         body = {
             "state": state,
             "description": description[:140],
@@ -180,7 +338,7 @@ class GitHubStatusBackend:
         }
         if target_url:
             body["target_url"] = target_url
-        _api("POST", f"https://api.github.com/repos/{self.repo}/statuses/{sha}", self.token, body)
+        _api("POST", f"https://api.github.com/repos/{self.repo}/statuses/{sha}", pub, body)
         return ReadyStatus(state=state, description=description, target_url=target_url)
 
 
@@ -201,41 +359,140 @@ def is_sha_review_ready(sha: str) -> tuple[bool, str]:
     return False, f"status_{st.state}"
 
 
-def mark_sha(sha: str, issue_id: str, notes: str = "", target_url: str = "") -> ReadyStatus:
+def publish_review_ready(
+    sha: str,
+    issue_id: str,
+    notes: str = "",
+    target_url: str = "",
+    *,
+    branch: str = "",
+) -> ReadyStatus:
+    """Reusable privileged publication helper (App token or file backend only)."""
     desc = f"issue={issue_id}"
     if notes:
         desc = f"{desc}; {notes}"[:140]
-    return get_backend().post(sha, "success", desc, target_url=target_url)
+    backend = get_backend()
+    if isinstance(backend, GitHubStatusBackend):
+        return backend.post(sha, "success", desc, target_url=target_url, branch=branch)
+    return backend.post(sha, "success", desc, target_url=target_url)
 
 
-def withdraw_sha(sha: str, reason: str = "withdrawn") -> ReadyStatus:
-    return get_backend().post(sha, "failure", reason[:140])
+def mark_sha(
+    sha: str,
+    issue_id: str,
+    notes: str = "",
+    target_url: str = "",
+    *,
+    branch: str = "",
+) -> ReadyStatus:
+    return publish_review_ready(
+        sha, issue_id, notes, target_url=target_url, branch=branch
+    )
+
+
+def withdraw_sha(sha: str, reason: str = "withdrawn", *, branch: str = "") -> ReadyStatus:
+    why = (reason or "withdrawn")[:140]
+    backend = get_backend()
+    if isinstance(backend, GitHubStatusBackend):
+        return backend.post(
+            sha,
+            "failure",
+            why,
+            branch=branch,
+            action="withdraw",
+            reason=why,
+        )
+    return backend.post(sha, "failure", why)
+
+
+def _parse_cli_branch(argv: list[str]) -> tuple[list[str], str]:
+    """Extract optional --branch <name> from argv; return (remaining, branch)."""
+    out: list[str] = []
+    branch = ""
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--branch" and i + 1 < len(argv):
+            branch = argv[i + 1]
+            i += 2
+            continue
+        if argv[i].startswith("--branch="):
+            branch = argv[i].split("=", 1)[1]
+            i += 1
+            continue
+        out.append(argv[i])
+        i += 1
+    return out, branch
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) < 2:
+    args, branch = _parse_cli_branch(argv)
+    if len(args) < 2:
         print(
-            "Usage: readiness_status.py <get|mark|withdraw> <sha> [issue_id] [notes]",
+            "Usage: readiness_status.py <get|mark|withdraw> <sha> [issue_id|reason] "
+            "[notes] [--branch issue/<n>-<slug>]",
             file=sys.stderr,
         )
         return 2
-    cmd = argv[1]
+    cmd = args[1]
     if cmd == "get":
-        sha = argv[2]
+        sha = args[2]
         ok, detail = is_sha_review_ready(sha)
         print(json.dumps({"sha": sha, "ready": ok, "detail": detail}))
         return 0 if ok else 1
     if cmd == "mark":
-        sha, issue_id = argv[2], argv[3]
-        notes = argv[4] if len(argv) > 4 else ""
-        st = mark_sha(sha, issue_id, notes)
+        sha, issue_id = args[2], args[3]
+        notes = args[4] if len(args) > 4 else ""
+        try:
+            st = mark_sha(sha, issue_id, notes, branch=branch)
+        except RuntimeError as e:
+            payload: dict[str, Any] = {
+                "ok": False,
+                "sha": sha,
+                "error": str(e),
+            }
+            if is_app_backed_issue_branch(branch):
+                payload["appBackedRoute"] = app_backed_review_ready_route(
+                    branch=branch, sha=sha, action="publish"
+                )
+            else:
+                payload["remediation"] = app_branch_migration_remediation(
+                    branch or "<issue/<number>-<slug>>"
+                )
+            print(json.dumps(payload, indent=2))
+            return 78
         print(json.dumps({"sha": sha, "state": st.state, "description": st.description}))
         return 0
     if cmd == "withdraw":
-        sha = argv[2]
-        reason = argv[3] if len(argv) > 3 else "withdrawn"
-        st = withdraw_sha(sha, reason)
-        print(json.dumps({"sha": sha, "state": st.state, "description": st.description}))
+        sha = args[2]
+        reason = args[3] if len(args) > 3 else "withdrawn"
+        try:
+            st = withdraw_sha(sha, reason, branch=branch)
+        except RuntimeError as e:
+            payload = {
+                "ok": False,
+                "sha": sha,
+                "error": str(e),
+            }
+            if is_app_backed_issue_branch(branch):
+                payload["appBackedRoute"] = app_backed_review_ready_route(
+                    branch=branch, sha=sha, action="withdraw", reason=reason
+                )
+            else:
+                payload["remediation"] = app_branch_migration_remediation(
+                    branch or "<issue/<number>-<slug>>"
+                )
+            print(json.dumps(payload, indent=2))
+            return 78
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "sha": sha,
+                    "state": st.state,
+                    "description": st.description,
+                }
+            )
+        )
         return 0
     print(f"unknown command {cmd}", file=sys.stderr)
     return 2
