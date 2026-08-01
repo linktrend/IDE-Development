@@ -1,0 +1,26 @@
+{
+  "capability": {
+    "rulesets": "unavailable",
+    "rulesets_error": "Rulesets are not available on this plan",
+    "branch_protection": "ok"
+  },
+  "repo": {
+    "allow_auto_merge": false
+  },
+  "rulesets": [],
+  "ruleset_details": {},
+  "next_ruleset_id": 1,
+  "branch_protections": {
+    "development": {
+      "required_status_checks": {
+        "strict": true,
+        "contexts": ["Legacy Check"]
+      },
+      "enforce_admins": true,
+      "required_pull_request_reviews": null,
+      "restrictions": null,
+      "allow_force_pushes": false,
+      "allow_deletions": false
+    }
+  }
+}

@@ -1,0 +1,895 @@
+#!/usr/bin/env python3
+"""Managed repository protection planner / verifier / applier.
+
+External-state tool for development, staging, and main protections.
+Default mode is plan (no mutation). Apply requires an explicit --apply flag.
+
+Live GitHub calls are skipped when --fixture-dir is set (tests / offline).
+Never creates credentials or reads secret values.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+from copy import deepcopy
+from pathlib import Path
+from typing import Any
+
+SCHEMA_VERSION = 1
+
+EXIT_OK = 0
+EXIT_FAILED = 1
+EXIT_DRIFT = 3
+EXIT_UNAVAILABLE = 4
+EXIT_REFUSED = 5
+
+RULESET_NAMES = {
+    "development": "development-autonomous-merge",
+    "staging": "staging-autonomous-promote",
+    "main": "main-autonomous-release",
+}
+
+DEFAULT_FAST_GATE = ["Verify IDE Development"]
+DEFAULT_STAGING_GATE = ["Verify IDE Development"]
+DEFAULT_RELEASE_GATE = ["Verify IDE Development"]
+SOURCE_POLICY_CHECK = "Enforce allowed PR source branches"
+BUGBOT_CHECK = "Cursor Bugbot"
+
+GOVERNED = ("development", "staging", "main")
+
+
+class ProtectionError(Exception):
+    def __init__(self, message: str, exit_code: int = EXIT_FAILED) -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
+
+
+def _split_checks(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _unique_ordered(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            out.append(item)
+    return out
+
+
+def managed_baseline(
+    branch: str,
+    *,
+    integrator_checks: list[str] | None = None,
+    staging_checks: list[str] | None = None,
+    release_checks: list[str] | None = None,
+) -> list[str]:
+    if branch == "development":
+        fast = integrator_checks if integrator_checks else list(DEFAULT_FAST_GATE)
+        return _unique_ordered([BUGBOT_CHECK, *fast, SOURCE_POLICY_CHECK])
+    if branch == "staging":
+        gate = staging_checks if staging_checks else list(DEFAULT_STAGING_GATE)
+        return _unique_ordered([*gate, SOURCE_POLICY_CHECK])
+    if branch == "main":
+        gate = release_checks if release_checks else list(DEFAULT_RELEASE_GATE)
+        return _unique_ordered([*gate, SOURCE_POLICY_CHECK])
+    raise ProtectionError(f"ungoverned branch: {branch}")
+
+
+def union_checks(managed: list[str], existing: list[str], extra: list[str] | None = None) -> dict[str, list[str]]:
+    managed_u = _unique_ordered(managed)
+    extras = _unique_ordered([*(extra or []), *[c for c in existing if c not in managed_u]])
+    preserved = [c for c in extras if c not in managed_u]
+    preserved_sorted = sorted(preserved)
+    desired = _unique_ordered([*managed_u, *preserved_sorted])
+    return {
+        "managed": managed_u,
+        "preserved": preserved_sorted,
+        "desired": desired,
+    }
+
+
+def ruleset_body(name: str, branch: str, checks: list[str], bypass_actors: list[Any] | None = None) -> dict[str, Any]:
+    return {
+        "name": name,
+        "target": "branch",
+        "enforcement": "active",
+        "conditions": {
+            "ref_name": {
+                "include": [f"refs/heads/{branch}"],
+                "exclude": [],
+            }
+        },
+        "rules": [
+            {
+                "type": "required_status_checks",
+                "parameters": {
+                    "strict_required_status_checks_policy": True,
+                    "do_not_enforce_on_create": False,
+                    "required_status_checks": [{"context": c} for c in checks],
+                },
+            }
+        ],
+        "bypass_actors": list(bypass_actors or []),
+    }
+
+
+def classic_protection_body(checks: list[str]) -> dict[str, Any]:
+    return {
+        "required_status_checks": {
+            "strict": True,
+            "contexts": list(checks),
+        },
+        "enforce_admins": True,
+        "required_pull_request_reviews": None,
+        "restrictions": None,
+        "allow_force_pushes": False,
+        "allow_deletions": False,
+    }
+
+
+def extract_ruleset_checks(ruleset: dict[str, Any] | None) -> list[str]:
+    if not ruleset:
+        return []
+    out: list[str] = []
+    for rule in ruleset.get("rules") or []:
+        if rule.get("type") != "required_status_checks":
+            continue
+        params = rule.get("parameters") or {}
+        for item in params.get("required_status_checks") or []:
+            ctx = item.get("context") if isinstance(item, dict) else None
+            if ctx:
+                out.append(ctx)
+    return _unique_ordered(out)
+
+
+def extract_classic_checks(protection: dict[str, Any] | None) -> list[str]:
+    if not protection:
+        return []
+    rsc = protection.get("required_status_checks") or {}
+    contexts = rsc.get("contexts") or rsc.get("checks") or []
+    out: list[str] = []
+    for item in contexts:
+        if isinstance(item, str):
+            out.append(item)
+        elif isinstance(item, dict) and item.get("context"):
+            out.append(item["context"])
+    return _unique_ordered(out)
+
+
+class GitHubClient:
+    """Thin gh api wrapper. FixtureClient replaces this in tests."""
+
+    def __init__(self, repo: str) -> None:
+        self.repo = repo
+
+    def _api(self, method: str, path: str, input_obj: Any | None = None) -> tuple[int, Any, str]:
+        cmd = ["gh", "api", "--method", method, path]
+        if input_obj is not None:
+            cmd.extend(["--input", "-"])
+        proc = subprocess.run(
+            cmd,
+            input=json.dumps(input_obj) if input_obj is not None else None,
+            text=True,
+            capture_output=True,
+        )
+        err = (proc.stderr or "").strip()
+        if proc.returncode != 0:
+            return proc.returncode, None, err or (proc.stdout or "").strip()
+        text = (proc.stdout or "").strip()
+        if not text:
+            return 0, None, ""
+        try:
+            return 0, json.loads(text), ""
+        except json.JSONDecodeError:
+            return 0, text, ""
+
+    def list_rulesets(self) -> tuple[str, list[dict[str, Any]] | None, str]:
+        code, data, err = self._api("GET", f"repos/{self.repo}/rulesets")
+        if code != 0:
+            low = err.lower()
+            if "404" in low or "not found" in low or "ruleset" in low and "not available" in low:
+                return "unavailable", None, err
+            if "403" in low or "permission" in low:
+                return "forbidden", None, err
+            return "error", None, err
+        if not isinstance(data, list):
+            return "error", None, "unexpected rulesets payload"
+        return "ok", data, ""
+
+    def get_ruleset(self, ruleset_id: int) -> dict[str, Any] | None:
+        code, data, _ = self._api("GET", f"repos/{self.repo}/rulesets/{ruleset_id}")
+        if code != 0 or not isinstance(data, dict):
+            return None
+        return data
+
+    def create_ruleset(self, body: dict[str, Any]) -> dict[str, Any]:
+        code, data, err = self._api("POST", f"repos/{self.repo}/rulesets", body)
+        if code != 0 or not isinstance(data, dict):
+            raise ProtectionError(f"create ruleset failed: {err or data}")
+        return data
+
+    def update_ruleset(self, ruleset_id: int, body: dict[str, Any]) -> dict[str, Any]:
+        code, data, err = self._api("PUT", f"repos/{self.repo}/rulesets/{ruleset_id}", body)
+        if code != 0 or not isinstance(data, dict):
+            raise ProtectionError(f"update ruleset {ruleset_id} failed: {err or data}")
+        return data
+
+    def delete_ruleset(self, ruleset_id: int) -> None:
+        code, _, err = self._api("DELETE", f"repos/{self.repo}/rulesets/{ruleset_id}")
+        if code != 0:
+            raise ProtectionError(f"delete ruleset {ruleset_id} failed: {err}")
+
+    def get_branch_protection(self, branch: str) -> tuple[str, dict[str, Any] | None, str]:
+        code, data, err = self._api("GET", f"repos/{self.repo}/branches/{branch}/protection")
+        if code != 0:
+            low = err.lower()
+            if "404" in low or "not protected" in low or "branch not protected" in low:
+                return "absent", None, err
+            if "403" in low:
+                return "forbidden", None, err
+            return "error", None, err
+        if not isinstance(data, dict):
+            return "error", None, "unexpected protection payload"
+        return "ok", data, ""
+
+    def put_branch_protection(self, branch: str, body: dict[str, Any]) -> dict[str, Any]:
+        code, data, err = self._api("PUT", f"repos/{self.repo}/branches/{branch}/protection", body)
+        if code != 0:
+            raise ProtectionError(f"put branch protection {branch} failed: {err or data}")
+        return data if isinstance(data, dict) else body
+
+    def delete_branch_protection(self, branch: str) -> None:
+        code, _, err = self._api("DELETE", f"repos/{self.repo}/branches/{branch}/protection")
+        if code != 0 and "404" not in err.lower():
+            raise ProtectionError(f"delete branch protection {branch} failed: {err}")
+
+    def get_repo(self) -> dict[str, Any]:
+        code, data, err = self._api("GET", f"repos/{self.repo}")
+        if code != 0 or not isinstance(data, dict):
+            raise ProtectionError(f"get repo failed: {err or data}")
+        return data
+
+    def patch_repo(self, fields: dict[str, Any]) -> dict[str, Any]:
+        code, data, err = self._api("PATCH", f"repos/{self.repo}", fields)
+        if code != 0 or not isinstance(data, dict):
+            raise ProtectionError(f"patch repo failed: {err or data}")
+        return data
+
+
+class FixtureClient(GitHubClient):
+    """Offline client driven by JSON fixtures. Never shells out to gh."""
+
+    def __init__(self, repo: str, fixture_dir: Path) -> None:
+        super().__init__(repo)
+        self.fixture_dir = fixture_dir
+        self.state = self._load()
+        self.mutations: list[dict[str, Any]] = []
+
+    def _load(self) -> dict[str, Any]:
+        path = self.fixture_dir / "state.json"
+        if not path.is_file():
+            raise ProtectionError(f"fixture state missing: {path}")
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def _persist(self) -> None:
+        path = self.fixture_dir / "state.json"
+        path.write_text(json.dumps(self.state, indent=2) + "\n", encoding="utf-8")
+
+    def list_rulesets(self) -> tuple[str, list[dict[str, Any]] | None, str]:
+        cap = self.state.get("capability", {})
+        status = cap.get("rulesets", "ok")
+        if status != "ok":
+            return status, None, str(cap.get("rulesets_error", "rulesets unavailable"))
+        return "ok", deepcopy(self.state.get("rulesets") or []), ""
+
+    def get_ruleset(self, ruleset_id: int) -> dict[str, Any] | None:
+        detail = (self.state.get("ruleset_details") or {}).get(str(ruleset_id))
+        if detail:
+            return deepcopy(detail)
+        for rs in self.state.get("rulesets") or []:
+            if rs.get("id") == ruleset_id:
+                return deepcopy(rs)
+        return None
+
+    def create_ruleset(self, body: dict[str, Any]) -> dict[str, Any]:
+        new_id = int(self.state.get("next_ruleset_id") or 1000)
+        self.state["next_ruleset_id"] = new_id + 1
+        record = deepcopy(body)
+        record["id"] = new_id
+        self.state.setdefault("rulesets", []).append({"id": new_id, "name": body["name"]})
+        self.state.setdefault("ruleset_details", {})[str(new_id)] = record
+        self.mutations.append({"op": "create_ruleset", "body": deepcopy(body), "id": new_id})
+        self._persist()
+        return deepcopy(record)
+
+    def update_ruleset(self, ruleset_id: int, body: dict[str, Any]) -> dict[str, Any]:
+        record = deepcopy(body)
+        record["id"] = ruleset_id
+        details = self.state.setdefault("ruleset_details", {})
+        details[str(ruleset_id)] = record
+        for rs in self.state.get("rulesets") or []:
+            if rs.get("id") == ruleset_id:
+                rs["name"] = body["name"]
+        self.mutations.append({"op": "update_ruleset", "id": ruleset_id, "body": deepcopy(body)})
+        self._persist()
+        return deepcopy(record)
+
+    def delete_ruleset(self, ruleset_id: int) -> None:
+        self.state["rulesets"] = [r for r in (self.state.get("rulesets") or []) if r.get("id") != ruleset_id]
+        (self.state.get("ruleset_details") or {}).pop(str(ruleset_id), None)
+        self.mutations.append({"op": "delete_ruleset", "id": ruleset_id})
+        self._persist()
+
+    def get_branch_protection(self, branch: str) -> tuple[str, dict[str, Any] | None, str]:
+        cap = self.state.get("capability", {})
+        status = cap.get("branch_protection", "ok")
+        if status == "forbidden":
+            return "forbidden", None, "forbidden"
+        if status == "unavailable":
+            return "error", None, "branch protection unavailable"
+        protections = self.state.get("branch_protections") or {}
+        if branch not in protections:
+            return "absent", None, "not protected"
+        return "ok", deepcopy(protections[branch]), ""
+
+    def put_branch_protection(self, branch: str, body: dict[str, Any]) -> dict[str, Any]:
+        self.state.setdefault("branch_protections", {})[branch] = deepcopy(body)
+        self.mutations.append({"op": "put_branch_protection", "branch": branch, "body": deepcopy(body)})
+        self._persist()
+        return deepcopy(body)
+
+    def delete_branch_protection(self, branch: str) -> None:
+        (self.state.get("branch_protections") or {}).pop(branch, None)
+        self.mutations.append({"op": "delete_branch_protection", "branch": branch})
+        self._persist()
+
+    def get_repo(self) -> dict[str, Any]:
+        return deepcopy(self.state.get("repo") or {"allow_auto_merge": False})
+
+    def patch_repo(self, fields: dict[str, Any]) -> dict[str, Any]:
+        repo = self.state.setdefault("repo", {})
+        repo.update(fields)
+        self.mutations.append({"op": "patch_repo", "fields": deepcopy(fields)})
+        self._persist()
+        return deepcopy(repo)
+
+
+def detect_mechanism(client: GitHubClient) -> dict[str, Any]:
+    rs_status, rulesets, rs_err = client.list_rulesets()
+    if rs_status == "ok":
+        return {
+            "rulesets": True,
+            "branchProtection": "unknown",
+            "mechanism": "rulesets",
+            "rulesetsError": "",
+            "rulesetSummaries": rulesets or [],
+        }
+
+    bp_ok = False
+    bp_err = ""
+    # Probe one governed branch for classic protection capability.
+    status, _, err = client.get_branch_protection("development")
+    if status in ("ok", "absent"):
+        bp_ok = True
+    else:
+        bp_err = err
+
+    if bp_ok:
+        return {
+            "rulesets": False,
+            "branchProtection": True,
+            "mechanism": "branch_protection",
+            "rulesetsError": rs_err,
+            "branchProtectionError": "",
+            "rulesetSummaries": [],
+        }
+
+    return {
+        "rulesets": False,
+        "branchProtection": False,
+        "mechanism": "unavailable",
+        "rulesetsError": rs_err,
+        "branchProtectionError": bp_err,
+        "rulesetSummaries": [],
+    }
+
+
+def _find_ruleset(
+    client: GitHubClient,
+    summaries: list[dict[str, Any]],
+    name: str,
+) -> dict[str, Any] | None:
+    for item in summaries:
+        if item.get("name") == name:
+            rid = item.get("id")
+            if rid is None:
+                return deepcopy(item)
+            detail = client.get_ruleset(int(rid))
+            return detail or deepcopy(item)
+    return None
+
+
+def build_plan(
+    client: GitHubClient,
+    *,
+    branches: tuple[str, ...] = GOVERNED,
+    integrator_checks: list[str] | None = None,
+    staging_checks: list[str] | None = None,
+    release_checks: list[str] | None = None,
+    extra_checks: dict[str, list[str]] | None = None,
+    development_checks_override: list[str] | None = None,
+) -> dict[str, Any]:
+    capability = detect_mechanism(client)
+    mechanism = capability["mechanism"]
+    repo = client.get_repo()
+    allow_before = bool(repo.get("allow_auto_merge"))
+
+    branch_plans: dict[str, Any] = {}
+    rollback_branches: dict[str, Any] = {}
+    actions_global: list[str] = []
+
+    for branch in branches:
+        name = RULESET_NAMES[branch]
+        if development_checks_override is not None and branch == "development":
+            # Compatibility path: caller supplied full check list (Bugbot ensured by wrapper).
+            managed = _unique_ordered(list(development_checks_override))
+            if BUGBOT_CHECK not in managed:
+                managed = _unique_ordered([BUGBOT_CHECK, *managed])
+        else:
+            managed = managed_baseline(
+                branch,
+                integrator_checks=integrator_checks,
+                staging_checks=staging_checks,
+                release_checks=release_checks,
+            )
+
+        extras = (extra_checks or {}).get(branch, [])
+
+        if mechanism == "rulesets":
+            existing = _find_ruleset(client, capability.get("rulesetSummaries") or [], name)
+            existing_checks = extract_ruleset_checks(existing)
+            union = union_checks(managed, existing_checks, extras)
+            bypass = list((existing or {}).get("bypass_actors") or [])
+            desired_body = ruleset_body(name, branch, union["desired"], bypass_actors=bypass)
+            before = {
+                "exists": existing is not None,
+                "id": (existing or {}).get("id"),
+                "requiredChecks": existing_checks,
+                "bypassActors": bypass,
+                "body": existing,
+            }
+            if existing is None:
+                action = "create"
+            elif (
+                existing_checks == union["desired"]
+                and (existing or {}).get("enforcement", "active") == "active"
+            ):
+                action = "noop"
+            else:
+                action = "update"
+            after = {
+                "exists": True,
+                "id": before["id"],
+                "requiredChecks": union["desired"],
+                "bypassActors": bypass,
+                "body": desired_body,
+            }
+            rollback_branches[branch] = {
+                "mechanism": "rulesets",
+                "rulesetName": name,
+                "before": before,
+            }
+        elif mechanism == "branch_protection":
+            status, existing, _ = client.get_branch_protection(branch)
+            existing_body = existing if status == "ok" else None
+            existing_checks = extract_classic_checks(existing_body)
+            union = union_checks(managed, existing_checks, extras)
+            desired_body = classic_protection_body(union["desired"])
+            before = {
+                "exists": existing_body is not None,
+                "requiredChecks": existing_checks,
+                "body": existing_body,
+            }
+            if existing_body is None:
+                action = "create"
+            elif existing_checks == union["desired"]:
+                action = "noop"
+            else:
+                action = "update"
+            after = {
+                "exists": True,
+                "requiredChecks": union["desired"],
+                "body": desired_body,
+            }
+            rollback_branches[branch] = {
+                "mechanism": "branch_protection",
+                "before": before,
+            }
+        else:
+            union = union_checks(managed, [], extras)
+            before = {"exists": False, "requiredChecks": [], "body": None}
+            after = {
+                "exists": False,
+                "requiredChecks": union["desired"],
+                "body": ruleset_body(name, branch, union["desired"]),
+            }
+            action = "unavailable"
+            rollback_branches[branch] = {"mechanism": "unavailable", "before": before}
+
+        actions_global.append(f"{branch}:{action}")
+        branch_plans[branch] = {
+            "rulesetName": name,
+            "action": action,
+            "requiredChecks": union,
+            "before": before,
+            "after": after,
+        }
+
+    allow_action = "noop" if allow_before else "update"
+    if "development" not in branches:
+        allow_action = "noop"
+
+    plan = {
+        "schemaVersion": SCHEMA_VERSION,
+        "repo": client.repo,
+        "capability": {
+            "rulesets": capability.get("rulesets"),
+            "branchProtection": capability.get("branchProtection"),
+            "mechanism": mechanism,
+            "rulesetsError": capability.get("rulesetsError", ""),
+            "branchProtectionError": capability.get("branchProtectionError", ""),
+        },
+        "branches": branch_plans,
+        "repoSettings": {
+            "allow_auto_merge": {
+                "before": allow_before,
+                "after": True if "development" in branches else allow_before,
+                "action": allow_action if "development" in branches else "noop",
+            }
+        },
+        "actions": actions_global,
+        "rollback": {
+            "snapshot": {
+                "schemaVersion": SCHEMA_VERSION,
+                "repo": client.repo,
+                "mechanism": mechanism,
+                "branches": rollback_branches,
+                "repoSettings": {"allow_auto_merge": allow_before},
+            },
+            "instructions": [
+                "Keep the plan JSON (especially rollback.snapshot) before any apply.",
+                "To restore prior protections: "
+                "./scripts/manage-repository-protections.sh --repo "
+                f"{client.repo} rollback --snapshot <plan.json> --apply",
+                "If mechanism was unavailable, restore manually in GitHub settings using the before payloads.",
+                "Tools never store credentials; re-authenticate with an admin-capable operator identity if needed.",
+            ],
+        },
+        "mutations": [],
+    }
+    return plan
+
+
+def verify_plan(plan: dict[str, Any]) -> tuple[bool, list[str]]:
+    problems: list[str] = []
+    mechanism = (plan.get("capability") or {}).get("mechanism")
+    if mechanism == "unavailable":
+        problems.append("protection mechanism unavailable")
+        return False, problems
+    for branch, detail in (plan.get("branches") or {}).items():
+        action = detail.get("action")
+        if action not in ("noop",):
+            problems.append(f"{branch}: action={action} (not matched)")
+    allow = (plan.get("repoSettings") or {}).get("allow_auto_merge") or {}
+    if allow.get("action") not in ("noop",):
+        problems.append(f"allow_auto_merge: action={allow.get('action')}")
+    return len(problems) == 0, problems
+
+
+def apply_plan(client: GitHubClient, plan: dict[str, Any]) -> list[dict[str, Any]]:
+    mechanism = (plan.get("capability") or {}).get("mechanism")
+    if mechanism == "unavailable":
+        raise ProtectionError("cannot apply: protection mechanism unavailable", EXIT_UNAVAILABLE)
+
+    mutations: list[dict[str, Any]] = []
+
+    for branch, detail in (plan.get("branches") or {}).items():
+        action = detail.get("action")
+        if action == "noop":
+            continue
+        if action == "unavailable":
+            raise ProtectionError(f"cannot apply unavailable branch plan: {branch}", EXIT_UNAVAILABLE)
+        after_body = (detail.get("after") or {}).get("body")
+        if not after_body:
+            raise ProtectionError(f"missing after body for {branch}")
+
+        if mechanism == "rulesets":
+            before = detail.get("before") or {}
+            if action == "create" or before.get("id") is None:
+                created = client.create_ruleset(after_body)
+                mutations.append({"op": "create_ruleset", "branch": branch, "id": created.get("id")})
+            else:
+                rid = int(before["id"])
+                client.update_ruleset(rid, after_body)
+                mutations.append({"op": "update_ruleset", "branch": branch, "id": rid})
+        elif mechanism == "branch_protection":
+            client.put_branch_protection(branch, after_body)
+            mutations.append({"op": "put_branch_protection", "branch": branch})
+        else:
+            raise ProtectionError(f"unknown mechanism: {mechanism}")
+
+    allow = (plan.get("repoSettings") or {}).get("allow_auto_merge") or {}
+    if allow.get("action") == "update" and allow.get("after") is True:
+        client.patch_repo({"allow_auto_merge": True})
+        mutations.append({"op": "patch_repo", "fields": {"allow_auto_merge": True}})
+
+    return mutations
+
+
+def rollback_from_snapshot(client: GitHubClient, snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+    mechanism = snapshot.get("mechanism")
+    if mechanism == "unavailable":
+        raise ProtectionError("cannot rollback: original mechanism unavailable", EXIT_UNAVAILABLE)
+
+    mutations: list[dict[str, Any]] = []
+    branches = snapshot.get("branches") or {}
+
+    for branch, detail in branches.items():
+        before = detail.get("before") or {}
+        if mechanism == "rulesets":
+            name = detail.get("rulesetName") or RULESET_NAMES[branch]
+            # Refresh current id by name.
+            cap = detect_mechanism(client)
+            current = _find_ruleset(client, cap.get("rulesetSummaries") or [], name)
+            if not before.get("exists"):
+                if current and current.get("id") is not None:
+                    client.delete_ruleset(int(current["id"]))
+                    mutations.append({"op": "delete_ruleset", "branch": branch, "id": current["id"]})
+                continue
+            body = before.get("body")
+            if not isinstance(body, dict):
+                raise ProtectionError(f"rollback snapshot missing body for {branch}")
+            # Strip id for write payload.
+            write_body = {k: v for k, v in body.items() if k != "id"}
+            if current and current.get("id") is not None:
+                client.update_ruleset(int(current["id"]), write_body)
+                mutations.append({"op": "update_ruleset", "branch": branch, "id": current["id"]})
+            else:
+                created = client.create_ruleset(write_body)
+                mutations.append({"op": "create_ruleset", "branch": branch, "id": created.get("id")})
+        elif mechanism == "branch_protection":
+            if not before.get("exists"):
+                client.delete_branch_protection(branch)
+                mutations.append({"op": "delete_branch_protection", "branch": branch})
+            else:
+                body = before.get("body")
+                if not isinstance(body, dict):
+                    # Reconstruct from checks if only contexts known.
+                    body = classic_protection_body(before.get("requiredChecks") or [])
+                client.put_branch_protection(branch, body)
+                mutations.append({"op": "put_branch_protection", "branch": branch})
+        else:
+            raise ProtectionError(f"unknown mechanism: {mechanism}")
+
+    allow = (snapshot.get("repoSettings") or {}).get("allow_auto_merge")
+    if allow is not None:
+        client.patch_repo({"allow_auto_merge": bool(allow)})
+        mutations.append({"op": "patch_repo", "fields": {"allow_auto_merge": bool(allow)}})
+
+    return mutations
+
+
+def resolve_check_overrides(args: argparse.Namespace) -> dict[str, Any]:
+    integrator = _split_checks(
+        args.integrator_checks
+        or os.environ.get("LINKTREND_INTEGRATOR_REQUIRED_CHECKS")
+    ) or None
+    staging = _split_checks(
+        args.staging_checks
+        or os.environ.get("LINKTREND_STAGING_GATE_CHECKS")
+    ) or None
+    release = _split_checks(
+        args.release_checks
+        or os.environ.get("LINKTREND_RELEASE_GATE_CHECKS")
+    ) or None
+    return {
+        "integrator_checks": integrator,
+        "staging_checks": staging,
+        "release_checks": release,
+    }
+
+
+def build_client(args: argparse.Namespace) -> GitHubClient:
+    if args.fixture_dir:
+        return FixtureClient(args.repo, Path(args.fixture_dir))
+    return GitHubClient(args.repo)
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Plan / verify / apply managed protections for development, staging, and main."
+    )
+    parser.add_argument(
+        "mode",
+        choices=("plan", "verify", "apply", "rollback"),
+        help="plan (default intent), verify, apply, or rollback",
+    )
+    parser.add_argument("--repo", default=os.environ.get("GH_REPO", "linktrend/IDE-Development"))
+    parser.add_argument(
+        "--branches",
+        default="development,staging,main",
+        help="Comma-separated governed branches (default: all three)",
+    )
+    parser.add_argument("--integrator-checks", default=None, help="Comma-separated fast-gate checks")
+    parser.add_argument("--staging-checks", default=None, help="Comma-separated staging-gate checks")
+    parser.add_argument("--release-checks", default=None, help="Comma-separated release-gate checks")
+    parser.add_argument(
+        "--extra-checks",
+        action="append",
+        default=[],
+        metavar="BRANCH=CHECK",
+        help="Preserve/add a check on a branch (repeatable). Example: development=lint",
+    )
+    parser.add_argument(
+        "--development-checks",
+        nargs="*",
+        default=None,
+        help="Compatibility: full development check list (Bugbot auto-prepended if missing)",
+    )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Required confirmation flag for apply/rollback mutations",
+    )
+    parser.add_argument(
+        "--fixture-dir",
+        default=None,
+        help="Offline fixture directory (no live GitHub calls)",
+    )
+    parser.add_argument(
+        "--snapshot",
+        default=None,
+        help="Path to a prior plan JSON for rollback mode",
+    )
+    parser.add_argument(
+        "--json-output",
+        default=None,
+        help="Optional path to write the full JSON result",
+    )
+    return parser.parse_args(argv)
+
+
+def _parse_extra_checks(items: list[str]) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    for raw in items:
+        if "=" not in raw:
+            raise ProtectionError(f"invalid --extra-checks value: {raw}")
+        branch, check = raw.split("=", 1)
+        branch = branch.strip()
+        check = check.strip()
+        if branch not in GOVERNED or not check:
+            raise ProtectionError(f"invalid --extra-checks value: {raw}")
+        out.setdefault(branch, []).append(check)
+    return out
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    try:
+        branches = tuple(
+            b.strip() for b in args.branches.split(",") if b.strip()
+        )
+        for b in branches:
+            if b not in GOVERNED:
+                raise ProtectionError(f"ungoverned branch: {b}")
+
+        client = build_client(args)
+        overrides = resolve_check_overrides(args)
+        extras = _parse_extra_checks(args.extra_checks)
+
+        if args.mode == "rollback":
+            if not args.apply:
+                raise ProtectionError(
+                    "rollback refuses to mutate without --apply (dry-run-first contract)",
+                    EXIT_REFUSED,
+                )
+            if not args.snapshot:
+                raise ProtectionError("--snapshot is required for rollback")
+            payload = json.loads(Path(args.snapshot).read_text(encoding="utf-8"))
+            snapshot = payload.get("rollback", {}).get("snapshot") or payload.get("snapshot") or payload
+            mutations = rollback_from_snapshot(client, snapshot)
+            result = {
+                "schemaVersion": SCHEMA_VERSION,
+                "mode": "rollback",
+                "repo": args.repo,
+                "dryRun": False,
+                "mutations": mutations,
+            }
+            if isinstance(client, FixtureClient):
+                result["fixtureMutations"] = client.mutations
+            _emit(result, args.json_output)
+            return EXIT_OK
+
+        plan = build_plan(
+            client,
+            branches=branches,
+            integrator_checks=overrides["integrator_checks"],
+            staging_checks=overrides["staging_checks"],
+            release_checks=overrides["release_checks"],
+            extra_checks=extras,
+            development_checks_override=args.development_checks,
+        )
+        plan["mode"] = args.mode
+        plan["dryRun"] = args.mode in ("plan", "verify") or not args.apply
+
+        if args.mode == "plan":
+            _emit(plan, args.json_output)
+            if (plan.get("capability") or {}).get("mechanism") == "unavailable":
+                return EXIT_UNAVAILABLE
+            return EXIT_OK
+
+        if args.mode == "verify":
+            ok, problems = verify_plan(plan)
+            plan["verify"] = {"ok": ok, "problems": problems}
+            _emit(plan, args.json_output)
+            if (plan.get("capability") or {}).get("mechanism") == "unavailable":
+                return EXIT_UNAVAILABLE
+            return EXIT_OK if ok else EXIT_DRIFT
+
+        if args.mode == "apply":
+            if not args.apply:
+                raise ProtectionError(
+                    "apply refuses to mutate without --apply (dry-run-first contract)",
+                    EXIT_REFUSED,
+                )
+            # Re-plan intent is already computed; mutate then re-verify via fresh plan.
+            mutations = apply_plan(client, plan)
+            plan["dryRun"] = False
+            plan["mutations"] = mutations
+            # Post-apply verification against the same client state.
+            post = build_plan(
+                client,
+                branches=branches,
+                integrator_checks=overrides["integrator_checks"],
+                staging_checks=overrides["staging_checks"],
+                release_checks=overrides["release_checks"],
+                extra_checks=extras,
+                development_checks_override=args.development_checks,
+            )
+            ok, problems = verify_plan(post)
+            plan["verify"] = {"ok": ok, "problems": problems, "post": post}
+            if isinstance(client, FixtureClient):
+                plan["fixtureMutations"] = client.mutations
+            _emit(plan, args.json_output)
+            if not ok:
+                return EXIT_DRIFT
+            return EXIT_OK
+
+        raise ProtectionError(f"unknown mode: {args.mode}")
+    except ProtectionError as exc:
+        err = {
+            "schemaVersion": SCHEMA_VERSION,
+            "error": str(exc),
+            "exitCode": exc.exit_code,
+        }
+        print(json.dumps(err, indent=2), file=sys.stderr)
+        return exc.exit_code
+
+
+def _emit(payload: dict[str, Any], path: str | None) -> None:
+    text = json.dumps(payload, indent=2)
+    print(text)
+    if path:
+        Path(path).write_text(text + "\n", encoding="utf-8")
+
+
+if __name__ == "__main__":
+    sys.exit(main())
