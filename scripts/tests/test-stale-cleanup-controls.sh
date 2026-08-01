@@ -1039,15 +1039,19 @@ chmod +x "$TMP/bin/gh"
 PATH="$TMP/bin:$PATH" env -u GITHUB_REPOSITORY -u GH_REPO \
   bash -c "cd \"$REPO59B\" && bash scripts/cleanup-merged-branches.sh --local" \
   >"$TMP/issue59b.out" || true
-grep -qv 'WOULD_DELETE' "$TMP/issue59b.out" \
-  || fail "ambiguous remotes must not WOULD_DELETE: $(cat "$TMP/issue59b.out")"
+# Prefer positive "if present then fail" over grep -qv (which passes if any line lacks the token)
 if grep -q 'WOULD_DELETE' "$TMP/issue59b.out"; then
   fail "ambiguous fail-closed must not WOULD_DELETE any candidate: $(cat "$TMP/issue59b.out")"
 fi
-grep -qv '^DELETED_' "$TMP/issue59b.out" \
-  || fail "dry-run must not DELETE under ambiguous remotes: $(cat "$TMP/issue59b.out")"
 if grep -q '^DELETED_' "$TMP/issue59b.out"; then
   fail "ambiguous fail-closed must not emit DELETED_ lines: $(cat "$TMP/issue59b.out")"
+fi
+# Prefer KEEP with fail-closed / unresolved reason when the eligible candidate is listed
+if grep -q 'issue/59-ambiguous-eligible' "$TMP/issue59b.out"; then
+  grep -qiE 'fail-closed|unresolved' "$TMP/issue59b.out" \
+    || fail "KEEP reason should mention fail-closed/unresolved: $(cat "$TMP/issue59b.out")"
+  grep -qE 'KEEP:.*issue/59-ambiguous-eligible' "$TMP/issue59b.out" \
+    || fail "eligible under ambiguous remotes must KEEP: $(cat "$TMP/issue59b.out")"
 fi
 pass "shell dry-run: ambiguous remotes → no WOULD_DELETE/DELETED (fail-closed)"
 
@@ -1091,6 +1095,29 @@ import json,sys
 d=json.load(sys.stdin)
 src=str(d.get("repoSource") or "")
 assert src.startswith("env:"), d
+assert src != "ambiguous_origin_and_upstream", d
+assert d.get("preserveResolutionOk") is True, d
+unresolved=set(d.get("unresolvedPrNumbers") or [])
+assert 906 not in unresolved, d
+assert unresolved == set() or 906 not in unresolved, d
+heads=set(d.get("prHeads") or [])
+branches=set(d.get("branches") or [])
+assert "feature/preserve-906-env-head" in heads, d
+assert "feature/preserve-906-env-head" in branches, d
+assert d.get("repo") == "linktrend/IDE-Development", d
+'
+pass "export-preserve: GITHUB_REPOSITORY authoritative despite ambiguous remotes"
+
+# --- 12c2) Precedence: --repo authoritative despite ambiguous remotes ---
+EXPORT59C2="$(
+  cd "$REPO59C" && env -u GITHUB_REPOSITORY -u GH_REPO PATH="$TMP/bin:$PATH" \
+  python3 "$ROOT/scripts/gitops/cleanup_controls.py" export-preserve \
+    --repo linktrend/IDE-Development
+)"
+echo "$EXPORT59C2" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+assert d.get("repoSource") == "explicit", d
 assert d.get("preserveResolutionOk") is True, d
 unresolved=set(d.get("unresolvedPrNumbers") or [])
 assert 906 not in unresolved, d
@@ -1100,7 +1127,7 @@ assert "feature/preserve-906-env-head" in heads, d
 assert "feature/preserve-906-env-head" in branches, d
 assert d.get("repo") == "linktrend/IDE-Development", d
 '
-pass "export-preserve: GITHUB_REPOSITORY authoritative despite ambiguous remotes"
+pass "export-preserve: --repo authoritative despite ambiguous remotes"
 
 # END issue-59
 
