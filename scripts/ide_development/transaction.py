@@ -153,8 +153,8 @@ def apply_action(
 
         existing = None
         if dest.exists() and dest.is_file() and not path_is_symlink(dest):
-            existing = dest.read_text(encoding="utf-8")
-        body = source.read_text(encoding="utf-8")
+            existing = read_file_bytes(dest).decode("utf-8")
+        body = read_file_bytes(source).decode("utf-8")
         begin = entry.marker_begin or ""
         end = entry.marker_end or ""
         rendered = render_marker_file(existing, body, begin, end)

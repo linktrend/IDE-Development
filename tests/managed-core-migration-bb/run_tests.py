@@ -4,10 +4,8 @@
 from __future__ import annotations
 
 import argparse
-import json
 import shutil
 import sys
-import tempfile
 from pathlib import Path
 
 # Allow `python3 tests/managed-core-migration-bb/run_tests.py` without PYTHONPATH.
@@ -23,6 +21,7 @@ from harness.classify import (
     sha256_file,
 )
 from harness.fixture_builder import make_temp_repo
+from harness.installer_live import resolve_live_package, run_installer, run_live_proofs
 from harness.paths import (
     CATALOG_PATH,
     FIXTURES_DIR,
@@ -33,7 +32,6 @@ from harness.paths import (
     SCENARIOS_PATH,
     SCHEMA_PATH,
 )
-from harness.installer_live import resolve_live_package, run_installer, run_live_proofs
 from harness.portability import scan_tree
 
 
