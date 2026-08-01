@@ -16,7 +16,7 @@ IDE Development is LiNKtrend’s shared “how we build software with AI” oper
 
 Think of it as the factory floor instructions and tools — not the autonomous factory machine itself. The separate **LiNKdeveloper** Program is the mostly-automatic factory that can run on a server. This repository is what you and Cursor agents use day to day: doctrine, skills, commands, checks, and a fixed six-stage build pipeline.
 
-When a product repo is wired to IDE Development, agents in that repo read the same playbook: plan carefully, build in small checked pieces, prove the work, review it independently, integrate it, and only then treat it as done.
+When a product repo is installed with IDE Development, agents in that repo read the same playbook: plan carefully, build in small checked pieces, prove the work, review it independently, integrate it, and only then treat it as done.
 
 ---
 
@@ -75,15 +75,16 @@ Commands agents use: `run-application-pipeline` / `resume-application-pipeline`.
 2. Open your multi-repo workspace (historically saved as the LiNKdeveloper workspace file under `~/Projects/Workspaces/`).
 3. Confirm **IDE Development** appears in the sidebar. Start system questions there.
 
-### 2. Make sure the product repo is wired (one-time)
+### 2. Make sure the product repo is installed (one-time, then updates)
 
-Each product repo should point its `.cursor` folder at this system (symlink). Preferred method — someone technical runs, from IDE Development:
+Each product repo should receive a **physical** managed install of this system (committed `.ide-development/` plus Cursor/Codex adapters) — not a symlink back to this checkout. Preferred method — someone technical runs, from IDE Development, after a read-only drift report and your separate approval for that consumer:
 
 ```bash
-./scripts/wire-repo.sh /path/to/ProductRepo
+python3 scripts/ide-development.py plan --repo /path/to/ProductRepo
+python3 scripts/ide-development.py install --repo /path/to/ProductRepo
 ```
 
-You do not need to run this yourself. You only need to know: if a product repo is not wired, agents there will not see the shared playbook.
+You do not need to run this yourself. You only need to know: if a product repo is not installed, agents there will not see the shared playbook.
 
 ### 3. Say what you want in plain language
 
@@ -178,41 +179,42 @@ Model choice is pinned to named routes (default coding model, escalation model, 
 | Always-on autonomous factory in *this* repo | **Not this repo’s job.** That is LiNKdeveloper. |
 | Automatic deploy after Module 6 | **Not built here.** You keep Release OK; this pipeline stops at release-ready. |
 | OpenClaw / Telegram executive operators | **Not live for this system.** Older manuals that promised Stage 2/3 OpenClaw for *this* repo are historical framing only. |
+| Claude Code as a supported platform | **Not in current v2 support or roadmap.** Historical files may remain; Cursor and Codex are the supported platforms. |
 | Dollar spend dashboard | **Not computed** here. |
 
 ---
 
 ## FAQ
 
-**Can I approve things from my phone?**  
+**Can I approve things from my phone?**
 Not yet.
 
-**What if I don’t like the plan?**  
+**What if I don’t like the plan?**
 Reject the Module 1 formal gate (Intent + Technical PRD). Do not confirm interview checkpoints until the wording matches what you mean.
 
-**What if I don’t like what it built later?**  
+**What if I don’t like what it built later?**
 After early approval, construction is meant to be self-checking. You still hold Release OK before ship. If checks fail, agents retry within limits and then escalate rather than shipping past a failed gate.
 
-**Is this the same as LiNKdeveloper?**  
+**Is this the same as LiNKdeveloper?**
 No. IDE Development is the shared human-assisted playbook installed into product repos. LiNKdeveloper is the separate autonomous factory Program.
 
-**Do I need to understand TypeScript, git, or APIs?**  
+**Do I need to understand TypeScript, git, or APIs?**
 No. Your inputs are Intent-level decisions and the named checkpoints above.
 
-**Is the system “done”?**  
-Done enough for daily wired use: doctrine, hybrid skills, pipeline validator, hooks, and verification scripts are in place. Dashboard, always-on autonomy in this repo, and automatic deploy are not claimed.
+**Is the system “done”?**
+Done enough for daily installed use under portable v2: doctrine, hybrid skills, pipeline validator, hooks, verification scripts, and the managed install model are in place. Dashboard, always-on autonomy in this repo, Claude Code support, and automatic deploy are not claimed.
 
-**Who wires a product repo?**  
-Someone technical runs the wiring script once. After that, daily work is conversation + your gates.
+**Who installs a product repo?**
+Someone technical runs the portable installer once (after a drift report and your approval for that consumer). After that, daily work is conversation + your gates. Updates use the same installer (`update`), still with drift + approval before each consumer.
 
 ---
 
 ## One-page reminder
 
-1. You describe what you want (via interview or a PRD you already have).  
-2. You confirm analysis → priorities → Intent.  
-3. You formally approve (or reject) Intent + Technical PRD.  
-4. Agents plan, build, test, harvest reusables, and prepare shipment — checking themselves, with limited automatic retries.  
-5. You give Release OK before anything is treated as cleared to go live.  
-6. You are not asked to code, pick skills, or approve every merge.  
+1. You describe what you want (via interview or a PRD you already have).
+2. You confirm analysis → priorities → Intent.
+3. You formally approve (or reject) Intent + Technical PRD.
+4. Agents plan, build, test, harvest reusables, and prepare shipment — checking themselves, with limited automatic retries.
+5. You give Release OK before anything is treated as cleared to go live.
+6. You are not asked to code, pick skills, or approve every merge.
 7. This is the shared playbook — not the always-on autonomous factory, and not a phone dashboard (yet).

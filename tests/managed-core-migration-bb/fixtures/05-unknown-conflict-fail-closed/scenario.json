@@ -1,0 +1,26 @@
+{
+  "id": "05-unknown-conflict-fail-closed",
+  "title": "Unknown or modified conflicts fail closed",
+  "setup": {
+    "files": {
+      ".cursor/rules/obsolete-generic-v1.mdc": {
+        "kind": "text",
+        "content": "MODIFIED \u2014 not the reviewed obsolete bytes\n"
+      }
+    }
+  },
+  "expected": {
+    "classifications": [
+      {
+        "path": ".cursor/rules/obsolete-generic-v1.mdc",
+        "kind": "supersede_mismatch"
+      }
+    ],
+    "conflicts": [
+      ".cursor/rules/obsolete-generic-v1.mdc"
+    ],
+    "must_not_remove": [
+      ".cursor/rules/obsolete-generic-v1.mdc"
+    ]
+  }
+}

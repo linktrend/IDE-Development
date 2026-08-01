@@ -1,0 +1,308 @@
+{
+  "schemaVersion": 1,
+  "repositoryRole": "ide-development-system-source",
+  "discoveryRoot": ".agents/skills",
+  "noCursorDependency": true,
+  "claudeOutOfScope": true,
+  "requiredPhysical": [
+    {
+      "name": "agentsetup",
+      "path": ".agents/skills/agentsetup/SKILL.md",
+      "canonicalDetail": "core/skills/agentsetup/SKILL.md"
+    },
+    {
+      "name": "agentcomply",
+      "path": ".agents/skills/agentcomply/SKILL.md",
+      "canonicalDetail": "core/skills/agentcomply/SKILL.md"
+    }
+  ],
+  "approvedRemainingSkills": [
+    {
+      "name": "action-queue",
+      "source": "core/skills/action-queue/SKILL.md",
+      "destination": ".agents/skills/action-queue/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "api-patterns",
+      "source": "core/skills/api-patterns/SKILL.md",
+      "destination": ".agents/skills/api-patterns/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "app-builder",
+      "source": "core/skills/app-builder/SKILL.md",
+      "destination": ".agents/skills/app-builder/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "architecture",
+      "source": "core/skills/architecture/SKILL.md",
+      "destination": ".agents/skills/architecture/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "bash-linux",
+      "source": "core/skills/bash-linux/SKILL.md",
+      "destination": ".agents/skills/bash-linux/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "ci-cd-and-automation",
+      "source": "core/skills/ci-cd-and-automation/SKILL.md",
+      "destination": ".agents/skills/ci-cd-and-automation/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "code-review-and-quality",
+      "source": "core/skills/code-review-and-quality/SKILL.md",
+      "destination": ".agents/skills/code-review-and-quality/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "code-simplification",
+      "source": "core/skills/code-simplification/SKILL.md",
+      "destination": ".agents/skills/code-simplification/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "context-engineering",
+      "source": "core/skills/context-engineering/SKILL.md",
+      "destination": ".agents/skills/context-engineering/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "data-table",
+      "source": "core/skills/data-table/SKILL.md",
+      "destination": ".agents/skills/data-table/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "database-design",
+      "source": "core/skills/database-design/SKILL.md",
+      "destination": ".agents/skills/database-design/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "deployment-procedures",
+      "source": "core/skills/deployment-procedures/SKILL.md",
+      "destination": ".agents/skills/deployment-procedures/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "deprecation-and-migration",
+      "source": "core/skills/deprecation-and-migration/SKILL.md",
+      "destination": ".agents/skills/deprecation-and-migration/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "documentation-and-adrs",
+      "source": "core/skills/documentation-and-adrs/SKILL.md",
+      "destination": ".agents/skills/documentation-and-adrs/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "frontend-ui-engineering",
+      "source": "core/skills/frontend-ui-engineering/SKILL.md",
+      "destination": ".agents/skills/frontend-ui-engineering/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "git-safeguard",
+      "source": "core/skills/git-safeguard/SKILL.md",
+      "destination": ".agents/skills/git-safeguard/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "i18n-localization",
+      "source": "core/skills/i18n-localization/SKILL.md",
+      "destination": ".agents/skills/i18n-localization/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "incremental-implementation",
+      "source": "core/skills/incremental-implementation/SKILL.md",
+      "destination": ".agents/skills/incremental-implementation/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "intelligent-routing",
+      "source": "core/skills/intelligent-routing/SKILL.md",
+      "destination": ".agents/skills/intelligent-routing/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "lint-and-validate",
+      "source": "core/skills/lint-and-validate/SKILL.md",
+      "destination": ".agents/skills/lint-and-validate/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "mcp-builder",
+      "source": "core/skills/mcp-builder/SKILL.md",
+      "destination": ".agents/skills/mcp-builder/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "mobile-design",
+      "source": "core/skills/mobile-design/SKILL.md",
+      "destination": ".agents/skills/mobile-design/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "model-routing",
+      "source": "core/skills/model-routing/SKILL.md",
+      "destination": ".agents/skills/model-routing/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "nodejs-best-practices",
+      "source": "core/skills/nodejs-best-practices/SKILL.md",
+      "destination": ".agents/skills/nodejs-best-practices/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "observability-and-instrumentation",
+      "source": "core/skills/observability-and-instrumentation/SKILL.md",
+      "destination": ".agents/skills/observability-and-instrumentation/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "parallel-agents",
+      "source": "core/skills/parallel-agents/SKILL.md",
+      "destination": ".agents/skills/parallel-agents/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "performance-optimization",
+      "source": "core/skills/performance-optimization/SKILL.md",
+      "destination": ".agents/skills/performance-optimization/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "persistent-qa",
+      "source": "core/skills/persistent-qa/SKILL.md",
+      "destination": ".agents/skills/persistent-qa/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "personal-information-forms",
+      "source": "core/skills/personal-information-forms/SKILL.md",
+      "destination": ".agents/skills/personal-information-forms/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "powershell-windows",
+      "source": "core/skills/powershell-windows/SKILL.md",
+      "destination": ".agents/skills/powershell-windows/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "python-patterns",
+      "source": "core/skills/python-patterns/SKILL.md",
+      "destination": ".agents/skills/python-patterns/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "repository-manager",
+      "source": "core/skills/repository-manager/SKILL.md",
+      "destination": ".agents/skills/repository-manager/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "rust-pro",
+      "source": "core/skills/rust-pro/SKILL.md",
+      "destination": ".agents/skills/rust-pro/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "security-and-hardening",
+      "source": "core/skills/security-and-hardening/SKILL.md",
+      "destination": ".agents/skills/security-and-hardening/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "server-management",
+      "source": "core/skills/server-management/SKILL.md",
+      "destination": ".agents/skills/server-management/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "skill-template",
+      "source": "core/skills/skill-template/SKILL.md",
+      "destination": ".agents/skills/skill-template/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "source-driven-development",
+      "source": "core/skills/source-driven-development/SKILL.md",
+      "destination": ".agents/skills/source-driven-development/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "tailwind-patterns",
+      "source": "core/skills/tailwind-patterns/SKILL.md",
+      "destination": ".agents/skills/tailwind-patterns/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "testing-patterns",
+      "source": "core/skills/testing-patterns/SKILL.md",
+      "destination": ".agents/skills/testing-patterns/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "tool-architect",
+      "source": "core/skills/tool-architect/SKILL.md",
+      "destination": ".agents/skills/tool-architect/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    },
+    {
+      "name": "webapp-testing",
+      "source": "core/skills/webapp-testing/SKILL.md",
+      "destination": ".agents/skills/webapp-testing/SKILL.md",
+      "required": false,
+      "note": "Manifest-driven; materialize for Codex when needed without requiring .cursor"
+    }
+  ]
+}

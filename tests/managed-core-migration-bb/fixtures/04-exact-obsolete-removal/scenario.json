@@ -1,0 +1,32 @@
+{
+  "id": "04-exact-obsolete-removal",
+  "title": "Exact-known obsolete generic rule removal",
+  "setup": {
+    "files": {
+      ".cursor/rules/obsolete-generic-v1.mdc": {
+        "kind": "known_bytes",
+        "name": "obsolete-generic-v1.mdc"
+      },
+      ".cursor/rules/obsolete-mac-local-adoption-stub-v1.mdc": {
+        "kind": "known_bytes",
+        "name": "obsolete-mac-local-adoption-stub-v1.mdc"
+      }
+    }
+  },
+  "expected": {
+    "classifications": [
+      {
+        "path": ".cursor/rules/obsolete-generic-v1.mdc",
+        "kind": "supersede_exact"
+      },
+      {
+        "path": ".cursor/rules/obsolete-mac-local-adoption-stub-v1.mdc",
+        "kind": "supersede_exact"
+      }
+    ],
+    "removals": [
+      ".cursor/rules/obsolete-generic-v1.mdc",
+      ".cursor/rules/obsolete-mac-local-adoption-stub-v1.mdc"
+    ]
+  }
+}

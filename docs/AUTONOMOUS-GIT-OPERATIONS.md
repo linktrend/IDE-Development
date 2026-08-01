@@ -1,18 +1,20 @@
 # Autonomous Git Operations
 
-**Status:** Active (Principal go-ahead 2026-07-24; Option A clock locked 2026-07-25; Review Packager redesign 2026-07-28)
-**ADR:** `docs/adr/0003-autonomous-ship-pull-promote.md`
+**Status:** Active (Principal go-ahead 2026-07-24; Option A clock locked 2026-07-25; Review Packager redesign 2026-07-28; portable managed-core v2 Wave 1 2026-08-01)
+**ADR:** `docs/adr/0003-autonomous-ship-pull-promote.md` · `docs/adr/0004-portable-managed-core-v2.md`
 **Timezone:** Asia/Taipei
-**SOT home:** This repo (IDE Development). Wired consumers inherit Layer A (`.cursor`) and Layer B (managed GitHub workflows + Bugbot checklist).
+**SOT home:** This repo (IDE Development) is the system source. Installed consumers inherit Layer A (physical managed agent surfaces) and Layer B (managed GitHub workflows + Bugbot checklist). IDE Development itself is **not** a consumer rollout entry.
 
 ## Two-layer inheritance
 
 | Layer | What | How |
 |---|---|---|
-| **A. Agent behavior** | Rules, skills, ship/pull checklists | `./scripts/wire-repo.sh` → `repo/.cursor` symlink |
-| **B. Robots** | Managed `.github/workflows/*` + Bugbot enablement checklist | Same wire script syncs from `core/github/managed-workflows/`; does **not** overwrite consumer `ci.yml` |
+| **A. Agent behavior** | Rules, skills, ship/pull checklists | Portable installer (`scripts/ide-development.py`) materialises physical `.ide-development/` + Cursor/Codex adapters inside the consumer. No consumer-to-system `.cursor` symlink. |
+| **B. Robots** | Managed `.github/workflows/*` + Bugbot enablement checklist | Installer / sync paths from `core/github/managed-workflows/`; does **not** overwrite consumer `ci.yml` |
 
-IDE Development itself uses the same managed workflows (it is in scope).
+Protection of `development`, `staging`, and `main` is required managed-system behavior for every installed repository (`docs/contracts/REPOSITORY-PROTECTION.md`). Live apply is dry-run-gated and external to packaged secrets.
+
+IDE Development uses the same managed workflows for **self-verification** of the system repository. Consumer rollout order and Principal approval gates live in `docs/GITOPS-CONSUMER-ROLLOUT.md`.
 
 ## Roles
 

@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "packageVersion": "2.0.0",
+  "scenarios": [
+    {
+      "id": "01-external-cursor-symlink",
+      "title": "External .cursor symlink migration",
+      "fixture": "01-external-cursor-symlink",
+      "covers": ["symlink_migration", "no_escape_paths"]
+    },
+    {
+      "id": "02-physical-cursor-consumer-owned",
+      "title": "Physical .cursor with consumer-owned content preserved",
+      "fixture": "02-physical-cursor-consumer-owned",
+      "covers": ["consumer_preserve"]
+    },
+    {
+      "id": "03-sparse-gitops-upgrade",
+      "title": "Sparse GitOps installation upgrade to managed-core v2",
+      "fixture": "03-sparse-gitops-upgrade",
+      "covers": ["sparse_gitops_upgrade", "exact_obsolete_removal"]
+    },
+    {
+      "id": "04-exact-obsolete-removal",
+      "title": "Exact-known obsolete generic rule removal",
+      "fixture": "04-exact-obsolete-removal",
+      "covers": ["supersede_exact"]
+    },
+    {
+      "id": "05-unknown-conflict-fail-closed",
+      "title": "Unknown or modified conflicts fail closed",
+      "fixture": "05-unknown-conflict-fail-closed",
+      "covers": ["supersede_mismatch", "unknown_conflict"]
+    },
+    {
+      "id": "06-dirty-repo-preservation",
+      "title": "Dirty repository unrelated paths are preserved",
+      "fixture": "06-dirty-repo-preservation",
+      "covers": ["unrelated_dirty"]
+    },
+    {
+      "id": "07-interrupted-transaction",
+      "title": "Interrupted transaction recovery contract",
+      "fixture": "07-interrupted-transaction",
+      "covers": ["recoverable"]
+    },
+    {
+      "id": "08-byte-exact-rollback",
+      "title": "Byte-exact rollback restores pre-change bytes and modes",
+      "fixture": "08-byte-exact-rollback",
+      "covers": ["rollback_exact"]
+    },
+    {
+      "id": "09-idempotent-repeat",
+      "title": "Repeat install/update is byte-identical",
+      "fixture": "09-idempotent-repeat",
+      "covers": ["idempotence"]
+    },
+    {
+      "id": "10-no-escape-paths",
+      "title": "No installed path resolves outside the consumer",
+      "fixture": "10-no-escape-paths",
+      "covers": ["unsafe_link", "no_escape_paths"]
+    },
+    {
+      "id": "11-no-credentials-packaged",
+      "title": "No credentials or absolute local checkout paths packaged",
+      "fixture": "11-no-credentials-packaged",
+      "covers": ["portability"]
+    }
+  ]
+}

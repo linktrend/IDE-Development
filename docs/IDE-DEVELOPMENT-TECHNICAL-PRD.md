@@ -1,47 +1,69 @@
 # IDE Development — Technical PRD
 
-**Status:** Technical reference for the IDE Development repository as actually built on disk (verified against `core/`, `.cursor/`, `scripts/`, `.githooks/`, and git history through 2026-07-19).
+**Status:** Technical reference for the IDE Development repository as built for portable managed-core **v2.0.0** (Wave 1 / Issue #43), verified against `core/`, `.cursor/`, `scripts/`, `.githooks/`, and the v2 installer/contracts as they land.
 
-**Ground rule:** The filesystem and verification scripts are the source of truth. Where older docs (`docs/archive/**`, historical Stage 1/2/3 framing, earlier “skills are stubs” audits) disagree with what is wired today, this document follows the filesystem and calls out the discrepancy in §12.
+**Ground rule:** The filesystem and verification scripts are the source of truth. Where older docs (`docs/archive/**`, historical Stage 1/2/3 framing, earlier “skills are stubs” audits, Mac-local `.cursor` symlink install guides) disagree with what is wired today, this document follows the filesystem and calls out the discrepancy in §12.
 
 **Companion:** [`IDE-DEVELOPMENT-INTENT.md`](./IDE-DEVELOPMENT-INTENT.md) — why this repository exists.
+**Architecture ADR:** [`adr/0004-portable-managed-core-v2.md`](./adr/0004-portable-managed-core-v2.md).
 
 ---
 
 ## 1. System overview / architecture
 
-IDE Development is **not** a persistent orchestrator process. It is an **installable knowledge + runtime surface** that Cursor (and Codex/Claude entrypoints) load when a workspace includes this repo and/or a product repo wired to it.
+IDE Development is **not** a persistent orchestrator process. It is a **versioned, portable software-development operating system** that Cursor and Codex load after a physical managed install into a product repository (or when working directly in this system repository for authoring and self-verification).
 
 | Part | Implementation on disk |
 |---|---|
 | **Canonical knowledge** | `core/` — doctrine, skills, commands, templates, contracts, workflows, session, workspace adoption, library client, examples, pilots |
-| **Cursor compatibility runtime** | `.cursor/` — mostly symlinks into `core/`; real Cursor-only files: `rules/`, `mcp.json`, `INDEX.yaml`, `README.md`, `import-core.md` |
+| **Portable package source** | `core/managed-core/` — manifest, schemas, migration catalog, platform adapters packaged into consumers |
+| **Installed managed core (consumers)** | Committed physical `.ide-development/` tree (never an absolute/external/checkout-to-checkout symlink) |
+| **Cursor compatibility (system repo)** | `.cursor/` — adapters into `core/`; real Cursor-only files: `rules/`, `mcp.json`, `INDEX.yaml`, `README.md`, `import-core.md` |
+| **Cursor discovery (consumers)** | Physical `.cursor/rules`, `.cursor/commands`, `.cursor/skills` materialised by the installer |
+| **Codex discovery (consumers)** | Root `AGENTS.md` managed marker block + physical `.agents/skills/<name>/SKILL.md` |
 | **Instructions** | Commands under `core/commands/`, prompts under `core/prompts/`, progressive-disclosure `INDEX.yaml` files |
 | **Memory (session-scoped)** | Repo artifacts + `docs/development/<program-id>/PIPELINE-STATE.json` + optional `docs/handoff/YYYY-MM-DD.md` — not a database Ledger |
 | **Tools / skills** | Local domain skills (`core/skills/`), vendored gstack + mattpocock (`core/runtime/skills/`), Module composites (`core/runtime/skills/linktrend/`) |
 | **Grading / gates** | Independent review commands + fail-closed `validate-application-pipeline.mjs`; model-routing `independent_review` / `evaluation` routes |
-| **Guardrails** | Canonical Laws, git hooks on `PIPELINE-STATE.json`, CI verify workflow, branch-source policy |
-| **Install into consumers** | `scripts/wire-repo.sh` → consumer `.cursor` symlink → IDE Development `.cursor` → `core/` |
+| **Guardrails** | Canonical Laws, git hooks on `PIPELINE-STATE.json`, CI verify workflow, branch-source policy, managed `development`/`staging`/`main` protection contract |
+| **Install into consumers** | `scripts/ide-development.py` (`install` / `update` / `plan` / `drift` / `verify` / `version` / `rollback`) |
 
-### Symlink install model
+### Physical managed install model (v2)
 
 ```
-ProductRepo/.cursor  →  ../IDE Development/.cursor  →  (symlinks)  →  ../IDE Development/core
+ConsumerRepo/
+  .ide-development/          # committed managed core (physical)
+  .cursor/rules|commands|skills/   # physical Cursor adapters
+  AGENTS.md                  # managed marker block (Codex)
+  .agents/skills/<name>/     # physical Codex skill adapters
+  .git/ide-development/      # Git-local installed-state + transactions (not secrets)
 ```
 
-- Preferred one-time wiring: `./scripts/wire-repo.sh /path/to/ProductRepo` (backs up replaceable `.cursor`, creates relative symlink, verifies required paths, idempotent).
-- Manual / judgment path: `core/workspace/WORKSPACE-ADOPTION.md`, `REPO-WIRING.md`, `LEGACY-CLEANUP.md`.
-- Do **not** copy `core/` into every product repo when a symlink suffices.
-- Multi-machine sync: GitHub `linktrend/IDE-Development` is source of truth; clone as `~/Projects/IDE Development` (see `SETUP.md`).
+- Preferred path: `python3 scripts/ide-development.py plan|install|update|drift|verify|version|rollback --repo /path/to/ProductRepo`.
+- Mutating operations plan first, run transactionally, and retain exact pre-change backups for rollback.
+- Managed-file drift is detected by stored hashes; unknown conflicts fail closed.
+- Do **not** create consumer `.cursor` symlinks pointing at this system checkout.
+- GitHub App credentials, secrets, variables, Bugbot dashboard settings, and live ruleset mutations stay external (dry-run plan/apply/verify — see `docs/contracts/REPOSITORY-PROTECTION.md`).
+- Multi-machine sync for the **system** repo: GitHub `linktrend/IDE-Development` is source of truth; clone as `~/Projects/IDE Development` (see `SETUP.md`).
+- IDE Development itself is **system source / self-verification**, not a consumer rollout entry, and must not receive a nested installed copy of itself during Wave 1.
 
-### `core/` vs `.cursor/`
+### Supported platforms (current v2)
+
+| Platform | Status |
+|---|---|
+| Cursor | Supported |
+| Codex | Supported |
+| Claude Code | **Not supported** in current v2 release or roadmap. Historical `claude/` files may remain; no new Claude runtime surfaces. |
+
+### `core/` vs `.cursor/` vs `.ide-development/`
 
 | Concern | Where it lives |
 |---|---|
-| Edit knowledge | Prefer `core/` |
-| What Cursor loads | `.cursor/` paths (symlinked) |
-| Cursor-only rules | `.cursor/rules/*.mdc` (real files, not symlinked from core) |
-| Equivalence | Historical proof archived; verify script checks critical symlinks + required files |
+| Edit knowledge (system) | Prefer `core/` |
+| Package for consumers | `core/managed-core/` → installed `.ide-development/` |
+| What Cursor loads in a consumer | Physical `.cursor/...` adapters from the installer |
+| What Codex loads in a consumer | `AGENTS.md` + `.agents/skills` |
+| Cursor-only rules in this system repo | `.cursor/rules/*.mdc` |
 
 ### Relationship to LiNKdeveloper
 
@@ -63,7 +85,8 @@ ProductRepo/.cursor  →  ../IDE Development/.cursor  →  (symlinks)  →  ../I
 | **IDE Development** | This repository (`IDE Development` on disk, `linktrend/IDE-Development` on GitHub) — the shared Application Factory operating system |
 | **Application Factory** | The shared product-building workflow (Intent → … → Complete), not a specific website/automation/content factory’s ops model |
 | **core/** | Canonical portable knowledge asset |
-| **.cursor/** | Compatibility runtime surface for Cursor-oriented consumers |
+| **.cursor/** | Compatibility / authoring surface in the system repo; physical discovery adapters in consumers |
+| **.ide-development/** | Committed managed core installed inside each consumer |
 | **Program** | Total body of work toward a meaningful outcome; for application builds, drives the fixed six-Module pipeline |
 | **Module** (application) | One of six fixed lifecycle stages in `APPLICATION-PIPELINE.md` |
 | **Module** (generic) | Major domain area for non-application governed work only |
@@ -78,7 +101,7 @@ ProductRepo/.cursor  →  ../IDE Development/.cursor  →  (symlinks)  →  ../I
 | **Route / RouteId** | Named model-routing policy (`default`, `escalation`, …) pinned on a Cursor subagent |
 | **LiNKlibraries** | Canonical shared Component/Template/Asset Library remote |
 | **Librarian** | Merge authority inside LiNKlibraries (not this repo) |
-| **Wire** | One-time symlink install of this runtime into a consumer repo |
+| **Wire / Install** | Portable physical install of the managed core into a consumer (`scripts/ide-development.py`). Legacy `wire-repo.sh` remains for pre-v2 GitOps compatibility until consumers migrate. |
 
 ---
 
@@ -351,6 +374,8 @@ Honest gaps (do not treat as “almost done” checkboxes):
 6. **Embedded legacy factory-folder cleanup in product repos** — deferred until Principal schedules per-repo adoption cleanup (`docs/ARCHIVE-INDEX.md`).
 7. **Dollar-cost accounting dashboard** — not present.
 8. **Mandatory environment bootstrap Module** — deliberately not ported; optional Starter Kit + light git/CI sanity only.
+9. **Claude Code platform support** — explicitly outside current v2 support and roadmap (historical `claude/` files may remain).
+10. **Git tag / GitHub Release for v2.0.0** — version is identified in `VERSION`; Wave 1 does not tag or publish a release.
 
 Known past mistake to avoid repeating: earlier audits sometimes claimed hybrid skills were stubs when they were already vendored and wired. Always re-check `core/runtime/skills/{gstack,mattpocock}/`, `VENDOR-MANIFEST.json`, and `hybrid-*.md` entrypoints before asserting “not installed.”
 
@@ -366,6 +391,7 @@ Known past mistake to avoid repeating: earlier audits sometimes claimed hybrid s
 | `core/commands/compatibility-archive/` | Legacy setup/compatibility command entrypoints (not at commands root) |
 | `core/templates/` | INTENT, TECHNICAL-PRD, TECHNICAL-DESIGN, PIPELINE-STATE, Issue/Proof/Review, … |
 | `core/contracts/` | Schemas including `APPLICATION-PIPELINE-STATE.schema.json` |
+| `core/managed-core/` | Portable package source (manifest, schemas, adapters) for consumer installs |
 | `core/runtime/` | Validator, vendored skills, Module composites, runtime README |
 | `core/library/` | LiNKlibraries client + contract + disposable cache |
 | `core/workspace/` | Adoption, discovery, wiring, legacy cleanup, reports |
@@ -375,13 +401,16 @@ Known past mistake to avoid repeating: earlier audits sometimes claimed hybrid s
 | `core/examples/EXAMPLE-APPLICATION-PIPELINE/` | Fixed six-Module example tree |
 | `core/pilots/` | Operator smoke / pilot artifacts |
 | `core/discovery/`, `core/state/`, `core/system/`, `core/reports/` | Discovery, state, system notes, reports |
-| `.cursor/` | Compatibility runtime (symlinks + Cursor rules/MCP) |
+| `.cursor/` | System-repo compatibility runtime (adapters + Cursor rules/MCP) |
 | `.githooks/` | pre-commit / pre-push pipeline enforcement |
-| `scripts/` | verify, vendor, wire, install-hooks, feasibility, gate-stop test |
+| `scripts/` | verify, vendor, wire (legacy), portable installer, install-hooks, feasibility, gate-stop test |
+| `scripts/ide-development.py` | Portable installer CLI (`install`/`update`/`plan`/`drift`/`verify`/`version`/`rollback`) |
 | `tests/fixtures/` | Pipeline feasibility / gate-stop / unification fixtures |
+| `tests/test-portable-v2-integration.sh` | Top-level Wave 1 integration harness |
 | `docs/` | Source-of-truth docs (this set), hybrid registry, ADR, archive |
-| `codex/`, `claude/` | Non-Cursor consumption entrypoints |
-| `SETUP.md`, `VERSION`, `CHANGELOG.md` | Operator setup, version (`v1.2`), changelog |
+| `codex/` | Codex-oriented system entrypoints (consumers also get native adapters on install) |
+| `claude/` | Historical Claude packaging only — **not** current v2 support |
+| `SETUP.md`, `VERSION`, `CHANGELOG.md` | Operator setup, version (`v2.0.0`), changelog |
 
 ---
 
@@ -389,11 +418,12 @@ Known past mistake to avoid repeating: earlier audits sometimes claimed hybrid s
 
 | Script | What it proves |
 |---|---|
-| `scripts/verify-ide-development.sh` | Symlinks, required files, hybrid registry present, sunset skills gone, ops manual present, no forbidden legacy “layer model” terminology in active docs, catalog↔disk skill match, pipeline fixtures, vendored hashes, gate-stop test, feasibility runner |
+| `scripts/verify-ide-development.sh` | Required files, hybrid registry present, sunset skills gone, ops manual present, no forbidden legacy “layer model” terminology in active docs, catalog↔disk skill match, pipeline fixtures, vendored hashes, gate-stop test, feasibility runner |
 | `scripts/verify-vendored-skills.sh` | VENDOR-MANIFEST hashes match on-disk vendored files |
 | `scripts/verify-pipeline-states.sh` | Tracked `PIPELINE-STATE.json` files pass validator (CI equivalent of hooks) |
 | `scripts/test-gate-stop-progression.sh` | Law 16 fail-closed behavior |
 | `scripts/feasibility/run-fixed-pipeline-feasibility.sh` | Fixed-pipeline feasibility fixture |
+| `tests/test-portable-v2-integration.sh` | Wave 1 portable v2 doc/version invariants; `--with-peers` / `--full` discover installer/migration/adapter/protection suites and existing GitOps gates |
 
 CI invokes the first three families via `ci.yml` with `CI=true` (skips machine-local Archive directory checks).
 
@@ -405,11 +435,15 @@ CI invokes the first three families via `ci.yml` with `CI=true` (skips machine-l
 |---|---|
 | This repo “evolves” into OpenClaw Stage 2/3 autonomy | Autonomy roadmap belongs to **LiNKdeveloper**; this repo stays human-assisted |
 | Hybrid skills are stubs / reference-only | Physically vendored under `core/runtime/skills/{gstack,mattpocock}/` with hash manifest + hybrid commands |
+| Consumer install is a `.cursor` symlink to IDE Development | v2 installs physical `.ide-development/` + adapters via `scripts/ide-development.py` |
+| Claude Code is a current supported entrypoint | Outside current v2 support/roadmap; historical `claude/` may remain |
+| IDE Development is a consumer rollout first adopter | System source / self-verification only — not a consumer rollout entry in Wave 1 |
 | Six Modules including Living Document / dual PRD | Intent + **single Technical PRD**; Living Document retired |
 | `scripts/verify-stage1.sh` | Renamed/replaced by `scripts/verify-ide-development.sh` |
 | `docs/LINKDEVELOPER-OPERATIONS-MANUAL.md` / `LINKDEVELOPER-STAGE1.md` | Correct names use `IDE-DEVELOPMENT-*` prefix |
 | Module 6 auto-deploys / LAW-06 auto-promotion | Module 6 → `release_ready` + Principal pre-deploy only |
 | Factory Operations Common Blueprint is live | Archived; product-specific ops belong in product repos |
 | Flat model slugs in route frontmatter | Bracket-param syntax required by Cursor subagent docs |
+| `VERSION` is `v1.2` | `VERSION` is `v2.0.0` (no Git tag/release in Wave 1) |
 
 If something under `docs/archive/` conflicts with Intent, Technical PRD, or Operations Manual, **those three win.**
