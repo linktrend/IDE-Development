@@ -43,6 +43,26 @@ u = rp.union_checks(dev, ["Consumer Custom Lint", "Verify IDE Development"], ["E
 assert u["preserved"] == ["Consumer Custom Lint", "Extra"], u
 assert "Consumer Custom Lint" in u["desired"]
 assert u["desired"].index("Cursor Bugbot") == 0
+
+merged = rp.merge_ruleset_rules(
+    [
+        {"type": "required_status_checks", "parameters": {"required_status_checks": []}},
+        {"type": "pull_request", "parameters": {"required_approving_review_count": 1}},
+        {"type": "deletion"},
+    ],
+    rp._status_check_rule(["Cursor Bugbot"]),
+)
+assert [r["type"] for r in merged] == ["required_status_checks", "pull_request", "deletion"]
+
+preserved_classic = rp.classic_protection_body(
+    ["Cursor Bugbot"],
+    existing={
+        "required_pull_request_reviews": {"required_approving_review_count": 2},
+        "restrictions": {"users": ["a"], "teams": [], "apps": []},
+    },
+)
+assert preserved_classic["required_pull_request_reviews"]["required_approving_review_count"] == 2
+assert preserved_classic["restrictions"]["users"] == ["a"]
 print("unit ok")
 PY
 pass "baseline and union helpers"
@@ -96,6 +116,133 @@ assert p["branches"]["main"]["action"] == "create"
 print("union ok")
 PY
 pass "union preserves repo-specific checks and bypass_actors"
+
+# ---- preserve non-check ruleset rules on update (fail-closed design) ----
+"$TOOL" plan --repo linktrend/Fixture --fixture-dir "${FX}/rulesets-extra-rules" \
+  >"${TMP}/plan-extra-rules.json"
+python3 - <<PY
+import json
+from pathlib import Path
+p = json.loads(Path("${TMP}/plan-extra-rules.json").read_text())
+dev = p["branches"]["development"]
+assert dev["action"] == "update"
+rules = dev["after"]["body"]["rules"]
+types = [r["type"] for r in rules]
+assert types[0] == "required_status_checks", types
+assert "pull_request" in types
+assert "non_fast_forward" in types
+assert "deletion" in types
+# Managed source-policy check was missing → unioned in; non-check rules untouched.
+assert "Enforce allowed PR source branches" in dev["requiredChecks"]["desired"]
+contexts = [
+    c["context"]
+    for c in rules[0]["parameters"]["required_status_checks"]
+]
+assert "Enforce allowed PR source branches" in contexts
+assert types.count("required_status_checks") == 1
+assert dev["after"]["bypassActors"][0]["actor_id"] == 9
+print("extra-rules plan ok")
+PY
+cp -R "${FX}/rulesets-extra-rules" "${TMP}/extra-rules-fx"
+"$TOOL" apply --apply --repo linktrend/Fixture --fixture-dir "${TMP}/extra-rules-fx" \
+  --json-output "${TMP}/apply-extra-rules.json" >/dev/null
+python3 - <<PY
+import json
+from pathlib import Path
+state = json.loads(Path("${TMP}/extra-rules-fx/state.json").read_text())
+detail = state["ruleset_details"]["21"]
+types = [r["type"] for r in detail["rules"]]
+assert types[0] == "required_status_checks"
+assert "pull_request" in types and "non_fast_forward" in types and "deletion" in types
+assert types.count("required_status_checks") == 1
+pr = next(r for r in detail["rules"] if r["type"] == "pull_request")
+assert pr["parameters"]["required_approving_review_count"] == 1
+print("extra-rules apply ok")
+PY
+pass "ruleset update preserves non-check rules"
+
+# ---- unclassified ruleset rule fails closed ----
+python3 - <<'PY'
+import json, sys, tempfile, shutil
+from pathlib import Path
+sys.path.insert(0, str(Path("scripts/gitops").resolve()))
+import repository_protection as rp
+
+base = Path("scripts/tests/fixtures/repository-protection/rulesets-extra-rules")
+with tempfile.TemporaryDirectory() as td:
+    dest = Path(td) / "fx"
+    shutil.copytree(base, dest)
+    state = json.loads((dest / "state.json").read_text())
+    state["ruleset_details"]["21"]["rules"].append({"parameters": {}})
+    (dest / "state.json").write_text(json.dumps(state, indent=2) + "\n")
+    client = rp.FixtureClient("linktrend/Fixture", dest)
+    try:
+        rp.build_plan(client, branches=("development",))
+        raise SystemExit("expected ProtectionError for unclassified rule")
+    except rp.ProtectionError as exc:
+        assert "missing type" in str(exc)
+        assert exc.exit_code == rp.EXIT_FAILED
+print("unclassified-rule fail-closed ok")
+PY
+pass "unclassified ruleset rule fails closed"
+
+# ---- classic BP preserves reviews / restrictions ----
+"$TOOL" plan --repo linktrend/Fixture --fixture-dir "${FX}/branch-protection-with-reviews" \
+  >"${TMP}/plan-bp-reviews.json"
+python3 - <<PY
+import json
+from pathlib import Path
+p = json.loads(Path("${TMP}/plan-bp-reviews.json").read_text())
+assert p["capability"]["mechanism"] == "branch_protection"
+dev = p["branches"]["development"]
+assert dev["action"] == "update"
+body = dev["after"]["body"]
+reviews = body["required_pull_request_reviews"]
+assert reviews is not None
+assert reviews["required_approving_review_count"] == 2
+assert reviews["require_code_owner_reviews"] is True
+assert reviews["dismiss_stale_reviews"] is True
+rest = body["restrictions"]
+assert rest["users"] == ["ops-bot"]
+assert rest["teams"] == ["release-managers"]
+assert rest["apps"] == ["linktrend-integrator"]
+assert body["required_conversation_resolution"] is True
+assert "Cursor Bugbot" in body["required_status_checks"]["contexts"]
+assert "Legacy Check" in body["required_status_checks"]["contexts"]
+print("bp-reviews plan ok")
+PY
+cp -R "${FX}/branch-protection-with-reviews" "${TMP}/bp-reviews-fx"
+"$TOOL" apply --apply --repo linktrend/Fixture --fixture-dir "${TMP}/bp-reviews-fx" \
+  --json-output "${TMP}/apply-bp-reviews.json" >/dev/null
+python3 - <<PY
+import json
+from pathlib import Path
+state = json.loads(Path("${TMP}/bp-reviews-fx/state.json").read_text())
+dev = state["branch_protections"]["development"]
+assert dev["required_pull_request_reviews"]["required_approving_review_count"] == 2
+assert dev["restrictions"]["teams"] == ["release-managers"]
+assert dev["required_conversation_resolution"] is True
+assert "Cursor Bugbot" in dev["required_status_checks"]["contexts"]
+# Must not have been forced to null
+assert dev["required_pull_request_reviews"] is not None
+assert dev["restrictions"] is not None
+print("bp-reviews apply ok")
+PY
+pass "classic BP update preserves reviews and restrictions"
+
+# ---- classic create still uses null reviews/restrictions ----
+python3 - <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path("scripts/gitops").resolve()))
+import repository_protection as rp
+
+body = rp.classic_protection_body(["Cursor Bugbot"])
+assert body["required_pull_request_reviews"] is None
+assert body["restrictions"] is None
+print("classic-create-null ok")
+PY
+pass "classic create leaves reviews/restrictions null"
 
 # ---- verify matched = clean; verify empty = drift ----
 set +e
@@ -316,6 +463,8 @@ grep -q 'development-autonomous-merge' "${ROOT}/docs/contracts/REPOSITORY-PROTEC
 grep -q 'staging-autonomous-promote' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
 grep -q 'main-autonomous-release' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
 grep -q 'Plan / dry-run' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
+grep -q 'Non-check ruleset rules' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
+grep -q 'required_pull_request_reviews' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
 pass "contract documents three-branch dry-run-first protections"
 
 echo "PASS: repository protection suite"

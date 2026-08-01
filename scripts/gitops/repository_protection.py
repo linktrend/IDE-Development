@@ -208,6 +208,9 @@ def _classic_field_for_put(key: str, value: Any) -> Any:
     """Normalize GET-shaped classic protection fields into PUT-compatible values."""
     if value is None:
         return None
+    # PUT accepts bare booleans for several review-adjacent toggles.
+    if isinstance(value, bool):
+        return value
     if not isinstance(value, dict):
         raise ProtectionError(
             f"classic protection field {key!r} has unexpected type "
