@@ -33,6 +33,7 @@ from harness.paths import (
     SCENARIOS_PATH,
     SCHEMA_PATH,
 )
+from harness.installer_live import resolve_live_package, run_installer, run_live_proofs
 from harness.portability import scan_tree
 
 
@@ -258,47 +259,39 @@ def test_wp2_catalog_loader(rep: Reporter) -> None:
     rep.ok(f"wp2_catalog_loader({len(catalog.entries)} entries)")
 
 
-def test_installer_optional(rep: Reporter, *, enabled: bool) -> None:
+def test_installer_live(rep: Reporter, *, enabled: bool) -> None:
+    """Real installer E2E proofs (symlink safety, recovery, rollback, idempotence)."""
     if not enabled:
-        rep.skip("installer_live", "pass --with-installer to enable")
+        rep.skip("installer_live", "pass --with-installer (or omit --without-installer)")
         return
     if not INSTALLER_ENTRY.is_file():
         rep.skip("installer_live", f"missing {INSTALLER_ENTRY}")
         return
-    # Minimal smoke: version / plan dry-run against disposable repo from fixture 04
-    import subprocess
 
+    try:
+        package = resolve_live_package()
+    except FileNotFoundError as exc:
+        rep.fail("installer_live_package", str(exc))
+        return
+    rep.ok(f"installer_live_package({package.relative_to(REPO_ROOT)})")
+
+    # Smoke: version + plan dry-run against disposable fixture 04
     scenario = load_json(FIXTURES_DIR / "04-exact-obsolete-removal" / "scenario.json")
     repo = make_temp_repo(scenario)
     try:
-        proc = subprocess.run(
-            [sys.executable, str(INSTALLER_ENTRY), "version", "--json"],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if proc.returncode != 0:
-            rep.fail("installer_version", proc.stderr.strip() or proc.stdout.strip())
+        version = run_installer("version", package=package, target=repo)
+        if version.returncode != 0:
+            rep.fail(
+                "installer_version",
+                version.stderr.strip() or version.stdout.strip() or f"exit={version.returncode}",
+            )
         else:
             rep.ok("installer_version")
-        plan = subprocess.run(
-            [
-                sys.executable,
-                str(INSTALLER_ENTRY),
-                "plan",
-                "--repo",
-                str(repo),
-                "--dry-run",
-                "--json",
-            ],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+
+        plan = run_installer("plan", package=package, target=repo)
         # Accept success or structured conflict; not crash
-        if plan.returncode in {0, 2, 3, 10, 11} or "conflict" in (plan.stdout + plan.stderr).lower():
+        combined = (plan.stdout + plan.stderr).lower()
+        if plan.returncode in {0, 2, 3, 10, 11} or "conflict" in combined:
             rep.ok("installer_plan_dry_run")
         else:
             rep.fail(
@@ -308,13 +301,24 @@ def test_installer_optional(rep: Reporter, *, enabled: bool) -> None:
     finally:
         shutil.rmtree(repo.parent, ignore_errors=True)
 
+    for name, errors in run_live_proofs():
+        if errors:
+            rep.fail(name, "; ".join(errors))
+        else:
+            rep.ok(name)
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--with-installer",
         action="store_true",
-        help="Also probe scripts/ide-development.py when present",
+        help="Force-enable live installer E2E probes",
+    )
+    parser.add_argument(
+        "--without-installer",
+        action="store_true",
+        help="Skip live installer probes (fixture classification only)",
     )
     args = parser.parse_args(argv)
     rep = Reporter()
@@ -323,13 +327,28 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL: missing catalog at {CATALOG_PATH}", file=sys.stderr)
         return 1
 
+    # Default ON when the installer entrypoint exists (Issue #64 live proofs).
+    installer_enabled = False
+    if args.without_installer and args.with_installer:
+        print(
+            "FAIL: pass only one of --with-installer / --without-installer",
+            file=sys.stderr,
+        )
+        return 1
+    if args.without_installer:
+        installer_enabled = False
+    elif args.with_installer:
+        installer_enabled = True
+    else:
+        installer_enabled = INSTALLER_ENTRY.is_file()
+
     catalog = test_catalog_integrity(rep)
     test_catalog_canonical_only(rep)
     test_scenarios_index(rep)
     test_portability_package(rep)
     test_fixture_classifications(rep, catalog)
     test_wp2_catalog_loader(rep)
-    test_installer_optional(rep, enabled=args.with_installer)
+    test_installer_live(rep, enabled=installer_enabled)
 
     print(
         f"\nSummary: passed={rep.passed} failed={rep.failed} skipped={rep.skipped}"

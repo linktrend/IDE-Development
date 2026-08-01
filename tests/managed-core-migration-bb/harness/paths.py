@@ -20,3 +20,5 @@ LEGACY_DUPLICATE_CATALOGS = (
 )
 
 INSTALLER_ENTRY = REPO_ROOT / "scripts" / "ide-development.py"
+# Hermetic package for live installer E2E probes (independent of dirty system MANIFEST).
+LIVE_PACKAGE_DIR = FIXTURES_DIR / "live-package"

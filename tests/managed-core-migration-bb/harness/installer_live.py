@@ -16,7 +16,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from .fixture_builder import make_temp_repo
 from .paths import FIXTURES_DIR, INSTALLER_ENTRY, LIVE_PACKAGE_DIR, REPO_ROOT
@@ -294,6 +294,8 @@ def prove_interrupted_transaction_recovery(scenario: dict[str, Any]) -> list[str
         if current_tx_dir(repo).exists():
             errors.append("current-transaction still present after recovery")
     finally:
+        if "repo" in locals():
+            _cleanup_temp_repo(repo)
         shutil.rmtree(tmp, ignore_errors=True)
     return errors
 
@@ -346,6 +348,8 @@ def prove_byte_exact_rollback(scenario: dict[str, Any]) -> list[str]:
         if _mode_octal(core) != original_mode:
             errors.append(f"rollback mode mismatch got={_mode_octal(core)} want={original_mode}")
     finally:
+        if "repo" in locals():
+            _cleanup_temp_repo(repo)
         shutil.rmtree(tmp, ignore_errors=True)
     return errors
 
@@ -399,11 +403,13 @@ def prove_idempotent_repeat(scenario: dict[str, Any]) -> list[str]:
             if not path.is_file() or path.is_symlink():
                 errors.append(f"managed destination not physical file: {rel}")
     finally:
+        if "repo" in locals():
+            _cleanup_temp_repo(repo)
         shutil.rmtree(tmp, ignore_errors=True)
     return errors
 
 
-LIVE_PROOFS: dict[str, Callable[[dict[str, Any]], list[str]]] = {
+LIVE_PROOFS: dict[str, Any] = {
     "01-external-cursor-symlink": prove_external_cursor_symlink,
     "07-interrupted-transaction": prove_interrupted_transaction_recovery,
     "08-byte-exact-rollback": prove_byte_exact_rollback,
