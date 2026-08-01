@@ -43,9 +43,20 @@ def atomic_write_bytes(dest: Path, data: bytes, *, mode: str | int) -> None:
 
 
 def read_file_bytes(path: Path) -> bytes:
+    """Read physical file bytes. Refuses symlink-following (fail closed)."""
     if path_is_symlink(path):
         raise OSError(f"Refusing to read through symlink: {path}")
-    return path.read_bytes()
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        fd = os.open(str(path), flags)
+    except OSError:
+        if path_is_symlink(path):
+            raise OSError(f"Refusing to read through symlink: {path}") from None
+        raise
+    with os.fdopen(fd, "rb") as handle:
+        return handle.read()
 
 
 def remove_file(path: Path) -> None:

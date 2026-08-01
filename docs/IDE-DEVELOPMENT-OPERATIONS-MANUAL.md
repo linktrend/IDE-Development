@@ -12,11 +12,11 @@
 
 ## What IDE Development is
 
-IDE Development is LiNKtrend’s shared “how we build software with AI” operating system. It lives in one GitHub repository and is installed into the product repositories you care about so every agent follows the same rules.
+IDE Development is LiNKtrend’s shared “how we build software with AI” operating system. It lives in one GitHub repository (the **system source**) and is installed into the **product / consumer** repositories you care about so every agent follows the same rules. This system repository itself is **not** a consumer install target and must not receive a nested installed copy of itself.
 
 Think of it as the factory floor instructions and tools — not the autonomous factory machine itself. The separate **LiNKdeveloper** Program is the mostly-automatic factory that can run on a server. This repository is what you and Cursor agents use day to day: doctrine, skills, commands, checks, and a fixed six-stage build pipeline.
 
-When a product repo is installed with IDE Development, agents in that repo read the same playbook: plan carefully, build in small checked pieces, prove the work, review it independently, integrate it, and only then treat it as done.
+When a product repo is installed with IDE Development, agents in that repo read the same playbook: plan carefully, build in small checked pieces, prove the work, review it independently, integrate it, and only then treat it as done. Locked consumer install order (and Principal approval gates) live in [`GITOPS-CONSUMER-ROLLOUT.md`](./GITOPS-CONSUMER-ROLLOUT.md) — including `LiNKtrading-codebase`, excluding IDE Development.
 
 ---
 
@@ -77,7 +77,7 @@ Commands agents use: `run-application-pipeline` / `resume-application-pipeline`.
 
 ### 2. Make sure the product repo is installed (one-time, then updates)
 
-Each product repo should receive a **physical** managed install of this system (committed `.ide-development/` plus Cursor/Codex adapters) — not a symlink back to this checkout. Preferred method — someone technical runs, from IDE Development, after a read-only drift report and your separate approval for that consumer:
+Each **consumer** product repo should receive a **physical** managed install of this system (committed `.ide-development/` plus Cursor/Codex adapters) — not a symlink back to this checkout, and never a nested self-install into IDE Development. Preferred method — someone technical runs, from IDE Development (system source), after a read-only drift report and your separate approval for that consumer:
 
 ```bash
 python3 scripts/ide-development.py plan --repo /path/to/ProductRepo

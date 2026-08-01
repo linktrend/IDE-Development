@@ -96,7 +96,99 @@ def union_checks(managed: list[str], existing: list[str], extra: list[str] | Non
     }
 
 
-def ruleset_body(name: str, branch: str, checks: list[str], bypass_actors: list[Any] | None = None) -> dict[str, Any]:
+STATUS_CHECK_RULE_TYPE = "required_status_checks"
+
+# Review / restriction (and similar) fields preserved from before-state on update.
+_CLASSIC_PRESERVE_KEYS = (
+    "required_pull_request_reviews",
+    "restrictions",
+    "required_conversation_resolution",
+    "required_linear_history",
+    "allow_fork_syncing",
+    "lock_branch",
+    "block_creations",
+)
+
+
+def _status_check_rule(checks: list[str]) -> dict[str, Any]:
+    return {
+        "type": STATUS_CHECK_RULE_TYPE,
+        "parameters": {
+            "strict_required_status_checks_policy": True,
+            "do_not_enforce_on_create": False,
+            "required_status_checks": [{"context": c} for c in checks],
+        },
+    }
+
+
+def _writeable_ruleset_rule(rule: dict[str, Any]) -> dict[str, Any]:
+    """Strip read-only identity fields; keep type + parameters (+ known extras)."""
+    out: dict[str, Any] = {"type": rule["type"]}
+    if "parameters" in rule:
+        out["parameters"] = deepcopy(rule["parameters"])
+    # Preserve optional flags GitHub accepts on write (e.g. ruleset rule metadata).
+    for key in ("name", "ruleset_source_type", "ruleset_source"):
+        if key in rule:
+            out[key] = deepcopy(rule[key])
+    return out
+
+
+def merge_ruleset_rules(
+    existing_rules: list[Any] | None,
+    managed_check_rule: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Replace required_status_checks rules; preserve all other legitimate rules.
+
+    Fail closed if a rule cannot be classified (missing/blank type) — never silently
+    drop unknown rules when updating a managed check rule.
+    """
+    if existing_rules is None:
+        return [deepcopy(managed_check_rule)]
+    if not isinstance(existing_rules, list):
+        raise ProtectionError(
+            "ruleset rules must be a list; refusing update that would drop non-check rules",
+            EXIT_FAILED,
+        )
+
+    preserved: list[dict[str, Any]] = []
+    for idx, rule in enumerate(existing_rules):
+        if not isinstance(rule, dict):
+            raise ProtectionError(
+                f"ruleset rule[{idx}] is not an object; refusing to drop non-check rules",
+                EXIT_FAILED,
+            )
+        rtype = rule.get("type")
+        if not isinstance(rtype, str) or not rtype.strip():
+            raise ProtectionError(
+                f"ruleset rule[{idx}] missing type; refusing to drop unclassified rule",
+                EXIT_FAILED,
+            )
+        if rtype == STATUS_CHECK_RULE_TYPE:
+            continue
+        preserved.append(_writeable_ruleset_rule(rule))
+
+    return [deepcopy(managed_check_rule), *preserved]
+
+
+def ruleset_body(
+    name: str,
+    branch: str,
+    checks: list[str],
+    bypass_actors: list[Any] | None = None,
+    *,
+    existing_ruleset: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    managed_rule = _status_check_rule(checks)
+    if existing_ruleset is None:
+        existing_rules: list[Any] | None = None
+    elif "rules" not in existing_ruleset:
+        raise ProtectionError(
+            "existing ruleset missing rules array; refusing update that would drop non-check rules",
+            EXIT_FAILED,
+        )
+    else:
+        existing_rules = existing_ruleset.get("rules")
+    rules = merge_ruleset_rules(existing_rules, managed_rule)
     return {
         "name": name,
         "target": "branch",
@@ -107,32 +199,95 @@ def ruleset_body(name: str, branch: str, checks: list[str], bypass_actors: list[
                 "exclude": [],
             }
         },
-        "rules": [
-            {
-                "type": "required_status_checks",
-                "parameters": {
-                    "strict_required_status_checks_policy": True,
-                    "do_not_enforce_on_create": False,
-                    "required_status_checks": [{"context": c} for c in checks],
-                },
-            }
-        ],
+        "rules": rules,
         "bypass_actors": list(bypass_actors or []),
     }
 
 
-def classic_protection_body(checks: list[str]) -> dict[str, Any]:
-    return {
+def _classic_field_for_put(key: str, value: Any) -> Any:
+    """Normalize GET-shaped classic protection fields into PUT-compatible values."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ProtectionError(
+            f"classic protection field {key!r} has unexpected type "
+            f"{type(value).__name__}; refusing to null it on update",
+            EXIT_FAILED,
+        )
+
+    if key == "required_pull_request_reviews":
+        allowed = (
+            "dismiss_stale_reviews",
+            "require_code_owner_reviews",
+            "required_approving_review_count",
+            "require_last_push_approval",
+            "bypass_pull_request_allowances",
+        )
+        out: dict[str, Any] = {}
+        for k in allowed:
+            if k in value:
+                out[k] = deepcopy(value[k])
+        # GET may only expose url/enabled; empty write object still means "reviews enabled".
+        if not out and ("url" in value or value.get("enabled") is True):
+            out = {"required_approving_review_count": 1}
+        return out
+
+    if key == "restrictions":
+        out = {
+            "users": [
+                (u.get("login") if isinstance(u, dict) else u)
+                for u in (value.get("users") or [])
+            ],
+            "teams": [
+                (t.get("slug") if isinstance(t, dict) else t)
+                for t in (value.get("teams") or [])
+            ],
+            "apps": [
+                (a.get("slug") if isinstance(a, dict) else a)
+                for a in (value.get("apps") or [])
+            ],
+        }
+        return out
+
+    # Boolean-ish settings sometimes arrive as {"enabled": bool} from GET.
+    if "enabled" in value and len(value.keys()) <= 3:
+        return bool(value.get("enabled"))
+
+    return deepcopy(value)
+
+
+def classic_protection_body(
+    checks: list[str],
+    *,
+    existing: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    body: dict[str, Any] = {
         "required_status_checks": {
             "strict": True,
             "contexts": list(checks),
         },
         "enforce_admins": True,
-        "required_pull_request_reviews": None,
-        "restrictions": None,
         "allow_force_pushes": False,
         "allow_deletions": False,
     }
+
+    if existing is None:
+        body["required_pull_request_reviews"] = None
+        body["restrictions"] = None
+        return body
+
+    for key in _CLASSIC_PRESERVE_KEYS:
+        if key not in existing:
+            # Only force null for the historical PUT-required pair when absent on create.
+            if key in ("required_pull_request_reviews", "restrictions"):
+                body[key] = None
+            continue
+        body[key] = _classic_field_for_put(key, existing.get(key))
+
+    # Always emit the PUT-required pair even if somehow omitted above.
+    body.setdefault("required_pull_request_reviews", None)
+    body.setdefault("restrictions", None)
+    return body
 
 
 def extract_ruleset_checks(ruleset: dict[str, Any] | None) -> list[str]:
@@ -140,7 +295,7 @@ def extract_ruleset_checks(ruleset: dict[str, Any] | None) -> list[str]:
         return []
     out: list[str] = []
     for rule in ruleset.get("rules") or []:
-        if rule.get("type") != "required_status_checks":
+        if rule.get("type") != STATUS_CHECK_RULE_TYPE:
             continue
         params = rule.get("parameters") or {}
         for item in params.get("required_status_checks") or []:
@@ -476,7 +631,13 @@ def build_plan(
             existing_checks = extract_ruleset_checks(existing)
             union = union_checks(managed, existing_checks, extras)
             bypass = list((existing or {}).get("bypass_actors") or [])
-            desired_body = ruleset_body(name, branch, union["desired"], bypass_actors=bypass)
+            desired_body = ruleset_body(
+                name,
+                branch,
+                union["desired"],
+                bypass_actors=bypass,
+                existing_ruleset=existing,
+            )
             before = {
                 "exists": existing is not None,
                 "id": (existing or {}).get("id"),
@@ -510,7 +671,10 @@ def build_plan(
             existing_body = existing if status == "ok" else None
             existing_checks = extract_classic_checks(existing_body)
             union = union_checks(managed, existing_checks, extras)
-            desired_body = classic_protection_body(union["desired"])
+            desired_body = classic_protection_body(
+                union["desired"],
+                existing=existing_body,
+            )
             before = {
                 "exists": existing_body is not None,
                 "requiredChecks": existing_checks,

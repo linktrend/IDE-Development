@@ -438,6 +438,7 @@ CI invokes the first three families via `ci.yml` with `CI=true` (skips machine-l
 | Consumer install is a `.cursor` symlink to IDE Development | v2 installs physical `.ide-development/` + adapters via `scripts/ide-development.py` |
 | Claude Code is a current supported entrypoint | Outside current v2 support/roadmap; historical `claude/` may remain |
 | IDE Development is a consumer rollout first adopter | System source / self-verification only — not a consumer rollout entry in Wave 1 |
+| Ship/Pull lists omit `LiNKtrading-codebase` / treat IDE Development as install #1 | Ship/Pull may process IDE Development first as system source; consumer install order starts at `openclaw_prime` and includes `LiNKtrading-codebase` (`docs/GITOPS-CONSUMER-ROLLOUT.md`) |
 | Six Modules including Living Document / dual PRD | Intent + **single Technical PRD**; Living Document retired |
 | `scripts/verify-stage1.sh` | Renamed/replaced by `scripts/verify-ide-development.sh` |
 | `docs/LINKDEVELOPER-OPERATIONS-MANUAL.md` / `LINKDEVELOPER-STAGE1.md` | Correct names use `IDE-DEVELOPMENT-*` prefix |

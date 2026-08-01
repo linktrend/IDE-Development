@@ -50,9 +50,11 @@ IDE Development uses the same managed workflows for **self-verification** of the
 
 **Runtime prerequisite (human/ops):** Mini must be awake (Keep Awake / Remote Control) so Lisa ACP can spawn. Documented in openclaw_prime Lisa ship/pull clock procedure.
 
-**Repo order (sequential — Principal-locked 2026-07-25):** process exactly one repo at a time, in this order (skip missing paths):
+**Repo order (Ship/Pull sequential — Principal-locked 2026-07-25; `LiNKtrading-codebase` added with portable v2):** process exactly one repo at a time, in this order (skip missing paths).
 
-1. IDE Development
+This is the **Ship/Pull processing order** for Lisa Option A. It is **not** the consumer install/rollout order. IDE Development appears first as the **system source** (checkpoints / self-verification) and is **not** a portable-install consumer. Locked consumer install order starts at `openclaw_prime`, includes `LiNKtrading-codebase`, and excludes IDE Development — see `docs/GITOPS-CONSUMER-ROLLOUT.md`.
+
+1. IDE Development *(system source — not a consumer install target)*
 2. openclaw_prime
 3. LiNKplatform
 4. LiNKskills
@@ -61,6 +63,7 @@ IDE Development uses the same managed workflows for **self-verification** of the
 7. LiNKdeveloper
 8. LiNKlibraries
 9. LiNKautowork
+10. LiNKtrading-codebase
 
 ACP prompts and absolute paths: openclaw_prime `linkbots/lisa/Personality files/agents/ship-pull-clock.md` (follow-up contract for Ship checkpoint-only wording: `docs/contracts/LISA-OPENCLAW-FOLLOW-UP.md`).
 

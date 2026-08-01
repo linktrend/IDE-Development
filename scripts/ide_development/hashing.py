@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
+
+from .paths import path_is_symlink
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -11,8 +14,23 @@ def sha256_bytes(data: bytes) -> str:
 
 
 def sha256_file(path: Path) -> str:
+    """Hash a physical file. Refuses symlink-following (fail closed)."""
+    if path_is_symlink(path):
+        raise OSError(f"Refusing to hash through symlink: {path}")
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
+    flags = os.O_RDONLY
+    # Prefer O_NOFOLLOW where the platform supports it (POSIX); still check
+    # is_symlink above for portability and clearer errors.
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        fd = os.open(str(path), flags)
+    except OSError:
+        # TOCTOU: path may have become a symlink between check and open.
+        if path_is_symlink(path):
+            raise OSError(f"Refusing to hash through symlink: {path}") from None
+        raise
+    with os.fdopen(fd, "rb") as handle:
         while True:
             chunk = handle.read(1024 * 1024)
             if not chunk:

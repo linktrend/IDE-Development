@@ -47,6 +47,8 @@ Drift reports, approvals, and installs use this **exact sequential order** (one 
 
 IDE Development is intentionally **absent** from this table.
 
+**Do not confuse with Ship/Pull order.** Lisa Option A still processes IDE Development first as the system source during Ship/Pull waves (`docs/AUTONOMOUS-GIT-OPERATIONS.md`). That clock order is not an install/rollout authorization and does not make this repository a consumer install target.
+
 ---
 
 ## Gate before each consumer

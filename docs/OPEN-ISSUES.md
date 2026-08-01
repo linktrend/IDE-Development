@@ -113,7 +113,7 @@ Branch `issue/GITOPS-01-review-packager-pipeline`. Principal-locked amendment to
 **Deferred (explicitly not in GITOPS-01):**
 
 - openclaw_prime Lisa personality / cron updates (`ship-pull-clock.md`, `pipeline-status.md`, `morning-digest.md`, etc.) — checklist in `LISA-OPENCLAW-FOLLOW-UP.md`.
-- `wire-repo.sh` / `sync-managed-workflows.sh` on consumer repos (LiNKplatform, LiNKskills, LiNKbrain, LiNKsites, LiNKdeveloper, LiNKlibraries, LiNKautowork).
+- `wire-repo.sh` / `sync-managed-workflows.sh` on consumer repos (order locked in `docs/GITOPS-CONSUMER-ROLLOUT.md`: openclaw_prime → LiNKplatform → LiNKskills → LiNKbrain → LiNKsites → LiNKdeveloper → LiNKlibraries → LiNKautowork → LiNKtrading-codebase). IDE Development is system source only — not a consumer wire target.
 - Per-consumer `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` and Bugbot inheritance checklist runs.
 - Lisa reporting lines for Review Packager / Staging 10:00 until openclaw follow-up PR lands.
 

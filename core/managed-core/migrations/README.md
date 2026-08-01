@@ -26,6 +26,7 @@ migrations/
 3. No absolute host paths, credentials, tokens, or secret values in catalog or known-bytes.
 4. Catalog paths are repo-relative POSIX paths only (no `..`, no drive letters).
 5. Symlink / sparse-GitOps / dirty-tree / rollback / idempotence behaviors are proven by black-box fixtures under `tests/managed-core-migration-bb/`; this catalog supplies exact-removal identities those fixtures exercise.
+6. `scenarios.json` ids / `fixture` fields must match `tests/managed-core-migration-bb/fixtures/<id>/` directory names one-to-one (titles stay aligned with each fixture’s `scenario.json`).
 
 ## Related
 

@@ -89,7 +89,7 @@ class EngineTests(TempRepoTestCase):
             dry_run=False,
         )
         self.assertEqual(first.exit_code, EXIT_OK, first.payload)
-        snap1 = _file_bytes_map(self.target)
+        snap1 = _file_identity_map(self.target)
 
         # Ensure physical files (not symlinks)
         for rel in (
@@ -112,11 +112,85 @@ class EngineTests(TempRepoTestCase):
             dry_run=False,
         )
         self.assertEqual(second.exit_code, EXIT_OK, second.payload)
-        snap2 = _file_bytes_map(self.target)
+        snap2 = _file_identity_map(self.target)
+        # Byte-identical content + mode for all managed destinations
         self.assertEqual(snap1, snap2)
+
+        update = run_install_or_update(
+            target=self.target,
+            package=self.package,
+            command="update",
+            dry_run=False,
+        )
+        self.assertEqual(update.exit_code, EXIT_OK, update.payload)
+        snap3 = _file_identity_map(self.target)
+        self.assertEqual(snap1, snap3)
 
         verify = run_verify(target=self.target, package=self.package)
         self.assertEqual(verify.exit_code, EXIT_OK, verify.payload)
+
+    def test_sha256_and_read_refuse_symlink(self) -> None:
+        from ide_development.io_atomic import read_file_bytes
+
+        real = Path(self._tmp.name) / "real-target.txt"
+        real.write_text("secret\n", encoding="utf-8")
+        link = Path(self._tmp.name) / "link-to-real.txt"
+        link.symlink_to(real)
+        with self.assertRaises(OSError) as ctx:
+            sha256_file(link)
+        self.assertIn("symlink", str(ctx.exception).lower())
+        with self.assertRaises(OSError) as ctx2:
+            read_file_bytes(link)
+        self.assertIn("symlink", str(ctx2.exception).lower())
+        # Physical file still hashes
+        self.assertTrue(sha256_file(real).startswith("sha256:"))
+
+    def test_exclusive_lock_fail_closed(self) -> None:
+        from ide_development.errors import ConflictError
+        from ide_development.lock import exclusive_transaction_lock, lock_path
+        from ide_development.paths import git_meta_dir
+
+        # Lock path must live under resolved git meta, not under a gitfile path.
+        expected = git_meta_dir(self.target) / "lock"
+        self.assertEqual(lock_path(self.target), expected)
+
+        with exclusive_transaction_lock(self.target) as held:
+            self.assertEqual(held, expected)
+            self.assertTrue(expected.is_file())
+            with self.assertRaises(ConflictError) as ctx:
+                with exclusive_transaction_lock(self.target):
+                    pass  # pragma: no cover - must not enter
+            self.assertIn("exclusive lock", str(ctx.exception).lower())
+
+        # After release, a new acquire succeeds
+        with exclusive_transaction_lock(self.target):
+            pass
+
+    def test_plan_dry_run_does_not_take_lock(self) -> None:
+        from ide_development.lock import exclusive_transaction_lock, lock_path
+
+        lock = lock_path(self.target)
+        with exclusive_transaction_lock(self.target):
+            # Holding the lock must not block plan / dry-run (no exclusive acquire).
+            plan = run_plan(target=self.target, package=self.package)
+            self.assertEqual(plan.exit_code, EXIT_OK)
+            dry = run_install_or_update(
+                target=self.target,
+                package=self.package,
+                command="install",
+                dry_run=True,
+            )
+            self.assertEqual(dry.exit_code, EXIT_OK)
+            self.assertFalse(dry.payload.get("applied"))
+        # Mutating install still works after plan/dry-run under contention ended
+        result = run_install_or_update(
+            target=self.target,
+            package=self.package,
+            command="install",
+            dry_run=False,
+        )
+        self.assertEqual(result.exit_code, EXIT_OK, result.payload)
+        self.assertTrue(lock.parent.is_dir())
 
     def test_noop_rewrites_missing_installed_state(self) -> None:
         first = run_install_or_update(
@@ -400,6 +474,29 @@ def _file_bytes_map(root: Path) -> dict[str, bytes]:
             if path.is_symlink():
                 continue
             out[rel] = path.read_bytes()
+    return out
+
+
+def _file_identity_map(root: Path) -> dict[str, tuple[bytes, int]]:
+    """Map relative path -> (content bytes, mode) for physical files (excl. .git).
+
+    Skips installed-state.json because noop apply rewrites installedAt (second
+    precision) without changing managed destination bytes/modes.
+    """
+    out: dict[str, tuple[bytes, int]] = {}
+    for dirpath, dirnames, filenames in os.walk(root):
+        rel_dir = os.path.relpath(dirpath, root)
+        if rel_dir == ".git" or rel_dir.startswith(".git" + os.sep):
+            dirnames[:] = []
+            continue
+        for name in filenames:
+            path = Path(dirpath) / name
+            rel = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                continue
+            if rel == ".ide-development/installed-state.json":
+                continue
+            out[rel] = (path.read_bytes(), stat.S_IMODE(path.stat().st_mode))
     return out
 
 

@@ -13,7 +13,8 @@ from typing import Any
 from .constants import MANAGED_CORE_DIR
 from .errors import ConflictError, RollbackError
 from .hashing import normalize_mode, sha256_file
-from .io_atomic import atomic_write_bytes, copy_file_physical, remove_file
+from .io_atomic import atomic_write_bytes, copy_file_physical, read_file_bytes, remove_file
+from .lock import exclusive_transaction_lock
 from .manifest import Manifest, ManifestEntry
 from .paths import encode_backup_name, git_meta_dir, join_under, path_is_symlink
 from .plan import OpKind, Plan, PlanAction
@@ -125,7 +126,7 @@ def write_backup_file(tx_dir: Path, target_root: Path, record: BackupRecord) -> 
     src = join_under(target_root, record.path)
     dest = backups_dir(tx_dir) / record.backup_name
     dest.parent.mkdir(parents=True, exist_ok=True)
-    data = src.read_bytes()
+    data = read_file_bytes(src)
     atomic_write_bytes(dest, data, mode=record.mode or "0644")
 
 
@@ -171,9 +172,9 @@ def restore_backup(target_root: Path, tx_dir: Path, record: BackupRecord) -> Non
     if not record.backup_name:
         raise RollbackError(f"Missing backup blob for {record.path}")
     blob = backups_dir(tx_dir) / record.backup_name
-    if not blob.is_file():
+    if not blob.is_file() or path_is_symlink(blob):
         raise RollbackError(f"Backup file missing for {record.path}: {blob}")
-    data = blob.read_bytes()
+    data = read_file_bytes(blob)
     atomic_write_bytes(dest, data, mode=record.mode or "0644")
 
 
@@ -254,11 +255,8 @@ def _promote_current_to_last(target_root: Path) -> None:
         os.replace(current, last)
 
 
-def recover_interrupted(target_root: Path) -> dict[str, Any] | None:
-    """Recover from an interrupted transaction by restoring backups.
-
-    Returns a small report dict if recovery ran, else None.
-    """
+def _recover_interrupted_unlocked(target_root: Path) -> dict[str, Any] | None:
+    """Recover from an interrupted transaction (caller must hold exclusive lock)."""
     current = current_tx_dir(target_root)
     journal = read_journal(current)
     if journal is None:
@@ -281,6 +279,16 @@ def recover_interrupted(target_root: Path) -> dict[str, Any] | None:
     }
 
 
+def recover_interrupted(target_root: Path) -> dict[str, Any] | None:
+    """Recover from an interrupted transaction by restoring backups.
+
+    Takes the exclusive transaction lock. Returns a small report dict if
+    recovery ran, else None.
+    """
+    with exclusive_transaction_lock(target_root):
+        return _recover_interrupted_unlocked(target_root)
+
+
 def apply_plan(
     *,
     target_root: Path,
@@ -295,8 +303,26 @@ def apply_plan(
             details={"conflicts": [c.to_dict() for c in plan.conflicts]},
         )
 
+    with exclusive_transaction_lock(target_root):
+        return _apply_plan_unlocked(
+            target_root=target_root,
+            package_root=package_root,
+            manifest=manifest,
+            plan=plan,
+            prior=prior,
+        )
+
+
+def _apply_plan_unlocked(
+    *,
+    target_root: Path,
+    package_root: Path,
+    manifest: Manifest,
+    plan: Plan,
+    prior: InstalledState | None,
+) -> dict[str, Any]:
     # Recover any interrupted transaction before starting a new one
-    recovery = recover_interrupted(target_root)
+    recovery = _recover_interrupted_unlocked(target_root)
 
     mutating = plan.mutating_actions
     if not mutating:
@@ -459,8 +485,13 @@ def apply_plan(
 
 def rollback_last(target_root: Path) -> dict[str, Any]:
     """Restore exact pre-change bytes/modes from the last completed transaction."""
+    with exclusive_transaction_lock(target_root):
+        return _rollback_last_unlocked(target_root)
+
+
+def _rollback_last_unlocked(target_root: Path) -> dict[str, Any]:
     # Prefer recovering incomplete current first
-    recovery = recover_interrupted(target_root)
+    recovery = _recover_interrupted_unlocked(target_root)
     last = last_tx_dir(target_root)
     journal = read_journal(last)
     if journal is None:
