@@ -1,7 +1,7 @@
 # Agent Completion Contract
 
 **Status:** Active
-**Date:** 2026-07-30
+**Date:** 2026-08-01
 **Owner:** IDE Development (GitOps)
 
 ## Purpose
@@ -10,16 +10,20 @@ Define how Implementers finish a work session without opening PRs or falsely cla
 
 ## Authority
 
-`review-ready` is the authoritative, fail-closed completion path. The gate validates the exact pushed branch state and machine-readable evidence before it publishes **`Linktrend Review Ready`** with `scripts/gitops/readiness_status.py`.
+`review-ready` is the authoritative, fail-closed completion path. The gate validates the exact pushed branch state and machine-readable evidence before **`Linktrend Review Ready`** may be published.
+
+**Production publisher:** only the GitHub App, from the trusted App-backed publisher workflow on the protected default branch (`linktrend-review-ready-publisher.yml`). Local `completion_gate.py review-ready` remains the implementer entrypoint: it validates first, then either publishes when a privileged App token is already present in a trusted context, or **fails closed** and explains the App-backed dispatch route when local privileged credentials are unavailable. It must never substitute Carlos's user token, ambient `GITHUB_TOKEN`, or any other human credential to publish the status.
 
 Bare `--tests-ok`, `COMPLETION_TESTS_OK=1`, and arbitrary text in `COMPLETION_EVIDENCE` are not sufficient production proof.
+
+There is **no** `.linktrend/review-ready.json` readiness file and no readiness marker commit in the feature diff. Do not create, discover, or consult that path.
 
 ## Modes (`scripts/gitops/completion_gate.py`)
 
 | Mode | Meaning | Exit |
 |---|---|---|
 | `checkpoint` | Commit+push save; work unfinished | `0` ok |
-| `review-ready` | Validate finished work, then publish **`Linktrend Review Ready`** | `0` ok, `78` incomplete, `1` failed |
+| `review-ready` | Validate finished work, then publish **`Linktrend Review Ready`** (or fail closed with App-backed route diagnostics) | `0` ok, `78` incomplete, `1` failed |
 | `blocked` | Write durable blocker JSON | `2` blocked |
 | `status` | Report current completion state | `0` ok |
 | `write-evidence` | Write schema-versioned completion evidence for current `HEAD` | `0` ok |
@@ -41,11 +45,24 @@ Order is part of the contract:
    - `HEAD` resolves to a SHA.
    - working tree is clean.
    - branch is not `development`, `staging`, `main`, or detached.
+   - Prefer `issue/<number>-<slug>` for App-backed publication.
    - `HEAD == origin/<branch>` after fetch.
 2. Require machine-readable evidence JSON tied to that exact `HEAD` SHA.
-3. Only after those checks pass, publish **`Linktrend Review Ready`** through `scripts/gitops/readiness_status.py`.
+3. Only after those checks pass, publish **`Linktrend Review Ready`** through the privileged App path (`scripts/gitops/readiness_status.py` only with App automation token, or via the App-backed publisher workflow). Never publish with a user PAT / restricted Carlos identity / ordinary `GITHUB_TOKEN` fallback.
 
-The successful status is an output of the gate, not an input prerequisite.
+The successful status is an output of completion, not an input prerequisite.
+
+## App-backed route (when local publish cannot proceed)
+
+When `completion_gate.py review-ready` validates successfully but cannot publish because no privileged App token is available locally (normal implementer machine):
+
+1. Leave evidence on the pushed tip (do not invent a readiness file).
+2. Dispatch **`linktrend-review-ready-publisher`** (`workflow_dispatch`) from the **protected default branch** workflow source.
+3. Bind only this repository's exact `issue/<number>-<slug>` branch and immutable tip SHA (plus any inputs the workflow schema requires). Dry-run when testing.
+4. The workflow re-validates branch naming, exact remote SHA, evidence schema, clean/pushed tip, and issue/branch relationship from trusted scripts; the untrusted issue branch supplies data only.
+5. On success it posts commit status context **`Linktrend Review Ready`** = `success` on that exact SHA so Review Packager discovery is unchanged.
+
+See `core/github/REVIEW-READY.md` for the dispatch contract and rollback.
 
 ## Evidence schema (`schemaVersion: 1`)
 
@@ -79,6 +96,8 @@ Allowed `classification` values:
 - Incomplete review-ready claims must fail closed (exit `78`), not soft-succeed.
 - Agents call `python3 scripts/gitops/completion_gate.py review-ready` directly, or call `write-evidence` first and then `review-ready`.
 - `scripts/mark-review-ready.sh` is only a compatibility wrapper. It requires an evidence file and delegates to the gate. It must never be used as a pre-gate publisher.
+- Do **not** create or use `.linktrend/review-ready.json`.
+- Carlos's restricted user identity must not publish statuses (its Packager/Bugbot scope is unchanged).
 
 ## Automatic completion behavior for agents
 
@@ -87,8 +106,9 @@ When an issue appears complete:
 1. Run the appropriate tests/checks for the touched surface.
 2. Repair ordinary failures automatically, with at most **3** bounded repair cycles.
 3. Write machine-readable evidence with `completion_gate.py write-evidence` or an equivalent schema-versioned JSON file under `.linktrend/`.
-4. Call `python3 scripts/gitops/completion_gate.py review-ready` only after validation succeeds. The gate publishes the status.
-5. If validation or repair cannot complete, leave the branch ineligible and write a durable blocker:
+4. Call `python3 scripts/gitops/completion_gate.py review-ready` only after validation succeeds.
+5. If the gate fails closed for missing privileged publish credentials, follow the App-backed route diagnostics (dispatch the publisher for this repo/branch/SHA). Do not invent a local status publish with a user token.
+6. If validation or repair cannot complete, leave the branch ineligible and write a durable blocker:
 
 ```bash
 python3 scripts/gitops/completion_gate.py blocked \
@@ -100,7 +120,9 @@ python3 scripts/gitops/completion_gate.py blocked \
 
 - `docs/AUTONOMOUS-GIT-OPERATIONS.md`
 - `core/github/REVIEW-READY.md`
+- `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`
 - `docs/contracts/REPAIR-DISPATCHER.md`
+- `docs/work-packets/2026-08-01-wave-2-app-backed-completion.md`
 
 ## Blocked completion (local cache + durable record)
 

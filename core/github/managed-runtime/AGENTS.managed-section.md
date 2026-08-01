@@ -21,7 +21,8 @@ Consumer-specific guidance may live **outside** these markers.
 - Ship = checkpoint (commit+push). Packager opens PRs. Max 3 ordinary repairs.
 - Completion: `python3 scripts/gitops/completion_gate.py` (checkpoint | review-ready | blocked | status | write-evidence).
 - Finished work runs appropriate tests/checks, auto-repairs ordinary failures with at most 3 bounded repair cycles, writes machine-readable evidence with `completion_gate.py write-evidence`, then calls `completion_gate.py review-ready`.
-- `review-ready` is the authoritative fail-closed gate that publishes **Linktrend Review Ready**. Do not call `mark-review-ready.sh` as a pre-gate publisher; it is only a compatibility wrapper that requires evidence and delegates to the gate.
+- `review-ready` is the authoritative fail-closed gate. Production publish of **Linktrend Review Ready** is GitHub App only (trusted `linktrend-review-ready-publisher` workflow when local privileged credentials are unavailable). Do not publish with a user PAT / Carlos restricted identity / `GITHUB_TOKEN` fallback. Do not call `mark-review-ready.sh` as a pre-gate publisher; it is only a compatibility wrapper that requires evidence and delegates to the gate.
+- Do **not** create or use `.linktrend/review-ready.json` (commit status only — see `core/github/REVIEW-READY.md`).
 - If completion cannot pass, call `completion_gate.py blocked`. `.linktrend/completion-blocker.json` is only a **local cache**. The durable cross-machine record is the GitHub repair issue created/updated by the gate (when authenticated repo resolution succeeds). Do not claim durable registration if the command reports `durableRecord=false`.
 - Repair tasks: `python3 scripts/gitops/repair_task.py` (upsert | dispatch-attempt | resolve | list).
 - No prefer-incoming. No Cursor spawn claims from GitHub Actions.

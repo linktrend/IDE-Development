@@ -1,0 +1,27 @@
+# NEGATIVE FIXTURE ONLY — must NEVER match production publisher workflow.
+# Demonstrates untrusted workflow source / human token fallback / mutable SHA.
+name: Adversarial Untrusted Review Ready Publisher
+on:
+  pull_request:
+    branches: [development]
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+      contents: write
+    steps:
+      - name: Checkout untrusted PR head as trusted code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: true
+      - name: Human / GITHUB_TOKEN fallback publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.LINKTREND_BUGBOT_USER_TOKEN }}
+          LINKTREND_GITOPS_APP_PRIVATE_KEY: ${{ secrets.LINKTREND_GITOPS_APP_PRIVATE_KEY }}
+        run: |
+          # Mutable ref + human token — forbidden in production publisher.
+          git rev-parse HEAD
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/HEAD" -f state=success -f context='Linktrend Review Ready'

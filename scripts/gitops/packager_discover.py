@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Packager discovery: ready tips → draft PRs. Preserves existing PR title/body.
 
+Eligibility is the successful GitHub commit status ``Linktrend Review Ready`` on
+the **exact** branch tip SHA (same contract whether published by the local gate
+or the App-backed publisher). Later tips without that status are not eligible.
+
 Updates only a delimited managed section. No Bugbot. No serial CI wait.
 Requires:
   - GitHub App token for reads / draft body refresh / non-create mutations
@@ -43,6 +47,8 @@ SECTION_RE = re.compile(
 
 # Test hook: (args, env) -> stdout string. When set, skips real subprocess.
 _RUN_HOOK: Callable[[list[str], dict[str, str]], str] | None = None
+# Test hook: (token, repo) -> branch list. When set, skips live Branches API.
+_LIST_BRANCHES_HOOK: Callable[[str, str], list[dict]] | None = None
 
 
 class PackagerAuthorError(RuntimeError):
@@ -103,6 +109,8 @@ def merge_body(existing: str, sha: str, branch: str) -> str:
 
 
 def list_branches(token: str, repo: str) -> list[dict]:
+    if _LIST_BRANCHES_HOOK is not None:
+        return _LIST_BRANCHES_HOOK(token, repo)
     branches = []
     page = 1
     while True:

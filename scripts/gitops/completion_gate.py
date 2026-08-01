@@ -190,14 +190,45 @@ def parse_evidence_commands(raw_commands: list[str]) -> tuple[list[dict], str]:
     return cmds, ""
 
 
-def publish_ready(sha: str, issue_id: str, notes: str) -> tuple[bool, str]:
+def app_backed_route(branch: str = "", sha: str = "") -> str:
+    """Exact safe App-backed publication route when local credentials are absent."""
+    if rs is None:
+        return (
+            "gh workflow run linktrend-review-ready-publisher.yml "
+            "-f branch=<issue/<number>-<slug>> -f sha=<40-char-immutable-sha> "
+            "-f dry_run=false"
+        )
+    return rs.app_backed_review_ready_route(branch=branch, sha=sha)
+
+
+def publish_ready(
+    sha: str,
+    issue_id: str,
+    notes: str,
+    *,
+    branch: str = "",
+) -> tuple[bool, str]:
     if rs is None:
         return False, "readiness_status_unavailable"
     try:
-        st = rs.mark_sha(sha, issue_id, notes)
+        st = rs.mark_sha(sha, issue_id, notes, branch=branch)
         return True, str(st)
     except Exception as e:  # noqa: BLE001
-        return False, str(e)
+        detail = str(e)
+        # Ensure fail-closed credential errors always name the App-backed route.
+        if "privileged_publish_requires_github_app" not in detail:
+            if any(
+                key in detail
+                for key in (
+                    "AUTOMATION_TOKEN",
+                    "LINKTREND_APP_TOKEN",
+                    "GITHUB_TOKEN",
+                    "token",
+                    "credentials",
+                )
+            ):
+                detail = f"{detail}; Use App-backed route: {app_backed_route(branch, sha)}"
+        return False, detail
 
 
 def ready_status_ok(sha: str) -> tuple[bool, str]:
@@ -329,11 +360,11 @@ def cmd_review_ready(args: argparse.Namespace) -> int:
 
     issue_id = args.issue_id or os.environ.get("COMPLETION_ISSUE_ID") or ""
     if not issue_id:
-        br = branch_name(workdir)
         m = re.match(r"^issue/([A-Za-z0-9._]+)-", br)
         issue_id = m.group(1) if m else "unknown"
     notes = args.notes or os.environ.get("COMPLETION_NOTES") or "completion_gate"
-    ok, detail = publish_ready(sha, issue_id, notes)
+    route = app_backed_route(br, sha)
+    ok, detail = publish_ready(sha, issue_id, notes, branch=br)
     if not ok:
         emit(
             {
@@ -342,6 +373,12 @@ def cmd_review_ready(args: argparse.Namespace) -> int:
                 "published": False,
                 "error": detail,
                 "sha": sha,
+                "branch": br,
+                "appBackedRoute": route,
+                "detail": (
+                    "Local review-ready publish is fail-closed without GitHub App "
+                    "credentials; use the App-backed workflow route"
+                ),
                 "at": utc_now(),
             }
         )
@@ -357,6 +394,8 @@ def cmd_review_ready(args: argparse.Namespace) -> int:
                 "published": False,
                 "error": f"post_publish_verify_failed:{ready_detail}",
                 "sha": sha,
+                "branch": br,
+                "appBackedRoute": route,
                 "at": utc_now(),
             }
         )
@@ -368,7 +407,7 @@ def cmd_review_ready(args: argparse.Namespace) -> int:
             "state": "review_ready",
             "published": True,
             "sha": sha,
-            "branch": branch_name(workdir),
+            "branch": br,
             "at": utc_now(),
             "detail": "Linktrend Review Ready published after validation; Packager opens PR",
         }
