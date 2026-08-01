@@ -4,9 +4,10 @@
 #
 # Usage:
 #   cleanup-merged-branches.sh [--apply] [--remote] [--local]
-# Preserve (KEEP before delete):
-#   .linktrend/cleanup-preserve.json  and/or  LINKTREND_CLEANUP_PRESERVE=branch,...
-#   Built-in defaults: issue/43|44|51-* and open PR #49 head (set "defaults": false to disable).
+# Preserve (KEEP before delete) comes from scripts/gitops/cleanup_controls.py
+#   (export-preserve). Overlays: .linktrend/cleanup-preserve.json and/or
+#   LINKTREND_CLEANUP_PRESERVE=branch,...  Set "defaults": false in an overlay
+#   to disable committed defaults via that helper.
 # --apply deletes branches only; never closes PRs/issues.
 set -euo pipefail
 
@@ -16,7 +17,6 @@ DO_LOCAL=1
 ROOT=""
 PRESERVE_POLICY='{"branches":[],"issueNumbers":[],"prHeads":[]}'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export LINKTREND_CLEANUP_SCRIPT_DIR="$SCRIPT_DIR"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -56,111 +56,12 @@ is_protected_permanent() {
 
 decide() { echo "$1: $2 — $3"; }
 
-# Load optional preserve config + built-in Issue #51 wave defaults.
-# Shape: {"branches":[...],"issueNumbers":[...],"prNumbers":[...],"defaults":false?}
+# Load preserve policy via shared helper (scripts/gitops/cleanup_controls.py).
+# Shape consumed by is_preserved_branch: branches / issueNumbers / prHeads.
+# "defaults": false in an overlay disables committed defaults inside that helper.
 load_preserve_policy() {
-  local cfg=".linktrend/cleanup-preserve.json"
-  local env_branches="${LINKTREND_CLEANUP_PRESERVE:-}"
   PRESERVE_POLICY="$(
-    python3 -c '
-import json, os, subprocess, sys
-
-cfg_path = sys.argv[1]
-env_branches = sys.argv[2]
-
-use_defaults = True
-branches = []
-issue_numbers = []
-pr_numbers = []
-
-if os.path.isfile(cfg_path):
-    data = json.load(open(cfg_path))
-    if data.get("defaults") is False:
-        use_defaults = False
-    for b in data.get("branches") or []:
-        if isinstance(b, str) and b.strip():
-            branches.append(b.strip())
-    for n in data.get("issueNumbers") or []:
-        try:
-            issue_numbers.append(int(n))
-        except (TypeError, ValueError):
-            pass
-    for n in data.get("prNumbers") or []:
-        try:
-            pr_numbers.append(int(n))
-        except (TypeError, ValueError):
-            pass
-
-if use_defaults:
-    for n in (43, 44, 51):
-        if n not in issue_numbers:
-            issue_numbers.append(n)
-    if 49 not in pr_numbers:
-        pr_numbers.append(49)
-
-for part in env_branches.split(","):
-    part = part.strip()
-    if part and part not in branches:
-        branches.append(part)
-
-pr_heads = []
-for n in pr_numbers:
-    try:
-        out = subprocess.check_output(
-            ["gh", "pr", "view", str(n), "--json", "headRefName,state"],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        )
-        info = json.loads(out)
-        if not isinstance(info, dict):
-            continue
-        if info.get("state") != "OPEN":
-            continue
-        name = (info.get("headRefName") or "").strip()
-        if not name:
-            continue
-        pr_heads.append(name)
-        if name not in branches:
-            branches.append(name)
-    except (subprocess.CalledProcessError, FileNotFoundError, json.JSONDecodeError, OSError, TypeError, AttributeError):
-        pass
-
-# Merge committed defaults file when present (Issue #51 preserve list).
-defaults_file = os.environ.get("LINKTREND_CLEANUP_PRESERVE_DEFAULTS", "")
-if not defaults_file:
-    here = os.environ.get("LINKTREND_CLEANUP_SCRIPT_DIR", "")
-    if here:
-        defaults_file = os.path.join(here, "gitops", "cleanup_preserve.defaults.json")
-if defaults_file and os.path.isfile(defaults_file):
-    try:
-        ddata = json.load(open(defaults_file))
-        if isinstance(ddata, dict):
-            for n in ddata.get("preserveIssueNumbers") or []:
-                try:
-                    n = int(n)
-                except (TypeError, ValueError):
-                    continue
-                if n not in issue_numbers:
-                    issue_numbers.append(n)
-            for n in ddata.get("preservePrNumbers") or []:
-                try:
-                    n = int(n)
-                except (TypeError, ValueError):
-                    continue
-                if n not in pr_numbers:
-                    pr_numbers.append(n)
-            for b in ddata.get("preserveBranchExact") or []:
-                if isinstance(b, str) and b.strip() and b.strip() not in branches:
-                    branches.append(b.strip())
-    except (OSError, json.JSONDecodeError, TypeError):
-        pass
-
-print(json.dumps({
-    "branches": branches,
-    "issueNumbers": issue_numbers,
-    "prHeads": pr_heads,
-}))
-' "$cfg" "$env_branches"
+    python3 "${SCRIPT_DIR}/gitops/cleanup_controls.py" export-preserve
   )"
 }
 
