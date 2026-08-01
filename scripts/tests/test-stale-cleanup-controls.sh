@@ -377,6 +377,7 @@ chmod +x "$TMP/bin/gh"
 PLAN7="$(
   PATH="$TMP/bin:$PATH" \
   python3 "$ROOT/scripts/gitops/cleanup_controls.py" plan-completed-repairs \
+    --repo linktrend/IDE-Development \
     --repair-dir "$REPAIR_DIR"
 )"
 echo "$PLAN7" | python3 -c '
@@ -403,6 +404,7 @@ pass "plan-completed-repairs: preserve + open-PR KEEP; eligible WOULD_DELETE"
 APPLY7="$(
   PATH="$TMP/bin:$PATH" \
   python3 "$ROOT/scripts/gitops/cleanup_controls.py" plan-completed-repairs \
+    --repo linktrend/IDE-Development \
     --repair-dir "$REPAIR_DIR" --apply
 )"
 echo "$APPLY7" | python3 -c '
@@ -1402,5 +1404,485 @@ assert not bare, f"no bare pr list allowed: {bare!r}"
 pass "shell dry-run: GITHUB_REPOSITORY despite ambiguous remotes → --repo + WOULD_DELETE"
 
 # END issue-61
+
+# ============================================================================
+# 14) Issue #63 Bugbot: explicit shell --repo + repair cleanup repo propagation
+# BEGIN issue-63
+# ============================================================================
+
+# --- 14a) Explicit shell --repo authoritative despite ambiguous origin+upstream ---
+# Contract: CLI --repo OWNER/NAME wins over dual remotes; PR evidence / preserve use
+# that slug. Fake gh returns MERGED only for --repo linktrend/IDE-Development;
+# implicit / wrong-repo evidence must not unlock WOULD_DELETE.
+REPO63A="$TMP/issue63-shell-explicit-repo"
+make_repo "$REPO63A"
+seed_cleanup "$REPO63A"
+git -C "$REPO63A" remote add origin "https://github.com/linktrend/IDE-Development.git"
+git -C "$REPO63A" remote add upstream "https://github.com/other/fork-upstream.git"
+mkdir -p "$REPO63A/.linktrend"
+cat >"$REPO63A/.linktrend/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"defaults":false,"issueNumbers":[],"preservePrNumbers":[],"branches":[]}
+EOF
+
+git -C "$REPO63A" checkout -q -b issue/63-explicit-repo-eligible
+echo e63a >"$REPO63A/e63a.txt" && git -C "$REPO63A" add e63a.txt \
+  && git -C "$REPO63A" commit -q -m "eligible merged via explicit shell --repo"
+HEAD63A="$(git -C "$REPO63A" rev-parse HEAD)"
+git -C "$REPO63A" checkout -q development
+
+: >"$TMP/gh-argv-63a.log"
+mkdir -p "$TMP/bin"
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TMP/gh-argv-63a.log"
+if [[ "\$*" == *"repo view"* ]]; then
+  echo "error: no default repo (explicit --repo must supply CLEANUP_REPO)" >&2
+  exit 1
+fi
+if [[ "\$*" == *"pr list"* ]] && [[ "\$*" == *"--head issue/63-explicit-repo-eligible"* ]]; then
+  if [[ "\$*" == *"--repo linktrend/IDE-Development"* ]]; then
+    echo '[{"number":6301,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${HEAD63A}"}]'
+    exit 0
+  fi
+  # Implicit / wrong-repo trap — must not authorize delete
+  echo '[{"number":9991,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"cafebabecafebabecafebabecafebabecafebabe"}]'
+  exit 0
+fi
+if [[ "\$*" == *"pr view"* ]]; then
+  echo '{"number":0,"state":"CLOSED","headRefName":""}'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+PATH="$TMP/bin:$PATH" env -u GITHUB_REPOSITORY -u GH_REPO \
+  bash -c "cd \"$REPO63A\" && bash scripts/cleanup-merged-branches.sh --local --repo linktrend/IDE-Development" \
+  >"$TMP/issue63a.out" 2>"$TMP/issue63a.err" || true
+grep -q 'WOULD_DELETE.*issue/63-explicit-repo-eligible' "$TMP/issue63a.out" \
+  || fail "explicit shell --repo + scoped MERGED should WOULD_DELETE: out=$(cat "$TMP/issue63a.out") err=$(cat "$TMP/issue63a.err")"
+if grep -q '^DELETED_' "$TMP/issue63a.out"; then
+  fail "dry-run must not DELETE issue-63a: $(cat "$TMP/issue63a.out")"
+fi
+python3 -c '
+import sys
+from pathlib import Path
+log = Path(sys.argv[1]).read_text(encoding="utf-8")
+lines = [l for l in log.splitlines() if "pr list" in l and "--head issue/63-explicit-repo-eligible" in l]
+assert lines, f"expected scoped gh pr list evidence query; log={log!r}"
+for l in lines:
+    assert "--repo linktrend/IDE-Development" in l, f"explicit --repo must scope PR evidence: {l!r}"
+bare = [l for l in lines if "--repo " not in l]
+assert not bare, f"no bare pr list allowed: {bare!r}"
+' "$TMP/gh-argv-63a.log"
+pass "shell dry-run: explicit --repo despite ambiguous remotes → --repo + WOULD_DELETE"
+
+# --- 14b) Invalid/empty explicit shell --repo fail-closed ---
+# Contract: empty or invalid --repo must FAIL (non-zero), never fall through to
+# env/remotes/implicit gh, and never emit WOULD_DELETE / DELETED.
+REPO63B="$TMP/issue63-shell-invalid-repo"
+make_repo "$REPO63B"
+seed_cleanup "$REPO63B"
+git -C "$REPO63B" remote add origin "https://github.com/linktrend/IDE-Development.git"
+git -C "$REPO63B" remote add upstream "https://github.com/other/fork-upstream.git"
+mkdir -p "$REPO63B/.linktrend"
+cat >"$REPO63B/.linktrend/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"defaults":false,"issueNumbers":[],"preservePrNumbers":[],"branches":[]}
+EOF
+
+git -C "$REPO63B" checkout -q -b issue/63-invalid-repo-eligible
+echo e63b >"$REPO63B/e63b.txt" && git -C "$REPO63B" add e63b.txt \
+  && git -C "$REPO63B" commit -q -m "must not delete under invalid --repo"
+HEAD63B="$(git -C "$REPO63B" rev-parse HEAD)"
+git -C "$REPO63B" checkout -q development
+
+run_invalid_repo_case() {
+  local label="$1"
+  local repo_arg="$2"
+  : >"$TMP/gh-argv-63b.log"
+  cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TMP/gh-argv-63b.log"
+if [[ "\$*" == *"pr list"* ]] && [[ "\$*" == *"--head issue/63-invalid-repo-eligible"* ]]; then
+  # Trap MERGED if anyone queries — invalid --repo must not reach here for evidence
+  echo '[{"number":6302,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${HEAD63B}"}]'
+  exit 0
+fi
+if [[ "\$*" == *"repo view"* ]]; then
+  echo "linktrend/IDE-Development"
+  exit 0
+fi
+echo '[]'
+EOF
+  chmod +x "$TMP/bin/gh"
+
+  local rc=0
+  PATH="$TMP/bin:$PATH" env -u GITHUB_REPOSITORY -u GH_REPO \
+    bash -c "cd \"$REPO63B\" && bash scripts/cleanup-merged-branches.sh --local --repo \"$repo_arg\"" \
+    >"$TMP/issue63b.out" 2>"$TMP/issue63b.err" || rc=$?
+  [ "$rc" -ne 0 ] \
+    || fail "invalid --repo ($label) must exit non-zero: out=$(cat "$TMP/issue63b.out") err=$(cat "$TMP/issue63b.err")"
+  grep -qiE 'FAIL|invalid|empty|--repo' "$TMP/issue63b.err" "$TMP/issue63b.out" 2>/dev/null \
+    || fail "invalid --repo ($label) should mention FAIL/invalid: err=$(cat "$TMP/issue63b.err") out=$(cat "$TMP/issue63b.out")"
+  if grep -q 'WOULD_DELETE' "$TMP/issue63b.out" 2>/dev/null; then
+    fail "invalid --repo ($label) must not WOULD_DELETE: $(cat "$TMP/issue63b.out")"
+  fi
+  if grep -q '^DELETED_' "$TMP/issue63b.out" 2>/dev/null; then
+    fail "invalid --repo ($label) must not DELETED: $(cat "$TMP/issue63b.out")"
+  fi
+  python3 -c '
+import sys
+from pathlib import Path
+log = Path(sys.argv[1]).read_text(encoding="utf-8")
+evidence = [l for l in log.splitlines() if "pr list" in l and "--head issue/63-invalid-repo-eligible" in l]
+assert not evidence, f"invalid --repo must not query PR evidence: {evidence!r}"
+' "$TMP/gh-argv-63b.log"
+}
+
+run_invalid_repo_case "empty" ""
+run_invalid_repo_case "no-slash" "notaslug"
+run_invalid_repo_case "too-many-slashes" "a/b/c"
+pass "shell: empty/invalid explicit --repo → FAIL, no implicit gh, no WOULD_DELETE"
+
+# --- 14c) repair_task plan-cleanup-completed: caller --repo scopes all PR queries ---
+# Contract: plan-cleanup-completed --repo must reach every gh pr view used for
+# file-backend authorization. Row repository empty/wrong must not drive evidence.
+# Fake gh returns MERGED only for --repo linktrend/IDE-Development; bare/wrong → OPEN
+# so implicit context cannot authorize WOULD_DELETE_FILE.
+REPAIR63C="$TMP/repair63-scoped"
+mkdir -p "$REPAIR63C"
+cat >"$REPAIR63C/eligible63.json" <<'EOF'
+{
+  "failureId": "eligible6300000001",
+  "failureType": "merge_conflict",
+  "resolutionState": "resolved",
+  "repairStatus": "resolved",
+  "branch": "issue/63-repair-scoped-eligible",
+  "prNumber": "6303",
+  "repository": "",
+  "updatedAt": "2026-01-01T00:00:00Z"
+}
+EOF
+
+: >"$TMP/gh-argv-63c.log"
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TMP/gh-argv-63c.log"
+if [[ "\$*" == *"pr view 6303"* ]]; then
+  if [[ "\$*" == *"--repo linktrend/IDE-Development"* ]]; then
+    echo '{"number":6303,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","headRefName":"issue/63-repair-scoped-eligible"}'
+    exit 0
+  fi
+  # Implicit / wrong-repo → OPEN so trap cannot authorize delete
+  echo '{"number":6303,"state":"OPEN","mergedAt":null,"headRefName":"issue/63-repair-scoped-eligible"}'
+  exit 0
+fi
+if [[ "\$*" == *"pr view"* ]]; then
+  echo '{"number":0,"state":"OPEN","headRefName":""}'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+PLAN63C="$(
+  PATH="$TMP/bin:$PATH" \
+  LINKTREND_REPAIR_BACKEND=file \
+  env -u GITHUB_REPOSITORY -u GH_REPO \
+  python3 "$ROOT/scripts/gitops/repair_task.py" plan-cleanup-completed \
+    --repo linktrend/IDE-Development \
+    --repair-dir "$REPAIR63C"
+)"
+echo "$PLAN63C" | python3 -c '
+import json,sys
+p=json.load(sys.stdin)
+by={a.get("failureId"):a for a in (p.get("actions") or [])}
+assert "eligible6300000001" in by, p
+a=by["eligible6300000001"]
+dec=str(a.get("decision") or "")
+assert "WOULD_DELETE_FILE" in dec.upper(), a
+assert a.get("authorized") is True, a
+assert "KEEP" not in dec.upper() or "DELETE" in dec.upper(), a
+'
+python3 -c '
+import sys
+from pathlib import Path
+log = Path(sys.argv[1]).read_text(encoding="utf-8")
+views = [l for l in log.splitlines() if "pr view 6303" in l]
+assert views, f"expected gh pr view 6303; log={log!r}"
+for l in views:
+    assert "--repo linktrend/IDE-Development" in l, f"repair_task must pass caller --repo: {l!r}"
+bare = [l for l in views if "--repo " not in l]
+assert not bare, f"no bare pr view allowed: {bare!r}"
+' "$TMP/gh-argv-63c.log"
+pass "repair_task plan-cleanup-completed: --repo scopes pr view → WOULD_DELETE_FILE"
+
+# --- 14d) cleanup_stale_records --file-backend: caller --repo scopes PR queries ---
+REPAIR63D="$TMP/repair63-stale-scoped"
+mkdir -p "$REPAIR63D"
+cat >"$REPAIR63D/eligible63d.json" <<'EOF'
+{
+  "failureId": "eligible6300000002",
+  "failureType": "merge_conflict",
+  "resolutionState": "resolved",
+  "repairStatus": "resolved",
+  "branch": "issue/63-stale-scoped-eligible",
+  "prNumber": "6304",
+  "repository": "other/wrong-implicit-repo",
+  "updatedAt": "2026-01-01T00:00:00Z"
+}
+EOF
+
+: >"$TMP/gh-argv-63d.log"
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TMP/gh-argv-63d.log"
+if [[ "\$*" == *"pr view 6304"* ]]; then
+  if [[ "\$*" == *"--repo linktrend/IDE-Development"* ]]; then
+    echo '{"number":6304,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","headRefName":"issue/63-stale-scoped-eligible"}'
+    exit 0
+  fi
+  # Wrong/implicit context → OPEN (must not authorize)
+  echo '{"number":6304,"state":"OPEN","mergedAt":null,"headRefName":"issue/63-stale-scoped-eligible"}'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+PLAN63D="$(
+  PATH="$TMP/bin:$PATH" \
+  env -u GITHUB_REPOSITORY -u GH_REPO \
+  python3 "$ROOT/scripts/gitops/cleanup_stale_records.py" \
+    --repo linktrend/IDE-Development \
+    --file-backend \
+    --repair-dir "$REPAIR63D"
+)"
+echo "$PLAN63D" | python3 -c '
+import json,sys
+p=json.load(sys.stdin)
+by={a.get("failureId"):a for a in (p.get("actions") or [])}
+assert "eligible6300000002" in by, p
+a=by["eligible6300000002"]
+dec=str(a.get("decision") or "")
+assert "WOULD_DELETE_FILE" in dec.upper(), a
+assert a.get("authorized") is True, a
+'
+python3 -c '
+import sys
+from pathlib import Path
+log = Path(sys.argv[1]).read_text(encoding="utf-8")
+views = [l for l in log.splitlines() if "pr view 6304" in l]
+assert views, f"expected gh pr view 6304; log={log!r}"
+for l in views:
+    assert "--repo linktrend/IDE-Development" in l, f"cleanup_stale_records must pass caller --repo: {l!r}"
+    assert "--repo other/wrong-implicit-repo" not in l, f"row repository must not override caller: {l!r}"
+bare = [l for l in views if "--repo " not in l]
+assert not bare, f"no bare pr view allowed: {bare!r}"
+' "$TMP/gh-argv-63d.log"
+pass "cleanup_stale_records --file-backend: --repo scopes pr view → WOULD_DELETE_FILE"
+
+# --- 14e) Wrong implicit context must NOT authorize apply deletes ---
+# Trap: bare gh (no --repo) returns MERGED. Without authoritative caller repo
+# propagation, that would wrongly authorize. Contract: keep KEEP / no DELETED_FILE
+# when evidence is only available via implicit gh.
+REPAIR63E="$TMP/repair63-implicit-trap"
+mkdir -p "$REPAIR63E"
+cat >"$REPAIR63E/trap63.json" <<'EOF'
+{
+  "failureId": "trap6300000000001",
+  "failureType": "merge_conflict",
+  "resolutionState": "resolved",
+  "repairStatus": "resolved",
+  "branch": "issue/63-implicit-trap-eligible",
+  "prNumber": "6305",
+  "repository": "",
+  "updatedAt": "2026-01-01T00:00:00Z"
+}
+EOF
+
+: >"$TMP/gh-argv-63e.log"
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TMP/gh-argv-63e.log"
+if [[ "\$*" == *"pr view 6305"* ]]; then
+  if [[ "\$*" == *"--repo linktrend/IDE-Development"* ]]; then
+    # Correct scope intentionally CLOSED/unknown-ish for this trap case: we are
+    # testing the path that fails to pass --repo. If --repo IS passed, MERGED is
+    # fine — apply may delete. The RED assertion is: bare MERGED must not authorize
+    # when caller repo was not propagated.
+    echo '{"number":6305,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","headRefName":"issue/63-implicit-trap-eligible"}'
+    exit 0
+  fi
+  # Implicit trap MERGED — must NOT authorize when --repo was not propagated
+  echo '{"number":6305,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","headRefName":"issue/63-implicit-trap-eligible"}'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+# Simulate missing propagation: call plan_completed_repair_cleanup with empty repo
+# (same failure mode as repair_task before Issue #63 fix). Apply must not delete.
+mkdir -p "$TMP/issue63e-policy"
+cat >"$TMP/issue63e-policy/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"defaults":false,"issueNumbers":[],"preservePrNumbers":[],"branches":[]}
+EOF
+APPLY63E="$(
+  PATH="$TMP/bin:$PATH" \
+  env -u GITHUB_REPOSITORY -u GH_REPO -u LINKTREND_CLEANUP_PRESERVE \
+  LINKTREND_CLEANUP_PRESERVE_FILE="$TMP/issue63e-policy/cleanup-preserve.json" \
+  python3 -c '
+import json, sys
+from pathlib import Path
+sys.path.insert(0, "'"$ROOT"'/scripts/gitops")
+from cleanup_controls import plan_completed_repair_cleanup, load_preserve_policy
+root = Path("'"$REPAIR63E"'")
+pol = load_preserve_policy(Path("'"$TMP"'/issue63e-policy/cleanup-preserve.json"))
+# Empty caller repo — must fail closed (no implicit-gh authorization)
+plan = plan_completed_repair_cleanup(root, apply=True, policy=pol, repo="")
+print(json.dumps(plan))
+'
+)"
+echo "$APPLY63E" | python3 -c '
+import json,sys
+from pathlib import Path
+p=json.load(sys.stdin)
+by={a.get("failureId"):a for a in (p.get("actions") or [])}
+assert "trap6300000000001" in by, p
+a=by["trap6300000000001"]
+dec=str(a.get("decision") or "").upper()
+auth=a.get("authorized")
+# Fail-closed: empty caller repo must not authorize via implicit gh
+assert auth is not True, a
+assert "DELETED_FILE" not in dec, a
+assert "WOULD_DELETE_FILE" not in dec, a
+assert Path(a["path"]).is_file(), "implicit trap must not delete file on apply"
+'
+# Also: bare pr view (no --repo) must not be the authorizing path when callers
+# correctly pass --repo. Re-run via repair_task apply — after fix, scoped MERGED
+# may delete; before fix, implicit MERGED must not be trusted. Assert gh log for
+# repair_task always includes --repo when plan-cleanup-completed is invoked with it.
+: >"$TMP/gh-argv-63e2.log"
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TMP/gh-argv-63e2.log"
+if [[ "\$*" == *"pr view 6305"* ]]; then
+  if [[ "\$*" == *"--repo linktrend/IDE-Development"* ]]; then
+    echo '{"number":6305,"state":"OPEN","mergedAt":null,"headRefName":"issue/63-implicit-trap-eligible"}'
+    exit 0
+  fi
+  echo '{"number":6305,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","headRefName":"issue/63-implicit-trap-eligible"}'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+# Recreate file in case prior apply somehow removed it
+cat >"$REPAIR63E/trap63.json" <<'EOF'
+{
+  "failureId": "trap6300000000001",
+  "failureType": "merge_conflict",
+  "resolutionState": "resolved",
+  "repairStatus": "resolved",
+  "branch": "issue/63-implicit-trap-eligible",
+  "prNumber": "6305",
+  "repository": "",
+  "updatedAt": "2026-01-01T00:00:00Z"
+}
+EOF
+
+APPLY63E2="$(
+  PATH="$TMP/bin:$PATH" \
+  LINKTREND_REPAIR_BACKEND=file \
+  env -u GITHUB_REPOSITORY -u GH_REPO \
+  python3 "$ROOT/scripts/gitops/repair_task.py" plan-cleanup-completed \
+    --repo linktrend/IDE-Development \
+    --repair-dir "$REPAIR63E" \
+    --apply
+)"
+echo "$APPLY63E2" | python3 -c '
+import json,sys
+from pathlib import Path
+p=json.load(sys.stdin)
+by={a.get("failureId"):a for a in (p.get("actions") or [])}
+assert "trap6300000000001" in by, p
+a=by["trap6300000000001"]
+dec=str(a.get("decision") or "")
+# Scoped evidence is OPEN → must KEEP; implicit MERGED must not win
+assert a.get("authorized") is False, a
+assert "DELETED_FILE" not in dec.upper(), a
+assert "WOULD_DELETE_FILE" not in dec.upper(), a
+assert Path(a["path"]).is_file(), "OPEN scoped evidence must not delete on apply"
+'
+python3 -c '
+import sys
+from pathlib import Path
+log = Path(sys.argv[1]).read_text(encoding="utf-8")
+views = [l for l in log.splitlines() if "pr view 6305" in l]
+# After Issue #63: every authorizing pr view must carry caller --repo
+# Before fix (missing propagation): bare views may appear — that is RED.
+assert views, f"expected pr view 6305; log={log!r}"
+bare = [l for l in views if "--repo " not in l]
+assert not bare, f"wrong implicit context: bare pr view must not authorize: {bare!r}"
+for l in views:
+    assert "--repo linktrend/IDE-Development" in l, f"caller --repo required: {l!r}"
+' "$TMP/gh-argv-63e2.log"
+pass "wrong implicit gh MERGED cannot authorize apply / WOULD_DELETE_FILE"
+
+# --- 14f) cleanup_stale_records apply: wrong/missing repo fail-closed ---
+REPAIR63F="$TMP/repair63-stale-failclosed"
+mkdir -p "$REPAIR63F"
+cat >"$REPAIR63F/keep63f.json" <<'EOF'
+{
+  "failureId": "keep6300000000001",
+  "failureType": "merge_conflict",
+  "resolutionState": "resolved",
+  "repairStatus": "resolved",
+  "branch": "issue/63-stale-failclosed",
+  "prNumber": "6306",
+  "repository": "",
+  "updatedAt": "2026-01-01T00:00:00Z"
+}
+EOF
+
+: >"$TMP/gh-argv-63f.log"
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TMP/gh-argv-63f.log"
+if [[ "\$*" == *"pr view 6306"* ]]; then
+  echo '{"number":6306,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","headRefName":"issue/63-stale-failclosed"}'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+STALE63F_RC=0
+PATH="$TMP/bin:$PATH" env -u GITHUB_REPOSITORY -u GH_REPO \
+  python3 "$ROOT/scripts/gitops/cleanup_stale_records.py" \
+    --repo "" \
+    --file-backend \
+    --repair-dir "$REPAIR63F" \
+    --apply --i-understand-close-repairs \
+  >"$TMP/issue63f.out" 2>"$TMP/issue63f.err" || STALE63F_RC=$?
+[ "$STALE63F_RC" -ne 0 ] \
+  || fail "empty --repo file-backend apply must fail closed: out=$(cat "$TMP/issue63f.out") err=$(cat "$TMP/issue63f.err")"
+[ -f "$REPAIR63F/keep63f.json" ] \
+  || fail "empty --repo must not delete repair file"
+if grep -q 'WOULD_DELETE_FILE\|DELETED_FILE' "$TMP/issue63f.out" 2>/dev/null; then
+  fail "empty --repo must not emit delete decisions: $(cat "$TMP/issue63f.out")"
+fi
+python3 -c '
+import sys
+from pathlib import Path
+log = Path(sys.argv[1]).read_text(encoding="utf-8")
+views = [l for l in log.splitlines() if "pr view" in l]
+assert not views, f"empty --repo must not call gh pr view: {views!r}"
+' "$TMP/gh-argv-63f.log"
+pass "cleanup_stale_records: empty --repo file-backend apply fail-closed (no gh, no delete)"
+
+# END issue-63
 
 echo "OK: $PASS assertions passed"

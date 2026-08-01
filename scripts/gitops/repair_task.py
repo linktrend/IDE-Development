@@ -34,7 +34,7 @@ from typing import Any
 _GITOPS_DIR = Path(__file__).resolve().parent
 if str(_GITOPS_DIR) not in sys.path:
     sys.path.insert(0, str(_GITOPS_DIR))
-from cleanup_controls import plan_completed_repair_cleanup
+from cleanup_controls import normalize_caller_repo, plan_completed_repair_cleanup
 
 MAX_ATTEMPTS = 3
 SCHEMA_VERSION = 2
@@ -754,6 +754,72 @@ def main(argv: list[str]) -> int:
         print(json.dumps(out, indent=2))
         return 0
 
+    # plan-cleanup-completed does not use get_backend (avoids github token /
+    # file-root mkdir side effects); validate caller --repo then plan/apply.
+    if args.cmd == "plan-cleanup-completed":
+        backend_name = (
+            os.environ.get("LINKTREND_REPAIR_BACKEND")
+            or os.environ.get("LINKTREND_CONFLICT_BACKEND")
+            or "github"
+        ).lower()
+        if backend_name != "file":
+            print(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "mode": "dry-run",
+                        "backend": backend_name,
+                        "completedCount": 0,
+                        "actions": [],
+                        "githubMutation": "none",
+                        "refused": "github_completed_repair_cleanup_not_authorized",
+                        "notes": [
+                            "Completed GitHub repair issues are closed by resolve; "
+                            "bulk delete of GitHub issues is not authorized by this control.",
+                            "Use LINKTREND_REPAIR_BACKEND=file for local resolved-record cleanup.",
+                        ],
+                    },
+                    indent=2,
+                )
+            )
+            return 0 if not args.apply else 2
+        # Caller --repo is required and authoritative for linked-PR evidence.
+        # Empty/invalid must not fall through to implicit gh or per-row repository.
+        repo_slug, repo_reason = normalize_caller_repo(args.repo)
+        if repo_slug is None:
+            print(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "mode": "apply" if args.apply else "dry-run",
+                        "backend": "file",
+                        "completedCount": 0,
+                        "actions": [],
+                        "githubMutation": "none",
+                        "refused": f"caller_repo_{repo_reason}",
+                        "notes": [
+                            "REFUSED: --repo must be a valid owner/name for "
+                            "PR-evidence authorization; refusing implicit gh / "
+                            "per-row repository fallback.",
+                        ],
+                    },
+                    indent=2,
+                ),
+                file=sys.stderr,
+            )
+            return 2
+        root = Path(
+            args.repair_dir
+            or os.environ.get("LINKTREND_REPAIR_DIR")
+            or os.environ.get("LINKTREND_CONFLICT_DIR")
+            or ".git/linktrend-repair-tasks"
+        )
+        plan = plan_completed_repair_cleanup(
+            root, apply=bool(args.apply), repo=repo_slug
+        )
+        print(json.dumps(plan, indent=2))
+        return 0
+
     backend = get_backend(args.repo)
     if args.cmd == "dispatch-attempt":
         out = backend.dispatch_attempt(args.id)
@@ -787,42 +853,6 @@ def main(argv: list[str]) -> int:
         return 0 if out else 1
     if args.cmd == "list":
         print(json.dumps(backend.list_open(), indent=2))
-        return 0
-    if args.cmd == "plan-cleanup-completed":
-        backend_name = (
-            os.environ.get("LINKTREND_REPAIR_BACKEND")
-            or os.environ.get("LINKTREND_CONFLICT_BACKEND")
-            or "github"
-        ).lower()
-        if backend_name != "file":
-            print(
-                json.dumps(
-                    {
-                        "schemaVersion": 1,
-                        "mode": "dry-run",
-                        "backend": backend_name,
-                        "completedCount": 0,
-                        "actions": [],
-                        "githubMutation": "none",
-                        "refused": "github_completed_repair_cleanup_not_authorized",
-                        "notes": [
-                            "Completed GitHub repair issues are closed by resolve; "
-                            "bulk delete of GitHub issues is not authorized by this control.",
-                            "Use LINKTREND_REPAIR_BACKEND=file for local resolved-record cleanup.",
-                        ],
-                    },
-                    indent=2,
-                )
-            )
-            return 0 if not args.apply else 2
-        root = Path(
-            args.repair_dir
-            or os.environ.get("LINKTREND_REPAIR_DIR")
-            or os.environ.get("LINKTREND_CONFLICT_DIR")
-            or ".git/linktrend-repair-tasks"
-        )
-        plan = plan_completed_repair_cleanup(root, apply=bool(args.apply))
-        print(json.dumps(plan, indent=2))
         return 0
     return 2
 

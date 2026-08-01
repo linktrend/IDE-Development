@@ -1,7 +1,7 @@
 # Repair Dispatcher Contract
 
 **Status:** Active
-**Date:** 2026-07-30
+**Date:** 2026-08-01
 **Schema owner:** IDE Development
 **Dispatch owner:** Lisa (OpenClaw ACP)
 
@@ -81,8 +81,12 @@ python3 scripts/gitops/repair_task.py plan-cleanup-completed --repo owner/repo
 Completed-repair **inventory** (GitHub + preserve policy): `scripts/gitops/cleanup_stale_records.py`
 (see `docs/contracts/STALE-CLEANUP-CONTROLS.md`). Live GitHub close is deferred.
 
-File backend (tests): `LINKTREND_REPAIR_BACKEND=file` + `LINKTREND_REPAIR_DIR=...`
-(also accepts legacy `LINKTREND_CONFLICT_BACKEND` / `LINKTREND_CONFLICT_DIR`).
+### Completed-repair cleanup repo scope (Issue #63)
+
+`plan-cleanup-completed` and `cleanup_stale_records.py --file-backend` pass the caller's `--repo` through to `cleanup_controls.plan_completed_repair_cleanup(..., repo=...)`. Linked PR evidence for KEEP vs authorize-delete must be queried against that repository — not an implicit `gh` / remote default. Wrong ambient context must not authorize apply deletes.
+
+File backend only: `LINKTREND_REPAIR_BACKEND=file` + `LINKTREND_REPAIR_DIR=...`
+(also accepts legacy `LINKTREND_CONFLICT_BACKEND` / `LINKTREND_CONFLICT_DIR`). Apply deletes **local resolved JSON only**; GitHub mutation remains **none** (GitHub backend path refuses bulk close/delete).
 
 ## Observer
 

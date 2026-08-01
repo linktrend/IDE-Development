@@ -27,6 +27,8 @@ from typing import Any
 
 SCHEMA_VERSION = 1
 ISSUE_BRANCH_RE = re.compile(r"^issue/(\d+)(?:-|$)")
+# owner/name — same shape used by repair_task / cleanup_stale_records callers.
+REPO_SLUG_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 _HERE = Path(__file__).resolve().parent
 DEFAULT_PRESERVE_PATH = _HERE / "cleanup_preserve.defaults.json"
@@ -36,6 +38,27 @@ PrStateFn = Callable[[str], str]
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def is_valid_repo_slug(repo: str) -> bool:
+    """True when ``repo`` is a non-empty owner/name slug suitable for ``gh --repo``."""
+    slug = (repo or "").strip()
+    return bool(slug and REPO_SLUG_RE.fullmatch(slug))
+
+
+def normalize_caller_repo(repo: str) -> tuple[str | None, str]:
+    """Validate caller-supplied repository for PR-evidence authorization.
+
+    Returns ``(slug, "explicit")`` or ``(None, reason)`` where reason is
+    ``repo_missing`` / ``repo_invalid``. Empty or invalid values must not fall
+    through to implicit ``gh`` or per-row repository when authorizing deletes.
+    """
+    slug = (repo or "").strip()
+    if not slug:
+        return None, "repo_missing"
+    if not REPO_SLUG_RE.fullmatch(slug):
+        return None, "repo_invalid"
+    return slug, "explicit"
 
 
 def _read_policy_file(path: Path) -> dict[str, Any]:
@@ -227,12 +250,26 @@ def _gh_json(args: list[str]) -> Any:
 
 
 def default_pr_state(pr: str, *, repo: str = "") -> str:
-    """Resolve PR state via ``gh pr view`` (OPEN|MERGED|CLOSED|NONE|UNKNOWN)."""
+    """Resolve PR state via ``gh pr view`` (OPEN|MERGED|CLOSED|NONE|UNKNOWN).
+
+    Requires an explicit valid ``owner/name`` ``repo``. Empty/invalid repo returns
+    ``UNKNOWN`` (fail closed) — never query implicit ``gh`` cwd/remote context,
+    which can mis-authorize file deletes against the wrong repository.
+    """
     if not pr or str(pr) in ("", "0", "null", "None"):
         return "NONE"
-    args = ["pr", "view", str(pr), "--json", "number,state,mergedAt,headRefName"]
-    if repo:
-        args.extend(["--repo", repo])
+    repo_slug = (repo or "").strip()
+    if not is_valid_repo_slug(repo_slug):
+        return "UNKNOWN"
+    args = [
+        "pr",
+        "view",
+        str(pr),
+        "--json",
+        "number,state,mergedAt,headRefName",
+        "--repo",
+        repo_slug,
+    ]
     data = _gh_json(args)
     if not isinstance(data, dict):
         return "UNKNOWN"
@@ -507,12 +544,17 @@ def classify_file_repair(
 
     Mirrors ``cleanup_stale_records.classify_repair`` keep rules without importing
     that module (circular risk). Injectable ``pr_state_fn(pr) -> str`` for tests.
+
+    Caller-supplied ``repo`` is authoritative for linked-PR evidence. Per-row
+    ``repository`` is never used as a silent fallback for authorization queries.
+    Missing/invalid caller repo fails closed (KEEP, not authorized).
     """
     issue_n = row.get("issueNumber")
     branch = str(row.get("branch") or "")
     pr_raw = row.get("prNumber") if row.get("prNumber") is not None else row.get("pr")
     pr = str(pr_raw) if pr_raw is not None else ""
-    repo_name = (repo or str(row.get("repository") or "")).strip()
+    # Authoritative caller repo only — no per-row / implicit gh fallback.
+    repo_name, repo_reason = normalize_caller_repo(repo)
 
     result: dict[str, Any] = {
         "failureId": row.get("failureId"),
@@ -547,6 +589,17 @@ def classify_file_repair(
     reason = preserve_reason(branch, policy=policy, pr_number=pr_num)
     if reason:
         result.update({"decision": "KEEP", "reason": reason, "authorized": False})
+        return result
+
+    if repo_name is None:
+        # Fail closed before any PR evidence / authorize path.
+        result.update(
+            {
+                "decision": "KEEP",
+                "reason": f"caller_repo_{repo_reason}",
+                "authorized": False,
+            }
+        )
         return result
 
     if pr_state_fn is not None:
@@ -600,18 +653,33 @@ def plan_completed_repair_cleanup(
     Honors preserve policy and OPEN linked PRs (same keep rules as
     cleanup_stale_records.classify_repair). GitHub Issue records are never
     closed/deleted here. Apply removes only authorized local resolved JSON files.
+
+    ``repo`` (caller ``owner/name``) is required and authoritative for linked-PR
+    evidence used to authorize file deletes. Missing/invalid ``repo`` fails
+    closed: every row stays KEEP / not authorized; apply never unlinks.
     """
     pol = policy or load_preserve_policy()
     completed = list_completed_file_tasks(root)
+    repo_slug, repo_reason = normalize_caller_repo(repo)
     actions: list[dict[str, Any]] = []
+    # Even with injectable pr_state_fn, refuse authorize/apply without a valid
+    # caller repo so wrong ambient context cannot authorize deletes.
+    authorize_ok = repo_slug is not None
     for row in completed:
-        classified = classify_file_repair(
-            row,
-            policy=pol,
-            pr_state_fn=pr_state_fn,
-            repo=repo,
-        )
-        authorized = bool(classified.get("authorized"))
+        if not authorize_ok:
+            classified = {
+                "reason": f"caller_repo_{repo_reason}",
+                "authorized": False,
+                "prState": None,
+            }
+        else:
+            classified = classify_file_repair(
+                row,
+                policy=pol,
+                pr_state_fn=pr_state_fn,
+                repo=repo_slug or "",
+            )
+        authorized = bool(classified.get("authorized")) and authorize_ok
         if authorized:
             decision = "DELETED_FILE" if apply else "WOULD_DELETE_FILE"
             if apply:
@@ -630,11 +698,12 @@ def plan_completed_repair_cleanup(
                 "scope": "file_backend_resolved_only",
             }
         )
-    return {
+    out: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
         "mode": "apply" if apply else "dry-run",
         "backend": "file",
         "root": str(root),
+        "repo": repo_slug or (repo or "").strip(),
         "completedCount": len(completed),
         "actions": actions,
         "githubMutation": "none",
@@ -643,9 +712,18 @@ def plan_completed_repair_cleanup(
             "Remote branch/PR cleanup remains scripts/cleanup-merged-branches.sh "
             "(MERGED/abandoned evidence + preserve policy).",
             "File deletes require no preserve match and linked PR not OPEN.",
+            "Caller --repo is authoritative for linked-PR evidence; "
+            "implicit gh / per-row repository never authorize apply deletes.",
         ],
         "generatedAt": utc_now(),
     }
+    if not authorize_ok:
+        out["refused"] = f"caller_repo_{repo_reason}"
+        out["notes"].append(
+            "REFUSED: valid caller owner/name --repo required for PR-evidence "
+            "authorization; no WOULD_DELETE_FILE / DELETED_FILE authorized."
+        )
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -763,14 +841,18 @@ def main(argv: list[str] | None = None) -> int:
             or ".git/linktrend-repair-tasks"
         )
         pol = load_preserve_policy(policy_path) if policy_path else load_preserve_policy()
+        repo_slug, _repo_reason = normalize_caller_repo(
+            str(getattr(args, "repo", "") or "")
+        )
+        # Missing/invalid --repo: plan still runs (all KEEP / refused); never apply.
         plan = plan_completed_repair_cleanup(
             root,
-            apply=bool(args.apply),
+            apply=bool(args.apply) if repo_slug else False,
             policy=pol,
-            repo=str(getattr(args, "repo", "") or ""),
+            repo=repo_slug or "",
         )
         print(json.dumps(plan, indent=2))
-        return 0
+        return 0 if repo_slug else 2
 
     return 2
 

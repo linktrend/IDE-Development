@@ -34,6 +34,21 @@ MARKER_PREFIX = "<!-- linktrend-repair-task:"
 LABEL_PRIMARY = "linktrend-repair"
 
 
+def _caller_repo_for_pr_evidence(repo: str) -> tuple[str | None, str]:
+    """Validate caller ``--repo`` for PR-evidence authorization.
+
+    Empty or invalid explicit values must not fall through to implicit ``gh``
+    (no ``--repo``) or per-row repository when authorizing file-backend deletes.
+    Returns ``(slug, "explicit")`` or ``(None, reason)``.
+    """
+    slug = (repo or "").strip()
+    if not slug:
+        return None, "repo_missing"
+    if "/" not in slug or " " in slug:
+        return None, "repo_invalid"
+    return slug, "explicit"
+
+
 def parse_marker(body: str) -> dict[str, Any] | None:
     for line in (body or "").splitlines():
         if MARKER_PREFIX in line:
@@ -264,7 +279,19 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 2
-        plan = plan_completed_repair_cleanup(root, apply=apply)
+        # Caller --repo is authoritative for PR-evidence (default remains
+        # linktrend/IDE-Development). Empty/invalid explicit values fail closed
+        # so apply authorization never falls through to implicit gh / per-row.
+        repo_slug, repo_reason = _caller_repo_for_pr_evidence(args.repo)
+        if repo_slug is None:
+            print(
+                "REFUSED: --repo must be a valid owner/name for file-backend "
+                f"PR-evidence authorization ({repo_reason}); "
+                "refusing implicit gh / per-row repository fallback",
+                file=sys.stderr,
+            )
+            return 2
+        plan = plan_completed_repair_cleanup(root, apply=apply, repo=repo_slug)
         print(json.dumps(plan, indent=2))
         return 0
 

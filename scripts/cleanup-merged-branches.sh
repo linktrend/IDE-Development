@@ -3,13 +3,15 @@
 # Default: dry-run. Never deletes by name alone. Preserves caller checkout.
 #
 # Usage:
-#   cleanup-merged-branches.sh [--apply] [--remote] [--local]
+#   cleanup-merged-branches.sh [--apply] [--remote] [--local] [--repo OWNER/NAME]
 # Preserve (KEEP before delete) comes from scripts/gitops/cleanup_controls.py
 #   (export-preserve, with deterministic --repo). Overlays:
 #   .linktrend/cleanup-preserve.json and/or LINKTREND_CLEANUP_PRESERVE=branch,...
 #   Set "defaults": false in an overlay to disable committed defaults via that
 #   helper. Fail-closed: if preserve PR heads cannot be resolved
 #   (preserveResolutionOk=false / unresolvedPrNumbers), never delete candidates.
+# Explicit --repo OWNER/NAME is highest precedence for cleanup scope; empty or
+#   invalid values fail closed (no fallthrough to env/remotes/implicit gh).
 # --apply deletes branches only; never closes PRs/issues.
 set -euo pipefail
 
@@ -19,6 +21,8 @@ DO_LOCAL=1
 ROOT=""
 PRESERVE_POLICY='{"branches":[],"issueNumbers":[],"prHeads":[]}'
 CLEANUP_REPO=""
+EXPLICIT_CLEANUP_REPO=""
+EXPLICIT_REPO_SET=0
 PRESERVE_UNRESOLVED=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -27,8 +31,17 @@ while [ $# -gt 0 ]; do
     --apply) APPLY=1; shift ;;
     --remote) DO_REMOTE=1; DO_LOCAL=0; shift ;;
     --local) DO_LOCAL=1; DO_REMOTE=0; shift ;;
+    --repo)
+      EXPLICIT_REPO_SET=1
+      if [ $# -lt 2 ]; then
+        echo "FAIL: --repo requires OWNER/NAME" >&2
+        exit 1
+      fi
+      EXPLICIT_CLEANUP_REPO="$2"
+      shift 2
+      ;;
     --repo-root) ROOT="$2"; shift 2 ;;
-    -h|--help) sed -n '1,25p' "$0"; exit 0 ;;
+    -h|--help) sed -n '1,30p' "$0"; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -73,11 +86,21 @@ _cleanup_repo_slug_ok() {
 }
 
 # Resolve owner/repo for export-preserve gh resolution (deterministic order).
-# Precedence: GITHUB_REPOSITORY → GH_REPO → (ambiguous origin+upstream fail-closed) →
-# gh repo view → origin URL parse. Ambiguity leaves CLEANUP_REPO empty so
-# export-preserve runs without --repo and Python fail-closes.
+# Precedence: explicit --repo (authoritative) → GITHUB_REPOSITORY → GH_REPO →
+# (ambiguous origin+upstream fail-closed) → gh repo view → origin URL parse.
+# Empty/invalid explicit --repo fails closed (exit 1; no env/remote fallthrough).
+# Ambiguity without --repo leaves CLEANUP_REPO empty so export-preserve runs
+# without --repo and Python fail-closes.
 resolve_cleanup_repo() {
   CLEANUP_REPO=""
+  if [ "${EXPLICIT_REPO_SET:-0}" -eq 1 ]; then
+    if [ -z "$EXPLICIT_CLEANUP_REPO" ] || ! _cleanup_repo_slug_ok "$EXPLICIT_CLEANUP_REPO"; then
+      echo "FAIL: empty or invalid --repo '${EXPLICIT_CLEANUP_REPO}' (expected OWNER/NAME)" >&2
+      exit 1
+    fi
+    CLEANUP_REPO="$EXPLICIT_CLEANUP_REPO"
+    return 0
+  fi
   if [ -n "${GITHUB_REPOSITORY:-}" ] && _cleanup_repo_slug_ok "${GITHUB_REPOSITORY}"; then
     CLEANUP_REPO="$GITHUB_REPOSITORY"
     return 0

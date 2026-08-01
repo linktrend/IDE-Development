@@ -1,6 +1,6 @@
 # Stale Cleanup Controls
 
-**Status:** Contract (IDE-owned) — Issue #51
+**Status:** Contract (IDE-owned) — Issues #51 / #57 / #59 / #61 / #63
 **Date:** 2026-08-01
 **Owner:** IDE Development
 
@@ -45,22 +45,26 @@ Optional overlays: `LINKTREND_CLEANUP_PRESERVE_FILE`, `.linktrend/cleanup-preser
 
 If any gate fails → **KEEP** (list in report; do not apply).
 
-### preservePrNumbers + PR evidence repo scope (Issues #57 / #59 / #61)
+### preservePrNumbers + PR evidence repo scope (Issues #57 / #59 / #61 / #63)
 
 `preservePrNumbers` resolution is **fail-closed**. If `gh` cannot resolve a preserved PR's `headRefName` (gh unavailable, error, empty head, or repo ambiguity), cleanup must **not** delete candidate branches.
 
-Shell loads preserve policy via `cleanup_controls.py export-preserve` with a **deterministic repo**. Precedence (Issue #59):
+Shell (`cleanup-merged-branches.sh`) accepts explicit `--repo OWNER/NAME` and loads preserve policy via `cleanup_controls.py export-preserve` with a **deterministic repo**. Precedence (Issues #59 / #63):
 
-1. Explicit `--repo`
+1. Explicit CLI `--repo` (**highest**; Issue #63)
 2. `GITHUB_REPOSITORY`
 3. `GH_REPO`
 4. Only if unambiguous: `gh repo view` / `origin`
 
+**Explicit `--repo` fail-closed (Issue #63):** when the caller passes `--repo`, that value is authoritative over env, remotes, and implicit `gh`. Empty or invalid explicit `--repo` (not a valid `OWNER/NAME` slug) **fails closed immediately** — exit non-zero; **no fallthrough** to `GITHUB_REPOSITORY` / `GH_REPO` / remotes / implicit `gh`; no PR evidence queries; no `WOULD_DELETE` / `DELETED`.
+
 **Ambiguous remotes (Issue #59):** when neither `--repo` nor env is set **and** both `origin` and `upstream` remotes exist → **fail closed**. Do not guess `origin` or implicit `gh` context. Export must leave preserve PR heads unresolved (`preserveResolutionOk=false`, numbers in `unresolvedPrNumbers`) → cleanup **KEEP**; `WOULD_DELETE` / `DELETED` blocked.
 
-Explicit `--repo` / env remain authoritative even when both remotes exist. Any unresolved PR ⇒ **KEEP** / no apply deletes.
+Valid explicit `--repo` / env remain authoritative even when both remotes exist. Any unresolved PR ⇒ **KEEP** / no apply deletes.
 
-**Repository-scoped PR evidence (Issue #61):** whenever shell cleanup has resolved a nonempty `CLEANUP_REPO`, every PR evidence query (`gh pr list` used to classify OPEN / MERGED / ABANDONED / NONE for delete eligibility) **MUST** pass `--repo CLEANUP_REPO`. If `CLEANUP_REPO` is empty because repository context is ambiguous or unresolved → **fail closed**: do not query implicit `gh` for PR evidence; no candidate delete (no `WOULD_DELETE` / `DELETED` from implicit context). Issue #59 precedence and ambiguity controls above remain authoritative.
+**Repository-scoped PR evidence (Issue #61):** whenever shell cleanup has resolved a nonempty `CLEANUP_REPO`, every PR evidence query (`gh pr list` used to classify OPEN / MERGED / ABANDONED / NONE for delete eligibility) **MUST** pass `--repo CLEANUP_REPO`. If `CLEANUP_REPO` is empty because repository context is ambiguous or unresolved → **fail closed**: do not query implicit `gh` for PR evidence; no candidate delete (no `WOULD_DELETE` / `DELETED` from implicit context). Issue #59 precedence and ambiguity controls above remain authoritative; Issue #63 empty/invalid explicit `--repo` is a stronger hard fail (exit before evidence).
+
+**Completed-repair linked-PR scope (Issue #63):** `repair_task.py plan-cleanup-completed` and `cleanup_stale_records.py` (file-backend path) **MUST** propagate the caller's `--repo` into `cleanup_controls.plan_completed_repair_cleanup(..., repo=...)`. Linked PR state used to authorize file deletes is therefore repository-scoped; wrong implicit `gh` / remote context must not authorize apply deletes. File-backend remains **local resolved JSON only**; `githubMutation` stays `none` (no GitHub Issue close/delete from this control).
 
 Default remains dry-run (no live delete by default). Scope: IDE cleanup policy/runtime only — no consumer changes. Also out of scope: credentials, App/Bugbot config, production branch-protection edits.
 
@@ -122,7 +126,7 @@ Known candidates as of this date. Re-verify before apply; this snapshot is not a
 
 ## Related
 
-- `docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md` — local worktree/branch cleanup; Actions never removes Mini worktrees
-- `docs/contracts/REPAIR-DISPATCHER.md` — durable repair tasks; inventory close policy defers here
-- `scripts/cleanup-merged-branches.sh` / `.github/workflows/linktrend-cleanup-merged.yml`
-- `scripts/gitops/cleanup_controls.py` / `scripts/gitops/cleanup_stale_records.py`
+- `docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md` — local worktree/branch cleanup; Actions never removes Mini worktrees; Lisa passes explicit `--repo`
+- `docs/contracts/REPAIR-DISPATCHER.md` — durable repair tasks; inventory close policy defers here; Issue #63 `--repo` propagation into plan-cleanup
+- `scripts/cleanup-merged-branches.sh` (`--repo OWNER/NAME` highest precedence) / `.github/workflows/linktrend-cleanup-merged.yml`
+- `scripts/gitops/cleanup_controls.py` / `scripts/gitops/cleanup_stale_records.py` / `scripts/gitops/repair_task.py`
