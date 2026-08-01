@@ -35,5 +35,12 @@
     "rollback_modes": {
       ".cursor/rules/rollback-target.mdc": "0644"
     }
+  },
+  "live_installer": {
+    "proof": "byte_exact_rollback",
+    "notes": "Live proof: install → mutate package+update → rollback restores CORE.txt bytes/modes.",
+    "asserts": [
+      "rollback restores exact pre-change bytes and modes via CLI"
+    ]
   }
 }

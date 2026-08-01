@@ -38,5 +38,13 @@
     "rollback_bytes": {
       ".cursor/rules/managed-sample.mdc": "original pre-change bytes\n"
     }
+  },
+  "live_installer": {
+    "proof": "interrupted_transaction_recovery",
+    "notes": "Classification uses stub transactions/; live proof plants engine current-transaction journal+backups then runs update.",
+    "asserts": [
+      "next mutating CLI restores backup bytes/modes",
+      "current-transaction removed after recovery"
+    ]
   }
 }

@@ -19,5 +19,12 @@
       ".cursor/rules/linktrend-managed-bootstrap.mdc"
     ],
     "notes": "Second plan/apply against identical bytes must be no-op / byte-identical."
+  },
+  "live_installer": {
+    "proof": "idempotent_repeat",
+    "asserts": [
+      "second install and noop update leave managed destinations byte+mode identical",
+      "managed destinations are physical files (not symlinks)"
+    ]
   }
 }

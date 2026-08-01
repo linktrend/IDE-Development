@@ -1,7 +1,8 @@
 # Managed-core migration black-box fixtures (WP4)
 
 Disposable-repository fixtures and focused tests for migration, conflict,
-rollback, idempotence, and portability contracts from Issue #43 Wave 1.
+rollback, idempotence, and portability contracts from Issue #43 Wave 1 /
+Issue #64 live installer proofs.
 
 ## Scope
 
@@ -11,15 +12,32 @@ rollback, idempotence, and portability contracts from Issue #43 Wave 1.
 
 ## Run
 
+Fixture classification + catalog checks (skip live installer):
+
+```bash
+python3 tests/managed-core-migration-bb/run_tests.py --without-installer
+```
+
+Default when `scripts/ide-development.py` is present: also run live installer
+end-to-end proofs (or force with `--with-installer`):
+
 ```bash
 python3 tests/managed-core-migration-bb/run_tests.py
-```
-
-Optional live installer probes (skipped when entrypoint absent):
-
-```bash
 python3 tests/managed-core-migration-bb/run_tests.py --with-installer
 ```
+
+Live proofs invoke the real CLI against disposable repos and the hermetic
+package at `fixtures/live-package/` (not the system MANIFEST, which may be
+dirty during parallel installer work).
+
+## Live scenarios
+
+| Fixture | Live proof |
+|---------|------------|
+| `01-external-cursor-symlink` | Fail-closed / replace; never follow outside consumer |
+| `07-interrupted-transaction` | Recover via next mutating `update` |
+| `08-byte-exact-rollback` | CLI `rollback` restores bytes+modes |
+| `09-idempotent-repeat` | Repeat install/update byte-identical |
 
 ## Fixtures
 
