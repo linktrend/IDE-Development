@@ -45,7 +45,7 @@ Optional overlays: `LINKTREND_CLEANUP_PRESERVE_FILE`, `.linktrend/cleanup-preser
 
 If any gate fails → **KEEP** (list in report; do not apply).
 
-### preservePrNumbers resolution (Issues #57 / #59)
+### preservePrNumbers + PR evidence repo scope (Issues #57 / #59 / #61)
 
 `preservePrNumbers` resolution is **fail-closed**. If `gh` cannot resolve a preserved PR's `headRefName` (gh unavailable, error, empty head, or repo ambiguity), cleanup must **not** delete candidate branches.
 
@@ -60,7 +60,9 @@ Shell loads preserve policy via `cleanup_controls.py export-preserve` with a **d
 
 Explicit `--repo` / env remain authoritative even when both remotes exist. Any unresolved PR ⇒ **KEEP** / no apply deletes.
 
-Default remains dry-run (no live delete). Scope: IDE cleanup policy/runtime only — no consumer changes. Also out of scope: credentials, App/Bugbot config, production branch-protection edits.
+**Repository-scoped PR evidence (Issue #61):** whenever shell cleanup has resolved a nonempty `CLEANUP_REPO`, every PR evidence query (`gh pr list` used to classify OPEN / MERGED / ABANDONED / NONE for delete eligibility) **MUST** pass `--repo CLEANUP_REPO`. If `CLEANUP_REPO` is empty because repository context is ambiguous or unresolved → **fail closed**: do not query implicit `gh` for PR evidence; no candidate delete (no `WOULD_DELETE` / `DELETED` from implicit context). Issue #59 precedence and ambiguity controls above remain authoritative.
+
+Default remains dry-run (no live delete by default). Scope: IDE cleanup policy/runtime only — no consumer changes. Also out of scope: credentials, App/Bugbot config, production branch-protection edits.
 
 ## Local worktrees
 

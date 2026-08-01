@@ -24,6 +24,13 @@ make_repo() {
   git -C "$d" branch main
 }
 
+# Hermetic CLEANUP_REPO for shell dry-runs that need PR evidence (Issue #61).
+# Prefer env over a live github.com origin — --remote would otherwise git fetch
+# and pollute refs/remotes/origin. Ambiguity fixtures unset these and add remotes.
+with_cleanup_repo() {
+  env -u GH_REPO GITHUB_REPOSITORY=linktrend/IDE-Development "$@"
+}
+
 seed_cleanup() {
   local d="$1"
   mkdir -p "$d/scripts/gitops"
@@ -80,7 +87,7 @@ echo '[]'
 EOF
 chmod +x "$TMP/bin/gh"
 
-PATH="$TMP/bin:$PATH" bash -c "cd \"$REPO1\" && bash scripts/cleanup-merged-branches.sh --remote" >"$TMP/open.out"
+PATH="$TMP/bin:$PATH" with_cleanup_repo bash -c "cd \"$REPO1\" && bash scripts/cleanup-merged-branches.sh --remote" >"$TMP/open.out"
 grep -q 'KEEP: issue/23-gitops-lifecycle-repair-control' "$TMP/open.out" \
   || fail "open PR must KEEP over historical MERGED: $(cat "$TMP/open.out")"
 grep -qi 'open PR' "$TMP/open.out" \
@@ -117,7 +124,7 @@ echo '[]'
 EOF
 chmod +x "$TMP/bin/gh"
 
-PATH="$TMP/bin:$PATH" bash -c "cd \"$REPO2\" && bash scripts/cleanup-merged-branches.sh --local" >"$TMP/wt.out"
+PATH="$TMP/bin:$PATH" with_cleanup_repo bash -c "cd \"$REPO2\" && bash scripts/cleanup-merged-branches.sh --local" >"$TMP/wt.out"
 grep -q 'KEEP: local:issue/99-merged-clean-wt' "$TMP/wt.out" \
   || fail "clean worktree must KEEP: $(cat "$TMP/wt.out")"
 grep -qi 'active worktree attached' "$TMP/wt.out" \
@@ -150,7 +157,7 @@ echo '[]'
 EOF
 chmod +x "$TMP/bin/gh"
 
-PATH="$TMP/bin:$PATH" bash -c "cd \"$REPO3\" && bash scripts/cleanup-merged-branches.sh --local" >"$TMP/pres.out"
+PATH="$TMP/bin:$PATH" with_cleanup_repo bash -c "cd \"$REPO3\" && bash scripts/cleanup-merged-branches.sh --local" >"$TMP/pres.out"
 grep -q 'KEEP:.*issue/44-add-app-backed-review-ready-publisher-and-produc' "$TMP/pres.out" \
   || fail "preserve issue/44 must KEEP: $(cat "$TMP/pres.out")"
 grep -qi 'preserve' "$TMP/pres.out" \
@@ -184,7 +191,7 @@ echo '[]'
 EOF
 chmod +x "$TMP/bin/gh"
 
-PATH="$TMP/bin:$PATH" bash -c "cd \"$REPO4\" && bash scripts/cleanup-merged-branches.sh --remote" >"$TMP/elig.out"
+PATH="$TMP/bin:$PATH" with_cleanup_repo bash -c "cd \"$REPO4\" && bash scripts/cleanup-merged-branches.sh --remote" >"$TMP/elig.out"
 grep -q 'WOULD_DELETE_REMOTE: issue/GITOPS-01-review-packager-pipeline' "$TMP/elig.out" \
   || fail "eligible merged branch should WOULD_DELETE: $(cat "$TMP/elig.out")"
 grep -qv '^DELETED_' "$TMP/elig.out" || fail "dry-run must not DELETE eligible case"
@@ -442,7 +449,7 @@ echo '[]'
 EOF
 chmod +x "$TMP/bin/gh"
 
-PATH="$TMP/bin:$PATH" bash -c "cd \"$REPO6\" && bash scripts/cleanup-merged-branches.sh --local" >"$TMP/df.out"
+PATH="$TMP/bin:$PATH" with_cleanup_repo bash -c "cd \"$REPO6\" && bash scripts/cleanup-merged-branches.sh --local" >"$TMP/df.out"
 if grep -q 'KEEP:.*issue/44-add-app-backed-review-ready-publisher-and-produc' "$TMP/df.out"; then
   if grep -qi 'preserve' "$TMP/df.out"; then
     fail "defaults:false must not KEEP issue/44 via preserve: $(cat "$TMP/df.out")"
@@ -586,7 +593,7 @@ assert d.get("defaultsDisabled") is True, d
 pass "export-preserve: CLOSED + MERGED preservePrNumbers heads in branches/prHeads"
 
 # Optional: shell dry-run KEEP via preserve for MERGED head listed only under preservePrNumbers
-PATH="$TMP/bin:$PATH" bash -c "cd \"$REPO9\" && bash scripts/cleanup-merged-branches.sh --local" >"$TMP/exp9.out"
+PATH="$TMP/bin:$PATH" with_cleanup_repo bash -c "cd \"$REPO9\" && bash scripts/cleanup-merged-branches.sh --local" >"$TMP/exp9.out"
 grep -q 'KEEP:.*feature/preserve-merged-head' "$TMP/exp9.out" \
   || fail "MERGED preservePrNumbers head must KEEP via preserve: $(cat "$TMP/exp9.out")"
 grep -qi 'preserve' "$TMP/exp9.out" \
@@ -713,7 +720,7 @@ echo '[]'
 EOF
 chmod +x "$TMP/bin/gh"
 
-PATH="$TMP/bin:$PATH" bash -c "cd \"$REPO55F2\" && bash scripts/cleanup-merged-branches.sh --local" \
+PATH="$TMP/bin:$PATH" with_cleanup_repo bash -c "cd \"$REPO55F2\" && bash scripts/cleanup-merged-branches.sh --local" \
   >"$TMP/issue55f2.out"
 grep -E 'KEEP: local:issue/51 — preserve policy' "$TMP/issue55f2.out" \
   || fail "bare issue/51 must KEEP via preserve policy: $(cat "$TMP/issue55f2.out")"
@@ -1130,5 +1137,270 @@ assert d.get("repo") == "linktrend/IDE-Development", d
 pass "export-preserve: --repo authoritative despite ambiguous remotes"
 
 # END issue-59
+
+# ============================================================================
+# 13) Issue #61 Bugbot: repository-scoped PR evidence for cleanup
+# BEGIN issue-61
+# ============================================================================
+
+# --- 13a) Resolved CLEANUP_REPO (unambiguous origin) → --repo on every PR evidence query ---
+# Contract: nonempty CLEANUP_REPO ⇒ gh pr list for eligibility MUST pass --repo <resolved>.
+# Fake gh returns MERGED only when --repo linktrend/IDE-Development is present; without
+# --repo it refuses (empty) so implicit/wrong-repo evidence cannot unlock WOULD_DELETE.
+REPO61A="$TMP/issue61-scoped-pr-evidence"
+make_repo "$REPO61A"
+seed_cleanup "$REPO61A"
+# Unambiguous origin only (no upstream); --local so no live fetch. Env cleared below.
+git -C "$REPO61A" remote add origin "https://github.com/linktrend/IDE-Development.git"
+mkdir -p "$REPO61A/.linktrend"
+cat >"$REPO61A/.linktrend/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"defaults":false,"issueNumbers":[],"preservePrNumbers":[],"branches":[]}
+EOF
+
+git -C "$REPO61A" checkout -q -b issue/61-scoped-eligible
+echo e61a >"$REPO61A/e61a.txt" && git -C "$REPO61A" add e61a.txt \
+  && git -C "$REPO61A" commit -q -m "eligible merged with resolved CLEANUP_REPO"
+HEAD61A="$(git -C "$REPO61A" rev-parse HEAD)"
+git -C "$REPO61A" checkout -q development
+
+: >"$TMP/gh-argv-61a.log"
+mkdir -p "$TMP/bin"
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TMP/gh-argv-61a.log"
+if [[ "\$*" == *"repo view"* ]]; then
+  echo "linktrend/IDE-Development"
+  exit 0
+fi
+if [[ "\$*" == *"pr list"* ]] && [[ "\$*" == *"--head issue/61-scoped-eligible"* ]]; then
+  if [[ "\$*" == *"--repo linktrend/IDE-Development"* ]]; then
+    echo '[{"number":6101,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${HEAD61A}"}]'
+    exit 0
+  fi
+  # Refuse implicit gh — trap would be wrong-repo MERGED; empty forces --repo for eligibility
+  echo '[]'
+  exit 0
+fi
+if [[ "\$*" == *"pr view"* ]]; then
+  echo '{"number":0,"state":"CLOSED","headRefName":""}'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+PATH="$TMP/bin:$PATH" env -u GITHUB_REPOSITORY -u GH_REPO \
+  bash -c "cd \"$REPO61A\" && bash scripts/cleanup-merged-branches.sh --local" \
+  >"$TMP/issue61a.out" || true
+grep -q 'WOULD_DELETE.*issue/61-scoped-eligible' "$TMP/issue61a.out" \
+  || fail "resolved CLEANUP_REPO + scoped MERGED should WOULD_DELETE: $(cat "$TMP/issue61a.out")"
+if grep -q '^DELETED_' "$TMP/issue61a.out"; then
+  fail "dry-run must not DELETE issue-61 scoped case: $(cat "$TMP/issue61a.out")"
+fi
+# Every PR-evidence pr list for the candidate must include --repo <resolved>
+python3 -c '
+import sys
+from pathlib import Path
+log = Path(sys.argv[1]).read_text(encoding="utf-8")
+lines = [l for l in log.splitlines() if "pr list" in l and "--head issue/61-scoped-eligible" in l]
+assert lines, f"expected gh pr list evidence query for candidate; log={log!r}"
+for l in lines:
+    assert "--repo linktrend/IDE-Development" in l, f"PR evidence must pass --repo: {l!r}"
+' "$TMP/gh-argv-61a.log"
+pass "shell dry-run: resolved CLEANUP_REPO → pr list --repo + WOULD_DELETE (scoped MERGED only)"
+
+# --- 13b) Ambiguous remotes → implicit gh MUST NOT influence PR evidence ---
+# Trap: fake gh returns MERGED for the candidate when called WITHOUT --repo.
+# With empty preservePrNumbers (defaults:false), preserve-head resolution is not the
+# blocker under test — empty CLEANUP_REPO must fail-closed so trap MERGED cannot
+# produce WOULD_DELETE/DELETED. Prefer: no pr list evidence at all (or never bare).
+REPO61B="$TMP/issue61-ambiguous-no-implicit"
+make_repo "$REPO61B"
+seed_cleanup "$REPO61B"
+git -C "$REPO61B" remote add origin "https://github.com/linktrend/IDE-Development.git"
+git -C "$REPO61B" remote add upstream "https://github.com/other/fork-upstream.git"
+mkdir -p "$REPO61B/.linktrend"
+cat >"$REPO61B/.linktrend/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"defaults":false,"issueNumbers":[],"preservePrNumbers":[],"branches":[]}
+EOF
+
+git -C "$REPO61B" checkout -q -b issue/61-ambiguous-trap-eligible
+echo e61b >"$REPO61B/e61b.txt" && git -C "$REPO61B" add e61b.txt \
+  && git -C "$REPO61B" commit -q -m "trap MERGED under ambiguous remotes"
+HEAD61B="$(git -C "$REPO61B" rev-parse HEAD)"
+git -C "$REPO61B" checkout -q development
+
+: >"$TMP/gh-argv-61b.log"
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TMP/gh-argv-61b.log"
+if [[ "\$*" == *"repo view"* ]]; then
+  echo "linktrend/IDE-Development"
+  exit 0
+fi
+if [[ "\$*" == *"pr list"* ]] && [[ "\$*" == *"--head issue/61-ambiguous-trap-eligible"* ]]; then
+  if [[ "\$*" == *"--repo "* ]]; then
+    # Should not be reached when CLEANUP_REPO is empty; still refuse guessed repos
+    echo '[]'
+    exit 0
+  fi
+  # Trap: implicit gh MERGED — must NOT unlock delete when CLEANUP_REPO empty
+  echo '[{"number":6102,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${HEAD61B}"}]'
+  exit 0
+fi
+if [[ "\$*" == *"pr view"* ]]; then
+  echo '{"number":0,"state":"CLOSED","headRefName":""}'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+PATH="$TMP/bin:$PATH" env -u GITHUB_REPOSITORY -u GH_REPO \
+  bash -c "cd \"$REPO61B\" && bash scripts/cleanup-merged-branches.sh --local" \
+  >"$TMP/issue61b.out" || true
+if grep -q 'WOULD_DELETE' "$TMP/issue61b.out"; then
+  fail "ambiguous + empty CLEANUP_REPO must not WOULD_DELETE (implicit trap): $(cat "$TMP/issue61b.out")"
+fi
+if grep -q '^DELETED_' "$TMP/issue61b.out"; then
+  fail "ambiguous + empty CLEANUP_REPO must not DELETED: $(cat "$TMP/issue61b.out")"
+fi
+python3 -c '
+import sys
+from pathlib import Path
+log = Path(sys.argv[1]).read_text(encoding="utf-8")
+# Prefer no PR-evidence pr list when CLEANUP_REPO empty; never allow bare (no --repo)
+evidence = [l for l in log.splitlines() if "pr list" in l and "--head issue/61-ambiguous-trap-eligible" in l]
+bare = [l for l in evidence if "--repo " not in l]
+assert not bare, f"implicit gh pr list without --repo must not run: {bare!r}"
+assert not evidence, f"empty CLEANUP_REPO must not query PR evidence: {evidence!r}"
+' "$TMP/gh-argv-61b.log"
+pass "shell dry-run: ambiguous remotes → no implicit pr list; trap MERGED cannot WOULD_DELETE"
+
+# --- 13c) Ambiguity still blocks WOULD_DELETE/DELETED (Issue #59 fail-closed retain) ---
+# Strengthen: preservePrNumbers present + ambiguous remotes + trap MERGED for candidate.
+REPO61C="$TMP/issue61-ambiguous-fail-closed"
+make_repo "$REPO61C"
+seed_cleanup "$REPO61C"
+git -C "$REPO61C" remote add origin "https://github.com/linktrend/IDE-Development.git"
+git -C "$REPO61C" remote add upstream "https://github.com/other/fork-upstream.git"
+mkdir -p "$REPO61C/.linktrend"
+cat >"$REPO61C/.linktrend/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"defaults":false,"issueNumbers":[],"preservePrNumbers":[961],"branches":[]}
+EOF
+
+git -C "$REPO61C" checkout -q -b issue/61-ambiguous-fc-eligible
+echo e61c >"$REPO61C/e61c.txt" && git -C "$REPO61C" add e61c.txt \
+  && git -C "$REPO61C" commit -q -m "eligible under ambiguous fail-closed"
+HEAD61C="$(git -C "$REPO61C" rev-parse HEAD)"
+git -C "$REPO61C" checkout -q development
+
+: >"$TMP/gh-argv-61c.log"
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TMP/gh-argv-61c.log"
+if [[ "\$*" == *"repo view"* ]]; then
+  echo "linktrend/IDE-Development"
+  exit 0
+fi
+if [[ "\$*" == *"pr view 961"* ]]; then
+  echo '{"number":961,"state":"OPEN","headRefName":"feature/preserve-961-trap-head"}'
+  exit 0
+fi
+if [[ "\$*" == *"pr view"* ]]; then
+  echo '{"number":961,"state":"OPEN","headRefName":"feature/preserve-961-trap-head"}'
+  exit 0
+fi
+if [[ "\$*" == *"--head issue/61-ambiguous-fc-eligible"* ]]; then
+  echo '[{"number":6103,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${HEAD61C}"}]'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+PATH="$TMP/bin:$PATH" env -u GITHUB_REPOSITORY -u GH_REPO \
+  bash -c "cd \"$REPO61C\" && bash scripts/cleanup-merged-branches.sh --local" \
+  >"$TMP/issue61c.out" || true
+if grep -q 'WOULD_DELETE' "$TMP/issue61c.out"; then
+  fail "ambiguous fail-closed must not WOULD_DELETE: $(cat "$TMP/issue61c.out")"
+fi
+if grep -q '^DELETED_' "$TMP/issue61c.out"; then
+  fail "ambiguous fail-closed must not DELETED: $(cat "$TMP/issue61c.out")"
+fi
+if grep -q 'issue/61-ambiguous-fc-eligible' "$TMP/issue61c.out"; then
+  grep -qiE 'fail-closed|unresolved' "$TMP/issue61c.out" \
+    || fail "KEEP reason should mention fail-closed/unresolved: $(cat "$TMP/issue61c.out")"
+  grep -qE 'KEEP:.*issue/61-ambiguous-fc-eligible' "$TMP/issue61c.out" \
+    || fail "eligible under ambiguous remotes must KEEP: $(cat "$TMP/issue61c.out")"
+fi
+pass "shell dry-run: ambiguous remotes → no WOULD_DELETE/DELETED (Issue #59/#61 fail-closed)"
+
+# --- 13d) Env override unlocks scoped PR evidence despite ambiguous remotes ---
+# GITHUB_REPOSITORY authoritative → CLEANUP_REPO set → pr list --repo → WOULD_DELETE.
+# Empty preservePrNumbers / defaults:false so preserve-head resolution does not fail-closed.
+REPO61D="$TMP/issue61-env-unlock-evidence"
+make_repo "$REPO61D"
+seed_cleanup "$REPO61D"
+git -C "$REPO61D" remote add origin "https://github.com/linktrend/IDE-Development.git"
+git -C "$REPO61D" remote add upstream "https://github.com/other/fork-upstream.git"
+mkdir -p "$REPO61D/.linktrend"
+cat >"$REPO61D/.linktrend/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"defaults":false,"issueNumbers":[],"preservePrNumbers":[],"branches":[]}
+EOF
+
+git -C "$REPO61D" checkout -q -b issue/61-env-unlock-eligible
+echo e61d >"$REPO61D/e61d.txt" && git -C "$REPO61D" add e61d.txt \
+  && git -C "$REPO61D" commit -q -m "eligible merged via env-scoped evidence"
+HEAD61D="$(git -C "$REPO61D" rev-parse HEAD)"
+git -C "$REPO61D" checkout -q development
+
+: >"$TMP/gh-argv-61d.log"
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TMP/gh-argv-61d.log"
+if [[ "\$*" == *"repo view"* ]]; then
+  echo "error: no default repo (env should supply CLEANUP_REPO)" >&2
+  exit 1
+fi
+if [[ "\$*" == *"pr list"* ]] && [[ "\$*" == *"--head issue/61-env-unlock-eligible"* ]]; then
+  if [[ "\$*" == *"--repo linktrend/IDE-Development"* ]]; then
+    echo '[{"number":6104,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${HEAD61D}"}]'
+    exit 0
+  fi
+  # Implicit trap MERGED — must not be used; only --repo unlocks correct evidence
+  echo '[{"number":9998,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"cafebabecafebabecafebabecafebabecafebabe"}]'
+  exit 0
+fi
+if [[ "\$*" == *"pr view"* ]]; then
+  echo '{"number":0,"state":"CLOSED","headRefName":""}'
+  exit 0
+fi
+echo '[]'
+EOF
+chmod +x "$TMP/bin/gh"
+
+PATH="$TMP/bin:$PATH" env -u GH_REPO GITHUB_REPOSITORY=linktrend/IDE-Development \
+  bash -c "cd \"$REPO61D\" && bash scripts/cleanup-merged-branches.sh --local" \
+  >"$TMP/issue61d.out" || true
+grep -q 'WOULD_DELETE.*issue/61-env-unlock-eligible' "$TMP/issue61d.out" \
+  || fail "GITHUB_REPOSITORY override + scoped MERGED should WOULD_DELETE: $(cat "$TMP/issue61d.out")"
+if grep -q '^DELETED_' "$TMP/issue61d.out"; then
+  fail "dry-run must not DELETE env-unlock case: $(cat "$TMP/issue61d.out")"
+fi
+python3 -c '
+import sys
+from pathlib import Path
+log = Path(sys.argv[1]).read_text(encoding="utf-8")
+lines = [l for l in log.splitlines() if "pr list" in l and "--head issue/61-env-unlock-eligible" in l]
+assert lines, f"expected scoped gh pr list evidence query; log={log!r}"
+for l in lines:
+    assert "--repo linktrend/IDE-Development" in l, f"env override must pass --repo: {l!r}"
+bare = [l for l in lines if "--repo " not in l]
+assert not bare, f"no bare pr list allowed: {bare!r}"
+' "$TMP/gh-argv-61d.log"
+pass "shell dry-run: GITHUB_REPOSITORY despite ambiguous remotes → --repo + WOULD_DELETE"
+
+# END issue-61
 
 echo "OK: $PASS assertions passed"

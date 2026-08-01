@@ -182,7 +182,13 @@ pr_evidence_for_branch() {
   # OPEN wins over any historical MERGED/CLOSED for the same head branch.
   local branch="$1"
   local json
-  json="$(gh pr list --head "$branch" --state all --json number,state,mergedAt,labels,headRefOid --limit 10 2>/dev/null || echo '[]')"
+  # Fail-closed: without a resolved repo, do not query implicit gh context
+  # (cross-repo PR evidence could wrongly allow deletion).
+  if [ -z "$CLEANUP_REPO" ]; then
+    echo "NONE "
+    return 0
+  fi
+  json="$(gh pr list --repo "$CLEANUP_REPO" --head "$branch" --state all --json number,state,mergedAt,labels,headRefOid --limit 10 2>/dev/null || echo '[]')"
   python3 -c '
 import json,sys
 rows=json.load(sys.stdin)
