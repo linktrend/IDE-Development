@@ -26,7 +26,10 @@
         "observed": {
           "bugbotActive": true,
           "triggerMode": "Manual Only",
-          "explicitTriggersOnly": ["bugbot run", "@cursor review"]
+          "explicitTriggersOnly": [
+            "bugbot run",
+            "@cursor review"
+          ]
         }
       },
       {
@@ -105,5 +108,6 @@
     "forcePushOrRewrite": false,
     "cleanupApply": false,
     "tagOrRelease": false
-  }
+  },
+  "bindingTipSha": "fdca290251ef6054685341fbc3f647a9aa76f718"
 }
