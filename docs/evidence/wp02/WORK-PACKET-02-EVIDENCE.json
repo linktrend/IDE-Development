@@ -4,7 +4,7 @@
   "issue": 68,
   "branch": "issue/68-work-packet-02-integration-lineage-stale-cleanup",
   "checkpointSha": "c07a8f2c6471d6846e1af30f2469b39be7597a02",
-  "capturedAt": "2026-08-02T03:24:31Z",
+  "capturedAt": "2026-08-02T03:27:54Z",
   "inputs": {
     "originDevelopment": "991abc319782008ef93af95002be0d7f3d5a937c",
     "wp01": "89956878c54ff45e4aef1ff42883d209221b7a30",
@@ -48,7 +48,18 @@
     "rcVerifyTar": true,
     "rcVerifyZip": true,
     "rcReproducible": true,
-    "threeOsCi": "pending_dispatch"
+    "threeOsCi": "success",
+    "threeOsCiRun": {
+      "id": 30730574939,
+      "url": "https://github.com/linktrend/IDE-Development/actions/runs/30730574939",
+      "headSha": "3c21bb8493a795aa6e46e0eb8a31b2fcd6c15a96",
+      "jobs": [
+        "Installer matrix (ubuntu-latest)",
+        "Installer matrix (macos-latest)",
+        "Installer matrix (windows-latest)"
+      ],
+      "conclusion": "success"
+    }
   },
   "releaseCandidate": {
     "sourceCommit": "7e441faba1a6c61d9f3d3c75842610044fc40104",
@@ -104,8 +115,23 @@
     "ambientTokenFallbackForPrivilegedMutations": false
   },
   "completionStatus": "verified_partial_checkpoint",
-  "completionReason": "Local lineage/tests/RC gates pass; live external-state readiness incomplete (App apply authority blocked).",
+  "completionReason": "Local lineage/tests/RC/three-OS CI pass; live external-state readiness incomplete (App apply authority blocked; staging/main rulesets missing; Manual-Only unknown).",
   "note": "checkpointSha updated to evidence-binding commit; re-verify fast gates after push",
   "bindingRule": "After this commit is made, branch tip advances; authoritative WP02 checkpoint is git rev-parse of issue/68 branch tip (origin). RC sourceCommit remains 7e441fa for package bytes.",
-  "rcSourceCommit": "7e441faba1a6c61d9f3d3c75842610044fc40104"
+  "rcSourceCommit": "7e441faba1a6c61d9f3d3c75842610044fc40104",
+  "laneF": {
+    "model": "cursor-grok-4.5-high",
+    "lineage": {
+      "agentId": "5de78d1c-6e17-49ff-9c45-798c35205da3",
+      "verdict": "PASS"
+    },
+    "securityGitops": {
+      "agentId": "3c2cf7bc-2a4e-422d-85cd-641c470534f9",
+      "verdict": "PASS"
+    },
+    "portableRegression": {
+      "agentId": "cc282e6c-746d-48d9-a319-024cd8b72878",
+      "verdict": "PASS_WITH_PENDING_CI_THEN_CI_GREEN"
+    }
+  }
 }

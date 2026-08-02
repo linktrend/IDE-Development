@@ -37,3 +37,15 @@ All false (see JSON).
 ## Definition of complete
 
 Not fully complete: live-state gates unresolved. Pushed issue-branch checkpoint is the delivery mode.
+
+## Three-OS CI
+
+- Run: https://github.com/linktrend/IDE-Development/actions/runs/30730574939
+- Head: `3c21bb8493a795aa6e46e0eb8a31b2fcd6c15a96`
+- Jobs: ubuntu/macOS/windows Installer matrix — **success**
+
+## Lane F (cursor-grok-4.5-high)
+
+- Lineage: PASS (`5de78d1c-6e17-49ff-9c45-798c35205da3`)
+- Security/GitOps: PASS (`3c2cf7bc-2a4e-422d-85cd-641c470534f9`)
+- Portable regression: PASS (CI pending at review time; matrix later green) (`cc282e6c-746d-48d9-a319-024cd8b72878`)
