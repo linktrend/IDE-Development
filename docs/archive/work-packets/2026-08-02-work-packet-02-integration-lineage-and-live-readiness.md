@@ -5,7 +5,7 @@
 **Required starting base:** fresh `origin/development`
 **Required input checkpoints:** WP01 `89956878c54ff45e4aef1ff42883d209221b7a30`; cleanup lineage tip `5cf099155d9f7b5d95e094f74b288af7aec766af`; frozen PR #49 tip `0868c0034620c4ccb255457484f0342a12a0c833`
 **Accepted partial checkpoint (pre-closure):** `712675614014abdf6e180915e07aa21e1a983324`
-**Evidence:** `docs/evidence/wp02/WORK-PACKET-02-EVIDENCE.md` + `EXTERNAL-CONFIGURATION-CLOSURE.md`
+**Evidence:** `docs/archive/evidence/wp02/WORK-PACKET-02-EVIDENCE.md` + `EXTERNAL-CONFIGURATION-CLOSURE.md` (archived Issue #72; pointer at `docs/evidence/wp02/README.md`)
 **Owner:** Cursor Grok 4.5 High lead, with Cursor Grok 4.5 High subagents only
 **Independent verifier after completion:** Codex Desktop Orchestrator, in a separate Principal-approved phase
 **Delivery mode:** commit, push, checkpoint only — no new PR, Bugbot trigger, review-ready publication, merge, promotion, tag, release, or consumer change
@@ -143,4 +143,4 @@ Any unresolved required live-state blocker means WP02 is checkpointed but incomp
 
 ### Completion record (2026-08-02)
 
-WP02 meets the definition above for its **stated scope**. Live external readiness closed via owner-authorized ruleset bootstrap (staging `20218450`, main `20218451`; development `19728531` preserved), App token mint proof on Review Ready Publisher dry-run `30730954742`, and Principal-supplied Bugbot Manual Only UI evidence (`docs/evidence/wp02/EXTERNAL-CONFIGURATION-CLOSURE.md`). Completion here is **not** production acceptance and does **not** authorize consumer rollout.
+WP02 meets the definition above for its **stated scope**. Live external readiness closed via owner-authorized ruleset bootstrap (staging `20218450`, main `20218451`; development `19728531` preserved), App token mint proof on Review Ready Publisher dry-run `30730954742`, and Principal-supplied Bugbot Manual Only UI evidence (`docs/archive/evidence/wp02/EXTERNAL-CONFIGURATION-CLOSURE.md`). Completion here is **not** production acceptance and does **not** authorize consumer rollout.

@@ -19,7 +19,7 @@
 | `docs/runbooks/rollback.md` | Transactional rollback runbook |
 | `docs/acceptance/acceptance-matrix.md` | WP1 acceptance gates (installer, OS, external-state, RC, exclusions) |
 | `docs/BUILD-LOG.md` | Append-only WP1+ build log |
-| `docs/runbooks/LANE_F_RESULT.md` | This result file |
+| `docs/archive/runbooks/LANE_F_RESULT.md` | This result file (archived Issue #72; pointer at `docs/runbooks/LANE_F_RESULT.md`) |
 
 ### Updated
 
@@ -37,7 +37,7 @@
 
 ### Not edited (per ownership)
 
-- `docs/work-packets/2026-08-02-work-packet-1-production-readiness.md`
+- `docs/archive/work-packets/2026-08-02-work-packet-1-production-readiness.md`
 - Installer / tests / workflows / packaging code / `.github/**`
 - Archived historical evidence (active SOT docs already supersede)
 
