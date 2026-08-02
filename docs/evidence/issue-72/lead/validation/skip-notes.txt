@@ -1,0 +1,1 @@
+NOTE: off-repo local Archive snapshots absent on this machine; using documented SKIP_LOCAL_ARCHIVE_CHECKS=1 (not a silent in-repo skip)

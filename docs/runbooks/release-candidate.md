@@ -1,8 +1,9 @@
 # Runbook — release candidate (Work Packet 1)
 
 **Audience:** Operators packaging and verifying IDE Development portable managed-core **v2** for production readiness proof.
-**Scope:** System repository only. No consumer install, no GitHub tag/release, no live settings apply.
-**Related:** [`rollback.md`](./rollback.md) · [`../acceptance/acceptance-matrix.md`](../acceptance/acceptance-matrix.md) · [`../GITOPS-CONSUMER-ROLLOUT.md`](../GITOPS-CONSUMER-ROLLOUT.md) · Issue #67 / Work Packet 1
+**Scope:** System repository only. No consumer install, no GitHub tag/release, no live consumer settings apply.
+**Related:** [`rollback.md`](./rollback.md) · [`../acceptance/acceptance-matrix.md`](../acceptance/acceptance-matrix.md) · [`../GITOPS-CONSUMER-ROLLOUT.md`](../GITOPS-CONSUMER-ROLLOUT.md) · [`../CURRENT-STATUS.md`](../CURRENT-STATUS.md) · Issue #67 / Work Packet 1
+**Status boundary (2026-08-02):** WP1 RC proof **complete**. WP2 lineage/live readiness **complete**. WP03 integrate/promote **complete** (tree `43b1333…`). WP04 consumer rollout **prepared / not executed**. This runbook remains the RC operator procedure; it does not authorize consumer mutation.
 
 ---
 
@@ -10,13 +11,13 @@
 
 A **release candidate (RC)** is a reproducible archive of the managed package built from a clean worktree of this system repository. Operators use it to prove install/update/verify/rollback on disposable targets **without** needing the live IDE Development checkout next to the consumer.
 
-Work Packet 1 **prepares and proves** the RC. Work Packet 2 handles integration into `development`, publication decisions, and (only after separate Principal approval) consumer rollout.
+Work Packet 1 **prepared and proved** the RC. Work Packet 2 built canonical lineage + live readiness. Work Packet 03 integrated/promoted the system line. **Work Packet 04** (consumer rollout) remains Principal-gated and is **not** authorized by this runbook.
 
 ---
 
 ## What IDE Development installs (reminder)
 
-Into an approved or disposable **consumer** Git repository (never nested into IDE Development itself during Wave 1 / WP1):
+Into an approved or disposable **consumer** Git repository (never nested into IDE Development itself):
 
 | Surface | Result |
 |---|---|
@@ -98,7 +99,7 @@ Outputs stay under an ignored build/artifact directory — **never** a GitHub ta
 ### A. From system source checkout
 
 ```bash
-# Disposable or Principal-approved consumer only — never IDE Development itself in WP1
+# Disposable or Principal-approved consumer only — never IDE Development itself
 python3 scripts/ide-development.py install --repo /path/to/consumer
 python3 scripts/ide-development.py update --repo /path/to/consumer
 ```
@@ -133,18 +134,21 @@ Exact archive layout and entrypoint path are defined by Lane D packaging output;
 
 ---
 
-## Explicit non-goals (WP1)
+## Explicit non-goals (WP1 historical; still binding for this runbook)
 
-| Action | Status in WP1 |
+| Action | Status |
 |---|---|
-| Git tag / GitHub Release | **Forbidden** |
-| Merge into `development` / promote | **Work Packet 2** |
-| Real consumer install/update | **Deferred** — separately Principal-gated; see consumer rollout doc |
-| Live GitHub App / secrets / Bugbot / ruleset apply | **Forbidden** (plan/verify read-only only) |
+| Git tag / GitHub Release from this RC procedure | **Forbidden** unless separately approved |
+| Merge into `development` / promote | **WP03 complete** — not part of RC create/verify |
+| Real consumer install/update | **WP04** — deferred until Principal approval; see consumer rollout doc |
+| Live GitHub App / secrets / Bugbot / ruleset apply on consumers | **Forbidden** without separate approval |
 | Claude packaging or docs claiming Claude support | **Forbidden** |
 
 ---
 
-## Work Packet 2 boundary
+## Work Packet boundaries (post-WP03)
 
-Work Packet 2 is the **integration and publication** stage: reconcile frozen PR #49 and intentional checkpoints, governed merge/promotion, and final publication/rollout decisions under **separate** Carlos approval. WP1 stops at a proven RC + evidence on the issue branch.
+- **WP1:** RC proof on disposable targets (this runbook).
+- **WP2:** Lineage + IDE Development live readiness (checkpoint).
+- **WP03:** Integrate/promote — protected lines share tree `43b1333…`.
+- **WP04:** Consumer rollout — prepared / **not executed**; Principal approval required (`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).

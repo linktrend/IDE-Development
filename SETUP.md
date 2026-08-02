@@ -6,12 +6,13 @@ This repository is **IDE Development** — the shared AI development core (versi
 
 The canonical knowledge asset lives in `core/`. The portable package source for consumers lives in `core/managed-core/`. GitHub is the source of truth for this **system source** repository.
 
-**Claude Code is outside current v2 support and roadmap** (excluded). Historical Claude packaging files may exist under `claude/`; do not treat them as an active install path.
+**Claude Code is outside current v2 support and roadmap** (excluded). Historical Claude packaging guidance is archived under `docs/archive/platform-entrypoints/claude/`; do not treat it as an active install path.
 
-**This checkout is not a consumer.** Do not nest-install `.ide-development/` into IDE Development during Wave 1 / Work Packet 1. Consumer rollout is **deferred** and requires separate Principal (Carlos) approval per repo after Work Packet 2 integration/publication decisions — see [`docs/GITOPS-CONSUMER-ROLLOUT.md`](docs/GITOPS-CONSUMER-ROLLOUT.md).
+**This checkout is not a consumer.** Do not nest-install `.ide-development/` into IDE Development. Consumer rollout is **WP04 — prepared, not executed** and requires Principal (Carlos) approval per repo — see [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md) and [`docs/GITOPS-CONSUMER-ROLLOUT.md`](docs/GITOPS-CONSUMER-ROLLOUT.md).
 
 **New operators:** after cloning, start with:
 
+- [docs/CURRENT-STATUS.md](docs/CURRENT-STATUS.md) — concise current status / launch readiness
 - [docs/IDE-DEVELOPMENT-INTENT.md](docs/IDE-DEVELOPMENT-INTENT.md)
 - [docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md](docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md)
 - [docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md](docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md)
@@ -19,6 +20,7 @@ The canonical knowledge asset lives in `core/`. The portable package source for 
 - [docs/runbooks/release-candidate.md](docs/runbooks/release-candidate.md) · [docs/runbooks/rollback.md](docs/runbooks/rollback.md)
 - [docs/acceptance/acceptance-matrix.md](docs/acceptance/acceptance-matrix.md)
 - [docs/GITOPS-CONSUMER-ROLLOUT.md](docs/GITOPS-CONSUMER-ROLLOUT.md)
+- [docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md](docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md) — WP04 prepared / not executed
 
 Retired systems: [docs/ARCHIVE-INDEX.md](docs/ARCHIVE-INDEX.md) and [docs/archive/](docs/archive/README.md).
 
@@ -55,7 +57,7 @@ git status
 
 Consumers install a **physical** managed core inside their own Git repository. There is no consumer-to-system `.cursor` symlink and no absolute external path dependency.
 
-**WP1 policy:** use **disposable** repositories for proof. Real consumers wait for Principal approval after WP2 — do not treat this section as rollout authorization.
+**Policy:** use **disposable** repositories for proof until WP04 is Principal-approved. Real consumers wait for that approval — do not treat this section as rollout authorization.
 
 ### One-command paths
 
@@ -132,13 +134,13 @@ Flags: `--repo` / `--target` aliases · `--package` package root · `--json` · 
 1. Produce a **read-only drift report** first.
 2. Obtain **separate Carlos (Principal) approval** before each real consumer install/update.
 3. Follow the locked order in [`docs/GITOPS-CONSUMER-ROLLOUT.md`](docs/GITOPS-CONSUMER-ROLLOUT.md).
-4. Do **not** nest-install into IDE Development itself during Wave 1 / WP1.
-5. Do **not** apply live GitHub protections, secrets, variables, App, or Bugbot settings from WP1 (plan/verify read-only only).
-6. Work Packet 1 does **not** authorize real consumer mutation; rollout remains deferred.
+4. Do **not** nest-install into IDE Development itself (system source / self-verification only).
+5. Do **not** apply live GitHub protections, secrets, variables, App, or Bugbot settings on consumers without separate approval (WP04).
+6. WP1–WP03 do **not** authorize real consumer mutation; WP04 remains prepared / not executed until Principal approval.
 
 Legacy `scripts/wire-repo.sh` / sync helpers remain for compatibility with the prior sparse GitOps wiring model until consumers migrate; they are **not** the v2 portable install path and must not create consumer-to-system `.cursor` symlinks for new installs.
 
-## External GitHub state (read-only in WP1)
+## External GitHub state
 
 ```bash
 # Existing read-only audit helper (never mutates; never prints secret values)
@@ -146,15 +148,15 @@ python3 scripts/gitops/external_state_audit.py report --repo linktrend/IDE-Devel
 python3 scripts/gitops/external_state_audit.py verify --repo linktrend/IDE-Development --live
 ```
 
-WP1 Lane C expands plan/verify inventory coverage. There is **no apply** in Work Packet 1. See [`docs/contracts/EXTERNAL-STATE-AUDIT.md`](docs/contracts/EXTERNAL-STATE-AUDIT.md).
+WP1 proved plan/verify coverage; WP2 closed IDE Development live readiness under its packet. Consumer external-state apply remains out of scope until WP04 approval. See [`docs/contracts/EXTERNAL-STATE-AUDIT.md`](docs/contracts/EXTERNAL-STATE-AUDIT.md).
 
 ## Branch protection (standard system behavior)
 
-Every installed consumer must protect `development`, `staging`, and `main`. Planning and verification tooling is dry-run by default; credentials are never packaged. Live apply is a separate approved action (Work Packet 2 / later ops — not WP1). See [`docs/contracts/REPOSITORY-PROTECTION.md`](docs/contracts/REPOSITORY-PROTECTION.md).
+Every installed consumer must protect `development`, `staging`, and `main`. Planning and verification tooling is dry-run by default; credentials are never packaged. Live apply on consumers is a separate approved action (WP04+). See [`docs/contracts/REPOSITORY-PROTECTION.md`](docs/contracts/REPOSITORY-PROTECTION.md).
 
 ## Host OS support evidence
 
-WP1 production-readiness proof expects passing evidence on **macOS**, **Ubuntu Linux**, and **Windows** for the exact checkpoint SHA, with Python and OS versions recorded. See [`docs/acceptance/acceptance-matrix.md`](docs/acceptance/acceptance-matrix.md). Do not claim a platform passed if the runner was unavailable.
+WP1 production-readiness proof required passing evidence on **macOS**, **Ubuntu Linux**, and **Windows** for the exact checkpoint SHA, with Python and OS versions recorded. See [`docs/acceptance/acceptance-matrix.md`](docs/acceptance/acceptance-matrix.md). Do not claim a platform passed if the runner was unavailable.
 
 ## Make Changes Safely (system source)
 
@@ -171,6 +173,6 @@ If the working tree is clean, make the smallest useful change, then review befor
 - Do not copy `core/` or `.cursor/` manually into many repositories.
 - Do not create consumer `.cursor` symlinks pointing at this checkout.
 - Do not claim Claude Code support.
-- Do not install real consumers during WP1 without Principal approval (rollout deferred).
+- Do not install real consumers without Principal approval (WP04 prepared / not executed).
 - Never commit secrets, App private keys, or live credential values into managed packages or RC archives.
 - Generated RC binary archives belong in ignored build/CI artifact dirs — not committed source.

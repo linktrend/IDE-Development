@@ -1,0 +1,6 @@
+MANIFEST verify FAILED:
+  - doctrine sync drift: docs/contracts/MANAGED-CORE-V2.md → core/managed-core/content/doctrine/MANAGED-CORE-V2.md
+  - missing/changed entries: 1
+  - extra/stale entries: 1
+  - hash mismatch: core/managed-core/content/doctrine/AGENT-COMPLETION.md
+MANIFEST verify OK
