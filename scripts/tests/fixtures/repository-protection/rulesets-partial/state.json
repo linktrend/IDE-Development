@@ -1,0 +1,48 @@
+{
+  "capability": {
+    "rulesets": "ok",
+    "branch_protection": "ok"
+  },
+  "repo": {
+    "allow_auto_merge": true
+  },
+  "rulesets": [
+    {
+      "id": 11,
+      "name": "development-autonomous-merge"
+    }
+  ],
+  "ruleset_details": {
+    "11": {
+      "id": 11,
+      "name": "development-autonomous-merge",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {
+          "include": ["refs/heads/development"],
+          "exclude": []
+        }
+      },
+      "rules": [
+        {
+          "type": "required_status_checks",
+          "parameters": {
+            "strict_required_status_checks_policy": true,
+            "do_not_enforce_on_create": false,
+            "required_status_checks": [
+              {"context": "Cursor Bugbot"},
+              {"context": "Verify IDE Development"},
+              {"context": "Consumer Custom Lint"}
+            ]
+          }
+        }
+      ],
+      "bypass_actors": [
+        {"actor_id": 1, "actor_type": "Integration", "bypass_mode": "always"}
+      ]
+    }
+  },
+  "next_ruleset_id": 50,
+  "branch_protections": {}
+}

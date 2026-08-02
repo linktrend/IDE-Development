@@ -1,0 +1,31 @@
+{
+  "id": "06-dirty-repo-preservation",
+  "title": "Dirty repository preservation",
+  "setup": {
+    "files": {
+      "WIP-NOTES.md": {
+        "kind": "text",
+        "content": "uncommitted consumer work in progress\n"
+      },
+      ".cursor/rules/obsolete-generic-v1.mdc": {
+        "kind": "known_bytes",
+        "name": "obsolete-generic-v1.mdc"
+      }
+    }
+  },
+  "expected": {
+    "classifications": [
+      {
+        "path": "WIP-NOTES.md",
+        "kind": "unrelated_dirty"
+      },
+      {
+        "path": ".cursor/rules/obsolete-generic-v1.mdc",
+        "kind": "supersede_exact"
+      }
+    ],
+    "preserve": [
+      "WIP-NOTES.md"
+    ]
+  }
+}

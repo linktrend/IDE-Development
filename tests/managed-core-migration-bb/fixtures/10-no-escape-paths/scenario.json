@@ -1,0 +1,29 @@
+{
+  "id": "10-no-escape-paths",
+  "title": "No installed path resolves outside consumer",
+  "setup": {
+    "symlinks": {
+      ".cursor/rules/escape.mdc": "/etc/hosts",
+      "outside-link": "../../outside-of-repo"
+    },
+    "files": {
+      "SAFE.md": {
+        "kind": "text",
+        "content": "inside\n"
+      }
+    }
+  },
+  "expected": {
+    "classifications": [
+      {
+        "path": ".cursor/rules/escape.mdc",
+        "kind": "unsafe_link"
+      },
+      {
+        "path": "outside-link",
+        "kind": "unsafe_link"
+      }
+    ],
+    "fail_closed": true
+  }
+}

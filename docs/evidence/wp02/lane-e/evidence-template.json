@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "packet": "WP02",
+  "lane": "E",
+  "title": "manifests-documentation-readiness-evidence-template",
+  "writtenAtUtc": "2026-08-02T03:12:45Z",
+  "modelConstraint": "cursor-grok-4.5-high",
+  "issue": {
+    "number": 68,
+    "title": "Work Packet 02 — integration lineage, stale cleanup, and live readiness",
+    "branch": "issue/68-work-packet-02-integration-lineage-stale-cleanup"
+  },
+  "shas": {
+    "inputs": {
+      "wp01": "89956878c54ff45e4aef1ff42883d209221b7a30",
+      "cleanup": "5cf099155d9f7b5d95e094f74b288af7aec766af",
+      "development": "991abc319782008ef93af95002be0d7f3d5a937c",
+      "frozenPr49": "0868c0034620c4ccb255457484f0342a12a0c833"
+    },
+    "laneEObservedBranchTip": "9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4",
+    "combinedLineageOutputSha": "__PLACEHOLDER_LEAD_FINAL_BIND__",
+    "evidenceBoundSha": "__PLACEHOLDER_MUST_EQUAL_FINAL_PUSHED_TIP__"
+  },
+  "ancestryAtLaneEWrite": {
+    "developmentIsAncestorOfBranchTip": true,
+    "wp01IsAncestorOfBranchTip": false,
+    "cleanupIsAncestorOfBranchTip": false,
+    "note": "Lead must incorporate WP01+cleanup via ordinary history before final bind."
+  },
+  "reconciliationClassifications": {
+    "placeholder": true,
+    "items": [
+      {
+        "id": "__PLACEHOLDER__",
+        "subject": "__PATH_OR_PR_OR_BRANCH__",
+        "classification": "__ONE_OF__: already_in_development | ancestor_of_wp01 | ancestor_of_cleanup | uniquely_required_incorporated | semantically_superseded | intentionally_deferred | safe_after_wp03_only | take_wp01_manifest | take_cleanup_controls | doc_update_wp02_scope | append_only_log",
+        "proofRefs": ["__PLACEHOLDER__"],
+        "resolution": "__PLACEHOLDER__"
+      }
+    ]
+  },
+  "conflictsAndResolutions": {
+    "placeholder": true,
+    "items": [
+      {
+        "id": "C-VERSION",
+        "summary": "Root VERSION v2.0.0 (WP01) vs v1.2 (development/cleanup)",
+        "resolution": "__PLACEHOLDER_LEAD__"
+      },
+      {
+        "id": "C-OPEN-ISSUES-14",
+        "summary": "Competing OPEN-ISSUES item 14 entries on WP01 vs cleanup",
+        "resolution": "__PLACEHOLDER_LEAD__"
+      },
+      {
+        "id": "C-MANAGED-CORE-ABSENT",
+        "summary": "core/managed-core/** absent on development; present on WP01",
+        "resolution": "__PLACEHOLDER_LEAD__"
+      },
+      {
+        "id": "C-DOC-WP02-SCOPE",
+        "summary": "WP01 SOT docs mis-scope WP02 as merge/publication",
+        "resolution": "Apply docs/evidence/wp02/lane-e/proposed/** (or equivalent) after lineage integrate"
+      }
+    ]
+  },
+  "externalState": {
+    "before": {
+      "snapshotDir": "docs/evidence/wp02/before-state-2026-08-02T030943Z/",
+      "planPath": "docs/evidence/wp02/before-state-plan.md",
+      "summary": "__PLACEHOLDER_FROM_BEFORE_SNAPSHOT_NO_SECRETS__"
+    },
+    "after": {
+      "summary": "__PLACEHOLDER_FROM_LANE_D_AFTER_APPLY_OR_VERIFY_NO_SECRETS__",
+      "ready": null,
+      "blockedItems": ["__PLACEHOLDER__"]
+    },
+    "secretsExcluded": true
+  },
+  "commandsAndExits": {
+    "logPath": "docs/evidence/wp02/lane-e/commands-and-results.md",
+    "items": [
+      {
+        "command": "__PLACEHOLDER__",
+        "exitCode": null,
+        "cwd": "__PLACEHOLDER__",
+        "notes": "__PLACEHOLDER__"
+      }
+    ]
+  },
+  "prohibitedActions": {
+    "docPath": "docs/evidence/wp02/lane-e/prohibited-actions.md",
+    "allMustRemainFalseForWp02Scope": true,
+    "booleans": {
+      "openedPullRequest": false,
+      "requestedBugbot": false,
+      "publishedReviewReady": false,
+      "mergedIntoDevelopment": false,
+      "promotedToStaging": false,
+      "promotedToMain": false,
+      "createdGitTag": false,
+      "createdGithubRelease": false,
+      "mutatedConsumerRepository": false,
+      "mutatedConsumerGithubState": false,
+      "appliedCleanupDeletes": false,
+      "alteredFrozenPrHeads": false,
+      "closedFrozenPrsOrIssues": false,
+      "deletedBranchesOrWorktrees": false,
+      "nestedSelfInstallIntoIdeDevelopment": false,
+      "exposedOrPersistedSecrets": false,
+      "forcePushedOrHistoryRewrite": false,
+      "preferIncomingConflictResolution": false,
+      "usedClaudeCode": false
+    }
+  },
+  "proposedDocUpdates": {
+    "root": "docs/evidence/wp02/lane-e/proposed/",
+    "appliedToRealTree": false,
+    "claimsIntegrationReleaseOrConsumerRolloutComplete": false
+  },
+  "leadFinalBindChecklist": [
+    "Fill combinedLineageOutputSha and evidenceBoundSha with exact pushed tip",
+    "Replace reconciliationClassifications placeholders from Lane A ledger",
+    "Resolve conflictsAndResolutions placeholders with ordinary-history decisions",
+    "Bind externalState.after from Lane D (no secrets)",
+    "Append full validation command exits to commands-and-results.md",
+    "Confirm prohibitedActions booleans remain false",
+    "Apply proposed/** into real tree only after Lane B combine + review",
+    "Do not claim WP03 / release / consumer rollout complete"
+  ]
+}

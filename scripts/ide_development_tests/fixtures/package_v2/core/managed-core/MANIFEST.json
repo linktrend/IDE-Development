@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "packageName": "ide-development-managed-core",
+  "packageVersion": "2.0.0",
+  "files": [
+    {
+      "id": "managed-core-readme",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/files/CORE.txt",
+      "destination": ".ide-development/CORE.txt",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "sourceHash": "sha256:978a5230ba63080b899bc3acf8e7166a15a34c94353e8cc4a752c5788b7baa3a"
+    },
+    {
+      "id": "cursor-sample-rule",
+      "ownershipClass": "managed-entrypoint",
+      "source": "core/managed-core/platforms/cursor/sample-rule.mdc",
+      "destination": ".cursor/rules/sample-rule.mdc",
+      "mode": "0644",
+      "platform": "cursor",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "sourceHash": "sha256:2f499256017031b88924e406b44bbd1f5fa34d7d61504e0b4ca6d05cc57cc85b"
+    },
+    {
+      "id": "spaces-demo",
+      "ownershipClass": "managed",
+      "source": "core/managed-core/files/file-with-spaces.txt",
+      "destination": ".ide-development/assets/file-with-spaces.txt",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "sourceHash": "sha256:071bb7b52894b40e1c3996ebc1441bab3b62a59044e2fdacf314498fe52c00a9"
+    },
+    {
+      "id": "agents-managed-section",
+      "ownershipClass": "managed-marker",
+      "source": "core/managed-core/platforms/codex/AGENTS.managed-section.md",
+      "destination": "AGENTS.md",
+      "mode": "0644",
+      "platform": "codex",
+      "os": "all",
+      "mergeStrategy": "marker-upsert",
+      "sourceHash": "sha256:c7be0707e32544b9934c3b40dfbafaabb2ab8e228717dedf19683853751592fd",
+      "markerBegin": "<!-- BEGIN LINKTREND-IDE-MANAGED -->",
+      "markerEnd": "<!-- END LINKTREND-IDE-MANAGED -->"
+    }
+  ]
+}

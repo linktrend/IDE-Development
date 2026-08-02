@@ -1,0 +1,241 @@
+{
+  "capability": {
+    "rulesets": "ok",
+    "branch_protection": "ok"
+  },
+  "installation": {
+    "id": 99,
+    "app_slug": "linktrend-gitops"
+  },
+  "app_permissions": {
+    "contents": "write",
+    "pull_requests": "write",
+    "checks": "write",
+    "statuses": "write",
+    "issues": "write",
+    "metadata": "read",
+    "actions": "read",
+    "admin": "none",
+    "members": "none",
+    "secrets": "none"
+  },
+  "bugbot": {
+    "manualTriggerOnly": true,
+    "enabled": true
+  },
+  "carlos_user_token_boundary": {
+    "allowedOps": [
+      "packager_feature_pr_create",
+      "bugbot_mention_comment"
+    ],
+    "status": "ok"
+  },
+  "actions_variables": [
+    {
+      "name": "LINKTREND_GITOPS_APP_ID",
+      "value": "not-a-number"
+    },
+    {
+      "name": "LINKTREND_BUGBOT_CHECK_NAME",
+      "value": "Wrong Bot"
+    }
+  ],
+  "actions_secret_names": [
+    "LINKTREND_GITOPS_APP_PRIVATE_KEY",
+    "LINKTREND_BUGBOT_USER_TOKEN"
+  ],
+  "rulesets": [
+    {
+      "id": 1,
+      "name": "development-autonomous-merge",
+      "enforcement": "active"
+    },
+    {
+      "id": 2,
+      "name": "staging-autonomous-promote",
+      "enforcement": "active"
+    },
+    {
+      "id": 3,
+      "name": "main-autonomous-release",
+      "enforcement": "active"
+    }
+  ],
+  "ruleset_details": {
+    "1": {
+      "id": 1,
+      "name": "development-autonomous-merge",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {
+          "include": [
+            "refs/heads/development"
+          ],
+          "exclude": []
+        }
+      },
+      "rules": [
+        {
+          "type": "required_status_checks",
+          "parameters": {
+            "strict_required_status_checks_policy": true,
+            "do_not_enforce_on_create": false,
+            "required_status_checks": [
+              {
+                "context": "Verify IDE Development"
+              }
+            ]
+          }
+        }
+      ],
+      "bypass_actors": []
+    },
+    "2": {
+      "id": 2,
+      "name": "staging-autonomous-promote",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {
+          "include": [
+            "refs/heads/staging"
+          ],
+          "exclude": []
+        }
+      },
+      "rules": [
+        {
+          "type": "required_status_checks",
+          "parameters": {
+            "strict_required_status_checks_policy": true,
+            "do_not_enforce_on_create": false,
+            "required_status_checks": [
+              {
+                "context": "Verify IDE Development"
+              }
+            ]
+          }
+        }
+      ],
+      "bypass_actors": []
+    },
+    "3": {
+      "id": 3,
+      "name": "main-autonomous-release",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {
+          "include": [
+            "refs/heads/main"
+          ],
+          "exclude": []
+        }
+      },
+      "rules": [
+        {
+          "type": "required_status_checks",
+          "parameters": {
+            "strict_required_status_checks_policy": true,
+            "do_not_enforce_on_create": false,
+            "required_status_checks": [
+              {
+                "context": "Verify IDE Development"
+              },
+              {
+                "context": "Enforce allowed PR source branches"
+              }
+            ]
+          }
+        }
+      ],
+      "bypass_actors": []
+    }
+  },
+  "repo": {
+    "allow_auto_merge": false
+  },
+  "workflows": [
+    {
+      "id": 1,
+      "path": ".github/workflows/branch-source-policy.yml",
+      "name": "branch-source-policy",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 2,
+      "path": ".github/workflows/ci.yml",
+      "name": "ci",
+      "state": "disabled",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 3,
+      "path": ".github/workflows/linktrend-review-ready-publisher.yml",
+      "name": "linktrend-review-ready-publisher",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 4,
+      "path": ".github/workflows/linktrend-review-packager.yml",
+      "name": "linktrend-review-packager",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 5,
+      "path": ".github/workflows/linktrend-integrator-merge.yml",
+      "name": "linktrend-integrator-merge",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 6,
+      "path": ".github/workflows/linktrend-development-to-staging.yml",
+      "name": "linktrend-development-to-staging",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 7,
+      "path": ".github/workflows/linktrend-staging-to-main.yml",
+      "name": "linktrend-staging-to-main",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 8,
+      "path": ".github/workflows/linktrend-repair-observer.yml",
+      "name": "linktrend-repair-observer",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    }
+  ]
+}

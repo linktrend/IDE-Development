@@ -1,0 +1,5 @@
+Self-contained extracted package fixture for Lane B clean-room tests.
+Lane D release-candidate archives are not required; when present under
+artifacts/release-candidate/, the runner may prefer that extract path.
+Installer scripts are bundled into a temp extract at runtime (not stored here)
+to simulate install with no live IDE Development checkout access.
