@@ -1,8 +1,8 @@
 # Managed Core v2 Contract
 
-**Status:** Active (Wave 1 — Issue #43; WP1 production-readiness clarifications — Issue #67)
+**Status:** Active (Wave 1 — Issue #43; WP1–WP03 complete for stated scopes; WP04 consumer rollout prepared / not executed — Issue #72 status surface)
 **Date:** 2026-08-02
-**Package version target:** `2.0.0` (identity only; no tag/release in Wave 1 / WP1 — RC archive proof only)
+**Package version target:** `2.0.0` (identity only; no tag/release claimed by WP1–WP03 alone — RC archive proof + promoted system line)
 **ADR:** `docs/adr/0004-portable-managed-core-v2.md`
 **Schemas:** `core/managed-core/schemas/`
 **Layout:** `core/managed-core/README.md`
@@ -74,8 +74,8 @@ core/managed-core/
     transaction.schema.json
   examples/
   content/                  # payload mirrored into consumer .ide-development/content
-  platforms/                # Codex/Cursor adapter sources (WP3 fills bodies)
-  migrations/               # reviewed supersession catalog (WP4)
+  platforms/                # Codex/Cursor adapter sources (Wave-1 ADR-0004 slice WP3 fills bodies)
+  migrations/               # reviewed supersession catalog (Wave-1 ADR-0004 slice WP4)
   migration/                # discovery alias pointer only
 ```
 
@@ -236,9 +236,9 @@ Apply of App installs, secrets, variables, Bugbot dashboard toggles, or rulesets
 |---|---|---|
 | System source | IDE Development | Authors `core/managed-core/`; runs internal verification suites; **not** a consumer rollout entry |
 | Internal self-verification | IDE Development | May execute installer tests against disposable temp repos only; may build RC archives for proof |
-| Consumer rollout | Other LiNKtrend repos | **Deferred** in WP1. Inventory + Principal approval gate in `docs/GITOPS-CONSUMER-ROLLOUT.md`. Work Packet 2 handles integration/publication decisions. |
+| Consumer rollout | Other LiNKtrend repos | **Deferred** until WP04 Principal approval. Inventory + gate in `docs/GITOPS-CONSUMER-ROLLOUT.md`. WP1–WP03 complete on system source; WP04 packet prepared / not executed. |
 
-Locked consumer rollout order (documentation/ops; not executed in this wave):
+Locked consumer rollout order (documentation/ops; not executed — Work Packet 04 / Principal gate):
 
 1. `openclaw_prime`
 2. `LiNKplatform`
@@ -275,5 +275,5 @@ Hard stops:
 - `docs/adr/0003-autonomous-ship-pull-promote.md`
 - `docs/contracts/AGENT-COMPLETION.md`
 - `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`
-- `core/managed-core/migrations/` (WP4 catalog)
+- `core/managed-core/migrations/` (Wave-1 ADR-0004 slice WP4 migration catalog — not Work Packet 04)
 - `core/github/managed-runtime/MANIFEST.json` (v1 sparse GitOps runtime; preserved until superseded)

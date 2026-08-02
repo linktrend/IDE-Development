@@ -1,6 +1,6 @@
 # IDE Development — Open Issues
 
-Append-only engineering build log for this repository. Prefer this file over stale prose elsewhere when asking “what is actually real?”
+Append-only engineering build log. For “what is true **now**,” prefer [`docs/CURRENT-STATUS.md`](./CURRENT-STATUS.md). This file records history and open/deferred items; later entries supersede earlier wording when they explicitly correct it.
 
 ---
 
@@ -151,7 +151,7 @@ See ADR 0003 amendment 2026-07-30 and `docs/contracts/*`.
 
 ## 13. App-backed Review Ready publisher + production completion bridge — 2026-08-01
 
-Branch `issue/44-add-app-backed-review-ready-publisher-and-produc` (Issue #44). Wave 2 work packet: `docs/work-packets/2026-08-01-wave-2-app-backed-completion.md`.
+Branch `issue/44-add-app-backed-review-ready-publisher-and-produc` (Issue #44). Wave 2 work packet: `docs/archive/work-packets/2026-08-01-wave-2-app-backed-completion.md`.
 
 **Goal:** A normal local implementer can complete an already-verified `issue/<n>-<slug>` branch without a privileged credential. Only the GitHub App publishes `Linktrend Review Ready`, from a trusted Actions workflow that re-validates branch, immutable SHA, and machine-readable evidence.
 
@@ -183,7 +183,9 @@ Branch `issue/51-reconcile-approved-stale-ide-development-prs-wor` (Issue #51).
 **Authoritative contract:** `docs/contracts/STALE-CLEANUP-CONTROLS.md` (cross-links `LISA-LOCAL-CLEANUP-HANDOFF.md`, `REPAIR-DISPATCHER.md`).
 ## 15. Work Packet 1 — production-readiness proof and release candidate (Issue #67) — 2026-08-02
 
-**Status pointer (active):** Issue #67 · branch `issue/67-work-packet-1-production-readiness-proof-and-rel` · plan `docs/work-packets/2026-08-02-work-packet-1-production-readiness.md` (committed; do not edit from Lane F).
+**SUPERSEDED for current status (see item #17 + `docs/CURRENT-STATUS.md`):** WP1 complete; WP2 ≠ integration/publication (that was WP03); do not treat Issue #67 / this branch pointer as active.
+
+**Status pointer (historical at writing):** Issue #67 · branch `issue/67-work-packet-1-production-readiness-proof-and-rel` · plan `docs/archive/work-packets/2026-08-02-work-packet-1-production-readiness.md` (archived; historical stub remains under `docs/work-packets/`).
 
 **Build log:** `docs/BUILD-LOG.md` (starts with WP1 entries).
 **Operator handoff:** `docs/runbooks/release-candidate.md`, `docs/runbooks/rollback.md`, `docs/acceptance/acceptance-matrix.md`, updated `README.md` / `SETUP.md`.
@@ -192,7 +194,7 @@ Branch `issue/51-reconcile-approved-stale-ide-development-prs-wor` (Issue #51).
 
 **WP1 does not:** touch frozen PR #49; merge/promote; publish tag/Release; install real consumers; apply live GitHub settings; add Claude support.
 
-**Consumer rollout:** Deferred and separately Principal-gated — see `docs/GITOPS-CONSUMER-ROLLOUT.md`. **Work Packet 2** is the integration/publication stage.
+**Consumer rollout:** Deferred and separately Principal-gated — see `docs/GITOPS-CONSUMER-ROLLOUT.md`. (**Historical wording at writing:** “Work Packet 2 is the integration/publication stage” — **obsolete**; integration/promote was WP03; consumer rollout is WP04 prepared / not executed. See item #17.)
 
 **CLI at Lane F documentation time:** `plan|install|update|drift|verify|version|rollback|release-candidate` (`create` / `verify`). Default RC output: `build/release-candidate/`.
 ## 16. Work Packet 02 — integration lineage, stale cleanup, and live readiness (Issue #68)
@@ -202,5 +204,19 @@ Branch `issue/51-reconcile-approved-stale-ide-development-prs-wor` (Issue #51).
 - **Base:** fresh `origin/development` `991abc319782008ef93af95002be0d7f3d5a937c`
 - **Inputs:** WP01 `89956878c54ff45e4aef1ff42883d209221b7a30`; cleanup tip `5cf099155d9f7b5d95e094f74b288af7aec766af`; frozen PR #49 `0868c0034620c4ccb255457484f0342a12a0c833`
 - **Scope:** Ordinary-history lineage reconciliation, stale-cleanup restore (no apply), IDE Development live external-state readiness verify/plan; checkpoint only — no PR/review-ready/merge/promote/consumer change
-- **Status:** COMPLETE for stated WP02 scope (2026-08-02). Accepted partial checkpoint `712675614014abdf6e180915e07aa21e1a983324`; external configuration closed (App mint proven; staging/main rulesets `20218450`/`20218451`; Bugbot Manual Only via Principal UI evidence). Evidence: `docs/evidence/wp02/WORK-PACKET-02-EVIDENCE.md`, `EXTERNAL-CONFIGURATION-CLOSURE.md`.
+- **Status:** COMPLETE for stated WP02 scope (2026-08-02). Accepted partial checkpoint `712675614014abdf6e180915e07aa21e1a983324`; external configuration closed (App mint proven; staging/main rulesets `20218450`/`20218451`; Bugbot Manual Only via Principal UI evidence). Evidence: `docs/archive/evidence/wp02/WORK-PACKET-02-EVIDENCE.md`, `EXTERNAL-CONFIGURATION-CLOSURE.md`.
 - **Not claimed:** production acceptance; consumer rollout; WP03 integration into `development`; review-ready on this tip.
+
+---
+
+## 17. Work Packet 03 complete + Issue #72 pre-launch cleanup — 2026-08-02
+
+**WP03 (complete):** PR #69 → `development`, #70 → `staging`, #71 → `main`. `origin/development`, `origin/staging`, and `origin/main` share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
+
+**WP04 (prepared / not executed):** Consumer rollout packet at `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`. Principal approval still pending. **No consumer mutation authorized.**
+
+**Issue #72 (in progress):** Pre-launch system-repo cleanup on branch `issue/72-pre-launch-ide-development-codebase-cleanup-arch` (tip starts at `e6301fc`). Concise status surface: `docs/CURRENT-STATUS.md`.
+
+**Still true:** Claude excluded; IDE Development is system source / self-verification only (no nested self-install); consumer order remains `openclaw_prime` → … → `LiNKtrading-codebase` per `docs/GITOPS-CONSUMER-ROLLOUT.md`.
+
+**Correction — WP1/WP2 “integration/publication” wording above:** Historical OPEN-ISSUES items #15–#16 that treat WP2 as the integration/publication stage or leave WP03 unclaimed are **obsolete for current status**. Authoritative board: WP1 RC proof → WP2 lineage/live readiness → WP03 integrate/promote → WP04 consumer rollout (approval pending). Prefer `docs/CURRENT-STATUS.md`.

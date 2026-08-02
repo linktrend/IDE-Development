@@ -20,6 +20,10 @@ Session lifecycle docs under `core/session/` and `core/bootstrap/` define when h
 - cross-IDE or cross-machine handoff
 - stopping work with unfinished issues or pending gates
 
+## Completed handoffs
+
+Dated completed handoffs are archived under [`docs/archive/handoffs/completed/`](../archive/handoffs/completed/). Keep only the template + this README active here.
+
 ## Operator reference
 
 Day-to-day instructions: [`docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md`](../IDE-DEVELOPMENT-OPERATIONS-MANUAL.md)

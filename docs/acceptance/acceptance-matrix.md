@@ -4,6 +4,7 @@
 **Branch:** `issue/67-work-packet-1-production-readiness-proof-and-rel`
 **Packet:** Work Packet 1 — production-readiness proof and release candidate
 **Rule:** Do **not** claim production readiness when any required row is skipped, neutral, untested, or only inferred.
+**Status boundary (2026-08-02):** This matrix is the **WP1 historical proof checklist**. WP1–WP03 are complete for their stated scopes; WP04 consumer rollout is prepared / not executed. Current operator status: [`../CURRENT-STATUS.md`](../CURRENT-STATUS.md).
 
 Evidence belongs with the lead’s WP1 evidence bundle. This matrix is the operator checklist of **what must be proven**.
 
@@ -109,12 +110,12 @@ Windows: cross-platform runner executes equivalent Python-owned contract tests a
 |---|---|---|
 | I1 | PR / Bugbot / review-ready / merge | Not performed by this packet |
 | I2 | Promote to staging/main | Not performed |
-| I3 | Consumer rollout | **Deferred** — separately Principal approval-gated; WP2 + rollout doc |
-| I4 | Tag / GitHub Release | Not performed |
+| I3 | Consumer rollout | **Deferred** — separately Principal approval-gated; **WP04** prepared / not executed |
+| I4 | Tag / GitHub Release | Not performed by WP1 |
 | I5 | Claude support claims | Absent |
 
 ---
 
-## Work Packet 2 hand-off
+## Later work-packet hand-off
 
-When every required row above is green (or explicitly blocked with external cause), WP1 may checkpoint. WP2 owns integration of frozen PR #49 and intentional checkpoints, promotion, and publication/rollout **decisions** under separate Principal approval — not automatic consumer mutation.
+When every required row above is green (or explicitly blocked with external cause), WP1 may checkpoint. **WP2** owned lineage + live readiness (complete). **WP03** owned integration/promotion (complete — tree `43b1333…`). **WP04** owns consumer rollout under separate Principal approval — not automatic consumer mutation (`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).

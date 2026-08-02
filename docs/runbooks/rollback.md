@@ -2,7 +2,8 @@
 
 **Audience:** Operators recovering from a failed or unwanted `install` / `update` transaction.
 **Scope:** Consumer (or disposable) repositories that used `scripts/ide-development.py`.
-**Related:** [`release-candidate.md`](./release-candidate.md) · [`../contracts/MANAGED-CORE-V2.md`](../contracts/MANAGED-CORE-V2.md)
+**Related:** [`release-candidate.md`](./release-candidate.md) · [`../contracts/MANAGED-CORE-V2.md`](../contracts/MANAGED-CORE-V2.md) · [`../CURRENT-STATUS.md`](../CURRENT-STATUS.md)
+**Status boundary (2026-08-02):** Rollback remains the recovery path for disposable or **approved** consumer installs. WP04 consumer rollout is prepared / not executed — this runbook does not authorize real consumer mutation.
 
 ---
 
@@ -85,5 +86,5 @@ Installer exit-code classes (contract): `0` clean · `10` drift · `11` conflict
 ## What rollback is not
 
 - Not a substitute for `git checkout` of unrelated dirty consumer work.
-- Not live GitHub settings rollback (external state is separate; WP1 is plan/verify only — no apply).
-- Not permission to roll forward on real consumers during WP1 (consumer rollout remains deferred and Principal-gated).
+- Not live GitHub settings rollback (external state is separate).
+- Not permission to roll forward on real consumers before WP04 Principal approval (consumer rollout remains prepared / not executed).

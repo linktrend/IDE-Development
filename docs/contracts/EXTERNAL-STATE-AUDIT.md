@@ -1,10 +1,10 @@
 # External-state audit (App / Bugbot / protection)
 
-**Status:** Active — Wave 2 App-backed completion bridge; **WP1 (Issue #67) plan/verify; WP02 (Issue #68) may apply IDE Development live state only via authorized GitHub App path with rollback snapshot — consumers remain deferred**
+**Status:** Active — Wave 2 App-backed completion bridge; WP1 plan/verify complete; WP02 IDE Development live readiness closed under packet; **consumer** external-state apply / installs remain deferred (WP04 prepared / not executed)
 **Date:** 2026-08-02
 **Audience:** Operators confirming rollout readiness; Verifier; Implementers (read-only)
-**SOT:** `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md` · `docs/contracts/BUGBOT-MENTION-ONLY.md` · `docs/GITOPS-CONSUMER-ROLLOUT.md` · `docs/work-packets/2026-08-02-work-packet-1-production-readiness.md`
-**Tooling:** `scripts/gitops/external_state_audit.py` (existing); WP1 Lane C expands inventory/planner/verifier coverage under owned paths
+**SOT:** `docs/CURRENT-STATUS.md` · `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md` · `docs/contracts/BUGBOT-MENTION-ONLY.md` · `docs/GITOPS-CONSUMER-ROLLOUT.md` · `docs/archive/work-packets/2026-08-02-work-packet-1-production-readiness.md` · `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
+**Tooling:** `scripts/gitops/external_state_audit.py` (existing); WP1 Lane C expanded inventory/planner/verifier coverage under owned paths
 **Tests:** `scripts/tests/test-external-state-audit.sh` (+ Lane C fixture matrix when landed)
 
 ---
@@ -172,7 +172,7 @@ Machine-readable JSON on stdout (optional `--json-output PATH`):
 3. Do **not** treat `summary.ready=true` on a fixture as proof of production readiness.
 4. Do **not** change branch protections, Bugbot dashboard settings, or App installs from an Implementer session — Principal / operator only.
 5. Carlos's restricted user identity must not publish statuses; the GitHub App remains the only privileged publisher for `Linktrend Review Ready`.
-6. Work Packet 1 agents must not treat a green verify report as permission to roll out consumers or apply protections — those remain WP2 / Principal-gated.
+6. Work Packet 1 agents must not treat a green verify report as permission to roll out consumers or apply protections — consumer installs/settings apply remain WP04 / Principal-gated (packet prepared; not executed until approval).
 
 ---
 
