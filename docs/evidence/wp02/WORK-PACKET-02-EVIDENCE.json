@@ -3,8 +3,9 @@
   "workPacket": "WP02",
   "issue": 68,
   "branch": "issue/68-work-packet-02-integration-lineage-stale-cleanup",
-  "checkpointSha": "c07a8f2c6471d6846e1af30f2469b39be7597a02",
-  "capturedAt": "2026-08-02T03:27:54Z",
+  "acceptedPartialCheckpointSha": "712675614014abdf6e180915e07aa21e1a983324",
+  "checkpointSha": "712675614014abdf6e180915e07aa21e1a983324",
+  "capturedAt": "2026-08-02T03:46:00Z",
   "inputs": {
     "originDevelopment": "991abc319782008ef93af95002be0d7f3d5a937c",
     "wp01": "89956878c54ff45e4aef1ff42883d209221b7a30",
@@ -81,20 +82,37 @@
     "installVerifyOk": true
   },
   "externalState": {
-    "applyDecision": "blocked",
-    "ready": false,
-    "blockers": [
-      "github_app.installation=blocked",
-      "github_app.authority_scope=unknown",
-      "protection.staging_ruleset=missing",
-      "protection.main_ruleset=missing",
-      "protection.promotion_source_policy=drift",
-      "bugbot.manual_trigger_only=unknown",
-      "carlos.user_token_boundary=unknown",
-      "workflows.permissions_posture=unknown",
-      "no App installation token for privileged apply"
+    "applyDecision": "owner_authorized_admin_bootstrap_completed_post_verify_ok",
+    "ready": true,
+    "readyScope": "wp02_stated_scope_ide_development_live_readiness",
+    "closureRecord": "docs/evidence/wp02/EXTERNAL-CONFIGURATION-CLOSURE.md",
+    "blockers": [],
+    "resolvedBlockers": [
+      "github_app.app_id_variable_and_private_key_secret_name_present",
+      "github_app.token_mint_proven_via_review_ready_publisher_dry_run_30730954742",
+      "protection.staging_ruleset=20218450",
+      "protection.main_ruleset=20218451",
+      "protection.development_ruleset=19728531_preserved",
+      "bugbot.manual_trigger_only=true_principal_ui_evidence",
+      "bugbot.linktrend_provider_repos_enabled=10/82",
+      "carlos.user_token_secret_exists_scopes_non_observable_not_blocker"
     ],
-    "mutations": []
+    "mutationsThisEvidenceClosure": [],
+    "rulesets": {
+      "development": 19728531,
+      "staging": 20218450,
+      "main": 20218451,
+      "postVerificationOk": true
+    },
+    "reviewReadyPublisherDryRun": {
+      "runId": 30730954742,
+      "automationTokenSource": "github_app",
+      "expectedFailure": "missing_review_ready_completion_evidence_on_wp02_tip"
+    },
+    "principalBugbotEvidenceSha256": [
+      "3738e1c84a2e556649d532ff39f9c28678e69069b4eb8f8aaefeed4ecad8aefa",
+      "109aecf276118d99422e656dde2e8b35c0e23b775cf7c7b97f35495d073c1138"
+    ]
   },
   "prohibitedActions": {
     "openedPr": false,
@@ -114,9 +132,16 @@
     "usedCarlosTokenForSettings": false,
     "ambientTokenFallbackForPrivilegedMutations": false
   },
-  "completionStatus": "verified_partial_checkpoint",
-  "completionReason": "Local lineage/tests/RC/three-OS CI pass; live external-state readiness incomplete (App apply authority blocked; staging/main rulesets missing; Manual-Only unknown).",
-  "note": "checkpointSha updated to evidence-binding commit; re-verify fast gates after push",
+  "completionStatus": "complete_for_stated_scope",
+  "completionReason": "Local lineage/tests/RC/three-OS CI pass; live external configuration closed (App mint proven; staging/main rulesets created and post-verified; Bugbot Manual Only via Principal UI evidence). Not production-accepted; not consumer-rollout-authorized.",
+  "notClaimed": [
+    "production_accepted",
+    "consumer_rollout_authorized",
+    "wp03_integration",
+    "review_ready_on_this_tip",
+    "tag_or_release"
+  ],
+  "note": "checkpointSha bound to evidence-closure tip after push; acceptedPartialCheckpointSha preserves prior verified partial.",
   "bindingRule": "After this commit is made, branch tip advances; authoritative WP02 checkpoint is git rev-parse of issue/68 branch tip (origin). RC sourceCommit remains 7e441fa for package bytes.",
   "rcSourceCommit": "7e441faba1a6c61d9f3d3c75842610044fc40104",
   "laneF": {

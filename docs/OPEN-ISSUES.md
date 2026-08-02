@@ -202,4 +202,5 @@ Branch `issue/51-reconcile-approved-stale-ide-development-prs-wor` (Issue #51).
 - **Base:** fresh `origin/development` `991abc319782008ef93af95002be0d7f3d5a937c`
 - **Inputs:** WP01 `89956878c54ff45e4aef1ff42883d209221b7a30`; cleanup tip `5cf099155d9f7b5d95e094f74b288af7aec766af`; frozen PR #49 `0868c0034620c4ccb255457484f0342a12a0c833`
 - **Scope:** Ordinary-history lineage reconciliation, stale-cleanup restore (no apply), IDE Development live external-state readiness verify/plan; checkpoint only — no PR/review-ready/merge/promote/consumer change
-- **Status:** execution in progress on Issue #68
+- **Status:** COMPLETE for stated WP02 scope (2026-08-02). Accepted partial checkpoint `712675614014abdf6e180915e07aa21e1a983324`; external configuration closed (App mint proven; staging/main rulesets `20218450`/`20218451`; Bugbot Manual Only via Principal UI evidence). Evidence: `docs/evidence/wp02/WORK-PACKET-02-EVIDENCE.md`, `EXTERNAL-CONFIGURATION-CLOSURE.md`.
+- **Not claimed:** production acceptance; consumer rollout; WP03 integration into `development`; review-ready on this tip.

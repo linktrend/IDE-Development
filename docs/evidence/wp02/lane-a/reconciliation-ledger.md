@@ -85,3 +85,7 @@ Both lineages are `uniquely_required_incorporated_into_new_lineage`. Lane B must
 ## Blockers
 
 None for ledger authority. No live closes/deletes in WP02.
+
+## Append — WP02 completion (2026-08-02)
+
+Canonical lineage incorporated on Issue #68. Accepted partial tip `712675614014abdf6e180915e07aa21e1a983324`; external configuration closed (`EXTERNAL-CONFIGURATION-CLOSURE.md`). WP02 **COMPLETE** for stated scope. WP03 dispositions in the table above remain deferred (close/clean only after WP03). Not production-accepted; not consumer-rollout-authorized.

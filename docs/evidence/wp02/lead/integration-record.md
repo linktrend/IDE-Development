@@ -18,4 +18,15 @@
 
 ## Lane D apply
 
-blocked — App installation JWT/authority unavailable; no ambient-token fallback used; mutations none.
+Earlier session: blocked — App installation JWT/authority unavailable; no ambient-token fallback used; mutations none (`lane-d/`).
+
+## External configuration closure (post partial checkpoint `7126756`)
+
+Owner-authorized admin bootstrap + Principal UI evidence closed live readiness for WP02 stated scope (see `EXTERNAL-CONFIGURATION-CLOSURE.md`):
+
+- App ID variable + private-key secret name present; dry-run run `30730954742` minted App token (`AUTOMATION_TOKEN_SOURCE=github_app`); expected failure = missing review-ready evidence on checkpoint tip.
+- Rulesets: development `19728531` preserved; staging `20218450` and main `20218451` created and post-verified (`ok: true`); staging/main require Verify IDE Development + Enforce allowed PR source branches.
+- Bugbot Active; Trigger Mode Manual Only; explicit `bugbot run` / `@cursor review` only; linktrend GitHub provider 10/82 repos enabled (Principal-supplied screenshots — checksums only; images not committed).
+- `LINKTREND_BUGBOT_USER_TOKEN` exists; scopes non-observable (not a remaining blocker); contract = Packager PR + Bugbot comment only.
+
+**WP02 completion:** COMPLETE for stated scope. Not production-accepted; not consumer-rollout-authorized. No PR / review-ready / Packager / Bugbot trigger / Integrator / promotion / cleanup apply / tag/release / credential exposure.

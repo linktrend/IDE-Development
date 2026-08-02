@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "workPacket": "WP02",
+  "issue": 68,
+  "record": "external_configuration_closure",
+  "status": "closed_for_wp02_stated_scope",
+  "recordedAt": "2026-08-02T03:46:00Z",
+  "basePartialCheckpointSha": "712675614014abdf6e180915e07aa21e1a983324",
+  "bindingRule": "Authoritative WP02 tip is git rev-parse of pushed issue/68-work-packet-02-integration-lineage-stale-cleanup after evidence commits.",
+  "completionClaim": {
+    "wp02CompleteForStatedScope": true,
+    "productionAccepted": false,
+    "consumerRolloutAuthorized": false,
+    "wp03IntegrationDone": false,
+    "reviewReadyPublished": false,
+    "tagOrReleasePublished": false
+  },
+  "principalSuppliedBugbotEvidence": {
+    "imagesCommitted": false,
+    "absolutePathsRecorded": false,
+    "screenshots": [
+      {
+        "ref": "screenshot_1",
+        "description": "Bugbot Active; Trigger Mode Manual Only; explicit bugbot run / @cursor review only",
+        "sha256": "3738e1c84a2e556649d532ff39f9c28678e69069b4eb8f8aaefeed4ecad8aefa",
+        "observed": {
+          "bugbotActive": true,
+          "triggerMode": "Manual Only",
+          "explicitTriggersOnly": ["bugbot run", "@cursor review"]
+        }
+      },
+      {
+        "ref": "screenshot_2",
+        "description": "linktrend GitHub provider repository enablement",
+        "sha256": "109aecf276118d99422e656dde2e8b35c0e23b775cf7c7b97f35495d073c1138",
+        "observed": {
+          "provider": "linktrend",
+          "providerKind": "GitHub",
+          "repositoriesEnabled": "10/82"
+        }
+      }
+    ]
+  },
+  "verifiedLiveFacts": {
+    "githubApp": {
+      "appIdVariablePresent": true,
+      "appPrivateKeySecretNamePresent": true,
+      "valuesPrinted": false
+    },
+    "reviewReadyPublisherDryRun": {
+      "runId": 30730954742,
+      "url": "https://github.com/linktrend/IDE-Development/actions/runs/30730954742",
+      "appTokenMinted": true,
+      "automationTokenSource": "github_app",
+      "failureReason": "wp02_tip_lacks_review_ready_completion_evidence",
+      "failureExpectedForCheckpointOnlyPacket": true
+    },
+    "rulesets": {
+      "development": {
+        "id": 19728531,
+        "preservedUnchanged": true
+      },
+      "staging": {
+        "id": 20218450,
+        "createdAndPostVerified": true
+      },
+      "main": {
+        "id": 20218451,
+        "createdAndPostVerified": true
+      },
+      "postVerificationOk": true,
+      "stagingMainRequiredChecks": [
+        "Verify IDE Development",
+        "Enforce allowed PR source branches"
+      ]
+    },
+    "bugbotUserToken": {
+      "secretName": "LINKTREND_BUGBOT_USER_TOKEN",
+      "secretExists": true,
+      "storedScopesObservable": false,
+      "scopeNonObservableNotRemainingBlocker": true,
+      "codeContractAllows": [
+        "packager_feature_pr_creation",
+        "exact_bugbot_trigger_comment"
+      ]
+    }
+  },
+  "priorLaneDSession": {
+    "path": "docs/evidence/wp02/lane-d/",
+    "historicalVerdict": "NOT READY / apply blocked",
+    "supersededForWp02CompletionVerdict": true,
+    "historyRewritten": false
+  },
+  "prohibitedActions": {
+    "exposedCredentials": false,
+    "openedPr": false,
+    "reviewReadyPublished": false,
+    "packager": false,
+    "bugbotTrigger": false,
+    "integratorMerge": false,
+    "promotion": false,
+    "consumerMutation": false,
+    "alteredFrozenHeads": false,
+    "closedOrDeletedRefs": false,
+    "forcePushOrRewrite": false,
+    "cleanupApply": false,
+    "tagOrRelease": false
+  }
+}

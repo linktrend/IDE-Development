@@ -81,3 +81,21 @@ python3 scripts/ide-development.py release-candidate create|verify
 **Remaining blockers recorded:** H5 stale-cleanup script absent (deferred); live external-state not ready (read-only unknowns/missing).
 
 **Hard stops honored:** no PR / Bugbot / review-ready / merge / promote / consumer / settings apply / tag / release / credentials / cleanup apply.
+
+---
+
+## WP02-001 — Work Packet 02 complete for stated scope (Issue #68) — 2026-08-02
+
+**Issue:** #68
+**Branch:** `issue/68-work-packet-02-integration-lineage-stale-cleanup`
+**Accepted partial checkpoint:** `712675614014abdf6e180915e07aa21e1a983324`
+**Packet:** `docs/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md`
+**Evidence:** `docs/evidence/wp02/WORK-PACKET-02-EVIDENCE.md` + `EXTERNAL-CONFIGURATION-CLOSURE.md`
+
+**Proven:** canonical lineage (DEV + WP01 + cleanup + #28 handoff); stale-cleanup tests (no apply); three-OS CI green; RC bound; live external readiness closed (App mint on dry-run `30730954742`; staging/main rulesets `20218450`/`20218451`; development `19728531` preserved; Bugbot Manual Only via Principal UI evidence SHA-256 recorded).
+
+**Result:** COMPLETE for stated WP02 scope (checkpoint only).
+
+**Not claimed:** production acceptance; consumer rollout; WP03 integration; review-ready on this tip; tag/Release.
+
+**Hard stops honored:** no PR / Bugbot trigger / review-ready publish / Integrator / promote / consumer mutation / frozen-head edit / close-delete / force push / cleanup apply / credential exposure.

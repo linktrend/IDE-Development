@@ -1,9 +1,10 @@
 # WP02 Evidence Handoff (Issue #68)
 
-**Status:** verified partial checkpoint (live external-state not fully ready)
+**Status:** COMPLETE for stated WP02 scope (external configuration closed)
 **Branch:** `issue/68-work-packet-02-integration-lineage-stale-cleanup`
-**Checkpoint SHA (pre-push tip parent record):** `c07a8f2c6471d6846e1af30f2469b39be7597a02` — authoritative tip is `git rev-parse` of pushed branch
-**Captured:** 2026-08-02T03:23:19Z
+**Accepted partial checkpoint:** `712675614014abdf6e180915e07aa21e1a983324`
+**Authoritative tip:** `git rev-parse` of pushed branch (see companion JSON `checkpointSha` after binding commit)
+**Captured:** 2026-08-02T03:46:00Z (closure update)
 
 ## Inputs
 
@@ -28,15 +29,28 @@ All required packet suites exited 0 after repair cycles (coexistence hermetic re
 
 ## External state
 
-Apply **blocked**. Development protections OK; staging/main rulesets missing; App installation probe 401; Manual-Only unknown. Mutations: none.
+**Ready for WP02 stated scope** after external configuration closure — see `EXTERNAL-CONFIGURATION-CLOSURE.md`.
+
+| Fact | Result |
+|------|--------|
+| App ID variable + private-key secret name | present (values omitted) |
+| Review Ready Publisher dry-run `30730954742` | App token minted (`AUTOMATION_TOKEN_SOURCE=github_app`); failed only for missing review-ready evidence (expected) |
+| Rulesets | development `19728531` preserved; staging `20218450` + main `20218451` created/post-verified `ok: true` |
+| Bugbot Manual Only | Principal-supplied UI evidence — Active; Trigger Mode Manual Only; `bugbot run` / `@cursor review` only |
+| linktrend GitHub provider | 10/82 repositories enabled |
+| `LINKTREND_BUGBOT_USER_TOKEN` | secret exists; stored scopes non-observable (not a remaining blocker); code contract = Packager PR + Bugbot comment only |
+
+Lane D session history under `lane-d/` remains the earlier blocked-apply record; not rewritten.
 
 ## Prohibited actions
 
-All false (see JSON).
+All false (see JSON). No credentials exposed; no PR, review-ready, Packager, Bugbot trigger, Integrator, promotion, consumer mutation, frozen-head edit, close/delete, force push, cleanup apply, or tag/release.
 
 ## Definition of complete
 
-Not fully complete: live-state gates unresolved. Pushed issue-branch checkpoint is the delivery mode.
+**COMPLETE for stated WP02 scope.** Pushed issue-branch checkpoint with lineage, cleanup plan, validation, three-OS CI, and live external readiness closed.
+
+**Not claimed:** production acceptance; consumer rollout authorization; WP03 integration; review-ready on this tip; tag/Release.
 
 ## Three-OS CI
 

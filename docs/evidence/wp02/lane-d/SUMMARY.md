@@ -46,3 +46,17 @@ Create staging + main managed rulesets (union-preserving; no Bugbot on promote b
 3. `apply-decision.md`
 4. `commands-and-results.md`
 5. `SUMMARY.md` (this file)
+
+---
+
+## Append — External configuration closure (2026-08-02)
+
+Supersedes the **NOT READY** verdict above for WP02 completion only. Does not rewrite the session commands/raw JSON above.
+
+See `docs/evidence/wp02/EXTERNAL-CONFIGURATION-CLOSURE.md`:
+
+- App ID variable + private-key secret name present; Review Ready Publisher dry-run `30730954742` minted App token (`AUTOMATION_TOKEN_SOURCE=github_app`); failed only for missing review-ready evidence (expected).
+- Staging ruleset `20218450` and main ruleset `20218451` created and post-verified (`ok: true`); development `19728531` unchanged; staging/main require Verify IDE Development + Enforce allowed PR source branches.
+- Principal UI: Bugbot Active; Trigger Mode Manual Only; `bugbot run` / `@cursor review` only; linktrend GitHub 10/82 repos enabled.
+- `LINKTREND_BUGBOT_USER_TOKEN` exists; scopes non-observable (not a remaining blocker).
+- WP02 live-readiness **READY** for stated scope; not production acceptance; not consumer rollout.
