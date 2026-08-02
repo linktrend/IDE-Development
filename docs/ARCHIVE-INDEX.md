@@ -1,7 +1,18 @@
 # Archive Index — Retired Development Systems
 
-**Date:** 2026-07-10 (active-docs section updated 2026-07-19)  
-**Purpose:** Name retired systems, explain why they were archived, and state when operators may read from archive. Day-to-day authority is the source-of-truth quartet listed under **Active docs**.
+**Date:** 2026-07-10 (Issue #72 Lane B archive hierarchy update 2026-08-02)
+**Purpose:** Name retired systems, explain why they were archived, and state when operators may read from archive. Day-to-day authority is **[`docs/CURRENT-STATUS.md`](CURRENT-STATUS.md)** plus the source-of-truth quartet below.
+
+---
+
+## Post-WP03 / pre-WP04 posture (Issue #72)
+
+- **WP03 complete:** PR #69 → `development`, #70 → `staging`, #71 → `main`.
+- **Tree equality fact:** `development` / `staging` / `main` share content tree
+  `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f` (issue branch tip starts at `e6301fc`; see `docs/evidence/issue-72/lead/integration-plan.md`).
+- **WP04** packet is active and prepared / not executed:
+  [`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`](work-packets/2026-08-02-work-packet-04-consumer-rollout.md).
+- Completed Wave 1 / Wave 2 / WP1 / WP02 packets and WP02 lane evidence are under [`docs/archive/`](archive/README.md) (this cleanup). Production WP1 acceptance evidence stays active at [`docs/validation/wp1-evidence/`](validation/wp1-evidence/).
 
 ---
 
@@ -31,6 +42,18 @@ Both **IDE Development** (this repo) and the independent **LiNKdeveloper** Progr
 
 Historical Stage 1 completion evidence lives under [`docs/archive/`](archive/README.md).
 
+### Issue #72 archive hierarchy (added)
+
+| Tree | Contents |
+|------|----------|
+| [`archive/handoffs/completed/`](archive/handoffs/completed/) | Dated completed session handoffs |
+| [`archive/handoffs/transcripts/`](archive/handoffs/transcripts/) | Historical transcripts (e.g. abe8cc85) |
+| [`archive/work-packets/`](archive/work-packets/) | Completed Wave 1 / Wave 2 / WP1 / WP02 packets |
+| [`archive/evidence/wp02/`](archive/evidence/wp02/) | WP02 raw lane evidence |
+| [`archive/runbooks/LANE_F_RESULT.md`](archive/runbooks/LANE_F_RESULT.md) | WP1 Lane F development result (not an operator runbook) |
+
+Thin pointers remain at several historical active paths so older citations still resolve; prefer archive paths for new writing. Inventory: `docs/evidence/issue-72/lane-b/`.
+
 ---
 
 ## Embedded LiNKdev in product repos — deferred
@@ -45,17 +68,24 @@ Embedded `LiNKdev/` folders in product repositories are **legacy remnants**, not
 
 ## Active docs (not archived)
 
-### Source of truth (2026-07-19)
+### Day-to-day status
+
+- [`CURRENT-STATUS.md`](CURRENT-STATUS.md) — post-WP03 / pre-WP04 operator status (Issue #72 Lane A)
+
+### Source of truth quartet
 
 - [`IDE-DEVELOPMENT-INTENT.md`](IDE-DEVELOPMENT-INTENT.md) — why this repository exists
 - [`IDE-DEVELOPMENT-TECHNICAL-PRD.md`](IDE-DEVELOPMENT-TECHNICAL-PRD.md) — exhaustive technical reference
 - [`IDE-DEVELOPMENT-OPERATIONS-MANUAL.md`](IDE-DEVELOPMENT-OPERATIONS-MANUAL.md) — Principal handbook
-- [`OPEN-ISSUES.md`](OPEN-ISSUES.md) — append-only build log
+- [`OPEN-ISSUES.md`](OPEN-ISSUES.md) — append-only build log / open items companion
 
 ### Still live operational companions
 
 - [`HYBRID-SKILLS-REGISTRY.md`](HYBRID-SKILLS-REGISTRY.md) — hybrid command routing map (required by verify + command entrypoints)
 - [`adr/0002-shared-component-template-asset-library.md`](adr/0002-shared-component-template-asset-library.md) — accepted Library ADR
-- [`handoff/`](handoff/) — session handoff template
+- [`handoff/`](handoff/) — session handoff **README + `_TEMPLATE` only** (completed dated handoffs archived)
+- [`work-packets/`](work-packets/) — active/prepared packets (WP04); completed packets archived with stubs
+- [`validation/wp1-evidence/`](validation/wp1-evidence/) — WP1 production acceptance / RC evidence (retained active)
 - [`validation/GATE-STOP-001-report.md`](validation/GATE-STOP-001-report.md) — Law 16 behavioral coverage report
 - [`validation/fixed-pipeline-feasibility-report.md`](validation/fixed-pipeline-feasibility-report.md) — feasibility runner companion
+- [`runbooks/release-candidate.md`](runbooks/release-candidate.md) · [`runbooks/rollback.md`](runbooks/rollback.md) — operator runbooks

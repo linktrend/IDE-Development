@@ -1,0 +1,39 @@
+PASS: historical MERGED + OPEN PR → KEEP
+Preparing worktree (checking out 'issue/99-merged-clean-wt')
+PASS: clean attached worktree → KEEP
+PASS: preserve issue/44-* → KEEP
+PASS: eligible merged → WOULD_DELETE dry-run only
+PASS: cleanup_stale_records inventory keep/candidate + apply refused
+PASS: cleanup_controls OPEN → KEEP unauthorized
+PASS: show-preserve: defaults:false omits 43/44/51 and PR 49
+PASS: plan-completed-repairs: preserve + open-PR KEEP; eligible WOULD_DELETE
+PASS: apply-completed-repairs: preserve/open-PR kept; eligible DELETED
+PASS: shell dry-run: defaults:false → issue/44 WOULD_DELETE (not preserve KEEP)
+PASS: shell uses cleanup_controls; no hardcoded 43/44/51; policy parity
+PASS: export-preserve: CLOSED + MERGED preservePrNumbers heads in branches/prHeads
+PASS: shell dry-run: MERGED preservePrNumbers-only head → KEEP via preserve
+PASS: Python ISSUE_BRANCH_RE + preserve_reason accept issue/51 and issue/51-slug
+PASS: shell/Python issue regex + export issueNumbers:[51] preserve parity
+KEEP: local:issue/51 — preserve policy
+KEEP: local:issue/51-some-slug — preserve policy
+PASS: shell dry-run: issue/51 + issue/51-slug KEEP preserve; issue/99 WOULD_DELETE
+PASS: export-preserve: gh unavailable → 903 unresolved, preserveResolutionOk false
+PASS: shell dry-run: gh fail on preserve PR → no WOULD_DELETE (fail-closed)
+PASS: export-preserve: empty headRefName → 904 unresolved, preserveResolutionOk false
+PASS: shell dry-run: empty preserve head → no WOULD_DELETE (fail-closed)
+PASS: export-preserve: --repo linktrend/IDE-Development resolves PR 905 head
+PASS: export-preserve: ambiguous origin+upstream → 906 unresolved, preserveResolutionOk false
+PASS: shell dry-run: ambiguous remotes → no WOULD_DELETE/DELETED (fail-closed)
+PASS: export-preserve: GITHUB_REPOSITORY authoritative despite ambiguous remotes
+PASS: export-preserve: --repo authoritative despite ambiguous remotes
+PASS: shell dry-run: resolved CLEANUP_REPO → pr list --repo + WOULD_DELETE (scoped MERGED only)
+PASS: shell dry-run: ambiguous remotes → no implicit pr list; trap MERGED cannot WOULD_DELETE
+PASS: shell dry-run: ambiguous remotes → no WOULD_DELETE/DELETED (Issue #59/#61 fail-closed)
+PASS: shell dry-run: GITHUB_REPOSITORY despite ambiguous remotes → --repo + WOULD_DELETE
+PASS: shell dry-run: explicit --repo despite ambiguous remotes → --repo + WOULD_DELETE
+PASS: shell: empty/invalid explicit --repo → FAIL, no implicit gh, no WOULD_DELETE
+PASS: repair_task plan-cleanup-completed: --repo scopes pr view → WOULD_DELETE_FILE
+PASS: cleanup_stale_records --file-backend: --repo scopes pr view → WOULD_DELETE_FILE
+PASS: wrong implicit gh MERGED cannot authorize apply / WOULD_DELETE_FILE
+PASS: cleanup_stale_records: empty --repo file-backend apply fail-closed (no gh, no delete)
+OK: 35 assertions passed

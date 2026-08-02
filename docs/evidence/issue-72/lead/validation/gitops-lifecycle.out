@@ -1,0 +1,130 @@
+PASS: No job-level env context in promote workflows
+PASS: managed templates render to live IDE workflow names
+PASS: agentcomply has no Open or update PR
+PASS: branching rule has 10:00 not staging 08:00
+PASS: no prefer-incoming in active promote docs
+PASS: SESSION-END owned-path staging + review-ready ordering
+PASS: .linktrend/ gitignored
+PASS: create_issue_branch idempotent reuse (title+label)
+PASS: create_issue_branch rejects closed issue
+PASS: create_issue_branch auth fail closed
+PASS: completion_gate missing evidence fails closed without success status
+PASS: completion_gate failed evidence fails closed without success status
+PASS: completion_gate stale evidence fails closed without success status
+PASS: completion_gate valid evidence publishes success status for exact SHA
+PASS: later commit is unready until gate succeeds for new SHA
+PASS: failed gate leaves branch ineligible
+PASS: completion_gate fails closed when git fetch origin fails
+PASS: completion_gate rejects disallowed work branch
+PASS: completion_gate blocked writes local cache and durable repair task
+PASS: blocked resolves repository from gh repo view without env
+PASS: blocked resolves sanitized origin remote; credentials never printed
+PASS: blocked rejects ambiguous origin+upstream (local cache only)
+PASS: blocked reports LOCAL_CACHE_ONLY when repository unresolved
+PASS: blocked durable-write failure keeps local cache and warns LOCAL_CACHE_ONLY
+PASS: repair_task dispatch-attempt increments; re-upsert does not; 3rd → Issues
+PASS: cleanup script dry-run safe
+PASS: Required entrypoints and contracts present
+PASS: Platform docs: Review Ready present; no implementer Open-PR instruction
+PASS: Repair dispatcher language; no prefer-incoming instruction
+System repository: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-72-pre-launch-ide-development-codebase-cleanup-arch
+Consumer repository: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.jVpAEp/consumer
+PASS: wrote consumer config /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.jVpAEp/consumer/.github/linktrend-gitops-consumer.json
+
+=== Layer A: physical .cursor tree (no IDE Development symlink) ===
+
+=== Layer B: sync managed GitHub workflows (rendered names) ===
+System repository: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-72-pre-launch-ide-development-codebase-cleanup-arch
+Target repository: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.jVpAEp/consumer
+Template source: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-72-pre-launch-ide-development-codebase-cleanup-arch/core/github/managed-workflows
+Consumer config: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.jVpAEp/consumer/.github/linktrend-gitops-consumer.json
+PASS: synced branch-source-policy.yml
+PASS: synced linktrend-review-packager.yml
+PASS: synced linktrend-review-ready-publisher.yml
+PASS: synced linktrend-development-to-staging.yml
+PASS: synced linktrend-staging-to-main.yml
+PASS: synced linktrend-integrator-merge.yml
+PASS: synced linktrend-cleanup-merged.yml
+PASS: synced linktrend-repair-observer.yml
+
+Managed workflow sync: SUCCESS
+Target: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.jVpAEp/consumer
+Synced/updated: 8
+Already matched: 0
+Next: complete core/checklists/BUGBOT-INHERITANCE.md for this repo
+Next: ensure Cursor Automations exist (docs/CURSOR-AUTOMATIONS-SETUP.md)
+
+=== Layer C: sync managed runtime scripts + Cursor entrypoints ===
+System: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-72-pre-launch-ide-development-codebase-cleanup-arch
+Target: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.jVpAEp/consumer
+PASS: synced scripts/gitops/completion_gate.py
+PASS: synced scripts/gitops/conflict_task.py
+PASS: synced scripts/gitops/create_issue_branch.py
+PASS: synced scripts/gitops/integrator_evaluate.sh
+PASS: synced scripts/gitops/packager_discover.py
+PASS: synced scripts/gitops/packager_evaluate.py
+PASS: synced scripts/gitops/packager_logic.py
+PASS: synced scripts/gitops/main_approve_package_discover.py
+PASS: synced scripts/gitops/main_approve_package_reuse.py
+PASS: synced scripts/gitops/promote_main.sh
+PASS: synced scripts/gitops/promote_staging.sh
+PASS: synced scripts/gitops/readiness_status.py
+PASS: synced scripts/gitops/review_ready_dispatch.py
+PASS: synced scripts/gitops/external_state_audit.py
+PASS: synced scripts/gitops/repair_task.py
+PASS: synced scripts/gitops/repair_observer.py
+PASS: synced scripts/gitops/resolve_automation_token.sh
+PASS: synced scripts/gitops/resolve_bugbot_user_token.sh
+PASS: synced scripts/gitops/bugbot_user_credentials.py
+PASS: synced scripts/gitops/resolve_event_pr.py
+PASS: synced scripts/gitops/wait_named_gate.py
+PASS: synced scripts/gitops/work-branch-allowlist.sh
+PASS: synced scripts/gitops/write_outcome.py
+PASS: synced scripts/mark-review-ready.sh
+PASS: synced scripts/validate-review-ready.sh
+PASS: synced scripts/clear-review-ready.sh
+PASS: synced scripts/cleanup-merged-branches.sh
+PASS: synced scripts/pull-update-work-branches.sh
+PASS: synced scripts/apply-development-merge-ruleset.sh
+PASS: synced .cursor/rules/cursor-gitops-bootstrap.mdc
+PASS: synced .cursor/rules/linktrend-git-branching.mdc
+PASS: synced .cursor/commands/agentsetup.md
+PASS: synced .cursor/commands/agentcomply.md
+PASS: synced .cursor/skills/agentsetup/SKILL.md
+PASS: synced .cursor/skills/agentcomply/SKILL.md
+
+Managed runtime sync: SUCCESS
+Synced/updated: 35
+Already matched: 0
+PASS: managed agentsetup/agentcomply Cursor entrypoints installed
+
+=== Layer D: AGENTS.md managed section ===
+PASS: upserted managed section into /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.jVpAEp/consumer/AGENTS.md
+AGENTS managed section sync: SUCCESS
+
+Wire summary: SUCCESS
+Consumer: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.jVpAEp/consumer
+Cursor: physical managed entrypoints under .cursor/ (not a symlink to IDE Development)
+Config: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.jVpAEp/consumer/.github/linktrend-gitops-consumer.json
+Managed workflows + runtime + agentsetup/agentcomply + AGENTS section: synced
+Next: complete Bugbot checklist — core/checklists/BUGBOT-INHERITANCE.md
+Next: Cursor Automations — docs/CURSOR-AUTOMATIONS-SETUP.md
+Next: commit .github/linktrend-gitops-consumer.json and managed .cursor entrypoints
+ok
+PASS: Non-default Consumer CI rendered into installed workflows
+ok
+PASS: Unsafe consumer workflow names rejected
+PASS: All scripts/ paths from linktrend-*.yml exist in consumer
+ok
+PASS: agentsetup/agentcomply installed; AGENTS equivalent; consumer-owned preserved
+ok
+PASS: Installed entrypoints independent of IDE Development path
+PASS: AGENTS.md has IDE markers and preserves consumer text
+PASS: actionlint on installed workflows (SC2129 ignored)
+PASS: Second wire-repo.sh idempotent; consumer-owned files preserved
+verify-platform-adoption: OK
+PASS: platform adoption entrypoints + temp consumer
+PASS: git diff --check origin/development...HEAD clean
+PASS: git diff --check working tree clean
+PASS: Main Approve package/store contract + discover CLI
+test-gitops-lifecycle: OK
