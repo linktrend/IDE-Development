@@ -1,0 +1,15 @@
+PASS: presence: cleanup controls + WP01 portable/security fixtures coexist
+ok-wp01-wrong-repo
+PASS: WP01 wrong-repo fixture + validate_repository refuse mismatch
+PASS: CLOSED/frozen preserve PR head retained in export-preserve
+Preparing worktree (checking out 'issue/120-open-wt')
+PASS: open PR + attached worktree → KEEP (zero delete)
+PASS: ambiguous remotes → no WOULD_DELETE/DELETED
+PASS: unavailable gh → preserveResolutionOk=false (fail-closed)
+PASS: mismatched/invalid --repo → zero mutation on apply (rc=0/2)
+PASS: partially merged / moved tip / OPEN-wins → KEEP
+PASS: retry/idempotence: dry-run stable; failed auth zero mutation
+ok-imports
+PASS: cleanup_controls + repair_task import alongside WP01 gitops tree
+
+ALL PASS: cleanup lineage + WP01 portable-system lineage coexistence

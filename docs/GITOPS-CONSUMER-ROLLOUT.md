@@ -1,39 +1,44 @@
 # Consumer rollout (portable IDE Development v2)
 
-**Status:** Inventory active — **consumer mutation deferred** until Work Packet 2 integration/publication decisions **and** separate Principal approval per repo
-**Date:** 2026-08-02 (WP1 clarification)
-**Version:** `v2.0.0` (identified in `VERSION`; no Git tag or GitHub release in Wave 1 / WP1)
-**Issues:** #43 (Wave 1 portable v2) · #67 (Work Packet 1 production-readiness proof)
-**SOT:** `docs/AUTONOMOUS-GIT-OPERATIONS.md` · `docs/adr/0003-autonomous-ship-pull-promote.md` · `docs/adr/0004-portable-managed-core-v2.md` · `docs/contracts/REPOSITORY-PROTECTION.md` · `docs/work-packets/2026-08-02-work-packet-1-production-readiness.md`
+**Status:** Inventory active — **consumer mutation deferred** until Work Packet 04 execution is Principal-approved **and** separate Principal approval per repo. WP04 packet is **prepared / NOT EXECUTED**.
+**Date:** 2026-08-02 (post-WP03 clarification; Issue #72 Lane A)
+**Version:** `v2.0.0` (identified in `VERSION`; no Git tag or GitHub release claimed by WP1–WP03 alone)
+**Issues:** #43 (Wave 1 portable v2) · #67 (WP1) · #68 (WP2) · WP03 promote PRs #69/#70/#71 · #72 (pre-launch cleanup) · WP04 (consumer rollout — approval pending)
+**SOT:** `docs/CURRENT-STATUS.md` · `docs/AUTONOMOUS-GIT-OPERATIONS.md` · `docs/adr/0003-autonomous-ship-pull-promote.md` · `docs/adr/0004-portable-managed-core-v2.md` · `docs/contracts/REPOSITORY-PROTECTION.md` · `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
 
-This document covers **consumer** rollout of the portable managed core. It does **not** authorize edits to real consumer repositories or live GitHub settings from Wave 1 or Work Packet 1 automation.
+This document covers **consumer** rollout of the portable managed core. It does **not** authorize edits to real consumer repositories or live consumer GitHub settings until WP04 execution is approved.
 
-**Work Packet 1 boundary:** Prove installer, migration, adapters, packaging, recovery, security, and read-only external-state verification on disposable targets / fixtures. **Do not** install or update real consumers.
+**Work Packet 1 (complete):** Proved installer, migration, adapters, packaging, recovery, security, and read-only external-state verification on disposable targets / fixtures. Did **not** install or update real consumers.
 
-**Work Packet 2 boundary:** Integration and publication stage — reconcile frozen PR #49 and intentional checkpoints; governed merge/promotion; final publication/rollout **decisions**. Real consumer installs remain separately Principal-gated even after WP2.
+**Work Packet 2 (complete):** Canonical lineage + IDE Development live readiness (checkpoint). Did **not** mutate consumers.
 
-**IDE Development** (`linktrend/IDE-Development`) is the **system source and internal self-verification target**. It is **not** a consumer rollout entry and must not receive a nested installed copy of itself during Wave 1 / WP1.
+**Work Packet 03 (complete):** Integrated/promoted system line — PR #69 → `development`, #70 → `staging`, #71 → `main`. Protected lines share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
+
+**Work Packet 04 (prepared / not executed):** Real consumer installs/updates in the locked order below. Requires Principal approval of packet execution **and** per-repo approval before each mutation.
+
+**IDE Development** (`linktrend/IDE-Development`) is the **system source and internal self-verification target**. It is **not** a consumer rollout entry and must not receive a nested installed copy of itself.
 
 **Claude Code** remains outside current v2 support and rollout.
 
 ---
 
-## What Wave 1 / WP1 delivers (system repo only)
+## What Wave 1 / WP1 delivered (system repo only)
 
 - Portable managed-core package and transactional installer (`scripts/ide-development.py`)
 - Native Codex + Cursor physical discovery adapters
 - Migration / conflict / rollback behavior
-- Managed repository-protection **plan/verify** contract (dry-run / read-only default; **no apply in WP1**)
+- Managed repository-protection **plan/verify** contract (dry-run / read-only default in WP1)
 - WP1 release-candidate packaging (`python3 scripts/ide-development.py release-candidate create|verify`)
 - Updated active documentation, runbooks, acceptance matrix, and integration harness
 
-## What Wave 1 / WP1 does NOT do
+## What Wave 1 / WP1 did NOT do
 
 - Edit `openclaw_prime`, LiNKplatform, LiNKskills, LiNKbrain, LiNKsites, LiNKdeveloper, LiNKlibraries, LiNKautowork, or LiNKtrading-codebase
-- Apply live GitHub rulesets, branch protection, secrets, variables, App, or Bugbot settings
+- Apply live GitHub rulesets, branch protection, secrets, variables, App, or Bugbot settings on consumers
 - Create a Git tag or GitHub Release for `v2.0.0` (RC archive proof only)
 - Add Claude Code as a supported platform
-- Resolve frozen PR #49 or merge into `development` (Work Packet 2)
+
+(WP2/WP03 later closed IDE Development lineage, live readiness, and protected-line promotion — still without consumer mutation.)
 
 ---
 
@@ -61,19 +66,19 @@ IDE Development is intentionally **absent** from this table.
 
 ## Gate before each consumer
 
-**Not authorized during Work Packet 1.** When rollout later proceeds (after WP2 decisions + your approval):
+**Not authorized until WP04 Principal approval.** When rollout proceeds:
 
 For **every** consumer in the table above:
 
 1. Produce a **read-only drift report** (installer `drift` / plan dry-run; compare managed templates without mutating the consumer).
 2. Obtain **separate Carlos (Principal) approval** for that specific consumer.
 3. Only then run `install` or `update` against an approved path (from system source **or** extracted release candidate via `--package`).
-4. Plan repository protections for `development`, `staging`, and `main` (dry-run). Live `--apply` is a separate approved action — never a WP1 default.
+4. Plan repository protections for `development`, `staging`, and `main` (dry-run). Live `--apply` is a separate approved action — never a silent default.
 5. Keep GitHub App credentials, secrets, variables, Bugbot dashboard settings, and other repository settings **external** — never package secret values into the managed core.
 
 Also required before broad rollout:
 
-1. Wave 1 changes reach IDE Development’s protected promotion path as required by studio process.
+1. Wave 1 changes reach IDE Development’s protected promotion path as required by studio process (**satisfied post-WP03** — tree `43b1333…`).
 2. Bugbot mention-only / cost posture confirmed per repository when Bugbot is used (`docs/contracts/BUGBOT-MENTION-ONLY.md`, `docs/contracts/ACTIONS-COST-CONTROLS.md`).
 3. GitHub App smoke posture understood (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`).
 4. Platform adoption / disposable-repo installer proofs green (`tests/test-portable-v2-integration.sh` and suites it discovers).
@@ -89,7 +94,7 @@ Merging to `development` alone does **not** activate new scheduled workflows. Co
 
 ---
 
-## Install / update commands (after approval — not WP1)
+## Install / update commands (after WP04 + per-repo approval — not authorized yet)
 
 ```bash
 # From IDE Development (system source) — disposable today; approved consumer only after Principal gate:
@@ -113,7 +118,7 @@ Physical install leaves `.ide-development/`, Cursor adapters under `.cursor/{rul
 
 Legacy `scripts/wire-repo.sh` / sync helpers remain for pre-v2 GitOps compatibility until a consumer migrates; they are not the portable v2 path and must not create consumer-to-system `.cursor` symlinks for new installs.
 
-Operator runbooks: `docs/runbooks/release-candidate.md`, `docs/runbooks/rollback.md`. Acceptance gates: `docs/acceptance/acceptance-matrix.md`.
+Operator runbooks: `docs/runbooks/release-candidate.md`, `docs/runbooks/rollback.md`. Acceptance gates: `docs/acceptance/acceptance-matrix.md`. Current status: `docs/CURRENT-STATUS.md`.
 
 ---
 
@@ -129,7 +134,7 @@ Every installed consumer must protect:
 
 The GitHub **default branch** remains the repository’s configured default (typically `main`); managed protections still apply to `development`, `staging`, and `main` regardless of which branch is the default branch.
 
-Existing legitimate repository-specific required checks are preserved and unioned deterministically. Tooling: `docs/contracts/REPOSITORY-PROTECTION.md` (dry-run default; **no live apply in Wave 1 / WP1**).
+Existing legitimate repository-specific required checks are preserved and unioned deterministically. Tooling: `docs/contracts/REPOSITORY-PROTECTION.md` (dry-run default; consumer live apply is WP04+/Principal-gated).
 
 ### Consumer check-name variables (`LINKTREND_*_CHECKS`)
 
@@ -161,13 +166,15 @@ Before any mutating install/update:
 | Protection plan | repository-protection tooling in dry-run mode |
 | Integrator variable | `gh api repos/linktrend/REPO/actions/variables/LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (read-only) |
 
-Record gaps in adoption notes. Do **not** auto-fix consumers from Wave 1 or Work Packet 1.
+Record gaps in adoption notes. Do **not** auto-fix consumers from Wave 1, WP1–WP03, or Issue #72 cleanup.
 
 ---
 
 ## Related documents
 
+- `docs/CURRENT-STATUS.md`
 - `docs/GITOPS-CONSUMER-ROLLOUT.md` (this file)
+- `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
 - `docs/adr/0004-portable-managed-core-v2.md`
 - `docs/contracts/REPOSITORY-PROTECTION.md`
 - `docs/contracts/LISA-OPENCLAW-FOLLOW-UP.md`
@@ -199,9 +206,10 @@ Repository variables cannot change `workflow_run.workflows` — names must be re
 Portable v2 installs **physical** Cursor and Codex discovery files inside the consumer.
 It does **not** symlink consumer `.cursor` to IDE Development (that breaks Cursor Cloud and violates the portable model).
 
-## WP02 boundary (Issue #68)
+## WP02 / WP03 / WP04 boundaries
 
-WP02 (Issue #68) reconciles IDE Development lineage and verifies live readiness for **this repository only**.
-**Status:** COMPLETE for stated WP02 scope (checkpoint only; see `docs/evidence/wp02/WORK-PACKET-02-EVIDENCE.md`).
-It does **not** mutate consumer repositories, publish release tags, or authorize consumer installs.
-Consumer rollout decisions remain deferred to WP03+ with per-repo Principal approval.
+**WP02 (Issue #68):** COMPLETE for stated scope (checkpoint only; see `docs/archive/evidence/wp02/WORK-PACKET-02-EVIDENCE.md`). Lineage + live readiness for IDE Development; no consumer mutation.
+
+**WP03:** COMPLETE — PR #69/#70/#71; protected lines share tree `43b1333…`. No consumer mutation.
+
+**WP04:** PREPARED / NOT EXECUTED — consumer rollout per this document’s locked order. No consumer mutation authorized until Principal approval (`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).

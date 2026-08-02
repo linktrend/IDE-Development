@@ -307,7 +307,7 @@ run_existing_suites() {
   run_cmd "gitops review packager" bash scripts/tests/test-gitops-review-packager.sh
   run_cmd "gitops behavioral" bash scripts/tests/test-gitops-behavioral.sh
   run_cmd "platform adoption" bash scripts/verify-platform-adoption.sh
-  run_cmd "verify ide development" env SKIP_LOCAL_ARCHIVE_CHECKS=1 bash scripts/verify-ide-development.sh
+  run_cmd "verify ide development" bash scripts/verify-ide-development.sh
   if git diff --check >/dev/null 2>&1; then
     pass "git diff --check"
   else

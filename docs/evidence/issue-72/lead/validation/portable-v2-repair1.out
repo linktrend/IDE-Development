@@ -1,0 +1,21 @@
+=== portable v2 integration harness (mode=default) ===
+PASS: VERSION is v2.0.0
+PASS: Active architecture/operations/rollout docs present
+PASS: Claude removed from current support/roadmap claims
+PASS: Physical install + installer commands documented
+PASS: IDE Development treated as system source, not consumer rollout
+ok
+PASS: Consumer rollout order + drift/approval gates recorded
+PASS: External settings remain external (documented)
+PASS: v2.0.0 identified without tag/release claim
+INFO: historical claude/CLAUDE.md not present (ok if previously absent)
+PASS: Documentation invariants complete
+PASS: VERSION / packageVersion aligned at 2.0.0
+ok
+PASS: CONTENT_DOCTRINE covers required contracts and is byte-synced
+ok
+PASS: No credentials packaged under core/managed-core
+MANIFEST verify OK
+PASS: managed-core MANIFEST verify OK
+INFO: Focused mode: documentation/version + packaging invariants
+=== ALL HARNESS CHECKS PASSED (mode=default) ===

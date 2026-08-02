@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "lane": "F",
+  "reviewer": 3,
+  "scope": "git-hygiene-disposition",
+  "model": "cursor-grok-4.5-high",
+  "issue": 72,
+  "repo": "linktrend/IDE-Development",
+  "mode": "READ_ONLY",
+  "reviewedAt": "2026-08-02T05:12:00Z",
+  "subject": {
+    "lane": "E",
+    "paths": [
+      "docs/evidence/issue-72/lane-e/disposition.json",
+      "docs/evidence/issue-72/lane-e/DISPOSITION.md",
+      "docs/evidence/issue-72/lane-e/SUMMARY.md",
+      "docs/evidence/issue-72/lane-e/commands-and-results.md"
+    ],
+    "priorPlanPath": "docs/archive/evidence/wp02/lane-c/cleanup-plan-post-wp03.md",
+    "capturedAt": "2026-08-02T05:06:20Z",
+    "callerTipSha": "e6301fc920a4bf841f6bb4d27c15dc4e1f655ef2"
+  },
+  "verdict": "PASS",
+  "mustConfirm": [
+    {
+      "id": 1,
+      "name": "PLAN_ONLY_no_apply",
+      "result": "PASS",
+      "notes": "mode=PLAN_ONLY; top-level and 88/88 object applyAuthorized=false; no live close/delete/prune/stash ops in Lane E evidence"
+    },
+    {
+      "id": 2,
+      "name": "PR_36_37_49_DO_NOT_TOUCH",
+      "result": "PASS",
+      "notes": "PRs 36/37/49 class=DO-NOT-TOUCH proposedAction=none applyAuthorized=false"
+    },
+    {
+      "id": 3,
+      "name": "ISSUE_72_KEEP_ACTIVE",
+      "result": "PASS",
+      "notes": "issue+local branch+worktree all KEEP-ACTIVE proposedAction=none"
+    },
+    {
+      "id": 4,
+      "name": "STASH_UNMODIFIED",
+      "result": "PASS",
+      "notes": "stash@{0} DO-NOT-TOUCH; live stash list still present; no drop/apply in evidence"
+    },
+    {
+      "id": 5,
+      "name": "POST_WP03_REFRESH",
+      "result": "PASS",
+      "notes": "Trees equal 43b1333; prior 5 WOULD_DELETE retained + NEW promote/main/8ac0afdc55fe and promote/staging/e6301fc920a4; #69/#70/#71 merged"
+    },
+    {
+      "id": 6,
+      "name": "MACHINE_READABLE_ACTIONABLE",
+      "result": "PASS",
+      "notes": "disposition.json schemaVersion=1 with class/proposedAction/applyAuthorized/applyBlockers; closed action vocabulary"
+    }
+  ],
+  "independentRechecks": {
+    "callerHeadMatches": true,
+    "treeEqualityConfirmed": true,
+    "equalTreeSha": "43b1333ae21f43a34c3bdcccb2aac96f3d6e007f",
+    "stashStillPresent": true,
+    "applyAuthorizedTrueCount": 0,
+    "objectApplyAuthorizedFalseCount": 88
+  },
+  "actionCountsObserved": {
+    "none": 66,
+    "delete-remote-after-codex-verify": 7,
+    "close-pr-after-codex-verify": 6,
+    "lisa-local-worktree-remove-after-codex-verify": 9
+  },
+  "remoteWouldDeleteCandidates": [
+    "issue/GITOPS-01-review-packager-pipeline",
+    "issue/ide-bugbot-integrator-merge-fix",
+    "issue/ide-lisa-option-a-doctrine",
+    "promote/main/8ac0afdc55fe",
+    "promote/main/f7829436751b",
+    "promote/staging/991abc319782",
+    "promote/staging/e6301fc920a4"
+  ],
+  "evidenceImprovements": [
+    {
+      "severity": "medium",
+      "id": "full-tip-shas",
+      "summary": "Expand abbreviated tipSha on localBranches/worktrees (20 short tips) to full 40-char for tip-match apply"
+    },
+    {
+      "severity": "medium",
+      "id": "stash-tipsha",
+      "summary": "Record stash@{0} tipSha instead of null for pinable DO-NOT-TOUCH inventory"
+    },
+    {
+      "severity": "medium",
+      "id": "local-branch-action-label",
+      "summary": "Replace lisa-local-worktree-remove-after-codex-verify on local-only branch candidates (31/35/promote leftovers) with delete-local-after-codex-verify"
+    },
+    {
+      "severity": "high",
+      "id": "clean-dry-run-artifact",
+      "summary": "Before --apply, capture remote dry-run EXIT 0 from clean checkout reconfirming the 7 WOULD_DELETE remotes (current EXIT 1 dirty caller)"
+    },
+    {
+      "severity": "low",
+      "id": "raw-stdout",
+      "summary": "Optional raw/ transcripts for gh/git/cleanup commands (redacted)"
+    },
+    {
+      "severity": "medium",
+      "id": "pr52-preserve-constraint",
+      "summary": "Annotate PR #52 close row with explicit preserve-branch-issue-51 constraint so apply cannot cascade to KEEP-FROZEN branch delete"
+    },
+    {
+      "severity": "low",
+      "id": "apply-queue-json",
+      "summary": "Add machine applyQueue[] mirroring DISPOSITION.md §F so Codex need not parse markdown"
+    },
+    {
+      "severity": "low",
+      "id": "blockedBy-field",
+      "summary": "Add blockedBy for SUPERSEDED PR + KEEP-OPEN remote layering (#54–#62)"
+    }
+  ],
+  "blockingGaps": [],
+  "githubMutationsPerformed": false,
+  "reviewArtifact": "docs/evidence/issue-72/lane-f/git-hygiene-review.md"
+}

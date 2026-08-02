@@ -133,18 +133,12 @@ pass "No linkdev-*.md at core/commands/ root"
 [ -f "docs/ARCHIVE-INDEX.md" ] || fail "Missing docs/ARCHIVE-INDEX.md"
 pass "Archive index present"
 
-# --- Archived local snapshots (off-repo; operator machine only) ---
-# These paths live outside the git repo under Projects/Archive. GitHub Actions
-# (and any CI without that local tree) must skip — do not fake presence.
-ARCHIVE_STAGE2="/Users/linktrend/Projects/Archive/LiNKdeveloper-Stage2-Runtime-20260710"
-ARCHIVE_LINKDEV="/Users/linktrend/Projects/Archive/LiNKdev-legacy-20260710"
-if [ "${CI:-}" = "true" ] || [ "${SKIP_LOCAL_ARCHIVE_CHECKS:-}" = "1" ]; then
-  pass "Local archive snapshot directories skipped (CI/SKIP_LOCAL_ARCHIVE_CHECKS; not available off-machine)"
-else
-  [ -d "$ARCHIVE_STAGE2" ] || fail "Missing archive directory: $ARCHIVE_STAGE2"
-  [ -d "$ARCHIVE_LINKDEV" ] || fail "Missing archive directory: $ARCHIVE_LINKDEV"
-  pass "Local archive snapshot directories present"
-fi
+# --- In-repo archive surface (portable; no absolute host paths) ---
+# Off-repo local Archive snapshots are operator-machine history only and must
+# never gate repository correctness. Assert the in-repo archive tree instead.
+[ -d "docs/archive" ] || fail "Missing docs/archive/ (in-repo archive tree)"
+[ -f "docs/archive/README.md" ] || fail "Missing docs/archive/README.md"
+pass "In-repo archive tree present (docs/archive + README)"
 
 # --- No LiNKdev in active docs (LiNKdeveloper allowed; ARCHIVE-INDEX documents retirement) ---
 while IFS= read -r -d '' file; do

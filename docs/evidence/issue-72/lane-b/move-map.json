@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "issue": 72,
+  "lane": "B",
+  "branch": "issue/72-pre-launch-ide-development-codebase-cleanup-arch",
+  "generatedAt": "2026-08-02T05:05:00Z",
+  "policy": {
+    "archiveHistory": true,
+    "gitMvPreferred": true,
+    "doNotEditLaneASot": true,
+    "wp1Evidence": "retained_active"
+  },
+  "moves": [
+    {
+      "from": "docs/handoff/2026-07-28.md",
+      "to": "docs/archive/handoffs/completed/2026-07-28.md",
+      "type": "file"
+    },
+    {
+      "from": "docs/handoff/2026-07-30-gitops-bootstrap-activation-smoke.md",
+      "to": "docs/archive/handoffs/completed/2026-07-30-gitops-bootstrap-activation-smoke.md",
+      "type": "file"
+    },
+    {
+      "from": "docs/handoff/2026-07-30-gitops-lifecycle.md",
+      "to": "docs/archive/handoffs/completed/2026-07-30-gitops-lifecycle.md",
+      "type": "file"
+    },
+    {
+      "from": "docs/handoff/2026-07-30-packager-carlos-user-identity.md",
+      "to": "docs/archive/handoffs/completed/2026-07-30-packager-carlos-user-identity.md",
+      "type": "file"
+    },
+    {
+      "from": "docs/handoff/2026-07-31-gitops-packager-live-smoke.md",
+      "to": "docs/archive/handoffs/completed/2026-07-31-gitops-packager-live-smoke.md",
+      "type": "file"
+    },
+    {
+      "from": "docs/handoff/2026-08-01-issue-63-cleanup-repo-scope.md",
+      "to": "docs/archive/handoffs/completed/2026-08-01-issue-63-cleanup-repo-scope.md",
+      "type": "file"
+    },
+    {
+      "from": "docs/handoffs/abe8cc85-post-ssh-messages.md",
+      "to": "docs/archive/handoffs/transcripts/abe8cc85-post-ssh-messages.md",
+      "type": "file"
+    },
+    {
+      "from": "docs/runbooks/LANE_F_RESULT.md",
+      "to": "docs/archive/runbooks/LANE_F_RESULT.md",
+      "type": "file"
+    },
+    {
+      "from": "docs/work-packets/2026-08-01-wave-1-portable-v2.md",
+      "to": "docs/archive/work-packets/2026-08-01-wave-1-portable-v2.md",
+      "type": "file"
+    },
+    {
+      "from": "docs/work-packets/2026-08-01-wave-2-app-backed-completion.md",
+      "to": "docs/archive/work-packets/2026-08-01-wave-2-app-backed-completion.md",
+      "type": "file"
+    },
+    {
+      "from": "docs/work-packets/2026-08-02-work-packet-1-production-readiness.md",
+      "to": "docs/archive/work-packets/2026-08-02-work-packet-1-production-readiness.md",
+      "type": "file"
+    },
+    {
+      "from": "docs/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md",
+      "to": "docs/archive/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md",
+      "type": "file"
+    },
+    {
+      "from": "docs/evidence/wp02",
+      "to": "docs/archive/evidence/wp02",
+      "type": "directory",
+      "note": "entire WP02 raw lane evidence tree"
+    }
+  ],
+  "retainedActive": [
+    {
+      "path": "docs/handoff/README.md",
+      "reason": "Hard keep-active; core/session cites docs/handoff/"
+    },
+    {
+      "path": "docs/handoff/_TEMPLATE.md",
+      "reason": "Hard keep-active; session handoff template"
+    },
+    {
+      "path": "docs/validation/wp1-evidence/",
+      "reason": "Production acceptance / RC evidence; BUILD-LOG and WP1 packet cite path; no safe full-ref rewrite of Lane A SOT yet \u2014 retain active"
+    }
+  ],
+  "postMovePointers": [
+    {
+      "path": "docs/work-packets/README.md",
+      "purpose": "Active index; WP04 landing zone; archived packets listed"
+    },
+    {
+      "path": "docs/work-packets/*.md stubs (4)",
+      "purpose": "Thin relocate pointers for completed packets"
+    },
+    {
+      "path": "docs/evidence/wp02/README.md",
+      "purpose": "Stable pointer to docs/archive/evidence/wp02/"
+    },
+    {
+      "path": "docs/runbooks/LANE_F_RESULT.md",
+      "purpose": "Thin relocate pointer to archive"
+    },
+    {
+      "path": "docs/handoffs/README.md",
+      "purpose": "Dir remains for future notes; transcript archived"
+    }
+  ],
+  "laneALinkFixTargets": [
+    "docs/BUILD-LOG.md: work-packets, evidence/wp02, validation/wp1-evidence (keep), LANE_F_RESULT",
+    "docs/OPEN-ISSUES.md: work-packets, evidence/wp02",
+    "docs/GITOPS-CONSUMER-ROLLOUT.md: work-packets, evidence/wp02"
+  ],
+  "wp03TreeEquality": {
+    "fact": "development/staging/main trees equal at WP03 tip",
+    "treeSha": "43b1333ae21f43a34c3bdcccb2aac96f3d6e007f",
+    "baseTip": "e6301fc",
+    "source": "docs/evidence/issue-72/lead/integration-plan.md"
+  },
+  "notes": {
+    "wp04PresentAtExecution": "docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md",
+    "currentStatusPresent": true,
+    "wp1Evidence": "retained_active",
+    "stubsWritten": [
+      "docs/work-packets/2026-08-01-wave-1-portable-v2.md",
+      "docs/work-packets/2026-08-01-wave-2-app-backed-completion.md",
+      "docs/work-packets/2026-08-02-work-packet-1-production-readiness.md",
+      "docs/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md",
+      "docs/evidence/wp02/README.md",
+      "docs/runbooks/LANE_F_RESULT.md"
+    ],
+    "executed": true
+  }
+}

@@ -1,0 +1,255 @@
+{
+  "schemaVersion": 1,
+  "issue": 72,
+  "lane": "C",
+  "model": "Cursor Grok 4.5 High",
+  "branch": "issue/72-pre-launch-ide-development-codebase-cleanup-arch",
+  "worktree": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-72-pre-launch-ide-development-codebase-cleanup-arch",
+  "assessedAt": "2026-08-02T13:06:00+08:00",
+  "policy": {
+    "conservative": true,
+    "uncertainMeansRetain": true,
+    "preferArchiveOverSilentDelete": true,
+    "neverWeakenNativeCodex": true,
+    "neverHandEditGeneratedManifests": true
+  },
+  "inventory": [
+    {
+      "path": "claude/CLAUDE.md",
+      "kind": "first-party-platform-entrypoint",
+      "referencesFound": [
+        {
+          "ref": "tests/test-portable-v2-integration.sh:230",
+          "strength": "soft",
+          "note": "Absence is explicitly OK (info-only)."
+        },
+        {
+          "ref": "scripts/ide_development/manifest.py",
+          "strength": "guardrail",
+          "note": "Rejects packaging any claude/ or .claude/ surface into MANIFEST entries."
+        },
+        {
+          "ref": "scripts/ide_development/release_candidate.py:_is_excluded_rel",
+          "strength": "guardrail",
+          "note": "Excludes top-level claude/ from RC package paths."
+        },
+        {
+          "ref": "docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md / INTENT / README / SETUP",
+          "strength": "doc-only",
+          "note": "Claude excluded from v2; historical claude/ may remain. Lane A/B can retarget wording to archive path."
+        },
+        {
+          "ref": "core/managed-core/MANIFEST.json",
+          "strength": "absent",
+          "note": "Zero entries for root claude/."
+        },
+        {
+          "ref": "scripts/verify-platform-adoption.sh",
+          "strength": "absent",
+          "note": "Not in required[] list."
+        },
+        {
+          "ref": "scripts/wire-repo.sh / sync-* / installer",
+          "strength": "absent",
+          "note": "No copy/install of root claude/."
+        }
+      ],
+      "decision": "archive",
+      "action": "git mv → docs/archive/platform-entrypoints/claude/CLAUDE.md",
+      "proof": "Excluded from package + verify; harness allows absence; Claude platform excluded by doctrine. Prefer archive for audit over silent delete.",
+      "proofStrength": "high"
+    },
+    {
+      "path": "chatgpt/AGENTS.md",
+      "kind": "first-party-platform-entrypoint",
+      "referencesFound": [
+        {
+          "ref": "scripts/verify-platform-adoption.sh:15,38",
+          "strength": "hard",
+          "note": "File must exist; must contain Review Ready language; must not instruct implementer Open-PR."
+        },
+        {
+          "ref": "tests/test-portable-v2-integration.sh / scripts/verify-ide-development.sh / scripts/tests/test-gitops-lifecycle.sh",
+          "strength": "hard-indirect",
+          "note": "Invoke verify-platform-adoption.sh."
+        },
+        {
+          "ref": "core/managed-core/MANIFEST.json",
+          "strength": "absent",
+          "note": "Not packaged into managed-core; system-repo entrypoint only."
+        },
+        {
+          "ref": "AGENTS.md (root) + .agents/",
+          "strength": "supersession-candidate",
+          "note": "Root AGENTS.md is native Codex/ChatGPT discovery; chatgpt/ remains parallel GitOps entrypoint still gated by verify."
+        }
+      ],
+      "decision": "retain",
+      "action": "none",
+      "proof": "Hard verify/test dependency. Removing would break platform adoption gate unless verify is redesigned — out of conservative Lane C scope.",
+      "proofStrength": "high-retain"
+    },
+    {
+      "path": "codex/AGENTS.md",
+      "kind": "first-party-platform-entrypoint",
+      "referencesFound": [
+        {
+          "ref": "scripts/verify-platform-adoption.sh:14,38",
+          "strength": "hard",
+          "note": "Same existence + Review Ready content checks as chatgpt/."
+        },
+        {
+          "ref": "AGENTS.md + .agents/skills/* + core/managed-core/platforms/codex/*",
+          "strength": "native-codex",
+          "note": "Native Codex surfaces must remain; root codex/ is additional packaging guide, not a substitute."
+        },
+        {
+          "ref": "scripts/gitops/completion_gate.py / packager_logic.py 'codex/'",
+          "strength": "unrelated",
+          "note": "Branch-prefix allowlist (codex/<branch>), not the root folder."
+        },
+        {
+          "ref": "core/managed-core/MANIFEST.json",
+          "strength": "platforms-only",
+          "note": "Packages platforms/codex/*, not root codex/AGENTS.md."
+        }
+      ],
+      "decision": "retain",
+      "action": "none",
+      "proof": "Hard verify dependency + HIGH BAR not to weaken Codex entry surfaces. Native Codex (.agents/, root AGENTS.md, managed-core platforms/codex) untouched.",
+      "proofStrength": "high-retain"
+    },
+    {
+      "path": "codex/README.md",
+      "kind": "first-party-platform-entrypoint",
+      "referencesFound": [
+        {
+          "ref": "codex/AGENTS.md sibling",
+          "strength": "paired",
+          "note": "Documents root codex/ adapter purpose; no separate verify require, but folder retained with AGENTS.md."
+        }
+      ],
+      "decision": "retain",
+      "action": "none",
+      "proof": "Paired with retained codex/AGENTS.md; uncertain benefit vs risk of partial folder removal.",
+      "proofStrength": "medium-retain"
+    },
+    {
+      "path": "scripts/wire-repo.sh",
+      "kind": "legacy-named-migration-script",
+      "referencesFound": [
+        {
+          "ref": "scripts/verify-platform-adoption.sh",
+          "strength": "hard",
+          "note": "Executes real wire against temp consumer."
+        },
+        {
+          "ref": "scripts/verify-ide-development.sh / test-gitops-lifecycle / docs/adr / OPEN-ISSUES / GITOPS rollout",
+          "strength": "hard",
+          "note": "Migration/compatibility path for pre-v2 GitOps wiring."
+        }
+      ],
+      "decision": "retain",
+      "action": "none",
+      "proof": "Name 'legacy' is insufficient; active runtime/test/migration dependency.",
+      "proofStrength": "high-retain"
+    },
+    {
+      "path": "scripts/backfill-managed-workflows.sh",
+      "kind": "legacy-named-migration-script",
+      "referencesFound": [
+        {
+          "ref": "docs/OPEN-ISSUES.md / core/workspace/REPO-WIRING.md / handoffs",
+          "strength": "migration",
+          "note": "Documented consumer backfill tool used in rollout history."
+        },
+        {
+          "ref": "scripts/verify-platform-adoption.sh required[]",
+          "strength": "indirect",
+          "note": "Sibling of wire/sync surface; not deleted."
+        }
+      ],
+      "decision": "retain",
+      "action": "none",
+      "proof": "Migration/installed-workflow utility; no proof of zero dependency.",
+      "proofStrength": "high-retain"
+    },
+    {
+      "path": "scripts/sync-managed-workflows.sh",
+      "kind": "sync-helper",
+      "referencesFound": [
+        {
+          "ref": "scripts/verify-platform-adoption.sh / wire-repo.sh / tests",
+          "strength": "hard",
+          "note": "Active sync path for managed workflows."
+        }
+      ],
+      "decision": "retain",
+      "action": "none",
+      "proof": "Active installer/sync dependency.",
+      "proofStrength": "high-retain"
+    },
+    {
+      "path": "scripts/sync-managed-runtime.sh",
+      "kind": "sync-helper",
+      "referencesFound": [
+        {
+          "ref": "scripts/verify-platform-adoption.sh required[]",
+          "strength": "hard",
+          "note": "Listed as required entrypoint."
+        }
+      ],
+      "decision": "retain",
+      "action": "none",
+      "proof": "Required by platform adoption verify.",
+      "proofStrength": "high-retain"
+    },
+    {
+      "path": "scripts/sync-agents-managed-section.sh",
+      "kind": "sync-helper",
+      "referencesFound": [
+        {
+          "ref": "scripts/verify-platform-adoption.sh required[]",
+          "strength": "hard",
+          "note": "Listed as required entrypoint."
+        }
+      ],
+      "decision": "retain",
+      "action": "none",
+      "proof": "Required by platform adoption verify; supports AGENTS managed section.",
+      "proofStrength": "high-retain"
+    },
+    {
+      "path": "temporary first-party development code (non-doc)",
+      "kind": "scan",
+      "referencesFound": [
+        {
+          "ref": "repo root / scripts maxdepth-2 tmp|temp|scratch|WIP scan",
+          "strength": "absent",
+          "note": "No additional first-party temp code candidates found beyond Lane D hygiene scope."
+        }
+      ],
+      "decision": "retain",
+      "action": "none — defer filesystem temp/gitignore to Lane D",
+      "proof": "No reference-proven dead first-party code files beyond claude entrypoint.",
+      "proofStrength": "medium"
+    }
+  ],
+  "manifestActions": {
+    "handEdited": false,
+    "regenerated": false,
+    "reason": "Root claude/chatgpt/codex folders are not MANIFEST sources. Archive of claude/ does not change managed-core package contents.",
+    "verifyCommand": "env PYTHONPATH=scripts python3 -m ide_development.build_manifest --verify",
+    "verifyResult": "MANIFEST verify OK"
+  },
+  "nativeCodexPreserved": [
+    "AGENTS.md",
+    ".agents/skills/agentsetup/SKILL.md",
+    ".agents/skills/agentcomply/SKILL.md",
+    "core/managed-core/platforms/codex/"
+  ],
+  "laneDSuggestions": [
+    "No .gitignore change required by Lane C archive of claude/.",
+    "If operators want to prevent reintroduction of root claude/, that is a policy/doc matter (Lane A), not a gitignore deny — archive path should remain tracked."
+  ]
+}
