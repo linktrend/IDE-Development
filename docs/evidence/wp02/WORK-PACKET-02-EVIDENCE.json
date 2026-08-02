@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "workPacket": "WP02",
+  "issue": 68,
+  "branch": "issue/68-work-packet-02-integration-lineage-stale-cleanup",
+  "checkpointSha": "7e441faba1a6c61d9f3d3c75842610044fc40104",
+  "capturedAt": "2026-08-02T03:23:19Z",
+  "inputs": {
+    "originDevelopment": "991abc319782008ef93af95002be0d7f3d5a937c",
+    "wp01": "89956878c54ff45e4aef1ff42883d209221b7a30",
+    "cleanupTip": "5cf099155d9f7b5d95e094f74b288af7aec766af",
+    "frozenPr49": "0868c0034620c4ccb255457484f0342a12a0c833"
+  },
+  "laneModels": {
+    "A": {
+      "model": "cursor-grok-4.5-high",
+      "agentId": "d5667dc6-4207-40c6-a788-9603febefbf3"
+    },
+    "B": {
+      "model": "cursor-grok-4.5-high",
+      "agentId": "e36fd89b-03a6-43a4-ad09-93a35147f32a"
+    },
+    "C": {
+      "model": "cursor-grok-4.5-high",
+      "agentId": "e319a1fb-8b16-42c2-b936-4e4ec354ac97"
+    },
+    "D": {
+      "model": "cursor-grok-4.5-high",
+      "agentId": "0d668e0e-03bd-4b95-83ad-f3f20f8aafcc"
+    },
+    "E": {
+      "model": "cursor-grok-4.5-high",
+      "agentId": "9f72acf2-75b9-4004-b6e4-74d8976f016b"
+    }
+  },
+  "validation": {
+    "test-stale-cleanup-controls.sh": 0,
+    "test-cleanup-wp01-lineage-coexistence.sh": 0,
+    "test-external-state-wp1.sh": 0,
+    "test-external-state-audit.sh": 0,
+    "test-repository-protection.sh": 0,
+    "test-gitops-behavioral.sh": 0,
+    "test-gitops-lifecycle.sh": 0,
+    "test-gitops-review-packager.sh": 0,
+    "test-portable-v2-integration.sh": 0,
+    "verify-ide-development.sh": 0,
+    "rcCreate": true,
+    "rcVerifyTar": true,
+    "rcVerifyZip": true,
+    "rcReproducible": true,
+    "threeOsCi": "pending"
+  },
+  "releaseCandidate": {
+    "sourceCommit": "7e441faba1a6c61d9f3d3c75842610044fc40104",
+    "manifestHash": "sha256:955d39effea5d7dbffc9a29e1b1b4349f75870d5e7cbae1c2c9d5f6ca1800b7a",
+    "archives": [
+      {
+        "format": "tar.gz",
+        "path": "build/release-candidate/ide-development-managed-core-2.0.0.tar.gz",
+        "sha256": "sha256:53178520910b0b0a628cd2afd6cf26a5a37042660d0b5380f90a23410764728c",
+        "bytes": 216288
+      },
+      {
+        "format": "zip",
+        "path": "build/release-candidate/ide-development-managed-core-2.0.0.zip",
+        "sha256": "sha256:36a4e03837091d408310e466b456e57983efd394324e0dd6b9a9ab34aa736154",
+        "bytes": 286606
+      }
+    ],
+    "installVerifyOk": true
+  },
+  "externalState": {
+    "applyDecision": "blocked",
+    "ready": false,
+    "blockers": [
+      "github_app.installation=blocked",
+      "github_app.authority_scope=unknown",
+      "protection.staging_ruleset=missing",
+      "protection.main_ruleset=missing",
+      "protection.promotion_source_policy=drift",
+      "bugbot.manual_trigger_only=unknown",
+      "carlos.user_token_boundary=unknown",
+      "workflows.permissions_posture=unknown",
+      "no App installation token for privileged apply"
+    ],
+    "mutations": []
+  },
+  "prohibitedActions": {
+    "openedPr": false,
+    "reviewReady": false,
+    "packager": false,
+    "bugbotTrigger": false,
+    "integratorMerge": false,
+    "promotion": false,
+    "tagOrRelease": false,
+    "consumerChange": false,
+    "alteredFrozenPrHeads": false,
+    "closedPrsOrIssues": false,
+    "deletedBranchesOrWorktrees": false,
+    "forcePushOrRewrite": false,
+    "cleanupApply": false,
+    "exposedCredentials": false,
+    "usedCarlosTokenForSettings": false,
+    "ambientTokenFallbackForPrivilegedMutations": false
+  },
+  "completionStatus": "verified_partial_checkpoint",
+  "completionReason": "Local lineage/tests/RC gates pass; live external-state readiness incomplete (App apply authority blocked)."
+}

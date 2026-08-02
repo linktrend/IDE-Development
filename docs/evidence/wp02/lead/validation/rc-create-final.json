@@ -5,7 +5,7 @@
   "action": "create",
   "packageVersion": "2.0.0",
   "installerVersion": "2.0.0",
-  "sourceCommit": "52e47c9b6d5e0b6fa88e10cc210ef1416932be47",
+  "sourceCommit": "7e441faba1a6c61d9f3d3c75842610044fc40104",
   "manifestHash": "sha256:955d39effea5d7dbffc9a29e1b1b4349f75870d5e7cbae1c2c9d5f6ca1800b7a",
   "manifestBytes": 101938,
   "outputDir": "build/release-candidate",
