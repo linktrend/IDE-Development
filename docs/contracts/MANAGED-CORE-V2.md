@@ -29,9 +29,9 @@ This contract does **not** implement the installer, adapters, migration catalog 
 | Repository-specific technical guidance | Consumer repository (preserved) |
 | File ownership and hashes | Package `MANIFEST.json` + installed-state |
 | Mutation safety | Transaction plan + backups under `.git/ide-development/` |
-| External GitHub settings | Separate plan/verify tooling (**read-only / dry-run in WP1**; apply is out of WP1) |
+| External GitHub settings | Separate plan/verify tooling (default **read-only / dry-run**; live apply is **Principal-gated** — WP2 closed IDE Development live readiness for its stated scope; consumer/external apply remains WP04 / approval-gated) |
 | Secrets / credentials | Never packaged; GSM / approved stores only |
-| Release candidate archives | `release-candidate create|verify` CLI; no GitHub tag/Release in WP1 |
+| Release candidate archives | `release-candidate create|verify` CLI; no GitHub tag/Release claimed unless separately approved |
 
 ## Installed layout (consumer repository)
 
@@ -59,7 +59,7 @@ Hard rules:
 - Every managed file is a regular file by default (physical bytes).
 - No absolute, external, or checkout-to-checkout symlinks.
 - No installed path may resolve outside the consumer repository root.
-- IDE Development (system repo) must not receive a nested `.ide-development/` install of itself during Wave 1.
+- IDE Development (system repo) must not receive a nested `.ide-development/` install of itself (timeless; system source ≠ consumer).
 
 ## System source layout (`core/managed-core/`)
 
@@ -225,14 +225,14 @@ External tooling must:
 - emit before/after machine-readable plans and rollback instructions;
 - union repository-specific required checks with managed required checks;
 - cover `development`, `staging`, and `main`;
-- perform **no live mutation during Work Packet 1** (fixture-backed tests + optional live GETs only);
+- perform **no live mutation** without Principal / approval-gated authorization (WP1 historically proved fixture-backed + optional live GET read-only paths; WP2 closed IDE Development live readiness for its stated scope; consumer/external apply remains gated);
 - never print, store, package, or hash secret values.
 
-Apply of App installs, secrets, variables, Bugbot dashboard toggles, or rulesets is **out of WP1** and separately approval-gated.
+Apply of App installs, secrets, variables, Bugbot dashboard toggles, or rulesets is **Principal-gated** (not authorized by WP1–WP03 alone; consumer/external apply follows WP04 / separate approval).
 
 ## Self-verification versus consumer rollout
 
-| Role | Repository | Wave 1 / WP1 behavior |
+| Role | Repository | Current behavior |
 |---|---|---|
 | System source | IDE Development | Authors `core/managed-core/`; runs internal verification suites; **not** a consumer rollout entry |
 | Internal self-verification | IDE Development | May execute installer tests against disposable temp repos only; may build RC archives for proof |
@@ -252,9 +252,9 @@ Locked consumer rollout order (documentation/ops; not executed — Work Packet 0
 
 Hard stops:
 
-- no real consumer mutation in Wave 1 / WP1
-- no nested self-install into IDE Development
-- no live GitHub settings/credential/tag/release changes in WP1
+- no real consumer mutation without Principal-gated WP04 approval
+- no nested self-install into IDE Development (timeless)
+- no live GitHub settings/credential/tag/release changes without Principal / approval gate
 - no Claude runtime additions
 - no claim of production readiness when required OS/platform gates are skipped or untested
 

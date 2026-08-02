@@ -1142,7 +1142,7 @@
       "id": "doctrine-managed-core-v2-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/MANAGED-CORE-V2.md",
-      "sourceHash": "sha256:518615bc6878290c3da2b6acc11d02fc032e258fa047f276272114ab776125b0",
+      "sourceHash": "sha256:e27421395003f59e26a7b4e3d3ef6a919cdedeb8daaa66fe380c9dae0412e1e1",
       "destination": ".ide-development/content/doctrine/MANAGED-CORE-V2.md",
       "mode": "0644",
       "platform": "all",
