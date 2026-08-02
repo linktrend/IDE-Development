@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "workPacket": "Work Packet 1 \u2014 production-readiness proof and release candidate",
+  "issue": 67,
+  "branch": "issue/67-work-packet-1-production-readiness-proof-and-rel",
+  "evidenceBaseSha": "d8f117c8cb12eec808ed5c41a2e795764f417349",
+  "sourceCheckpoints": {
+    "issue66": "76d2aae1fbf0d497fbfb0e06181b3932660c96ce",
+    "issue64": "44a26f0d14bd0e237748a14dd611c40a7a0cba6f",
+    "portableV2": "0868c0034620c4ccb255457484f0342a12a0c833"
+  },
+  "models": {
+    "lead": "cursor-grok-4.5-high",
+    "subagents": "cursor-grok-4.5-high"
+  },
+  "host": {
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "python": "3.9.6"
+  },
+  "platforms": {
+    "darwin_local": "PASS",
+    "ubuntu_ci": "PASS",
+    "macos_ci": "PASS",
+    "windows_ci": "PASS",
+    "ciRunId": 30728657317,
+    "ciUrl": "https://github.com/linktrend/IDE-Development/actions/runs/30728657317",
+    "ciHeadSha": "d8f117c8cb12eec808ed5c41a2e795764f417349",
+    "ciConclusion": "success",
+    "note": "Three-OS matrix success recorded on d8f117c; this evidence commit regenerates MANIFEST after win32 mode portability and binds a new tip SHA."
+  },
+  "suites": [
+    {
+      "command": "PYTHONPATH=scripts python3 -m unittest discover -s scripts/ide_development_tests -q",
+      "exitCode": 0,
+      "stdoutTail": "",
+      "stderrTail": "----------------------------------------------------------------------\nRan 71 tests in 4.394s\n\nOK"
+    },
+    {
+      "command": "python3 scripts/run_cross_platform_matrix.py -q",
+      "exitCode": 0,
+      "stdoutTail": "",
+      "stderrTail": "....................................................................................\n----------------------------------------------------------------------\nRan 84 tests in 5.479s\n\nOK\nmatrix summary written: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-67-work-packet-1-production-readiness-proof-and-rel/tests/platform_matrix/summaries/matrix-darwin-20260802T022406Z.json"
+    },
+    {
+      "command": "python3 tests/cleanroom_acceptance/run_tests.py",
+      "exitCode": 0,
+      "stdoutTail": "PASS: 02-idempotent-repeat\nPASS: 03-sparse-gitops-upgrade\nPASS: 04-external-cursor-symlink\nPASS: 05-physical-cursor-consumer-owned\nPASS: 06-agents-md-consumer-text\nPASS: 07-repo-specific-agents-skills\nPASS: 08-obsolete-exact-removal\nPASS: 08-obsolete-conflict-refuse\nPASS: 09-drift-mode-repair\nPASS: 09-drift-and-deterministic-repair\nPASS: 10-interrupted-recovery\nPASS: 10-byte-mode-rollback\nPASS: 11-extracted-rc-no-checkout-access\n\nSummary: passed=16 failed=0 skipped=0",
+      "stderrTail": ""
+    },
+    {
+      "command": "python3 tests/managed-core-migration-bb/run_tests.py --with-installer",
+      "exitCode": 0,
+      "stdoutTail": "PASS: 09-idempotent-repeat:idempotent:.ide-development/VERSION\nPASS: 09-idempotent-repeat:idempotent:.cursor/rules/linktrend-managed-bootstrap.mdc\nPASS: 10-no-escape-paths:.cursor/rules/escape.mdc->unsafe_link\nPASS: 10-no-escape-paths:outside-link->unsafe_link\nPASS: wp2_default_catalog_loader\nPASS: wp2_catalog_loader(3 entries)\nPASS: installer_live_package(tests/managed-core-migration-bb/fixtures/live-package)\nPASS: installer_version\nPASS: installer_plan_dry_run\nPASS: live:01-external-cursor-symlink\nPASS: live:07-interrupted-transaction\nPASS: live:08-byte-exact-rollback\nPASS: live:09-idempotent-repeat\n\nSummary: passed=40 failed=0 skipped=0",
+      "stderrTail": ""
+    },
+    {
+      "command": "python3 tests/security_acceptance/run_tests.py",
+      "exitCode": 0,
+      "stdoutTail": "\nLane E summary: run=58 fail=0 err=0 skip=1 ok=True",
+      "stderrTail": "test_missing_github_repository_context (test_repo_scope_evidence.RepoScopeEvidenceTests) ... ok\ntest_repository_format_invalid (test_repo_scope_evidence.RepoScopeEvidenceTests) ... ok\ntest_repository_mismatch_refused (test_repo_scope_evidence.RepoScopeEvidenceTests) ... ok\n\n----------------------------------------------------------------------\nRan 58 tests in 4.548s\n\nOK (skipped=1)"
+    },
+    {
+      "command": "PYTHONPATH=scripts python3 -m unittest discover -s tests/packaging -q",
+      "exitCode": 0,
+      "stdoutTail": "",
+      "stderrTail": "----------------------------------------------------------------------\nRan 4 tests in 4.899s\n\nOK"
+    },
+    {
+      "command": "python3 -m pytest tests/adapters -q",
+      "exitCode": 0,
+      "stdoutTail": "...........                                                              [100%]\n11 passed in 0.05s",
+      "stderrTail": ""
+    },
+    {
+      "command": "bash scripts/tests/test-external-state-wp1.sh",
+      "exitCode": 0,
+      "stdoutTail": "PASS: drifted fixture verify exits 3\nforbidden ok\nPASS: forbidden fixture reports forbidden statuses\nunavailable ok\nPASS: unavailable fixture verify exits 4\nPASS: malformed fixture refused\ncredential-missing ok\nPASS: credential-missing fixture\nread_only protection ok\nPASS: repository_protection read_only plan/verify; mutate refused\naudit mutate/apply refused\nPASS: audit mutate/apply helpers refuse\ndry-run plan ok\nPASS: dry-run plan leaves observations unproven\nPASS: all external-state WP1 Lane C tests",
+      "stderrTail": ""
+    },
+    {
+      "command": "bash scripts/tests/test-external-state-audit.sh",
+      "exitCode": 0,
+      "stdoutTail": "PASS: mutating HTTP methods refused\nready ok\nPASS: fixture ready verify exits 0 with all ok\nmissing ok\nPASS: missing/credential-missing fixture verify exits 3\ndrift ok\nPASS: drift fixture reports non-numeric app id and incomplete ruleset\nwrote secret-value-ignored fixture\nsecret values ignored\nPASS: fixture secret values never appear in report output\nenv warn ok\nPASS: secret env presence warns without leaking value\nPASS: contract documents App/Bugbot/protection audit surface\nPASS: default mode is report\nPASS: all external-state audit contract tests",
+      "stderrTail": ""
+    },
+    {
+      "command": "bash scripts/tests/test-repository-protection.sh",
+      "exitCode": 0,
+      "stdoutTail": "PASS: rulesets unavailable falls back to classic branch protection\nunavail ok\nPASS: unavailable mechanism plans safely and refuses apply\ndetail-fail-closed ok\nPASS: ruleset detail fetch failure fails closed\nforbidden-unavailable ok\nPASS: rulesets forbidden/error treated as unavailable\nPASS: no credential creation or secret reads\nlegacy dry-run ok\nlegacy apply ok\nPASS: legacy apply-development wrapper preserves CLI and scopes to development\nPASS: contract documents three-branch dry-run-first protections\nwp1 read_only ok\nPASS: WP1 read_only FixtureClient plan/verify without apply\nPASS: repository protection suite",
+      "stderrTail": ""
+    },
+    {
+      "command": "bash scripts/tests/test-gitops-behavioral.sh",
+      "exitCode": 0,
+      "stdoutTail": "repair observer App identity + no workflow-token writes ok\nPASS: Repair Observer App identity; mutation jobs deny workflow-token writes; managed\u2261live\nok .github/workflows/linktrend-review-packager.yml\nok .github/workflows/linktrend-integrator-merge.yml\nok .github/workflows/linktrend-development-to-staging.yml\nok .github/workflows/linktrend-staging-to-main.yml\nPASS: App-credential failure creates/updates repair task; upserts not masked\nmain approve store behavioral ok\nPASS: Main Approve store gates/freshness/trust/expiry/schema/reuse\nlive gh subprocess path ok\nPASS: Main Approve live gh checks/reread/variable fail-closed\nidentity boundary zero-mutation proofs ok\nPASS: write_outcome/App-missing zero-mutation + App-success AUTOMATION_TOKEN + managed\u2261live\n\nPASS: behavioral gitops tests (26 groups)",
+      "stderrTail": "Preparing worktree (detached HEAD 6c29200)\nSwitched to and reset branch 'issue/unfinished'\nPreparing worktree (checking out 'issue/dirty')"
+    },
+    {
+      "command": "bash scripts/tests/test-gitops-lifecycle.sh",
+      "exitCode": 0,
+      "stdoutTail": "PASS: Unsafe consumer workflow names rejected\nPASS: All scripts/ paths from linktrend-*.yml exist in consumer\nok\nPASS: agentsetup/agentcomply installed; AGENTS equivalent; consumer-owned preserved\nok\nPASS: Installed entrypoints independent of IDE Development path\nPASS: AGENTS.md has IDE markers and preserves consumer text\nPASS: actionlint on installed workflows (SC2129 ignored)\nPASS: Second wire-repo.sh idempotent; consumer-owned files preserved\nverify-platform-adoption: OK\nPASS: platform adoption entrypoints + temp consumer\nPASS: git diff --check origin/development...HEAD clean\nPASS: git diff --check working tree clean\nPASS: Main Approve package/store contract + discover CLI\ntest-gitops-lifecycle: OK",
+      "stderrTail": ""
+    },
+    {
+      "command": "bash scripts/tests/test-gitops-review-packager.sh",
+      "exitCode": 0,
+      "stdoutTail": "    \"detail\": \"no_ready_status\",\n    \"action\": \"skipped_not_ready\"\n  },\n  {\n    \"branch\": \"issue/77-head-will-drift\",\n    \"headSha\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n    \"ready\": true,\n    \"detail\": \"issue=44; app_backed_publish\",\n    \"action\": \"skipped_head_drift\",\n    \"pr\": 77\n  }\n]\nexact-SHA App-publisher packager compatibility ok\nPASS: Exact-SHA App-publisher compatibility (discover + evaluate)\nPASS: gitops static redesign + trust-boundary checks",
+      "stderrTail": ""
+    },
+    {
+      "command": "bash tests/test-portable-v2-integration.sh",
+      "exitCode": 0,
+      "stdoutTail": "PASS: IDE Development treated as system source, not consumer rollout\nok\nPASS: Consumer rollout order + drift/approval gates recorded\nPASS: External settings remain external (documented)\nPASS: v2.0.0 identified without tag/release claim\nPASS: Documentation invariants complete\nPASS: VERSION / packageVersion aligned at 2.0.0\nok\nPASS: CONTENT_DOCTRINE covers required contracts and is byte-synced\nok\nPASS: No credentials packaged under core/managed-core\nMANIFEST verify OK\nPASS: managed-core MANIFEST verify OK\nINFO: Focused mode: documentation/version + packaging invariants\n=== ALL HARNESS CHECKS PASSED (mode=default) ===",
+      "stderrTail": ""
+    },
+    {
+      "command": "bash scripts/verify-platform-adoption.sh",
+      "exitCode": 0,
+      "stdoutTail": "Next: Cursor Automations \u2014 docs/CURSOR-AUTOMATIONS-SETUP.md\nNext: commit .github/linktrend-gitops-consumer.json and managed .cursor entrypoints\nok\nPASS: Non-default Consumer CI rendered into installed workflows\nok\nPASS: Unsafe consumer workflow names rejected\nPASS: All scripts/ paths from linktrend-*.yml exist in consumer\nok\nPASS: agentsetup/agentcomply installed; AGENTS equivalent; consumer-owned preserved\nok\nPASS: Installed entrypoints independent of IDE Development path\nPASS: AGENTS.md has IDE markers and preserves consumer text\nPASS: actionlint on installed workflows (SC2129 ignored)\nPASS: Second wire-repo.sh idempotent; consumer-owned files preserved\nverify-platform-adoption: OK",
+      "stderrTail": ""
+    },
+    {
+      "command": "SKIP_LOCAL_ARCHIVE_CHECKS=1 bash scripts/verify-ide-development.sh",
+      "exitCode": 0,
+      "stdoutTail": "PASS: Non-default Consumer CI rendered into installed workflows\nok\nPASS: Unsafe consumer workflow names rejected\nPASS: All scripts/ paths from linktrend-*.yml exist in consumer\nok\nPASS: agentsetup/agentcomply installed; AGENTS equivalent; consumer-owned preserved\nok\nPASS: Installed entrypoints independent of IDE Development path\nPASS: AGENTS.md has IDE markers and preserves consumer text\nPASS: actionlint on installed workflows (SC2129 ignored)\nPASS: Second wire-repo.sh idempotent; consumer-owned files preserved\nverify-platform-adoption: OK\nPASS: Fixed-pipeline feasibility runner\n\nStage 1 verification: ALL CHECKS PASSED",
+      "stderrTail": "Preparing worktree (detached HEAD 35d5a74)\nSwitched to and reset branch 'issue/unfinished'\nPreparing worktree (checking out 'issue/dirty')"
+    },
+    {
+      "command": "bash scripts/tests/test-stale-cleanup-controls.sh",
+      "exitCode": null,
+      "status": "SKIP_ABSENT",
+      "detail": "Absent on WP1 starting checkpoint 76d2aae; deferred H5; do not import unrelated cleanup lineage."
+    }
+  ],
+  "independentReview": {
+    "G1": "PASS after Windows mode portability + CI green",
+    "G2": "PASS code/tests; live external-state NOT READY (blocked/unknown)",
+    "G3": "PASS tip integrity/docs; H5 deferred; evidence bundle closes tip-bound gap"
+  },
+  "remainingBlockers": [
+    {
+      "id": "H5-stale-cleanup-script-absent",
+      "severity": "deferred"
+    },
+    {
+      "id": "live-external-state-not-ready",
+      "severity": "external",
+      "detail": "staging/main rulesets missing; unknowns for Bugbot manualTriggerOnly / installation / token boundary; no apply"
+    }
+  ],
+  "prohibitedActionsConfirmation": {
+    "noPR": true,
+    "noBugbotTrigger": true,
+    "noReviewReady": true,
+    "noMerge": true,
+    "noPromotion": true,
+    "noConsumerChange": true,
+    "noGitHubSettingChange": true,
+    "noCredentialCreateOrShow": true,
+    "noTag": true,
+    "noReleasePublication": true,
+    "noCleanupApply": true,
+    "noPaidRunnerEnablement": true,
+    "pr49Untouched": true,
+    "pr49HeadOid": "0868c0034620c4ccb255457484f0342a12a0c833"
+  },
+  "recordedAt": "2026-08-02T02:25:09.618296+00:00"
+}

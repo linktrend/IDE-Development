@@ -70,3 +70,15 @@ python3 scripts/ide-development.py release-candidate create|verify
 **Result:** pass | blocked | partial
 **Blockers:**
 ```
+
+## WP1-003 — Integrated checkpoint + three-OS CI green — 2026-08-02
+
+**Branch tip before evidence commit:** `d8f117c8cb12eec808ed5c41a2e795764f417349`
+**CI matrix:** run 30728657317 conclusion success on ubuntu/macOS/windows for `d8f117c`
+**Evidence path:** `docs/validation/wp1-evidence/`
+**RC:** rebuilt after evidence commit on clean tip (see companion JSON)
+
+**Remaining blockers recorded:** H5 stale-cleanup script absent (deferred); live external-state not ready (read-only unknowns/missing).
+
+**Hard stops honored:** no PR / Bugbot / review-ready / merge / promote / consumer / settings apply / tag / release / credentials / cleanup apply.
+
