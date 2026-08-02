@@ -2,7 +2,7 @@
 
 **Status:** verified partial checkpoint (live external-state not fully ready)
 **Branch:** `issue/68-work-packet-02-integration-lineage-stale-cleanup`
-**Checkpoint SHA:** `8c6b0bc7289e0c42d9beabd9f650a349ccf05c60`
+**Checkpoint SHA:** `aeed036444881bb948892920a3e9e601d9513723`
 **Captured:** 2026-08-02T03:23:19Z
 
 ## Inputs
