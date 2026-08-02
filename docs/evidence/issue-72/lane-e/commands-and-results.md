@@ -1,9 +1,9 @@
 # Lane E commands and results — Issue #72 (read-only)
 
-**Repo:** `linktrend/IDE-Development`  
-**Worktree:** `…/issue-72-pre-launch-ide-development-codebase-cleanup-arch`  
-**Branch:** `issue/72-pre-launch-ide-development-codebase-cleanup-arch` @ `e6301fc920a4bf841f6bb4d27c15dc4e1f655ef2`  
-**Captured:** 2026-08-02T05:06:20Z  
+**Repo:** `linktrend/IDE-Development`
+**Worktree:** `…/issue-72-pre-launch-ide-development-codebase-cleanup-arch`
+**Branch:** `issue/72-pre-launch-ide-development-codebase-cleanup-arch` @ `e6301fc920a4bf841f6bb4d27c15dc4e1f655ef2`
+**Captured:** 2026-08-02T05:06:20Z
 **Secrets:** none captured (no tokens printed)
 
 All commands below are inventory / dry-run only. No `--apply`, no PR/issue close, no branch delete, no worktree remove, no stash modify, no push/commit.
@@ -16,12 +16,12 @@ All commands below are inventory / dry-run only. No `--apply`, no PR/issue close
 pwd && git rev-parse --abbrev-ref HEAD && git rev-parse HEAD && git status -sb
 ```
 
-**EXIT:** 0  
+**EXIT:** 0
 
 **Key output:**
-- cwd = issue-72 worktree  
-- branch = `issue/72-pre-launch-ide-development-codebase-cleanup-arch`  
-- HEAD = `e6301fc920a4bf841f6bb4d27c15dc4e1f655ef2`  
+- cwd = issue-72 worktree
+- branch = `issue/72-pre-launch-ide-development-codebase-cleanup-arch`
+- HEAD = `e6301fc920a4bf841f6bb4d27c15dc4e1f655ef2`
 - dirty: `M README.md`; untracked `docs/CURRENT-STATUS.md`, `docs/evidence/issue-72/`, `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
 
 ---
@@ -32,7 +32,7 @@ pwd && git rev-parse --abbrev-ref HEAD && git rev-parse HEAD && git status -sb
 gh pr list --repo linktrend/IDE-Development --state open --limit 100 --json number,title,headRefName,headRefOid,baseRefName,isDraft,mergeable,url
 ```
 
-**EXIT:** 0  
+**EXIT:** 0
 
 **Key output:** open PRs **#65, #62, #60, #58, #56, #54, #52, #49, #37, #36** (10 total).
 
@@ -44,7 +44,7 @@ gh pr list --repo linktrend/IDE-Development --state open --limit 100 --json numb
 gh pr list --repo linktrend/IDE-Development --state merged --limit 30 --json number,title,headRefName,mergedAt,mergeCommit
 ```
 
-**EXIT:** 0  
+**EXIT:** 0
 
 **Key output (WP03):**
 - #69 merged → `e6301fc…` (issue/68)
@@ -59,7 +59,7 @@ gh pr list --repo linktrend/IDE-Development --state merged --limit 30 --json num
 gh issue list --repo linktrend/IDE-Development --state open --limit 100 --json number,title,labels,state,updatedAt
 ```
 
-**EXIT:** 0  
+**EXIT:** 0
 
 **Key output:** open includes **#72** (active), #68, #67, #66, #64, #63…#51, repairs #50/#46/#40, #44/#43, #35/#31/#28/#23.
 
@@ -88,7 +88,7 @@ git branch -vv
 git ls-remote --heads origin
 ```
 
-**EXIT:** 0  
+**EXIT:** 0
 
 **Key output:** 33 heads. Includes permanent `main`/`staging`/`development`, open-PR heads, promote leftovers (old + new WP03), historical candidates. **No** `issue/72-*`.
 
@@ -100,7 +100,7 @@ git ls-remote --heads origin
 git rev-parse origin/development^{tree} origin/staging^{tree} origin/main^{tree}
 ```
 
-**EXIT:** 0  
+**EXIT:** 0
 
 **Key output:** all three = `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`
 
@@ -112,7 +112,7 @@ git rev-parse origin/development^{tree} origin/staging^{tree} origin/main^{tree}
 python3 scripts/gitops/cleanup_controls.py export-preserve --repo linktrend/IDE-Development
 ```
 
-**EXIT:** 0  
+**EXIT:** 0
 
 **Key output:** `preserveResolutionOk: true`; issues `[43,44,51]`; PR `[49]`; branch `issue/43-…`.
 
@@ -124,7 +124,7 @@ python3 scripts/gitops/cleanup_controls.py export-preserve --repo linktrend/IDE-
 bash scripts/cleanup-merged-branches.sh --remote --repo linktrend/IDE-Development
 ```
 
-**EXIT:** 1  
+**EXIT:** 1
 
 **Key WOULD_DELETE_REMOTE:**
 - `issue/GITOPS-01-review-packager-pipeline`
@@ -135,7 +135,7 @@ bash scripts/cleanup-merged-branches.sh --remote --repo linktrend/IDE-Developmen
 - `promote/staging/991abc319782`
 - `promote/staging/e6301fc920a4` *(new)*
 
-**FAIL line:** `FAIL: caller checkout changed during cleanup`  
+**FAIL line:** `FAIL: caller checkout changed during cleanup`
 (Interpretation: dirty/untracked changes on caller worktree during scan — apply blocked until clean re-run.)
 
 ---
@@ -146,7 +146,7 @@ bash scripts/cleanup-merged-branches.sh --remote --repo linktrend/IDE-Developmen
 bash scripts/cleanup-merged-branches.sh --local --repo linktrend/IDE-Development
 ```
 
-**EXIT:** 0  
+**EXIT:** 0
 
 **Key WOULD_DELETE_LOCAL:**
 - `issue/31-…`, `issue/35-…`
@@ -163,7 +163,7 @@ bash scripts/cleanup-merged-branches.sh --local --repo linktrend/IDE-Development
 python3 scripts/gitops/cleanup_stale_records.py --repo linktrend/IDE-Development --json
 ```
 
-**EXIT:** 0  
+**EXIT:** 0
 
 **Key output:** keeps #50/#46/#40; `candidates: []`; `applyRefused: github_issue_close_deferred_to_codex`.
 
@@ -175,7 +175,7 @@ python3 scripts/gitops/cleanup_stale_records.py --repo linktrend/IDE-Development
 LINKTREND_REPAIR_BACKEND=file python3 scripts/gitops/repair_task.py plan-cleanup-completed --repo linktrend/IDE-Development
 ```
 
-**EXIT:** 0  
+**EXIT:** 0
 
 **Key output:** `completedCount: 0`; `actions: []`; `githubMutation: none`.
 
@@ -205,7 +205,7 @@ gh pr list --repo linktrend/IDE-Development --head <branch> --state open --json 
 gh pr view <n> --repo linktrend/IDE-Development --json number,state,mergeable,headRefName,headRefOid,isDraft,labels,title
 ```
 
-**EXIT:** 0  
+**EXIT:** 0
 
 **Key:** #36 CONFLICTING; #37 MERGEABLE; #49 CONFLICTING; superseded chain #52–#62 CONFLICTING; #65 CONFLICTING.
 

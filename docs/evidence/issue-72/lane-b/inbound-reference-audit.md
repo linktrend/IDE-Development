@@ -1,6 +1,6 @@
 # Issue #72 Lane B — inbound reference audit
 
-**Date:** 2026-08-02  
+**Date:** 2026-08-02
 **Method:** `rg` over worktree before `git mv`; re-check after moves excluding archived WP02 tree self-refs.
 
 ## Summary

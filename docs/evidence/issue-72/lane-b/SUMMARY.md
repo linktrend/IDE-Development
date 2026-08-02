@@ -1,8 +1,8 @@
 # Issue #72 Lane B — SUMMARY
 
-**Lane:** B (documentation/archive inventory + link repair)  
-**Model:** Cursor Grok 4.5 High  
-**Branch:** `issue/72-pre-launch-ide-development-codebase-cleanup-arch`  
+**Lane:** B (documentation/archive inventory + link repair)
+**Model:** Cursor Grok 4.5 High
+**Branch:** `issue/72-pre-launch-ide-development-codebase-cleanup-arch`
 **Commit/push:** none (per brief)
 
 ## Done

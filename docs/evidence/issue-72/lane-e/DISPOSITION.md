@@ -1,9 +1,9 @@
 # Lane E disposition — Issue #72 (PLAN ONLY)
 
-**Repo:** `linktrend/IDE-Development`  
-**Captured:** 2026-08-02T05:06:20Z  
-**Mode:** PLAN ONLY — `applyAuthorized: false`  
-**Prior plan:** `docs/archive/evidence/wp02/lane-c/cleanup-plan-post-wp03.md`  
+**Repo:** `linktrend/IDE-Development`
+**Captured:** 2026-08-02T05:06:20Z
+**Mode:** PLAN ONLY — `applyAuthorized: false`
+**Prior plan:** `docs/archive/evidence/wp02/lane-c/cleanup-plan-post-wp03.md`
 **Machine JSON:** `docs/evidence/issue-72/lane-e/disposition.json`
 
 ## Post-WP03 refresh
@@ -144,7 +144,7 @@
 
 ## Apply blockers (always)
 
-1. Awaits **Codex verify + Principal** authorization  
-2. `applyAuthorized: false` on every object in this plan  
-3. Remote dry-run **EXIT 1** until caller checkout is clean  
-4. Do not close/delete while open-PR / preserve / active-WT / Issue #72 constraints hold  
+1. Awaits **Codex verify + Principal** authorization
+2. `applyAuthorized: false` on every object in this plan
+3. Remote dry-run **EXIT 1** until caller checkout is clean
+4. Do not close/delete while open-PR / preserve / active-WT / Issue #72 constraints hold

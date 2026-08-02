@@ -6,7 +6,7 @@ Worktree:
 /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-72-pre-launch-ide-development-codebase-cleanup-arch
 ```
 
-Branch: `issue/72-pre-launch-ide-development-codebase-cleanup-arch`  
+Branch: `issue/72-pre-launch-ide-development-codebase-cleanup-arch`
 No commit / no push.
 
 ## Discovery / reference proof

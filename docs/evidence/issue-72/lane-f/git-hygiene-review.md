@@ -1,12 +1,12 @@
 # Lane F independent review #3 — Git hygiene disposition
 
-**Reviewer:** Lane F #3 (Git hygiene disposition)  
-**Model:** cursor-grok-4.5-high  
-**Mode:** READ-ONLY (no GitHub mutation; no stash/branch/worktree apply)  
-**Reviewed:** `docs/evidence/issue-72/lane-e/`  
-**Captured subject:** Lane E @ `2026-08-02T05:06:20Z`  
-**Review written:** 2026-08-02 (Asia/Taipei)  
-**Subject tip (caller):** `e6301fc920a4bf841f6bb4d27c15dc4e1f655ef2`  
+**Reviewer:** Lane F #3 (Git hygiene disposition)
+**Model:** cursor-grok-4.5-high
+**Mode:** READ-ONLY (no GitHub mutation; no stash/branch/worktree apply)
+**Reviewed:** `docs/evidence/issue-72/lane-e/`
+**Captured subject:** Lane E @ `2026-08-02T05:06:20Z`
+**Review written:** 2026-08-02 (Asia/Taipei)
+**Subject tip (caller):** `e6301fc920a4bf841f6bb4d27c15dc4e1f655ef2`
 **Machine JSON:** `docs/evidence/issue-72/lane-f/git-hygiene-review.json`
 
 ## Verdict: **PASS**

@@ -1,9 +1,9 @@
 # Issue #72 — Lane A SUMMARY
 
-**Lane:** A — active-doc truth + launch documentation  
-**Model:** Cursor Grok 4.5 High  
-**Branch:** `issue/72-pre-launch-ide-development-codebase-cleanup-arch` (tip `e6301fc` at start; branch not changed)  
-**Date:** 2026-08-02  
+**Lane:** A — active-doc truth + launch documentation
+**Model:** Cursor Grok 4.5 High
+**Branch:** `issue/72-pre-launch-ide-development-codebase-cleanup-arch` (tip `e6301fc` at start; branch not changed)
+**Date:** 2026-08-02
 **Commit/push:** none (Lane A deliverable only)
 
 ## Verdict

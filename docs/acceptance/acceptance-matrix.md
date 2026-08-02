@@ -100,7 +100,7 @@ Tooling note: existing `scripts/gitops/external_state_audit.py` is read-only (`r
 | H8 | `bash scripts/tests/test-gitops-review-packager.sh` | macOS/Linux |
 | H9 | `bash tests/test-portable-v2-integration.sh` | Required |
 | H10 | `bash scripts/verify-platform-adoption.sh` | Required |
-| H11 | `SKIP_LOCAL_ARCHIVE_CHECKS=1 bash scripts/verify-ide-development.sh` | Required |
+| H11 | `bash scripts/verify-ide-development.sh` | Required |
 
 Windows: cross-platform runner executes equivalent Python-owned contract tests and documents the shell-suite division; required macOS/Linux shell suites must still pass on those platforms.
 

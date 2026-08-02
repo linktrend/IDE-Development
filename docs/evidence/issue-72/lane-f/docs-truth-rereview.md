@@ -1,10 +1,10 @@
 # Lane F — Docs truth re-review (after repair cycle 1)
 
-**Role:** Lane F docs-truth re-review  
-**Model:** cursor-grok-4.5-high  
-**Worktree:** `issue-72-pre-launch-ide-development-codebase-cleanup-arch`  
-**Date:** 2026-08-02  
-**Mode:** READ-ONLY except this evidence file (no commit/push)  
+**Role:** Lane F docs-truth re-review
+**Model:** cursor-grok-4.5-high
+**Worktree:** `issue-72-pre-launch-ide-development-codebase-cleanup-arch`
+**Date:** 2026-08-02
+**Mode:** READ-ONLY except this evidence file (no commit/push)
 **Prior:** `docs/evidence/issue-72/lane-f/docs-truth-review.md` — FAIL (F1–F3 major, F4–F7 minor)
 
 ## Verdict: **PASS**

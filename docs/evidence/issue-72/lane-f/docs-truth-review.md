@@ -1,9 +1,9 @@
 # Lane F — Docs truth review (independent reviewer #1)
 
-**Role:** Lane F independent reviewer #1 (docs truth)  
-**Model:** cursor-grok-4.5-high  
-**Worktree:** `issue-72-pre-launch-ide-development-codebase-cleanup-arch`  
-**Date:** 2026-08-02  
+**Role:** Lane F independent reviewer #1 (docs truth)
+**Model:** cursor-grok-4.5-high
+**Worktree:** `issue-72-pre-launch-ide-development-codebase-cleanup-arch`
+**Date:** 2026-08-02
 **Mode:** READ-ONLY (findings only under this path; no commit/push)
 
 ## Verdict: **FAIL**
@@ -19,8 +19,8 @@ Primary operator surfaces (`docs/CURRENT-STATUS.md`, README, SETUP, Intent statu
 
 FAIL is driven by **major** residual contradictions that still live in active docs and can reverse operator truth for “what is real now” / WP numbering — not by missing `CURRENT-STATUS` or Claude/consumer regressions on the Start-here set.
 
-**Blockers:** none  
-**Majors:** 3  
+**Blockers:** none
+**Majors:** 3
 **Minors:** 4
 
 ---
@@ -180,9 +180,9 @@ Grounds WP1/WP2/WP03 but does not state Issue #72 cleanup is in progress (CURREN
 
 ## Recommended close-out order (for implementer lane, not this reviewer)
 
-1. Fix **F1** + **F2** (operator truth pointer + OPEN-ISSUES #15 supersession banner).  
-2. Fix **F3** (disambiguate Wave-1 WP3/WP4 vs Work Packet 03/04).  
-3. Apply **F4–F7** polish.  
+1. Fix **F1** + **F2** (operator truth pointer + OPEN-ISSUES #15 supersession banner).
+2. Fix **F3** (disambiguate Wave-1 WP3/WP4 vs Work Packet 03/04).
+3. Apply **F4–F7** polish.
 4. Re-run this checklist; expect **PASS** when majors clear.
 
 Companion machine-readable summary: `docs-truth-review.json`.

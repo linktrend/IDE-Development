@@ -1,0 +1,14 @@
+moved-path-ref-scan
+move_map=docs/evidence/issue-72/lane-b/move-map.json
+valid_hits=2
+notes=8
+  NOTE POINTER_OK docs/runbooks/LANE_F_RESULT.md -> docs/archive/runbooks/LANE_F_RESULT.md
+  NOTE POINTER_OK docs/work-packets/2026-08-01-wave-1-portable-v2.md -> docs/archive/work-packets/2026-08-01-wave-1-portable-v2.md
+  NOTE POINTER_OK docs/work-packets/2026-08-01-wave-2-app-backed-completion.md -> docs/archive/work-packets/2026-08-01-wave-2-app-backed-completion.md
+  NOTE POINTER_OK docs/work-packets/2026-08-02-work-packet-1-production-readiness.md -> docs/archive/work-packets/2026-08-02-work-packet-1-production-readiness.md
+  NOTE POINTER_OK docs/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md -> docs/archive/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md
+  NOTE POINTER_OK docs/evidence/wp02/README.md -> docs/archive/evidence/wp02
+  NOTE VALID tests/test-portable-v2-integration.sh:230 needle=claude/CLAUDE.md
+  NOTE VALID docs/BUILD-LOG.md:45 needle=docs/runbooks/LANE_F_RESULT.md
+failures=0
+RESULT=PASS

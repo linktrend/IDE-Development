@@ -1,8 +1,8 @@
 # Issue #72 lead integration plan
 
-**Lead model:** Cursor Grok 4.5 High  
-**Branch:** `issue/72-pre-launch-ide-development-codebase-cleanup-arch`  
-**Base tip:** `e6301fc` (WP03 #69 on development)  
+**Lead model:** Cursor Grok 4.5 High
+**Branch:** `issue/72-pre-launch-ide-development-codebase-cleanup-arch`
+**Base tip:** `e6301fc` (WP03 #69 on development)
 **Tree equality:** development/staging/main → `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`
 
 ## Parallel lanes (cursor-grok-4.5-high)

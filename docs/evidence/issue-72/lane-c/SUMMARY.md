@@ -1,8 +1,8 @@
 # Issue #72 Lane C — SUMMARY
 
-**Lane:** C (first-party dead-code / reference / manifest analysis)  
-**Model:** Cursor Grok 4.5 High  
-**Branch:** `issue/72-pre-launch-ide-development-codebase-cleanup-arch`  
+**Lane:** C (first-party dead-code / reference / manifest analysis)
+**Model:** Cursor Grok 4.5 High
+**Branch:** `issue/72-pre-launch-ide-development-codebase-cleanup-arch`
 **Commit/push:** none (per brief)
 
 ## Verdict
