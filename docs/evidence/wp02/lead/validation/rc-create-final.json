@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "release-candidate",
+  "action": "create",
+  "packageVersion": "2.0.0",
+  "installerVersion": "2.0.0",
+  "sourceCommit": "52e47c9b6d5e0b6fa88e10cc210ef1416932be47",
+  "manifestHash": "sha256:955d39effea5d7dbffc9a29e1b1b4349f75870d5e7cbae1c2c9d5f6ca1800b7a",
+  "manifestBytes": 101938,
+  "outputDir": "build/release-candidate",
+  "archives": [
+    {
+      "format": "tar.gz",
+      "path": "build/release-candidate/ide-development-managed-core-2.0.0.tar.gz",
+      "sha256": "sha256:53178520910b0b0a628cd2afd6cf26a5a37042660d0b5380f90a23410764728c",
+      "bytes": 216288
+    },
+    {
+      "format": "zip",
+      "path": "build/release-candidate/ide-development-managed-core-2.0.0.zip",
+      "sha256": "sha256:36a4e03837091d408310e466b456e57983efd394324e0dd6b9a9ab34aa736154",
+      "bytes": 286606
+    }
+  ],
+  "schemas": [
+    "core/managed-core/schemas/manifest.schema.json",
+    "core/managed-core/schemas/installed-state.schema.json",
+    "core/managed-core/schemas/transaction.schema.json",
+    "core/managed-core/schemas/release-candidate.schema.json",
+    "core/managed-core/schemas/release-candidate-checksums.schema.json"
+  ],
+  "acceptanceEvidence": [
+    "scripts/ide_development_tests/test_release_candidate.py",
+    "scripts/ide_development_tests/test_package_reproducibility.py",
+    "tests/packaging/LANE_D_RESULT.md"
+  ],
+  "installVerify": {
+    "ok": true,
+    "installedVersion": "2.0.0",
+    "packageChecksum": "sha256:53178520910b0b0a628cd2afd6cf26a5a37042660d0b5380f90a23410764728c",
+    "archive": "ide-development-managed-core-2.0.0.tar.gz",
+    "installExitCode": 0
+  },
+  "summary": {
+    "archives": 2,
+    "identities": 137,
+    "reproducible": true,
+    "dirtyAllowed": false
+  }
+}
