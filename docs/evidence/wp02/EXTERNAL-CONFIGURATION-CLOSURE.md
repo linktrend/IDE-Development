@@ -1,9 +1,9 @@
 # WP02 — External configuration closure (Issue #68)
 
-**Status:** CLOSED for WP02 stated scope  
-**Recorded:** 2026-08-02T03:46:00Z (Asia/Taipei wall ~11:46)  
-**Base partial checkpoint:** `712675614014abdf6e180915e07aa21e1a983324`  
-**Authoritative tip:** `git rev-parse` of pushed `issue/68-work-packet-02-integration-lineage-stale-cleanup`  
+**Status:** CLOSED for WP02 stated scope
+**Recorded:** 2026-08-02T03:46:00Z (Asia/Taipei wall ~11:46)
+**Base partial checkpoint:** `712675614014abdf6e180915e07aa21e1a983324`
+**Authoritative tip:** `git rev-parse` of pushed `issue/68-work-packet-02-integration-lineage-stale-cleanup`
 **Recorder:** Cursor Grok 4.5 High evidence-closure (single-writer; no product/GitOps code mutation)
 
 ## Scope of this record
