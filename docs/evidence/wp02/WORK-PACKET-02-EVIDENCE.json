@@ -4,7 +4,7 @@
   "issue": 68,
   "branch": "issue/68-work-packet-02-integration-lineage-stale-cleanup",
   "acceptedPartialCheckpointSha": "712675614014abdf6e180915e07aa21e1a983324",
-  "checkpointSha": "12da48f2f28a17c0bc7605a79c476969918dfe24",
+  "checkpointSha": "215a14d012e6f81d6cf16a32fdba1d80470cdfcd",
   "capturedAt": "2026-08-02T03:46:00Z",
   "inputs": {
     "originDevelopment": "991abc319782008ef93af95002be0d7f3d5a937c",
@@ -141,8 +141,8 @@
     "review_ready_on_this_tip",
     "tag_or_release"
   ],
-  "note": "checkpointSha equals exact tip after this bind commit is made on a clean tree; if a further bind advances HEAD, authoritative tip remains git rev-parse of origin branch. acceptedPartialCheckpointSha preserves prior verified partial.",
-  "bindingRule": "Authoritative WP02 checkpoint is git rev-parse of issue/68 branch tip (origin). checkpointSha is bound to the tip of the evidence-alignment commit; if HEAD advances by a later bind, re-bind or treat origin tip as authoritative.",
+  "note": "Authoritative WP02 tip is git rev-parse of pushed issue/68 branch (origin). checkpointSha is bound to HEAD at the moment of this evidence edit; a subsequent evidence-only bind commit may advance HEAD by one; treat origin tip as authoritative. acceptedPartialCheckpointSha preserves prior verified partial 712675614014abdf6e180915e07aa21e1a983324.",
+  "bindingRule": "After evidence commits, authoritative WP02 checkpoint is git rev-parse of issue/68-work-packet-02-integration-lineage-stale-cleanup on origin. RC sourceCommit remains 7e441fa for package bytes.",
   "rcSourceCommit": "7e441faba1a6c61d9f3d3c75842610044fc40104",
   "laneF": {
     "model": "cursor-grok-4.5-high",
@@ -159,5 +159,5 @@
       "verdict": "PASS_WITH_PENDING_CI_THEN_CI_GREEN"
     }
   },
-  "evidenceContentSha": "4f95ee6f5368b158a92699dd4ecbb2ee2a8eeff0"
+  "evidenceContentSha": "fdca290251ef6054685341fbc3f647a9aa76f718"
 }

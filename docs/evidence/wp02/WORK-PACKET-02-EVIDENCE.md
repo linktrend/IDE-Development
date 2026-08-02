@@ -3,7 +3,8 @@
 **Status:** COMPLETE for stated WP02 scope (external configuration closed)
 **Branch:** `issue/68-work-packet-02-integration-lineage-stale-cleanup`
 **Accepted partial checkpoint:** `712675614014abdf6e180915e07aa21e1a983324`
-**Authoritative tip (bound):** `fdca290251ef6054685341fbc3f647a9aa76f718`
+**Authoritative tip:** pushed `issue/68-work-packet-02-integration-lineage-stale-cleanup` (bind baseline `215a14d012e6f81d6cf16a32fdba1d80470cdfcd`; origin `git rev-parse` is authoritative if a later bind advances HEAD)
+**Evidence content commit:** `fdca290251ef6054685341fbc3f647a9aa76f718`
 **Captured:** 2026-08-02T03:46:00Z (closure update)
 
 ## Inputs
