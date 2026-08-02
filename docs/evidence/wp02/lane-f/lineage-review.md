@@ -1,11 +1,11 @@
 # WP02 Lane F — LINEAGE review #1
 
-**Verdict:** PASS  
-**Reviewer:** Lane F reviewer #1 (LINEAGE)  
-**Model:** cursor-grok-4.5-high  
-**Reviewed tip (authoritative):** `3c21bb8493a795aa6e46e0eb8a31b2fcd6c15a96`  
-**Worktree:** `issue-68-work-packet-02-integration-lineage-stale-cleanup`  
-**Captured:** 2026-08-02T03:24:00Z (approx.; review session)  
+**Verdict:** PASS
+**Reviewer:** Lane F reviewer #1 (LINEAGE)
+**Model:** cursor-grok-4.5-high
+**Reviewed tip (authoritative):** `3c21bb8493a795aa6e46e0eb8a31b2fcd6c15a96`
+**Worktree:** `issue-68-work-packet-02-integration-lineage-stale-cleanup`
+**Captured:** 2026-08-02T03:24:00Z (approx.; review session)
 **Agent confidence:** 0.93
 
 ## Scope
