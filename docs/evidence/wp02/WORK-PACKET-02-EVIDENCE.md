@@ -2,7 +2,7 @@
 
 **Status:** verified partial checkpoint (live external-state not fully ready)
 **Branch:** `issue/68-work-packet-02-integration-lineage-stale-cleanup`
-**Checkpoint SHA:** `aeed036444881bb948892920a3e9e601d9513723`
+**Checkpoint SHA (pre-push tip parent record):** `c07a8f2c6471d6846e1af30f2469b39be7597a02` — authoritative tip is `git rev-parse` of pushed branch
 **Captured:** 2026-08-02T03:23:19Z
 
 ## Inputs

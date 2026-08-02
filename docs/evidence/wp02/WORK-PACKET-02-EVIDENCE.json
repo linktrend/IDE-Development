@@ -3,8 +3,8 @@
   "workPacket": "WP02",
   "issue": 68,
   "branch": "issue/68-work-packet-02-integration-lineage-stale-cleanup",
-  "checkpointSha": "aeed036444881bb948892920a3e9e601d9513723",
-  "capturedAt": "2026-08-02T03:23:19Z",
+  "checkpointSha": "c07a8f2c6471d6846e1af30f2469b39be7597a02",
+  "capturedAt": "2026-08-02T03:24:31Z",
   "inputs": {
     "originDevelopment": "991abc319782008ef93af95002be0d7f3d5a937c",
     "wp01": "89956878c54ff45e4aef1ff42883d209221b7a30",
@@ -48,7 +48,7 @@
     "rcVerifyTar": true,
     "rcVerifyZip": true,
     "rcReproducible": true,
-    "threeOsCi": "pending"
+    "threeOsCi": "pending_dispatch"
   },
   "releaseCandidate": {
     "sourceCommit": "7e441faba1a6c61d9f3d3c75842610044fc40104",
@@ -106,5 +106,6 @@
   "completionStatus": "verified_partial_checkpoint",
   "completionReason": "Local lineage/tests/RC gates pass; live external-state readiness incomplete (App apply authority blocked).",
   "note": "checkpointSha updated to evidence-binding commit; re-verify fast gates after push",
-  "bindingRule": "checkpointSha equals commit containing this evidence file (branch tip after push)"
+  "bindingRule": "After this commit is made, branch tip advances; authoritative WP02 checkpoint is git rev-parse of issue/68 branch tip (origin). RC sourceCommit remains 7e441fa for package bytes.",
+  "rcSourceCommit": "7e441faba1a6c61d9f3d3c75842610044fc40104"
 }
