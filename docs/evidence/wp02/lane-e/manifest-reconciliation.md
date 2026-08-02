@@ -1,9 +1,9 @@
 # WP02 Lane E — Manifest & SOT reconciliation
 
-**Lane:** E (manifests, documentation, readiness evidence)  
-**Model:** cursor-grok-4.5-high  
-**Written:** 2026-08-02T03:12:45Z (UTC)  
-**Write root:** `docs/evidence/wp02/lane-e/**` only  
+**Lane:** E (manifests, documentation, readiness evidence)
+**Model:** cursor-grok-4.5-high
+**Written:** 2026-08-02T03:12:45Z (UTC)
+**Write root:** `docs/evidence/wp02/lane-e/**` only
 **Conceptual combined lineage inputs (immutable):**
 
 | Input | SHA |

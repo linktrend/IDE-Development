@@ -1,9 +1,9 @@
 # WP02 Lane B — Lineage construction plan
 
-**Lane:** B (deterministic lineage + conflict analysis)  
-**Worktree:** `issue-68-work-packet-02-integration-lineage-stale-cleanup`  
-**Analysis UTC:** 2026-08-02T03:13:39Z  
-**Branch tip analyzed:** `9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4`  
+**Lane:** B (deterministic lineage + conflict analysis)
+**Worktree:** `issue-68-work-packet-02-integration-lineage-stale-cleanup`
+**Analysis UTC:** 2026-08-02T03:13:39Z
+**Branch tip analyzed:** `9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4`
 **Authority:** Lead alone executes merges; this lane writes evidence only.
 
 ## Immutable inputs (verified)
@@ -111,7 +111,7 @@ Merge cleanup first, then WP01. Same conflict set. Use only if lead needs cleanu
 
 ## Post-construction expectations
 
-- Cleanup-only paths land automatically from cleanup tip (no conflict):  
+- Cleanup-only paths land automatically from cleanup tip (no conflict):
   `STALE-CLEANUP-CONTROLS.md`, `cleanup_controls.py`, `cleanup_stale_records.py`, `cleanup_preserve.defaults.json`, `test-stale-cleanup-controls.sh`, handoff `2026-08-01-issue-63-cleanup-repo-scope.md`, plus updated `LISA-LOCAL-CLEANUP-HANDOFF.md`, `REPAIR-DISPATCHER.md`, `cleanup-merged-branches.sh`, `repair_task.py`, `test-gitops-behavioral.sh`.
 - WP01-only paths (276) land from WP01 with no cleanup interference.
 - WP01 does **not** modify `docs/contracts/AGENT-COMPLETION.md` or `scripts/gitops/completion_gate.py` vs DEV — credential-boundary / completion behavior preserved at DEV+WP01 level; cleanup does not touch those paths either.

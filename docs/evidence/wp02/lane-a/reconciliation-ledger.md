@@ -1,7 +1,7 @@
 # WP02 Lane A — reconciliation ledger (human)
 
-Machine-readable source: `reconciliation-ledger.json`  
-Before-state: `docs/evidence/wp02/before-state-2026-08-02T030943Z/`  
+Machine-readable source: `reconciliation-ledger.json`
+Before-state: `docs/evidence/wp02/before-state-2026-08-02T030943Z/`
 Immutable inputs: DEV `991abc3` · WP01 `8995687` · CLEAN `5cf0991` · PR49 `0868c00`
 
 ## Lineage map

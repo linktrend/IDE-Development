@@ -1,9 +1,9 @@
 # WP02 Lane D — Commands and Results
 
-**Worktree:** `/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-68-work-packet-02-integration-lineage-stale-cleanup`  
-**Binding timestamp:** `2026-08-02T03:12:13Z`  
-**HEAD / source SHA:** `9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4`  
-**Tool extract:** `/tmp/wp02-lane-d-wp01-tools` from WP01 `89956878c54ff45e4aef1ff42883d209221b7a30`  
+**Worktree:** `/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-68-work-packet-02-integration-lineage-stale-cleanup`
+**Binding timestamp:** `2026-08-02T03:12:13Z`
+**HEAD / source SHA:** `9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4`
+**Tool extract:** `/tmp/wp02-lane-d-wp01-tools` from WP01 `89956878c54ff45e4aef1ff42883d209221b7a30`
 **Secrets:** none printed; values excluded from all evidence
 
 ## 1. Tool extract (WP01 tip → `/tmp`)
@@ -54,7 +54,7 @@ python3 …/external_state_audit.py apply --repo linktrend/IDE-Development --liv
 # exit 5 (apply refused)
 ```
 
-**Human summary (report):**  
+**Human summary (report):**
 `External state NOT READY: 8/19 required checks unresolved [github_app.installation=blocked, github_app.authority_scope=unknown, bugbot.manual_trigger_only=unknown, carlos.user_token_boundary=unknown, protection.staging_ruleset=missing, protection.main_ruleset=missing, protection.promotion_source_policy=drift, workflows.permissions_posture=unknown]. Mutations: none.`
 
 ## 5. Live repository protection plan (read-only)
@@ -99,9 +99,9 @@ python3 /tmp/wp02-lane-d-wp01-tools/scripts/gitops/repository_protection.py \
 
 ## 8. Non-commands (explicitly not performed)
 
-- No `repository_protection.py apply` / `--apply`  
-- No ruleset/classic protection PUT/POST/DELETE  
-- No Bugbot dashboard mutation  
-- No secret create/update  
-- No commit / push / PR / review-ready / Packager / Bugbot mention  
-- No consumer repo access for mutation  
+- No `repository_protection.py apply` / `--apply`
+- No ruleset/classic protection PUT/POST/DELETE
+- No Bugbot dashboard mutation
+- No secret create/update
+- No commit / push / PR / review-ready / Packager / Bugbot mention
+- No consumer repo access for mutation

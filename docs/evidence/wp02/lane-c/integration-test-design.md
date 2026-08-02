@@ -1,7 +1,7 @@
 # WP02 Lane C — Integration test design
 
-**Lane:** C (stale-cleanup hardening)  
-**Date:** 2026-08-02  
+**Lane:** C (stale-cleanup hardening)
+**Date:** 2026-08-02
 **Immutable inputs:** cleanup `5cf099155d9f7b5d95e094f74b288af7aec766af`, WP01 `89956878c54ff45e4aef1ff42883d209221b7a30`, development `991abc319782008ef93af95002be0d7f3d5a937c`
 
 ## Goal
@@ -10,9 +10,9 @@ Prove that after the lead merges **WP01 portable-system lineage** then **cleanup
 
 ## Merge order assumed by tests
 
-1. `origin/development` base  
-2. WP01 checkpoint (portable-v2, security_acceptance, wrong-repo fixture)  
-3. Cleanup tip `5cf0991` (cleanup_controls, stale suite, shell `--repo`)  
+1. `origin/development` base
+2. WP01 checkpoint (portable-v2, security_acceptance, wrong-repo fixture)
+3. Cleanup tip `5cf0991` (cleanup_controls, stale suite, shell `--repo`)
 4. Lane C proposed additions (new coexistence tests only)
 
 ## Existing coverage retained (cleanup tip)

@@ -1,7 +1,7 @@
 # WP02 Lane B — Semantic overlap report
 
-**Generated:** 2026-08-02T03:13:39Z  
-**Method:** path inventory vs `991abc3…` + `git merge-tree` + per-file blob compare + contract/test citation  
+**Generated:** 2026-08-02T03:13:39Z
+**Method:** path inventory vs `991abc3…` + `git merge-tree` + per-file blob compare + contract/test citation
 **Merge-tree conflict count:** **1** (`docs/OPEN-ISSUES.md`)
 
 ## How to read this report
@@ -105,7 +105,7 @@ These were called out as differing between WP01 and cleanup trees. Verified: **W
 
 **Recommendation:** merge WP01 first so this tree is the base; cleanup cannot overwrite these paths (no cleanup edits there).
 
-**Credential / completion boundary check:**  
+**Credential / completion boundary check:**
 `docs/contracts/AGENT-COMPLETION.md` and `scripts/gitops/completion_gate.py` — **identical** on DEV, WP01, and cleanup. Integration does not disturb App-backed Review Ready / fail-closed completion gate.
 
 ---

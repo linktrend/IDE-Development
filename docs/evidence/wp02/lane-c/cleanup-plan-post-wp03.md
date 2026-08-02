@@ -1,9 +1,9 @@
 # Cleanup plan (post-WP03 only) — no apply in WP02
 
-**Status:** PLAN ONLY  
-**Lane:** C  
-**Captured context:** 2026-08-02 (before-state + live `gh`/`worktree`/`ls-remote` read)  
-**Repo:** `linktrend/IDE-Development`  
+**Status:** PLAN ONLY
+**Lane:** C
+**Captured context:** 2026-08-02 (before-state + live `gh`/`worktree`/`ls-remote` read)
+**Repo:** `linktrend/IDE-Development`
 **Authority:** Execute only after WP03 integrates the canonical lineage into `development`; never during WP02.
 
 ## Hard rules (carry into WP03 apply)
@@ -108,7 +108,7 @@ python3 scripts/gitops/cleanup_stale_records.py --repo linktrend/IDE-Development
 LINKTREND_REPAIR_BACKEND=file python3 scripts/gitops/repair_task.py plan-cleanup-completed --repo linktrend/IDE-Development
 ```
 
-Contract snapshot KEEP: repair #46 (usage_limit / issue 44), #40 (PR #36 open), #50 (PR #49 / issue 43).  
+Contract snapshot KEEP: repair #46 (usage_limit / issue 44), #40 (PR #36 open), #50 (PR #49 / issue 43).
 Live GitHub issue close remains deferred (`--apply --i-understand-close-repairs` refused).
 
 ---
@@ -132,6 +132,6 @@ bash scripts/cleanup-merged-branches.sh --local --repo linktrend/IDE-Development
 
 ## Explicit non-goals for this plan file
 
-- No WP02 deletions, PR closes, or worktree removals  
-- No consumer-repo cleanup  
+- No WP02 deletions, PR closes, or worktree removals
+- No consumer-repo cleanup
 - No credential / protection changes

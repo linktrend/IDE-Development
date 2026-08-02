@@ -1,18 +1,18 @@
 # WP02 Lane D — Before/After Plan (deterministic, union-preserving)
 
-**Captured:** 2026-08-02T03:12:13Z  
-**Repo:** `linktrend/IDE-Development`  
-**Source SHA (WP02 worktree HEAD):** `9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4`  
-**Audit tooling SHA (WP01 tip):** `89956878c54ff45e4aef1ff42883d209221b7a30`  
-**Live audit:** read-only (`external_state_audit.py report|plan|verify --live`)  
-**Mutations in this lane:** none  
+**Captured:** 2026-08-02T03:12:13Z
+**Repo:** `linktrend/IDE-Development`
+**Source SHA (WP02 worktree HEAD):** `9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4`
+**Audit tooling SHA (WP01 tip):** `89956878c54ff45e4aef1ff42883d209221b7a30`
+**Live audit:** read-only (`external_state_audit.py report|plan|verify --live`)
+**Mutations in this lane:** none
 **Apply:** blocked (see `apply-decision.md`)
 
-Contracts referenced (WP01 tip via `git show`):  
+Contracts referenced (WP01 tip via `git show`):
 `EXTERNAL-STATE-AUDIT.md`, `GITHUB-APP-GITOPS-CREDENTIALS.md`, `BUGBOT-MENTION-ONLY.md`, `REPOSITORY-PROTECTION.md`.
 
-Rollback / before refs:  
-- Packet before-state: `docs/evidence/wp02/before-state-2026-08-02T030943Z/`  
+Rollback / before refs:
+- Packet before-state: `docs/evidence/wp02/before-state-2026-08-02T030943Z/`
 - Live protection rollback snapshot: `docs/evidence/wp02/lane-d/notes/repository-protection-plan-live.redacted.json` → `rollback.snapshot`
 
 ---
@@ -119,10 +119,10 @@ Workflow YAML `permissions:` posture: **unknown** via Actions list API → recor
 
 If and only if Principal authorizes **and** all of (a)(b)(c) hold:
 
-1. Create ruleset `staging-autonomous-promote` with managed staging checks (union-preserving).  
-2. Create ruleset `main-autonomous-release` with managed main checks (union-preserving).  
-3. Leave `development-autonomous-merge` and `allow_auto_merge` untouched (noop).  
-4. Do **not** change Bugbot dashboard / Manual-Only unless a separate approved non-credential-exposure route exists.  
+1. Create ruleset `staging-autonomous-promote` with managed staging checks (union-preserving).
+2. Create ruleset `main-autonomous-release` with managed main checks (union-preserving).
+3. Leave `development-autonomous-merge` and `allow_auto_merge` untouched (noop).
+4. Do **not** change Bugbot dashboard / Manual-Only unless a separate approved non-credential-exposure route exists.
 5. Do **not** use Carlos restricted user token, ambient `GH_TOKEN`/`GITHUB_TOKEN`, or keyring OAuth for these writes.
 
 **Restorable before-state:** live `rollback.snapshot` in `notes/repository-protection-plan-live.redacted.json` (development ruleset body + `allow_auto_merge=true`; staging/main `exists=false`).
@@ -131,7 +131,7 @@ If and only if Principal authorizes **and** all of (a)(b)(c) hold:
 
 ## Explicit non-goals
 
-- No consumer repository changes  
-- No PR/issue/branch/worktree mutations  
-- No review-ready / Packager / Bugbot trigger / promote  
-- No secret value retrieval or printing  
+- No consumer repository changes
+- No PR/issue/branch/worktree mutations
+- No review-ready / Packager / Bugbot trigger / promote
+- No secret value retrieval or printing

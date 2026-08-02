@@ -1,8 +1,8 @@
 # WP02 Lane B — Commands and results
 
-**Worktree cwd:** `/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-68-work-packet-02-integration-lineage-stale-cleanup`  
-**Branch (unchanged by Lane B merges):** `issue/68-work-packet-02-integration-lineage-stale-cleanup` @ `9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4`  
-**Write scope:** `docs/evidence/wp02/lane-b/**` only  
+**Worktree cwd:** `/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-68-work-packet-02-integration-lineage-stale-cleanup`
+**Branch (unchanged by Lane B merges):** `issue/68-work-packet-02-integration-lineage-stale-cleanup` @ `9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4`
+**Write scope:** `docs/evidence/wp02/lane-b/**` only
 **No commit / push / freeze-head mutation performed.**
 
 Immutable SHAs:
@@ -54,7 +54,7 @@ comm -12 <(git diff --name-only $DEV...$WP01 | sort) \
 # → docs/OPEN-ISSUES.md only
 ```
 
-**Cleanup-only (11):**  
+**Cleanup-only (11):**
 `docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md`, `REPAIR-DISPATCHER.md`, `STALE-CLEANUP-CONTROLS.md`, `docs/handoff/2026-08-01-issue-63-cleanup-repo-scope.md`, `scripts/cleanup-merged-branches.sh`, `scripts/gitops/cleanup_controls.py`, `cleanup_preserve.defaults.json`, `cleanup_stale_records.py`, `repair_task.py`, `scripts/tests/test-gitops-behavioral.sh`, `test-stale-cleanup-controls.sh`.
 
 **OPEN-ISSUES blobs:**

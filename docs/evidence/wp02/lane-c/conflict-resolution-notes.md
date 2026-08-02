@@ -1,7 +1,7 @@
 # Conflict-resolution notes — WP01 vs cleanup tip
 
-**Lane:** C  
-**Three-way bases:** development `991abc3` · WP01 `8995687` · cleanup `5cf0991`  
+**Lane:** C
+**Three-way bases:** development `991abc3` · WP01 `8995687` · cleanup `5cf0991`
 **Diff dumps:** `docs/evidence/wp02/lane-c/notes/diff-wp01-vs-cleanup-*.diff`
 
 ## Summary
@@ -57,13 +57,13 @@ Cleanup-only files (no WP01 counterpart) — **add from tip / proposed/**:
 
 ### `docs/OPEN-ISSUES.md` (true conflict)
 
-**WP01 §14:** Work Packet 1 production-readiness (Issue #67) status pointer.  
+**WP01 §14:** Work Packet 1 production-readiness (Issue #67) status pointer.
 **Cleanup §14:** Reconcile approved stale IDE Development PRs/worktrees (Issue #51) + STALE contract pointer.
 
 **Recommended merged shape:**
 
-1. Keep WP01 §14 (Issue #67 / WP01) verbatim.  
-2. Renumber cleanup block to **§15** (or append after WP01 §14): Issue #51 stale-cleanup controls + link to `STALE-CLEANUP-CONTROLS.md`.  
+1. Keep WP01 §14 (Issue #67 / WP01) verbatim.
+2. Renumber cleanup block to **§15** (or append after WP01 §14): Issue #51 stale-cleanup controls + link to `STALE-CLEANUP-CONTROLS.md`.
 3. Also retain cleanup’s shortened consumer-rollout bullet under GITOPS deferred notes if still accurate; prefer WP01’s more precise “IDE Development is system source only — not a consumer wire target” wording where both edited the same bullet (WP01 kept longer form; cleanup shortened — **prefer WP01 wording** for that single bullet if still present on the WP01 side of the three-way).
 
 Do **not** drop either packet pointer; WP02/WP03 operators need both.
@@ -79,9 +79,9 @@ Do **not** drop either packet pointer; WP02/WP03 operators need both.
 
 ## Lead integrate checklist
 
-1. Merge WP01 into issue/68 lineage.  
-2. Merge cleanup tip; for the six paths above, apply this table (no prefer-incoming).  
-3. Copy Lane C `proposed/` trees **except** skip re-copying `wrong-repo-evidence.json` if WP01 already has identical blob.  
-4. Add new coexistence tests from proposed.  
-5. Reconcile `OPEN-ISSUES.md` as §14 WP01 + §15 cleanup.  
+1. Merge WP01 into issue/68 lineage.
+2. Merge cleanup tip; for the six paths above, apply this table (no prefer-incoming).
+3. Copy Lane C `proposed/` trees **except** skip re-copying `wrong-repo-evidence.json` if WP01 already has identical blob.
+4. Add new coexistence tests from proposed.
+5. Reconcile `OPEN-ISSUES.md` as §14 WP01 + §15 cleanup.
 6. Run validation command set in `integration-test-design.md`.

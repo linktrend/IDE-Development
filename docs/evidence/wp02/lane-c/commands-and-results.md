@@ -1,7 +1,7 @@
 # WP02 Lane C — commands and results
 
-**Worktree:** `…/issue-68-work-packet-02-integration-lineage-stale-cleanup`  
-**Lane write root:** `docs/evidence/wp02/lane-c/**`  
+**Worktree:** `…/issue-68-work-packet-02-integration-lineage-stale-cleanup`
+**Lane write root:** `docs/evidence/wp02/lane-c/**`
 **No commit / no push / no cleanup apply**
 
 ## Environment

@@ -51,7 +51,7 @@ Lane docs (not under proposed/):
 
 ## New integration test path(s)
 
-1. `proposed/scripts/tests/test-cleanup-wp01-lineage-coexistence.sh`  
+1. `proposed/scripts/tests/test-cleanup-wp01-lineage-coexistence.sh`
 2. `proposed/tests/security_acceptance/test_cleanup_wp01_coexistence.py`
 
 ## Blockers
@@ -66,6 +66,6 @@ Lane docs (not under proposed/):
 
 ## Non-actions (confirmed)
 
-- No commits, pushes, PRs, Bugbot, review-ready  
-- No live branch/worktree/PR deletion  
+- No commits, pushes, PRs, Bugbot, review-ready
+- No live branch/worktree/PR deletion
 - No edits outside `docs/evidence/wp02/lane-c/**`
