@@ -1,6 +1,6 @@
 # Work Packet 1 Evidence — Issue #67
 
-**Evidence base SHA (pre-evidence-commit):** `d8f117c8cb12eec808ed5c41a2e795764f417349`
+**Checkpoint SHA:** `3ef5831521bf48d798916f242ce17c9623336fdf`
 **Branch:** `issue/67-work-packet-1-production-readiness-proof-and-rel`
 **Lead / subagents:** cursor-grok-4.5-high
 **Recorded:** 2026-08-02T02:25:09.618296+00:00
@@ -14,7 +14,16 @@
 | macOS CI | PASS |
 | Windows CI | PASS |
 
-CI run (matrix success on `d8f117c`): https://github.com/linktrend/IDE-Development/actions/runs/30728657317
+CI matrix success on `d8f117c`: https://github.com/linktrend/IDE-Development/actions/runs/30728657317
+
+## Release candidate (bound to this tip)
+
+- packageVersion: `2.0.0`
+- sourceCommit: `3ef5831521bf48d798916f242ce17c9623336fdf`
+- manifestHash: `sha256:a7f332b21e0878b34dbdb5272508f8dbaad5e6c8dbc475f3f0a0f89d5a3775ba`
+- tar.gz: `sha256:5b01db316bc28b14b9240a4d48fdc09392df781c88de76f4000f987c971232e7`
+- zip: `sha256:dd3c1e245731ddea18aa5a2ebd42cc7b5e47215f421082a6c0c6dc5a542ca373`
+- installVerify: ok / 2.0.0
 
 ## Suite exits
 
@@ -38,17 +47,17 @@ CI run (matrix success on `d8f117c`): https://github.com/linktrend/IDE-Developme
 
 ## Remaining blockers
 
-1. **H5 deferred:** `scripts/tests/test-stale-cleanup-controls.sh` absent on starting checkpoint `76d2aae` (lives on unrelated cleanup lineage). Partial coverage via gitops behavioral cleanup dry-run. Do not import that lineage in WP1.
-2. **Live external-state NOT READY (read-only):** staging/main managed rulesets missing; installation probe blocked; Bugbot `manualTriggerOnly` and Carlos token boundary unknown. No apply performed; never assumed compliant.
+1. **H5 deferred:** `scripts/tests/test-stale-cleanup-controls.sh` absent on starting checkpoint `76d2aae`.
+2. **Live external-state NOT READY (read-only):** staging/main rulesets missing; unknowns; no apply.
 
 ## Independent review (Lane G)
 
-- G1 installer/cross-platform: PASS after Windows mode portability + three-OS CI green
-- G2 packaging/security/external: PASS code/fixtures; live external BLOCKED/unknown
-- G3 contracts/docs/coverage: PASS tip integrity/docs; H5 deferred; evidence bundle addresses tip-bound gap
+- G1: PASS after Windows mode portability + three-OS CI green
+- G2: PASS code/fixtures; live external BLOCKED/unknown
+- G3: PASS tip integrity/docs; H5 deferred; evidence tip-bound
 
 ## Prohibited actions confirmation
 
-Did **not** occur: PR, Bugbot trigger, review-ready, merge, promotion, consumer change, GitHub setting change, credential create/show, tag, release publish, cleanup apply, paid-runner enablement. PR #49 untouched at `0868c0034620c4ccb255457484f0342a12a0c833`.
+Did **not** occur: PR, Bugbot, review-ready, merge, promotion, consumer change, GitHub setting change, credential create/show, tag, release publish, cleanup apply, paid-runner enablement. PR #49 untouched at `0868c0034620c4ccb255457484f0342a12a0c833`.
 
 Machine-readable twin: `WORK-PACKET-1-EVIDENCE.json`.

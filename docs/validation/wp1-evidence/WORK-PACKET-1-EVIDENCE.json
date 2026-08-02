@@ -164,5 +164,57 @@
     "pr49Untouched": true,
     "pr49HeadOid": "0868c0034620c4ccb255457484f0342a12a0c833"
   },
-  "recordedAt": "2026-08-02T02:25:09.618296+00:00"
+  "recordedAt": "2026-08-02T02:25:09.618296+00:00",
+  "checkpointSha": "3ef5831521bf48d798916f242ce17c9623336fdf",
+  "releaseCandidate": {
+    "schemaVersion": 1,
+    "ok": true,
+    "command": "release-candidate",
+    "action": "create",
+    "packageVersion": "2.0.0",
+    "installerVersion": "2.0.0",
+    "sourceCommit": "3ef5831521bf48d798916f242ce17c9623336fdf",
+    "manifestHash": "sha256:a7f332b21e0878b34dbdb5272508f8dbaad5e6c8dbc475f3f0a0f89d5a3775ba",
+    "manifestBytes": 101938,
+    "outputDir": "build/release-candidate",
+    "archives": [
+      {
+        "format": "tar.gz",
+        "path": "build/release-candidate/ide-development-managed-core-2.0.0.tar.gz",
+        "sha256": "sha256:5b01db316bc28b14b9240a4d48fdc09392df781c88de76f4000f987c971232e7",
+        "bytes": 213559
+      },
+      {
+        "format": "zip",
+        "path": "build/release-candidate/ide-development-managed-core-2.0.0.zip",
+        "sha256": "sha256:dd3c1e245731ddea18aa5a2ebd42cc7b5e47215f421082a6c0c6dc5a542ca373",
+        "bytes": 283838
+      }
+    ],
+    "schemas": [
+      "core/managed-core/schemas/manifest.schema.json",
+      "core/managed-core/schemas/installed-state.schema.json",
+      "core/managed-core/schemas/transaction.schema.json",
+      "core/managed-core/schemas/release-candidate.schema.json",
+      "core/managed-core/schemas/release-candidate-checksums.schema.json"
+    ],
+    "acceptanceEvidence": [
+      "scripts/ide_development_tests/test_release_candidate.py",
+      "scripts/ide_development_tests/test_package_reproducibility.py",
+      "tests/packaging/LANE_D_RESULT.md"
+    ],
+    "installVerify": {
+      "ok": true,
+      "installedVersion": "2.0.0",
+      "packageChecksum": "sha256:5b01db316bc28b14b9240a4d48fdc09392df781c88de76f4000f987c971232e7",
+      "archive": "ide-development-managed-core-2.0.0.tar.gz",
+      "installExitCode": 0
+    },
+    "summary": {
+      "archives": 2,
+      "identities": 137,
+      "reproducible": true,
+      "dirtyAllowed": false
+    }
+  }
 }
