@@ -1,0 +1,61 @@
+worktree /Users/linktrend/Projects/IDE Development
+HEAD bba98ba2401b3f3a7fa3e74ad2fab9cc70d635d5
+branch refs/heads/main
+
+worktree /private/tmp/issue-23-gitops-lifecycle-repair-control
+HEAD 7eb41b2494faf6a7dc683b37d2b7334ddd517bee
+branch refs/heads/issue/23-gitops-lifecycle-repair-control
+prunable gitdir file points to non-existent location
+
+worktree /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-28-gitops-bootstrap-activation-smoke-record-issue-2
+HEAD 8ac8fb4a5c7e39086a4f1f02e4a45b3b17939e6c
+branch refs/heads/issue/28-gitops-bootstrap-activation-smoke-record-issue-2
+
+worktree /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-43-build-portable-ide-development-v2-managed-core-i
+HEAD 0868c0034620c4ccb255457484f0342a12a0c833
+branch refs/heads/issue/43-build-portable-ide-development-v2-managed-core-i
+
+worktree /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-44-add-app-backed-review-ready-publisher-and-produc
+HEAD 98568c398dcc6d49cbe67aa92d5493f66998f2f9
+branch refs/heads/issue/44-add-app-backed-review-ready-publisher-and-produc
+
+worktree /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-51-reconcile-approved-stale-ide-development-prs-wor
+HEAD ccdefcd97769b68fac8d37ab99d2450049d7f8dd
+branch refs/heads/issue/51-reconcile-approved-stale-ide-development-prs-wor
+
+worktree /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-53-repair-bugbot-findings-on-stale-cleanup-controls
+HEAD 1e8823bf7f28af2f7a885a27476d920f7babdfcf
+branch refs/heads/issue/53-repair-bugbot-findings-on-stale-cleanup-controls
+
+worktree /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-55-repair-remaining-bugbot-cleanup-policy-parity-fi
+HEAD 9120ecb2942b838b94ada4105ddc5e9192901bba
+branch refs/heads/issue/55-repair-remaining-bugbot-cleanup-policy-parity-fi
+
+worktree /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-57-repair-bugbot-fail-closed-preservation-when-pres
+HEAD c2a24e1de1f8cb874938f65bf0c06ec146e10731
+branch refs/heads/issue/57-repair-bugbot-fail-closed-preservation-when-pres
+
+worktree /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-59-repair-bugbot-ambiguous-remote-fail-closed-prese
+HEAD 1b828ca951a5952941c0b4969eac7266ca1866ee
+branch refs/heads/issue/59-repair-bugbot-ambiguous-remote-fail-closed-prese
+
+worktree /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-61-repair-bugbot-repository-scoped-pr-evidence-for
+HEAD c596aac752e09886e4d1ae539f0622968280a404
+branch refs/heads/issue/61-repair-bugbot-repository-scoped-pr-evidence-for
+
+worktree /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-63-repair-bugbot-repository-scope-propagation-in-cl
+HEAD 5cf099155d9f7b5d95e094f74b288af7aec766af
+branch refs/heads/issue/63-repair-bugbot-repository-scope-propagation-in-cl
+
+worktree /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-64-production-hardening-portable-installer-safety-m
+HEAD 44a26f0d14bd0e237748a14dd611c40a7a0cba6f
+branch refs/heads/issue/64-production-hardening-portable-installer-safety-m
+
+worktree /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-66-production-hardening-physical-symlink-migration
+HEAD 76d2aae1fbf0d497fbfb0e06181b3932660c96ce
+branch refs/heads/issue/66-production-hardening-physical-symlink-migration
+
+worktree /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-67-work-packet-1-production-readiness-proof-and-rel
+HEAD 89956878c54ff45e4aef1ff42883d209221b7a30
+branch refs/heads/issue/67-work-packet-1-production-readiness-proof-and-rel
+
