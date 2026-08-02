@@ -1,0 +1,39 @@
+{
+  "id": "03-sparse-gitops-upgrade",
+  "title": "Sparse GitOps installation upgrade",
+  "setup": {
+    "files": {
+      ".github/linktrend-gitops-consumer.json": {
+        "kind": "text",
+        "content": "{\n  \"schemaVersion\": 1,\n  \"ciWorkflowName\": \"CI\",\n  \"branchPolicyWorkflowName\": \"Branch Source Policy\",\n  \"bugbotCheckName\": \"Cursor Bugbot\"\n}\n"
+      },
+      ".cursor/rules/cursor-gitops-bootstrap.mdc": {
+        "kind": "text",
+        "content": "# sparse gitops bootstrap placeholder\n"
+      },
+      ".ide-development-upgrade-notes/obsolete-sparse-gitops-note-v1.md": {
+        "kind": "known_bytes",
+        "name": "obsolete-sparse-gitops-note-v1.md"
+      },
+      "scripts/gitops/completion_gate.py": {
+        "kind": "text",
+        "content": "# consumer-synced sparse runtime placeholder\nprint('sparse')\n"
+      }
+    }
+  },
+  "expected": {
+    "classifications": [
+      {
+        "path": ".ide-development-upgrade-notes/obsolete-sparse-gitops-note-v1.md",
+        "kind": "supersede_exact"
+      }
+    ],
+    "preserve": [
+      ".github/linktrend-gitops-consumer.json",
+      "scripts/gitops/completion_gate.py"
+    ],
+    "removals": [
+      ".ide-development-upgrade-notes/obsolete-sparse-gitops-note-v1.md"
+    ]
+  }
+}

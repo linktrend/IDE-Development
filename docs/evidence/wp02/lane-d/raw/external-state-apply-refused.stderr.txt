@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "error": "apply is refused: external_state_audit is plan/verify/report only (WP1 read-only; no live setting changes)",
+  "exitCode": 5,
+  "mutations": [],
+  "dryRun": true,
+  "applyRefused": true
+}

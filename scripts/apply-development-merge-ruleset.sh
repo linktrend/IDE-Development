@@ -2,6 +2,10 @@
 # Apply a repository ruleset so PRs into development require Bugbot + listed CI checks.
 # Integrator then merges only when those gates are green.
 #
+# Compatibility wrapper around scripts/gitops/repository_protection.py
+# (development branch only). Invoking this script still applies (historical behavior).
+# Prefer scripts/manage-repository-protections.sh for plan/verify across all three branches.
+#
 # Usage:
 #   ./scripts/apply-development-merge-ruleset.sh
 #   ./scripts/apply-development-merge-ruleset.sh --repo linktrend/LiNKskills
@@ -14,6 +18,7 @@
 
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO="${GH_REPO:-linktrend/IDE-Development}"
 CHECKS=(
   "Cursor Bugbot"
@@ -21,6 +26,8 @@ CHECKS=(
   "Enforce allowed PR source branches"
 )
 CHECKS_SET=0
+FIXTURE_DIR=""
+DRY_RUN=0
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -29,6 +36,15 @@ while [ "$#" -gt 0 ]; do
       REPO="$2"
       shift 2
       ;;
+    --fixture-dir)
+      [ "$#" -ge 2 ] || { echo "FAIL: --fixture-dir needs a path" >&2; exit 1; }
+      FIXTURE_DIR="$2"
+      shift 2
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
     --)
       shift
       CHECKS=("$@")
@@ -36,7 +52,7 @@ while [ "$#" -gt 0 ]; do
       break
       ;;
     -h|--help)
-      sed -n '2,14p' "$0"
+      sed -n '2,18p' "$0"
       exit 0
       ;;
     */*)
@@ -72,60 +88,27 @@ if [ "${CHECKS_SET}" -eq 1 ]; then
   fi
 fi
 
-RULESET_NAME="development-autonomous-merge"
-
-required_checks_json="$(
-  printf '%s\n' "${CHECKS[@]}" | jq -R . | jq -s 'map({context: .})'
-)"
-
-body="$(jq -n \
-  --arg name "${RULESET_NAME}" \
-  --argjson checks "${required_checks_json}" \
-  '{
-    name: $name,
-    target: "branch",
-    enforcement: "active",
-    conditions: {
-      ref_name: {
-        include: ["refs/heads/development"],
-        exclude: []
-      }
-    },
-    rules: [
-      {
-        type: "required_status_checks",
-        parameters: {
-          strict_required_status_checks_policy: true,
-          do_not_enforce_on_create: false,
-          required_status_checks: $checks
-        }
-      }
-    ],
-    bypass_actors: []
-  }')"
-
 echo "Repo: ${REPO}"
-echo "Ruleset: ${RULESET_NAME}"
+echo "Ruleset: development-autonomous-merge"
 echo "Required checks:"
 printf '  - %s\n' "${CHECKS[@]}"
 
-existing_id="$(
-  gh api "repos/${REPO}/rulesets" --jq \
-    ".[] | select(.name==\"${RULESET_NAME}\") | .id" 2>/dev/null | head -1 || true
-)"
-
-if [ -n "${existing_id}" ]; then
-  existing_bypass="$(
-    gh api "repos/${REPO}/rulesets/${existing_id}" --jq '.bypass_actors // []'
-  )"
-  body="$(echo "${body}" | jq --argjson bypass "${existing_bypass}" '.bypass_actors=$bypass')"
-  echo "Updating ruleset id=${existing_id} (preserving bypass_actors)"
-  echo "${body}" | gh api --method PUT "repos/${REPO}/rulesets/${existing_id}" --input -
-else
-  echo "Creating ruleset"
-  echo "${body}" | gh api --method POST "repos/${REPO}/rulesets" --input -
+COMMON=(
+  --repo "${REPO}"
+  --branches development
+  --development-checks "${CHECKS[@]}"
+)
+if [ -n "${FIXTURE_DIR}" ]; then
+  COMMON+=(--fixture-dir "${FIXTURE_DIR}")
 fi
 
-gh api --method PATCH "repos/${REPO}" -f allow_auto_merge=true >/dev/null
-echo "allow_auto_merge: true"
+if [ "${DRY_RUN}" -eq 1 ]; then
+  echo "Dry-run: planning only (no mutation)"
+  # Mode first so --development-checks nargs=* cannot swallow it.
+  python3 "${ROOT}/scripts/gitops/repository_protection.py" plan "${COMMON[@]}"
+  exit 0
+fi
+
+# Historical behavior: this wrapper applies when invoked.
+python3 "${ROOT}/scripts/gitops/repository_protection.py" apply --apply "${COMMON[@]}"
 echo "SUCCESS: development merge ruleset applied on ${REPO}"

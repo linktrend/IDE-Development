@@ -1,0 +1,69 @@
+name: IDE Development Cross-Platform Matrix
+
+# Branch-safe installer matrix for Issue #67 Lane A.
+# Triggers on push to issue/** only — no pull_request / Bugbot coupling.
+# Uses GitHub-hosted free runners exclusively (no self-hosted / paid labels).
+
+on:
+  push:
+    branches:
+      - "issue/**"
+  # Manual re-run for lead checkpoints without opening a PR / Bugbot coupling.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ide-cross-platform-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installer-matrix:
+    name: Installer matrix (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Assert fixture payloads stay LF (Windows hash identity)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root = Path("scripts/ide_development_tests/fixtures/package_v2")
+          core = root / "core/managed-core/files/CORE.txt"
+          data = core.read_bytes()
+          if b"\r\n" in data:
+              raise SystemExit(f"CRLF leaked into fixture: {core}")
+          expected = "sha256:978a5230ba63080b899bc3acf8e7166a15a34c94353e8cc4a752c5788b7baa3a"
+          actual = "sha256:" + hashlib.sha256(data).hexdigest()
+          if actual != expected:
+              raise SystemExit(f"fixture hash drift: {actual} != {expected}")
+          print("fixture LF + hash OK", actual)
+          PY
+
+      - name: Run cross-platform installer matrix
+        shell: bash
+        run: python3 scripts/run_cross_platform_matrix.py
+
+      - name: Upload matrix summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-matrix-summary-${{ matrix.os }}
+          path: tests/platform_matrix/summaries/
+          if-no-files-found: warn

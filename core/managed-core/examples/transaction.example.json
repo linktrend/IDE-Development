@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "transactionId": "txn-20260801T000000Z-install",
+  "operation": "install",
+  "status": "planned",
+  "packageName": "ide-development-managed-core",
+  "packageVersion": "2.0.0",
+  "createdAt": "2026-08-01T00:00:00Z",
+  "dryRun": true,
+  "resultCode": "clean",
+  "exitCode": 0,
+  "operations": [
+    {
+      "op": "create",
+      "entryId": "content-readme",
+      "path": ".ide-development/content/README.md",
+      "classification": "missing",
+      "afterHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterMode": "0644"
+    },
+    {
+      "op": "marker_upsert",
+      "entryId": "agents-managed-section",
+      "path": "AGENTS.md",
+      "classification": "managed_upgrade",
+      "beforeHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "afterHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "beforeMode": "0644",
+      "afterMode": "0644"
+    },
+    {
+      "op": "noop",
+      "entryId": "cursor-bootstrap-rule",
+      "path": ".cursor/rules/linktrend-managed-bootstrap.mdc",
+      "classification": "match",
+      "beforeHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "afterHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ]
+}

@@ -1,49 +1,82 @@
-# GitOps consumer rollout (GITOPS-01)
+# Consumer rollout (portable IDE Development v2)
 
-**Status:** Rollout plan — read-only drift posture until wired
-**Date:** 2026-07-28
-**PR:** `issue/GITOPS-01-review-packager-pipeline` on IDE Development
+**Status:** Inventory active — **consumer mutation deferred** until Work Packet 2 integration/publication decisions **and** separate Principal approval per repo
+**Date:** 2026-08-02 (WP1 clarification)
+**Version:** `v2.0.0` (identified in `VERSION`; no Git tag or GitHub release in Wave 1 / WP1)
+**Issues:** #43 (Wave 1 portable v2) · #67 (Work Packet 1 production-readiness proof)
+**SOT:** `docs/AUTONOMOUS-GIT-OPERATIONS.md` · `docs/adr/0003-autonomous-ship-pull-promote.md` · `docs/adr/0004-portable-managed-core-v2.md` · `docs/contracts/REPOSITORY-PROTECTION.md` · `docs/work-packets/2026-08-02-work-packet-1-production-readiness.md`
 
-**SOT:** `docs/AUTONOMOUS-GIT-OPERATIONS.md` · `docs/adr/0003-autonomous-ship-pull-promote.md`
+This document covers **consumer** rollout of the portable managed core. It does **not** authorize edits to real consumer repositories or live GitHub settings from Wave 1 or Work Packet 1 automation.
 
-This PR updates **IDE Development only**. It does **not** edit consumer repositories.
+**Work Packet 1 boundary:** Prove installer, migration, adapters, packaging, recovery, security, and read-only external-state verification on disposable targets / fixtures. **Do not** install or update real consumers.
 
----
+**Work Packet 2 boundary:** Integration and publication stage — reconcile frozen PR #49 and intentional checkpoints; governed merge/promotion; final publication/rollout **decisions**. Real consumer installs remain separately Principal-gated even after WP2.
 
-## What this PR does
+**IDE Development** (`linktrend/IDE-Development`) is the **system source and internal self-verification target**. It is **not** a consumer rollout entry and must not receive a nested installed copy of itself during Wave 1 / WP1.
 
-- Review Packager workflow (`linktrend-review-packager.yml`)
-- Staging promote window Tue/Fri **10:00** Asia/Taipei (was 08:00 in older ADR table)
-- Named CI gates: `core/github/CI-GATE-CONTRACTS.md`
-- Review-ready record: `core/github/REVIEW-READY.md` + helper scripts
-- Lisa/OpenClaw **follow-up contracts** (no openclaw edits here)
-- Consumer rollout plan (this document)
+**Claude Code** remains outside current v2 support and rollout.
 
 ---
 
-## What this PR does NOT do
+## What Wave 1 / WP1 delivers (system repo only)
 
-- Edit `openclaw_prime` Lisa personality or cron jobs
-- Run `wire-repo.sh` or `sync-managed-workflows.sh` on consumers
-- Change consumer `ci.yml` or repo-specific workflows
-- Enable Bugbot on consumers
-- Set `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` on consumers
-- Apply development merge rulesets on consumers
-- Modify LiNKplatform / LiNKskills / LiNKbrain / LiNKsites / LiNKdeveloper / LiNKlibraries / LiNKautowork branches or workflows
+- Portable managed-core package and transactional installer (`scripts/ide-development.py`)
+- Native Codex + Cursor physical discovery adapters
+- Migration / conflict / rollback behavior
+- Managed repository-protection **plan/verify** contract (dry-run / read-only default; **no apply in WP1**)
+- WP1 release-candidate packaging (`python3 scripts/ide-development.py release-candidate create|verify`)
+- Updated active documentation, runbooks, acceptance matrix, and integration harness
 
-Consumer adoption is **staged** only after these gates pass:
+## What Wave 1 / WP1 does NOT do
 
-1. **Corrected IDE managed workflows are valid on default branch (`main`)** (managed == live; expression-safe — no job-level `${{ env.* }}`).
-2. **GitHub App smoke** succeeds (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`).
-3. **Bugbot Manual Only + cost settings verified** (`docs/contracts/BUGBOT-MENTION-ONLY.md`, `docs/contracts/ACTIONS-COST-CONTROLS.md`).
-4. **Repair task contract valid** (`docs/contracts/REPAIR-DISPATCHER.md` + `scripts/gitops/repair_task.py`).
-5. **OpenClaw Lisa consumer follow-up passes** (ACP Repair Dispatcher + ship/pull clock — checklist in `LISA-OPENCLAW-FOLLOW-UP.md`; no edits in this PR).
-6. **Platform adoption checks** — Cursor / Codex / ChatGPT entrypoints present (`scripts/verify-platform-adoption.sh`).
+- Edit `openclaw_prime`, LiNKplatform, LiNKskills, LiNKbrain, LiNKsites, LiNKdeveloper, LiNKlibraries, LiNKautowork, or LiNKtrading-codebase
+- Apply live GitHub rulesets, branch protection, secrets, variables, App, or Bugbot settings
+- Create a Git tag or GitHub Release for `v2.0.0` (RC archive proof only)
+- Add Claude Code as a supported platform
+- Resolve frozen PR #49 or merge into `development` (Work Packet 2)
 
-Also required before Stage 2+ wire:
+---
 
-1. this change reaches IDE Development’s **default branch (`main`)** and first-adopter smoke passes, and
-2. **Bugbot mention-only** (`manualTriggerOnly`) is confirmed per repository (`docs/contracts/BUGBOT-MENTION-ONLY.md`).
+## Locked consumer order
+
+Drift reports, approvals, and installs use this **exact sequential order** (one repo at a time):
+
+| # | Repo (disk) | GitHub slug (typical) | Notes |
+|---|---|---|---|
+| 1 | openclaw_prime | `linktrend/openclaw_prime` | Lisa runtime; follow-up PRs stay in that repo |
+| 2 | LiNKplatform | `linktrend/LiNKplatform` | |
+| 3 | LiNKskills | `linktrend/LiNKskills` | |
+| 4 | LiNKbrain | `linktrend/LiNKbrain` | |
+| 5 | LiNKsites | `linktrend/LiNKsites` | |
+| 6 | LiNKdeveloper | `linktrend/LiNKdeveloper` | |
+| 7 | LiNKlibraries | `linktrend/LiNKlibraries` | |
+| 8 | LiNKautowork | `linktrend/LiNKautowork` | |
+| 9 | LiNKtrading-codebase | `linktrend/LiNKtrading-codebase` | |
+
+IDE Development is intentionally **absent** from this table.
+
+**Do not confuse with Ship/Pull order.** Lisa Option A still processes IDE Development first as the system source during Ship/Pull waves (`docs/AUTONOMOUS-GIT-OPERATIONS.md`). That clock order is not an install/rollout authorization and does not make this repository a consumer install target.
+
+---
+
+## Gate before each consumer
+
+**Not authorized during Work Packet 1.** When rollout later proceeds (after WP2 decisions + your approval):
+
+For **every** consumer in the table above:
+
+1. Produce a **read-only drift report** (installer `drift` / plan dry-run; compare managed templates without mutating the consumer).
+2. Obtain **separate Carlos (Principal) approval** for that specific consumer.
+3. Only then run `install` or `update` against an approved path (from system source **or** extracted release candidate via `--package`).
+4. Plan repository protections for `development`, `staging`, and `main` (dry-run). Live `--apply` is a separate approved action — never a WP1 default.
+5. Keep GitHub App credentials, secrets, variables, Bugbot dashboard settings, and other repository settings **external** — never package secret values into the managed core.
+
+Also required before broad rollout:
+
+1. Wave 1 changes reach IDE Development’s protected promotion path as required by studio process.
+2. Bugbot mention-only / cost posture confirmed per repository when Bugbot is used (`docs/contracts/BUGBOT-MENTION-ONLY.md`, `docs/contracts/ACTIONS-COST-CONTROLS.md`).
+3. GitHub App smoke posture understood (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`).
+4. Platform adoption / disposable-repo installer proofs green (`tests/test-portable-v2-integration.sh` and suites it discovers).
 
 ### Static `workflow_run` gate workflow names
 
@@ -56,64 +89,47 @@ Merging to `development` alone does **not** activate new scheduled workflows. Co
 
 ---
 
-## Consumer repos (locked order)
+## Install / update commands (after approval — not WP1)
 
-Drift reports and Ship/Pull waves use this **exact sequential order** (one repo at a time):
+```bash
+# From IDE Development (system source) — disposable today; approved consumer only after Principal gate:
+python3 scripts/ide-development.py drift --repo /path/to/consumer
+python3 scripts/ide-development.py plan --repo /path/to/consumer
+python3 scripts/ide-development.py install --repo /path/to/consumer   # or update
+python3 scripts/ide-development.py verify --repo /path/to/consumer
+python3 scripts/ide-development.py version --repo /path/to/consumer
+python3 scripts/ide-development.py rollback --repo /path/to/consumer
 
-| # | Repo (disk) | GitHub slug (typical) | Notes |
-|---|---|---|---|
-| 1 | IDE Development | `linktrend/IDE-Development` | **First adopter** — same regime as consumers |
-| 2 | openclaw_prime | `linktrend/openclaw_prime` | Lisa runtime; follow-up PR for personality |
-| 3 | LiNKplatform | `linktrend/LiNKplatform` | |
-| 4 | LiNKskills | `linktrend/LiNKskills` | |
-| 5 | LiNKbrain | `linktrend/LiNKbrain` | |
-| 6 | LiNKsites | `linktrend/LiNKsites` | |
-| 7 | LiNKdeveloper | `linktrend/LiNKdeveloper` | |
-| 8 | LiNKlibraries | `linktrend/LiNKlibraries` | |
-| 9 | LiNKautowork | `linktrend/LiNKautowork` | |
+# From extracted release candidate:
+python3 scripts/ide-development.py release-candidate create
+python3 scripts/ide-development.py release-candidate verify --archive /path/to/archive.tar.gz
+# Or manual extract + install with --package (no live checkout required):
+python3 /path/to/extracted-rc/.../ide-development.py install \
+  --package /path/to/extracted-rc \
+  --repo /path/to/consumer
+```
 
-**Read-only drift report posture:** Before wiring, operators may compare each consumer against IDE Development managed templates (`cmp` / `scripts/sync-managed-workflows.sh --dry-run`) and record gaps without mutating consumer repos.
+Physical install leaves `.ide-development/`, Cursor adapters under `.cursor/{rules,commands,skills}`, and Codex adapters (`AGENTS.md` managed block + `.agents/skills`). Consumer-owned content outside managed ownership is preserved. Never overwrite consumer `ci.yml`.
 
----
+Legacy `scripts/wire-repo.sh` / sync helpers remain for pre-v2 GitOps compatibility until a consumer migrates; they are not the portable v2 path and must not create consumer-to-system `.cursor` symlinks for new installs.
 
-## Activation constraint (GitHub default branch)
-
-GitHub loads **scheduled** workflows and reliable `workflow_dispatch` definitions from the repository’s **default branch** (for IDE Development: `main`).
-
-Therefore:
-
-1. Merging PR #19 **only into `development` does not activate** the new Review Packager cron (or other new workflow files) for the org.
-2. The corrected central change must pass IDE Development **`development` → `staging` → `main`** first.
-3. Only after the workflows exist on the **default branch (`main`)** can Packager/promote schedules run reliably and be manually smoked with confidence.
-4. **Only after that first-adopter smoke on `main`** should consumer rollout (Stage 2+) begin.
-
-A one-time administrator bootstrap merge may be used to land this PR into `development` while Bugbot is unavailable due to spending limits — that is **not** a permanent product bypass.
+Operator runbooks: `docs/runbooks/release-candidate.md`, `docs/runbooks/rollback.md`. Acceptance gates: `docs/acceptance/acceptance-matrix.md`.
 
 ---
 
-## Staged rollout (after GITOPS-01 reaches default branch)
+## Branch protection (standard system behavior)
 
-### Stage 0 — Promote through IDE Development protected branches
+Every installed consumer must protect:
 
-1. Independent non-Bugbot review of PR #19 (or successor) into `development`.
-2. Integrator or documented one-time admin bootstrap merge into `development` (Bugbot may be unavailable; do not add a permanent Bugbot bypass).
-3. Tue/Fri staging promote (or manual) of the combined candidate via `promote/staging/*` PR after staging-gate on that PR head.
-4. Monday main package + Principal Approve of exact staging SHA **and** promote PR head; merge via `promote/main/*` only.
-5. Confirm workflows are present on `main` (default branch).
+| Branch | Purpose |
+|---|---|
+| `development` | Strict required checks, source policy, Bugbot, Integrator compatibility |
+| `staging` | Promotion-only PR sources + staging gates |
+| `main` | Promotion-only PR sources + release gates + Main Approve compatibility |
 
-### Stage 1 — IDE Development smoke on default branch
+The GitHub **default branch** remains the repository’s configured default (typically `main`); managed protections still apply to `development`, `staging`, and `main` regardless of which branch is the default branch.
 
-1. Confirm managed workflows in `.github/workflows/` on `main` match `core/github/managed-workflows/`.
-2. Run `scripts/verify-ide-development.sh`.
-3. Set repo variables on IDE Development as needed:
-   - `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (e.g. `Verify IDE Development`)
-   - `LINKTREND_BUGBOT_REVIEW_COMMAND` (default `@cursor review` if unset)
-   - `LINKTREND_STAGING_GATE_CHECKS` / `LINKTREND_RELEASE_GATE_CHECKS` if non-default
-   - `LINKTREND_CI_WORKFLOW_NAME` (default `CI`) — used by repair observer / docs
-   - `LINKTREND_BRANCH_POLICY_WORKFLOW_NAME` (default `Branch Source Policy`)
-   - `LINKTREND_BUGBOT_CHECK_NAME` (default `Cursor Bugbot`)
-4. Apply development merge ruleset: `./scripts/apply-development-merge-ruleset.sh`
-5. Smoke: functional commit → mark/commit review-ready → Packager `workflow_dispatch` → draft PR → fast-gate → ready + Bugbot (when funded) → Integrator.
+Existing legitimate repository-specific required checks are preserved and unioned deterministically. Tooling: `docs/contracts/REPOSITORY-PROTECTION.md` (dry-run default; **no live apply in Wave 1 / WP1**).
 
 ### Consumer check-name variables (`LINKTREND_*_CHECKS`)
 
@@ -131,107 +147,39 @@ Consumers **must** set these so Integrator / Packager / promote / repair-observe
 
 Note: `workflow_run.workflows` lists in YAML are **static** and must still be substituted when a consumer renames `CI` / `Branch Source Policy`.
 
-### Stage 2 — Wire sync managed workflows
-
-After Stage 1 smoke is green on IDE Development **default branch**:
-
-```bash
-# Per consumer (from IDE Development repo root):
-./scripts/wire-repo.sh /Users/linktrend/Projects/<ConsumerRepo>
-# or sync pieces:
-./scripts/sync-managed-workflows.sh /Users/linktrend/Projects/<ConsumerRepo>
-./scripts/sync-managed-runtime.sh /Users/linktrend/Projects/<ConsumerRepo>
-./scripts/sync-agents-managed-section.sh /Users/linktrend/Projects/<ConsumerRepo>
-```
-
-`wire-repo.sh` also copies `cursor-gitops-bootstrap.mdc` into `.cursor/rules/` and upserts the AGENTS managed section.
-
-Follow consumer order 2–9. **Never overwrite** consumer `ci.yml`.
-
-Verify each consumer:
-
-```bash
-cmp core/github/managed-workflows/linktrend-review-packager.yml \
-  /path/to/consumer/.github/workflows/linktrend-review-packager.yml
-# repeat for other managed files
-bash scripts/verify-platform-adoption.sh   # uses a temp consumer; does not wire real repos
-```
-
-### Stage 3 — `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` per repo
-
-For each wired consumer:
-
-1. Identify primary verify workflow job display name(s) on PRs to `development`.
-2. Set GitHub Actions repository variable `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (comma-separated).
-3. Map job names to gate ids in consumer docs or workflow comments (`fast-gate` / `staging-gate` / `release-gate` per `CI-GATE-CONTRACTS.md`).
-4. Optionally set `LINKTREND_STAGING_GATE_CHECKS` and `LINKTREND_RELEASE_GATE_CHECKS`.
-5. Optionally set `LINKTREND_BUGBOT_REVIEW_COMMAND` (exact default if unset: `@cursor review`).
-6. Set `LINKTREND_CI_WORKFLOW_NAME` / `LINKTREND_BRANCH_POLICY_WORKFLOW_NAME` / `LINKTREND_BUGBOT_CHECK_NAME` when display names differ from IDE defaults.
-
-Example (IDE Development):
-
-```
-Verify IDE Development
-```
-
-### Stage 4 — Bugbot checklist
-
-Per repo, complete `core/checklists/BUGBOT-INHERITANCE.md`:
-
-1. Enable Bugbot on Cursor dashboard for the repo.
-2. Confirm `Cursor Bugbot` check on test PR to `development`.
-3. Apply ruleset via `apply-development-merge-ruleset.sh`.
-4. Record `Bugbot: enabled | blocked:<reason>` in wire/adoption report.
-
-Integrator merges only when `Cursor Bugbot` = **success** and `fast-gate` checks = success.
-
----
-
-## GitHub plan limitations
-
-Plan for these constraints when rolling out to nine repos:
-
-| Limitation | Impact | Mitigation |
-|---|---|---|
-| **Actions minutes** | Five managed workflows × cron schedules × 9 repos adds recurring minute usage (Packager Tue/Fri, Staging Tue/Fri, Integrator on PR events, branch policy, staging-to-main Mon) | Monitor org usage; stagger manual dispatches during rollout; use `workflow_dispatch` smoke sparingly |
-| **Rulesets** | `apply-development-merge-ruleset.sh` requires org/repo admin and GitHub ruleset availability | Run from operator account with admin; document repos where rulesets blocked |
-| **Bugbot availability** | Bugbot requires Cursor team + GitHub integration; not all repos may be connected day one | Complete checklist per repo; Integrator must not force-merge without Bugbot or alternate review path |
-| **Concurrent workflow limits** | Burst of Packager + Integrator on same repo | Managed workflows use concurrency groups; Lisa processes repos sequentially |
-| **Private repo Actions** | Minutes count against plan quotas | Prioritize IDE Development + openclaw_prime before lower-activity repos |
-| **Org workflow permissions** | `GITHUB_TOKEN` may need explicit permissions for PR create/merge | Templates already set `permissions:`; verify org default token policy |
-
 ---
 
 ## Drift detection (read-only)
 
-Before Stage 2, optional drift report per consumer:
+Before any mutating install/update:
 
-| Check | Command / action |
+| Check | Action |
 |---|---|
-| Managed files present | `ls consumer/.github/workflows/linktrend-*.yml` |
-| Byte match templates | `cmp` vs `core/github/managed-workflows/*` |
-| `.cursor` symlink | `readlink consumer/.cursor` → IDE Development |
-| Integrator variable | `gh api repos/linktrend/REPO/actions/variables/LINKTREND_INTEGRATOR_REQUIRED_CHECKS` |
-| Bugbot on PR | Manual or last PR check list |
-| Review-ready helpers | `scripts/mark-review-ready.sh` available via wired `.cursor` |
+| Installer drift | `python3 scripts/ide-development.py drift --repo <consumer>` |
+| Dry-run plan | `python3 scripts/ide-development.py plan --repo <consumer>` |
+| Managed workflows (legacy compare) | `cmp` / `scripts/sync-managed-workflows.sh --dry-run` when relevant |
+| Protection plan | repository-protection tooling in dry-run mode |
+| Integrator variable | `gh api repos/linktrend/REPO/actions/variables/LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (read-only) |
 
-Record gaps in adoption notes; do not auto-fix consumers from GITOPS-01 PR.
+Record gaps in adoption notes. Do **not** auto-fix consumers from Wave 1 or Work Packet 1.
 
 ---
 
 ## Related documents
 
 - `docs/GITOPS-CONSUMER-ROLLOUT.md` (this file)
+- `docs/adr/0004-portable-managed-core-v2.md`
+- `docs/contracts/REPOSITORY-PROTECTION.md`
 - `docs/contracts/LISA-OPENCLAW-FOLLOW-UP.md`
 - `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`
-- `core/github/managed-workflows/README.md`
-- `core/checklists/BUGBOT-INHERITANCE.md`
-- `scripts/wire-repo.sh`, `scripts/sync-managed-workflows.sh`, `scripts/backfill-managed-workflows.sh`
+- `docs/contracts/BUGBOT-MENTION-ONLY.md`
+- `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`
+- `SETUP.md`, `README.md`, `VERSION`
+- `tests/test-portable-v2-integration.sh`
 
 ## Consumer workflow display names
 
-Managed workflows contain `__LINKTREND_*` placeholders. Install via `scripts/wire-repo.sh` or
-`scripts/sync-managed-workflows.sh`, which render names from the committed consumer config:
+Managed workflows contain `__LINKTREND_*` placeholders. Install/sync paths render names from the committed consumer config:
 
 `.github/linktrend-gitops-consumer.json`
 
@@ -246,7 +194,14 @@ Managed workflows contain `__LINKTREND_*` placeholders. Install via `scripts/wir
 
 Repository variables cannot change `workflow_run.workflows` — names must be rendered into static YAML.
 
-## Physical Cursor bootstrap
+## Physical Cursor / Codex bootstrap
 
-`wire-repo.sh` installs a **physical** `.cursor/rules/cursor-gitops-bootstrap.mdc`.
-It does **not** symlink consumer `.cursor` to IDE Development (that breaks Cursor Cloud).
+Portable v2 installs **physical** Cursor and Codex discovery files inside the consumer.
+It does **not** symlink consumer `.cursor` to IDE Development (that breaks Cursor Cloud and violates the portable model).
+
+## WP02 boundary (Issue #68)
+
+WP02 (Issue #68) reconciles IDE Development lineage and verifies live readiness for **this repository only**.
+**Status:** COMPLETE for stated WP02 scope (checkpoint only; see `docs/evidence/wp02/WORK-PACKET-02-EVIDENCE.md`).
+It does **not** mutate consumer repositories, publish release tags, or authorize consumer installs.
+Consumer rollout decisions remain deferred to WP03+ with per-repo Principal approval.

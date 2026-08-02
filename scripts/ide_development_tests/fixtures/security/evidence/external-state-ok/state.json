@@ -1,0 +1,42 @@
+{
+  "actions_variables": [
+    {"name": "LINKTREND_GITOPS_APP_ID", "value": "123456"}
+  ],
+  "actions_secret_names": [
+    "LINKTREND_GITOPS_APP_PRIVATE_KEY",
+    "LINKTREND_BUGBOT_USER_TOKEN"
+  ],
+  "app_installations": [
+    {"app_slug": "linktrend-gitops", "repository_selection": "selected"}
+  ],
+  "bugbot": {
+    "manualTriggerOnly": true
+  },
+  "repo": {
+    "allow_auto_merge": true
+  },
+  "rulesets": [
+    {"id": 1, "name": "development-autonomous-merge"}
+  ],
+  "ruleset_details": {
+    "1": {
+      "id": 1,
+      "name": "development-autonomous-merge",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {"include": ["refs/heads/development"], "exclude": []}
+      },
+      "rules": [
+        {
+          "type": "required_status_checks",
+          "parameters": {
+            "required_status_checks": [
+              {"context": "Cursor Bugbot"},
+              {"context": "Enforce allowed PR source branches"}
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
