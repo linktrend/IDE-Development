@@ -13,8 +13,8 @@ EXIT_INVALID_PACKAGE = 12
 EXIT_ROLLBACK_FAILURE = 13
 
 SCHEMA_VERSION = 1
-INSTALLER_VERSION = "2.0.0"
-PACKAGE_VERSION_TARGET = "2.0.0"
+INSTALLER_VERSION = "2.1.0"
+PACKAGE_VERSION_TARGET = "2.1.0"
 PACKAGE_NAME = "ide-development-managed-core"
 
 # Release-candidate packaging (Lane D) — archives under ignored build/
@@ -32,6 +32,7 @@ RC_REQUIRED_SCHEMA_RELS = (
     "core/managed-core/schemas/transaction.schema.json",
     "core/managed-core/schemas/release-candidate.schema.json",
     "core/managed-core/schemas/release-candidate-checksums.schema.json",
+    "core/managed-core/schemas/delivery-modes.schema.json",
 )
 RC_REQUIRED_TEST_RELS = (
     "scripts/ide_development_tests/test_release_candidate.py",

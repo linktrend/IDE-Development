@@ -128,3 +128,13 @@ Factual corrections (do not rewrite earlier amendments):
 2. **Ship / Implementer:** checkpoint = commit + push only. Implementers do **not** open PRs; Review Packager opens PRs after `Linktrend Review Ready`.
 3. **Repair path:** GitHub records durable repair tasks only. **Lisa ACP Repair Dispatcher** dispatches Cursor ACP repair agents. GitHub never spawns Cursor. Max **3** attempts; no prefer-incoming. Immediate failure types do not auto-repair.
 4. Contracts: `docs/contracts/AGENT-COMPLETION.md`, `docs/contracts/REPAIR-DISPATCHER.md`, `docs/contracts/ACTIONS-COST-CONTROLS.md`, `docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md`.
+
+## Amendment — 2026-08-02 (Phase integration delivery mode)
+
+Principal / WP-01 locked:
+
+1. **Delivery modes** are configurable and packaged: `issue-pr` (default, preserves existing generic Packager behavior) and `phase-integration` (opt-in). Contract: `docs/contracts/DELIVERY-MODES.md`.
+2. **Phase integration:** frequent Issue checkpoint pushes (no PR); independently accepted exact Issue SHAs included on a `phase/*` branch; Review Packager opens **one** Phase PR into `development` after required accepted SHAs are included.
+3. **Risk exceptions:** Issue-level PRs under `phase-integration` require an explicit risk class (`security`, `authentication`, `database_migration`, `infrastructure`, `major_shared_api`, `unusually_large_scope`, `cross_phase_impact`) via `.linktrend/issue-pr-exception.json`.
+4. **Named gates** remain `fast-gate` / `staging-gate` / `release-gate` on the exact PR head SHA; missing/zero/wrong/stale/skipped-neutral are non-success.
+5. **Ship remains checkpoint-only** in both modes.

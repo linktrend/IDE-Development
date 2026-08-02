@@ -1,0 +1,293 @@
+#!/usr/bin/env bash
+# WP-01 Phase-delivery fixtures: checkpoint-only, phase PR rollup, risk exception,
+# named-gate fail-closed (missing/zero/wrong-SHA/stale/neutral).
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PASS=0
+fail() { echo "FAIL: $1" >&2; exit 1; }
+pass() { echo "PASS: $1"; PASS=$((PASS + 1)); }
+
+python3 - "$ROOT" <<'PY'
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(sys.argv[1])
+sys.path.insert(0, str(ROOT / "scripts" / "gitops"))
+
+from delivery_modes import (
+    DeliveryConfig,
+    MODE_ISSUE_PR,
+    MODE_PHASE_INTEGRATION,
+    build_phase_delivery_record,
+    checkpoint_opens_pr,
+    load_delivery_config,
+    named_gate_evidence,
+    phase_ready_for_pr,
+    should_open_pr_for_branch,
+    validate_risk_class,
+)
+from packager_logic import is_allowed_work_branch
+
+assert checkpoint_opens_pr() is False
+
+# Default preserves issue-pr
+cfg = load_delivery_config(None, env={})
+assert cfg.delivery_mode == MODE_ISSUE_PR
+
+with tempfile.TemporaryDirectory() as tmp:
+    root = Path(tmp)
+    cfg_path = root / ".github" / "linktrend-delivery-mode.json"
+    cfg_path.parent.mkdir(parents=True)
+    cfg_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "deliveryMode": "phase-integration",
+                "phaseBranchPrefix": "phase/",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    phase_cfg = load_delivery_config(root, env={})
+    assert phase_cfg.delivery_mode == MODE_PHASE_INTEGRATION
+    # Env override wins
+    overridden = load_delivery_config(
+        root, env={"LINKTREND_DELIVERY_MODE": "issue-pr"}
+    )
+    assert overridden.delivery_mode == MODE_ISSUE_PR
+
+phase_cfg = DeliveryConfig(
+    delivery_mode=MODE_PHASE_INTEGRATION, phase_branch_prefix="phase/"
+)
+
+# (b) Checkpoint never creates PR
+d = should_open_pr_for_branch(
+    "issue/1-alpha", phase_cfg, review_ready=False
+)
+assert d.open_pr is False and d.reason == "skipped_not_ready"
+
+# Accepted Issue under phase mode without exception → no PR
+d = should_open_pr_for_branch(
+    "issue/1-alpha", phase_cfg, review_ready=True, risk_class=None
+)
+assert d.open_pr is False
+assert d.reason == "skipped_phase_mode_issue_without_exception"
+
+# (c) Explicit risk exception allows Issue PR without changing default mode
+assert validate_risk_class("security") == "security"
+assert validate_risk_class("not-a-class") is None
+d = should_open_pr_for_branch(
+    "issue/9-auth", phase_cfg, review_ready=True, risk_class="authentication"
+)
+assert d.open_pr is True and d.reason == "issue_pr_risk_exception"
+assert d.risk_class == "authentication"
+
+# Phase branch opens the single Phase PR
+assert is_allowed_work_branch("phase/wp-01-demo")
+d = should_open_pr_for_branch(
+    "phase/wp-01-demo", phase_cfg, review_ready=True
+)
+assert d.open_pr is True and d.reason == "phase_branch_pr"
+
+# issue-pr mode unchanged
+issue_cfg = DeliveryConfig(delivery_mode=MODE_ISSUE_PR)
+d = should_open_pr_for_branch("issue/1-alpha", issue_cfg, review_ready=True)
+assert d.open_pr is True and d.reason == "issue_pr_mode"
+
+# (a) Two+ accepted Issue SHAs feed one Phase record / one Phase PR
+sha_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+sha_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+base = "cccccccccccccccccccccccccccccccccccccccc"
+head = "dddddddddddddddddddddddddddddddddddddddd"
+accepted = [
+    {"branch": "issue/1-alpha", "sha": sha_a, "accepted": True, "included": True},
+    {"branch": "issue/2-beta", "sha": sha_b, "accepted": True, "included": True},
+]
+ok, detail = phase_ready_for_pr(accepted)
+assert ok, detail
+
+# Not ready when one SHA not included
+ok2, _ = phase_ready_for_pr(
+    [
+        accepted[0],
+        {"branch": "issue/2-beta", "sha": sha_b, "accepted": True, "included": False},
+    ]
+)
+assert ok2 is False
+
+gate = named_gate_evidence(
+    gate="fast-gate",
+    sha=head,
+    checks=[
+        {"name": "Verify IDE Development", "state": "SUCCESS", "completedAt": "t1"},
+        {
+            "name": "Enforce allowed PR source branches",
+            "state": "SUCCESS",
+            "completedAt": "t2",
+        },
+    ],
+    required=["Verify IDE Development", "Enforce allowed PR source branches"],
+    expected_sha=head,
+)
+assert gate["status"] == "success"
+
+record = build_phase_delivery_record(
+    phase_branch="phase/wp-01-demo",
+    base_sha=base,
+    head_sha=head,
+    accepted_issues=accepted,
+    named_gate=gate,
+    merge_sha=None,
+    phase_pr={
+        "number": 101,
+        "url": "https://example.test/pr/101",
+        "base": "development",
+    },
+)
+assert record["deliveryMode"] == "phase-integration"
+assert record["phasePr"]["number"] == 101
+assert len(record["acceptedIssues"]) == 2
+assert record["mergeSha"] is None
+
+# Exactly one Phase PR represented (fixture invariant)
+assert "phasePr" in record and isinstance(record["phasePr"]["number"], int)
+
+# (d) Named-gate fail-closed cases
+def assert_fail(evidence, needle):
+    assert evidence["status"] != "success", evidence
+    assert needle in evidence["detail"], evidence
+
+assert_fail(
+    named_gate_evidence(
+        gate="fast-gate",
+        sha=head,
+        checks=[],
+        required=["Verify IDE Development"],
+    ),
+    "missing",
+)
+assert_fail(
+    named_gate_evidence(
+        gate="fast-gate",
+        sha=head,
+        checks=[{"name": "Verify IDE Development", "state": "SUCCESS"}],
+        required=[],
+    ),
+    "empty",
+)
+assert_fail(
+    named_gate_evidence(
+        gate="fast-gate",
+        sha="0" * 40,
+        checks=[{"name": "Verify IDE Development", "state": "SUCCESS"}],
+        required=["Verify IDE Development"],
+    ),
+    "invalid_or_zero_sha",
+)
+assert_fail(
+    named_gate_evidence(
+        gate="fast-gate",
+        sha=head,
+        checks=[{"name": "Verify IDE Development", "state": "SUCCESS"}],
+        required=["Verify IDE Development"],
+        expected_sha=sha_a,
+    ),
+    "wrong_sha",
+)
+assert_fail(
+    named_gate_evidence(
+        gate="fast-gate",
+        sha=head,
+        checks=[{"name": "Verify IDE Development", "state": "SUCCESS"}],
+        required=["Verify IDE Development"],
+        expected_sha=head,
+        stale_event=True,
+    ),
+    "stale_event_head",
+)
+assert_fail(
+    named_gate_evidence(
+        gate="fast-gate",
+        sha=head,
+        checks=[{"name": "Verify IDE Development", "state": "NEUTRAL"}],
+        required=["Verify IDE Development"],
+        expected_sha=head,
+    ),
+    "NEUTRAL",
+)
+assert_fail(
+    named_gate_evidence(
+        gate="fast-gate",
+        sha=head,
+        checks=[{"name": "Verify IDE Development", "state": "SKIPPED"}],
+        required=["Verify IDE Development"],
+        expected_sha=head,
+    ),
+    "SKIPPED",
+)
+
+# Persist fixture evidence artifact for verifier focus
+out = ROOT / "docs" / "validation" / "wp01-phase-delivery"
+out.mkdir(parents=True, exist_ok=True)
+(out / "phase-delivery-record.json").write_text(
+    json.dumps(record, indent=2) + "\n", encoding="utf-8"
+)
+(out / "named-gate-fail-closed.json").write_text(
+    json.dumps(
+        {
+            "missing": named_gate_evidence(
+                gate="fast-gate",
+                sha=head,
+                checks=[],
+                required=["Verify IDE Development"],
+            ),
+            "zero_sha": named_gate_evidence(
+                gate="fast-gate",
+                sha="0" * 40,
+                checks=[{"name": "Verify IDE Development", "state": "SUCCESS"}],
+                required=["Verify IDE Development"],
+            ),
+            "wrong_sha": named_gate_evidence(
+                gate="fast-gate",
+                sha=head,
+                checks=[{"name": "Verify IDE Development", "state": "SUCCESS"}],
+                required=["Verify IDE Development"],
+                expected_sha=sha_a,
+            ),
+            "stale": named_gate_evidence(
+                gate="fast-gate",
+                sha=head,
+                checks=[{"name": "Verify IDE Development", "state": "SUCCESS"}],
+                required=["Verify IDE Development"],
+                expected_sha=head,
+                stale_event=True,
+            ),
+        },
+        indent=2,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+print("phase-delivery unit fixtures ok")
+PY
+pass "phase delivery unit fixtures (checkpoint/phase/risk/gates)"
+
+# Allowlist accepts phase/*
+# shellcheck source=scripts/gitops/work-branch-allowlist.sh
+source "$ROOT/scripts/gitops/work-branch-allowlist.sh"
+is_allowed_work_branch "phase/wp-01-demo" || fail "phase/* must be allowed"
+is_allowed_work_branch "issue/1-x" || fail "issue/* must remain allowed"
+! is_allowed_work_branch "development" || fail "development must stay disallowed"
+pass "work-branch allowlist includes phase/*"
+
+# Contract + schema present
+[ -f "$ROOT/docs/contracts/DELIVERY-MODES.md" ] || fail "missing DELIVERY-MODES.md"
+[ -f "$ROOT/core/managed-core/schemas/delivery-modes.schema.json" ] || fail "missing schema"
+grep -q 'phase-integration' "$ROOT/docs/contracts/DELIVERY-MODES.md" || fail "contract missing mode"
+pass "delivery-mode contract and schema present"
+
+echo "test-gitops-phase-delivery: OK ($PASS checks)"

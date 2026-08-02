@@ -303,6 +303,12 @@ else
   fail "Missing scripts/tests/test-gitops-lifecycle.sh"
 fi
 
+if [ -x "scripts/tests/test-gitops-phase-delivery.sh" ]; then
+  bash scripts/tests/test-gitops-phase-delivery.sh || fail "GitOps phase-delivery test failed"
+else
+  fail "Missing scripts/tests/test-gitops-phase-delivery.sh"
+fi
+
 if [ -x "scripts/verify-platform-adoption.sh" ]; then
   bash scripts/verify-platform-adoption.sh || fail "Platform adoption verify failed"
 else

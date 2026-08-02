@@ -7,7 +7,7 @@
 is_allowed_work_branch() {
   local name="${1:-}"
   case "${name}" in
-    issue/*|feature/*|fix/*|chore/*|codex/*|cursor/*|antigravity/*|dependabot/*|dev/*)
+    issue/*|phase/*|feature/*|fix/*|chore/*|codex/*|cursor/*|antigravity/*|dependabot/*|dev/*)
       return 0
       ;;
     *)
@@ -36,6 +36,6 @@ is_main_promote_branch() {
 
 allowed_work_branch_globs() {
   printf '%s\n' \
-    'issue/*' 'feature/*' 'fix/*' 'chore/*' \
+    'issue/*' 'phase/*' 'feature/*' 'fix/*' 'chore/*' \
     'codex/*' 'cursor/*' 'antigravity/*' 'dependabot/*' 'dev/*'
 }

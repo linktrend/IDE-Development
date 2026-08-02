@@ -170,6 +170,7 @@ def parse_required_checks(raw: str) -> list[str]:
 def is_allowed_work_branch(name: str) -> bool:
     prefixes = (
         "issue/",
+        "phase/",
         "feature/",
         "fix/",
         "chore/",
