@@ -15,13 +15,13 @@ Historical long-form OPEN-ISSUES entries remain authoritative for older waves; t
 
 **Outcome sought:** Independently testable portable managed-core v2 release candidate with installer, migration, Cursor/Codex adapters, packaging, recovery, security, and read-only GitHub external-state verification across macOS, Linux, and Windows.
 
-**Explicitly deferred to Work Packet 2 / separate approval:**
+**Explicitly deferred from WP1 (clarified for WP2/WP03):**
 
-- Touching frozen PR #49
-- Integration into `development` / promotion to `staging` or `main`
-- Git tag / GitHub Release / registry publish
-- Real consumer repository install or update
-- Live GitHub App, secret, variable, Bugbot, or ruleset **apply**
+- Touching frozen PR #49 heads (WP2 must preserve frozen heads; may incorporate required content into the new lineage)
+- Integration into `development` / promotion to `staging` or `main` → **Work Packet 3**
+- Git tag / GitHub Release / registry publish → **Work Packet 3 / later approval**
+- Real consumer repository install or update → **separately Principal-gated (not WP2)**
+- Live GitHub App/settings **apply** on IDE Development → allowed in **WP2 only** under packet constraints; consumer apply remains deferred
 
 **Lane map:** A cross-platform matrix · B clean-room install/migration · C external-state plan/verify · D RC packaging · E security/fail-closed · F production docs (this log + runbooks/acceptance) · G integrated review after A–F.
 
@@ -81,3 +81,26 @@ python3 scripts/ide-development.py release-candidate create|verify
 **Remaining blockers recorded:** H5 stale-cleanup script absent (deferred); live external-state not ready (read-only unknowns/missing).
 
 **Hard stops honored:** no PR / Bugbot / review-ready / merge / promote / consumer / settings apply / tag / release / credentials / cleanup apply.
+
+---
+
+## WP02-001 — Work Packet 2 opened (Issue #68) — 2026-08-02
+
+**Issue:** #68
+**Branch:** `issue/68-work-packet-02-integration-lineage-stale-cleanup`
+**Plan:** `docs/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md`
+**Models:** Lead + subagents `cursor-grok-4.5-high` only. Claude excluded.
+**Startup SHA (packet commit):** `9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4`
+
+**Outcome sought:** Canonical issue-branch lineage combining `origin/development`, WP01 checkpoint, and cleanup tip; stale-cleanup controls restored/hardened with coexistence tests; IDE Development live external state verified ready (or blocked with concrete external cause); evidence-bound pushed checkpoint.
+
+**Explicitly NOT claimed by WP02:**
+
+- Integration merge into `development` (WP03)
+- Promotion to `staging` / `main` (WP03)
+- Git tag / GitHub Release / registry publish
+- Real consumer repository install or update
+- Cleanup apply / closing frozen PRs / deleting branches or worktrees
+- `review-ready`, Packager PR, Bugbot trigger
+
+**Lane map:** A reconciliation ledger · B lineage construction · C stale-cleanup hardening · D live external-state readiness · E manifests/docs/evidence (this log pointer) · F independent Cursor reviews after A–E integration.

@@ -1,18 +1,20 @@
 # Consumer rollout (portable IDE Development v2)
 
-**Status:** Inventory active — **consumer mutation deferred** until Work Packet 2 integration/publication decisions **and** separate Principal approval per repo
-**Date:** 2026-08-02 (WP1 clarification)
-**Version:** `v2.0.0` (identified in `VERSION`; no Git tag or GitHub release in Wave 1 / WP1)
-**Issues:** #43 (Wave 1 portable v2) · #67 (Work Packet 1 production-readiness proof)
-**SOT:** `docs/AUTONOMOUS-GIT-OPERATIONS.md` · `docs/adr/0003-autonomous-ship-pull-promote.md` · `docs/adr/0004-portable-managed-core-v2.md` · `docs/contracts/REPOSITORY-PROTECTION.md` · `docs/work-packets/2026-08-02-work-packet-1-production-readiness.md`
+**Status:** Inventory active — **consumer mutation deferred** until Work Packet 3 publication decisions **and** separate Principal approval per repo
+**Date:** 2026-08-02 (WP02 clarification)
+**Version:** `v2.0.0` (identified in `VERSION`; no Git tag or GitHub release in WP1/WP2)
+**Issues:** #43 (Wave 1 portable v2) · #67 (Work Packet 1) · #68 (Work Packet 2 — lineage / live readiness; in progress)
+**SOT:** `docs/AUTONOMOUS-GIT-OPERATIONS.md` · `docs/adr/0003-autonomous-ship-pull-promote.md` · `docs/adr/0004-portable-managed-core-v2.md` · `docs/contracts/REPOSITORY-PROTECTION.md` · `docs/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md`
 
-This document covers **consumer** rollout of the portable managed core. It does **not** authorize edits to real consumer repositories or live GitHub settings from Wave 1 or Work Packet 1 automation.
+This document covers **consumer** rollout of the portable managed core. It does **not** authorize edits to real consumer repositories from Wave 1, Work Packet 1, or Work Packet 2 automation.
 
 **Work Packet 1 boundary:** Prove installer, migration, adapters, packaging, recovery, security, and read-only external-state verification on disposable targets / fixtures. **Do not** install or update real consumers.
 
-**Work Packet 2 boundary:** Integration and publication stage — reconcile frozen PR #49 and intentional checkpoints; governed merge/promotion; final publication/rollout **decisions**. Real consumer installs remain separately Principal-gated even after WP2.
+**Work Packet 2 boundary (Issue #68, in progress):** Build one canonical issue-branch lineage from `origin/development` + WP01 checkpoint + cleanup tip (+ any unique still-required content); harden stale-cleanup controls (**plan only**, no cleanup apply); verify/apply IDE Development live external state under the approved packet. WP02 ends at a pushed issue-branch checkpoint. It does **not** merge into `development`, promote, tag/Release, or mutate consumers.
 
-**IDE Development** (`linktrend/IDE-Development`) is the **system source and internal self-verification target**. It is **not** a consumer rollout entry and must not receive a nested installed copy of itself during Wave 1 / WP1.
+**Work Packet 3 boundary:** Integration into `development` / promotion / publication **decisions**. Real consumer installs remain separately Principal-gated even after WP03.
+
+**IDE Development** (`linktrend/IDE-Development`) is the **system source and internal self-verification target**. It is **not** a consumer rollout entry and must not receive a nested installed copy of itself during Wave 1 / WP1 / WP2.
 
 **Claude Code** remains outside current v2 support and rollout.
 
@@ -33,7 +35,7 @@ This document covers **consumer** rollout of the portable managed core. It does 
 - Apply live GitHub rulesets, branch protection, secrets, variables, App, or Bugbot settings
 - Create a Git tag or GitHub Release for `v2.0.0` (RC archive proof only)
 - Add Claude Code as a supported platform
-- Resolve frozen PR #49 or merge into `development` (Work Packet 2)
+- Resolve frozen PR #49 content into the canonical lineage while preserving frozen heads (Work Packet 2); merge into `development` (Work Packet 3)
 
 ---
 
@@ -61,7 +63,7 @@ IDE Development is intentionally **absent** from this table.
 
 ## Gate before each consumer
 
-**Not authorized during Work Packet 1.** When rollout later proceeds (after WP2 decisions + your approval):
+**Not authorized during Work Packet 1 or Work Packet 2.** When rollout later proceeds (after WP03 publication decisions + your approval):
 
 For **every** consumer in the table above:
 
@@ -198,9 +200,3 @@ Repository variables cannot change `workflow_run.workflows` — names must be re
 
 Portable v2 installs **physical** Cursor and Codex discovery files inside the consumer.
 It does **not** symlink consumer `.cursor` to IDE Development (that breaks Cursor Cloud and violates the portable model).
-
-## WP02 boundary (Issue #68)
-
-WP02 (Issue #68) reconciles IDE Development lineage and verifies live readiness for **this repository only**.
-It does **not** mutate consumer repositories, publish release tags, or authorize consumer installs.
-Consumer rollout decisions remain deferred to WP03+ with per-repo Principal approval.

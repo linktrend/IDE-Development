@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "lane": "B",
+  "generatedAtUtc": "2026-08-02T03:13:39Z",
+  "repo": "linktrend/IDE-Development",
+  "method": "git merge-tree --write-tree --messages --name-only; git diff --name-only; git merge-base --is-ancestor; git merge-file (OPEN-ISSUES only)",
+  "immutableInputs": {
+    "development": "991abc319782008ef93af95002be0d7f3d5a937c",
+    "wp01": "89956878c54ff45e4aef1ff42883d209221b7a30",
+    "cleanup": "5cf099155d9f7b5d95e094f74b288af7aec766af",
+    "frozenPr49": "0868c0034620c4ccb255457484f0342a12a0c833",
+    "wp02BranchTip": "9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4"
+  },
+  "ancestry": {
+    "developmentIsAncestorOfWp01": true,
+    "developmentIsAncestorOfCleanup": true,
+    "frozen49IsAncestorOfWp01": true,
+    "frozen49IsAncestorOfDevelopment": false,
+    "wp01IsAncestorOfCleanup": false,
+    "cleanupIsAncestorOfWp01": false,
+    "mergeBaseWp01Cleanup": "991abc319782008ef93af95002be0d7f3d5a937c",
+    "commitsDevelopmentToWp01": 19,
+    "commitsDevelopmentToCleanup": 11,
+    "commitsFrozen49NotInWp01": 0
+  },
+  "pathInventoryVsDevelopment": {
+    "wp01ChangedPathCount": 277,
+    "cleanupChangedPathCount": 12,
+    "overlapPathCount": 1,
+    "wp01OnlyPathCount": 276,
+    "cleanupOnlyPathCount": 11,
+    "overlapPaths": [
+      "docs/OPEN-ISSUES.md"
+    ],
+    "cleanupOnlyPaths": [
+      "docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md",
+      "docs/contracts/REPAIR-DISPATCHER.md",
+      "docs/contracts/STALE-CLEANUP-CONTROLS.md",
+      "docs/handoff/2026-08-01-issue-63-cleanup-repo-scope.md",
+      "scripts/cleanup-merged-branches.sh",
+      "scripts/gitops/cleanup_controls.py",
+      "scripts/gitops/cleanup_preserve.defaults.json",
+      "scripts/gitops/cleanup_stale_records.py",
+      "scripts/gitops/repair_task.py",
+      "scripts/tests/test-gitops-behavioral.sh",
+      "scripts/tests/test-stale-cleanup-controls.sh"
+    ],
+    "knownFactPathsNote": "Packet listed LISA-LOCAL-CLEANUP-HANDOFF, REPAIR-DISPATCHER, cleanup-merged-branches.sh, repair_task.py, test-gitops-behavioral.sh as overlapping/differing vs WP01 trees. Verified: those five are cleanup-only vs development (WP01 blob == DEV). Only OPEN-ISSUES.md is a true both-sides path overlap."
+  },
+  "blobIds": {
+    "docs/OPEN-ISSUES.md": {
+      "development": "5fa41f15471972a8eaf18c2439254dd5233dd9a2",
+      "wp01": "1df05be0095408689aab529bdbc926eb4a56ee34",
+      "cleanup": "2de99957d3a63f367e3f757b488a644837aa938c",
+      "frozen49": "be06e98f3dcf82a3f79a884131f0d2f469fcb734"
+    }
+  },
+  "threeWaySimulations": [
+    {
+      "id": "orderA_wp01_then_cleanup",
+      "description": "Equivalent to FF/merge to WP01 then merge cleanup (merge-base = development)",
+      "command": "git merge-tree --write-tree --messages --name-only 89956878c54ff45e4aef1ff42883d209221b7a30 5cf099155d9f7b5d95e094f74b288af7aec766af",
+      "exitCode": 1,
+      "conflictCount": 1,
+      "conflictPaths": ["docs/OPEN-ISSUES.md"],
+      "conflictTypes": {
+        "docs/OPEN-ISSUES.md": "content"
+      },
+      "autoMergedCleanupOnlyPaths": true,
+      "resultTreeWithConflicts": "f72d42291e39fbc568dcc072f1400b66e18dddb5"
+    },
+    {
+      "id": "orderB_cleanup_then_wp01",
+      "description": "Mirror order; same conflict set",
+      "command": "git merge-tree --write-tree --messages --name-only 5cf099155d9f7b5d95e094f74b288af7aec766af 89956878c54ff45e4aef1ff42883d209221b7a30",
+      "exitCode": 1,
+      "conflictCount": 1,
+      "conflictPaths": ["docs/OPEN-ISSUES.md"],
+      "conflictTypes": {
+        "docs/OPEN-ISSUES.md": "content"
+      },
+      "resultTreeWithConflicts": "2b0846437fcc7d77a578a8942cd1f9ef60ae57b7"
+    },
+    {
+      "id": "tip_plus_wp01",
+      "description": "Current WP02 tip + WP01",
+      "ours": "9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4",
+      "theirs": "89956878c54ff45e4aef1ff42883d209221b7a30",
+      "exitCode": 0,
+      "conflictCount": 0,
+      "resultTree": "f6ddf51071493a4396512389a1228b4277486cf5"
+    },
+    {
+      "id": "tip_plus_cleanup",
+      "description": "Current WP02 tip + cleanup alone",
+      "ours": "9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4",
+      "theirs": "5cf099155d9f7b5d95e094f74b288af7aec766af",
+      "exitCode": 0,
+      "conflictCount": 0,
+      "resultTree": "8cde4d88e8e2c16e4bec74024a8cd4f1e1ee76bd"
+    },
+    {
+      "id": "tip_wp01_then_cleanup_synthetic",
+      "description": "Synthetic dangling commit-tree of tip+WP01, then merge-tree with cleanup",
+      "syntheticCommit": "76ac03178fe6b91f4b6e5585947fbfb944301c6b",
+      "exitCode": 1,
+      "conflictCount": 1,
+      "conflictPaths": ["docs/OPEN-ISSUES.md"]
+    }
+  ],
+  "recommendedOrder": "merge_wp01_then_cleanup",
+  "contentConflictDetail": {
+    "path": "docs/OPEN-ISSUES.md",
+    "sharedPrefixIdenticalThroughSection": 13,
+    "oursWp01Section": {
+      "heading": "## 14. Work Packet 1 — production-readiness proof and release candidate (Issue #67) — 2026-08-02"
+    },
+    "theirsCleanupSection": {
+      "heading": "## 14. Reconcile approved stale IDE Development PRs / worktrees — 2026-08-01"
+    },
+    "resolutionPolicy": "append_both_chronological",
+    "resolutionRecommendation": "Keep cleanup entry as ## 14 (2026-08-01); renumber WP01 entry to ## 15 (2026-08-02). Never -X ours/theirs."
+  },
+  "nonConflictSemanticOverlaps": [
+    {
+      "path": "docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md",
+      "mergeBehavior": "auto_take_cleanup",
+      "reason": "WP01 blob identical to development; cleanup modifies"
+    },
+    {
+      "path": "docs/contracts/REPAIR-DISPATCHER.md",
+      "mergeBehavior": "auto_take_cleanup",
+      "reason": "WP01 blob identical to development; cleanup modifies"
+    },
+    {
+      "path": "scripts/cleanup-merged-branches.sh",
+      "mergeBehavior": "auto_take_cleanup",
+      "reason": "WP01 blob identical to development; cleanup modifies"
+    },
+    {
+      "path": "scripts/gitops/repair_task.py",
+      "mergeBehavior": "auto_take_cleanup",
+      "reason": "WP01 blob identical to development; cleanup adds plan-cleanup-completed"
+    },
+    {
+      "path": "scripts/tests/test-gitops-behavioral.sh",
+      "mergeBehavior": "auto_take_cleanup",
+      "reason": "WP01 blob identical to development; cleanup adds *.json seed copy"
+    }
+  ],
+  "issue23": {
+    "tip": "7eb41b2494faf6a7dc683b37d2b7334ddd517bee",
+    "recommendation": "do_not_merge_tip",
+    "substanceOnDevelopmentVia": "3ea6ebadf46d2640f8035bbe7fc8a93e48881638",
+    "sameTreeAsPr24Merge": true,
+    "regressionRiskIfMerged": [
+      "scripts/gitops/completion_gate.py",
+      "docs/contracts/AGENT-COMPLETION.md"
+    ],
+    "uniqueBlobPathCountVsWp01UnionCleanup": 36,
+    "note": "Unique blobs are stale relative to evolved development, not missing features."
+  },
+  "issue28": {
+    "tip": "8ac8fb4a5c7e39086a4f1f02e4a45b3b17939e6c",
+    "recommendation": "deferred_optional_cherry_pick",
+    "uniquePaths": [
+      "docs/handoff/2026-07-30-gitops-bootstrap-activation-smoke.md"
+    ],
+    "presentOnDevelopment": false,
+    "presentOnWp01": false,
+    "presentOnCleanup": false
+  },
+  "frozenPr49": {
+    "recommendation": "omit_separate_merge",
+    "fullyContainedInWp01": true
+  },
+  "summary": {
+    "recommendedMergeOrder": "WP01 then cleanup",
+    "mergeTreeConflictCount": 1,
+    "unresolvedBlockersForLead": [
+      "Manual append-only resolve of docs/OPEN-ISSUES.md (both section-14 bodies)",
+      "Decide whether to optionally cherry-pick #28 smoke handoff (deferred; not required for code lineage)",
+      "Run cleanup + WP01 verification suites after merge (coordinate Lane C / lead); Lane B did not execute merges"
+    ]
+  }
+}

@@ -1,0 +1,1 @@
+{"message":"You must authenticate with an access token authorized to a GitHub App in order to list installations","documentation_url":"https://docs.github.com/rest/apps/installations#list-app-installations-accessible-to-the-user-access-token","status":"403"}

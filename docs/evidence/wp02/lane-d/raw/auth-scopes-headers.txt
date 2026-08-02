@@ -1,0 +1,3 @@
+HTTP/2.0 200 OK
+X-Accepted-Oauth-Scopes: 
+X-Oauth-Scopes: admin:repo_hook, gist, read:org, repo, workflow

@@ -181,25 +181,3 @@ Branch `issue/51-reconcile-approved-stale-ide-development-prs-wor` (Issue #51).
 **Goal:** Document safe deterministic stale-cleanup controls for IDE Development remote branches, Lisa-local worktrees, open-PR deferrals, and completed-repair inventory dry-run — without auto-closing open PRs or touching preserve-listed issues/PRs/protected branches.
 
 **Authoritative contract:** `docs/contracts/STALE-CLEANUP-CONTROLS.md` (cross-links `LISA-LOCAL-CLEANUP-HANDOFF.md`, `REPAIR-DISPATCHER.md`).
-## 15. Work Packet 1 — production-readiness proof and release candidate (Issue #67) — 2026-08-02
-
-**Status pointer (active):** Issue #67 · branch `issue/67-work-packet-1-production-readiness-proof-and-rel` · plan `docs/work-packets/2026-08-02-work-packet-1-production-readiness.md` (committed; do not edit from Lane F).
-
-**Build log:** `docs/BUILD-LOG.md` (starts with WP1 entries).
-**Operator handoff:** `docs/runbooks/release-candidate.md`, `docs/runbooks/rollback.md`, `docs/acceptance/acceptance-matrix.md`, updated `README.md` / `SETUP.md`.
-
-**WP1 proves (system source only):** installer/migration, Cursor + native Codex discovery, RC packaging, recovery/security, read-only GitHub external-state plan/verify, macOS/Linux/Windows evidence expectations.
-
-**WP1 does not:** touch frozen PR #49; merge/promote; publish tag/Release; install real consumers; apply live GitHub settings; add Claude support.
-
-**Consumer rollout:** Deferred and separately Principal-gated — see `docs/GITOPS-CONSUMER-ROLLOUT.md`. **Work Packet 2** is the integration/publication stage.
-
-**CLI at Lane F documentation time:** `plan|install|update|drift|verify|version|rollback|release-candidate` (`create` / `verify`). Default RC output: `build/release-candidate/`.
-## 16. Work Packet 02 — integration lineage, stale cleanup, and live readiness (Issue #68)
-
-- **Opened:** 2026-08-02
-- **Branch:** `issue/68-work-packet-02-integration-lineage-stale-cleanup`
-- **Base:** fresh `origin/development` `991abc319782008ef93af95002be0d7f3d5a937c`
-- **Inputs:** WP01 `89956878c54ff45e4aef1ff42883d209221b7a30`; cleanup tip `5cf099155d9f7b5d95e094f74b288af7aec766af`; frozen PR #49 `0868c0034620c4ccb255457484f0342a12a0c833`
-- **Scope:** Ordinary-history lineage reconciliation, stale-cleanup restore (no apply), IDE Development live external-state readiness verify/plan; checkpoint only — no PR/review-ready/merge/promote/consumer change
-- **Status:** execution in progress on Issue #68

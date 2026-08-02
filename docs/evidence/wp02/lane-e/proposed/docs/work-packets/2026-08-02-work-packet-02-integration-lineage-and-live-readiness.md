@@ -1,7 +1,7 @@
 # Work Packet 02 — integration lineage, stale cleanup, and live readiness
 
-**Status:** Execution in progress on Issue #68 (checkpoint lineage)
-**Authorization:** Carlos explicitly approved WP02 execution (Issue #68)
+**Status:** Execution in progress (Issue #68 · branch `issue/68-work-packet-02-integration-lineage-stale-cleanup`); lineage integration incomplete; not review-ready
+**Authorization:** Principal-approved for WP02 execution; Issue #68 and work branch created via `agentsetup` / `create_issue_branch.py`. Live-state apply still requires lead proof against the approved packet before mutation.
 **Required starting base:** fresh `origin/development`
 **Required input checkpoints:** WP01 `89956878c54ff45e4aef1ff42883d209221b7a30`; cleanup lineage tip `5cf099155d9f7b5d95e094f74b288af7aec766af`; frozen PR #49 tip `0868c0034620c4ccb255457484f0342a12a0c833`
 **Owner:** Cursor Grok 4.5 High lead, with Cursor Grok 4.5 High subagents only

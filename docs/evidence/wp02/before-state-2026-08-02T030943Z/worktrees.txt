@@ -58,4 +58,3 @@ branch refs/heads/issue/66-production-hardening-physical-symlink-migration
 worktree /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-67-work-packet-1-production-readiness-proof-and-rel
 HEAD 89956878c54ff45e4aef1ff42883d209221b7a30
 branch refs/heads/issue/67-work-packet-1-production-readiness-proof-and-rel
-

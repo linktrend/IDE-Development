@@ -113,7 +113,7 @@ Branch `issue/GITOPS-01-review-packager-pipeline`. Principal-locked amendment to
 **Deferred (explicitly not in GITOPS-01):**
 
 - openclaw_prime Lisa personality / cron updates (`ship-pull-clock.md`, `pipeline-status.md`, `morning-digest.md`, etc.) — checklist in `LISA-OPENCLAW-FOLLOW-UP.md`.
-- `wire-repo.sh` / `sync-managed-workflows.sh` on consumer repos (LiNKplatform, LiNKskills, LiNKbrain, LiNKsites, LiNKdeveloper, LiNKlibraries, LiNKautowork).
+- `wire-repo.sh` / `sync-managed-workflows.sh` on consumer repos (order locked in `docs/GITOPS-CONSUMER-ROLLOUT.md`: openclaw_prime → LiNKplatform → LiNKskills → LiNKbrain → LiNKsites → LiNKdeveloper → LiNKlibraries → LiNKautowork → LiNKtrading-codebase). IDE Development is system source only — not a consumer wire target.
 - Per-consumer `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` and Bugbot inheritance checklist runs.
 - Lisa reporting lines for Review Packager / Staging 10:00 until openclaw follow-up PR lands.
 
@@ -174,14 +174,7 @@ Branch `issue/44-add-app-backed-review-ready-publisher-and-produc` (Issue #44). 
 
 ---
 
-## 14. Reconcile approved stale IDE Development PRs / worktrees — 2026-08-01
-
-Branch `issue/51-reconcile-approved-stale-ide-development-prs-wor` (Issue #51).
-
-**Goal:** Document safe deterministic stale-cleanup controls for IDE Development remote branches, Lisa-local worktrees, open-PR deferrals, and completed-repair inventory dry-run — without auto-closing open PRs or touching preserve-listed issues/PRs/protected branches.
-
-**Authoritative contract:** `docs/contracts/STALE-CLEANUP-CONTROLS.md` (cross-links `LISA-LOCAL-CLEANUP-HANDOFF.md`, `REPAIR-DISPATCHER.md`).
-## 15. Work Packet 1 — production-readiness proof and release candidate (Issue #67) — 2026-08-02
+## 14. Work Packet 1 — production-readiness proof and release candidate (Issue #67) — 2026-08-02
 
 **Status pointer (active):** Issue #67 · branch `issue/67-work-packet-1-production-readiness-proof-and-rel` · plan `docs/work-packets/2026-08-02-work-packet-1-production-readiness.md` (committed; do not edit from Lane F).
 
@@ -195,11 +188,21 @@ Branch `issue/51-reconcile-approved-stale-ide-development-prs-wor` (Issue #51).
 **Consumer rollout:** Deferred and separately Principal-gated — see `docs/GITOPS-CONSUMER-ROLLOUT.md`. **Work Packet 2** is the integration/publication stage.
 
 **CLI at Lane F documentation time:** `plan|install|update|drift|verify|version|rollback|release-candidate` (`create` / `verify`). Default RC output: `build/release-candidate/`.
-## 16. Work Packet 02 — integration lineage, stale cleanup, and live readiness (Issue #68)
 
-- **Opened:** 2026-08-02
-- **Branch:** `issue/68-work-packet-02-integration-lineage-stale-cleanup`
-- **Base:** fresh `origin/development` `991abc319782008ef93af95002be0d7f3d5a937c`
-- **Inputs:** WP01 `89956878c54ff45e4aef1ff42883d209221b7a30`; cleanup tip `5cf099155d9f7b5d95e094f74b288af7aec766af`; frozen PR #49 `0868c0034620c4ccb255457484f0342a12a0c833`
-- **Scope:** Ordinary-history lineage reconciliation, stale-cleanup restore (no apply), IDE Development live external-state readiness verify/plan; checkpoint only — no PR/review-ready/merge/promote/consumer change
-- **Status:** execution in progress on Issue #68
+### Correction — 2026-08-02 (WP02 scope; do not rewrite above)
+
+The WP1 sentence that called Work Packet 2 the “integration/publication stage” is **obsolete**. Authoritative WP02 packet (`docs/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md`, Issue #68): lineage + stale-cleanup hardening (plan only) + IDE Development live readiness; ends at a pushed issue-branch checkpoint. Integration into `development` / promotion / publication decisions are **Work Packet 3**. Consumer rollout remains separately Principal-gated.
+
+## 15. Work Packet 02 — integration lineage, stale cleanup, and live readiness (Issue #68) — 2026-08-02
+
+**Status pointer (active):** Issue #68 · branch `issue/68-work-packet-02-integration-lineage-stale-cleanup` · packet `docs/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md`.
+
+**Immutable inputs:** WP01 `89956878c54ff45e4aef1ff42883d209221b7a30` · cleanup tip `5cf099155d9f7b5d95e094f74b288af7aec766af` · `origin/development` `991abc319782008ef93af95002be0d7f3d5a937c` · frozen PR #49 tip `0868c0034620c4ccb255457484f0342a12a0c833`.
+
+**WP02 seeks:** one canonical issue-branch lineage; stale-cleanup hardening with tests (cleanup **plan only**); IDE Development live external-state readiness under the approved packet; evidence-bound pushed checkpoint.
+
+**WP02 does not:** merge into `development`; promote; open PR / Bugbot / review-ready; tag/Release; mutate consumers; close/delete frozen PRs/issues/branches/worktrees; alter frozen PR heads; nested self-install; expose secrets.
+
+**Next stage (not claimed here):** Work Packet 3 owns integration into `development` / promotion / publication decisions. Consumer rollout remains separately Principal-gated.
+
+**Build log:** `docs/BUILD-LOG.md` (WP02 entries). Evidence: `docs/evidence/wp02/`.

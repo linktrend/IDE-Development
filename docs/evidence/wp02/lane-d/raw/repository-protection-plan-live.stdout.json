@@ -1,0 +1,375 @@
+{
+  "schemaVersion": 1,
+  "repo": "linktrend/IDE-Development",
+  "capability": {
+    "rulesets": true,
+    "branchProtection": "unknown",
+    "mechanism": "rulesets",
+    "rulesetsError": "",
+    "branchProtectionError": ""
+  },
+  "branches": {
+    "development": {
+      "rulesetName": "development-autonomous-merge",
+      "action": "noop",
+      "requiredChecks": {
+        "managed": [
+          "Cursor Bugbot",
+          "Verify IDE Development",
+          "Enforce allowed PR source branches"
+        ],
+        "preserved": [],
+        "desired": [
+          "Cursor Bugbot",
+          "Verify IDE Development",
+          "Enforce allowed PR source branches"
+        ]
+      },
+      "before": {
+        "exists": true,
+        "id": 19728531,
+        "requiredChecks": [
+          "Cursor Bugbot",
+          "Verify IDE Development",
+          "Enforce allowed PR source branches"
+        ],
+        "bypassActors": [],
+        "body": {
+          "id": 19728531,
+          "name": "development-autonomous-merge",
+          "target": "branch",
+          "source_type": "Repository",
+          "source": "linktrend/IDE-Development",
+          "enforcement": "active",
+          "conditions": {
+            "ref_name": {
+              "exclude": [],
+              "include": [
+                "refs/heads/development"
+              ]
+            }
+          },
+          "rules": [
+            {
+              "type": "required_status_checks",
+              "parameters": {
+                "strict_required_status_checks_policy": true,
+                "do_not_enforce_on_create": false,
+                "required_status_checks": [
+                  {
+                    "context": "Cursor Bugbot"
+                  },
+                  {
+                    "context": "Verify IDE Development"
+                  },
+                  {
+                    "context": "Enforce allowed PR source branches"
+                  }
+                ]
+              }
+            }
+          ],
+          "node_id": "RRS_lACqUmVwb3NpdG9yec5Lr0lxzgEtCJM",
+          "created_at": "2026-07-25T17:51:04.569+08:00",
+          "updated_at": "2026-07-31T08:52:04.142+08:00",
+          "bypass_actors": [],
+          "current_user_can_bypass": "never",
+          "_links": {
+            "self": {
+              "href": "https://api.github.com/repos/linktrend/IDE-Development/rulesets/19728531"
+            },
+            "html": {
+              "href": "https://github.com/linktrend/IDE-Development/rules/19728531"
+            }
+          }
+        }
+      },
+      "after": {
+        "exists": true,
+        "id": 19728531,
+        "requiredChecks": [
+          "Cursor Bugbot",
+          "Verify IDE Development",
+          "Enforce allowed PR source branches"
+        ],
+        "bypassActors": [],
+        "body": {
+          "name": "development-autonomous-merge",
+          "target": "branch",
+          "enforcement": "active",
+          "conditions": {
+            "ref_name": {
+              "include": [
+                "refs/heads/development"
+              ],
+              "exclude": []
+            }
+          },
+          "rules": [
+            {
+              "type": "required_status_checks",
+              "parameters": {
+                "strict_required_status_checks_policy": true,
+                "do_not_enforce_on_create": false,
+                "required_status_checks": [
+                  {
+                    "context": "Cursor Bugbot"
+                  },
+                  {
+                    "context": "Verify IDE Development"
+                  },
+                  {
+                    "context": "Enforce allowed PR source branches"
+                  }
+                ]
+              }
+            }
+          ],
+          "bypass_actors": []
+        }
+      }
+    },
+    "staging": {
+      "rulesetName": "staging-autonomous-promote",
+      "action": "create",
+      "requiredChecks": {
+        "managed": [
+          "Verify IDE Development",
+          "Enforce allowed PR source branches"
+        ],
+        "preserved": [],
+        "desired": [
+          "Verify IDE Development",
+          "Enforce allowed PR source branches"
+        ]
+      },
+      "before": {
+        "exists": false,
+        "id": null,
+        "requiredChecks": [],
+        "bypassActors": [],
+        "body": null
+      },
+      "after": {
+        "exists": true,
+        "id": null,
+        "requiredChecks": [
+          "Verify IDE Development",
+          "Enforce allowed PR source branches"
+        ],
+        "bypassActors": [],
+        "body": {
+          "name": "staging-autonomous-promote",
+          "target": "branch",
+          "enforcement": "active",
+          "conditions": {
+            "ref_name": {
+              "include": [
+                "refs/heads/staging"
+              ],
+              "exclude": []
+            }
+          },
+          "rules": [
+            {
+              "type": "required_status_checks",
+              "parameters": {
+                "strict_required_status_checks_policy": true,
+                "do_not_enforce_on_create": false,
+                "required_status_checks": [
+                  {
+                    "context": "Verify IDE Development"
+                  },
+                  {
+                    "context": "Enforce allowed PR source branches"
+                  }
+                ]
+              }
+            }
+          ],
+          "bypass_actors": []
+        }
+      }
+    },
+    "main": {
+      "rulesetName": "main-autonomous-release",
+      "action": "create",
+      "requiredChecks": {
+        "managed": [
+          "Verify IDE Development",
+          "Enforce allowed PR source branches"
+        ],
+        "preserved": [],
+        "desired": [
+          "Verify IDE Development",
+          "Enforce allowed PR source branches"
+        ]
+      },
+      "before": {
+        "exists": false,
+        "id": null,
+        "requiredChecks": [],
+        "bypassActors": [],
+        "body": null
+      },
+      "after": {
+        "exists": true,
+        "id": null,
+        "requiredChecks": [
+          "Verify IDE Development",
+          "Enforce allowed PR source branches"
+        ],
+        "bypassActors": [],
+        "body": {
+          "name": "main-autonomous-release",
+          "target": "branch",
+          "enforcement": "active",
+          "conditions": {
+            "ref_name": {
+              "include": [
+                "refs/heads/main"
+              ],
+              "exclude": []
+            }
+          },
+          "rules": [
+            {
+              "type": "required_status_checks",
+              "parameters": {
+                "strict_required_status_checks_policy": true,
+                "do_not_enforce_on_create": false,
+                "required_status_checks": [
+                  {
+                    "context": "Verify IDE Development"
+                  },
+                  {
+                    "context": "Enforce allowed PR source branches"
+                  }
+                ]
+              }
+            }
+          ],
+          "bypass_actors": []
+        }
+      }
+    }
+  },
+  "repoSettings": {
+    "allow_auto_merge": {
+      "before": true,
+      "after": true,
+      "action": "noop"
+    }
+  },
+  "actions": [
+    "development:noop",
+    "staging:create",
+    "main:create"
+  ],
+  "rollback": {
+    "snapshot": {
+      "schemaVersion": 1,
+      "repo": "linktrend/IDE-Development",
+      "mechanism": "rulesets",
+      "branches": {
+        "development": {
+          "mechanism": "rulesets",
+          "rulesetName": "development-autonomous-merge",
+          "before": {
+            "exists": true,
+            "id": 19728531,
+            "requiredChecks": [
+              "Cursor Bugbot",
+              "Verify IDE Development",
+              "Enforce allowed PR source branches"
+            ],
+            "bypassActors": [],
+            "body": {
+              "id": 19728531,
+              "name": "development-autonomous-merge",
+              "target": "branch",
+              "source_type": "Repository",
+              "source": "linktrend/IDE-Development",
+              "enforcement": "active",
+              "conditions": {
+                "ref_name": {
+                  "exclude": [],
+                  "include": [
+                    "refs/heads/development"
+                  ]
+                }
+              },
+              "rules": [
+                {
+                  "type": "required_status_checks",
+                  "parameters": {
+                    "strict_required_status_checks_policy": true,
+                    "do_not_enforce_on_create": false,
+                    "required_status_checks": [
+                      {
+                        "context": "Cursor Bugbot"
+                      },
+                      {
+                        "context": "Verify IDE Development"
+                      },
+                      {
+                        "context": "Enforce allowed PR source branches"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "node_id": "RRS_lACqUmVwb3NpdG9yec5Lr0lxzgEtCJM",
+              "created_at": "2026-07-25T17:51:04.569+08:00",
+              "updated_at": "2026-07-31T08:52:04.142+08:00",
+              "bypass_actors": [],
+              "current_user_can_bypass": "never",
+              "_links": {
+                "self": {
+                  "href": "https://api.github.com/repos/linktrend/IDE-Development/rulesets/19728531"
+                },
+                "html": {
+                  "href": "https://github.com/linktrend/IDE-Development/rules/19728531"
+                }
+              }
+            }
+          }
+        },
+        "staging": {
+          "mechanism": "rulesets",
+          "rulesetName": "staging-autonomous-promote",
+          "before": {
+            "exists": false,
+            "id": null,
+            "requiredChecks": [],
+            "bypassActors": [],
+            "body": null
+          }
+        },
+        "main": {
+          "mechanism": "rulesets",
+          "rulesetName": "main-autonomous-release",
+          "before": {
+            "exists": false,
+            "id": null,
+            "requiredChecks": [],
+            "bypassActors": [],
+            "body": null
+          }
+        }
+      },
+      "repoSettings": {
+        "allow_auto_merge": true
+      }
+    },
+    "instructions": [
+      "Keep the plan JSON (especially rollback.snapshot) before any apply.",
+      "To restore prior protections: ./scripts/manage-repository-protections.sh --repo linktrend/IDE-Development rollback --snapshot <plan.json> --apply",
+      "If mechanism was unavailable, restore manually in GitHub settings using the before payloads.",
+      "Tools never store credentials; re-authenticate with an admin-capable operator identity if needed."
+    ]
+  },
+  "mutations": [],
+  "mode": "plan",
+  "dryRun": true
+}

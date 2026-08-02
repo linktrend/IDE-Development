@@ -1,6 +1,6 @@
 # External-state audit (App / Bugbot / protection)
 
-**Status:** Active — Wave 2 App-backed completion bridge; **WP1 (Issue #67) plan/verify; WP02 (Issue #68) may apply IDE Development live state only via authorized GitHub App path with rollback snapshot — consumers remain deferred**
+**Status:** Active — Wave 2 App-backed completion bridge; **WP1 (Issue #67) clarifies plan/verify only — no apply**
 **Date:** 2026-08-02
 **Audience:** Operators confirming rollout readiness; Verifier; Implementers (read-only)
 **SOT:** `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md` · `docs/contracts/BUGBOT-MENTION-ONLY.md` · `docs/GITOPS-CONSUMER-ROLLOUT.md` · `docs/work-packets/2026-08-02-work-packet-1-production-readiness.md`
@@ -172,7 +172,7 @@ Machine-readable JSON on stdout (optional `--json-output PATH`):
 3. Do **not** treat `summary.ready=true` on a fixture as proof of production readiness.
 4. Do **not** change branch protections, Bugbot dashboard settings, or App installs from an Implementer session — Principal / operator only.
 5. Carlos's restricted user identity must not publish statuses; the GitHub App remains the only privileged publisher for `Linktrend Review Ready`.
-6. Work Packet 1 agents must not treat a green verify report as permission to roll out consumers or apply protections — those remain WP2 / Principal-gated.
+6. Work Packet 1 agents must not treat a green verify report as permission to roll out consumers or apply protections. Work Packet 2 may apply **IDE Development** protections/settings only under the approved packet (GitHub App path + restorable before-state). Consumer rollout and consumer protection apply remain Principal-gated (WP03+).
 
 ---
 
