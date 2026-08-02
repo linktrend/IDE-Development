@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "issue": 72,
+  "lane": "F",
+  "reviewType": "dead-code-safety",
+  "reviewerNumber": 2,
+  "model": "cursor-grok-4.5-high",
+  "mode": "read-only",
+  "branch": "issue/72-pre-launch-ide-development-codebase-cleanup-arch",
+  "worktree": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-72-pre-launch-ide-development-codebase-cleanup-arch",
+  "committedHead": "e6301fc920a4bf841f6bb4d27c15dc4e1f655ef2",
+  "reviewedAt": "2026-08-02T05:13:21Z",
+  "verdict": "PASS",
+  "questions": {
+    "claudeArchiveSafe": {
+      "answer": true,
+      "summary": "Archive via git mv; not in verify required[]; portable harness allows absence; not in MANIFEST; RC/manifest guardrails exclude Claude; docs retargeted."
+    },
+    "chatgptCodexCorrectlyRetained": {
+      "answer": true,
+      "summary": "chatgpt/AGENTS.md and codex/AGENTS.md hard-required by verify-platform-adoption; native Codex untouched."
+    },
+    "unsafeDeletions": {
+      "answer": false,
+      "summary": "Zero pure deletes; only archive renames; wire/sync/backfill and Codex surfaces retained."
+    },
+    "remainingProvenRemovableDeadCodeWithoutWeakeningCodex": {
+      "answer": false,
+      "summary": "None proven removable under conservative high bar; chatgpt/codex/legacy scripts remain verify debt."
+    },
+    "incorrectManifestHandEdit": {
+      "answer": false,
+      "summary": "MANIFEST verify OK; 227 entries unchanged structurally; hash-only updates match doctrine disk content via official regen."
+    },
+    "vendoredGstackMattpocockLeftAlone": {
+      "answer": true,
+      "summary": "core/runtime/skills/gstack and mattpocock clean in git status/diff."
+    }
+  },
+  "findings": {
+    "blockers": [],
+    "majors": [],
+    "minors": [
+      {
+        "id": "M1",
+        "summary": "Archived CLAUDE.md relative ../core and ../.cursor paths do not resolve from archive location.",
+        "remediation": "Optional one-line archived-path banner; do not reintroduce active Claude install path."
+      },
+      {
+        "id": "M2",
+        "summary": "Portable harness comment still says historical Claude may remain; absence already OK.",
+        "remediation": "Optional comment update pointing at docs/archive/platform-entrypoints/claude/; keep non-failing absence check."
+      }
+    ]
+  },
+  "checks": {
+    "rootClaudeAbsent": true,
+    "archiveClaudePresent": true,
+    "chatgptAgentsPresent": true,
+    "codexAgentsPresent": true,
+    "codexReadmePresent": true,
+    "verifyPlatformAdoptionPresenceGate": "OK",
+    "manifestVerify": "OK",
+    "manifestEntryCount": 227,
+    "manifestIdsAdded": [],
+    "manifestIdsRemoved": [],
+    "manifestStructuralFieldChanges": [],
+    "manifestHashOnlyChangedIds": [
+      "doctrine-agent-completion-md",
+      "doctrine-managed-core-v2-md"
+    ],
+    "pureDeleteCount": 0,
+    "nativeCodexPreserved": [
+      "AGENTS.md",
+      ".agents/skills/agentsetup/SKILL.md",
+      ".agents/skills/agentcomply/SKILL.md",
+      "core/managed-core/platforms/codex/"
+    ],
+    "legacyScriptsRetained": [
+      "scripts/wire-repo.sh",
+      "scripts/backfill-managed-workflows.sh",
+      "scripts/sync-managed-workflows.sh",
+      "scripts/sync-managed-runtime.sh",
+      "scripts/sync-agents-managed-section.sh"
+    ],
+    "vendoredClean": [
+      "core/runtime/skills/gstack",
+      "core/runtime/skills/mattpocock"
+    ]
+  },
+  "artifacts": [
+    "docs/evidence/issue-72/lane-f/dead-code-safety-review.md",
+    "docs/evidence/issue-72/lane-f/dead-code-safety-review.json"
+  ]
+}

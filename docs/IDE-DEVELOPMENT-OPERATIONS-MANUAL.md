@@ -6,7 +6,7 @@
 
 **Honesty rule:** everything below describes what is actually installed and verified in this repository right now. Where something is planned but not available yet, it is labeled under [Current status](#current-status-what-is-not-available-yet).
 
-**Companion docs:** [`IDE-DEVELOPMENT-INTENT.md`](./IDE-DEVELOPMENT-INTENT.md) (why this exists) · [`IDE-DEVELOPMENT-TECHNICAL-PRD.md`](./IDE-DEVELOPMENT-TECHNICAL-PRD.md) (full technical reference) · [`OPEN-ISSUES.md`](./OPEN-ISSUES.md) (build log).
+**Companion docs:** [`CURRENT-STATUS.md`](./CURRENT-STATUS.md) (what is true now) · [`IDE-DEVELOPMENT-INTENT.md`](./IDE-DEVELOPMENT-INTENT.md) (why this exists) · [`IDE-DEVELOPMENT-TECHNICAL-PRD.md`](./IDE-DEVELOPMENT-TECHNICAL-PRD.md) (full technical reference) · [`OPEN-ISSUES.md`](./OPEN-ISSUES.md) (build log).
 
 ---
 
@@ -180,9 +180,9 @@ Model choice is pinned to named routes (default coding model, escalation model, 
 | Automatic deploy after Module 6 | **Not built here.** You keep Release OK; this pipeline stops at release-ready. |
 | OpenClaw / Telegram executive operators | **Not live for this system.** Older manuals that promised Stage 2/3 OpenClaw for *this* repo are historical framing only. |
 | Claude Code as a supported platform | **Excluded.** Not in current v2 support or roadmap. Historical files may remain; Cursor and Codex are the supported platforms. |
-| Real consumer rollout | **Deferred.** Work Packet 1 (Issue #67) proves a release candidate on disposable targets. Installing real product repos needs separate Principal approval after Work Packet 2 integration/publication decisions (`docs/GITOPS-CONSUMER-ROLLOUT.md`). |
-| Git tag / GitHub Release | **Not created in WP1.** An RC archive may be built for proof only. |
-| Live GitHub settings apply | **Not in WP1.** External App / Bugbot / protection state is plan/verify (read-only) only. |
+| Real consumer rollout | **Not started.** WP1 proved the RC on disposable targets; WP2 built lineage + live readiness; WP03 integrated/promoted the system line. Installing real product repos is **WP04** — prepared, not executed — and needs Principal approval (`docs/CURRENT-STATUS.md`, `docs/GITOPS-CONSUMER-ROLLOUT.md`). |
+| Git tag / GitHub Release | **Not claimed as published** for `v2.0.0` by WP1–WP03 alone. An RC archive was proven; tag/Release remain separately approval-gated. |
+| Live GitHub settings apply (consumers) | **Not in WP04 until approved.** IDE Development live readiness was closed in WP2; consumer apply/install remains Principal-gated. |
 | Dollar spend dashboard | **Not computed** here. |
 
 ---
@@ -208,10 +208,10 @@ No. Your inputs are Intent-level decisions and the named checkpoints above.
 Done enough for daily installed use under portable v2: doctrine, hybrid skills, pipeline validator, hooks, verification scripts, and the managed install model are in place. Dashboard, always-on autonomy in this repo, Claude Code support, and automatic deploy are not claimed.
 
 **Who installs a product repo?**
-Someone technical runs the portable installer once (after a drift report and your approval for that consumer). After that, daily work is conversation + your gates. Updates use the same installer (`update`), still with drift + approval before each consumer. Work Packet 1 does **not** perform real consumer installs — that remains separately approval-gated.
+Someone technical runs the portable installer once (after a drift report and your approval for that consumer). After that, daily work is conversation + your gates. Updates use the same installer (`update`), still with drift + approval before each consumer. WP1–WP03 do **not** perform real consumer installs — that remains WP04 and separately approval-gated.
 
-**What is Work Packet 2?**
-The integration and publication stage after WP1’s release-candidate proof: reconcile intentional checkpoints (including frozen PR #49), governed merge/promotion, and final publication/rollout decisions under your separate approval.
+**What is Work Packet 4?**
+The consumer rollout stage after WP1 RC proof, WP2 lineage/live readiness, and WP03 system-line promotion: install/update real product repos in the locked order under your separate per-repo approval. The packet is prepared and **not executed** until you approve.
 
 ---
 

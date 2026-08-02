@@ -1,0 +1,866 @@
+{
+  "schemaVersion": 1,
+  "lane": "E",
+  "issue": 72,
+  "repo": "linktrend/IDE-Development",
+  "mode": "PLAN_ONLY",
+  "applyAuthorized": false,
+  "capturedAt": "2026-08-02T05:06:20Z",
+  "caller": {
+    "worktree": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-72-pre-launch-ide-development-codebase-cleanup-arch",
+    "branch": "issue/72-pre-launch-ide-development-codebase-cleanup-arch",
+    "tipSha": "e6301fc920a4bf841f6bb4d27c15dc4e1f655ef2",
+    "dirtyWorkingTree": true,
+    "note": "Dirty caller checkout caused remote dry-run FAIL: caller checkout changed during cleanup"
+  },
+  "postWp03Context": {
+    "mergedPrs": [69, 70, 71],
+    "developmentSha": "e6301fc920a4bf841f6bb4d27c15dc4e1f655ef2",
+    "stagingSha": "8ac0afdc55fe6762587c0226040300ac7cbc7dd6",
+    "mainSha": "0faed7420e314942d4d48222d39f2afb15d8e40a",
+    "equalTreeSha": "43b1333ae21f43a34c3bdcccb2aac96f3d6e007f",
+    "priorPlanPath": "docs/archive/evidence/wp02/lane-c/cleanup-plan-post-wp03.md",
+    "priorPlanAlsoChecked": "docs/evidence/wp02/lane-c/cleanup-plan-post-wp03.md (moved/absent in this worktree)"
+  },
+  "preserveDefaults": {
+    "preserveIssueNumbers": [43, 44, 51],
+    "preservePrNumbers": [49],
+    "preserveResolutionOk": true,
+    "permanentBranches": ["main", "staging", "development"]
+  },
+  "dryRunSummary": {
+    "remoteWouldDelete": [
+      "issue/GITOPS-01-review-packager-pipeline",
+      "issue/ide-bugbot-integrator-merge-fix",
+      "issue/ide-lisa-option-a-doctrine",
+      "promote/main/8ac0afdc55fe",
+      "promote/main/f7829436751b",
+      "promote/staging/991abc319782",
+      "promote/staging/e6301fc920a4"
+    ],
+    "remoteDryRunExitCode": 1,
+    "remoteDryRunFailReason": "caller checkout changed during cleanup",
+    "localWouldDelete": [
+      "issue/31-review-packager-carlos-user-identity-for-pr-auth",
+      "issue/35-gitops-packager-live-smoke",
+      "issue/GITOPS-01-review-packager-pipeline",
+      "issue/ide-bugbot-integrator-merge-fix",
+      "issue/ide-lisa-option-a-doctrine",
+      "promote/main/a1c3444a8447",
+      "promote/staging/0ac31136b8c"
+    ],
+    "localDryRunExitCode": 0
+  },
+  "objects": {
+    "prs": [
+      {
+        "id": 36,
+        "name": "Review: issue/23-gitops-lifecycle-repair-control",
+        "headBranch": "issue/23-gitops-lifecycle-repair-control",
+        "tipSha": "7eb41b2494faf6a7dc683b37d2b7334ddd517bee",
+        "mergeable": "CONFLICTING",
+        "class": "DO-NOT-TOUCH",
+        "evidence": "OPEN PR; Principal preserve; conflicting; open repair #40; prior plan KEEP-OPEN/DEFER",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 37,
+        "name": "Review: issue/28-gitops-bootstrap-activation-smoke-record-issue-2",
+        "headBranch": "issue/28-gitops-bootstrap-activation-smoke-record-issue-2",
+        "tipSha": "8ac8fb4a5c7e39086a4f1f02e4a45b3b17939e6c",
+        "mergeable": "MERGEABLE",
+        "class": "DO-NOT-TOUCH",
+        "evidence": "OPEN PR; Principal preserve; prior plan KEEP-OPEN/DEFER",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 49,
+        "name": "Review: issue/43-build-portable-ide-development-v2-managed-core-i",
+        "headBranch": "issue/43-build-portable-ide-development-v2-managed-core-i",
+        "tipSha": "0868c0034620c4ccb255457484f0342a12a0c833",
+        "mergeable": "CONFLICTING",
+        "class": "DO-NOT-TOUCH",
+        "evidence": "KEEP-FROZEN portable lineage; cleanup_preserve.defaults.json preservePrNumbers=[49]; never alter head",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 52,
+        "name": "Review: issue/51-reconcile-approved-stale-ide-development-prs-wor",
+        "headBranch": "issue/51-reconcile-approved-stale-ide-development-prs-wor",
+        "tipSha": "ccdefcd97769b68fac8d37ab99d2450049d7f8dd",
+        "mergeable": "CONFLICTING",
+        "class": "SUPERSEDED",
+        "evidence": "Cleanup lineage absorbed into development via WP03 #69 (tree 43b1333); still OPEN; preserveIssue 51 until Principal closes",
+        "proposedAction": "close-pr-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "id": 54,
+        "name": "Review: issue/53-repair-bugbot-findings-on-stale-cleanup-controls",
+        "headBranch": "issue/53-repair-bugbot-findings-on-stale-cleanup-controls",
+        "tipSha": "1e8823bf7f28af2f7a885a27476d920f7babdfcf",
+        "mergeable": "CONFLICTING",
+        "class": "SUPERSEDED",
+        "evidence": "Ancestor of cleanup tip; OPEN; content in development post-WP03",
+        "proposedAction": "close-pr-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "id": 56,
+        "name": "Review: issue/55-repair-remaining-bugbot-cleanup-policy-parity-fi",
+        "headBranch": "issue/55-repair-remaining-bugbot-cleanup-policy-parity-fi",
+        "tipSha": "9120ecb2942b838b94ada4105ddc5e9192901bba",
+        "mergeable": "CONFLICTING",
+        "class": "SUPERSEDED",
+        "evidence": "Ancestor of cleanup tip; OPEN; content in development post-WP03",
+        "proposedAction": "close-pr-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "id": 58,
+        "name": "Review: issue/57-repair-bugbot-fail-closed-preservation-when-pres",
+        "headBranch": "issue/57-repair-bugbot-fail-closed-preservation-when-pres",
+        "tipSha": "c2a24e1de1f8cb874938f65bf0c06ec146e10731",
+        "mergeable": "CONFLICTING",
+        "class": "SUPERSEDED",
+        "evidence": "Ancestor of cleanup tip; OPEN; content in development post-WP03",
+        "proposedAction": "close-pr-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "id": 60,
+        "name": "Review: issue/59-repair-bugbot-ambiguous-remote-fail-closed-prese",
+        "headBranch": "issue/59-repair-bugbot-ambiguous-remote-fail-closed-prese",
+        "tipSha": "1b828ca951a5952941c0b4969eac7266ca1866ee",
+        "mergeable": "CONFLICTING",
+        "class": "SUPERSEDED",
+        "evidence": "Ancestor of cleanup tip; OPEN; content in development post-WP03",
+        "proposedAction": "close-pr-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "id": 62,
+        "name": "Review: issue/61-repair-bugbot-repository-scoped-pr-evidence-for",
+        "headBranch": "issue/61-repair-bugbot-repository-scoped-pr-evidence-for",
+        "tipSha": "c596aac752e09886e4d1ae539f0622968280a404",
+        "mergeable": "CONFLICTING",
+        "class": "SUPERSEDED",
+        "evidence": "Ancestor of cleanup tip; OPEN; content in development post-WP03",
+        "proposedAction": "close-pr-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "id": 65,
+        "name": "fix(portable-v2): harden installer lock and protection preservation",
+        "headBranch": "issue/64-production-hardening-portable-installer-safety-m",
+        "tipSha": "44a26f0d14bd0e237748a14dd611c40a7a0cba6f",
+        "mergeable": "CONFLICTING",
+        "class": "DEFER",
+        "evidence": "WP01-adjacent portable hardening; CONFLICTING vs development; Lane A/ledger decides keep vs superseded",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 69,
+        "name": "Review: issue/68-work-packet-02-integration-lineage-stale-cleanup",
+        "headBranch": "issue/68-work-packet-02-integration-lineage-stale-cleanup",
+        "tipSha": "2a1edb18b3bd38b6609b52bfa47f2fe413ac4874",
+        "mergeCommit": "e6301fc920a4bf841f6bb4d27c15dc4e1f655ef2",
+        "class": "SUPERSEDED",
+        "evidence": "MERGED 2026-08-02T04:28:15Z into development (squash); historical only",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 70,
+        "name": "chore(promote): development → staging (e6301fc920a4)",
+        "headBranch": "promote/staging/e6301fc920a4",
+        "tipSha": "d8ec514c588c328937ff880d71b46b0299dc79f4",
+        "mergeCommit": "8ac0afdc55fe6762587c0226040300ac7cbc7dd6",
+        "class": "SUPERSEDED",
+        "evidence": "MERGED promote leftover; remote tip still present → WOULD_DELETE-CANDIDATE on branch",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 71,
+        "name": "chore(promote): staging → main (awaiting Approve 8ac0afdc55fe)",
+        "headBranch": "promote/main/8ac0afdc55fe",
+        "tipSha": "4e9770d3956cae3097e5412f5754eb87e1645082",
+        "mergeCommit": "0faed7420e314942d4d48222d39f2afb15d8e40a",
+        "class": "SUPERSEDED",
+        "evidence": "MERGED promote leftover; remote tip still present → WOULD_DELETE-CANDIDATE on branch",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      }
+    ],
+    "issues": [
+      {
+        "id": 72,
+        "name": "Pre-launch IDE Development codebase cleanup…",
+        "class": "KEEP-ACTIVE",
+        "evidence": "Active Issue #72 work; DO-NOT-TOUCH branch/worktree for this session",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 68,
+        "name": "Work Packet 02 — integration lineage, stale cleanup, and live readiness",
+        "class": "SUPERSEDED",
+        "evidence": "PR #69 merged; issue still OPEN; close only after Codex/Principal",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 67,
+        "name": "Work Packet 1: production-readiness proof and release candidate",
+        "class": "KEEP-OPEN",
+        "evidence": "Open agentsetup; worktree attached",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 66,
+        "name": "Production hardening: physical symlink migration…",
+        "class": "KEEP-OPEN",
+        "evidence": "Open agentsetup; worktree attached; no open PR",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 64,
+        "name": "Production hardening: portable installer safety…",
+        "class": "KEEP-OPEN",
+        "evidence": "Open; backs PR #65",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 63,
+        "name": "Repair Bugbot repository scope propagation in cleanup controls",
+        "class": "SUPERSEDED",
+        "evidence": "Cleanup tip 5cf0991 absorbed via WP03; no open PR; worktree still attached",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 61,
+        "name": "Repair Bugbot repository-scoped PR evidence…",
+        "class": "SUPERSEDED",
+        "evidence": "Open; backs PR #62",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 59,
+        "name": "Repair Bugbot ambiguous remote fail-closed…",
+        "class": "SUPERSEDED",
+        "evidence": "Open; backs PR #60",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 57,
+        "name": "Repair Bugbot fail-closed preservation…",
+        "class": "SUPERSEDED",
+        "evidence": "Open; backs PR #58",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 55,
+        "name": "Repair remaining Bugbot cleanup policy parity…",
+        "class": "SUPERSEDED",
+        "evidence": "Open; backs PR #56",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 53,
+        "name": "Repair Bugbot findings on stale cleanup controls…",
+        "class": "SUPERSEDED",
+        "evidence": "Open; backs PR #54",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 51,
+        "name": "Reconcile approved stale IDE Development PRs…",
+        "class": "KEEP-FROZEN",
+        "evidence": "preserveIssueNumbers includes 51; backs PR #52",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 50,
+        "name": "[repair:usage_limit] #49 Cursor Bugbot",
+        "class": "KEEP-FROZEN",
+        "evidence": "cleanup_stale_records KEEP preserve_issue_number:43 / PR #49",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 46,
+        "name": "[repair:usage_limit] #45 Cursor Bugbot",
+        "class": "KEEP-FROZEN",
+        "evidence": "cleanup_stale_records KEEP preserve_issue_number:44",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 44,
+        "name": "Add App-backed Review Ready publisher…",
+        "class": "KEEP-FROZEN",
+        "evidence": "preserveIssueNumbers includes 44; worktree attached",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 43,
+        "name": "Build portable IDE Development v2 managed core…",
+        "class": "KEEP-FROZEN",
+        "evidence": "preserveIssueNumbers includes 43; PR #49 frozen",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 40,
+        "name": "[repair:merge_conflict] #36",
+        "class": "KEEP-OPEN",
+        "evidence": "cleanup_stale_records KEEP open_pr:36",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 35,
+        "name": "GitOps live Packager smoke after #31 bootstrap",
+        "class": "DEFER",
+        "evidence": "OPEN historical; no active PR/branch remote",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 31,
+        "name": "Review Packager Carlos user identity…",
+        "class": "DEFER",
+        "evidence": "OPEN; local branch gone remote; WOULD_DELETE local only",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 28,
+        "name": "GitOps bootstrap activation smoke record…",
+        "class": "DO-NOT-TOUCH",
+        "evidence": "Backs PR #37",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "id": 23,
+        "name": "Complete autonomous GitOps lifecycle and repair control plane",
+        "class": "DO-NOT-TOUCH",
+        "evidence": "Backs PR #36",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      }
+    ],
+    "remoteBranches": [
+      {
+        "name": "main",
+        "tipSha": "0faed7420e314942d4d48222d39f2afb15d8e40a",
+        "class": "DO-NOT-TOUCH",
+        "evidence": "Protected permanent branch; tree=43b1333",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "staging",
+        "tipSha": "8ac0afdc55fe6762587c0226040300ac7cbc7dd6",
+        "class": "DO-NOT-TOUCH",
+        "evidence": "Protected permanent branch; tree=43b1333",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "development",
+        "tipSha": "e6301fc920a4bf841f6bb4d27c15dc4e1f655ef2",
+        "class": "DO-NOT-TOUCH",
+        "evidence": "Protected permanent branch; tree=43b1333",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/23-gitops-lifecycle-repair-control",
+        "tipSha": "7eb41b2494faf6a7dc683b37d2b7334ddd517bee",
+        "class": "DO-NOT-TOUCH",
+        "evidence": "Open PR #36",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/28-gitops-bootstrap-activation-smoke-record-issue-2",
+        "tipSha": "8ac8fb4a5c7e39086a4f1f02e4a45b3b17939e6c",
+        "class": "DO-NOT-TOUCH",
+        "evidence": "Open PR #37",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/43-build-portable-ide-development-v2-managed-core-i",
+        "tipSha": "0868c0034620c4ccb255457484f0342a12a0c833",
+        "class": "KEEP-FROZEN",
+        "evidence": "preserve policy + PR #49",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+        "tipSha": "98568c398dcc6d49cbe67aa92d5493f66998f2f9",
+        "class": "KEEP-FROZEN",
+        "evidence": "preserveIssue 44 + worktree",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/51-reconcile-approved-stale-ide-development-prs-wor",
+        "tipSha": "ccdefcd97769b68fac8d37ab99d2450049d7f8dd",
+        "class": "KEEP-FROZEN",
+        "evidence": "preserveIssue 51 + open PR #52",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/53-repair-bugbot-findings-on-stale-cleanup-controls",
+        "tipSha": "1e8823bf7f28af2f7a885a27476d920f7babdfcf",
+        "class": "KEEP-OPEN",
+        "evidence": "Open PR #54 + worktree",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/55-repair-remaining-bugbot-cleanup-policy-parity-fi",
+        "tipSha": "9120ecb2942b838b94ada4105ddc5e9192901bba",
+        "class": "KEEP-OPEN",
+        "evidence": "Open PR #56 + worktree",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/57-repair-bugbot-fail-closed-preservation-when-pres",
+        "tipSha": "c2a24e1de1f8cb874938f65bf0c06ec146e10731",
+        "class": "KEEP-OPEN",
+        "evidence": "Open PR #58 + worktree",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/59-repair-bugbot-ambiguous-remote-fail-closed-prese",
+        "tipSha": "1b828ca951a5952941c0b4969eac7266ca1866ee",
+        "class": "KEEP-OPEN",
+        "evidence": "Open PR #60 + worktree",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/61-repair-bugbot-repository-scoped-pr-evidence-for",
+        "tipSha": "c596aac752e09886e4d1ae539f0622968280a404",
+        "class": "KEEP-OPEN",
+        "evidence": "Open PR #62 + worktree",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/63-repair-bugbot-repository-scope-propagation-in-cl",
+        "tipSha": "5cf099155d9f7b5d95e094f74b288af7aec766af",
+        "class": "KEEP-OPEN",
+        "evidence": "No open PR; worktree attached; dry-run KEEP no merged/abandoned PR evidence on remote path (content SUPERSEDED via WP03)",
+        "proposedAction": "lisa-local-worktree-remove-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/64-production-hardening-portable-installer-safety-m",
+        "tipSha": "44a26f0d14bd0e237748a14dd611c40a7a0cba6f",
+        "class": "KEEP-OPEN",
+        "evidence": "Open PR #65",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/66-production-hardening-physical-symlink-migration",
+        "tipSha": "76d2aae1fbf0d497fbfb0e06181b3932660c96ce",
+        "class": "KEEP-OPEN",
+        "evidence": "Worktree attached; no open PR",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/67-work-packet-1-production-readiness-proof-and-rel",
+        "tipSha": "89956878c54ff45e4aef1ff42883d209221b7a30",
+        "class": "KEEP-OPEN",
+        "evidence": "WP01 checkpoint; worktree attached",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/68-work-packet-02-integration-lineage-stale-cleanup",
+        "tipSha": "2a1edb18b3bd38b6609b52bfa47f2fe413ac4874",
+        "class": "KEEP-OPEN",
+        "evidence": "PR #69 MERGED (squash); dry-run KEEP due to active worktree; after WT remove → candidate delete-remote",
+        "proposedAction": "lisa-local-worktree-remove-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/GITOPS-01-review-packager-pipeline",
+        "tipSha": "04904b79f101e34b04c514585fd10ff7976b5cf2",
+        "class": "WOULD_DELETE-CANDIDATE",
+        "evidence": "Remote dry-run WOULD_DELETE_REMOTE MERGED evidence; no open PR; no worktree",
+        "proposedAction": "delete-remote-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/ide-bugbot-integrator-merge-fix",
+        "tipSha": "e97e3835ec29eed65fbfc329616ef541be8d7c90",
+        "class": "WOULD_DELETE-CANDIDATE",
+        "evidence": "Remote dry-run WOULD_DELETE_REMOTE MERGED evidence",
+        "proposedAction": "delete-remote-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/ide-lisa-option-a-doctrine",
+        "tipSha": "689dd14e5d3c5a5cb2163674c801298c929778f6",
+        "class": "WOULD_DELETE-CANDIDATE",
+        "evidence": "Remote dry-run WOULD_DELETE_REMOTE MERGED evidence",
+        "proposedAction": "delete-remote-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "name": "promote/main/f7829436751b",
+        "tipSha": "2a511a96ee05843f8238e84e1672d40d8fd4eb06",
+        "class": "WOULD_DELETE-CANDIDATE",
+        "evidence": "Prior plan leftover; still WOULD_DELETE_REMOTE MERGED",
+        "proposedAction": "delete-remote-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "name": "promote/staging/991abc319782",
+        "tipSha": "b867600138b2d0455eac930f34552284bf482867",
+        "class": "WOULD_DELETE-CANDIDATE",
+        "evidence": "Prior plan leftover; still WOULD_DELETE_REMOTE MERGED",
+        "proposedAction": "delete-remote-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "name": "promote/main/8ac0afdc55fe",
+        "tipSha": "4e9770d3956cae3097e5412f5754eb87e1645082",
+        "class": "WOULD_DELETE-CANDIDATE",
+        "evidence": "NEW post-WP03 leftover from #71; WOULD_DELETE_REMOTE MERGED",
+        "proposedAction": "delete-remote-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "name": "promote/staging/e6301fc920a4",
+        "tipSha": "d8ec514c588c328937ff880d71b46b0299dc79f4",
+        "class": "WOULD_DELETE-CANDIDATE",
+        "evidence": "NEW post-WP03 leftover from #70; WOULD_DELETE_REMOTE MERGED",
+        "proposedAction": "delete-remote-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/cleanup-orchestrator-ship-hour-labels",
+        "tipSha": "bbf3a9caa929f7b4b8b77a4650c3929d18b97176",
+        "class": "DEFER",
+        "evidence": "Dry-run KEEP no merged/abandoned PR evidence; prior plan DEFER",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/ide-lisa-ship05-digest-830",
+        "tipSha": "5131cd5e9d4ec0d2283a08d718418c09d3e78139",
+        "class": "DEFER",
+        "evidence": "Dry-run KEEP exact-head mismatch (PR head != branch tip)",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/ide-pull-wave-test",
+        "tipSha": "6fb14d8aae302475e5d001a7ca91d5e600b0c252",
+        "class": "DEFER",
+        "evidence": "Dry-run KEEP no merged/abandoned PR evidence; tip is ancestor of development; stash@{0} was created on this branch — DO NOT modify stash",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "codex-rollout",
+        "tipSha": "edd968a4ad1546dc7262c620558ec38db20006c5",
+        "class": "DEFER",
+        "evidence": "Dry-run KEEP not a cleanup candidate form",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "cursor/autonomous-git-ops-inheritance",
+        "tipSha": "25a0d67dff29b08767b46cf42d588ae700bf7704",
+        "class": "DEFER",
+        "evidence": "Dry-run KEEP no merged/abandoned PR evidence",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "dev/minicursor/cloud-agent-1784983683128-c4fg3",
+        "tipSha": "aa2e068d4e81c7bfbe8b046b0617c74e03bda44a",
+        "class": "DEFER",
+        "evidence": "Dry-run KEEP no merged/abandoned PR evidence",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      }
+    ],
+    "localBranches": [
+      {
+        "name": "issue/72-pre-launch-ide-development-codebase-cleanup-arch",
+        "tipSha": "e6301fc920a4bf841f6bb4d27c15dc4e1f655ef2",
+        "class": "KEEP-ACTIVE",
+        "evidence": "Active Issue #72 work; caller checkout; NOT on origin yet; DO-NOT-TOUCH",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/31-review-packager-carlos-user-identity-for-pr-auth",
+        "tipSha": "011e85c",
+        "class": "WOULD_DELETE-CANDIDATE",
+        "evidence": "Local dry-run WOULD_DELETE_LOCAL MERGED; remote gone",
+        "proposedAction": "lisa-local-worktree-remove-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue/35-gitops-packager-live-smoke",
+        "tipSha": "c8eb056",
+        "class": "WOULD_DELETE-CANDIDATE",
+        "evidence": "Local dry-run WOULD_DELETE_LOCAL MERGED; remote gone",
+        "proposedAction": "lisa-local-worktree-remove-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "name": "promote/main/a1c3444a8447",
+        "tipSha": "4be8da0",
+        "class": "WOULD_DELETE-CANDIDATE",
+        "evidence": "Local-only leftover; remote gone; WOULD_DELETE_LOCAL",
+        "proposedAction": "lisa-local-worktree-remove-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "name": "promote/staging/0ac31136b8c",
+        "tipSha": "686fd27",
+        "class": "WOULD_DELETE-CANDIDATE",
+        "evidence": "Local-only leftover; remote gone; WOULD_DELETE_LOCAL",
+        "proposedAction": "lisa-local-worktree-remove-after-codex-verify",
+        "applyAuthorized": false
+      }
+    ],
+    "worktrees": [
+      {
+        "name": "issue-72-pre-launch-ide-development-codebase-cleanup-arch",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-72-pre-launch-ide-development-codebase-cleanup-arch",
+        "branch": "issue/72-pre-launch-ide-development-codebase-cleanup-arch",
+        "tipSha": "e6301fc920a4bf841f6bb4d27c15dc4e1f655ef2",
+        "class": "KEEP-ACTIVE",
+        "evidence": "Active Issue #72 Lane work; DO-NOT-TOUCH",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "main-checkout",
+        "path": "/Users/linktrend/Projects/IDE Development",
+        "branch": "main",
+        "tipSha": "bba98ba",
+        "class": "DO-NOT-TOUCH",
+        "evidence": "Primary repo checkout on main (local behind origin)",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-23-prunable",
+        "path": "/private/tmp/issue-23-gitops-lifecycle-repair-control",
+        "branch": "issue/23-gitops-lifecycle-repair-control",
+        "tipSha": "7eb41b2",
+        "class": "KEEP-OPEN",
+        "evidence": "prunable: gitdir file points to non-existent location; still listed; backs PR #36 — do not prune until Codex/Principal; never auto-close #36",
+        "proposedAction": "lisa-local-worktree-remove-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-28",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-28-gitops-bootstrap-activation-smoke-record-issue-2",
+        "branch": "issue/28-gitops-bootstrap-activation-smoke-record-issue-2",
+        "tipSha": "8ac8fb4",
+        "class": "DO-NOT-TOUCH",
+        "evidence": "Backs PR #37",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-43",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-43-build-portable-ide-development-v2-managed-core-i",
+        "branch": "issue/43-build-portable-ide-development-v2-managed-core-i",
+        "tipSha": "0868c00",
+        "class": "KEEP-FROZEN",
+        "evidence": "Frozen PR #49 head",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-44",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-44-add-app-backed-review-ready-publisher-and-produc",
+        "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+        "tipSha": "98568c3",
+        "class": "KEEP-FROZEN",
+        "evidence": "preserve issue 44",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-51",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-51-reconcile-approved-stale-ide-development-prs-wor",
+        "branch": "issue/51-reconcile-approved-stale-ide-development-prs-wor",
+        "tipSha": "ccdefcd",
+        "class": "KEEP-FROZEN",
+        "evidence": "preserve issue 51 + PR #52",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-53",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-53-repair-bugbot-findings-on-stale-cleanup-controls",
+        "branch": "issue/53-repair-bugbot-findings-on-stale-cleanup-controls",
+        "tipSha": "1e8823b",
+        "class": "KEEP-OPEN",
+        "evidence": "Open PR #54",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-55",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-55-repair-remaining-bugbot-cleanup-policy-parity-fi",
+        "branch": "issue/55-repair-remaining-bugbot-cleanup-policy-parity-fi",
+        "tipSha": "9120ecb",
+        "class": "KEEP-OPEN",
+        "evidence": "Open PR #56",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-57",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-57-repair-bugbot-fail-closed-preservation-when-pres",
+        "branch": "issue/57-repair-bugbot-fail-closed-preservation-when-pres",
+        "tipSha": "c2a24e1",
+        "class": "KEEP-OPEN",
+        "evidence": "Open PR #58",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-59",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-59-repair-bugbot-ambiguous-remote-fail-closed-prese",
+        "branch": "issue/59-repair-bugbot-ambiguous-remote-fail-closed-prese",
+        "tipSha": "1b828ca",
+        "class": "KEEP-OPEN",
+        "evidence": "Open PR #60",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-61",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-61-repair-bugbot-repository-scoped-pr-evidence-for",
+        "branch": "issue/61-repair-bugbot-repository-scoped-pr-evidence-for",
+        "tipSha": "c596aac",
+        "class": "KEEP-OPEN",
+        "evidence": "Open PR #62",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-63",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-63-repair-bugbot-repository-scope-propagation-in-cl",
+        "branch": "issue/63-repair-bugbot-repository-scope-propagation-in-cl",
+        "tipSha": "5cf0991",
+        "class": "KEEP-OPEN",
+        "evidence": "No open PR; SUPERSEDED content; keep until Codex authorizes Lisa-local remove",
+        "proposedAction": "lisa-local-worktree-remove-after-codex-verify",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-64",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-64-production-hardening-portable-installer-safety-m",
+        "branch": "issue/64-production-hardening-portable-installer-safety-m",
+        "tipSha": "44a26f0",
+        "class": "KEEP-OPEN",
+        "evidence": "Open PR #65",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-66",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-66-production-hardening-physical-symlink-migration",
+        "branch": "issue/66-production-hardening-physical-symlink-migration",
+        "tipSha": "76d2aae",
+        "class": "KEEP-OPEN",
+        "evidence": "Active portable hardening worktree",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-67",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-67-work-packet-1-production-readiness-proof-and-rel",
+        "branch": "issue/67-work-packet-1-production-readiness-proof-and-rel",
+        "tipSha": "8995687",
+        "class": "KEEP-OPEN",
+        "evidence": "WP01 worktree",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      },
+      {
+        "name": "issue-68",
+        "path": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-68-work-packet-02-integration-lineage-stale-cleanup",
+        "branch": "issue/68-work-packet-02-integration-lineage-stale-cleanup",
+        "tipSha": "2a1edb1",
+        "class": "KEEP-OPEN",
+        "evidence": "PR #69 merged; WT still attached blocks remote delete",
+        "proposedAction": "lisa-local-worktree-remove-after-codex-verify",
+        "applyAuthorized": false
+      }
+    ],
+    "stashes": [
+      {
+        "id": "stash@{0}",
+        "name": "On issue/ide-pull-wave-test: Cursor: moved local changes to cloud agent (source agent fae13234-5850-4636-8cf9-50019e72c8e1)",
+        "tipSha": null,
+        "class": "DO-NOT-TOUCH",
+        "evidence": "Lane E must not drop/apply/modify stash; inventory only",
+        "proposedAction": "none",
+        "applyAuthorized": false
+      }
+    ]
+  },
+  "changedSincePriorPlan": [
+    "WP03 integrated: PRs #69/#70/#71 MERGED; main/staging/development trees equal at 43b1333ae21f43a34c3bdcccb2aac96f3d6e007f",
+    "NEW remote WOULD_DELETE candidates: promote/main/8ac0afdc55fe, promote/staging/e6301fc920a4",
+    "issue/68 moved from KEEP-active-WP02 to MERGED+#69 with worktree still attached",
+    "NEW KEEP-ACTIVE: issue/72 branch + worktree (local only; not on origin)",
+    "Prior plan path relocated to docs/archive/evidence/wp02/lane-c/cleanup-plan-post-wp03.md",
+    "Open PR set unchanged (#36,#37,#49,#52,#54,#56,#58,#60,#62,#65)",
+    "Prior WOULD_DELETE historical set still present (GITOPS-01, bugbot, lisa-option-a, old promotes)",
+    "Remote dry-run now exits 1 due to dirty caller checkout (new apply blocker)"
+  ],
+  "applyBlockers": [
+    "applyAuthorized always false in this Lane E plan",
+    "Awaits Codex verify + Principal authorization",
+    "Remote dry-run EXIT 1: caller checkout changed (dirty worktree on issue/72)",
+    "Must re-run dry-run from clean checkout before any --apply",
+    "Never alter PR #36/#37/#49, credentials, Bugbot, rulesets, or protected branches",
+    "Never modify stash@{0}",
+    "Never delete issue/72 branch or its worktree while Issue #72 active",
+    "Superseded PR closes require ledger equivalence proof + Principal OK"
+  ]
+}
