@@ -561,13 +561,25 @@ class GitHubClient:
 
 
 class FixtureClient(GitHubClient):
-    """Offline client driven by JSON fixtures. Never shells out to gh."""
+    """Offline client driven by JSON fixtures. Never shells out to gh.
 
-    def __init__(self, repo: str, fixture_dir: Path) -> None:
+    When ``read_only=True`` (WP1 external-state plan/verify), all mutating
+    methods raise ``ProtectionError`` with ``EXIT_REFUSED`` and never persist.
+    """
+
+    def __init__(self, repo: str, fixture_dir: Path, *, read_only: bool = False) -> None:
         super().__init__(repo)
         self.fixture_dir = fixture_dir
+        self.read_only = read_only
         self.state = self._load()
         self.mutations: list[dict[str, Any]] = []
+
+    def _refuse_mutation(self, op: str) -> None:
+        if self.read_only:
+            raise ProtectionError(
+                f"repository_protection FixtureClient read_only refuses {op}",
+                EXIT_REFUSED,
+            )
 
     def _load(self) -> dict[str, Any]:
         path = self.fixture_dir / "state.json"
@@ -596,6 +608,7 @@ class FixtureClient(GitHubClient):
         return None
 
     def create_ruleset(self, body: dict[str, Any]) -> dict[str, Any]:
+        self._refuse_mutation("create_ruleset")
         new_id = int(self.state.get("next_ruleset_id") or 1000)
         self.state["next_ruleset_id"] = new_id + 1
         record = deepcopy(body)
@@ -607,6 +620,7 @@ class FixtureClient(GitHubClient):
         return deepcopy(record)
 
     def update_ruleset(self, ruleset_id: int, body: dict[str, Any]) -> dict[str, Any]:
+        self._refuse_mutation("update_ruleset")
         record = deepcopy(body)
         record["id"] = ruleset_id
         details = self.state.setdefault("ruleset_details", {})
@@ -619,6 +633,7 @@ class FixtureClient(GitHubClient):
         return deepcopy(record)
 
     def delete_ruleset(self, ruleset_id: int) -> None:
+        self._refuse_mutation("delete_ruleset")
         self.state["rulesets"] = [r for r in (self.state.get("rulesets") or []) if r.get("id") != ruleset_id]
         (self.state.get("ruleset_details") or {}).pop(str(ruleset_id), None)
         self.mutations.append({"op": "delete_ruleset", "id": ruleset_id})
@@ -637,12 +652,14 @@ class FixtureClient(GitHubClient):
         return "ok", deepcopy(protections[branch]), ""
 
     def put_branch_protection(self, branch: str, body: dict[str, Any]) -> dict[str, Any]:
+        self._refuse_mutation("put_branch_protection")
         self.state.setdefault("branch_protections", {})[branch] = deepcopy(body)
         self.mutations.append({"op": "put_branch_protection", "branch": branch, "body": deepcopy(body)})
         self._persist()
         return deepcopy(body)
 
     def delete_branch_protection(self, branch: str) -> None:
+        self._refuse_mutation("delete_branch_protection")
         (self.state.get("branch_protections") or {}).pop(branch, None)
         self.mutations.append({"op": "delete_branch_protection", "branch": branch})
         self._persist()
@@ -651,6 +668,7 @@ class FixtureClient(GitHubClient):
         return deepcopy(self.state.get("repo") or {"allow_auto_merge": False})
 
     def patch_repo(self, fields: dict[str, Any]) -> dict[str, Any]:
+        self._refuse_mutation("patch_repo")
         repo = self.state.setdefault("repo", {})
         repo.update(fields)
         self.mutations.append({"op": "patch_repo", "fields": deepcopy(fields)})

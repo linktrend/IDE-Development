@@ -59,17 +59,42 @@ def sha256_file(path: Path) -> str:
 
 
 def normalize_mode(mode: int | str) -> str:
-    """Return a 4-digit octal mode string (e.g. '0644')."""
+    """Return a 4-digit octal mode string (e.g. '0644').
+
+    String modes must be valid octal (optional ``0`` / ``0o`` prefix). Decimal
+    digit strings that are not valid octal (e.g. ``999``, ``rwxr``) are refused.
+    """
+    from .errors import InvalidPackageError
+
     if isinstance(mode, str):
         text = mode.strip().lower()
+        if not text:
+            raise InvalidPackageError("mode must be a non-empty octal string")
         if text.startswith("0o"):
-            value = int(text, 8)
-        elif text.startswith("0") and text.isdigit():
-            value = int(text, 8)
+            body = text[2:]
+        elif text.startswith("0") and len(text) > 1 and text.isdigit():
+            body = text
         else:
-            value = int(text, 8) if all(c in "01234567" for c in text) else int(text)
+            body = text
+        if not body or not all(c in "01234567" for c in body):
+            raise InvalidPackageError(
+                f"Invalid octal mode: {mode!r}",
+                details={"mode": mode},
+            )
+        try:
+            value = int(body, 8)
+        except ValueError as exc:
+            raise InvalidPackageError(
+                f"Invalid octal mode: {mode!r}",
+                details={"mode": mode},
+            ) from exc
     else:
         value = int(mode)
+    if value < 0 or value > 0o7777:
+        raise InvalidPackageError(
+            f"Invalid mode value: {mode!r}",
+            details={"mode": mode},
+        )
     value &= 0o7777
     return f"{value:04o}"
 

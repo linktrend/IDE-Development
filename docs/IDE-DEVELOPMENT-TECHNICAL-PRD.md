@@ -1,6 +1,6 @@
 # IDE Development — Technical PRD
 
-**Status:** Technical reference for the IDE Development repository as built for portable managed-core **v2.0.0** (Wave 1 / Issue #43), verified against `core/`, `.cursor/`, `scripts/`, `.githooks/`, and the v2 installer/contracts as they land.
+**Status:** Technical reference for the IDE Development repository as built for portable managed-core **v2.0.0** (Wave 1 / Issue #43), with Work Packet 1 (Issue #67) production-readiness proof and release-candidate packaging in flight. Verified against `core/`, `.cursor/`, `scripts/`, `.githooks/`, and the v2 installer/contracts as they land.
 
 **Ground rule:** The filesystem and verification scripts are the source of truth. Where older docs (`docs/archive/**`, historical Stage 1/2/3 framing, earlier “skills are stubs” audits, Mac-local `.cursor` symlink install guides) disagree with what is wired today, this document follows the filesystem and calls out the discrepancy in §12.
 
@@ -26,7 +26,7 @@ IDE Development is **not** a persistent orchestrator process. It is a **versione
 | **Tools / skills** | Local domain skills (`core/skills/`), vendored gstack + mattpocock (`core/runtime/skills/`), Module composites (`core/runtime/skills/linktrend/`) |
 | **Grading / gates** | Independent review commands + fail-closed `validate-application-pipeline.mjs`; model-routing `independent_review` / `evaluation` routes |
 | **Guardrails** | Canonical Laws, git hooks on `PIPELINE-STATE.json`, CI verify workflow, branch-source policy, managed `development`/`staging`/`main` protection contract |
-| **Install into consumers** | `scripts/ide-development.py` (`install` / `update` / `plan` / `drift` / `verify` / `version` / `rollback`) |
+| **Install into consumers** | `scripts/ide-development.py` (`install` / `update` / `plan` / `drift` / `verify` / `version` / `rollback` / `release-candidate`) |
 
 ### Physical managed install model (v2)
 
@@ -40,12 +40,19 @@ ConsumerRepo/
 ```
 
 - Preferred path: `python3 scripts/ide-development.py plan|install|update|drift|verify|version|rollback --repo /path/to/ProductRepo`.
-- Mutating operations plan first, run transactionally, and retain exact pre-change backups for rollback.
+- Mutating operations plan first, run transactionally, and retain exact pre-change backups for rollback (`docs/runbooks/rollback.md`).
 - Managed-file drift is detected by stored hashes; unknown conflicts fail closed.
+- Obsolete generic rules are removed only on exact supersession identity+hash match; otherwise refuse.
+- External `.cursor` symlinks migrate to physical files without reading/writing the outside target; rollback restores the symlink exactly.
+- Cursor and Codex discovery use physical in-repo adapters (nested directories under the consumer must still resolve them).
 - Do **not** create consumer `.cursor` symlinks pointing at this system checkout.
-- GitHub App credentials, secrets, variables, Bugbot dashboard settings, and live ruleset mutations stay external (dry-run plan/apply/verify — see `docs/contracts/REPOSITORY-PROTECTION.md`).
+- GitHub App credentials, secrets, variables, Bugbot dashboard settings, and live ruleset mutations stay external. **WP1 = plan/verify read-only only** (no apply) — see `docs/contracts/EXTERNAL-STATE-AUDIT.md` and `docs/contracts/REPOSITORY-PROTECTION.md`.
 - Multi-machine sync for the **system** repo: GitHub `linktrend/IDE-Development` is source of truth; clone as `~/Projects/IDE Development` (see `SETUP.md`).
-- IDE Development itself is **system source / self-verification**, not a consumer rollout entry, and must not receive a nested installed copy of itself during Wave 1.
+- IDE Development itself is **system source / self-verification**, not a consumer rollout entry, and must not receive a nested installed copy of itself during Wave 1 / WP1.
+- **Release candidate:** `python3 scripts/ide-development.py release-candidate create|verify` builds/proves reproducible portable archives (default `build/release-candidate/`). No Git tag or GitHub Release in WP1. Operator steps: `docs/runbooks/release-candidate.md`.
+- **Consumer rollout:** Deferred and separately Principal-gated; Work Packet 2 is the integration/publication stage (`docs/GITOPS-CONSUMER-ROLLOUT.md`).
+- **Host OS evidence:** macOS, Ubuntu Linux, and Windows matrix proofs required for WP1 production-readiness claims (`docs/acceptance/acceptance-matrix.md`).
+- **Claude Code:** Excluded from support and packaging.
 
 ### Supported platforms (current v2)
 
@@ -53,7 +60,7 @@ ConsumerRepo/
 |---|---|
 | Cursor | Supported |
 | Codex | Supported |
-| Claude Code | **Not supported** in current v2 release or roadmap. Historical `claude/` files may remain; no new Claude runtime surfaces. |
+| Claude Code | **Excluded** — not supported in current v2 release or roadmap. Historical `claude/` files may remain; no new Claude runtime surfaces. |
 
 ### `core/` vs `.cursor/` vs `.ide-development/`
 
@@ -404,7 +411,10 @@ Known past mistake to avoid repeating: earlier audits sometimes claimed hybrid s
 | `.cursor/` | System-repo compatibility runtime (adapters + Cursor rules/MCP) |
 | `.githooks/` | pre-commit / pre-push pipeline enforcement |
 | `scripts/` | verify, vendor, wire (legacy), portable installer, install-hooks, feasibility, gate-stop test |
-| `scripts/ide-development.py` | Portable installer CLI (`install`/`update`/`plan`/`drift`/`verify`/`version`/`rollback`) |
+| `scripts/ide-development.py` | Portable installer CLI (`install`/`update`/`plan`/`drift`/`verify`/`version`/`rollback`/`release-candidate`) |
+| `docs/runbooks/` | Release-candidate and rollback operator runbooks |
+| `docs/acceptance/acceptance-matrix.md` | WP1 acceptance gates |
+| `docs/BUILD-LOG.md` | Append-only Work Packet build log |
 | `tests/fixtures/` | Pipeline feasibility / gate-stop / unification fixtures |
 | `tests/test-portable-v2-integration.sh` | Top-level Wave 1 integration harness |
 | `docs/` | Source-of-truth docs (this set), hybrid registry, ADR, archive |
@@ -436,9 +446,11 @@ CI invokes the first three families via `ci.yml` with `CI=true` (skips machine-l
 | This repo “evolves” into OpenClaw Stage 2/3 autonomy | Autonomy roadmap belongs to **LiNKdeveloper**; this repo stays human-assisted |
 | Hybrid skills are stubs / reference-only | Physically vendored under `core/runtime/skills/{gstack,mattpocock}/` with hash manifest + hybrid commands |
 | Consumer install is a `.cursor` symlink to IDE Development | v2 installs physical `.ide-development/` + adapters via `scripts/ide-development.py` |
-| Claude Code is a current supported entrypoint | Outside current v2 support/roadmap; historical `claude/` may remain |
-| IDE Development is a consumer rollout first adopter | System source / self-verification only — not a consumer rollout entry in Wave 1 |
-| Ship/Pull lists omit `LiNKtrading-codebase` / treat IDE Development as install #1 | Ship/Pull may process IDE Development first as system source; consumer install order starts at `openclaw_prime` and includes `LiNKtrading-codebase` (`docs/GITOPS-CONSUMER-ROLLOUT.md`) |
+| Claude Code is a current supported entrypoint | **Excluded** from current v2 support/roadmap; historical `claude/` may remain |
+| IDE Development is a consumer rollout first adopter | System source / self-verification only — not a consumer rollout entry in Wave 1 / WP1 |
+| WP1 publishes a GitHub Release / tag | WP1 builds an RC **archive** for proof only; tag/Release is WP2/approval-gated |
+| WP1 applies live GitHub protections/App/Bugbot | WP1 is plan/verify read-only; apply is out of scope |
+| Ship/Pull lists omit `LiNKtrading-codebase` / treat IDE Development as install #1 | Ship/Pull may process IDE Development first as system source; consumer install order starts at `openclaw_prime` and includes `LiNKtrading-codebase` (`docs/GITOPS-CONSUMER-ROLLOUT.md`); real rollout remains deferred |
 | Six Modules including Living Document / dual PRD | Intent + **single Technical PRD**; Living Document retired |
 | `scripts/verify-stage1.sh` | Renamed/replaced by `scripts/verify-ide-development.sh` |
 | `docs/LINKDEVELOPER-OPERATIONS-MANUAL.md` / `LINKDEVELOPER-STAGE1.md` | Correct names use `IDE-DEVELOPMENT-*` prefix |

@@ -25,6 +25,10 @@ from .engine import (
     run_version,
 )
 from .errors import InstallerError
+from .release_candidate import (
+    create_release_candidate,
+    verify_release_candidate_archive,
+)
 
 
 def _emit(payload: dict[str, Any], *, as_json: bool) -> None:
@@ -123,18 +127,94 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="Restore exact pre-change bytes from last transaction",
     )
+
+    # Release-candidate packaging (Lane D) — nested actions; not a consumer install.
+    rc = sub.add_parser(
+        "release-candidate",
+        help="Deterministic release-candidate packaging (create/verify archives)",
+    )
+    rc_sub = rc.add_subparsers(dest="rc_action", required=True)
+    rc_common = argparse.ArgumentParser(add_help=False)
+    rc_common.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON only",
+    )
+    rc_create = rc_sub.add_parser(
+        "create",
+        parents=[rc_common],
+        help="Validate, regenerate manifest, build RC archives",
+    )
+    rc_create.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Output directory (default: build/release-candidate)",
+    )
+    rc_create.add_argument(
+        "--allow-dirty",
+        action="store_true",
+        help="Allow dirty worktree (local proofs only; production must be clean)",
+    )
+    rc_create.add_argument(
+        "--skip-install-verify",
+        action="store_true",
+        help="Skip extract+install verification",
+    )
+    rc_create.add_argument(
+        "--skip-evidence",
+        action="store_true",
+        help="Skip lane evidence path checks (still requires packaging unit tests)",
+    )
+    rc_verify = rc_sub.add_parser(
+        "verify",
+        parents=[rc_common],
+        help="Extract an RC archive and install into a clean temp repo",
+    )
+    rc_verify.add_argument(
+        "--archive",
+        type=Path,
+        required=True,
+        help="Path to .tar.gz or .zip RC archive",
+    )
+    rc_verify.add_argument(
+        "--expected-version",
+        default="2.0.0",
+        help="Expected package version (default 2.0.0)",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    as_json = bool(args.json)
+    as_json = bool(getattr(args, "json", False))
     dry_run = bool(getattr(args, "dry_run", False))
-    target = Path(args.target) if args.target is not None else Path.cwd()
-    package = Path(args.package) if args.package is not None else None
+    target_arg = getattr(args, "target", None)
+    package_arg = getattr(args, "package", None)
+    target = Path(target_arg) if target_arg is not None else Path.cwd()
+    package = Path(package_arg) if package_arg is not None else None
 
     try:
+        if args.command == "release-candidate":
+            if args.rc_action == "create":
+                payload = create_release_candidate(
+                    output_dir=Path(args.output_dir) if args.output_dir else None,
+                    allow_dirty=bool(args.allow_dirty),
+                    skip_install_verify=bool(args.skip_install_verify),
+                    skip_evidence=bool(args.skip_evidence),
+                )
+                _emit(payload, as_json=as_json)
+                return EXIT_OK
+            if args.rc_action == "verify":
+                payload = verify_release_candidate_archive(
+                    archive_path=Path(args.archive),
+                    expected_version=str(args.expected_version),
+                )
+                _emit(payload, as_json=as_json)
+                return EXIT_OK
+            parser.error(f"Unknown release-candidate action: {args.rc_action}")
+            return EXIT_ERROR
         if args.command == "plan":
             result = run_plan(target=target, package=package, command="plan", dry_run=True)
         elif args.command == "install":
@@ -156,7 +236,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "verify":
             result = run_verify(target=target, package=package)
         elif args.command == "version":
-            result = run_version(target=target if args.target else None, package=package)
+            result = run_version(target=target if target_arg else None, package=package)
         elif args.command == "rollback":
             result = run_rollback(target=target)
         else:  # pragma: no cover

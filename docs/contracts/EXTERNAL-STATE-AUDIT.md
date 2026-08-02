@@ -1,11 +1,11 @@
 # External-state audit (App / Bugbot / protection)
 
-**Status:** Active — Wave 2 App-backed completion bridge
-**Date:** 2026-08-01
+**Status:** Active — Wave 2 App-backed completion bridge; **WP1 (Issue #67) clarifies plan/verify only — no apply**
+**Date:** 2026-08-02
 **Audience:** Operators confirming rollout readiness; Verifier; Implementers (read-only)
-**SOT:** `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md` · `docs/contracts/BUGBOT-MENTION-ONLY.md` · `docs/GITOPS-CONSUMER-ROLLOUT.md`
-**Tooling:** `scripts/gitops/external_state_audit.py`
-**Tests:** `scripts/tests/test-external-state-audit.sh`
+**SOT:** `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md` · `docs/contracts/BUGBOT-MENTION-ONLY.md` · `docs/GITOPS-CONSUMER-ROLLOUT.md` · `docs/work-packets/2026-08-02-work-packet-1-production-readiness.md`
+**Tooling:** `scripts/gitops/external_state_audit.py` (existing); WP1 Lane C expands inventory/planner/verifier coverage under owned paths
+**Tests:** `scripts/tests/test-external-state-audit.sh` (+ Lane C fixture matrix when landed)
 
 ---
 
@@ -14,6 +14,19 @@
 Produce a **read-only, dry-run-default** report of the external GitHub App, Bugbot, and repository-protection state required before App-backed `Linktrend Review Ready` publication can be trusted in production.
 
 This tool **reports**. It does **not** create Apps, secrets, variables, Bugbot settings, rulesets, PRs, statuses, or promotions.
+
+### Work Packet 1 boundary (mandatory)
+
+| Mode | WP1 allowed? |
+|---|---|
+| `plan` / dry-run checklist | Yes |
+| `report` / `verify` (fixture or live GET) | Yes — read-only |
+| Live audit of `linktrend/IDE-Development` | Yes — identifiers/posture/conclusions only; **never credentials** |
+| `apply` / mutate / create / delete | **No** — out of WP1 entirely |
+
+Every unverifiable setting must be reported as `unknown` or `blocked`, never assumed compliant. Repository-specific required checks and unrelated protection rules must be preserved in plans (union, do not delete).
+
+Consumer rollout remains deferred; external-state readiness does **not** authorize consumer installs.
 
 ---
 
@@ -64,6 +77,8 @@ Related contracts:
 Default without `--live` / `--fixture-dir` is **dry-run**: emit the checklist with `observed=unchecked` / `status=unchecked`. This is intentional — agents must not probe production settings casually, and tests must not depend on live GitHub.
 
 There is **no** `apply`, `fix`, `create`, or `delete` mode. Any mutating HTTP method is refused (`exit 5`).
+
+**Work Packet 1:** treat “no apply” as a hard process rule even if future tooling adds an apply path — WP1 evidence must show zero mutations.
 
 ---
 
@@ -157,6 +172,7 @@ Machine-readable JSON on stdout (optional `--json-output PATH`):
 3. Do **not** treat `summary.ready=true` on a fixture as proof of production readiness.
 4. Do **not** change branch protections, Bugbot dashboard settings, or App installs from an Implementer session — Principal / operator only.
 5. Carlos's restricted user identity must not publish statuses; the GitHub App remains the only privileged publisher for `Linktrend Review Ready`.
+6. Work Packet 1 agents must not treat a green verify report as permission to roll out consumers or apply protections — those remain WP2 / Principal-gated.
 
 ---
 

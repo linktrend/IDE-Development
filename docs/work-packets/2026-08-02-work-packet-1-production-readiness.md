@@ -1,10 +1,10 @@
 # Work Packet 1 — production-readiness proof and release candidate
 
-**Status:** Prepared; execution not started  
-**Execution issue:** Create automatically with `agentsetup` only when Carlos authorizes dispatch  
-**Required starting checkpoint:** `76d2aae1fbf0d497fbfb0e06181b3932660c96ce` (`issue/66-production-hardening-physical-symlink-migration`)  
-**Owner:** Cursor Grok 4.5 High lead, with Cursor Grok 4.5 High subagents only  
-**Independent verifier:** Codex Desktop Orchestrator  
+**Status:** Prepared; execution not started
+**Execution issue:** Create automatically with `agentsetup` only when Carlos authorizes dispatch
+**Required starting checkpoint:** `76d2aae1fbf0d497fbfb0e06181b3932660c96ce` (`issue/66-production-hardening-physical-symlink-migration`)
+**Owner:** Cursor Grok 4.5 High lead, with Cursor Grok 4.5 High subagents only
+**Independent verifier:** Codex Desktop Orchestrator
 **Delivery mode:** Commit, push, checkpoint only — no PR, Bugbot, review-ready, merge, or promotion
 
 ## Outcome

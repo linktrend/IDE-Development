@@ -179,7 +179,10 @@ Model choice is pinned to named routes (default coding model, escalation model, 
 | Always-on autonomous factory in *this* repo | **Not this repo’s job.** That is LiNKdeveloper. |
 | Automatic deploy after Module 6 | **Not built here.** You keep Release OK; this pipeline stops at release-ready. |
 | OpenClaw / Telegram executive operators | **Not live for this system.** Older manuals that promised Stage 2/3 OpenClaw for *this* repo are historical framing only. |
-| Claude Code as a supported platform | **Not in current v2 support or roadmap.** Historical files may remain; Cursor and Codex are the supported platforms. |
+| Claude Code as a supported platform | **Excluded.** Not in current v2 support or roadmap. Historical files may remain; Cursor and Codex are the supported platforms. |
+| Real consumer rollout | **Deferred.** Work Packet 1 (Issue #67) proves a release candidate on disposable targets. Installing real product repos needs separate Principal approval after Work Packet 2 integration/publication decisions (`docs/GITOPS-CONSUMER-ROLLOUT.md`). |
+| Git tag / GitHub Release | **Not created in WP1.** An RC archive may be built for proof only. |
+| Live GitHub settings apply | **Not in WP1.** External App / Bugbot / protection state is plan/verify (read-only) only. |
 | Dollar spend dashboard | **Not computed** here. |
 
 ---
@@ -205,7 +208,10 @@ No. Your inputs are Intent-level decisions and the named checkpoints above.
 Done enough for daily installed use under portable v2: doctrine, hybrid skills, pipeline validator, hooks, verification scripts, and the managed install model are in place. Dashboard, always-on autonomy in this repo, Claude Code support, and automatic deploy are not claimed.
 
 **Who installs a product repo?**
-Someone technical runs the portable installer once (after a drift report and your approval for that consumer). After that, daily work is conversation + your gates. Updates use the same installer (`update`), still with drift + approval before each consumer.
+Someone technical runs the portable installer once (after a drift report and your approval for that consumer). After that, daily work is conversation + your gates. Updates use the same installer (`update`), still with drift + approval before each consumer. Work Packet 1 does **not** perform real consumer installs — that remains separately approval-gated.
+
+**What is Work Packet 2?**
+The integration and publication stage after WP1’s release-candidate proof: reconcile intentional checkpoints (including frozen PR #49), governed merge/promotion, and final publication/rollout decisions under your separate approval.
 
 ---
 

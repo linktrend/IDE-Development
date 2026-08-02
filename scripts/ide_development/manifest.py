@@ -23,7 +23,7 @@ from .constants import (
 )
 from .errors import InvalidPackageError
 from .hashing import normalize_mode, sha256_file
-from .paths import as_posix_rel, join_under, os_matches, platform_matches
+from .paths import as_posix_rel, join_under, join_under_nofollow, os_matches, path_is_symlink, platform_matches
 
 
 @dataclass(frozen=True)
@@ -237,12 +237,19 @@ def load_manifest(package_root: Path, *, manifest_rel: PurePosixPath | str | Non
             raise InvalidPackageError(f"Duplicate destination: {entry.destination}")
         # external-state / consumer-preserve may still declare a source for hash identity
         if entry.ownership_class != "consumer-preserve":
+            # Check symlink on the logical path first so an escaping package
+            # symlink is InvalidPackage (12), not PATH_ESCAPE Conflict (11).
+            logical_source = join_under_nofollow(package_root, entry.source)
+            if path_is_symlink(logical_source):
+                raise InvalidPackageError(
+                    f"Source must be a physical file (symlink refused): {entry.source}"
+                )
             source_path = join_under(package_root, entry.source)
             if not source_path.is_file():
                 if entry.ownership_class == "optional":
                     continue
                 raise InvalidPackageError(f"Missing source file for {entry.id}: {entry.source}")
-            if source_path.is_symlink():
+            if path_is_symlink(source_path):
                 raise InvalidPackageError(
                     f"Source must be a physical file (symlink refused): {entry.source}"
                 )

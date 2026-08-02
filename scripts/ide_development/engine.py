@@ -263,6 +263,7 @@ def run_rollback(*, target: Path) -> EngineResult:
                 "ok": False,
                 "error": exc.message,
                 "details": exc.details,
+                "exitCode": exc.exit_code,
             },
         )
     return EngineResult(

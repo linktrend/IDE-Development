@@ -14,7 +14,42 @@ EXIT_ROLLBACK_FAILURE = 13
 
 SCHEMA_VERSION = 1
 INSTALLER_VERSION = "2.0.0"
+PACKAGE_VERSION_TARGET = "2.0.0"
 PACKAGE_NAME = "ide-development-managed-core"
+
+# Release-candidate packaging (Lane D) — archives under ignored build/
+RC_SCHEMA_VERSION = 1
+RC_KIND = "ide-development-release-candidate"
+RC_BUILD_DIR_REL = "build/release-candidate"
+RC_METADATA_NAME = "release-candidate.json"
+RC_CHECKSUMS_NAME = "SHA256SUMS.json"
+# Deterministic archive epoch: 2026-08-01T00:00:00Z
+RC_ARCHIVE_EPOCH = 1_785_542_400
+RC_ARCHIVE_EPOCH_UTC = "2026-08-01T00:00:00Z"
+RC_REQUIRED_SCHEMA_RELS = (
+    "core/managed-core/schemas/manifest.schema.json",
+    "core/managed-core/schemas/installed-state.schema.json",
+    "core/managed-core/schemas/transaction.schema.json",
+    "core/managed-core/schemas/release-candidate.schema.json",
+    "core/managed-core/schemas/release-candidate-checksums.schema.json",
+)
+RC_REQUIRED_TEST_RELS = (
+    "scripts/ide_development_tests/test_release_candidate.py",
+    "scripts/ide_development_tests/test_package_reproducibility.py",
+)
+RC_REQUIRED_EVIDENCE_RELS = (
+    "tests/packaging/LANE_D_RESULT.md",
+)
+RC_EXCLUSION_CLASSES = (
+    "credentials-and-secret-values",
+    "git-metadata",
+    "absolute-host-paths",
+    "external-symlinks",
+    "caches-and-temp-files",
+    "consumer-data",
+    "claude-surfaces",
+    "build-artifacts",
+)
 
 # Committed managed-core root inside a consumer repository
 MANAGED_CORE_DIR = ".ide-development"

@@ -187,6 +187,14 @@ def build_entries() -> list[dict[str, Any]]:
         ("schemas/manifest.schema.json", ".ide-development/schemas/manifest.schema.json"),
         ("schemas/installed-state.schema.json", ".ide-development/schemas/installed-state.schema.json"),
         ("schemas/transaction.schema.json", ".ide-development/schemas/transaction.schema.json"),
+        (
+            "schemas/release-candidate.schema.json",
+            ".ide-development/schemas/release-candidate.schema.json",
+        ),
+        (
+            "schemas/release-candidate-checksums.schema.json",
+            ".ide-development/schemas/release-candidate-checksums.schema.json",
+        ),
         ("platforms/README.md", ".ide-development/platforms/README.md"),
         ("platforms/codex/README.md", ".ide-development/platforms/codex/README.md"),
         ("platforms/cursor/README.md", ".ide-development/platforms/cursor/README.md"),

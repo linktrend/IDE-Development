@@ -1,11 +1,12 @@
 # Managed Core v2 Contract
 
-**Status:** Active (Wave 1 — Issue #43)
-**Date:** 2026-08-01
-**Package version target:** `2.0.0` (identity only; no tag/release in this wave)
+**Status:** Active (Wave 1 — Issue #43; WP1 production-readiness clarifications — Issue #67)
+**Date:** 2026-08-02
+**Package version target:** `2.0.0` (identity only; no tag/release in Wave 1 / WP1 — RC archive proof only)
 **ADR:** `docs/adr/0004-portable-managed-core-v2.md`
 **Schemas:** `core/managed-core/schemas/`
 **Layout:** `core/managed-core/README.md`
+**Operator docs:** `SETUP.md` · `docs/runbooks/release-candidate.md` · `docs/runbooks/rollback.md` · `docs/acceptance/acceptance-matrix.md`
 
 ## Purpose
 
@@ -28,8 +29,9 @@ This contract does **not** implement the installer, adapters, migration catalog 
 | Repository-specific technical guidance | Consumer repository (preserved) |
 | File ownership and hashes | Package `MANIFEST.json` + installed-state |
 | Mutation safety | Transaction plan + backups under `.git/ide-development/` |
-| External GitHub settings | Separate plan/apply/verify tooling (dry-run default) |
+| External GitHub settings | Separate plan/verify tooling (**read-only / dry-run in WP1**; apply is out of WP1) |
 | Secrets / credentials | Never packaged; GSM / approved stores only |
+| Release candidate archives | `release-candidate create|verify` CLI; no GitHub tag/Release in WP1 |
 
 ## Installed layout (consumer repository)
 
@@ -217,21 +219,24 @@ Outside the package (never embedded as secret values):
 - live rulesets and classic branch protection objects
 - absolute local checkout paths of IDE Development on any machine
 
-External tooling (WP5) must:
+External tooling must:
 
-- default to dry-run plan;
+- default to dry-run / read-only plan and verify;
 - emit before/after machine-readable plans and rollback instructions;
 - union repository-specific required checks with managed required checks;
 - cover `development`, `staging`, and `main`;
-- perform no live mutation during Wave 1 acceptance tests.
+- perform **no live mutation during Work Packet 1** (fixture-backed tests + optional live GETs only);
+- never print, store, package, or hash secret values.
+
+Apply of App installs, secrets, variables, Bugbot dashboard toggles, or rulesets is **out of WP1** and separately approval-gated.
 
 ## Self-verification versus consumer rollout
 
-| Role | Repository | Wave 1 behavior |
+| Role | Repository | Wave 1 / WP1 behavior |
 |---|---|---|
 | System source | IDE Development | Authors `core/managed-core/`; runs internal verification suites; **not** a consumer rollout entry |
-| Internal self-verification | IDE Development | May execute installer tests against disposable temp repos only |
-| Consumer rollout | Other LiNKtrend repos | Read-only drift report + separate Principal (Carlos) approval before each install |
+| Internal self-verification | IDE Development | May execute installer tests against disposable temp repos only; may build RC archives for proof |
+| Consumer rollout | Other LiNKtrend repos | **Deferred** in WP1. Inventory + Principal approval gate in `docs/GITOPS-CONSUMER-ROLLOUT.md`. Work Packet 2 handles integration/publication decisions. |
 
 Locked consumer rollout order (documentation/ops; not executed in this wave):
 
@@ -247,10 +252,11 @@ Locked consumer rollout order (documentation/ops; not executed in this wave):
 
 Hard stops:
 
-- no real consumer mutation in Wave 1
+- no real consumer mutation in Wave 1 / WP1
 - no nested self-install into IDE Development
-- no live GitHub settings/credential/tag/release changes
+- no live GitHub settings/credential/tag/release changes in WP1
 - no Claude runtime additions
+- no claim of production readiness when required OS/platform gates are skipped or untested
 
 ## Exit code expectations (installer contract surface)
 

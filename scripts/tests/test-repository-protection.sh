@@ -644,4 +644,30 @@ grep -q 'required_pull_request_reviews' "${ROOT}/docs/contracts/REPOSITORY-PROTE
 grep -q 'review/restriction drift' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
 pass "contract documents three-branch dry-run-first protections"
 
+# ---- WP1 read_only FixtureClient refuses mutations; plan/verify still work ----
+python3 - <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path("scripts/gitops").resolve()))
+import repository_protection as rp
+
+client = rp.FixtureClient(
+    "linktrend/Fixture",
+    Path("scripts/tests/fixtures/repository-protection/read-only-plan"),
+    read_only=True,
+)
+plan = rp.build_plan(client)
+assert plan["mutations"] == []
+ok, problems = rp.verify_plan(plan)
+assert ok, problems
+try:
+    client.patch_repo({"allow_auto_merge": False})
+except rp.ProtectionError as exc:
+    assert exc.exit_code == rp.EXIT_REFUSED
+else:
+    raise SystemExit("read_only patch_repo should refuse")
+print("wp1 read_only ok")
+PY
+pass "WP1 read_only FixtureClient plan/verify without apply"
+
 echo "PASS: repository protection suite"

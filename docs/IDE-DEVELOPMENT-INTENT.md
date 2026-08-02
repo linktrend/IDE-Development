@@ -1,6 +1,6 @@
 # IDE Development — Intent
 
-**Status:** Confirmed Intent for the IDE Development repository itself (this repository), written in the same spirit as a Module 1 confirmed Intent artifact — a plain-English statement of what is being built, why, for whom, and what "done" means. Grounded in the portable managed-core v2 model (version **v2.0.0**; Wave 1 / Issue #43) and what the filesystem + verification scripts deliver, not in aspirational Stage 2/3 autonomy language.
+**Status:** Confirmed Intent for the IDE Development repository itself (this repository), written in the same spirit as a Module 1 confirmed Intent artifact — a plain-English statement of what is being built, why, for whom, and what "done" means. Grounded in the portable managed-core v2 model (version **v2.0.0**; Wave 1 / Issue #43) and Work Packet 1 production-readiness proof (Issue #67). Describes what the filesystem + verification scripts deliver, not aspirational Stage 2/3 autonomy language.
 
 **Audience:** The Principal (sole human authority) and any agent or Integrator that needs to understand *why this repository exists* before reading the Technical PRD.
 
@@ -38,7 +38,7 @@ IDE Development is **not** a customer-facing product, **not** the autonomous fac
 This repository is “done enough for daily use” when:
 
 1. **`core/` is the canonical knowledge asset**; `core/managed-core/` is the portable package source; this system repo’s `.cursor/` remains a compatibility authoring surface. Consumers receive physical managed files under `.ide-development/` and physical discovery adapters — not a symlink back to this checkout.
-2. Product repos can be **installed or updated** with `scripts/ide-development.py` (`install` / `update` / `plan` / `drift` / `verify` / `version` / `rollback`) and then consume the same rules, skills, commands, templates, and execution doctrine.
+2. Product repos can be **installed or updated** with `scripts/ide-development.py` (`install` / `update` / `plan` / `drift` / `verify` / `version` / `rollback`, plus `release-candidate create|verify` for packaging proof) and then consume the same rules, skills, commands, templates, and execution doctrine. Real consumer mutation remains Principal-gated; WP1 proves disposable/RC installs only.
 3. The **fixed six-Module application pipeline** is defined, templated, validated fail-closed (`validate-application-pipeline.mjs`), and enforced by local git hooks when `PIPELINE-STATE.json` is present.
 4. **Hybrid skills are physically vendored and hash-verified** (gstack + mattpocock), with command entrypoints under `core/commands/hybrid-*.md` — not stubs and not sibling-path dependencies.
 5. **Six model-routing subagents** exist under `.cursor/agents/route-*.md` with Cursor bracket-param model pins, ported from LiNKdeveloper’s router criteria.
@@ -78,8 +78,10 @@ That is **not** the same as: a persistent VPS factory orchestrator, or live prod
 | Decide which venture to build | Intent comes from the Principal / studio strategy. |
 | Ship a Principal phone/web approval dashboard | Operator surface is Cursor + this Operations Manual. |
 | Depend on LiNKdeveloper at runtime | Independence is intentional. Route criteria are *ported*, not live-imported. |
-| Claude Code as a supported runtime | Outside current v2 support and roadmap. Historical `claude/` files may remain; no new Claude entrypoints. |
-| Nested self-install into this repository | IDE Development is system source / self-verification only — not a consumer rollout target in Wave 1. |
+| Claude Code as a supported runtime | **Excluded.** Outside current v2 support and roadmap. Historical `claude/` files may remain; no new Claude entrypoints. |
+| Nested self-install into this repository | IDE Development is system source / self-verification only — not a consumer rollout target in Wave 1 / WP1. |
+| Real consumer rollout during Work Packet 1 | Deferred. Inventory + order live in `docs/GITOPS-CONSUMER-ROLLOUT.md`; each consumer needs separate Principal approval. Work Packet 2 handles integration/publication decisions. |
+| Git tag / GitHub Release as part of WP1 | WP1 may build a release-candidate **archive** for proof; tag/Release publication belongs to later approval (WP2 boundary). |
 
 ---
 
@@ -116,9 +118,12 @@ Full law text lives in `core/execution/CANONICAL-LAWS.md` (20 laws). Spirit for 
 
 | Document | Role |
 |---|---|
-| `docs/OPEN-ISSUES.md` | Append-only build log — what was verified, deferred, and limited. Prefer over stale prose elsewhere. |
+| `docs/OPEN-ISSUES.md` | Append-only engineering notes — what was verified, deferred, and limited. Prefer over stale prose elsewhere. |
+| `docs/BUILD-LOG.md` | Active Work Packet build log (WP1+). |
+| `docs/runbooks/` · `docs/acceptance/` | Operator release-candidate / rollback runbooks and acceptance matrix. |
 | `docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md` | Exhaustive technical reference for how the system works. |
 | `docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md` | Plain-English handbook for the Principal. |
+| `docs/GITOPS-CONSUMER-ROLLOUT.md` | Consumer inventory; rollout deferred / separately approval-gated; WP2 boundary. |
 | `docs/HYBRID-SKILLS-REGISTRY.md` | Live operational map of gstack/mattpocock commands (kept because verify + command entrypoints cite it). |
 | `core/execution/*` | Operative doctrine (Laws, runtime model, autonomous module behavior, application pipeline). **Not archived.** |
 | `docs/ARCHIVE-INDEX.md` + `docs/archive/` | Retired systems and superseded descriptive docs. |

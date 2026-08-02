@@ -171,3 +171,20 @@ Branch `issue/44-add-app-backed-review-ready-publisher-and-produc` (Issue #44). 
 5. Carlos's restricted user identity must not publish this status (Packager/Bugbot scope unchanged).
 
 **Out of this documentation packet:** workflow/script/test implementation, credential creation, consumer wire, PR/Bugbot/promote.
+
+---
+
+## 14. Work Packet 1 — production-readiness proof and release candidate (Issue #67) — 2026-08-02
+
+**Status pointer (active):** Issue #67 · branch `issue/67-work-packet-1-production-readiness-proof-and-rel` · plan `docs/work-packets/2026-08-02-work-packet-1-production-readiness.md` (committed; do not edit from Lane F).
+
+**Build log:** `docs/BUILD-LOG.md` (starts with WP1 entries).
+**Operator handoff:** `docs/runbooks/release-candidate.md`, `docs/runbooks/rollback.md`, `docs/acceptance/acceptance-matrix.md`, updated `README.md` / `SETUP.md`.
+
+**WP1 proves (system source only):** installer/migration, Cursor + native Codex discovery, RC packaging, recovery/security, read-only GitHub external-state plan/verify, macOS/Linux/Windows evidence expectations.
+
+**WP1 does not:** touch frozen PR #49; merge/promote; publish tag/Release; install real consumers; apply live GitHub settings; add Claude support.
+
+**Consumer rollout:** Deferred and separately Principal-gated — see `docs/GITOPS-CONSUMER-ROLLOUT.md`. **Work Packet 2** is the integration/publication stage.
+
+**CLI at Lane F documentation time:** `plan|install|update|drift|verify|version|rollback|release-candidate` (`create` / `verify`). Default RC output: `build/release-candidate/`.
