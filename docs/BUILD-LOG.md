@@ -10,7 +10,7 @@ Historical long-form OPEN-ISSUES entries remain authoritative for older waves; t
 
 **Issue:** #67
 **Branch:** `issue/67-work-packet-1-production-readiness-proof-and-rel`
-**Plan:** `docs/work-packets/2026-08-02-work-packet-1-production-readiness.md` (do not edit; already committed)
+**Plan:** `docs/archive/work-packets/2026-08-02-work-packet-1-production-readiness.md` (archived; stub remains at historical `docs/work-packets/` path)
 **Models:** Lead + subagents `cursor-grok-4.5-high` only. Claude excluded.
 
 **Outcome sought:** Independently testable portable managed-core v2 release candidate with installer, migration, Cursor/Codex adapters, packaging, recovery, security, and read-only GitHub external-state verification across macOS, Linux, and Windows.
@@ -42,7 +42,7 @@ Historical long-form OPEN-ISSUES entries remain authoritative for older waves; t
 - `docs/GITOPS-CONSUMER-ROLLOUT.md` — WP1 deferral + WP2 boundary
 - Doc clarifications: `docs/contracts/MANAGED-CORE-V2.md`, `docs/contracts/EXTERNAL-STATE-AUDIT.md`
 - Status pointer: `docs/OPEN-ISSUES.md` (Issue #67 / WP1)
-- `docs/runbooks/LANE_F_RESULT.md`
+- `docs/archive/runbooks/LANE_F_RESULT.md` (pointer stub at historical `docs/runbooks/LANE_F_RESULT.md`)
 
 **CLI accuracy note at Lane F write time:**
 
@@ -89,8 +89,8 @@ python3 scripts/ide-development.py release-candidate create|verify
 **Issue:** #68
 **Branch:** `issue/68-work-packet-02-integration-lineage-stale-cleanup`
 **Accepted partial checkpoint:** `712675614014abdf6e180915e07aa21e1a983324`
-**Packet:** `docs/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md`
-**Evidence:** `docs/evidence/wp02/WORK-PACKET-02-EVIDENCE.md` + `EXTERNAL-CONFIGURATION-CLOSURE.md`
+**Packet:** `docs/archive/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md`
+**Evidence:** `docs/archive/evidence/wp02/WORK-PACKET-02-EVIDENCE.md` + `EXTERNAL-CONFIGURATION-CLOSURE.md`
 
 **Proven:** canonical lineage (DEV + WP01 + cleanup + #28 handoff); stale-cleanup tests (no apply); three-OS CI green; RC bound; live external readiness closed (App mint on dry-run `30730954742`; staging/main rulesets `20218450`/`20218451`; development `19728531` preserved; Bugbot Manual Only via Principal UI evidence SHA-256 recorded).
 
@@ -99,3 +99,31 @@ python3 scripts/ide-development.py release-candidate create|verify
 **Not claimed:** production acceptance; consumer rollout; WP03 integration; review-ready on this tip; tag/Release.
 
 **Hard stops honored:** no PR / Bugbot trigger / review-ready publish / Integrator / promote / consumer mutation / frozen-head edit / close-delete / force push / cleanup apply / credential exposure.
+
+---
+
+## WP03-001 — Work Packet 03 complete (integrate + promote) — 2026-08-02
+
+**Evidence (verified facts):** PR #69 → `development`, #70 → `staging`, #71 → `main`.
+**Tree equality:** `origin/development`, `origin/staging`, and `origin/main` share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
+**Result:** COMPLETE for system-line integration/promotion.
+
+**Not claimed:** consumer rollout; Git tag / GitHub Release publication; nested self-install; Claude support.
+
+---
+
+## WP04-001 — Work Packet 04 prepared (not executed) — 2026-08-02
+
+**Packet:** `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
+**Status:** PREPARED / NOT EXECUTED — Principal approval pending.
+**Scope:** Locked-order consumer rollout per `docs/GITOPS-CONSUMER-ROLLOUT.md`.
+**Hard stop:** No consumer mutation authorized by preparing this packet.
+
+---
+
+## ISSUE72-001 — Pre-launch system-repo cleanup opened (Issue #72) — 2026-08-02
+
+**Issue:** #72
+**Branch:** `issue/72-pre-launch-ide-development-codebase-cleanup-arch` (tip starts at `e6301fc` = origin/development merge of #69)
+**Lane A:** Active-doc truth + launch documentation (`docs/CURRENT-STATUS.md`, WP04 packet, SOT/status boundary updates).
+**Status:** In progress. Consumer rollout remains WP04 approval-gated.

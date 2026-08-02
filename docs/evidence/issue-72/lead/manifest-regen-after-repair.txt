@@ -1,0 +1,1 @@
+Wrote core/managed-core/MANIFEST.json with 227 files

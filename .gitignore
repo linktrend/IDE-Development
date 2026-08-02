@@ -1,15 +1,75 @@
+# OS junk
 .DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Secrets / local env (keep committed examples)
 .env
 .env.*
+!.env.example
+!.env.*.example
+
+# Node / frontend build outputs
 node_modules/
 dist/
 build/
 .next/
 .cache/
+.turbo/
+.parcel-cache/
+.vercel/
+
+# Python bytecode / packaging / venvs
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg
+*.egg-info/
+.eggs/
+.Python
+pip-wheel-metadata/
+.venv/
+venv/
+ENV/
+
+# Python test / type / lint caches and coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.hypothesis/
+.coverage
+.coverage.*
+coverage/
+coverage.xml
+htmlcov/
+.dmypy.json
+dmypy.json
+
+# Editor / IDE local state
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+
+# Temp / log files
 *.log
-core/library/.cache/
-__pycache__/
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+
 # Local durable agent state (completion blockers, etc.) — never commit
 .linktrend/
+
+# Forbidden / disposable local tooling trees (acceptance A5)
+.superpowers/
+
+# Repo-local caches
+core/library/.cache/
+
+# Platform matrix summaries keep their own nested ignore for *.json

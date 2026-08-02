@@ -1,6 +1,6 @@
 # IDE Development — Technical PRD
 
-**Status:** Technical reference for the IDE Development repository as built for portable managed-core **v2.0.0** (Wave 1 / Issue #43), with Work Packet 1 (Issue #67) production-readiness proof and release-candidate packaging in flight. Verified against `core/`, `.cursor/`, `scripts/`, `.githooks/`, and the v2 installer/contracts as they land.
+**Status:** Technical reference for the IDE Development repository as built for portable managed-core **v2.0.0** (Wave 1 / Issue #43). WP1 (Issue #67) RC proof, WP2 (Issue #68) lineage + live readiness, and WP03 integration/promotion (PR #69/#70/#71; tree `43b1333…`) are **complete**. WP04 consumer rollout is prepared / not executed. Issue #72 is pre-launch system-repo cleanup. Verified against `core/`, `.cursor/`, `scripts/`, `.githooks/`, and the v2 installer/contracts.
 
 **Ground rule:** The filesystem and verification scripts are the source of truth. Where older docs (`docs/archive/**`, historical Stage 1/2/3 framing, earlier “skills are stubs” audits, Mac-local `.cursor` symlink install guides) disagree with what is wired today, this document follows the filesystem and calls out the discrepancy in §12.
 
@@ -46,11 +46,11 @@ ConsumerRepo/
 - External `.cursor` symlinks migrate to physical files without reading/writing the outside target; rollback restores the symlink exactly.
 - Cursor and Codex discovery use physical in-repo adapters (nested directories under the consumer must still resolve them).
 - Do **not** create consumer `.cursor` symlinks pointing at this system checkout.
-- GitHub App credentials, secrets, variables, Bugbot dashboard settings, and live ruleset mutations stay external. **WP1 = plan/verify read-only only** (no apply) — see `docs/contracts/EXTERNAL-STATE-AUDIT.md` and `docs/contracts/REPOSITORY-PROTECTION.md`.
+- GitHub App credentials, secrets, variables, Bugbot dashboard settings, and live ruleset mutations stay external. **WP1 = plan/verify read-only**; WP2 closed IDE Development live readiness under its packet; **consumer** apply remains Principal-gated (WP04) — see `docs/contracts/EXTERNAL-STATE-AUDIT.md` and `docs/contracts/REPOSITORY-PROTECTION.md`.
 - Multi-machine sync for the **system** repo: GitHub `linktrend/IDE-Development` is source of truth; clone as `~/Projects/IDE Development` (see `SETUP.md`).
-- IDE Development itself is **system source / self-verification**, not a consumer rollout entry, and must not receive a nested installed copy of itself during Wave 1 / WP1.
-- **Release candidate:** `python3 scripts/ide-development.py release-candidate create|verify` builds/proves reproducible portable archives (default `build/release-candidate/`). No Git tag or GitHub Release in WP1. Operator steps: `docs/runbooks/release-candidate.md`.
-- **Consumer rollout:** Deferred and separately Principal-gated; Work Packet 2 is the integration/publication stage (`docs/GITOPS-CONSUMER-ROLLOUT.md`).
+- IDE Development itself is **system source / self-verification**, not a consumer rollout entry, and must not receive a nested installed copy of itself.
+- **Release candidate:** `python3 scripts/ide-development.py release-candidate create|verify` builds/proves reproducible portable archives (default `build/release-candidate/`). WP1 proved RC archives; tag/GitHub Release still separately approval-gated. Operator steps: `docs/runbooks/release-candidate.md`.
+- **Consumer rollout:** WP04 — prepared / not executed; separately Principal-gated (`docs/GITOPS-CONSUMER-ROLLOUT.md`, `docs/CURRENT-STATUS.md`).
 - **Host OS evidence:** macOS, Ubuntu Linux, and Windows matrix proofs required for WP1 production-readiness claims (`docs/acceptance/acceptance-matrix.md`).
 - **Claude Code:** Excluded from support and packaging.
 
@@ -60,7 +60,7 @@ ConsumerRepo/
 |---|---|
 | Cursor | Supported |
 | Codex | Supported |
-| Claude Code | **Excluded** — not supported in current v2 release or roadmap. Historical `claude/` files may remain; no new Claude runtime surfaces. |
+| Claude Code | **Excluded** — not supported in current v2 release or roadmap. Historical packaging archived under `docs/archive/platform-entrypoints/claude/`; no new Claude runtime surfaces. |
 
 ### `core/` vs `.cursor/` vs `.ide-development/`
 
@@ -381,7 +381,7 @@ Honest gaps (do not treat as “almost done” checkboxes):
 6. **Embedded legacy factory-folder cleanup in product repos** — deferred until Principal schedules per-repo adoption cleanup (`docs/ARCHIVE-INDEX.md`).
 7. **Dollar-cost accounting dashboard** — not present.
 8. **Mandatory environment bootstrap Module** — deliberately not ported; optional Starter Kit + light git/CI sanity only.
-9. **Claude Code platform support** — explicitly outside current v2 support and roadmap (historical `claude/` files may remain).
+9. **Claude Code platform support** — explicitly outside current v2 support and roadmap (historical packaging archived under `docs/archive/platform-entrypoints/claude/`).
 10. **Git tag / GitHub Release for v2.0.0** — version is identified in `VERSION`; Wave 1 does not tag or publish a release.
 
 Known past mistake to avoid repeating: earlier audits sometimes claimed hybrid skills were stubs when they were already vendored and wired. Always re-check `core/runtime/skills/{gstack,mattpocock}/`, `VENDOR-MANIFEST.json`, and `hybrid-*.md` entrypoints before asserting “not installed.”
@@ -413,13 +413,14 @@ Known past mistake to avoid repeating: earlier audits sometimes claimed hybrid s
 | `scripts/` | verify, vendor, wire (legacy), portable installer, install-hooks, feasibility, gate-stop test |
 | `scripts/ide-development.py` | Portable installer CLI (`install`/`update`/`plan`/`drift`/`verify`/`version`/`rollback`/`release-candidate`) |
 | `docs/runbooks/` | Release-candidate and rollback operator runbooks |
-| `docs/acceptance/acceptance-matrix.md` | WP1 acceptance gates |
+| `docs/acceptance/acceptance-matrix.md` | WP1 acceptance gates (historical proof checklist) |
 | `docs/BUILD-LOG.md` | Append-only Work Packet build log |
+| `docs/CURRENT-STATUS.md` | Concise post-WP03 / pre-WP04 status |
 | `tests/fixtures/` | Pipeline feasibility / gate-stop / unification fixtures |
 | `tests/test-portable-v2-integration.sh` | Top-level Wave 1 integration harness |
 | `docs/` | Source-of-truth docs (this set), hybrid registry, ADR, archive |
 | `codex/` | Codex-oriented system entrypoints (consumers also get native adapters on install) |
-| `claude/` | Historical Claude packaging only — **not** current v2 support |
+| `docs/archive/platform-entrypoints/claude/` | Historical Claude packaging only — **not** current v2 support |
 | `SETUP.md`, `VERSION`, `CHANGELOG.md` | Operator setup, version (`v2.0.0`), changelog |
 
 ---
@@ -446,11 +447,13 @@ CI invokes the first three families via `ci.yml` with `CI=true` (skips machine-l
 | This repo “evolves” into OpenClaw Stage 2/3 autonomy | Autonomy roadmap belongs to **LiNKdeveloper**; this repo stays human-assisted |
 | Hybrid skills are stubs / reference-only | Physically vendored under `core/runtime/skills/{gstack,mattpocock}/` with hash manifest + hybrid commands |
 | Consumer install is a `.cursor` symlink to IDE Development | v2 installs physical `.ide-development/` + adapters via `scripts/ide-development.py` |
-| Claude Code is a current supported entrypoint | **Excluded** from current v2 support/roadmap; historical `claude/` may remain |
-| IDE Development is a consumer rollout first adopter | System source / self-verification only — not a consumer rollout entry in Wave 1 / WP1 |
-| WP1 publishes a GitHub Release / tag | WP1 builds an RC **archive** for proof only; tag/Release is WP2/approval-gated |
-| WP1 applies live GitHub protections/App/Bugbot | WP1 is plan/verify read-only; apply is out of scope |
-| Ship/Pull lists omit `LiNKtrading-codebase` / treat IDE Development as install #1 | Ship/Pull may process IDE Development first as system source; consumer install order starts at `openclaw_prime` and includes `LiNKtrading-codebase` (`docs/GITOPS-CONSUMER-ROLLOUT.md`); real rollout remains deferred |
+| Claude Code is a current supported entrypoint | **Excluded** from current v2 support/roadmap; historical packaging archived under `docs/archive/platform-entrypoints/claude/` |
+| IDE Development is a consumer rollout first adopter | System source / self-verification only — not a consumer rollout entry |
+| WP1 publishes a GitHub Release / tag | WP1 builds an RC **archive** for proof only; tag/Release remains separately approval-gated |
+| WP1 applies live GitHub protections/App/Bugbot | WP1 is plan/verify read-only; IDE live readiness closed in WP2; consumer apply is WP04/Principal-gated |
+| WP2/WP03 still pending merge/promote | WP2 checkpoint complete; WP03 promoted — `development`/`staging`/`main` share tree `43b1333…` |
+| Consumer rollout already executed | WP04 prepared / not executed — Principal approval pending |
+| Ship/Pull lists omit `LiNKtrading-codebase` / treat IDE Development as install #1 | Ship/Pull may process IDE Development first as system source; consumer install order starts at `openclaw_prime` and includes `LiNKtrading-codebase` (`docs/GITOPS-CONSUMER-ROLLOUT.md`); real rollout remains deferred until WP04 approval |
 | Six Modules including Living Document / dual PRD | Intent + **single Technical PRD**; Living Document retired |
 | `scripts/verify-stage1.sh` | Renamed/replaced by `scripts/verify-ide-development.sh` |
 | `docs/LINKDEVELOPER-OPERATIONS-MANUAL.md` / `LINKDEVELOPER-STAGE1.md` | Correct names use `IDE-DEVELOPMENT-*` prefix |

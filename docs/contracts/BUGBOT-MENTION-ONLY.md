@@ -1,6 +1,6 @@
 # Bugbot mention-only (cost control)
 
-**Status:** Required before consumer rollout
+**Status:** Required before consumer rollout (WP04) — mention-only still a per-repo gate; WP04 prepared / not executed
 **Date:** 2026-07-28
 
 Code alone **cannot** enforce mention-only. Cursor Bugbot runs from Cursor’s GitHub App settings. PR #19 observed automatic usage-limit comments on pushes even without a new `cursor review` comment — proof that automatic mode is still active for this installation.
@@ -60,6 +60,6 @@ List: `GET https://api.cursor.com/bugbot/repos`
 
 Consumer rollout is **blocked** until mention-only is confirmed per repository. Do not purchase funds or raise spending limits as part of this GitOps work.
 
-## This PR
+## Historical note (PR #19 spend-limit period)
 
-Agents must not post additional `@cursor review` comments on PR #19 while the spending limit is active. Integrator correctly blocks on SHA/marker mismatch; bootstrap merge (if any) is a documented one-time admin exception outside the product workflow.
+Agents must not post additional `@cursor review` comments on PR #19 while the spending limit is active. Integrator correctly blocks on SHA/marker mismatch; bootstrap merge (if any) is a documented one-time admin exception outside the product workflow. For current rollout gates, see `docs/CURRENT-STATUS.md` and WP04 (`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).

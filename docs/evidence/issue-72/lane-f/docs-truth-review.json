@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "review": "lane-f-docs-truth",
+  "reviewer": "independent-reviewer-1",
+  "model": "cursor-grok-4.5-high",
+  "date": "2026-08-02",
+  "worktree": "issue-72-pre-launch-ide-development-codebase-cleanup-arch",
+  "mode": "read-only",
+  "verdict": "FAIL",
+  "blockerCount": 0,
+  "majorCount": 3,
+  "minorCount": 4,
+  "verifiedFactsReflection": {
+    "wp1Wp2Wp03Complete": "pass_with_residual_open_issues_15",
+    "wp03PrsAndTreeEquality": "pass_with_archive_index_understatement",
+    "wp04PreparedNotExecuted": "pass",
+    "claudeExcludedSystemSourceNotConsumer": "pass",
+    "issue72InProgress": "pass_current_status_open_issues_17",
+    "currentStatusOperatorSurface": "present_but_open_issues_intro_competes",
+    "archiveStubsForCompletedPackets": "pass"
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "major",
+      "path": "docs/OPEN-ISSUES.md",
+      "line": 3,
+      "quote": "Prefer this file over stale prose elsewhere when asking “what is actually real?”",
+      "issue": "Competes with docs/CURRENT-STATUS.md as the concise operator surface.",
+      "suggestedFix": "Prefer CURRENT-STATUS for what is true now; keep OPEN-ISSUES as append-only history with later corrections winning."
+    },
+    {
+      "id": "F2",
+      "severity": "major",
+      "path": "docs/OPEN-ISSUES.md",
+      "lines": [186, 195],
+      "quotes": [
+        "Status pointer (active): Issue #67",
+        "Work Packet 2 is the integration/publication stage."
+      ],
+      "issue": "False-active WP1 pointer and wrong WP2 boundary; mitigated but not neutralized by item #17.",
+      "suggestedFix": "Add SUPERSEDED banner under #15 pointing to item #17 and CURRENT-STATUS; optionally append historical-pointer wording."
+    },
+    {
+      "id": "F3",
+      "severity": "major",
+      "path": "docs/contracts/MANAGED-CORE-V2.md",
+      "lines": [77, 78, 241, 278],
+      "issue": "Bare WP3/WP4 Wave-1 ADR slice labels collide with Work Packet 03/04 vocabulary.",
+      "suggestedFix": "Rename to Wave-1/ADR-0004 slice WP3/WP4; replace 'not executed in this wave' with Work Packet 04 Principal gate wording."
+    },
+    {
+      "id": "F4",
+      "severity": "minor",
+      "paths": ["docs/ARCHIVE-INDEX.md:10", "docs/archive/README.md:21"],
+      "issue": "WP03 described as #69 only; omits #70/#71 though tree hash is correct.",
+      "suggestedFix": "State PR #69→development, #70→staging, #71→main plus tree equality hash."
+    },
+    {
+      "id": "F5",
+      "severity": "minor",
+      "path": "docs/IDE-DEVELOPMENT-INTENT.md:3",
+      "issue": "Status header omits Issue #72 in progress.",
+      "suggestedFix": "Append Issue #72 cleanup in progress + CURRENT-STATUS pointer."
+    },
+    {
+      "id": "F6",
+      "severity": "minor",
+      "path": "docs/contracts/EXTERNAL-STATE-AUDIT.md",
+      "lines": [6, 7],
+      "issue": "SOT omits CURRENT-STATUS; present-tense 'Lane C expands' for completed WP1 work.",
+      "suggestedFix": "Add CURRENT-STATUS to SOT; past-tense Lane C sentence."
+    },
+    {
+      "id": "F7",
+      "severity": "minor",
+      "path": "docs/contracts/BUGBOT-MENTION-ONLY.md:63-65",
+      "issue": "'This PR' / PR #19 section reads as live current freeze.",
+      "suggestedFix": "Retitle as historical note; keep WP04 gate on status line."
+    }
+  ],
+  "evidencePath": "docs/evidence/issue-72/lane-f/docs-truth-review.md"
+}
