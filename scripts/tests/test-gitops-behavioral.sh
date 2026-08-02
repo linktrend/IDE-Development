@@ -31,6 +31,7 @@ seed_scripts() {
   cp "$ROOT/scripts/cleanup-merged-branches.sh" "$d/scripts/"
   cp "$ROOT/scripts/gitops/"*.sh "$d/scripts/gitops/" 2>/dev/null || true
   cp "$ROOT/scripts/gitops/"*.py "$d/scripts/gitops/"
+  cp "$ROOT/scripts/gitops/"*.json "$d/scripts/gitops/" 2>/dev/null || true
   chmod +x "$d/scripts/"*.sh "$d/scripts/gitops/"*.sh "$d/scripts/gitops/"*.py
   git -C "$d" add .gitignore scripts
   git -C "$d" commit -q -m "chore: seed gitops scripts"
