@@ -1,0 +1,88 @@
+{
+  "capability": {
+    "rulesets": "ok",
+    "branch_protection": "ok"
+  },
+  "repo": {
+    "allow_auto_merge": true
+  },
+  "rulesets": [
+    {"id": 1, "name": "development-autonomous-merge"},
+    {"id": 2, "name": "staging-autonomous-promote"},
+    {"id": 3, "name": "main-autonomous-release"}
+  ],
+  "ruleset_details": {
+    "1": {
+      "id": 1,
+      "name": "development-autonomous-merge",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {"include": ["refs/heads/development"], "exclude": []}
+      },
+      "rules": [
+        {
+          "type": "required_status_checks",
+          "parameters": {
+            "strict_required_status_checks_policy": true,
+            "do_not_enforce_on_create": false,
+            "required_status_checks": [
+              {"context": "Cursor Bugbot"},
+              {"context": "Verify IDE Development"},
+              {"context": "Enforce allowed PR source branches"}
+            ]
+          }
+        }
+      ],
+      "bypass_actors": []
+    },
+    "2": {
+      "id": 2,
+      "name": "staging-autonomous-promote",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {"include": ["refs/heads/staging"], "exclude": []}
+      },
+      "rules": [
+        {
+          "type": "required_status_checks",
+          "parameters": {
+            "strict_required_status_checks_policy": true,
+            "do_not_enforce_on_create": false,
+            "required_status_checks": [
+              {"context": "Verify IDE Development"},
+              {"context": "Enforce allowed PR source branches"}
+            ]
+          }
+        }
+      ],
+      "bypass_actors": []
+    },
+    "3": {
+      "id": 3,
+      "name": "main-autonomous-release",
+      "target": "branch",
+      "enforcement": "active",
+      "conditions": {
+        "ref_name": {"include": ["refs/heads/main"], "exclude": []}
+      },
+      "rules": [
+        {
+          "type": "required_status_checks",
+          "parameters": {
+            "strict_required_status_checks_policy": true,
+            "do_not_enforce_on_create": false,
+            "required_status_checks": [
+              {"context": "Verify IDE Development"},
+              {"context": "Enforce allowed PR source branches"}
+            ]
+          }
+        }
+      ],
+      "bypass_actors": []
+    }
+  },
+  "next_ruleset_id": 10,
+  "branch_protections": {}
+}

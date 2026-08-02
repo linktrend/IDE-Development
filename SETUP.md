@@ -2,14 +2,11 @@
 
 ## Purpose
 
-This repository is **IDE Development** — the shared AI development core used across Cursor, Codex, and future tools.
+This repository is **IDE Development** — the shared AI development core (version **v2.0.0**) used across **Cursor** and **Codex**.
 
-The canonical knowledge asset lives in `core/`. The compatibility runtime surface remains in `.cursor/`. GitHub is the source of truth.
+The canonical knowledge asset lives in `core/`. The portable package source for consumers lives in `core/managed-core/`. GitHub is the source of truth.
 
-The repository also supports:
-
-- session lifecycle for daily resume and close-out behavior
-- workspace adoption for one-time installation into an existing `Projects/` workspace
+**Claude Code is outside current v2 support and roadmap.** Historical Claude packaging files may exist under `claude/`; do not treat them as an active install path.
 
 **New operators:** after cloning, start with the source-of-truth set:
 
@@ -17,6 +14,7 @@ The repository also supports:
 - [docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md](docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md)
 - [docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md](docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md) — day-to-day instructions
 - [docs/OPEN-ISSUES.md](docs/OPEN-ISSUES.md) — build log
+- [docs/GITOPS-CONSUMER-ROLLOUT.md](docs/GITOPS-CONSUMER-ROLLOUT.md) — consumer rollout order and approval gates
 
 Retired systems and historical evidence: [docs/ARCHIVE-INDEX.md](docs/ARCHIVE-INDEX.md) and [docs/archive/](docs/archive/README.md).
 
@@ -31,9 +29,7 @@ git clone https://github.com/linktrend/IDE-Development.git "IDE Development"
 cd "IDE Development"
 ```
 
-After cloning, use this repository as the primary working copy of the shared development core on that machine.
-
-If the machine already has a `Projects/` workspace containing other repositories, the next step can be workspace adoption so those repositories consume this shared `.cursor` runtime surface.
+After cloning, use this repository as the **system source** of the shared development core on that machine. It is for authoring, packaging, and self-verification — not a consumer rollout target.
 
 ## Mac Mini Setup
 
@@ -51,6 +47,7 @@ cd ~/Projects
 git clone https://github.com/linktrend/IDE-Development.git "IDE Development"
 cd "IDE Development"
 git status
+cat VERSION   # expect v2.0.0
 ```
 
 ## Pull Updates
@@ -62,46 +59,66 @@ git pull
 git status
 ```
 
-## Workspace Adoption
+## Portable consumer install (v2)
 
-After cloning `IDE Development` into a `Projects/` folder, an existing workspace can be adopted through the workspace lifecycle capability.
+Consumers install a **physical** managed core inside their own Git repository. There is no consumer-to-system `.cursor` symlink and no absolute external path dependency.
 
-Natural-language triggers include:
+From this system repository:
 
-- `Install the system into this workspace.`
-- `Adopt this workspace.`
-- `Wire this workspace.`
+```bash
+# Plan only (no repository or Git-metadata writes)
+python3 scripts/ide-development.py plan --repo /path/to/consumer
 
-Operational result:
+# Install or update (transactional; produces rollback info)
+python3 scripts/ide-development.py install --repo /path/to/consumer
+python3 scripts/ide-development.py update --repo /path/to/consumer
 
-- `IDE Development/core` remains canonical knowledge
-- `IDE Development/.cursor` remains the shared compatibility runtime surface
-- each consumer repository receives a `.cursor` symlink pointing to `../IDE Development/.cursor`
+# Read-only checks
+python3 scripts/ide-development.py drift --repo /path/to/consumer
+python3 scripts/ide-development.py verify --repo /path/to/consumer
+python3 scripts/ide-development.py version --repo /path/to/consumer
 
-Workspace adoption is one-time.
+# Restore exact pre-change bytes from the last transaction
+python3 scripts/ide-development.py rollback --repo /path/to/consumer
+```
 
-Session lifecycle remains the daily operational behavior after adoption.
+What a successful install leaves in the consumer:
 
-## Installer Position
+- committed `.ide-development/` managed core
+- physical Cursor discovery files under `.cursor/rules`, `.cursor/commands`, `.cursor/skills`
+- Codex discovery via root `AGENTS.md` managed markers and physical `.agents/skills/`
+- consumer-owned content outside managed ownership/markers preserved
+- installed-state / transaction metadata under Git-local `.git/ide-development/` (not packaged secrets)
 
-No separate installer script is required for normal use.
+### Plain-English command meanings
 
-The intended installation model is:
+| Command | Meaning |
+|---|---|
+| `plan` / dry-run | Show what would change; write nothing |
+| `install` | First-time physical managed install |
+| `update` | Bring an installed consumer up to the package version |
+| `drift` | Read-only report of managed-file hash drift / conflicts |
+| `verify` | Confirm install integrity against recorded state |
+| `version` | Print package / installer version identity |
+| `rollback` | Restore exact pre-change files and modes from the last transaction |
 
-- keep `IDE Development` as a folder in the workspace
-- keep `IDE Development/core` as canonical knowledge
-- keep `IDE Development/.cursor` as the shared runtime surface
-- wire consumer repositories to that runtime surface with `.cursor` symlinks
+### Consumer rollout hard rules
 
-For Cursor, the practical requirement is that the workspace can see the `IDE Development` folder and the consumer repository `.cursor` symlink resolves correctly.
+1. Produce a **read-only drift report** for the target consumer first.
+2. Obtain **separate Carlos (Principal) approval** before each consumer install/update.
+3. Follow the locked order in [`docs/GITOPS-CONSUMER-ROLLOUT.md`](docs/GITOPS-CONSUMER-ROLLOUT.md).
+4. Do **not** nest-install into IDE Development itself during Wave 1.
+5. Do **not** apply live GitHub protections, secrets, variables, App, or Bugbot settings from Wave 1 automation without an explicit approved apply step (dry-run default).
 
-For Codex, the practical requirement is that agents can discover the repository and follow the `.cursor` compatibility paths into `core`.
+Legacy `scripts/wire-repo.sh` / sync helpers remain for compatibility with the prior sparse GitOps wiring model until consumers migrate; they are **not** the v2 portable install path.
 
-An installer or verifier may be added later if manual adoption becomes error-prone across many machines, but it is not part of the required v1 operating model.
+## Branch protection (standard system behavior)
+
+Every installed consumer must protect `development`, `staging`, and `main`. Planning and verification tooling is dry-run by default; credentials are never packaged. See [`docs/contracts/REPOSITORY-PROTECTION.md`](docs/contracts/REPOSITORY-PROTECTION.md).
 
 ## Make Changes Safely
 
-Use one working copy at a time for active edits. Do not make overlapping manual changes on both the MacBook and Mac Mini and then try to reconcile them later.
+Use one working copy at a time for active edits to this system repository. Do not make overlapping manual changes on both the MacBook and Mac Mini and then try to reconcile them later.
 
 Before letting Cursor, Codex, or another agent modify the system:
 
@@ -113,12 +130,12 @@ If the working tree is clean, make the smallest useful change, then review the r
 
 ## MacBook Update Flow
 
-Typical update flow:
+Typical update flow for this system repository:
 
 ```bash
 git pull
 git status
-git add .cursor README.md SETUP.md .gitignore
+git add README.md SETUP.md VERSION docs/
 git commit -m "..."
 git push
 ```
@@ -128,7 +145,8 @@ If other root files are intentionally changed, stage them explicitly rather than
 ## Warning
 
 - Do not copy `core/` or `.cursor/` manually into many repositories.
-- Use Git and this repository as the source of truth.
+- Do not create consumer `.cursor` symlinks pointing at this checkout.
+- Use Git and this repository as the source of truth for the package.
 - Make major changes in small commits.
-- Run `git status` before letting Codex modify the system.
-- Avoid maintaining duplicated compatibility surfaces across multiple repos when they are meant to share the same core.
+- Run `git status` before letting agents modify the system.
+- Never commit secrets, App private keys, or live credential values into managed packages.

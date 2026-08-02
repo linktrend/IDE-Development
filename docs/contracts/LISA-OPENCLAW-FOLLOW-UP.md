@@ -89,11 +89,11 @@ Pull is **not** hard-gated on all PRs being merged.
 
 ---
 
-## Repo order (sequential — Principal locked)
+## Repo order (Ship/Pull sequential — Principal locked)
 
-Process exactly **one repo at a time**, skipping missing paths:
+Process exactly **one repo at a time**, skipping missing paths. This is Ship/Pull order, **not** consumer portable-install order (see `docs/GITOPS-CONSUMER-ROLLOUT.md`). IDE Development is system source only — never a nested self-install target.
 
-1. IDE Development (`/Users/linktrend/Projects/IDE Development`)
+1. IDE Development (`/Users/linktrend/Projects/IDE Development`) — system source
 2. openclaw_prime
 3. LiNKplatform
 4. LiNKskills
@@ -102,6 +102,7 @@ Process exactly **one repo at a time**, skipping missing paths:
 7. LiNKdeveloper
 8. LiNKlibraries
 9. LiNKautowork
+10. LiNKtrading-codebase
 
 ---
 
@@ -148,6 +149,7 @@ Process ONE REPO AT A TIME in this exact order (skip missing paths):
 7) /Users/linktrend/Projects/LiNKdeveloper
 8) /Users/linktrend/Projects/LiNKlibraries
 9) /Users/linktrend/Projects/LiNKautowork
+10) /Users/linktrend/Projects/LiNKtrading-codebase
 
 For each repo that has local changes or unpushed commits on a work branch (prefer issue/*; also cursor/*, rare dev/*):
 1) Commit with conventional commits if there are changes (never commit secrets).
