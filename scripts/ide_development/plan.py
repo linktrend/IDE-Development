@@ -7,7 +7,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from .hashing import normalize_mode, sha256_bytes, sha256_file
+from .hashing import modes_match, normalize_mode, sha256_bytes, sha256_file
 from .manifest import Manifest, ManifestEntry, MigrationCatalog
 from .markers import extract_marker_block, render_marker_file
 from .errors import ConflictError
@@ -284,7 +284,7 @@ def _classify_existing(
     actual_hash = sha256_file(dest)
     actual_mode = _file_mode(dest)
 
-    if actual_hash == entry.source_hash and actual_mode == entry.mode:
+    if actual_hash == entry.source_hash and modes_match(actual_mode, entry.mode):
         return OpKind.NOOP, None, None, "already matches package", "match"
 
     if entry.merge_strategy == "create-only":
@@ -331,7 +331,7 @@ def _classify_existing(
     # replace
     if prior_file is None:
         if actual_hash == entry.source_hash:
-            if actual_mode != entry.mode:
+            if not modes_match(actual_mode, entry.mode):
                 return OpKind.REPLACE, None, None, "adopt matching content; fix mode", "managed_upgrade"
             return OpKind.NOOP, None, None, "matching unmanaged content", "match"
         return (
@@ -824,7 +824,7 @@ def build_drift_report(
                         actual_hash=actual,
                     )
                 )
-        elif actual_mode != entry.mode:
+        elif not modes_match(actual_mode, entry.mode):
             items.append(
                 DriftItem(
                     DriftKind.MODE_CHANGED,

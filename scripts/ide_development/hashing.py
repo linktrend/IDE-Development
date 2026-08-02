@@ -101,3 +101,18 @@ def normalize_mode(mode: int | str) -> str:
 
 def mode_int(mode: str | int) -> int:
     return int(normalize_mode(mode), 8)
+
+
+def modes_match(actual: str | int, expected: str | int) -> bool:
+    """Compare file modes in a platform-correct way.
+
+    On Windows, POSIX permission bits are not preserved by the filesystem the
+    way Unix does (writes commonly surface as ``0666``). Content hash remains
+    the identity; mode equality is treated as always matching on ``win32``.
+    On POSIX, compare normalized 4-digit octal modes exactly.
+    """
+    import sys
+
+    if sys.platform == "win32":
+        return True
+    return normalize_mode(actual) == normalize_mode(expected)
