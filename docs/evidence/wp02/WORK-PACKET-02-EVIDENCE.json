@@ -4,7 +4,7 @@
   "issue": 68,
   "branch": "issue/68-work-packet-02-integration-lineage-stale-cleanup",
   "acceptedPartialCheckpointSha": "712675614014abdf6e180915e07aa21e1a983324",
-  "checkpointSha": "fdca290251ef6054685341fbc3f647a9aa76f718",
+  "checkpointSha": "4f95ee6f5368b158a92699dd4ecbb2ee2a8eeff0",
   "capturedAt": "2026-08-02T03:46:00Z",
   "inputs": {
     "originDevelopment": "991abc319782008ef93af95002be0d7f3d5a937c",
@@ -141,7 +141,7 @@
     "review_ready_on_this_tip",
     "tag_or_release"
   ],
-  "note": "checkpointSha bound to evidence-closure tip after push; acceptedPartialCheckpointSha preserves prior verified partial.",
+  "note": "checkpointSha equals exact tip after this bind commit is made on a clean tree; if a further bind advances HEAD, authoritative tip remains git rev-parse of origin branch. acceptedPartialCheckpointSha preserves prior verified partial.",
   "bindingRule": "After this commit is made, branch tip advances; authoritative WP02 checkpoint is git rev-parse of issue/68 branch tip (origin). RC sourceCommit remains 7e441fa for package bytes.",
   "rcSourceCommit": "7e441faba1a6c61d9f3d3c75842610044fc40104",
   "laneF": {
@@ -158,5 +158,6 @@
       "agentId": "cc282e6c-746d-48d9-a319-024cd8b72878",
       "verdict": "PASS_WITH_PENDING_CI_THEN_CI_GREEN"
     }
-  }
+  },
+  "evidenceContentSha": "fdca290251ef6054685341fbc3f647a9aa76f718"
 }
