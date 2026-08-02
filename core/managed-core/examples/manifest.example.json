@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "packageName": "ide-development-managed-core",
+  "packageVersion": "2.0.0",
+  "description": "Example managed-core manifest for schema validation (not a live install set).",
+  "createdAt": "2026-08-01T00:00:00Z",
+  "files": [
+    {
+      "id": "content-readme",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/README.md",
+      "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "destination": ".ide-development/content/README.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
+      "id": "agents-managed-section",
+      "ownershipClass": "managed-marker",
+      "source": "core/managed-core/platforms/codex/AGENTS.managed-section.md",
+      "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "destination": "AGENTS.md",
+      "mode": "0644",
+      "platform": "codex",
+      "mergeStrategy": "marker-upsert",
+      "markerBegin": "<!-- BEGIN LINKTREND-IDE-MANAGED -->",
+      "markerEnd": "<!-- END LINKTREND-IDE-MANAGED -->"
+    },
+    {
+      "id": "cursor-bootstrap-rule",
+      "ownershipClass": "managed-entrypoint",
+      "source": "core/managed-core/platforms/cursor/rules/cursor-gitops-bootstrap.mdc",
+      "sourceHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "destination": ".cursor/rules/cursor-gitops-bootstrap.mdc",
+      "mode": "0644",
+      "platform": "cursor",
+      "mergeStrategy": "replace"
+    },
+    {
+      "id": "codex-skill-agentsetup",
+      "ownershipClass": "managed-entrypoint",
+      "source": "core/managed-core/platforms/codex/skills/agentsetup/SKILL.md",
+      "sourceHash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "destination": ".agents/skills/agentsetup/SKILL.md",
+      "mode": "0644",
+      "platform": "codex",
+      "mergeStrategy": "replace"
+    },
+    {
+      "id": "spaces-demo",
+      "ownershipClass": "managed",
+      "source": "core/managed-core/content/README.md",
+      "sourceHash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "destination": ".ide-development/assets/file with spaces.txt",
+      "mode": "0644",
+      "platform": "all",
+      "mergeStrategy": "replace",
+      "notes": "Example destination path containing spaces (schema allows spaces)."
+    },
+    {
+      "id": "branch-protection-external",
+      "ownershipClass": "external-state",
+      "source": "core/managed-core/platforms/codex/README.md",
+      "sourceHash": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "destination": ".ide-development/platforms/github/protections.plan.json",
+      "mode": "0644",
+      "platform": "github",
+      "mergeStrategy": "external-plan-only",
+      "notes": "Plan artifact only; live GitHub mutation is outside the package and dry-run by default."
+    }
+  ]
+}

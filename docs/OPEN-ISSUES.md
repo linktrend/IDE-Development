@@ -113,7 +113,7 @@ Branch `issue/GITOPS-01-review-packager-pipeline`. Principal-locked amendment to
 **Deferred (explicitly not in GITOPS-01):**
 
 - openclaw_prime Lisa personality / cron updates (`ship-pull-clock.md`, `pipeline-status.md`, `morning-digest.md`, etc.) — checklist in `LISA-OPENCLAW-FOLLOW-UP.md`.
-- `wire-repo.sh` / `sync-managed-workflows.sh` on consumer repos (LiNKplatform, LiNKskills, LiNKbrain, LiNKsites, LiNKdeveloper, LiNKlibraries, LiNKautowork).
+- `wire-repo.sh` / `sync-managed-workflows.sh` on consumer repos (order locked in `docs/GITOPS-CONSUMER-ROLLOUT.md`: openclaw_prime → LiNKplatform → LiNKskills → LiNKbrain → LiNKsites → LiNKdeveloper → LiNKlibraries → LiNKautowork → LiNKtrading-codebase). IDE Development is system source only — not a consumer wire target.
 - Per-consumer `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` and Bugbot inheritance checklist runs.
 - Lisa reporting lines for Review Packager / Staging 10:00 until openclaw follow-up PR lands.
 
@@ -171,3 +171,20 @@ Branch `issue/44-add-app-backed-review-ready-publisher-and-produc` (Issue #44). 
 5. Carlos's restricted user identity must not publish this status (Packager/Bugbot scope unchanged).
 
 **Out of this documentation packet:** workflow/script/test implementation, credential creation, consumer wire, PR/Bugbot/promote.
+
+---
+
+## 14. Work Packet 1 — production-readiness proof and release candidate (Issue #67) — 2026-08-02
+
+**Status pointer (active):** Issue #67 · branch `issue/67-work-packet-1-production-readiness-proof-and-rel` · plan `docs/work-packets/2026-08-02-work-packet-1-production-readiness.md` (committed; do not edit from Lane F).
+
+**Build log:** `docs/BUILD-LOG.md` (starts with WP1 entries).
+**Operator handoff:** `docs/runbooks/release-candidate.md`, `docs/runbooks/rollback.md`, `docs/acceptance/acceptance-matrix.md`, updated `README.md` / `SETUP.md`.
+
+**WP1 proves (system source only):** installer/migration, Cursor + native Codex discovery, RC packaging, recovery/security, read-only GitHub external-state plan/verify, macOS/Linux/Windows evidence expectations.
+
+**WP1 does not:** touch frozen PR #49; merge/promote; publish tag/Release; install real consumers; apply live GitHub settings; add Claude support.
+
+**Consumer rollout:** Deferred and separately Principal-gated — see `docs/GITOPS-CONSUMER-ROLLOUT.md`. **Work Packet 2** is the integration/publication stage.
+
+**CLI at Lane F documentation time:** `plan|install|update|drift|verify|version|rollback|release-candidate` (`create` / `verify`). Default RC output: `build/release-candidate/`.

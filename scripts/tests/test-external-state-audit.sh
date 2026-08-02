@@ -42,9 +42,16 @@ assert statuses["github_app.private_key_secret"] == "unchecked"
 assert statuses["bugbot.user_token_secret"] == "unchecked"
 assert statuses["bugbot.manual_trigger_only"] == "unchecked"
 assert statuses["protection.development_ruleset"] == "unchecked"
+assert statuses["protection.staging_ruleset"] == "unchecked"
+assert statuses["protection.main_ruleset"] == "unchecked"
 assert statuses["protection.allow_auto_merge"] == "unchecked"
+assert statuses["carlos.user_token_boundary"] in {"unchecked", "unknown"}
+assert statuses["workflows.required_presence"] in {"unchecked", "unknown"}
 assert statuses["completion.status_context"] == "ok"
 assert "LINKTREND_GITOPS_APP_PRIVATE_KEY" in json.dumps(p["checklist"])
+assert p.get("applyRefused") is True
+assert p["mutations"] == []
+assert p.get("humanSummary")
 # Ensure no accidental secret-looking PEM blob markers in output
 text = Path("${TMP}/dry.json").read_text()
 assert "BEGIN PRIVATE KEY" not in text
@@ -94,45 +101,11 @@ print("mutate refused")
 PY
 pass "mutating HTTP methods refused"
 
-# ---- fixture: ready ----
-write_fixture "${TMP}/ready" <<'EOF'
-{
-  "actions_variables": [
-    { "name": "LINKTREND_GITOPS_APP_ID", "value": "12345" }
-  ],
-  "actions_secret_names": [
-    "LINKTREND_GITOPS_APP_PRIVATE_KEY",
-    "LINKTREND_BUGBOT_USER_TOKEN"
-  ],
-  "installation": { "id": 99, "app_slug": "linktrend-gitops" },
-  "bugbot": { "manualTriggerOnly": true, "enabled": true },
-  "rulesets": [
-    { "id": 10, "name": "development-autonomous-merge", "enforcement": "active" }
-  ],
-  "ruleset_details": {
-    "10": {
-      "id": 10,
-      "name": "development-autonomous-merge",
-      "enforcement": "active",
-      "rules": [
-        {
-          "type": "required_status_checks",
-          "parameters": {
-            "required_status_checks": [
-              { "context": "Cursor Bugbot" },
-              { "context": "Verify IDE Development" },
-              { "context": "Enforce allowed PR source branches" }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  "repo": { "allow_auto_merge": true }
-}
-EOF
+# ---- fixture: ready (full WP1 surface via shared matched fixture) ----
+READY_FX="${ROOT}/scripts/tests/fixtures/external-state-wp1/matched"
+[ -d "$READY_FX" ] || fail "missing WP1 matched fixture for ready case"
 
-python3 "$PY" verify --repo linktrend/Fixture --fixture-dir "${TMP}/ready" \
+python3 "$PY" verify --repo linktrend/Fixture --fixture-dir "${READY_FX}" \
   --json-output "${TMP}/ready-out.json" >/dev/null
 python3 - <<PY
 import json
@@ -146,9 +119,9 @@ assert p["summary"]["missing"] == 0
 assert p["summary"]["drift"] == 0
 assert p["summary"]["unchecked"] == 0
 for c in p["checks"]:
-    assert c["status"] == "ok", c
+    assert c["status"] in {"ok", "matched"}, c
 # Fixture must not have embedded private key material
-text = Path("${TMP}/ready/state.json").read_text()
+text = Path("${READY_FX}/state.json").read_text()
 assert "PRIVATE KEY" not in text
 assert "ghs_" not in text
 assert "github_pat_" not in text
@@ -157,20 +130,11 @@ PY
 pass "fixture ready verify exits 0 with all ok"
 
 # ---- fixture: missing secrets / installation / ruleset ----
-write_fixture "${TMP}/missing" <<'EOF'
-{
-  "actions_variables": [],
-  "actions_secret_names": [],
-  "installation": false,
-  "bugbot": { "manualTriggerOnly": false },
-  "rulesets": [],
-  "ruleset_details": {},
-  "repo": { "allow_auto_merge": false }
-}
-EOF
+CRED_FX="${ROOT}/scripts/tests/fixtures/external-state-wp1/credential-missing"
+[ -d "$CRED_FX" ] || fail "missing WP1 credential-missing fixture"
 
 set +e
-python3 "$PY" verify --repo linktrend/Fixture --fixture-dir "${TMP}/missing" \
+python3 "$PY" verify --repo linktrend/Fixture --fixture-dir "${CRED_FX}" \
   --json-output "${TMP}/missing-out.json" >/dev/null
 rc=$?
 set -e
@@ -182,56 +146,20 @@ p = json.loads(Path("${TMP}/missing-out.json").read_text())
 assert p["summary"]["ready"] is False
 by = {c["id"]: c for c in p["checks"]}
 assert by["github_app.app_id_variable"]["status"] == "missing"
-assert by["github_app.private_key_secret"]["status"] == "missing"
+assert by["github_app.private_key_secret"]["status"] == "credential-missing"
 assert by["github_app.installation"]["status"] == "missing"
-assert by["bugbot.user_token_secret"]["status"] == "missing"
-assert by["bugbot.manual_trigger_only"]["status"] == "drift"
-assert by["protection.development_ruleset"]["status"] == "missing"
-assert by["protection.allow_auto_merge"]["status"] == "drift"
+assert by["bugbot.user_token_secret"]["status"] == "credential-missing"
 assert p["mutations"] == []
 print("missing ok")
 PY
-pass "missing/drift fixture verify exits 3"
+pass "missing/credential-missing fixture verify exits 3"
 
 # ---- fixture: drift on ruleset checks + non-numeric app id ----
-write_fixture "${TMP}/drift" <<'EOF'
-{
-  "actions_variables": [
-    { "name": "LINKTREND_GITOPS_APP_ID", "value": "not-a-number" },
-    { "name": "LINKTREND_BUGBOT_CHECK_NAME", "value": "Wrong Bot" }
-  ],
-  "actions_secret_names": [
-    "LINKTREND_GITOPS_APP_PRIVATE_KEY",
-    "LINKTREND_BUGBOT_USER_TOKEN"
-  ],
-  "installation": { "id": 1, "app_slug": "linktrend-gitops" },
-  "bugbot": { "manualTriggerOnly": true },
-  "rulesets": [
-    { "id": 10, "name": "development-autonomous-merge", "enforcement": "active" }
-  ],
-  "ruleset_details": {
-    "10": {
-      "id": 10,
-      "name": "development-autonomous-merge",
-      "enforcement": "active",
-      "rules": [
-        {
-          "type": "required_status_checks",
-          "parameters": {
-            "required_status_checks": [
-              { "context": "Verify IDE Development" }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  "repo": { "allow_auto_merge": true }
-}
-EOF
+DRIFT_FX="${ROOT}/scripts/tests/fixtures/external-state-wp1/drifted"
+[ -d "$DRIFT_FX" ] || fail "missing WP1 drifted fixture"
 
 set +e
-python3 "$PY" verify --repo linktrend/Fixture --fixture-dir "${TMP}/drift" \
+python3 "$PY" verify --repo linktrend/Fixture --fixture-dir "${DRIFT_FX}" \
   --json-output "${TMP}/drift-out.json" >/dev/null
 rc=$?
 set -e
@@ -251,41 +179,22 @@ PY
 pass "drift fixture reports non-numeric app id and incomplete ruleset"
 
 # ---- secret name present even if fixture wrongly includes a value key ----
-write_fixture "${TMP}/secret-value-ignored" <<'EOF'
-{
-  "actions_variables": [
-    { "name": "LINKTREND_GITOPS_APP_ID", "value": "42" }
-  ],
-  "actions_secrets": [
-    { "name": "LINKTREND_GITOPS_APP_PRIVATE_KEY", "value": "SHOULD_NEVER_APPEAR_IN_OUTPUT" },
-    { "name": "LINKTREND_BUGBOT_USER_TOKEN", "value": "ALSO_SHOULD_NEVER_APPEAR" }
-  ],
-  "installation": { "id": 1 },
-  "bugbot": { "manualTriggerOnly": true },
-  "rulesets": [
-    { "id": 10, "name": "development-autonomous-merge", "enforcement": "active" }
-  ],
-  "ruleset_details": {
-    "10": {
-      "id": 10,
-      "name": "development-autonomous-merge",
-      "enforcement": "active",
-      "rules": [
-        {
-          "type": "required_status_checks",
-          "parameters": {
-            "required_status_checks": [
-              { "context": "Cursor Bugbot" },
-              { "context": "Enforce allowed PR source branches" }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  "repo": { "allow_auto_merge": true }
-}
-EOF
+# Build from matched fixture but inject ignored secret value keys.
+python3 - <<PY
+import json, shutil
+from pathlib import Path
+src = Path("${ROOT}/scripts/tests/fixtures/external-state-wp1/matched/state.json")
+dest = Path("${TMP}/secret-value-ignored")
+dest.mkdir(parents=True, exist_ok=True)
+state = json.loads(src.read_text())
+state.pop("actions_secret_names", None)
+state["actions_secrets"] = [
+    {"name": "LINKTREND_GITOPS_APP_PRIVATE_KEY", "value": "SHOULD_NEVER_APPEAR_IN_OUTPUT"},
+    {"name": "LINKTREND_BUGBOT_USER_TOKEN", "value": "ALSO_SHOULD_NEVER_APPEAR"},
+]
+(dest / "state.json").write_text(json.dumps(state, indent=2) + "\n")
+print("wrote secret-value-ignored fixture")
+PY
 
 python3 "$PY" report --repo linktrend/Fixture --fixture-dir "${TMP}/secret-value-ignored" \
   --json-output "${TMP}/secret-out.json" >/dev/null

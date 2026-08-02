@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "release-candidate",
+  "error": "Refusing release-candidate creation: worktree is dirty",
+  "details": {
+    "hint": "Commit or stash changes, or pass --allow-dirty for local proofs only"
+  },
+  "exitCode": 12
+}

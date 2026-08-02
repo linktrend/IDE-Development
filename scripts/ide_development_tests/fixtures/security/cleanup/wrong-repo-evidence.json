@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "repository": "linktrend/Unrelated-Consumer",
+  "mode": "dry-run-only",
+  "applyForbidden": true,
+  "note": "Adversarial cleanup evidence: repo identity must not match IDE-Development context. Fixture-level only — never apply.",
+  "candidates": [
+    {
+      "branch": "issue/999-should-not-delete",
+      "merged": true
+    }
+  ]
+}

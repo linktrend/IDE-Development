@@ -1,0 +1,37 @@
+{
+  "id": "02-physical-cursor-consumer-owned",
+  "title": "Physical .cursor with consumer-owned content",
+  "setup": {
+    "files": {
+      ".cursor/rules/consumer-local.mdc": {
+        "kind": "text",
+        "content": "---\ndescription: Consumer owned rule\nalwaysApply: true\n---\n\n# Consumer local\nKeep me.\n"
+      },
+      ".cursor/skills/consumer-skill/SKILL.md": {
+        "kind": "text",
+        "content": "# Consumer skill\nDo not overwrite.\n"
+      },
+      "AGENTS.md": {
+        "kind": "text",
+        "content": "# Consumer agents\nRepository-specific guidance.\n"
+      }
+    }
+  },
+  "expected": {
+    "classifications": [
+      {
+        "path": ".cursor/rules/consumer-local.mdc",
+        "kind": "consumer_owned"
+      },
+      {
+        "path": ".cursor/skills/consumer-skill/SKILL.md",
+        "kind": "consumer_owned"
+      }
+    ],
+    "preserve": [
+      ".cursor/rules/consumer-local.mdc",
+      ".cursor/skills/consumer-skill/SKILL.md",
+      "AGENTS.md"
+    ]
+  }
+}
