@@ -1,0 +1,54 @@
+PASS: readiness status exact SHA; later commit invalidates; concurrent branches no shared file
+packager policy ok
+packager phases ok
+PASS: Packager discovery without Bugbot; gate/head abort; idempotent request policy
+PASS: multiple candidates not blocked by serial discover wait
+reevaluate clean
+PASS: promotion reevaluate does not rebuild; head stable across events
+PASS: durable conflict attempts persist and stop at three
+PASS: main approval requires both expected SHAs
+Preparing worktree (detached HEAD 7b9591d)
+Switched to and reset branch 'issue/unfinished'
+PASS: Pull preserves caller checkout; skips frozen; updates unfinished
+Preparing worktree (checking out 'issue/dirty')
+PASS: cleanup squash/session/promote/dirty safety (dry-run)
+PASS: no direct push to staging/main
+PASS: activation + mention-only docs + schedules
+body preserve ok
+PASS: existing PR content survives outside managed section
+exact candidate ok
+PASS: exact-candidate promote binding + advancement fail-closed
+wake+bugbot dual-gate scenarios ok
+PASS: wake path + Bugbot request scenarios
+credentials contract ok
+PASS: App credentials fail closed; no silent GITHUB_TOKEN autonomy
+bugbot user credential boundary ok
+PASS: Carlos user token fail-closed; Packager-only; no App substitution
+resolver ok
+PASS: trusted event PR/SHA resolver
+discovery readiness token ok
+PASS: discovery readiness prefers AUTOMATION_TOKEN; fail closed without App
+sha concurrency + serialized idempotency ok
+PASS: uniform SHA concurrency + production-path Bugbot idempotency
+resolver matrix rows 15
+resolver matrix ok
+PASS: actual resolver event matrix (incl. empty PR arrays)
+repair observer lifecycle ok
+PASS: repair observer resolves current-head successes, skips stale, handles/clears Bugbot usage_limit
+ambient GITHUB_EVENT_NAME=pull_request hermetic ok
+PASS: repair observer hermetic under ambient GITHUB_EVENT_NAME=pull_request
+repair observer App identity + no workflow-token writes ok
+PASS: Repair Observer App identity; mutation jobs deny workflow-token writes; managed≡live
+ok .github/workflows/linktrend-review-packager.yml
+ok .github/workflows/linktrend-integrator-merge.yml
+ok .github/workflows/linktrend-development-to-staging.yml
+ok .github/workflows/linktrend-staging-to-main.yml
+PASS: App-credential failure creates/updates repair task; upserts not masked
+main approve store behavioral ok
+PASS: Main Approve store gates/freshness/trust/expiry/schema/reuse
+live gh subprocess path ok
+PASS: Main Approve live gh checks/reread/variable fail-closed
+identity boundary zero-mutation proofs ok
+PASS: write_outcome/App-missing zero-mutation + App-success AUTOMATION_TOKEN + managed≡live
+
+PASS: behavioral gitops tests (26 groups)
