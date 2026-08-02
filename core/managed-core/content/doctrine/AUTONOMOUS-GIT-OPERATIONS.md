@@ -197,7 +197,7 @@ Allowed. Caps: **12** worktrees, **20 GB** total Cursor-managed. Delete after me
 
 ## Related paths
 
-- Rules: `.cursor/rules/01-git-branching.mdc`, `.cursor/rules/02-autonomous-ship-pull.mdc`
+- Rules: `.cursor/rules/linktrend-git-branching.mdc`, `.cursor/rules/02-autonomous-ship-pull.mdc` (system source also keeps `.cursor/rules/01-git-branching.mdc` as local mirror; consumers install `linktrend-git-branching.mdc`)
 - Skills/commands: `/agentsetup`, `/agentcomply`
 - Review-ready: `core/github/REVIEW-READY.md` (App-backed publisher + rollback)
 - Completion: `docs/contracts/AGENT-COMPLETION.md`

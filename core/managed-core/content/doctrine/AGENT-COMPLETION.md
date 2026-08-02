@@ -120,11 +120,15 @@ python3 scripts/gitops/completion_gate.py blocked \
 
 ## Related
 
+System repository paths:
+
 - `docs/AUTONOMOUS-GIT-OPERATIONS.md`
 - `core/github/REVIEW-READY.md`
 - `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`
 - `docs/contracts/REPAIR-DISPATCHER.md`
 - `docs/work-packets/2026-08-01-wave-2-app-backed-completion.md`
+
+Consumer installs (packaged doctrine under `.ide-development/content/doctrine/`): use sibling `AUTONOMOUS-GIT-OPERATIONS.md` in the same directory. Root `docs/` and `core/github/` paths above are system-source contracts and are not assumed present at those locations in every consumer.
 
 ## Blocked completion (local cache + durable record)
 
