@@ -1,0 +1,140 @@
+{
+  "capability": {
+    "rulesets": "unavailable",
+    "rulesets_error": "Rulesets are not available",
+    "branch_protection": "forbidden"
+  },
+  "actions_variables": [
+    {
+      "name": "LINKTREND_GITOPS_APP_ID",
+      "value": "12345"
+    }
+  ],
+  "actions_secret_names": [
+    "LINKTREND_GITOPS_APP_PRIVATE_KEY",
+    "LINKTREND_BUGBOT_USER_TOKEN"
+  ],
+  "installation": {
+    "id": 1,
+    "app_slug": "linktrend-gitops"
+  },
+  "app_permissions": {
+    "contents": "write",
+    "pull_requests": "write",
+    "checks": "write",
+    "statuses": "write",
+    "issues": "write",
+    "metadata": "read",
+    "actions": "read",
+    "admin": "none",
+    "members": "none",
+    "secrets": "none"
+  },
+  "bugbot": {
+    "manualTriggerOnly": true
+  },
+  "carlos_user_token_boundary": {
+    "allowedOps": [
+      "packager_feature_pr_create",
+      "bugbot_mention_comment"
+    ],
+    "status": "ok"
+  },
+  "rulesets": [],
+  "ruleset_details": {},
+  "repo": {
+    "allow_auto_merge": true
+  },
+  "workflows": [
+    {
+      "id": 1,
+      "path": ".github/workflows/branch-source-policy.yml",
+      "name": "branch-source-policy",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 2,
+      "path": ".github/workflows/ci.yml",
+      "name": "ci",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 3,
+      "path": ".github/workflows/linktrend-review-ready-publisher.yml",
+      "name": "linktrend-review-ready-publisher",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 4,
+      "path": ".github/workflows/linktrend-review-packager.yml",
+      "name": "linktrend-review-packager",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 5,
+      "path": ".github/workflows/linktrend-integrator-merge.yml",
+      "name": "linktrend-integrator-merge",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 6,
+      "path": ".github/workflows/linktrend-development-to-staging.yml",
+      "name": "linktrend-development-to-staging",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 7,
+      "path": ".github/workflows/linktrend-staging-to-main.yml",
+      "name": "linktrend-staging-to-main",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 8,
+      "path": ".github/workflows/linktrend-repair-observer.yml",
+      "name": "linktrend-repair-observer",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    },
+    {
+      "id": 9,
+      "path": ".github/workflows/linktrend-cleanup-merged.yml",
+      "name": "linktrend-cleanup-merged",
+      "state": "active",
+      "latestConclusion": "success",
+      "permissions": {
+        "contents": "read"
+      }
+    }
+  ]
+}

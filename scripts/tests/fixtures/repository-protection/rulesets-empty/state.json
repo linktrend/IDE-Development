@@ -1,0 +1,13 @@
+{
+  "capability": {
+    "rulesets": "ok",
+    "branch_protection": "ok"
+  },
+  "repo": {
+    "allow_auto_merge": false
+  },
+  "rulesets": [],
+  "ruleset_details": {},
+  "next_ruleset_id": 200,
+  "branch_protections": {}
+}

@@ -40,7 +40,7 @@ Otherwise skip creating Automations; Lisa owns the schedule (Ship 05, Pull 07, S
 Ship 05 (Asia/Taipei). You are the Implementer under IDE Development autonomous Git ops.
 Primary clock is Lisa Option A; you are a backup Automation run.
 
-Process ONE REPO AT A TIME in this exact order (skip missing paths):
+Process ONE REPO AT A TIME in this exact Ship/Pull order (skip missing paths; not consumer install order — see docs/GITOPS-CONSUMER-ROLLOUT.md):
 1) /Users/linktrend/Projects/IDE Development
 2) /Users/linktrend/Projects/openclaw_prime
 3) /Users/linktrend/Projects/LiNKplatform
@@ -50,6 +50,7 @@ Process ONE REPO AT A TIME in this exact order (skip missing paths):
 7) /Users/linktrend/Projects/LiNKdeveloper
 8) /Users/linktrend/Projects/LiNKlibraries
 9) /Users/linktrend/Projects/LiNKautowork
+10) /Users/linktrend/Projects/LiNKtrading-codebase
 
 For each repo with local changes or unpushed commits on a work branch (prefer issue/*; also cursor/*, rare dev/*):
 1) Commit with conventional commits if there are changes.
@@ -78,7 +79,7 @@ Primary clock is Lisa Option A; you are a backup Automation run.
 
 Pull is NOT hard-gated on all PRs being merged; unfinished work rolls forward.
 
-Process ONE REPO AT A TIME in this exact order (skip missing paths):
+Process ONE REPO AT A TIME in this exact Ship/Pull order (skip missing paths; not consumer install order — see docs/GITOPS-CONSUMER-ROLLOUT.md):
 1) /Users/linktrend/Projects/IDE Development
 2) /Users/linktrend/Projects/openclaw_prime
 3) /Users/linktrend/Projects/LiNKplatform
@@ -88,6 +89,7 @@ Process ONE REPO AT A TIME in this exact order (skip missing paths):
 7) /Users/linktrend/Projects/LiNKdeveloper
 8) /Users/linktrend/Projects/LiNKlibraries
 9) /Users/linktrend/Projects/LiNKautowork
+10) /Users/linktrend/Projects/LiNKtrading-codebase
 
 For each repo with a checked-out work branch (issue/*, cursor/*, rare dev/*):
 1) Fetch origin.

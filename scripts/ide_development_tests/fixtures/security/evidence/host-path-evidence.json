@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "command": "write-evidence",
+  "ok": true,
+  "checkout": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-67",
+  "note": "Intentional adversarial sample — absolute checkout path must be detected by scanner"
+}

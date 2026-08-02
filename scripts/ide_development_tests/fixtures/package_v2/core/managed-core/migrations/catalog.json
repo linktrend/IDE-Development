@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "catalogId": "fixture-migrations",
+  "packageVersion": "2.0.0",
+  "entries": [
+    {
+      "identity": ".cursor/rules/obsolete-generic.mdc",
+      "path": ".cursor/rules/obsolete-generic.mdc",
+      "contentHash": "sha256:f1f007266642a84b9df36b34d967a7b64a657351e105d6a8cfb2e92a2f112b40",
+      "action": "remove"
+    }
+  ]
+}

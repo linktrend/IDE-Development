@@ -1,0 +1,3 @@
+# Generated matrix JSON summaries (local + CI artifacts). Keep directory tracked.
+*.json
+!README.md

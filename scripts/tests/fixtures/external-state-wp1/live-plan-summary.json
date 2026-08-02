@@ -1,0 +1,163 @@
+{
+  "repo": "linktrend/IDE-Development",
+  "mode": "plan",
+  "source": "live",
+  "dryRun": true,
+  "mutations": [],
+  "applyRefused": true,
+  "humanSummary": "External state NOT READY: 8/19 required checks unresolved [github_app.installation=blocked, github_app.authority_scope=unknown, bugbot.manual_trigger_only=unknown, carlos.user_token_boundary=unknown, protection.staging_ruleset=missing, protection.main_ruleset=missing, protection.promotion_source_policy=drift, workflows.permissions_posture=unknown]. Mutations: none.",
+  "summary": {
+    "ready": false,
+    "requiredTotal": 19,
+    "ok": 7,
+    "matched": 4,
+    "missing": 2,
+    "drift": 1,
+    "unchecked": 0,
+    "unknown": 4,
+    "blocked": 1,
+    "unavailable": 0,
+    "forbidden": 0,
+    "credential-missing": 0,
+    "unproven": [
+      "github_app.installation",
+      "github_app.authority_scope",
+      "bugbot.manual_trigger_only",
+      "carlos.user_token_boundary",
+      "workflows.permissions_posture"
+    ],
+    "error": 0
+  },
+  "checks": [
+    {
+      "id": "github_app.app_id_variable",
+      "status": "ok",
+      "observed": "present_numeric",
+      "detail": "LINKTREND_GITOPS_APP_ID present (numeric; value not echoed)"
+    },
+    {
+      "id": "github_app.private_key_secret",
+      "status": "ok",
+      "observed": "name_present",
+      "detail": "secret name listed; value not retrieved"
+    },
+    {
+      "id": "github_app.installation",
+      "status": "blocked",
+      "observed": "blocked",
+      "detail": "installation probe blocked by auth/permissions; never assume compliant"
+    },
+    {
+      "id": "github_app.authority_scope",
+      "status": "unknown",
+      "observed": "unknown",
+      "detail": "App permission matrix not observable via this audit path; never assume compliant"
+    },
+    {
+      "id": "bugbot.user_token_secret",
+      "status": "ok",
+      "observed": "name_present",
+      "detail": "secret name listed; value not retrieved"
+    },
+    {
+      "id": "bugbot.manual_trigger_only",
+      "status": "unknown",
+      "observed": "unknown",
+      "detail": "Bugbot settings unavailable via GitHub API; fixture or operator confirmation required \u2014 never assume compliant"
+    },
+    {
+      "id": "bugbot.check_name",
+      "status": "ok",
+      "observed": "default",
+      "detail": "LINKTREND_BUGBOT_CHECK_NAME unset; default 'Cursor Bugbot' applies"
+    },
+    {
+      "id": "carlos.user_token_boundary",
+      "status": "unknown",
+      "observed": "unknown",
+      "detail": "PAT scope boundary not readable via GitHub repo API; fixture or operator confirmation required \u2014 never assume compliant"
+    },
+    {
+      "id": "protection.development_ruleset",
+      "status": "ok",
+      "observed": "active_with_required_checks",
+      "detail": "ruleset active; checks include Cursor Bugbot, Enforce allowed PR source branches"
+    },
+    {
+      "id": "protection.staging_ruleset",
+      "status": "missing",
+      "observed": "missing",
+      "detail": "ruleset 'staging-autonomous-promote' not found"
+    },
+    {
+      "id": "protection.main_ruleset",
+      "status": "missing",
+      "observed": "missing",
+      "detail": "ruleset 'main-autonomous-release' not found"
+    },
+    {
+      "id": "protection.promotion_source_policy",
+      "status": "drift",
+      "observed": "incomplete",
+      "detail": "missing source-policy on: staging, main"
+    },
+    {
+      "id": "protection.repo_specific_checks_preserved",
+      "status": "matched",
+      "observed": "preserved",
+      "detail": "union plan preserves existing checks and non-check rules"
+    },
+    {
+      "id": "protection.allow_auto_merge",
+      "status": "ok",
+      "observed": "true",
+      "detail": "allow_auto_merge=true"
+    },
+    {
+      "id": "workflows.required_presence",
+      "status": "matched",
+      "observed": "present",
+      "detail": "9 required workflow files present"
+    },
+    {
+      "id": "workflows.enabled_state",
+      "status": "matched",
+      "observed": "active",
+      "detail": "required workflows report active/enabled"
+    },
+    {
+      "id": "workflows.permissions_posture",
+      "status": "unknown",
+      "observed": "unknown",
+      "detail": "workflow permissions not available from GitHub workflows list API; fixture may supply permissions map \u2014 never assume compliant"
+    },
+    {
+      "id": "workflows.latest_conclusions",
+      "status": "matched",
+      "observed": "recorded",
+      "detail": "recorded=8 unknown=1; identifiers/conclusions only"
+    },
+    {
+      "id": "completion.status_context",
+      "status": "ok",
+      "observed": "Linktrend Review Ready",
+      "detail": "contract constant; privileged publish must use the GitHub App from protected workflow context only"
+    }
+  ],
+  "protectionPlan": {
+    "available": true,
+    "actions": [
+      "development:noop",
+      "staging:create",
+      "main:create"
+    ],
+    "verify": {
+      "ok": false,
+      "problems": [
+        "staging: action=create (not matched)",
+        "main: action=create (not matched)"
+      ]
+    },
+    "reason": null
+  }
+}

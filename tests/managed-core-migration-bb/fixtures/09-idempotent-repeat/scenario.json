@@ -1,0 +1,30 @@
+{
+  "id": "09-idempotent-repeat",
+  "title": "Repeat install/update idempotence",
+  "setup": {
+    "files": {
+      ".ide-development/VERSION": {
+        "kind": "text",
+        "content": "2.0.0\n"
+      },
+      ".cursor/rules/linktrend-managed-bootstrap.mdc": {
+        "kind": "text",
+        "content": "managed bootstrap bytes\n"
+      }
+    }
+  },
+  "expected": {
+    "idempotent_paths": [
+      ".ide-development/VERSION",
+      ".cursor/rules/linktrend-managed-bootstrap.mdc"
+    ],
+    "notes": "Second plan/apply against identical bytes must be no-op / byte-identical."
+  },
+  "live_installer": {
+    "proof": "idempotent_repeat",
+    "asserts": [
+      "second install and noop update leave managed destinations byte+mode identical",
+      "managed destinations are physical files (not symlinks)"
+    ]
+  }
+}

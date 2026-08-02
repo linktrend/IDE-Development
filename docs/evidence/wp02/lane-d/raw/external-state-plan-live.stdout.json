@@ -1,0 +1,605 @@
+{
+  "schemaVersion": 1,
+  "mode": "plan",
+  "dryRun": true,
+  "repo": "linktrend/IDE-Development",
+  "mutations": [],
+  "applyRefused": true,
+  "source": "live",
+  "statusContext": "Linktrend Review Ready",
+  "checklist": [
+    {
+      "id": "github_app.app_id_variable",
+      "category": "github_app",
+      "required": true,
+      "expected": "LINKTREND_GITOPS_APP_ID repository/org variable present and numeric"
+    },
+    {
+      "id": "github_app.private_key_secret",
+      "category": "github_app",
+      "required": true,
+      "expected": "LINKTREND_GITOPS_APP_PRIVATE_KEY Actions secret name present (value never read)"
+    },
+    {
+      "id": "github_app.installation",
+      "category": "github_app",
+      "required": true,
+      "expected": "GitHub App installation present on the repository"
+    },
+    {
+      "id": "github_app.authority_scope",
+      "category": "github_app",
+      "required": true,
+      "expected": "App narrowly scoped (no admin/members/secrets); privileged automation App-backed only"
+    },
+    {
+      "id": "bugbot.user_token_secret",
+      "category": "bugbot",
+      "required": true,
+      "expected": "LINKTREND_BUGBOT_USER_TOKEN Actions secret name present (value never read)"
+    },
+    {
+      "id": "bugbot.manual_trigger_only",
+      "category": "bugbot",
+      "required": true,
+      "expected": "Bugbot manualTriggerOnly=true (mention-only)"
+    },
+    {
+      "id": "bugbot.check_name",
+      "category": "bugbot",
+      "required": true,
+      "expected": "Integrator/ruleset Bugbot check name is 'Cursor Bugbot'"
+    },
+    {
+      "id": "carlos.user_token_boundary",
+      "category": "carlos",
+      "required": true,
+      "expected": "Carlos user token restricted to packager PR create + Bugbot mention; forbidden for status publish/merge/promote/repair/admin"
+    },
+    {
+      "id": "protection.development_ruleset",
+      "category": "protection",
+      "required": true,
+      "expected": "Active ruleset 'development-autonomous-merge' requires 'Cursor Bugbot' and 'Enforce allowed PR source branches'"
+    },
+    {
+      "id": "protection.staging_ruleset",
+      "category": "protection",
+      "required": true,
+      "expected": "Active ruleset 'staging-autonomous-promote' requires 'Enforce allowed PR source branches' (no Bugbot)"
+    },
+    {
+      "id": "protection.main_ruleset",
+      "category": "protection",
+      "required": true,
+      "expected": "Active ruleset 'main-autonomous-release' requires 'Enforce allowed PR source branches' (no Bugbot)"
+    },
+    {
+      "id": "protection.promotion_source_policy",
+      "category": "protection",
+      "required": true,
+      "expected": "'Enforce allowed PR source branches' required on development, staging, and main"
+    },
+    {
+      "id": "protection.repo_specific_checks_preserved",
+      "category": "protection",
+      "required": true,
+      "expected": "Repository-specific required checks and unrelated protection rules are preserved in the desired union"
+    },
+    {
+      "id": "protection.allow_auto_merge",
+      "category": "protection",
+      "required": true,
+      "expected": "Repository allow_auto_merge=true"
+    },
+    {
+      "id": "workflows.required_presence",
+      "category": "workflows",
+      "required": true,
+      "expected": "Required managed GitOps workflow files present"
+    },
+    {
+      "id": "workflows.enabled_state",
+      "category": "workflows",
+      "required": true,
+      "expected": "Required workflows enabled (state=active)"
+    },
+    {
+      "id": "workflows.permissions_posture",
+      "category": "workflows",
+      "required": true,
+      "expected": "Workflow permissions posture recorded (no secret values)"
+    },
+    {
+      "id": "workflows.latest_conclusions",
+      "category": "workflows",
+      "required": true,
+      "expected": "Latest relevant workflow conclusions recorded when available"
+    },
+    {
+      "id": "completion.status_context",
+      "category": "completion",
+      "required": true,
+      "expected": "Privileged publish context remains 'Linktrend Review Ready' (App-backed publisher only)"
+    }
+  ],
+  "checks": [
+    {
+      "id": "github_app.app_id_variable",
+      "category": "github_app",
+      "required": true,
+      "expected": "LINKTREND_GITOPS_APP_ID repository/org variable present and numeric",
+      "observed": "present_numeric",
+      "status": "ok",
+      "detail": "LINKTREND_GITOPS_APP_ID present (numeric; value not echoed)",
+      "source": "live"
+    },
+    {
+      "id": "github_app.private_key_secret",
+      "category": "github_app",
+      "required": true,
+      "expected": "LINKTREND_GITOPS_APP_PRIVATE_KEY Actions secret name present (value never read)",
+      "observed": "name_present",
+      "status": "ok",
+      "detail": "secret name listed; value not retrieved",
+      "source": "live"
+    },
+    {
+      "id": "github_app.installation",
+      "category": "github_app",
+      "required": true,
+      "expected": "GitHub App installation present on the repository",
+      "observed": "blocked",
+      "status": "blocked",
+      "detail": "installation probe blocked by auth/permissions; never assume compliant",
+      "source": "live"
+    },
+    {
+      "id": "github_app.authority_scope",
+      "category": "github_app",
+      "required": true,
+      "expected": "App narrowly scoped (no admin/members/secrets); privileged automation App-backed only",
+      "observed": "unknown",
+      "status": "unknown",
+      "detail": "App permission matrix not observable via this audit path; never assume compliant",
+      "source": "live"
+    },
+    {
+      "id": "bugbot.user_token_secret",
+      "category": "bugbot",
+      "required": true,
+      "expected": "LINKTREND_BUGBOT_USER_TOKEN Actions secret name present (value never read)",
+      "observed": "name_present",
+      "status": "ok",
+      "detail": "secret name listed; value not retrieved",
+      "source": "live"
+    },
+    {
+      "id": "bugbot.manual_trigger_only",
+      "category": "bugbot",
+      "required": true,
+      "expected": "Bugbot manualTriggerOnly=true (mention-only)",
+      "observed": "unknown",
+      "status": "unknown",
+      "detail": "Bugbot settings unavailable via GitHub API; fixture or operator confirmation required \u2014 never assume compliant",
+      "source": "live"
+    },
+    {
+      "id": "bugbot.check_name",
+      "category": "bugbot",
+      "required": true,
+      "expected": "Integrator/ruleset Bugbot check name is 'Cursor Bugbot'",
+      "observed": "default",
+      "status": "ok",
+      "detail": "LINKTREND_BUGBOT_CHECK_NAME unset; default 'Cursor Bugbot' applies",
+      "source": "live"
+    },
+    {
+      "id": "carlos.user_token_boundary",
+      "category": "carlos",
+      "required": true,
+      "expected": "Carlos user token restricted to packager PR create + Bugbot mention; forbidden for status publish/merge/promote/repair/admin",
+      "observed": "unknown",
+      "status": "unknown",
+      "detail": "PAT scope boundary not readable via GitHub repo API; fixture or operator confirmation required \u2014 never assume compliant",
+      "source": "live"
+    },
+    {
+      "id": "protection.development_ruleset",
+      "category": "protection",
+      "required": true,
+      "expected": "Active ruleset 'development-autonomous-merge' requires 'Cursor Bugbot' and 'Enforce allowed PR source branches'",
+      "observed": "active_with_required_checks",
+      "status": "ok",
+      "detail": "ruleset active; checks include Cursor Bugbot, Enforce allowed PR source branches",
+      "source": "live"
+    },
+    {
+      "id": "protection.staging_ruleset",
+      "category": "protection",
+      "required": true,
+      "expected": "Active ruleset 'staging-autonomous-promote' requires 'Enforce allowed PR source branches' (no Bugbot)",
+      "observed": "missing",
+      "status": "missing",
+      "detail": "ruleset 'staging-autonomous-promote' not found",
+      "source": "live"
+    },
+    {
+      "id": "protection.main_ruleset",
+      "category": "protection",
+      "required": true,
+      "expected": "Active ruleset 'main-autonomous-release' requires 'Enforce allowed PR source branches' (no Bugbot)",
+      "observed": "missing",
+      "status": "missing",
+      "detail": "ruleset 'main-autonomous-release' not found",
+      "source": "live"
+    },
+    {
+      "id": "protection.promotion_source_policy",
+      "category": "protection",
+      "required": true,
+      "expected": "'Enforce allowed PR source branches' required on development, staging, and main",
+      "observed": "incomplete",
+      "status": "drift",
+      "detail": "missing source-policy on: staging, main",
+      "source": "live"
+    },
+    {
+      "id": "protection.repo_specific_checks_preserved",
+      "category": "protection",
+      "required": true,
+      "expected": "Repository-specific required checks and unrelated protection rules are preserved in the desired union",
+      "observed": "preserved",
+      "status": "matched",
+      "detail": "union plan preserves existing checks and non-check rules",
+      "source": "live"
+    },
+    {
+      "id": "protection.allow_auto_merge",
+      "category": "protection",
+      "required": true,
+      "expected": "Repository allow_auto_merge=true",
+      "observed": "true",
+      "status": "ok",
+      "detail": "allow_auto_merge=true",
+      "source": "live"
+    },
+    {
+      "id": "workflows.required_presence",
+      "category": "workflows",
+      "required": true,
+      "expected": "Required managed GitOps workflow files present",
+      "observed": "present",
+      "status": "matched",
+      "detail": "9 required workflow files present",
+      "source": "live"
+    },
+    {
+      "id": "workflows.enabled_state",
+      "category": "workflows",
+      "required": true,
+      "expected": "Required workflows enabled (state=active)",
+      "observed": "active",
+      "status": "matched",
+      "detail": "required workflows report active/enabled",
+      "source": "live"
+    },
+    {
+      "id": "workflows.permissions_posture",
+      "category": "workflows",
+      "required": true,
+      "expected": "Workflow permissions posture recorded (no secret values)",
+      "observed": "unknown",
+      "status": "unknown",
+      "detail": "workflow permissions not available from GitHub workflows list API; fixture may supply permissions map \u2014 never assume compliant",
+      "source": "live"
+    },
+    {
+      "id": "workflows.latest_conclusions",
+      "category": "workflows",
+      "required": true,
+      "expected": "Latest relevant workflow conclusions recorded when available",
+      "observed": "recorded",
+      "status": "matched",
+      "detail": "recorded=8 unknown=1; identifiers/conclusions only",
+      "source": "live"
+    },
+    {
+      "id": "completion.status_context",
+      "category": "completion",
+      "required": true,
+      "expected": "Privileged publish context remains 'Linktrend Review Ready' (App-backed publisher only)",
+      "observed": "Linktrend Review Ready",
+      "status": "ok",
+      "detail": "contract constant; privileged publish must use the GitHub App from protected workflow context only",
+      "source": "live"
+    }
+  ],
+  "summary": {
+    "ok": 7,
+    "matched": 4,
+    "missing": 2,
+    "drift": 1,
+    "unchecked": 0,
+    "unknown": 4,
+    "blocked": 1,
+    "unavailable": 0,
+    "forbidden": 0,
+    "credential-missing": 0,
+    "malformed": 0,
+    "error": 0,
+    "requiredTotal": 19,
+    "ready": false,
+    "unproven": [
+      "github_app.installation",
+      "github_app.authority_scope",
+      "bugbot.manual_trigger_only",
+      "carlos.user_token_boundary",
+      "workflows.permissions_posture"
+    ]
+  },
+  "humanSummary": "External state NOT READY: 8/19 required checks unresolved [github_app.installation=blocked, github_app.authority_scope=unknown, bugbot.manual_trigger_only=unknown, carlos.user_token_boundary=unknown, protection.staging_ruleset=missing, protection.main_ruleset=missing, protection.promotion_source_policy=drift, workflows.permissions_posture=unknown]. Mutations: none.",
+  "warnings": [],
+  "notes": [
+    "Read-only audit: mutations are always empty; apply is refused.",
+    "Secret checks use Actions secret *names* only; values are never retrieved or printed.",
+    "Default dry-run emits the required checklist with unchecked/unknown observations.",
+    "Use --fixture-dir for offline tests or --live for operator read-only GitHub GETs.",
+    "Unverifiable settings are unknown/blocked \u2014 never assumed compliant.",
+    "Agents must not create Apps, secrets, variables, Bugbot settings, or rulesets."
+  ],
+  "desired": [
+    {
+      "id": "github_app.app_id_variable",
+      "category": "github_app",
+      "expected": "LINKTREND_GITOPS_APP_ID repository/org variable present and numeric",
+      "observedStatus": "ok",
+      "observed": "present_numeric",
+      "action": "noop",
+      "mutate": false
+    },
+    {
+      "id": "github_app.private_key_secret",
+      "category": "github_app",
+      "expected": "LINKTREND_GITOPS_APP_PRIVATE_KEY Actions secret name present (value never read)",
+      "observedStatus": "ok",
+      "observed": "name_present",
+      "action": "noop",
+      "mutate": false
+    },
+    {
+      "id": "github_app.installation",
+      "category": "github_app",
+      "expected": "GitHub App installation present on the repository",
+      "observedStatus": "blocked",
+      "observed": "blocked",
+      "action": "observe",
+      "mutate": false
+    },
+    {
+      "id": "github_app.authority_scope",
+      "category": "github_app",
+      "expected": "App narrowly scoped (no admin/members/secrets); privileged automation App-backed only",
+      "observedStatus": "unknown",
+      "observed": "unknown",
+      "action": "observe",
+      "mutate": false
+    },
+    {
+      "id": "bugbot.user_token_secret",
+      "category": "bugbot",
+      "expected": "LINKTREND_BUGBOT_USER_TOKEN Actions secret name present (value never read)",
+      "observedStatus": "ok",
+      "observed": "name_present",
+      "action": "noop",
+      "mutate": false
+    },
+    {
+      "id": "bugbot.manual_trigger_only",
+      "category": "bugbot",
+      "expected": "Bugbot manualTriggerOnly=true (mention-only)",
+      "observedStatus": "unknown",
+      "observed": "unknown",
+      "action": "observe",
+      "mutate": false
+    },
+    {
+      "id": "bugbot.check_name",
+      "category": "bugbot",
+      "expected": "Integrator/ruleset Bugbot check name is 'Cursor Bugbot'",
+      "observedStatus": "ok",
+      "observed": "default",
+      "action": "noop",
+      "mutate": false
+    },
+    {
+      "id": "carlos.user_token_boundary",
+      "category": "carlos",
+      "expected": "Carlos user token restricted to packager PR create + Bugbot mention; forbidden for status publish/merge/promote/repair/admin",
+      "observedStatus": "unknown",
+      "observed": "unknown",
+      "action": "observe",
+      "mutate": false
+    },
+    {
+      "id": "protection.development_ruleset",
+      "category": "protection",
+      "expected": "Active ruleset 'development-autonomous-merge' requires 'Cursor Bugbot' and 'Enforce allowed PR source branches'",
+      "observedStatus": "ok",
+      "observed": "active_with_required_checks",
+      "action": "noop",
+      "mutate": false
+    },
+    {
+      "id": "protection.staging_ruleset",
+      "category": "protection",
+      "expected": "Active ruleset 'staging-autonomous-promote' requires 'Enforce allowed PR source branches' (no Bugbot)",
+      "observedStatus": "missing",
+      "observed": "missing",
+      "action": "create_or_configure",
+      "mutate": false
+    },
+    {
+      "id": "protection.main_ruleset",
+      "category": "protection",
+      "expected": "Active ruleset 'main-autonomous-release' requires 'Enforce allowed PR source branches' (no Bugbot)",
+      "observedStatus": "missing",
+      "observed": "missing",
+      "action": "create_or_configure",
+      "mutate": false
+    },
+    {
+      "id": "protection.promotion_source_policy",
+      "category": "protection",
+      "expected": "'Enforce allowed PR source branches' required on development, staging, and main",
+      "observedStatus": "drift",
+      "observed": "incomplete",
+      "action": "remediate",
+      "mutate": false
+    },
+    {
+      "id": "protection.repo_specific_checks_preserved",
+      "category": "protection",
+      "expected": "Repository-specific required checks and unrelated protection rules are preserved in the desired union",
+      "observedStatus": "matched",
+      "observed": "preserved",
+      "action": "noop",
+      "mutate": false
+    },
+    {
+      "id": "protection.allow_auto_merge",
+      "category": "protection",
+      "expected": "Repository allow_auto_merge=true",
+      "observedStatus": "ok",
+      "observed": "true",
+      "action": "noop",
+      "mutate": false
+    },
+    {
+      "id": "workflows.required_presence",
+      "category": "workflows",
+      "expected": "Required managed GitOps workflow files present",
+      "observedStatus": "matched",
+      "observed": "present",
+      "action": "noop",
+      "mutate": false
+    },
+    {
+      "id": "workflows.enabled_state",
+      "category": "workflows",
+      "expected": "Required workflows enabled (state=active)",
+      "observedStatus": "matched",
+      "observed": "active",
+      "action": "noop",
+      "mutate": false
+    },
+    {
+      "id": "workflows.permissions_posture",
+      "category": "workflows",
+      "expected": "Workflow permissions posture recorded (no secret values)",
+      "observedStatus": "unknown",
+      "observed": "unknown",
+      "action": "observe",
+      "mutate": false
+    },
+    {
+      "id": "workflows.latest_conclusions",
+      "category": "workflows",
+      "expected": "Latest relevant workflow conclusions recorded when available",
+      "observedStatus": "matched",
+      "observed": "recorded",
+      "action": "noop",
+      "mutate": false
+    },
+    {
+      "id": "completion.status_context",
+      "category": "completion",
+      "expected": "Privileged publish context remains 'Linktrend Review Ready' (App-backed publisher only)",
+      "observedStatus": "ok",
+      "observed": "Linktrend Review Ready",
+      "action": "noop",
+      "mutate": false
+    }
+  ],
+  "protectionPlan": {
+    "available": true,
+    "source": "live",
+    "dryRun": true,
+    "mutations": [],
+    "capability": {
+      "rulesets": true,
+      "branchProtection": "unknown",
+      "mechanism": "rulesets",
+      "rulesetsError": "",
+      "branchProtectionError": ""
+    },
+    "actions": [
+      "development:noop",
+      "staging:create",
+      "main:create"
+    ],
+    "branches": {
+      "development": {
+        "action": "noop",
+        "rulesetName": "development-autonomous-merge",
+        "requiredChecks": {
+          "managed": [
+            "Cursor Bugbot",
+            "Verify IDE Development",
+            "Enforce allowed PR source branches"
+          ],
+          "preserved": [],
+          "desired": [
+            "Cursor Bugbot",
+            "Verify IDE Development",
+            "Enforce allowed PR source branches"
+          ]
+        }
+      },
+      "staging": {
+        "action": "create",
+        "rulesetName": "staging-autonomous-promote",
+        "requiredChecks": {
+          "managed": [
+            "Verify IDE Development",
+            "Enforce allowed PR source branches"
+          ],
+          "preserved": [],
+          "desired": [
+            "Verify IDE Development",
+            "Enforce allowed PR source branches"
+          ]
+        }
+      },
+      "main": {
+        "action": "create",
+        "rulesetName": "main-autonomous-release",
+        "requiredChecks": {
+          "managed": [
+            "Verify IDE Development",
+            "Enforce allowed PR source branches"
+          ],
+          "preserved": [],
+          "desired": [
+            "Verify IDE Development",
+            "Enforce allowed PR source branches"
+          ]
+        }
+      }
+    },
+    "repoSettings": {
+      "allow_auto_merge": {
+        "before": true,
+        "after": true,
+        "action": "noop"
+      }
+    },
+    "verify": {
+      "ok": false,
+      "problems": [
+        "staging: action=create (not matched)",
+        "main: action=create (not matched)"
+      ]
+    }
+  }
+}

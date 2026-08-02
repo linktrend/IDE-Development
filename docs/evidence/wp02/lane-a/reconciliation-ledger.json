@@ -1,0 +1,702 @@
+{
+  "schema_version": 1,
+  "lane": "A",
+  "title": "WP02 checkpoint/PR reconciliation ledger",
+  "generated_at_utc": "2026-08-02T03:15:13Z",
+  "repo": "linktrend/IDE-Development",
+  "immutable_inputs": {
+    "origin_development": "991abc319782008ef93af95002be0d7f3d5a937c",
+    "wp01_checkpoint": "89956878c54ff45e4aef1ff42883d209221b7a30",
+    "cleanup_tip": "5cf099155d9f7b5d95e094f74b288af7aec766af",
+    "frozen_pr49_tip": "0868c0034620c4ccb255457484f0342a12a0c833",
+    "before_state": "docs/evidence/wp02/before-state-2026-08-02T030943Z/",
+    "packet": "docs/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md"
+  },
+  "critical_proofs": {
+    "pr49_tip_frozen_unchanged": true,
+    "pr49_is_ancestor_of_wp01": true,
+    "pr49_content_represented_in_wp01": true,
+    "pr49_identical_touched_blobs": "128/166",
+    "pr49_evolved_in_wp01_descendant": "38/166",
+    "pr49_missing_in_wp01": 0,
+    "wp01_cleanup_are_siblings_from_development": true,
+    "issue23_squash_tree_equals_pr24_merge_tree": true,
+    "issue28_unique_handoff_absent_from_dev_wp01_cleanup": true
+  },
+  "classification_counts": {
+    "already_present_in_origin_development": 4,
+    "uniquely_required_incorporated_into_new_lineage": 8,
+    "ancestor_of_wp01_checkpoint": 3,
+    "semantically_superseded": 2,
+    "ancestor_of_cleanup_tip_5cf0991": 6,
+    "safe_to_close_clean_only_after_wp03": 12,
+    "intentionally_deferred": 3
+  },
+  "record_count": 38,
+  "records": [
+    {
+      "id": "origin-development",
+      "kind": "protected_branch_tip",
+      "refs": {
+        "branch": "origin/development",
+        "sha_role": "integration_base"
+      },
+      "tip_sha": "991abc319782008ef93af95002be0d7f3d5a937c",
+      "classification": "already_present_in_origin_development",
+      "evidence": [
+        "Immutable input SHA 991abc319782008ef93af95002be0d7f3d5a937c verified via git rev-parse.",
+        "Required starting base for WP02 lineage construction (work packet \u00a7Startup)."
+      ],
+      "proposed_wp03_disposition": "retain_as_integration_target_no_cleanup"
+    },
+    {
+      "id": "wp01-checkpoint-issue-67",
+      "kind": "checkpoint",
+      "refs": {
+        "issue": 67,
+        "branch": "issue/67-work-packet-1-production-readiness-proof-and-rel",
+        "worktree": "issue-67-work-packet-1-production-readiness-proof-and-rel"
+      },
+      "tip_sha": "89956878c54ff45e4aef1ff42883d209221b7a30",
+      "classification": "uniquely_required_incorporated_into_new_lineage",
+      "evidence": [
+        "git merge-base 991abc319782008ef93af95002be0d7f3d5a937c 89956878c54ff45e4aef1ff42883d209221b7a30 == 991abc319782008ef93af95002be0d7f3d5a937c (WP01 rooted on current development).",
+        "git rev-list --count 991abc319782008ef93af95002be0d7f3d5a937c..89956878c54ff45e4aef1ff42883d209221b7a30 == 19 (portable-v2 + hardening + WP1 evidence not on development).",
+        "Contains merge 83376e0 of frozen PR #49 tip 0868c00 and merge e804e6b of #66 tip 76d2aae.",
+        "Sibling of cleanup tip: merge-base(WP01,CLEAN)==DEV; neither is ancestor of the other."
+      ],
+      "proposed_wp03_disposition": "incorporate_into_wp02_canonical_lineage_close_source_refs_only_after_wp03"
+    },
+    {
+      "id": "cleanup-tip-issue-63",
+      "kind": "checkpoint",
+      "refs": {
+        "issue": 63,
+        "branch": "issue/63-repair-bugbot-repository-scope-propagation-in-cl",
+        "worktree": "issue-63-repair-bugbot-repository-scope-propagation-in-cl",
+        "note": "no_open_pr"
+      },
+      "tip_sha": "5cf099155d9f7b5d95e094f74b288af7aec766af",
+      "classification": "uniquely_required_incorporated_into_new_lineage",
+      "evidence": [
+        "git merge-base 991abc319782008ef93af95002be0d7f3d5a937c 5cf099155d9f7b5d95e094f74b288af7aec766af == 991abc319782008ef93af95002be0d7f3d5a937c; rev-list --count DEV..CLEAN == 11.",
+        "Tip equals cleanup lineage head; contains #51\u2192#61 ancestor chain (ccdefcd\u2026c596aac) plus #63 repo-scope commits.",
+        "ONLY_IN_CLEAN vs WP01: scripts/gitops/cleanup_controls.py, cleanup_stale_records.py, cleanup_preserve.defaults.json, test-stale-cleanup-controls.sh, docs/contracts/STALE-CLEANUP-CONTROLS.md, docs/handoff/2026-08-01-issue-63-cleanup-repo-scope.md.",
+        "DIFFERS vs WP01 (must merge carefully): docs/OPEN-ISSUES.md (WP01 blob 1df05be vs CLEAN 2de9995), docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md, REPAIR-DISPATCHER.md, scripts/cleanup-merged-branches.sh, scripts/gitops/repair_task.py, scripts/tests/test-gitops-behavioral.sh."
+      ],
+      "proposed_wp03_disposition": "incorporate_into_wp02_canonical_lineage_close_source_refs_only_after_wp03"
+    },
+    {
+      "id": "pr-49-issue-43-frozen",
+      "kind": "pull_request",
+      "refs": {
+        "pr": 49,
+        "issue": 43,
+        "branch": "issue/43-build-portable-ide-development-v2-managed-core-i",
+        "worktree": "issue-43-build-portable-ide-development-v2-managed-core-i",
+        "frozen": true
+      },
+      "tip_sha": "0868c0034620c4ccb255457484f0342a12a0c833",
+      "classification": "ancestor_of_wp01_checkpoint",
+      "evidence": [
+        "git merge-base --is-ancestor 0868c0034620c4ccb255457484f0342a12a0c833 89956878c54ff45e4aef1ff42883d209221b7a30 \u2192 YES (exit 0).",
+        "origin/issue/43\u2026 tip == 0868c0034620c4ccb255457484f0342a12a0c833 (frozen tip unchanged; matches immutable input).",
+        "WP01 history contains: 83376e0 Merge commit '0868c00\u2026' into issue/64\u2026 then continues through #66 and WP1 lanes.",
+        "P49-touched paths vs WP01 blobs: 128/166 identical; 0 missing in WP01; 38 evolved in descendant (hardening/WP1) \u2014 required Wave-1 content represented, not dropped.",
+        "Non-docs/tests subset: 111 identical, 21 evolved (engine/cli/transaction/protection) as intentional WP01 continuation after merge.",
+        "NOT ancestor of CLEAN or DEV (portable-v2 lives only on WP01 sibling lineage)."
+      ],
+      "proposed_wp03_disposition": "keep_frozen_head_unchanged_close_pr_issue_branch_worktree_only_after_wp03"
+    },
+    {
+      "id": "pr-36-issue-23",
+      "kind": "pull_request",
+      "refs": {
+        "pr": 36,
+        "issue": 23,
+        "branch": "issue/23-gitops-lifecycle-repair-control",
+        "worktree": "/private/tmp/issue-23-gitops-lifecycle-repair-control",
+        "worktree_prunable": true,
+        "mergeable": "CONFLICTING"
+      },
+      "tip_sha": "7eb41b2494faf6a7dc683b37d2b7334ddd517bee",
+      "classification": "semantically_superseded",
+      "evidence": [
+        "Squash-merge proof: git rev-parse 3ea6eba^{tree} == git rev-parse 7eb41b2494faf6a7dc683b37d2b7334ddd517bee^{tree} == 965ef30de915b1bfcdd568ac885eac4a4f79eff9 (PR #24 Complete autonomous GitOps lifecycle\u2026 landed identical tree on development).",
+        "Post-squash DEV evolution 3ea6eba..991abc319782008ef93af95002be0d7f3d5a937c: #32 (issue #31 Carlos Packager author), #39 (#35 smoke note), #45 (App-backed Review Ready publisher) \u2014 tip lacks these.",
+        "Blob census of 71 three-dot paths vs DEV: 35 exact EQ, 36 DIFF, 0 ABSENT \u2014 every tip path exists on DEV.",
+        "Applying tip onto DEV would delete App-backed surfaces (review_ready_dispatch.py \u2212543, external_state_audit.py \u22121002, linktrend-review-ready-publisher.yml \u2212375, etc.; overall ~377+/6984\u2212) \u2014 tip is regressive vs current development.",
+        "Bugbot policy @cursor review / genuine-request counting already present on DEV packager_logic.py (same DEFAULT_BUGBOT_COMMAND and executable-trigger regex).",
+        "Exact commit patch-ids for tip-only commits do not appear in WP01/CLEAN ranges (divergent history), but semantic content was carried by squash #24 then superseded by later DEV commits \u2014 do not treat UNIQUE patch-id as uniquely required."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:close_pr_36_issue_23_delete_branch_remove_prunable_worktree_after_wp03"
+    },
+    {
+      "id": "pr-37-issue-28",
+      "kind": "pull_request",
+      "refs": {
+        "pr": 37,
+        "issue": 28,
+        "branch": "issue/28-gitops-bootstrap-activation-smoke-record-issue-2",
+        "worktree": "issue-28-gitops-bootstrap-activation-smoke-record-issue-2",
+        "mergeable": "MERGEABLE"
+      },
+      "tip_sha": "8ac8fb4a5c7e39086a4f1f02e4a45b3b17939e6c",
+      "classification": "uniquely_required_incorporated_into_new_lineage",
+      "evidence": [
+        "Single commit 8ac8fb4 docs(handoff): record GitOps bootstrap activation smoke facts; patch-id ab4ad8d005a7a72835b9ad0eec079447661f8fc4 not in DEV/WP01/CLEAN commit ranges.",
+        "Sole file docs/handoff/2026-07-30-gitops-bootstrap-activation-smoke.md is ABSENT from DEV, WP01, and CLEAN (blob-level).",
+        "Documentation-only append-only smoke facts referencing PR #24 head 7eb41b2 / tree 965ef30 and promote SHAs \u2014 no doctrine/application change.",
+        "Not superseded: absence on all three lineages proves still-required unique content for canonical incorporation."
+      ],
+      "proposed_wp03_disposition": "incorporate_unique_content_into_wp02_lineage_then_close_after_wp03"
+    },
+    {
+      "id": "issue-44-branch",
+      "kind": "issue_branch",
+      "refs": {
+        "issue": 44,
+        "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+        "worktree": "issue-44-add-app-backed-review-ready-publisher-and-produc",
+        "landed_via_pr": 45
+      },
+      "tip_sha": "98568c398dcc6d49cbe67aa92d5493f66998f2f9",
+      "classification": "already_present_in_origin_development",
+      "evidence": [
+        "Tip 98568c398dcc6d49cbe67aa92d5493f66998f2f9 is NOT a git ancestor of DEV (divergent commit SHAs), but all 42 files in DEV...tip are blob-identical on DEV (eq=42 diff=0 abs=0).",
+        "DEV tip commit 991abc3 feat(gitops): App-backed Review Ready publisher (#45) carries the same content.",
+        "Key paths identical across I44/DEV/WP01/CLEAN: review_ready_dispatch.py, linktrend-review-ready-publisher.yml, readiness_status.py."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:close_issue_44_delete_branch_remove_worktree"
+    },
+    {
+      "id": "pr-52-issue-51",
+      "kind": "pull_request",
+      "refs": {
+        "pr": 52,
+        "issue": 51,
+        "branch": "issue/51-reconcile-approved-stale-ide-development-prs-wor",
+        "worktree": "issue/51-reconcile-approved-stale-ide-development-prs-wor",
+        "lineage": "cleanup"
+      },
+      "tip_sha": "ccdefcd97769b68fac8d37ab99d2450049d7f8dd",
+      "classification": "ancestor_of_cleanup_tip_5cf0991",
+      "evidence": [
+        "git merge-base --is-ancestor ccdefcd97769b68fac8d37ab99d2450049d7f8dd 5cf099155d9f7b5d95e094f74b288af7aec766af \u2192 YES.",
+        "git merge-base --is-ancestor 991abc319782008ef93af95002be0d7f3d5a937c ccdefcd97769b68fac8d37ab99d2450049d7f8dd \u2192 YES (built atop current development).",
+        "Not ancestor of WP01; unique cleanup content reaches tip via later commits through 5cf0991.",
+        "Content disposition: incorporate via cleanup tip 5cf0991 into WP02 lineage; do not merge these intermediate PRs separately."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:close_pr_52_issue_51_delete_branch_remove_worktree_after_cleanup_incorporated"
+    },
+    {
+      "id": "pr-54-issue-53",
+      "kind": "pull_request",
+      "refs": {
+        "pr": 54,
+        "issue": 53,
+        "branch": "issue/53-repair-bugbot-findings-on-stale-cleanup-controls",
+        "worktree": "issue/53-repair-bugbot-findings-on-stale-cleanup-controls",
+        "lineage": "cleanup"
+      },
+      "tip_sha": "1e8823bf7f28af2f7a885a27476d920f7babdfcf",
+      "classification": "ancestor_of_cleanup_tip_5cf0991",
+      "evidence": [
+        "git merge-base --is-ancestor 1e8823bf7f28af2f7a885a27476d920f7babdfcf 5cf099155d9f7b5d95e094f74b288af7aec766af \u2192 YES.",
+        "git merge-base --is-ancestor 991abc319782008ef93af95002be0d7f3d5a937c 1e8823bf7f28af2f7a885a27476d920f7babdfcf \u2192 YES (built atop current development).",
+        "Not ancestor of WP01; unique cleanup content reaches tip via later commits through 5cf0991.",
+        "Content disposition: incorporate via cleanup tip 5cf0991 into WP02 lineage; do not merge these intermediate PRs separately."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:close_pr_54_issue_53_delete_branch_remove_worktree_after_cleanup_incorporated"
+    },
+    {
+      "id": "pr-56-issue-55",
+      "kind": "pull_request",
+      "refs": {
+        "pr": 56,
+        "issue": 55,
+        "branch": "issue/55-repair-remaining-bugbot-cleanup-policy-parity-fi",
+        "worktree": "issue/55-repair-remaining-bugbot-cleanup-policy-parity-fi",
+        "lineage": "cleanup"
+      },
+      "tip_sha": "9120ecb2942b838b94ada4105ddc5e9192901bba",
+      "classification": "ancestor_of_cleanup_tip_5cf0991",
+      "evidence": [
+        "git merge-base --is-ancestor 9120ecb2942b838b94ada4105ddc5e9192901bba 5cf099155d9f7b5d95e094f74b288af7aec766af \u2192 YES.",
+        "git merge-base --is-ancestor 991abc319782008ef93af95002be0d7f3d5a937c 9120ecb2942b838b94ada4105ddc5e9192901bba \u2192 YES (built atop current development).",
+        "Not ancestor of WP01; unique cleanup content reaches tip via later commits through 5cf0991.",
+        "Content disposition: incorporate via cleanup tip 5cf0991 into WP02 lineage; do not merge these intermediate PRs separately."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:close_pr_56_issue_55_delete_branch_remove_worktree_after_cleanup_incorporated"
+    },
+    {
+      "id": "pr-58-issue-57",
+      "kind": "pull_request",
+      "refs": {
+        "pr": 58,
+        "issue": 57,
+        "branch": "issue/57-repair-bugbot-fail-closed-preservation-when-pres",
+        "worktree": "issue/57-repair-bugbot-fail-closed-preservation-when-pres",
+        "lineage": "cleanup"
+      },
+      "tip_sha": "c2a24e1de1f8cb874938f65bf0c06ec146e10731",
+      "classification": "ancestor_of_cleanup_tip_5cf0991",
+      "evidence": [
+        "git merge-base --is-ancestor c2a24e1de1f8cb874938f65bf0c06ec146e10731 5cf099155d9f7b5d95e094f74b288af7aec766af \u2192 YES.",
+        "git merge-base --is-ancestor 991abc319782008ef93af95002be0d7f3d5a937c c2a24e1de1f8cb874938f65bf0c06ec146e10731 \u2192 YES (built atop current development).",
+        "Not ancestor of WP01; unique cleanup content reaches tip via later commits through 5cf0991.",
+        "Content disposition: incorporate via cleanup tip 5cf0991 into WP02 lineage; do not merge these intermediate PRs separately."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:close_pr_58_issue_57_delete_branch_remove_worktree_after_cleanup_incorporated"
+    },
+    {
+      "id": "pr-60-issue-59",
+      "kind": "pull_request",
+      "refs": {
+        "pr": 60,
+        "issue": 59,
+        "branch": "issue/59-repair-bugbot-ambiguous-remote-fail-closed-prese",
+        "worktree": "issue/59-repair-bugbot-ambiguous-remote-fail-closed-prese",
+        "lineage": "cleanup"
+      },
+      "tip_sha": "1b828ca951a5952941c0b4969eac7266ca1866ee",
+      "classification": "ancestor_of_cleanup_tip_5cf0991",
+      "evidence": [
+        "git merge-base --is-ancestor 1b828ca951a5952941c0b4969eac7266ca1866ee 5cf099155d9f7b5d95e094f74b288af7aec766af \u2192 YES.",
+        "git merge-base --is-ancestor 991abc319782008ef93af95002be0d7f3d5a937c 1b828ca951a5952941c0b4969eac7266ca1866ee \u2192 YES (built atop current development).",
+        "Not ancestor of WP01; unique cleanup content reaches tip via later commits through 5cf0991.",
+        "Content disposition: incorporate via cleanup tip 5cf0991 into WP02 lineage; do not merge these intermediate PRs separately."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:close_pr_60_issue_59_delete_branch_remove_worktree_after_cleanup_incorporated"
+    },
+    {
+      "id": "pr-62-issue-61",
+      "kind": "pull_request",
+      "refs": {
+        "pr": 62,
+        "issue": 61,
+        "branch": "issue/61-repair-bugbot-repository-scoped-pr-evidence-for",
+        "worktree": "issue/61-repair-bugbot-repository-scoped-pr-evidence-for",
+        "lineage": "cleanup"
+      },
+      "tip_sha": "c596aac752e09886e4d1ae539f0622968280a404",
+      "classification": "ancestor_of_cleanup_tip_5cf0991",
+      "evidence": [
+        "git merge-base --is-ancestor c596aac752e09886e4d1ae539f0622968280a404 5cf099155d9f7b5d95e094f74b288af7aec766af \u2192 YES.",
+        "git merge-base --is-ancestor 991abc319782008ef93af95002be0d7f3d5a937c c596aac752e09886e4d1ae539f0622968280a404 \u2192 YES (built atop current development).",
+        "Not ancestor of WP01; unique cleanup content reaches tip via later commits through 5cf0991.",
+        "Content disposition: incorporate via cleanup tip 5cf0991 into WP02 lineage; do not merge these intermediate PRs separately."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:close_pr_62_issue_61_delete_branch_remove_worktree_after_cleanup_incorporated"
+    },
+    {
+      "id": "pr-65-issue-64",
+      "kind": "pull_request",
+      "refs": {
+        "pr": 65,
+        "issue": 64,
+        "branch": "issue/64-production-hardening-portable-installer-safety-m",
+        "worktree": "issue-64-production-hardening-portable-installer-safety-m",
+        "lineage": "wp01"
+      },
+      "tip_sha": "44a26f0d14bd0e237748a14dd611c40a7a0cba6f",
+      "classification": "ancestor_of_wp01_checkpoint",
+      "evidence": [
+        "git merge-base --is-ancestor 44a26f0\u2026 8995687\u2026 \u2192 YES.",
+        "Appears in WP01 log as portable-v2 hardening commits including merge of 0868c00; superseded as standalone PR by WP01 continuation (#66 + WP1 lanes)."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:close_pr_65_issue_64_delete_branch_remove_worktree_after_wp01_incorporated"
+    },
+    {
+      "id": "issue-66-branch",
+      "kind": "issue_branch",
+      "refs": {
+        "issue": 66,
+        "branch": "issue/66-production-hardening-physical-symlink-migration",
+        "worktree": "issue-66-production-hardening-physical-symlink-migration",
+        "lineage": "wp01",
+        "note": "no_open_pr_in_before_state"
+      },
+      "tip_sha": "76d2aae1fbf0d497fbfb0e06181b3932660c96ce",
+      "classification": "ancestor_of_wp01_checkpoint",
+      "evidence": [
+        "git merge-base --is-ancestor 76d2aae\u2026 8995687\u2026 \u2192 YES.",
+        "WP01 contains e804e6b merge(issue-66): incorporate production-hardening checkpoint 76d2aae."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:close_issue_66_delete_branch_remove_worktree_after_wp01_incorporated"
+    },
+    {
+      "id": "worktree-issue-67",
+      "kind": "worktree",
+      "refs": {
+        "issue": 67,
+        "branch": "issue/67-work-packet-1-production-readiness-proof-and-rel",
+        "path": ".git/linktrend-worktrees/issue-67-work-packet-1-production-readiness-proof-and-rel"
+      },
+      "tip_sha": "89956878c54ff45e4aef1ff42883d209221b7a30",
+      "classification": "safe_to_close_clean_only_after_wp03",
+      "evidence": [
+        "Before-state worktrees.txt HEAD 8995687 matches WP01 checkpoint immutable input.",
+        "Ownership: WP01 source worktree; content required in WP02 lineage.",
+        "Prior content classification retained in paired PR/issue/checkpoint record; worktree actionable class is close-after-WP03 (was uniquely_required_incorporated_into_new_lineage)."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:remove_worktree_after_wp01_content_on_canonical_branch"
+    },
+    {
+      "id": "issue-68-wp02-current",
+      "kind": "issue_branch",
+      "refs": {
+        "issue": 68,
+        "branch": "issue/68-work-packet-02-integration-lineage-stale-cleanup",
+        "worktree": "issue-68-work-packet-02-integration-lineage-stale-cleanup",
+        "role": "wp02_canonical_target"
+      },
+      "tip_sha": "9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4",
+      "classification": "uniquely_required_incorporated_into_new_lineage",
+      "evidence": [
+        "git merge-base --is-ancestor 991abc319782008ef93af95002be0d7f3d5a937c HEAD \u2192 YES; +1 commit docs(wp02) before-state snapshot on top of development.",
+        "Lane A write home; active WP02 integration lineage under construction."
+      ],
+      "proposed_wp03_disposition": "active_wp02_lineage_do_not_close_until_wp02_checkpoint_complete"
+    },
+    {
+      "id": "issue-31",
+      "kind": "issue",
+      "refs": {
+        "issue": 31,
+        "landed_via_pr": 32
+      },
+      "tip_sha": "13efd340466a67c75c42c65d594cadd827743071",
+      "classification": "already_present_in_origin_development",
+      "evidence": [
+        "DEV history contains 13efd34 Review: issue/31 Review Packager Carlos user identity for PR auth (#32).",
+        "Ancestor of origin/development tip 991abc3."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:close_issue_31_if_still_open"
+    },
+    {
+      "id": "issue-35",
+      "kind": "issue",
+      "refs": {
+        "issue": 35,
+        "landed_via_commit": "edbcb86cacbf99f65aed76063a3a188117bfcf86"
+      },
+      "tip_sha": "edbcb86cacbf99f65aed76063a3a188117bfcf86",
+      "classification": "already_present_in_origin_development",
+      "evidence": [
+        "DEV history contains edbcb86 docs: GitOps Packager live smoke note (#35) (#39).",
+        "Ancestor of origin/development tip."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:close_issue_35_if_still_open"
+    },
+    {
+      "id": "repair-issue-40",
+      "kind": "repair_issue",
+      "refs": {
+        "issue": 40,
+        "labels": [
+          "linktrend-repair",
+          "linktrend-repair-merge-conflict"
+        ],
+        "about_pr": 36
+      },
+      "tip_sha": null,
+      "classification": "semantically_superseded",
+      "evidence": [
+        "Opened for merge_conflict on PR #36; PR #36 content proven semantically superseded via squash #24 + later DEV evolution.",
+        "No unique code tip; repair becomes moot when PR #36 closed after WP03."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:close_repair_issue_40_with_pr_36"
+    },
+    {
+      "id": "repair-issue-46",
+      "kind": "repair_issue",
+      "refs": {
+        "issue": 46,
+        "labels": [
+          "linktrend-repair",
+          "linktrend-repair-usage_limit"
+        ],
+        "about": "Cursor Bugbot usage_limit on prior PR #45 path"
+      },
+      "tip_sha": null,
+      "classification": "intentionally_deferred",
+      "evidence": [
+        "usage_limit immediate failure type \u2014 do_not_dispatch per GitOps repair doctrine.",
+        "Underlying App-backed publisher content already on origin/development via #45.",
+        "Owner: Lisa ACP Repair Dispatcher / Principal \u2014 no WP02 code action."
+      ],
+      "proposed_wp03_disposition": "close_or_wontfix_after_confirming_no_outstanding_bugbot_repair_need"
+    },
+    {
+      "id": "repair-issue-50",
+      "kind": "repair_issue",
+      "refs": {
+        "issue": 50,
+        "labels": [
+          "linktrend-repair",
+          "linktrend-repair-usage_limit"
+        ],
+        "about_pr": 49
+      },
+      "tip_sha": null,
+      "classification": "intentionally_deferred",
+      "evidence": [
+        "usage_limit on Cursor Bugbot for frozen PR #49 \u2014 immediate type, do_not_dispatch.",
+        "PR #49 tip remains frozen; required content represented in WP01 ancestor chain.",
+        "Owner: Principal/Lisa \u2014 do not mutate frozen head to satisfy Bugbot."
+      ],
+      "proposed_wp03_disposition": "close_with_pr_49_after_wp03_without_changing_0868c00"
+    },
+    {
+      "id": "worktree-main-primary",
+      "kind": "worktree",
+      "refs": {
+        "branch": "main",
+        "path": "/Users/linktrend/Projects/IDE Development"
+      },
+      "tip_sha": "bba98ba2401b3f3a7fa3e74ad2fab9cc70d635d5",
+      "classification": "intentionally_deferred",
+      "evidence": [
+        "Primary checkout on main (promote merge bba98ba); not an issue work branch.",
+        "Not an integration candidate for WP02 issue lineage; owner: human/primary workspace."
+      ],
+      "proposed_wp03_disposition": "retain_primary_checkout_no_wp03_deletion"
+    },
+    {
+      "id": "worktree-issue-23",
+      "kind": "worktree",
+      "refs": {
+        "path_suffix": "prunable"
+      },
+      "tip_sha": "7eb41b2494faf6a7dc683b37d2b7334ddd517bee",
+      "classification": "safe_to_close_clean_only_after_wp03",
+      "evidence": [
+        "Matches PR #36 tip; gitdir prunable per before-state.",
+        "HEAD recorded in before-state-2026-08-02T030943Z/worktrees.txt",
+        "Prior content classification retained in paired PR/issue/checkpoint record; worktree actionable class is close-after-WP03 (was semantically_superseded)."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:remove_worktree_when_owning_ref_closed"
+    },
+    {
+      "id": "worktree-issue-28",
+      "kind": "worktree",
+      "refs": {
+        "path_suffix": "issue-28-gitops-bootstrap-activation-smoke-record-issue-2"
+      },
+      "tip_sha": "8ac8fb4a5c7e39086a4f1f02e4a45b3b17939e6c",
+      "classification": "uniquely_required_incorporated_into_new_lineage",
+      "evidence": [
+        "Holds unique #28 handoff file pending incorporation.",
+        "HEAD recorded in before-state-2026-08-02T030943Z/worktrees.txt"
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:remove_worktree_when_owning_ref_closed"
+    },
+    {
+      "id": "worktree-issue-43",
+      "kind": "worktree",
+      "refs": {
+        "path_suffix": "issue-43-build-portable-ide-development-v2-managed-core-i"
+      },
+      "tip_sha": "0868c0034620c4ccb255457484f0342a12a0c833",
+      "classification": "safe_to_close_clean_only_after_wp03",
+      "evidence": [
+        "Frozen PR #49 tip; do not move HEAD.",
+        "HEAD recorded in before-state-2026-08-02T030943Z/worktrees.txt",
+        "Prior content classification retained in paired PR/issue/checkpoint record; worktree actionable class is close-after-WP03 (was ancestor_of_wp01_checkpoint).",
+        "CRITICAL: do not move/delete until WP03; frozen HEAD 0868c00 must remain unchanged while PR #49 open."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:remove_worktree_when_owning_ref_closed"
+    },
+    {
+      "id": "worktree-issue-44",
+      "kind": "worktree",
+      "refs": {
+        "path_suffix": "issue-44-add-app-backed-review-ready-publisher-and-produc"
+      },
+      "tip_sha": "98568c398dcc6d49cbe67aa92d5493f66998f2f9",
+      "classification": "safe_to_close_clean_only_after_wp03",
+      "evidence": [
+        "Content already on DEV via #45.",
+        "HEAD recorded in before-state-2026-08-02T030943Z/worktrees.txt",
+        "Prior content classification retained in paired PR/issue/checkpoint record; worktree actionable class is close-after-WP03 (was already_present_in_origin_development)."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:remove_worktree_when_owning_ref_closed"
+    },
+    {
+      "id": "worktree-issue-51",
+      "kind": "worktree",
+      "refs": {
+        "path_suffix": "issue-51-reconcile-approved-stale-ide-development-prs-wor"
+      },
+      "tip_sha": "ccdefcd97769b68fac8d37ab99d2450049d7f8dd",
+      "classification": "safe_to_close_clean_only_after_wp03",
+      "evidence": [
+        "Cleanup lineage ancestor.",
+        "HEAD recorded in before-state-2026-08-02T030943Z/worktrees.txt",
+        "Prior content classification retained in paired PR/issue/checkpoint record; worktree actionable class is close-after-WP03 (was ancestor_of_cleanup_tip_5cf0991)."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:remove_worktree_when_owning_ref_closed"
+    },
+    {
+      "id": "worktree-issue-53",
+      "kind": "worktree",
+      "refs": {
+        "path_suffix": "issue-53-repair-bugbot-findings-on-stale-cleanup-controls"
+      },
+      "tip_sha": "1e8823bf7f28af2f7a885a27476d920f7babdfcf",
+      "classification": "safe_to_close_clean_only_after_wp03",
+      "evidence": [
+        "Cleanup lineage ancestor.",
+        "HEAD recorded in before-state-2026-08-02T030943Z/worktrees.txt",
+        "Prior content classification retained in paired PR/issue/checkpoint record; worktree actionable class is close-after-WP03 (was ancestor_of_cleanup_tip_5cf0991)."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:remove_worktree_when_owning_ref_closed"
+    },
+    {
+      "id": "worktree-issue-55",
+      "kind": "worktree",
+      "refs": {
+        "path_suffix": "issue-55-repair-remaining-bugbot-cleanup-policy-parity-fi"
+      },
+      "tip_sha": "9120ecb2942b838b94ada4105ddc5e9192901bba",
+      "classification": "safe_to_close_clean_only_after_wp03",
+      "evidence": [
+        "Cleanup lineage ancestor.",
+        "HEAD recorded in before-state-2026-08-02T030943Z/worktrees.txt",
+        "Prior content classification retained in paired PR/issue/checkpoint record; worktree actionable class is close-after-WP03 (was ancestor_of_cleanup_tip_5cf0991)."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:remove_worktree_when_owning_ref_closed"
+    },
+    {
+      "id": "worktree-issue-57",
+      "kind": "worktree",
+      "refs": {
+        "path_suffix": "issue-57-repair-bugbot-fail-closed-preservation-when-pres"
+      },
+      "tip_sha": "c2a24e1de1f8cb874938f65bf0c06ec146e10731",
+      "classification": "safe_to_close_clean_only_after_wp03",
+      "evidence": [
+        "Cleanup lineage ancestor.",
+        "HEAD recorded in before-state-2026-08-02T030943Z/worktrees.txt",
+        "Prior content classification retained in paired PR/issue/checkpoint record; worktree actionable class is close-after-WP03 (was ancestor_of_cleanup_tip_5cf0991)."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:remove_worktree_when_owning_ref_closed"
+    },
+    {
+      "id": "worktree-issue-59",
+      "kind": "worktree",
+      "refs": {
+        "path_suffix": "issue-59-repair-bugbot-ambiguous-remote-fail-closed-prese"
+      },
+      "tip_sha": "1b828ca951a5952941c0b4969eac7266ca1866ee",
+      "classification": "safe_to_close_clean_only_after_wp03",
+      "evidence": [
+        "Cleanup lineage ancestor.",
+        "HEAD recorded in before-state-2026-08-02T030943Z/worktrees.txt",
+        "Prior content classification retained in paired PR/issue/checkpoint record; worktree actionable class is close-after-WP03 (was ancestor_of_cleanup_tip_5cf0991)."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:remove_worktree_when_owning_ref_closed"
+    },
+    {
+      "id": "worktree-issue-61",
+      "kind": "worktree",
+      "refs": {
+        "path_suffix": "issue-61-repair-bugbot-repository-scoped-pr-evidence-for"
+      },
+      "tip_sha": "c596aac752e09886e4d1ae539f0622968280a404",
+      "classification": "safe_to_close_clean_only_after_wp03",
+      "evidence": [
+        "Cleanup lineage ancestor.",
+        "HEAD recorded in before-state-2026-08-02T030943Z/worktrees.txt",
+        "Prior content classification retained in paired PR/issue/checkpoint record; worktree actionable class is close-after-WP03 (was ancestor_of_cleanup_tip_5cf0991)."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:remove_worktree_when_owning_ref_closed"
+    },
+    {
+      "id": "worktree-issue-63",
+      "kind": "worktree",
+      "refs": {
+        "path_suffix": "issue-63-repair-bugbot-repository-scope-propagation-in-cl"
+      },
+      "tip_sha": "5cf099155d9f7b5d95e094f74b288af7aec766af",
+      "classification": "uniquely_required_incorporated_into_new_lineage",
+      "evidence": [
+        "Cleanup tip worktree; required lineage input.",
+        "HEAD recorded in before-state-2026-08-02T030943Z/worktrees.txt"
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:remove_worktree_when_owning_ref_closed"
+    },
+    {
+      "id": "worktree-issue-64",
+      "kind": "worktree",
+      "refs": {
+        "path_suffix": "issue-64-production-hardening-portable-installer-safety-m"
+      },
+      "tip_sha": "44a26f0d14bd0e237748a14dd611c40a7a0cba6f",
+      "classification": "safe_to_close_clean_only_after_wp03",
+      "evidence": [
+        "WP01 ancestor worktree.",
+        "HEAD recorded in before-state-2026-08-02T030943Z/worktrees.txt",
+        "Prior content classification retained in paired PR/issue/checkpoint record; worktree actionable class is close-after-WP03 (was ancestor_of_wp01_checkpoint)."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:remove_worktree_when_owning_ref_closed"
+    },
+    {
+      "id": "worktree-issue-66",
+      "kind": "worktree",
+      "refs": {
+        "path_suffix": "issue-66-production-hardening-physical-symlink-migration"
+      },
+      "tip_sha": "76d2aae1fbf0d497fbfb0e06181b3932660c96ce",
+      "classification": "safe_to_close_clean_only_after_wp03",
+      "evidence": [
+        "WP01 ancestor worktree.",
+        "HEAD recorded in before-state-2026-08-02T030943Z/worktrees.txt",
+        "Prior content classification retained in paired PR/issue/checkpoint record; worktree actionable class is close-after-WP03 (was ancestor_of_wp01_checkpoint)."
+      ],
+      "proposed_wp03_disposition": "safe_to_close_clean_only_after_wp03:remove_worktree_when_owning_ref_closed"
+    },
+    {
+      "id": "worktree-issue-68",
+      "kind": "worktree",
+      "refs": {
+        "path_suffix": "issue-68-work-packet-02-integration-lineage-stale-cleanup",
+        "role": "wp02_active"
+      },
+      "tip_sha": "9cd3fec75075c6910b5a3bbb09b582e4cb3c94e4",
+      "classification": "uniquely_required_incorporated_into_new_lineage",
+      "evidence": [
+        "Active WP02 lead/lane write worktree; do not remove during WP02."
+      ],
+      "proposed_wp03_disposition": "active_wp02_lineage_do_not_close_until_wp02_checkpoint_complete"
+    },
+    {
+      "id": "meta-wp01-cleanup-sibling-overlap",
+      "kind": "lineage_overlap_analysis",
+      "refs": {
+        "left": "wp01",
+        "right": "cleanup",
+        "base": "origin/development"
+      },
+      "tip_sha": null,
+      "classification": "uniquely_required_incorporated_into_new_lineage",
+      "evidence": [
+        "WP01 and CLEAN are siblings from DEV (both merge-bases == DEV; neither ancestor of the other; 19 vs 11 exclusive commits).",
+        "docs/OPEN-ISSUES.md DIFFERS: WP01 section 14 = Work Packet 1 / Issue #67; CLEAN section 14 = stale cleanup / Issue #51 \u2014 both intentional, require editorial merge (not side-select).",
+        "CLEAN-only control surfaces must be added atop WP01 portable-v2 tree; WP01-only managed-core (~261 paths) must be preserved when integrating CLEAN.",
+        "Shared DIFFERS files (repair_task.py, test-gitops-behavioral.sh, LISA-LOCAL-CLEANUP-HANDOFF.md, REPAIR-DISPATCHER.md, cleanup-merged-branches.sh) need three-way resolution in Lane B."
+      ],
+      "proposed_wp03_disposition": "n/a_analysis_only_feeds_lane_b_construction"
+    }
+  ],
+  "wp02_completion_append": {
+    "recorded_at_utc": "2026-08-02T03:46:00Z",
+    "accepted_partial_checkpoint_sha": "712675614014abdf6e180915e07aa21e1a983324",
+    "status": "complete_for_stated_scope",
+    "external_configuration_closure": "docs/evidence/wp02/EXTERNAL-CONFIGURATION-CLOSURE.md",
+    "production_accepted": false,
+    "consumer_rollout_authorized": false,
+    "wp03_dispositions_still_deferred": true
+  }
+}

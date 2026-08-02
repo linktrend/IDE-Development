@@ -1,0 +1,1 @@
+External state NOT READY: 8/19 required checks unresolved [github_app.installation=blocked, github_app.authority_scope=unknown, bugbot.manual_trigger_only=unknown, carlos.user_token_boundary=unknown, protection.staging_ruleset=missing, protection.main_ruleset=missing, protection.promotion_source_policy=drift, workflows.permissions_posture=unknown]. Mutations: none.

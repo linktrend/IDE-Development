@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "catalogId": "cleanroom-fixture-migrations",
+  "packageVersion": "2.0.0",
+  "entries": [
+    {
+      "identity": ".cursor/rules/obsolete-generic.mdc",
+      "path": ".cursor/rules/obsolete-generic.mdc",
+      "contentHash": "sha256:f1f007266642a84b9df36b34d967a7b64a657351e105d6a8cfb2e92a2f112b40",
+      "action": "remove"
+    },
+    {
+      "identity": ".cursor/rules/obsolete-generic-v1.mdc",
+      "path": ".cursor/rules/obsolete-generic-v1.mdc",
+      "contentHash": "sha256:6db131f8918e3603e9daeceb732d377294d198a4a6690a211cffa76f3b876734",
+      "action": "remove"
+    },
+    {
+      "identity": ".cursor/rules/obsolete-mac-local-adoption-stub-v1.mdc",
+      "path": ".cursor/rules/obsolete-mac-local-adoption-stub-v1.mdc",
+      "contentHash": "sha256:2f706773006dc7de1c8d49647aee1b0cb3aa0ff595db3cd6f74e0908db4c6bf3",
+      "action": "remove"
+    },
+    {
+      "identity": ".ide-development-upgrade-notes/obsolete-sparse-gitops-note-v1.md",
+      "path": ".ide-development-upgrade-notes/obsolete-sparse-gitops-note-v1.md",
+      "contentHash": "sha256:344820df2427d355f102da2647715c86b53883fbdd1c504c99a3c3dff9a0c348",
+      "action": "remove"
+    }
+  ]
+}

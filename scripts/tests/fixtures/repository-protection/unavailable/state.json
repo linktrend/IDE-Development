@@ -1,0 +1,14 @@
+{
+  "capability": {
+    "rulesets": "unavailable",
+    "rulesets_error": "Rulesets are not available",
+    "branch_protection": "forbidden"
+  },
+  "repo": {
+    "allow_auto_merge": false
+  },
+  "rulesets": [],
+  "ruleset_details": {},
+  "next_ruleset_id": 1,
+  "branch_protections": {}
+}
