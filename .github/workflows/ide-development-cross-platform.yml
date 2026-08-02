@@ -38,6 +38,24 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Assert fixture payloads stay LF (Windows hash identity)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root = Path("scripts/ide_development_tests/fixtures/package_v2")
+          core = root / "core/managed-core/files/CORE.txt"
+          data = core.read_bytes()
+          if b"\r\n" in data:
+              raise SystemExit(f"CRLF leaked into fixture: {core}")
+          expected = "sha256:978a5230ba63080b899bc3acf8e7166a15a34c94353e8cc4a752c5788b7baa3a"
+          actual = "sha256:" + hashlib.sha256(data).hexdigest()
+          if actual != expected:
+              raise SystemExit(f"fixture hash drift: {actual} != {expected}")
+          print("fixture LF + hash OK", actual)
+          PY
+
       - name: Run cross-platform installer matrix
         shell: bash
         run: python3 scripts/run_cross_platform_matrix.py

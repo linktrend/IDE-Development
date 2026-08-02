@@ -170,7 +170,7 @@ class SymlinkRefuseAndToctouTests(unittest.TestCase):
 
     def test_sha256_and_read_refuse_symlink(self) -> None:
         real = self.root / "secret.txt"
-        real.write_text("secret-payload\n", encoding="utf-8")
+        real.write_bytes(b"secret-payload\n")
         link = self.root / "alias.txt"
         link.symlink_to(real)
         with self.assertRaises(OSError) as ctx:

@@ -53,7 +53,22 @@ class UnicodePathMatrixTests(unittest.TestCase):
         self.assertEqual(verify.exit_code, EXIT_OK, verify.payload)
 
     def test_plan_dry_run_no_writes_unicode_target(self) -> None:
-        before = sorted(p.as_posix() for p in self.target.rglob("*") if p.is_file())
+        def inventory() -> list[str]:
+            # Ignore Git's private object/maintenance noise (e.g. maintenance.lock).
+            files: list[str] = []
+            for p in self.target.rglob("*"):
+                if not p.is_file():
+                    continue
+                try:
+                    rel = p.relative_to(self.target).as_posix()
+                except ValueError:
+                    continue
+                if rel == ".git" or rel.startswith(".git/"):
+                    continue
+                files.append(p.as_posix())
+            return sorted(files)
+
+        before = inventory()
         plan = run_plan(target=self.target, package=self.package)
         self.assertEqual(plan.exit_code, EXIT_OK, plan.payload)
         dry = run_install_or_update(
@@ -63,7 +78,7 @@ class UnicodePathMatrixTests(unittest.TestCase):
             dry_run=True,
         )
         self.assertEqual(dry.exit_code, EXIT_OK, dry.payload)
-        after = sorted(p.as_posix() for p in self.target.rglob("*") if p.is_file())
+        after = inventory()
         self.assertEqual(before, after)
         self.assertFalse((self.target / ".ide-development").exists())
 

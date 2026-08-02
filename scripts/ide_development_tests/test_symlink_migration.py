@@ -47,7 +47,14 @@ class SymlinkMigrationTests(TempRepoTestCase):
         self.assertIsNotNone(info)
         assert info is not None
         self.assertEqual(info.path, ".cursor")
-        self.assertEqual(info.target, str(outside))
+
+        def _norm(path: str) -> str:
+            # Windows may prefix extended-length paths (\\?\).
+            if path.startswith("\\\\?\\"):
+                return path[4:]
+            return path
+
+        self.assertEqual(_norm(info.target), _norm(str(outside)))
         # Detection must not create anything under outside.
         self.assertEqual({p.name for p in outside.iterdir()}, {"secret.txt", "nested"})
 

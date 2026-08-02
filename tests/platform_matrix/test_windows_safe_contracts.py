@@ -29,7 +29,7 @@ from platform_matrix.platform_assertions import (
 class WindowsSafeContractsTests(TempRepoTestCase):
     def test_path_is_symlink_false_for_physical(self) -> None:
         path = Path(self._tmp.name) / "physical.txt"
-        path.write_text("ok\n", encoding="utf-8")
+        path.write_bytes(b"ok\n")
         self.assertFalse(path_is_symlink(path))
         self.assertFalse(path.is_symlink())
         self.assertTrue(sha256_file(path).startswith("sha256:"))
