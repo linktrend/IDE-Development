@@ -1,0 +1,46 @@
+{
+  "id": "08-byte-exact-rollback",
+  "title": "Byte-exact rollback",
+  "setup": {
+    "files": {
+      ".cursor/rules/rollback-target.mdc": {
+        "kind": "text",
+        "content": "BEFORE_BYTES_v1\n",
+        "mode": "0644"
+      }
+    },
+    "interrupted_transaction": {
+      "id": "txn-wp4-rollback-1",
+      "status": {
+        "state": "applied_pending_commit",
+        "command": "install"
+      },
+      "plan": {
+        "ops": [
+          {
+            "op": "replace",
+            "path": ".cursor/rules/rollback-target.mdc"
+          }
+        ]
+      },
+      "backup_files": {
+        ".cursor/rules/rollback-target.mdc": "BEFORE_BYTES_v1\n"
+      }
+    }
+  },
+  "expected": {
+    "rollback_bytes": {
+      ".cursor/rules/rollback-target.mdc": "BEFORE_BYTES_v1\n"
+    },
+    "rollback_modes": {
+      ".cursor/rules/rollback-target.mdc": "0644"
+    }
+  },
+  "live_installer": {
+    "proof": "byte_exact_rollback",
+    "notes": "Live proof: install → mutate package+update → rollback restores CORE.txt bytes/modes.",
+    "asserts": [
+      "rollback restores exact pre-change bytes and modes via CLI"
+    ]
+  }
+}

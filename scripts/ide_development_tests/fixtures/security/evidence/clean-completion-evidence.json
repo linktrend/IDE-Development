@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "command": "write-evidence",
+  "ok": true,
+  "checks": ["unit", "security-acceptance"],
+  "repository": "linktrend/IDE-Development"
+}

@@ -1,0 +1,50 @@
+{
+  "id": "07-interrupted-transaction",
+  "title": "Interrupted transaction recovery",
+  "setup": {
+    "files": {
+      ".cursor/rules/managed-sample.mdc": {
+        "kind": "text",
+        "content": "partially written new bytes\n",
+        "mode": "0644"
+      }
+    },
+    "interrupted_transaction": {
+      "id": "txn-wp4-interrupted-1",
+      "status": {
+        "state": "interrupted",
+        "command": "update"
+      },
+      "plan": {
+        "ops": [
+          {
+            "op": "replace",
+            "path": ".cursor/rules/managed-sample.mdc"
+          }
+        ]
+      },
+      "backup_files": {
+        ".cursor/rules/managed-sample.mdc": "original pre-change bytes\n"
+      }
+    }
+  },
+  "expected": {
+    "classifications": [
+      {
+        "path": ".git/ide-development/transactions/txn-wp4-interrupted-1",
+        "kind": "recoverable"
+      }
+    ],
+    "rollback_bytes": {
+      ".cursor/rules/managed-sample.mdc": "original pre-change bytes\n"
+    }
+  },
+  "live_installer": {
+    "proof": "interrupted_transaction_recovery",
+    "notes": "Classification uses stub transactions/; live proof plants engine current-transaction journal+backups then runs update.",
+    "asserts": [
+      "next mutating CLI restores backup bytes/modes",
+      "current-transaction removed after recovery"
+    ]
+  }
+}
