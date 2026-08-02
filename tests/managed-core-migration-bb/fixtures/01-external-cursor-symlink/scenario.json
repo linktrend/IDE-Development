@@ -1,0 +1,36 @@
+{
+  "id": "01-external-cursor-symlink",
+  "title": "External .cursor symlink migration",
+  "setup": {
+    "symlinks": {
+      ".cursor": "../IDE Development/.cursor"
+    },
+    "files": {
+      "CONSUMER.md": {
+        "kind": "text",
+        "content": "consumer owned docs\n"
+      }
+    }
+  },
+  "expected": {
+    "classifications": [
+      {
+        "path": ".cursor",
+        "kind": "unsafe_link"
+      }
+    ],
+    "preserve": [
+      "CONSUMER.md"
+    ],
+    "notes": "Installer must physically migrate external .cursor symlink to an in-repo directory, install managed files under it, never follow outside consumer, and support transactional rollback that restores the original symlink."
+  },
+  "live_installer": {
+    "proof": "external_cursor_symlink",
+    "asserts": [
+      "install succeeds with physical .cursor directory (migration required)",
+      "outside symlink target bytes/children untouched",
+      "CONSUMER.md preserved",
+      "rollback restores original .cursor symlink; outside still untouched"
+    ]
+  }
+}

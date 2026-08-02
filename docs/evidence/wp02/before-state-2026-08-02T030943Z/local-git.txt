@@ -1,0 +1,19 @@
+# WP02 Before-State Snapshot
+timestamp_utc=2026-08-02T03:09:43Z
+planning_worktree=/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-67-work-packet-1-production-readiness-proof-and-rel
+planning_branch=issue/67-work-packet-1-production-readiness-proof-and-rel
+planning_HEAD=89956878c54ff45e4aef1ff42883d209221b7a30
+origin_development=991abc319782008ef93af95002be0d7f3d5a937c
+origin_staging=f7829436751b8d5adb01c1a50fc9131a5201d1df
+origin_main=80144d391414de603e1c71ab1739da22e24b5684
+wp01_checkpoint=89956878c54ff45e4aef1ff42883d209221b7a30
+cleanup_tip=5cf099155d9f7b5d95e094f74b288af7aec766af
+frozen_49=0868c0034620c4ccb255457484f0342a12a0c833
+
+## Verify input SHAs exist
+commit
+ok 89956878c54ff45e4aef1ff42883d209221b7a30 8995687 docs(wp1): bind final checkpoint SHA and release-candidate digests
+commit
+ok 5cf099155d9f7b5d95e094f74b288af7aec766af 5cf0991 docs(handoff): clarify Issue #63 checkpoint SHA list
+commit
+ok 0868c0034620c4ccb255457484f0342a12a0c833 0868c00 fix(portable-v2): harden Wave 1 install integrity and protection fail-closed

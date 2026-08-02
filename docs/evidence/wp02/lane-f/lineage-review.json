@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "lane": "F",
+  "review": "lineage",
+  "reviewer_slot": 1,
+  "model": "cursor-grok-4.5-high",
+  "verdict": "PASS",
+  "agent_confidence": 0.93,
+  "reviewed_tip": "3c21bb8493a795aa6e46e0eb8a31b2fcd6c15a96",
+  "repo": "linktrend/IDE-Development",
+  "immutable_inputs": {
+    "origin_development": "991abc319782008ef93af95002be0d7f3d5a937c",
+    "wp01": "89956878c54ff45e4aef1ff42883d209221b7a30",
+    "cleanup": "5cf099155d9f7b5d95e094f74b288af7aec766af",
+    "frozen_pr49": "0868c0034620c4ccb255457484f0342a12a0c833"
+  },
+  "critical_proofs": {
+    "wp01_ancestor_of_tip": true,
+    "cleanup_ancestor_of_tip": true,
+    "wp01_exact_merge_parent": {
+      "merge_commit": "888fb279a14eef9ab981903ba4b018e6905f87e7",
+      "second_parent": "89956878c54ff45e4aef1ff42883d209221b7a30"
+    },
+    "cleanup_exact_merge_parent": {
+      "merge_commit": "2c9ce528e588a8fa86104ade24c97c29497effbc",
+      "second_parent": "5cf099155d9f7b5d95e094f74b288af7aec766af"
+    },
+    "ordinary_two_parent_merges": true,
+    "open_issues_append_resolution": {
+      "section_14": "cleanup_2026-08-01",
+      "section_15": "wp01_2026-08-02",
+      "section_16": "wp02"
+    },
+    "pr49_remote_tip_unchanged": true,
+    "pr49_github_head_unchanged": true,
+    "pr49_ancestor_of_wp01": true,
+    "pr49_ancestor_of_tip": true,
+    "pr49_missing_paths_on_tip": 0,
+    "issue23_tip_not_ancestor_of_tip": true,
+    "issue23_squash_tree_equals_pr24": "965ef30de915b1bfcdd568ac885eac4a4f79eff9",
+    "completion_surfaces_eq_development": true,
+    "no_regress_vs_issue23_tip": true,
+    "issue28_handoff_present": true,
+    "issue28_blob_identical_to_pr37_tip": "19912a6c7caeca363e2f7f518842545298e62739",
+    "issue28_incorporated_via_content_not_merge_parent": true,
+    "frozen_heads_unmutated": {
+      "pr49": "0868c0034620c4ccb255457484f0342a12a0c833",
+      "pr36": "7eb41b2494faf6a7dc683b37d2b7334ddd517bee",
+      "pr37": "8ac8fb4a5c7e39086a4f1f02e4a45b3b17939e6c"
+    }
+  },
+  "findings": [
+    {"severity": "info", "id": "wp01-ordinary-merge", "result": "PASS", "detail": "WP01 exact tip is second parent of 888fb27"},
+    {"severity": "info", "id": "cleanup-ordinary-merge", "result": "PASS", "detail": "Cleanup exact tip is second parent of 2c9ce52; OPEN-ISSUES both sections retained"},
+    {"severity": "info", "id": "pr49-frozen-and-represented", "result": "PASS", "detail": "0868c00 unchanged; ancestor via WP01; 0 missing paths on tip"},
+    {"severity": "info", "id": "issue23-superseded-no-regress", "result": "PASS", "detail": "7eb41b2 not merged; App-backed/completion blobs EQ DEV"},
+    {"severity": "info", "id": "issue28-handoff-present", "result": "PASS", "detail": "Unique handoff blob identical; source head unchanged"},
+    {"severity": "info", "id": "issue28-content-incorporation", "result": "INFO", "detail": "Landed in 30724f7 without merge parent; acceptable for docs-only unique file"},
+    {"severity": "info", "id": "pr49-census-pathset", "result": "INFO", "detail": "128 identical / 0 missing consistent with Lane A identical count; evolved count differs by path-set"},
+    {"severity": "info", "id": "external-apply-out-of-scope", "result": "INFO", "detail": "Live apply blocked per WP02 evidence; not a lineage failure"}
+  ],
+  "artifacts": [
+    "docs/evidence/wp02/lane-f/lineage-review.md",
+    "docs/evidence/wp02/lane-f/lineage-review.json"
+  ]
+}

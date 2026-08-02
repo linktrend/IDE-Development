@@ -1,0 +1,31 @@
+# Force LF for portable package and fixture payloads so Windows checkouts
+# preserve sourceHash identity (no CRLF mutation of managed content).
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.whl binary
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+
+# Explicit managed / fixture trees (belt-and-suspenders with text=auto).
+core/managed-core/** text eol=lf
+scripts/ide_development_tests/fixtures/** text eol=lf
+tests/**/fixtures/** text eol=lf
+*.mdc text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sh text eol=lf
+*.py text eol=lf

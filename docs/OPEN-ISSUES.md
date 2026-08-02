@@ -171,3 +171,36 @@ Branch `issue/44-add-app-backed-review-ready-publisher-and-produc` (Issue #44). 
 5. Carlos's restricted user identity must not publish this status (Packager/Bugbot scope unchanged).
 
 **Out of this documentation packet:** workflow/script/test implementation, credential creation, consumer wire, PR/Bugbot/promote.
+
+---
+
+## 14. Reconcile approved stale IDE Development PRs / worktrees — 2026-08-01
+
+Branch `issue/51-reconcile-approved-stale-ide-development-prs-wor` (Issue #51).
+
+**Goal:** Document safe deterministic stale-cleanup controls for IDE Development remote branches, Lisa-local worktrees, open-PR deferrals, and completed-repair inventory dry-run — without auto-closing open PRs or touching preserve-listed issues/PRs/protected branches.
+
+**Authoritative contract:** `docs/contracts/STALE-CLEANUP-CONTROLS.md` (cross-links `LISA-LOCAL-CLEANUP-HANDOFF.md`, `REPAIR-DISPATCHER.md`).
+## 15. Work Packet 1 — production-readiness proof and release candidate (Issue #67) — 2026-08-02
+
+**Status pointer (active):** Issue #67 · branch `issue/67-work-packet-1-production-readiness-proof-and-rel` · plan `docs/work-packets/2026-08-02-work-packet-1-production-readiness.md` (committed; do not edit from Lane F).
+
+**Build log:** `docs/BUILD-LOG.md` (starts with WP1 entries).
+**Operator handoff:** `docs/runbooks/release-candidate.md`, `docs/runbooks/rollback.md`, `docs/acceptance/acceptance-matrix.md`, updated `README.md` / `SETUP.md`.
+
+**WP1 proves (system source only):** installer/migration, Cursor + native Codex discovery, RC packaging, recovery/security, read-only GitHub external-state plan/verify, macOS/Linux/Windows evidence expectations.
+
+**WP1 does not:** touch frozen PR #49; merge/promote; publish tag/Release; install real consumers; apply live GitHub settings; add Claude support.
+
+**Consumer rollout:** Deferred and separately Principal-gated — see `docs/GITOPS-CONSUMER-ROLLOUT.md`. **Work Packet 2** is the integration/publication stage.
+
+**CLI at Lane F documentation time:** `plan|install|update|drift|verify|version|rollback|release-candidate` (`create` / `verify`). Default RC output: `build/release-candidate/`.
+## 16. Work Packet 02 — integration lineage, stale cleanup, and live readiness (Issue #68)
+
+- **Opened:** 2026-08-02
+- **Branch:** `issue/68-work-packet-02-integration-lineage-stale-cleanup`
+- **Base:** fresh `origin/development` `991abc319782008ef93af95002be0d7f3d5a937c`
+- **Inputs:** WP01 `89956878c54ff45e4aef1ff42883d209221b7a30`; cleanup tip `5cf099155d9f7b5d95e094f74b288af7aec766af`; frozen PR #49 `0868c0034620c4ccb255457484f0342a12a0c833`
+- **Scope:** Ordinary-history lineage reconciliation, stale-cleanup restore (no apply), IDE Development live external-state readiness verify/plan; checkpoint only — no PR/review-ready/merge/promote/consumer change
+- **Status:** COMPLETE for stated WP02 scope (2026-08-02). Accepted partial checkpoint `712675614014abdf6e180915e07aa21e1a983324`; external configuration closed (App mint proven; staging/main rulesets `20218450`/`20218451`; Bugbot Manual Only via Principal UI evidence). Evidence: `docs/evidence/wp02/WORK-PACKET-02-EVIDENCE.md`, `EXTERNAL-CONFIGURATION-CLOSURE.md`.
+- **Not claimed:** production acceptance; consumer rollout; WP03 integration into `development`; review-ready on this tip.

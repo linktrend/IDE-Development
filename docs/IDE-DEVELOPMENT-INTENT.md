@@ -1,6 +1,6 @@
 # IDE Development — Intent
 
-**Status:** Confirmed Intent for the IDE Development repository itself (this repository), written in the same spirit as a Module 1 confirmed Intent artifact — a plain-English statement of what is being built, why, for whom, and what "done" means. Grounded in what the filesystem, verification scripts, and git history actually deliver today (through 2026-07-19), not in aspirational Stage 2/3 autonomy language.
+**Status:** Confirmed Intent for the IDE Development repository itself (this repository), written in the same spirit as a Module 1 confirmed Intent artifact — a plain-English statement of what is being built, why, for whom, and what "done" means. Grounded in the portable managed-core v2 model (version **v2.0.0**; Wave 1 / Issue #43) and Work Packet 1 production-readiness proof (Issue #67). Describes what the filesystem + verification scripts deliver, not aspirational Stage 2/3 autonomy language.
 
 **Audience:** The Principal (sole human authority) and any agent or Integrator that needs to understand *why this repository exists* before reading the Technical PRD.
 
@@ -13,10 +13,10 @@
 LiNKtrend is an AI-native venture studio that builds digital ventures with AI agents doing nearly all day-to-day execution. That model still needs a **shared, human-assisted development operating system** that every product repository can consume:
 
 - Every product needs the same doctrine (laws, gates, proof/review/integration), the same command surface, the same skill catalog, and the same model-routing policy — otherwise each repo invents its own process and quality drifts.
-- Agents need a durable, progressive-disclosure knowledge base (`core/`) that is not reinvented per IDE, plus a Cursor-compatible runtime surface (`.cursor/`) that product repos can adopt via symlink.
-- Prior LiNKtrend experiments either coupled factory autonomy into this shared surface (creating identity confusion with the separate LiNKdeveloper Program), left hybrid skills as “reference only,” or let descriptive docs drift ahead of what the filesystem actually wires.
+- Agents need a durable, progressive-disclosure knowledge base (`core/`) that is not reinvented per IDE, plus portable Cursor and Codex discovery adapters installed as **physical files** inside each consumer (committed `.ide-development/` managed core — no consumer-to-system checkout symlinks).
+- Prior LiNKtrend experiments either coupled factory autonomy into this shared surface (creating identity confusion with the separate LiNKdeveloper Program), left hybrid skills as “reference only,” depended on Mac-local `.cursor` symlinks, or let descriptive docs drift ahead of what the filesystem actually wires.
 
-The problem IDE Development solves is: **give every LiNKtrend product repository one installable, verified Application Factory operating system — doctrine, artifacts, hybrid skills, model routes, and pipeline gates — that a human Principal plus Cursor/Codex agents can run session-by-session without depending on a persistent autonomous VPS factory.**
+The problem IDE Development solves is: **give every LiNKtrend product repository one versioned, portable, verified Application Factory operating system — doctrine, artifacts, hybrid skills, model routes, and pipeline gates — that a human Principal plus Cursor/Codex agents can run session-by-session without depending on a persistent autonomous VPS factory or absolute external symlinks.**
 
 ---
 
@@ -26,10 +26,10 @@ The problem IDE Development solves is: **give every LiNKtrend product repository
 |---|---|
 | **Principal (Carlos)** | Sole human authority. Approves Intent + Technical PRD at Module 1 of an application Program, holds Module 6 pre-deploy / Release OK, and reviews briefings when repair budgets exhaust. Does not write code or manage day-to-day execution. |
 | **LiNKtrend studio (agent roles)** | Planners, executors, reviewers, and Integrators operate under this repo’s Laws, pipeline validator, and gates when a product repo is wired to this runtime. |
-| **Downstream product repositories** | Consumers. They install this system via `.cursor` → IDE Development symlink (`scripts/wire-repo.sh`). Once wired, they hold the product code; this repo holds the shared how-to-build operating system. |
-| **LiNKdeveloper (separate Program)** | Sibling, not a runtime dependency. LiNKdeveloper is the VPS-hosted autonomous application factory. It may be *authored* using this repo’s `.cursor` surface like any other product, but it does not depend on IDE Development at runtime. Process-shape parity exists; mechanical runtime parity does not. |
+| **Downstream product repositories** | Consumers. They install this system via the portable installer (`scripts/ide-development.py`) as a committed `.ide-development/` tree plus physical Cursor/Codex adapters. Once installed, they hold the product code; this repo holds the shared how-to-build operating system. |
+| **LiNKdeveloper (separate Program)** | Sibling, not a runtime dependency. LiNKdeveloper is the VPS-hosted autonomous application factory. It may be *authored* using this system’s guidance like any other product, but it does not depend on IDE Development at runtime. Process-shape parity exists; mechanical runtime parity does not. |
 
-IDE Development is **not** a customer-facing product and **not** the autonomous factory. It is LiNKtrend’s shared, human-assisted Application Factory core.
+IDE Development is **not** a customer-facing product, **not** the autonomous factory, and **not** a consumer rollout entry. It is the system source and internal self-verification target for LiNKtrend’s shared, human-assisted Application Factory core.
 
 ---
 
@@ -37,8 +37,8 @@ IDE Development is **not** a customer-facing product and **not** the autonomous 
 
 This repository is “done enough for daily use” when:
 
-1. **`core/` is the canonical knowledge asset** and `.cursor/` is a working compatibility runtime (mostly symlinks into `core/`, plus Cursor-only adapter files such as `rules/` and `mcp.json`).
-2. Product repos can be **wired once** with `scripts/wire-repo.sh` and then consume the same rules, skills, commands, templates, and execution doctrine.
+1. **`core/` is the canonical knowledge asset**; `core/managed-core/` is the portable package source; this system repo’s `.cursor/` remains a compatibility authoring surface. Consumers receive physical managed files under `.ide-development/` and physical discovery adapters — not a symlink back to this checkout.
+2. Product repos can be **installed or updated** with `scripts/ide-development.py` (`install` / `update` / `plan` / `drift` / `verify` / `version` / `rollback`, plus `release-candidate create|verify` for packaging proof) and then consume the same rules, skills, commands, templates, and execution doctrine. Real consumer mutation remains Principal-gated; WP1 proves disposable/RC installs only.
 3. The **fixed six-Module application pipeline** is defined, templated, validated fail-closed (`validate-application-pipeline.mjs`), and enforced by local git hooks when `PIPELINE-STATE.json` is present.
 4. **Hybrid skills are physically vendored and hash-verified** (gstack + mattpocock), with command entrypoints under `core/commands/hybrid-*.md` — not stubs and not sibling-path dependencies.
 5. **Six model-routing subagents** exist under `.cursor/agents/route-*.md` with Cursor bracket-param model pins, ported from LiNKdeveloper’s router criteria.
@@ -60,7 +60,7 @@ That is **not** the same as: a persistent VPS factory orchestrator, or live prod
 
 ### Outputs (what IDE Development produces)
 
-- An **installable operating system** (`core/` + `.cursor/`) that product repos share.
+- An **installable operating system** (managed core + Cursor/Codex adapters) that product repos share as physical committed files.
 - For each application Program in a target repo: durable artifacts under `docs/development/<program-id>/` (Intent, Technical PRD, Technical Design, Program, Module trees, `PIPELINE-STATE.json`, proof manifest).
 - **Proof → independent review → integration** artifacts for Issues, plus Module gates.
 - Optional **Library contribution PRs** into LiNKlibraries (Librarian merges; this client does not self-merge).
@@ -78,6 +78,10 @@ That is **not** the same as: a persistent VPS factory orchestrator, or live prod
 | Decide which venture to build | Intent comes from the Principal / studio strategy. |
 | Ship a Principal phone/web approval dashboard | Operator surface is Cursor + this Operations Manual. |
 | Depend on LiNKdeveloper at runtime | Independence is intentional. Route criteria are *ported*, not live-imported. |
+| Claude Code as a supported runtime | **Excluded.** Outside current v2 support and roadmap. Historical `claude/` files may remain; no new Claude entrypoints. |
+| Nested self-install into this repository | IDE Development is system source / self-verification only — not a consumer rollout target in Wave 1 / WP1. |
+| Real consumer rollout during Work Packet 1 | Deferred. Inventory + order live in `docs/GITOPS-CONSUMER-ROLLOUT.md`; each consumer needs separate Principal approval. Work Packet 2 handles integration/publication decisions. |
+| Git tag / GitHub Release as part of WP1 | WP1 may build a release-candidate **archive** for proof; tag/Release publication belongs to later approval (WP2 boundary). |
 
 ---
 
@@ -100,7 +104,7 @@ Full law text lives in `core/execution/CANONICAL-LAWS.md` (20 laws). Spirit for 
 
 | Criterion | Evidence that counts |
 |---|---|
-| Shared core is installable | `scripts/wire-repo.sh` wires a consumer; `.cursor` resolves into this repo’s surface |
+| Shared core is installable | `scripts/ide-development.py` installs physical `.ide-development/` + Cursor/Codex adapters into a disposable/approved consumer; no outbound checkout symlink |
 | Doctrine is live | `core/execution/*` cited by commands, rules, and validator |
 | Hybrid skills are real | Vendored trees + `VENDOR-MANIFEST.json` hashes; `verify-vendored-skills.sh` passes |
 | Pipeline is fail-closed | Validator + pre-commit/pre-push hooks reject invalid `PIPELINE-STATE.json` |
@@ -114,9 +118,12 @@ Full law text lives in `core/execution/CANONICAL-LAWS.md` (20 laws). Spirit for 
 
 | Document | Role |
 |---|---|
-| `docs/OPEN-ISSUES.md` | Append-only build log — what was verified, deferred, and limited. Prefer over stale prose elsewhere. |
+| `docs/OPEN-ISSUES.md` | Append-only engineering notes — what was verified, deferred, and limited. Prefer over stale prose elsewhere. |
+| `docs/BUILD-LOG.md` | Active Work Packet build log (WP1+). |
+| `docs/runbooks/` · `docs/acceptance/` | Operator release-candidate / rollback runbooks and acceptance matrix. |
 | `docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md` | Exhaustive technical reference for how the system works. |
 | `docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md` | Plain-English handbook for the Principal. |
+| `docs/GITOPS-CONSUMER-ROLLOUT.md` | Consumer inventory; rollout deferred / separately approval-gated; WP2 boundary. |
 | `docs/HYBRID-SKILLS-REGISTRY.md` | Live operational map of gstack/mattpocock commands (kept because verify + command entrypoints cite it). |
 | `core/execution/*` | Operative doctrine (Laws, runtime model, autonomous module behavior, application pipeline). **Not archived.** |
 | `docs/ARCHIVE-INDEX.md` + `docs/archive/` | Retired systems and superseded descriptive docs. |
@@ -126,4 +133,4 @@ Full law text lives in `core/execution/CANONICAL-LAWS.md` (20 laws). Spirit for 
 
 ## 8. One-sentence Intent
 
-**IDE Development is LiNKtrend’s shared, human-assisted Application Factory operating system: a `core/` + `.cursor/` install that wires product repos to one doctrine, one six-Module pipeline, vendored hybrid skills, pinned model routes, and fail-closed gates — so the Principal approves Intent and release while agents execute the rest session-by-session in Cursor/Codex.**
+**IDE Development is LiNKtrend’s shared, human-assisted Application Factory operating system: a versioned portable managed core that installs into product repos as physical files so every consumer shares one doctrine, one six-Module pipeline, vendored hybrid skills, pinned model routes, and fail-closed gates — so the Principal approves Intent and release while agents execute the rest session-by-session in Cursor/Codex.**

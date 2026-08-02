@@ -1,0 +1,20 @@
+{
+  "id": "11-no-credentials-packaged",
+  "title": "No credentials or absolute checkout paths packaged",
+  "setup": {
+    "files": {
+      "PLACEHOLDER.md": {
+        "kind": "text",
+        "content": "fixture marker only; portability scan targets migrations catalog/known-bytes\n"
+      }
+    }
+  },
+  "expected": {
+    "scan_targets": [
+      "core/managed-core/migrations",
+      "tests/managed-core-migration-bb/fixtures"
+    ],
+    "forbid_absolute_paths": true,
+    "forbid_credentials": true
+  }
+}
