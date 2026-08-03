@@ -2,7 +2,7 @@
 
 **Status:** Inventory active — **consumer mutation deferred** until Work Packet 04 execution is Principal-approved **and** separate Principal approval per repo. WP04 packet is **prepared / NOT EXECUTED**.
 **Date:** 2026-08-02 (post-WP03 clarification; Issue #72 Lane A)
-**Version:** `v2.0.0` (identified in `VERSION`; no Git tag or GitHub release claimed by WP1–WP03 alone)
+**Version:** `v2.1.0` (identified in `VERSION`; no Git tag or GitHub release claimed)
 **Issues:** #43 (Wave 1 portable v2) · #67 (WP1) · #68 (WP2) · WP03 promote PRs #69/#70/#71 · #72 (pre-launch cleanup) · WP04 (consumer rollout — approval pending)
 **SOT:** `docs/CURRENT-STATUS.md` · `docs/AUTONOMOUS-GIT-OPERATIONS.md` · `docs/adr/0003-autonomous-ship-pull-promote.md` · `docs/adr/0004-portable-managed-core-v2.md` · `docs/contracts/REPOSITORY-PROTECTION.md` · `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
 
@@ -13,6 +13,8 @@ This document covers **consumer** rollout of the portable managed core. It does 
 **Work Packet 2 (complete):** Canonical lineage + IDE Development live readiness (checkpoint). Did **not** mutate consumers.
 
 **Work Packet 03 (complete):** Integrated/promoted system line — PR #69 → `development`, #70 → `staging`, #71 → `main`. Protected lines share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
+
+**Phase delivery (complete):** Issue #81 delivered v2.1 through PR #82 → `development`, #85 → `staging`, and approved PR #86 → `main`. Pre-rollout reconciliation must leave the protected lines and local checkout content-identical before WP04 begins.
 
 **Work Packet 04 (prepared / not executed):** Real consumer installs/updates in the locked order below. Requires Principal approval of packet execution **and** per-repo approval before each mutation.
 
@@ -35,7 +37,7 @@ This document covers **consumer** rollout of the portable managed core. It does 
 
 - Edit `openclaw_prime`, LiNKplatform, LiNKskills, LiNKbrain, LiNKsites, LiNKdeveloper, LiNKlibraries, LiNKautowork, or LiNKtrading-codebase
 - Apply live GitHub rulesets, branch protection, secrets, variables, App, or Bugbot settings on consumers
-- Create a Git tag or GitHub Release for `v2.0.0` (RC archive proof only)
+- Create a Git tag or GitHub Release for `v2.1.0` (not authorized by this packet)
 - Add Claude Code as a supported platform
 
 (WP2/WP03 later closed IDE Development lineage, live readiness, and protected-line promotion — still without consumer mutation.)
