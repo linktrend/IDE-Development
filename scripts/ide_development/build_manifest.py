@@ -17,8 +17,9 @@ import json
 import re
 import shutil
 import sys
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from .constants import (
     DEFAULT_MARKER_BEGIN,
@@ -34,6 +35,31 @@ REPO_ROOT = SCRIPT_DIR.parents[1]
 MANAGED = REPO_ROOT / "core" / "managed-core"
 MANIFEST_PATH = MANAGED / "MANIFEST.json"
 VERSION_PATH = MANAGED / "VERSION"
+
+
+def _apply_repo_root(root: Path) -> None:
+    """Retarget module globals so packaging can rebuild from a data checkout."""
+    global REPO_ROOT, MANAGED, MANIFEST_PATH, VERSION_PATH
+    REPO_ROOT = root.resolve()
+    MANAGED = REPO_ROOT / "core" / "managed-core"
+    MANIFEST_PATH = MANAGED / "MANIFEST.json"
+    VERSION_PATH = MANAGED / "VERSION"
+
+
+@contextmanager
+def repo_root_context(root: Path) -> Iterator[Path]:
+    """Temporarily point build_manifest at an alternate repository root.
+
+    Trusted packaging code may rebuild from a separate source-SHA checkout
+    (data-only path) without executing that tree's scripts.
+    """
+    global REPO_ROOT, MANAGED, MANIFEST_PATH, VERSION_PATH
+    saved = (REPO_ROOT, MANAGED, MANIFEST_PATH, VERSION_PATH)
+    _apply_repo_root(root)
+    try:
+        yield REPO_ROOT
+    finally:
+        REPO_ROOT, MANAGED, MANIFEST_PATH, VERSION_PATH = saved
 
 # Cursor lifecycle rules beyond the GitOps pair already under platforms/.
 LIFECYCLE_CURSOR_RULES = (
@@ -200,6 +226,10 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "schemas/delivery-modes.schema.json",
             ".ide-development/schemas/delivery-modes.schema.json",
+        ),
+        (
+            "schemas/managed-core-release.schema.json",
+            ".ide-development/schemas/managed-core-release.schema.json",
         ),
         ("platforms/README.md", ".ide-development/platforms/README.md"),
         ("platforms/codex/README.md", ".ide-development/platforms/codex/README.md"),
@@ -530,13 +560,14 @@ def build_manifest_object() -> dict[str, Any]:
     }
 
 
-def write_manifest(path: Path = MANIFEST_PATH) -> dict[str, Any]:
+def write_manifest(path: Path | None = None) -> dict[str, Any]:
+    target = MANIFEST_PATH if path is None else path
     sync_package_payload()
     obj = build_manifest_object()
     # MANIFEST.json itself is copied into consumers by the installer apply step
     # (not listed in files[] to avoid self-hash circularity).
     text = json.dumps(obj, indent=2, sort_keys=False) + "\n"
-    path.write_text(text, encoding="utf-8")
+    target.write_text(text, encoding="utf-8")
     return obj
 
 
@@ -579,7 +610,7 @@ def _doctrine_sync_errors() -> list[str]:
     return errors
 
 
-def verify_manifest(path: Path = MANIFEST_PATH) -> list[str]:
+def verify_manifest(path: Path | None = None) -> list[str]:
     """Read-only verify: compare on-disk MANIFEST hashes to source files.
 
     Does **not** call ``sync_package_payload()`` — verify must not mutate the tree.
@@ -587,14 +618,15 @@ def verify_manifest(path: Path = MANIFEST_PATH) -> list[str]:
 
     Also checks VERSION alignment and CONTENT_DOCTRINE docs→package sync.
     """
+    target = MANIFEST_PATH if path is None else path
     errors: list[str] = []
     errors.extend(_version_alignment_errors())
     errors.extend(_doctrine_sync_errors())
-    if not path.is_file():
+    if not target.is_file():
         errors.append("MANIFEST.json missing")
         return errors
     expected = build_manifest_object()
-    actual = json.loads(path.read_text(encoding="utf-8"))
+    actual = json.loads(target.read_text(encoding="utf-8"))
     if actual.get("packageVersion") != expected["packageVersion"]:
         errors.append("packageVersion drift")
     if actual.get("packageVersion") != PACKAGE_VERSION_TARGET:
