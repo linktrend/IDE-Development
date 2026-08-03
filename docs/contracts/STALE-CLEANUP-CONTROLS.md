@@ -24,13 +24,12 @@ Do not invent alternate cleanup entrypoints. Do not edit credentials, App, Bugbo
 
 Never delete, close, or auto-resolve:
 
-- Issues **#43**, **#44**, **#51**
-- PR **#49**
+- Any issue, PR, or branch named by the current preserve policy
 - Protected branches **`main`**, **`staging`**, **`development`**
 - Consumer repos (out of scope for this IDE-only contract)
 - Credentials / GitHub App / Bugbot / branch protections (out of scope)
 
-Committed defaults: `scripts/gitops/cleanup_preserve.defaults.json`
+Committed defaults: `scripts/gitops/cleanup_preserve.defaults.json`. The list is intentionally empty after the 2026-08-03 reconciliation; add entries only for active, intentionally protected work and remove them when that work closes.
 Optional overlays: `LINKTREND_CLEANUP_PRESERVE_FILE`, `.linktrend/cleanup-preserve.json`, `LINKTREND_CLEANUP_PRESERVE` (comma-separated branch names).
 
 ## Apply gates (fail-closed)
@@ -90,9 +89,9 @@ List them as **Codex / Principal candidates** for manual decision. Cleanup scrip
 python3 scripts/gitops/cleanup_stale_records.py --repo linktrend/IDE-Development --json
 ```
 
-## Operational snapshot (2026-08-01) — Codex reference
+## Historical operational snapshot (2026-08-01) — reconciled
 
-Known candidates as of this date. Re-verify before apply; this snapshot is not a live delete list.
+The candidates below were the evidence basis for the cleanup plan. They were reconciled and removed or closed on 2026-08-03. This is historical context, not a live delete or preserve list.
 
 ### Remote WOULD_DELETE (merged evidence)
 
@@ -102,7 +101,7 @@ Known candidates as of this date. Re-verify before apply; this snapshot is not a
 - `promote/main/f7829436751b`
 - `promote/staging/991abc319782`
 
-### KEEP (active / preserve)
+### KEEP at snapshot time
 
 - `issue/43-*`
 - `issue/44-*` (worktree)
@@ -111,7 +110,7 @@ Known candidates as of this date. Re-verify before apply; this snapshot is not a
 - `issue/23-*` (open PR **#36** + worktree)
 - `issue/28-*` (open PR **#37**)
 
-### Stale OPEN PRs deferred (do not auto-close)
+### Stale OPEN PRs deferred at snapshot time
 
 - PR **#36**
 - PR **#37**
@@ -120,7 +119,7 @@ Known candidates as of this date. Re-verify before apply; this snapshot is not a
 
 | Record | Note | Action |
 |--------|------|--------|
-| **#46** | `usage_limit` on `issue/44-*` (PR **#45** merged) | **KEEP** while issue/44 preserve is active; re-inventory after #44 closes |
+| **#46** | `usage_limit` on `issue/44-*` (PR **#45** merged) | **KEEP at snapshot time**; reconciled after #44 closed |
 | **#40** | PR **#36** still open | **KEEP** |
 | **#50** | PR **#49** / issue **#43** | **KEEP** |
 

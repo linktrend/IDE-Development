@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This repository is **IDE Development** — the shared AI development core (version **v2.0.0**) used across **Cursor** and **Codex**.
+This repository is **IDE Development** — the shared AI development core (version **v2.1.0**) used across **Cursor** and **Codex**.
 
 The canonical knowledge asset lives in `core/`. The portable package source for consumers lives in `core/managed-core/`. GitHub is the source of truth for this **system source** repository.
 
@@ -43,7 +43,7 @@ cd ~/Projects
 git clone https://github.com/linktrend/IDE-Development.git "IDE Development"
 cd "IDE Development"
 git status
-cat VERSION   # expect v2.0.0
+cat VERSION   # expect v2.1.0
 ```
 
 ## Pull Updates (system source)

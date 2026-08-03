@@ -118,4 +118,4 @@ Windows: cross-platform runner executes equivalent Python-owned contract tests a
 
 ## Later work-packet hand-off
 
-When every required row above is green (or explicitly blocked with external cause), WP1 may checkpoint. **WP2** owned lineage + live readiness (complete). **WP03** owned integration/promotion (complete — tree `43b1333…`). **WP04** owns consumer rollout under separate Principal approval — not automatic consumer mutation (`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).
+When every required row above is green (or explicitly blocked with external cause), WP1 may checkpoint. **WP2** owned lineage + live readiness (complete). **WP03** owned integration/promotion (complete). Issue #72 cleanup and Issue #81 v2.1 phase delivery are also complete. **WP04** owns consumer rollout under separate Principal approval — not automatic consumer mutation (`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).
