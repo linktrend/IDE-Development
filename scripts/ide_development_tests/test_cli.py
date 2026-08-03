@@ -21,7 +21,7 @@ class CliTests(TempRepoTestCase):
         proc = self._run("version", "--package", str(self.package), "--json")
         self.assertEqual(proc.returncode, EXIT_OK, proc.stderr + proc.stdout)
         payload = json.loads(proc.stdout)
-        self.assertEqual(payload["packageVersion"], "2.0.0")
+        self.assertEqual(payload["packageVersion"], "2.1.0")
 
     def test_cli_install_dry_run(self) -> None:
         proc = self._run(

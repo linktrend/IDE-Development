@@ -39,13 +39,13 @@ assert_packaging() {
   local root_ver pkg_ver pkg_json_ver
   root_ver="$(tr -d '[:space:]' < VERSION)"
   pkg_ver="$(tr -d '[:space:]' < core/managed-core/VERSION)"
-  [[ "${root_ver#v}" == "2.0.0" ]] || fail "root VERSION must be v2.0.0 identity (got '$root_ver')"
-  [[ "${pkg_ver#v}" == "2.0.0" ]] || fail "managed VERSION must be 2.0.0 identity (got '$pkg_ver')"
+  [[ "${root_ver#v}" == "2.1.0" ]] || fail "root VERSION must be v2.1.0 identity (got '$root_ver')"
+  [[ "${pkg_ver#v}" == "2.1.0" ]] || fail "managed VERSION must be 2.1.0 identity (got '$pkg_ver')"
   [[ "${root_ver#v}" == "${pkg_ver#v}" ]] || fail "VERSION alignment drift: root=$root_ver managed=$pkg_ver"
   pkg_json_ver="$(python3 -c "import json; print(json.load(open('core/managed-core/MANIFEST.json'))['packageVersion'])")"
-  [[ "$pkg_json_ver" == "2.0.0" ]] || fail "MANIFEST packageVersion must be 2.0.0 (got '$pkg_json_ver')"
+  [[ "$pkg_json_ver" == "2.1.0" ]] || fail "MANIFEST packageVersion must be 2.1.0 (got '$pkg_json_ver')"
   [[ "${pkg_ver#v}" == "$pkg_json_ver" ]] || fail "managed VERSION ($pkg_ver) != packageVersion ($pkg_json_ver)"
-  pass "VERSION / packageVersion aligned at 2.0.0"
+  pass "VERSION / packageVersion aligned at 2.1.0"
 
   # Doctrine docs → packaged content must stay byte-synced (Track 4 packaging contract).
   python3 - <<'PY'
@@ -114,8 +114,8 @@ PY
 assert_docs() {
   local ver
   ver="$(tr -d '[:space:]' < VERSION)"
-  [[ "$ver" == "v2.0.0" ]] || fail "VERSION must be v2.0.0 (got '$ver')"
-  pass "VERSION is v2.0.0"
+  [[ "$ver" == "v2.1.0" ]] || fail "VERSION must be v2.1.0 (got '$ver')"
+  pass "VERSION is v2.1.0"
 
   for f in README.md SETUP.md \
     docs/IDE-DEVELOPMENT-INTENT.md \
@@ -224,7 +224,7 @@ PY
   grep -qiE 'no Git tag|does \*\*not\*\* create a Git tag|without tagging|no Git tag or GitHub release' \
     README.md docs/GITOPS-CONSUMER-ROLLOUT.md \
     || fail "missing explicit no-tag/no-release Wave 1 language"
-  pass "v2.0.0 identified without tag/release claim"
+  pass "v2.1.0 identified without tag/release claim"
 
   # Historical Claude files may remain; harness must not delete them.
   [[ -f claude/CLAUDE.md ]] || info "historical claude/CLAUDE.md not present (ok if previously absent)"
