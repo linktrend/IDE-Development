@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "ok-default-v210",
+      "expect": "ok",
+      "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "version": "2.1.0",
+      "tag": "v2.1.0",
+      "action": "publish",
+      "dry_run": false,
+      "default_branch": "main"
+    },
+    {
+      "id": "reject-short-sha",
+      "expect": "source_sha_invalid",
+      "source_sha": "abc",
+      "version": "2.1.0",
+      "tag": "v2.1.0",
+      "action": "publish",
+      "dry_run": false,
+      "default_branch": "main"
+    },
+    {
+      "id": "reject-unauthorized-version",
+      "expect": "version_not_authorized",
+      "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "version": "2.0.0",
+      "tag": "v2.0.0",
+      "action": "publish",
+      "dry_run": false,
+      "default_branch": "main"
+    },
+    {
+      "id": "reject-tag-mismatch",
+      "expect": "tag_version_mismatch",
+      "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "version": "2.1.0",
+      "tag": "v9.9.9",
+      "action": "publish",
+      "dry_run": false,
+      "default_branch": "main"
+    },
+    {
+      "id": "reject-non-main-default-branch",
+      "expect": "default_branch_not_main",
+      "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "version": "2.1.0",
+      "tag": "v2.1.0",
+      "action": "publish",
+      "dry_run": false,
+      "default_branch": "development"
+    },
+    {
+      "id": "ok-verify-only-dry-run",
+      "expect": "ok",
+      "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "version": "2.1.0",
+      "tag": "v2.1.0",
+      "action": "verify-only",
+      "dry_run": true,
+      "default_branch": "main"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+# Adversarial fixture — intentionally unsafe patterns that production must NOT contain.
+# Used only by scripts/tests/test-managed-core-release-publisher.sh
+name: adversarial-untrusted-managed-core-release
+on:
+  pull_request:
+jobs:
+  bad:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: true
+      - name: leak and fallback
+        env:
+          LINKTREND_GITOPS_APP_PRIVATE_KEY: ${{ secrets.LINKTREND_GITOPS_APP_PRIVATE_KEY }}
+          LINKTREND_BUGBOT_USER_TOKEN: ${{ secrets.LINKTREND_BUGBOT_USER_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          FALLBACK_PAT: ghp_example_not_real
+        run: echo "unsafe"

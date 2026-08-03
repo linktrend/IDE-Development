@@ -224,29 +224,28 @@ def validate_tests_and_evidence(repo_root: Path = REPO_ROOT) -> list[str]:
 
 
 def regenerate_manifest_deterministically(repo_root: Path = REPO_ROOT) -> tuple[bytes, str]:
-    """Write MANIFEST twice; require byte-identical second run. Return bytes + hash."""
-    # Temporarily point build_manifest at this repo root if needed.
-    if repo_root.resolve() != bm.REPO_ROOT.resolve():
-        raise ReleaseCandidateError(
-            "release_candidate regenerate only supports the system repository root",
-            details={"expected": str(bm.REPO_ROOT), "got": str(repo_root)},
-        )
-    bm.write_manifest()
-    first = (bm.MANIFEST_PATH).read_bytes()
-    bm.write_manifest()
-    second = (bm.MANIFEST_PATH).read_bytes()
-    if first != second:
-        raise ReleaseCandidateError(
-            "Manifest regeneration is not byte-identical across consecutive runs",
-            details={"firstBytes": len(first), "secondBytes": len(second)},
-        )
-    errors = bm.verify_manifest()
-    if errors:
-        raise ReleaseCandidateError(
-            "Manifest verify failed after regeneration",
-            details={"errors": errors},
-        )
-    return first, sha256_bytes(first)
+    """Write MANIFEST twice; require byte-identical second run. Return bytes + hash.
+
+    Supports an alternate source-tree root so App-backed release publication can
+    rebuild from a data-only checkout while executing trusted packaging code.
+    """
+    with bm.repo_root_context(repo_root):
+        bm.write_manifest()
+        first = bm.MANIFEST_PATH.read_bytes()
+        bm.write_manifest()
+        second = bm.MANIFEST_PATH.read_bytes()
+        if first != second:
+            raise ReleaseCandidateError(
+                "Manifest regeneration is not byte-identical across consecutive runs",
+                details={"firstBytes": len(first), "secondBytes": len(second)},
+            )
+        errors = bm.verify_manifest()
+        if errors:
+            raise ReleaseCandidateError(
+                "Manifest verify failed after regeneration",
+                details={"errors": errors},
+            )
+        return first, sha256_bytes(first)
 
 
 def _is_excluded_rel(rel: str) -> bool:

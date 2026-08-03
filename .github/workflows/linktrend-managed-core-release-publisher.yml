@@ -1,0 +1,202 @@
+# Linktrend Managed-Core Release Publisher — App-backed immutable publication
+#
+# System-repository only (IDE Development). Not synced to consumers via
+# scripts/sync-managed-workflows.sh — consumers must not publish managed-core.
+#
+# Privileged tag + GitHub Release publication for managed-core v2.1.0.
+# Workflow YAML and publish scripts come from the protected default branch only.
+# The requested source SHA is checked out as data only — never execute untrusted
+# tip code with write credentials.
+#
+# Identity: GitHub App installation token only. No human / PAT / GITHUB_TOKEN
+# fallback. Fail closed when App mint/resolve fails, when source SHA does not
+# equal the default-branch tip, or on tag/release/checksum conflict/replay.
+#
+# Trigger: workflow_dispatch. dry_run / action=verify-only validate and rebuild
+# without creating a tag or Release.
+# Input validation: scripts/gitops/managed_core_release_dispatch.py
+# Publish helper: scripts/gitops/managed_core_release_publish.py
+
+name: Linktrend Managed-Core Release Publisher
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Immutable 40-char source SHA (must equal remote default-branch tip)"
+        required: true
+        type: string
+      version:
+        description: "Package semver (authorized: 2.1.0)"
+        required: false
+        type: string
+        default: "2.1.0"
+      tag:
+        description: "Immutable release tag (must be v<version>)"
+        required: false
+        type: string
+        default: "v2.1.0"
+      action:
+        description: "publish (default) or verify-only"
+        required: false
+        type: choice
+        options:
+          - publish
+          - verify-only
+        default: publish
+      dry_run:
+        description: "Rebuild/verify/bindings only; do not create tag or GitHub Release"
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: linktrend-managed-core-release-publisher-${{ inputs.tag }}-${{ inputs.source_sha }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Rebuild, verify, and publish managed-core release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted default branch only (scripts)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Validate dispatch inputs
+        id: inputs
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_ACTION: ${{ inputs.action }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          python3 scripts/gitops/managed_core_release_dispatch.py validate \
+            --source-sha "${INPUT_SOURCE_SHA}" \
+            --version "${INPUT_VERSION}" \
+            --tag "${INPUT_TAG}" \
+            --action "${INPUT_ACTION}" \
+            --dry-run "${INPUT_DRY_RUN}" \
+            --github-repository "${GITHUB_REPOSITORY}" \
+            --default-branch "${DEFAULT_BRANCH}" \
+            --github-output
+
+      - name: Checkout source SHA as data only
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.inputs.outputs.source_sha }}
+          path: untrusted-source-data
+          persist-credentials: false
+
+      - name: Bind data checkout HEAD to requested source SHA
+        env:
+          SOURCE_SHA: ${{ steps.inputs.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          data_sha="$(git -C untrusted-source-data rev-parse HEAD)"
+          data_sha="$(printf '%s' "${data_sha}" | tr '[:upper:]' '[:lower:]')"
+          want="$(printf '%s' "${SOURCE_SHA}" | tr '[:upper:]' '[:lower:]')"
+          if [ "${data_sha}" != "${want}" ]; then
+            echo "FAIL: untrusted-source-data HEAD=${data_sha} != source_sha=${want}" >&2
+            exit 1
+          fi
+          trusted_sha="$(git rev-parse HEAD)"
+          trusted_sha="$(printf '%s' "${trusted_sha}" | tr '[:upper:]' '[:lower:]')"
+          if [ "${trusted_sha}" != "${want}" ]; then
+            echo "FAIL: trusted default-branch HEAD=${trusted_sha} != source_sha=${want}" >&2
+            exit 1
+          fi
+
+      - name: Mint GitHub App token
+        id: app
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        continue-on-error: true
+        with:
+          app-id: ${{ vars.LINKTREND_GITOPS_APP_ID }}
+          private-key: ${{ secrets.LINKTREND_GITOPS_APP_PRIVATE_KEY }}
+
+      - name: Resolve App token; rebuild/verify; publish or dry-run
+        env:
+          LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
+          LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
+          REQUIRE_APP_TOKEN: "1"
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ steps.inputs.outputs.source_sha }}
+          VERSION: ${{ steps.inputs.outputs.version }}
+          TAG: ${{ steps.inputs.outputs.tag }}
+          ACTION: ${{ steps.inputs.outputs.action }}
+          DRY_RUN: ${{ steps.inputs.outputs.dry_run }}
+          DEFAULT_BRANCH: ${{ steps.inputs.outputs.default_branch }}
+        run: |
+          set -euo pipefail
+          if ! source scripts/gitops/resolve_automation_token.sh; then
+            python3 scripts/gitops/write_outcome.py \
+              --status automation_credentials_blocked \
+              --detail "App token unavailable for managed-core release publisher"
+            echo "### Managed-core release publisher: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE AUTOMATION_CREDENTIALS_STATUS
+          # Privileged identity is App only — refuse GITHUB_TOKEN publish fallback.
+          if [ -z "${AUTOMATION_TOKEN:-}" ]; then
+            echo "FAIL: AUTOMATION_TOKEN missing; refuse GITHUB_TOKEN publish fallback" >&2
+            exit 1
+          fi
+          if [ "${AUTOMATION_TOKEN_SOURCE}" != "github_app" ]; then
+            echo "FAIL: AUTOMATION_TOKEN_SOURCE must be github_app (got ${AUTOMATION_TOKEN_SOURCE})" >&2
+            exit 1
+          fi
+          # Never export github.token as the mutation credential.
+          export GH_TOKEN="${AUTOMATION_TOKEN}"
+          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
+          export LINKTREND_APP_TOKEN="${AUTOMATION_TOKEN}"
+          echo "AUTOMATION_TOKEN_SOURCE=${AUTOMATION_TOKEN_SOURCE}" >> "$GITHUB_STEP_SUMMARY"
+
+          DATA_ROOT="$(pwd)/untrusted-source-data"
+          TRUSTED_ROOT="$(pwd)"
+          if [ "${DATA_ROOT}" = "${TRUSTED_ROOT}" ]; then
+            echo "FAIL: untrusted data path collapsed into trusted root" >&2
+            exit 1
+          fi
+
+          mkdir -p build/managed-core-release
+          python3 scripts/gitops/managed_core_release_publish.py \
+            --source-root "${DATA_ROOT}" \
+            --source-sha "${SOURCE_SHA}" \
+            --version "${VERSION}" \
+            --tag "${TAG}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --default-branch "${DEFAULT_BRANCH}" \
+            --action "${ACTION}" \
+            --dry-run "${DRY_RUN}" \
+            --output-dir "${TRUSTED_ROOT}/build/managed-core-release" \
+            --outcome-out gitops-outcome.json \
+            --evidence-out managed-core-release-evidence.json
+
+          status="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json"))["status"])')"
+          echo "### Managed-core release publisher: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
+          case "${status}" in
+            published|dry_run_ok|verify_only_ok) exit 0 ;;
+            *) exit 1 ;;
+          esac
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: managed-core-release-publisher-report
+          path: |
+            gitops-outcome.json
+            managed-core-release-evidence.json
+          if-no-files-found: ignore
+          retention-days: 30
