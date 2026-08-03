@@ -345,7 +345,7 @@ def main() -> int:
     packaged = 0
     for b in list_branches(token, repo):
         name = b.get("name") or ""
-        if not is_allowed_work_branch(name):
+        if not is_allowed_work_branch(name, delivery.phase_branch_prefix):
             continue
         sha = ((b.get("commit") or {}).get("sha") or "").lower()
         if not sha:

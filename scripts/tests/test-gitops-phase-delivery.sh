@@ -93,6 +93,16 @@ d = should_open_pr_for_branch(
 )
 assert d.open_pr is True and d.reason == "phase_branch_pr"
 
+# Configurable phaseBranchPrefix must pass packager allow-filter (Bugbot #1)
+custom_prefix = "wave/"
+assert is_allowed_work_branch("wave/wp-01-demo", phase_branch_prefix=custom_prefix)
+assert not is_allowed_work_branch("wave/wp-01-demo")  # default still phase/
+custom_cfg = DeliveryConfig(
+    delivery_mode=MODE_PHASE_INTEGRATION, phase_branch_prefix=custom_prefix
+)
+d = should_open_pr_for_branch("wave/wp-01-demo", custom_cfg, review_ready=True)
+assert d.open_pr is True and d.reason == "phase_branch_pr"
+
 # issue-pr mode unchanged
 issue_cfg = DeliveryConfig(delivery_mode=MODE_ISSUE_PR)
 d = should_open_pr_for_branch("issue/1-alpha", issue_cfg, review_ready=True)
@@ -228,6 +238,38 @@ assert_fail(
         expected_sha=head,
     ),
     "SKIPPED",
+)
+
+# allowNeutral=True: NEUTRAL/SKIPPED count as success (Bugbot #2)
+neutral_ok = named_gate_evidence(
+    gate="fast-gate",
+    sha=head,
+    checks=[{"name": "Verify IDE Development", "state": "NEUTRAL"}],
+    required=["Verify IDE Development"],
+    expected_sha=head,
+    allow_neutral=True,
+)
+assert neutral_ok["status"] == "success", neutral_ok
+skipped_ok = named_gate_evidence(
+    gate="fast-gate",
+    sha=head,
+    checks=[{"name": "Verify IDE Development", "state": "SKIPPED"}],
+    required=["Verify IDE Development"],
+    expected_sha=head,
+    allow_neutral=True,
+)
+assert skipped_ok["status"] == "success", skipped_ok
+# allowNeutral must not open the door to hard failures
+assert_fail(
+    named_gate_evidence(
+        gate="fast-gate",
+        sha=head,
+        checks=[{"name": "Verify IDE Development", "state": "FAILURE"}],
+        required=["Verify IDE Development"],
+        expected_sha=head,
+        allow_neutral=True,
+    ),
+    "FAILURE",
 )
 
 # Persist fixture evidence artifact for verifier focus

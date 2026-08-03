@@ -259,18 +259,24 @@ def named_gate_evidence(
             "checks": [],
         }
 
-    # Neutral/skipped conclusions are non-success unless explicitly allowed.
+    # Neutral/skipped conclusions are non-success unless allow_neutral is set.
+    # When allow_neutral is True, NEUTRAL/SKIPPED/SKIP count as success; all other
+    # non-success conclusions (FAILURE, CANCELLED, …) remain fail-closed.
+    # Do not delegate to fast_gate_status when allow_neutral is set — that helper
+    # treats any non-SUCCESS conclusion as failed.
     latest = latest_checks_by_name(checks)
     req = [r.strip() for r in required if r.strip()]
+    check_rows = [{"name": n, "state": latest.get(n, "MISSING")} for n in req]
     if not req:
         return {
             "gate": gate_id,
             "sha": subject,
             "status": "failed",
             "detail": "REQUIRED_CHECKS empty",
-            "checks": [{"name": n, "state": latest.get(n, "MISSING")} for n in req],
+            "checks": check_rows,
         }
 
+    neutral_ok = frozenset({"NEUTRAL", "SKIPPED", "SKIP"}) if allow_neutral else frozenset()
     if not allow_neutral:
         for name in req:
             state = latest.get(name, "MISSING")
@@ -280,16 +286,50 @@ def named_gate_evidence(
                     "sha": subject,
                     "status": "failed",
                     "detail": f"{name}={state}",
-                    "checks": [{"name": n, "state": latest.get(n, "MISSING")} for n in req],
+                    "checks": check_rows,
                 }
+        status, detail = fast_gate_status(checks, required)
+        return {
+            "gate": gate_id,
+            "sha": subject,
+            "status": status,
+            "detail": detail,
+            "checks": check_rows,
+        }
 
-    status, detail = fast_gate_status(checks, required)
+    for name in req:
+        state = latest.get(name, "MISSING")
+        if state in {"PENDING", "QUEUED", "IN_PROGRESS", "EXPECTED"}:
+            return {
+                "gate": gate_id,
+                "sha": subject,
+                "status": "pending",
+                "detail": f"{name}={state}",
+                "checks": check_rows,
+            }
+        if state in {"MISSING", ""}:
+            return {
+                "gate": gate_id,
+                "sha": subject,
+                "status": "missing",
+                "detail": f"{name}=missing",
+                "checks": check_rows,
+            }
+        if state == "SUCCESS" or state in neutral_ok:
+            continue
+        return {
+            "gate": gate_id,
+            "sha": subject,
+            "status": "failed",
+            "detail": f"{name}={state}",
+            "checks": check_rows,
+        }
     return {
         "gate": gate_id,
         "sha": subject,
-        "status": status,
-        "detail": detail,
-        "checks": [{"name": n, "state": latest.get(n, "MISSING")} for n in req],
+        "status": "success",
+        "detail": "all required success",
+        "checks": check_rows,
     }
 
 

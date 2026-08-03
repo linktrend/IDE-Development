@@ -167,10 +167,19 @@ def parse_required_checks(raw: str) -> list[str]:
     return [p.strip() for p in (raw or "").split(",") if p.strip()]
 
 
-def is_allowed_work_branch(name: str) -> bool:
+def is_allowed_work_branch(
+    name: str,
+    phase_branch_prefix: str = "phase/",
+) -> bool:
+    """Return True if *name* is an allowlisted short-lived work branch.
+
+    ``phase_branch_prefix`` comes from delivery-mode config (default ``phase/``)
+    so Packager discovery can see Phase tips under a custom prefix.
+    """
+    phase = phase_branch_prefix if phase_branch_prefix.endswith("/") else f"{phase_branch_prefix}/"
     prefixes = (
         "issue/",
-        "phase/",
+        phase,
         "feature/",
         "fix/",
         "chore/",
