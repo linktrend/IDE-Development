@@ -1,0 +1,26 @@
+# Required substrings / patterns the production publisher workflow must satisfy.
+# Format: kind|needle
+# kind: must | must_not
+must|workflow_dispatch
+must|source_sha
+must|dry_run
+must|github.event.repository.default_branch
+must|persist-credentials: false
+must|create-github-app-token
+must|LINKTREND_GITOPS_APP_ID
+must|LINKTREND_GITOPS_APP_PRIVATE_KEY
+must|resolve_automation_token
+must|automation_credentials_blocked
+must|managed_core_release_dispatch.py
+must|managed_core_release_publish.py
+must|AUTOMATION_TOKEN
+must|untrusted-source-data
+must|refuse GITHUB_TOKEN publish fallback
+must|Bind data checkout HEAD
+must_not|pull_request.head.sha
+must_not|pull_request.merge_commit_sha
+must_not|refs/pull/
+must_not|LINKTREND_BUGBOT_USER_TOKEN
+must_not|BUGBOT_USER_TOKEN
+must_not|github_pat_
+must_not|ghp_
