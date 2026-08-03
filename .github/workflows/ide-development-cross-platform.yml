@@ -49,7 +49,7 @@ jobs:
           data = core.read_bytes()
           if b"\r\n" in data:
               raise SystemExit(f"CRLF leaked into fixture: {core}")
-          expected = "sha256:978a5230ba63080b899bc3acf8e7166a15a34c94353e8cc4a752c5788b7baa3a"
+          expected = "sha256:65fe6ffd79bb47d55d9bf51c372a3e3c2a4246af66a4247cb756efb71b192520"
           actual = "sha256:" + hashlib.sha256(data).hexdigest()
           if actual != expected:
               raise SystemExit(f"fixture hash drift: {actual} != {expected}")

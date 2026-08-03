@@ -1,0 +1,22 @@
+{
+  "files": [
+    {
+      "bytes": 224271,
+      "path": "build/release-candidate/ide-development-managed-core-2.1.0.tar.gz",
+      "sha256": "sha256:add0529545b504d42402f4c90f0273a0c5551399d34059e1e1dbc3b86831a501"
+    },
+    {
+      "bytes": 296276,
+      "path": "build/release-candidate/ide-development-managed-core-2.1.0.zip",
+      "sha256": "sha256:7ac81dc416419cdade7d0bc3b7fb1438f7b45c5d5ade46adaef451b259847ccf"
+    },
+    {
+      "bytes": 10720,
+      "path": "build/release-candidate/release-candidate.json",
+      "sha256": "sha256:2788ab31d88f453993f3156339bdf05653278c4a254e4eba48446584e7b8fa41"
+    }
+  ],
+  "kind": "ide-development-release-candidate-checksums",
+  "packageVersion": "2.1.0",
+  "schemaVersion": 1
+}

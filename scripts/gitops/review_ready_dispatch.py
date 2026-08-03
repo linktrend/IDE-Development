@@ -18,33 +18,78 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-# Studio App-backed publisher accepts only issue/<number>-<slug> (digits).
+# Studio App-backed publisher accepts verified issue/<number>-<slug> (digits)
+# and configured phase/<slug> Phase-integration tips. Legacy allowlist prefixes
+# (feature/, dev/, …) remain rejected.
 ISSUE_BRANCH_RE = re.compile(r"^issue/([1-9][0-9]{0,8})-([a-z0-9]+(?:-[a-z0-9]+)*)$")
+PHASE_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FULL_SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 REPO_SLUG_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 PROTECTED_BRANCHES = frozenset({"development", "staging", "main", "HEAD"})
 DEFAULT_EVIDENCE_PATH = ".linktrend/completion-evidence.json"
 MAX_EVIDENCE_JSON_BYTES = 256_000
+DEFAULT_PHASE_PREFIX = "phase/"
+BRANCH_KIND_ISSUE = "issue"
+BRANCH_KIND_PHASE = "phase"
+
+
+def normalize_phase_prefix(prefix: str | None) -> str:
+    raw = (prefix or DEFAULT_PHASE_PREFIX).strip() or DEFAULT_PHASE_PREFIX
+    return raw if raw.endswith("/") else f"{raw}/"
+
+
+def resolve_phase_branch_prefix(repo_root: Path | None = None) -> str:
+    """Resolve phaseBranchPrefix from delivery-mode config (default phase/)."""
+    try:
+        from delivery_modes import load_delivery_config
+
+        root = repo_root if repo_root is not None else Path.cwd()
+        return normalize_phase_prefix(load_delivery_config(root).phase_branch_prefix)
+    except Exception:  # noqa: BLE001 — fail closed to default prefix
+        return DEFAULT_PHASE_PREFIX
 
 
 def is_app_backed_issue_branch(name: str) -> bool:
-    """True only for verified issue/<number>-<slug> (App publisher allowlist)."""
+    """True only for verified issue/<number>-<slug> (issue-branch safeguard)."""
     return bool(name) and bool(ISSUE_BRANCH_RE.fullmatch(str(name).strip()))
+
+
+def is_app_backed_phase_branch(
+    name: str, phase_prefix: str = DEFAULT_PHASE_PREFIX
+) -> bool:
+    """True for configured phase/<lowercase-slug> Phase-integration tips."""
+    raw = str(name or "").strip()
+    prefix = normalize_phase_prefix(phase_prefix)
+    if not raw or not raw.startswith(prefix):
+        return False
+    slug = raw[len(prefix) :]
+    return bool(slug) and "/" not in slug and bool(PHASE_SLUG_RE.fullmatch(slug))
+
+
+def is_app_backed_publish_branch(
+    name: str, phase_prefix: str = DEFAULT_PHASE_PREFIX
+) -> bool:
+    """True when App publisher may bind this branch (issue slug or Phase tip)."""
+    return is_app_backed_issue_branch(name) or is_app_backed_phase_branch(
+        name, phase_prefix
+    )
 
 
 def app_branch_migration_remediation(branch: str) -> str:
     """Actionable migration path when a legacy allowed branch cannot use App publish."""
     br = (branch or "").strip() or "<current-branch>"
     return (
-        "App-backed Linktrend Review Ready publisher accepts only verified "
-        "issue/<number>-<slug> branches (digits + lowercase slug). "
+        "App-backed Linktrend Review Ready publisher accepts verified "
+        "issue/<number>-<slug> branches (digits + lowercase slug) and configured "
+        "phase/<slug> Phase-integration tips. "
         f"Branch {br!r} may still be allowed for ordinary work/Pull but cannot "
         "dispatch linktrend-review-ready-publisher. "
         "Migrate: run `python3 scripts/gitops/create_issue_branch.py \"…\"` "
         "or `/agentcomply` onto issue/<n>-<slug>, move the tip there, push, "
         "rewrite completion evidence for the new HEAD SHA, then re-run "
-        "`python3 scripts/gitops/completion_gate.py review-ready`."
+        "`python3 scripts/gitops/completion_gate.py review-ready`. "
+        "For Phase tips, use the configured phaseBranchPrefix slug form."
     )
 
 
@@ -69,6 +114,7 @@ class ValidatedDispatch:
     evidence_json: str  # empty when not supplied; raw JSON text when supplied
     action: str  # publish | withdraw
     reason: str  # withdrawal reason when action=withdraw; else empty
+    branch_kind: str = BRANCH_KIND_ISSUE  # issue | phase
 
 
 def _reject(code: str, message: str) -> None:
@@ -90,7 +136,15 @@ def parse_dry_run(raw: Any) -> bool:
     raise AssertionError("unreachable")
 
 
-def validate_branch(branch: str) -> tuple[int, str]:
+def validate_branch(
+    branch: str,
+    *,
+    phase_prefix: str = DEFAULT_PHASE_PREFIX,
+) -> tuple[str, int, str]:
+    """Return (branch_kind, issue_number, slug).
+
+    issue_number is 0 for Phase branches. Legacy allowlist prefixes are rejected.
+    """
     if branch is None:
         _reject("branch_missing", "branch is required")
     name = str(branch).strip()
@@ -99,22 +153,42 @@ def validate_branch(branch: str) -> tuple[int, str]:
     if any(ch.isspace() for ch in name):
         _reject("branch_whitespace", "branch must not contain whitespace")
     if name.startswith("refs/") or name.startswith("origin/"):
-        _reject("branch_mutable_ref", "branch must be a bare issue/<n>-<slug> name, not a ref")
+        _reject(
+            "branch_mutable_ref",
+            "branch must be a bare issue/<n>-<slug> or phase/<slug> name, not a ref",
+        )
     if ".." in name or name.startswith("/") or "\\" in name:
         _reject("branch_path_illegal", "branch must not look like a path")
-    if name in PROTECTED_BRANCHES or name.split("/", 1)[0] in {"development", "staging", "main"}:
+    if name in PROTECTED_BRANCHES or name.split("/", 1)[0] in {
+        "development",
+        "staging",
+        "main",
+    }:
         _reject("branch_protected", f"protected or non-issue branch forbidden: {name}")
+
     m = ISSUE_BRANCH_RE.fullmatch(name)
-    if not m:
+    if m:
+        issue_number = int(m.group(1))
+        slug = m.group(2)
+        if issue_number <= 0:
+            _reject("branch_issue_number_invalid", "issue number must be positive")
+        return BRANCH_KIND_ISSUE, issue_number, slug
+
+    prefix = normalize_phase_prefix(phase_prefix)
+    if name.startswith(prefix):
+        slug = name[len(prefix) :]
+        if slug and "/" not in slug and PHASE_SLUG_RE.fullmatch(slug):
+            return BRANCH_KIND_PHASE, 0, slug
         _reject(
             "branch_not_issue_slug",
-            "branch must match issue/<number>-<slug> with lowercase slug segments",
+            "phase branch must match <phaseBranchPrefix><lowercase-slug>",
         )
-    issue_number = int(m.group(1))
-    slug = m.group(2)
-    if issue_number <= 0:
-        _reject("branch_issue_number_invalid", "issue number must be positive")
-    return issue_number, slug
+
+    _reject(
+        "branch_not_issue_slug",
+        "branch must match issue/<number>-<slug> or configured phase/<slug>",
+    )
+    raise AssertionError("unreachable")
 
 
 def validate_sha(sha: str) -> str:
@@ -197,12 +271,22 @@ def validate_evidence_json(raw: str | None) -> str:
     return text
 
 
-def validate_issue_number_binding(issue_number: int, explicit_issue: str | None) -> None:
+def validate_issue_number_binding(
+    issue_number: int,
+    explicit_issue: str | None,
+    *,
+    branch_kind: str = BRANCH_KIND_ISSUE,
+) -> None:
     if explicit_issue is None:
         return
     text = str(explicit_issue).strip()
     if not text:
         return
+    if branch_kind == BRANCH_KIND_PHASE:
+        _reject(
+            "issue_number_not_applicable",
+            "issue_number is only valid for issue/<number>-<slug> branches",
+        )
     if not re.fullmatch(r"[1-9][0-9]{0,8}", text):
         _reject("issue_number_invalid", "issue_number must be a positive integer string")
     if int(text) != issue_number:
@@ -249,9 +333,16 @@ def validate_dispatch_inputs(
     issue_number: str | None = None,
     action: Any = "publish",
     reason: Any = None,
+    phase_prefix: str | None = None,
+    repo_root: Path | None = None,
 ) -> ValidatedDispatch:
     """Validate and normalize all dispatch inputs. Raises DispatchValidationError."""
-    issue_num, slug = validate_branch(branch)
+    prefix = (
+        normalize_phase_prefix(phase_prefix)
+        if phase_prefix is not None
+        else resolve_phase_branch_prefix(repo_root)
+    )
+    kind, issue_num, slug = validate_branch(branch, phase_prefix=prefix)
     tip = validate_sha(sha)
     act = validate_action(action)
     why = validate_reason(reason, action=act)
@@ -260,7 +351,7 @@ def validate_dispatch_inputs(
         github_repository=github_repository,
         requested_repository=repository,
     )
-    validate_issue_number_binding(issue_num, issue_number)
+    validate_issue_number_binding(issue_num, issue_number, branch_kind=kind)
     # Withdraw does not require completion evidence; publish still does.
     if act == "withdraw":
         path = DEFAULT_EVIDENCE_PATH
@@ -268,8 +359,12 @@ def validate_dispatch_inputs(
     else:
         path = validate_evidence_path(evidence_path)
         ev_json = validate_evidence_json(evidence_json)
+    if kind == BRANCH_KIND_ISSUE:
+        canonical = f"issue/{issue_num}-{slug}"
+    else:
+        canonical = f"{prefix}{slug}"
     return ValidatedDispatch(
-        branch=f"issue/{issue_num}-{slug}",
+        branch=canonical,
         sha=tip,
         issue_number=issue_num,
         issue_slug=slug,
@@ -279,6 +374,7 @@ def validate_dispatch_inputs(
         evidence_json=ev_json,
         action=act,
         reason=why,
+        branch_kind=kind,
     )
 
 
@@ -291,6 +387,7 @@ def _write_github_output(validated: ValidatedDispatch) -> None:
         f"sha={validated.sha}",
         f"issue_number={validated.issue_number}",
         f"issue_slug={validated.issue_slug}",
+        f"branch_kind={validated.branch_kind}",
         f"evidence_path={validated.evidence_path}",
         f"dry_run={'true' if validated.dry_run else 'false'}",
         f"repository={validated.repository}",
@@ -408,6 +505,30 @@ def _self_test() -> int:
         "issue/44-add-app-backed-review-ready-publisher-and-produc"
     ):
         failures.append("canonical issue branch must be App-eligible")
+    if not is_app_backed_phase_branch("phase/wp-01-demo"):
+        failures.append("default phase branch must be App-eligible")
+    if not is_app_backed_publish_branch("phase/wp-01-demo"):
+        failures.append("phase tip must be App publish eligible")
+    if is_app_backed_phase_branch("wave/wp-01-demo"):
+        failures.append("custom prefix wave/ must not match default phase/")
+    if not is_app_backed_phase_branch("wave/wp-01-demo", phase_prefix="wave/"):
+        failures.append("custom phaseBranchPrefix must be App-eligible")
+    if is_app_backed_publish_branch("feature/44-x"):
+        failures.append("feature/* must remain App-ineligible")
+    phase_ok = expect_ok(branch="phase/wp-01-demo", sha=good_sha, dry_run="false")
+    if phase_ok:
+        if phase_ok.branch_kind != BRANCH_KIND_PHASE:
+            failures.append("phase branch_kind expected")
+        if phase_ok.issue_number != 0:
+            failures.append("phase issue_number must be 0")
+        if phase_ok.issue_slug != "wp-01-demo":
+            failures.append("phase slug mismatch")
+    expect_err(
+        "issue_number_not_applicable",
+        branch="phase/wp-01-demo",
+        sha=good_sha,
+        issue_number="44",
+    )
     rem = app_branch_migration_remediation("feature/44-x")
     if "create_issue_branch.py" not in rem or "feature/44-x" not in rem:
         failures.append("migration remediation missing actionable path")

@@ -1,0 +1,13 @@
+archive=ide-development-managed-core-2.1.0.tar.gz
+packageVersion=2.1.0
+manifestHash=sha256:3ff2178d434e7a61e4b152bda8991a71759be6c31da2a497246d003b398fc75f
+archiveChecksum=sha256:add0529545b504d42402f4c90f0273a0c5551399d34059e1e1dbc3b86831a501
+install=0
+version=0
+verify=0
+drift_clean=0
+update_idempotent=0
+drift_after_local_tamper=10
+update_after_unknown_local_edit=11_fail_closed_conflict
+rollback_last_tx=0
+notes=cleanroom_acceptance and managed-core-migration-bb also green for install/update/drift/rollback fixtures

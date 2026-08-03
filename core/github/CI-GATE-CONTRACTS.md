@@ -2,7 +2,7 @@
 
 **Audience:** Review Packager, Integrator, Staging/Main promotion, agents, CI maintainers.
 **Status:** Binding for IDE Development GitOps redesign.
-**Related:** `docs/adr/0003-autonomous-ship-pull-promote.md`, `core/github/REVIEW-READY.md`.
+**Related:** `docs/adr/0003-autonomous-ship-pull-promote.md`, `core/github/REVIEW-READY.md`, `docs/contracts/DELIVERY-MODES.md`.
 
 ---
 
@@ -10,7 +10,9 @@
 
 Workflows must **not** wait for “every visible GitHub check.” That pattern is fragile (renamed checks, optional jobs, third-party noise). Instead, each lifecycle stage waits only on a **named gate contract**.
 
-Missing required checks are **failure / not-ready**, never success.
+Missing required checks are **failure / not-ready**, never success. Empty/zero SHA, wrong SHA relative to the PR head, stale event heads, and skipped/neutral conclusions (unless a gate explicitly allows them) are also **non-success**.
+
+Phase PRs (`phase/*` → `development`) and Issue PRs use the same gate ids and exact-SHA fail-closed rules.
 
 ---
 

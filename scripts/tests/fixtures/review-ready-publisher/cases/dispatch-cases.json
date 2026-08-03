@@ -11,6 +11,13 @@
       "github_repository": "linktrend/IDE-Development"
     },
     {
+      "id": "valid_phase_branch_exact_sha",
+      "expectOk": true,
+      "branch": "phase/wp-01-demo",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "github_repository": "linktrend/IDE-Development"
+    },
+    {
       "id": "accept_uppercase_sha_normalized",
       "expectOk": true,
       "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
