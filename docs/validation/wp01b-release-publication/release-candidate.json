@@ -186,7 +186,7 @@
   },
   "rollbackInstructions": "# Rollback after a managed-core install/update\n\nFrom the consumer repository (not the package root):\n\n  python3 <package-or-system>/scripts/ide-development.py rollback --target <consumer-repo> --json\n\nRollback restores exact pre-change bytes from the last successful transaction\njournal under .git/ide-development/. It does not delete consumer-owned files\noutside managed ownership and never touches GitHub settings or credentials.\n\nIf rollback fails, stop and escalate \u2014 do not force-overwrite consumer bytes.",
   "schemaVersion": 1,
-  "sourceCommit": "5a01d56076f4efc59490c67a348b389af7b00ef5",
+  "sourceCommit": "f6474ef9180f3b6de07e6490cbdb5ee3316eafa2",
   "supportedPlatforms": [
     "darwin",
     "linux",

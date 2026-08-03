@@ -13,7 +13,7 @@
     {
       "bytes": 10790,
       "path": "build/release-candidate/release-candidate.json",
-      "sha256": "sha256:a0f95c41b3e59b63482eb535e476d2eeabf33ca30aabb9270233dff23ff4b65a"
+      "sha256": "sha256:9be23de8130129fb078f8f98a8dd259c3e79bb8ce16f790b055f3ddbfaf49783"
     }
   ],
   "kind": "ide-development-release-candidate-checksums",

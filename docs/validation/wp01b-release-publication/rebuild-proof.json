@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "kind": "wp01b-rebuild-proof",
   "note": "Dry-run rebuild/verify on checkpoint tip. No tag or GitHub Release created. Live publish requires governed PR+promotion to main tip, then App-backed workflow_dispatch with source_sha=main tip.",
-  "checkpointCommit": "5a01d56076f4efc59490c67a348b389af7b00ef5",
+  "checkpointCommit": "f6474ef9180f3b6de07e6490cbdb5ee3316eafa2",
   "packageVersion": "2.1.0",
   "tag": "v2.1.0",
   "manifestHash": "sha256:2b3c7c26f09ed7ffe78cfc8695e397606454f15ac4a3360d8607a4bf13b4ecab",
