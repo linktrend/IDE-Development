@@ -90,7 +90,31 @@ Hard refusals (fail closed) for production-grade create:
 - missing required tests or evidence for the claimed SHA (unless explicitly skipped for local proofs)
 - packaging credentials, host absolute paths, external symlinks, or Git metadata into the archive
 
-Outputs stay under an ignored build/artifact directory — **never** a GitHub tag or Release.
+Outputs stay under an ignored build/artifact directory — **never** a GitHub tag or Release from this runbook alone.
+
+---
+
+## Immutable publication (WP-01B — App-backed publisher)
+
+Tag and GitHub Release creation for managed-core **v2.1.0** is owned by the system-repository workflow `.github/workflows/linktrend-managed-core-release-publisher.yml` (not consumer-synced).
+
+Hard rules:
+
+- Workflow YAML and publish helpers execute from the protected **default branch (`main`)** only.
+- Requested `source_sha` must equal the remote `main` tip; the SHA is checked out as **data only**.
+- Archives are **rebuilt and verified** from that source before any tag/Release mutation.
+- Privileged identity is the repository **GitHub App installation token only** — no personal-token / `GITHUB_TOKEN` fallback.
+- Tag/release/checksum conflicts and publication replays **fail closed**.
+- Operators may use `dry_run=true` or `action=verify-only` to rebuild/verify without creating a tag or Release.
+
+Helpers:
+
+- `scripts/gitops/managed_core_release_dispatch.py` — input validation
+- `scripts/gitops/managed_core_release_publish.py` — rebuild/verify/bind/publish
+- Evidence schema: `core/managed-core/schemas/managed-core-release.schema.json`
+- Contract tests: `scripts/tests/test-managed-core-release-publisher.sh`
+
+This implementer path does **not** trigger live publication. Live tag/Release follows the governed PR + promotion sequence, then an authorized App-backed dispatch.
 
 ---
 
