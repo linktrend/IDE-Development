@@ -7,7 +7,10 @@ Trusted-default-branch helper for:
 Hard rules:
 - Rebuild from the requested source tree; never reuse historical RC artifacts.
 - Bind source SHA, package version, tag, manifest hash, and archive checksums.
-- Fail closed on tag/release/checksum conflicts and publication replays.
+- Fail closed on tag/release/checksum conflicts.
+- Idempotent retry may continue only when an existing tag (if any) is bound to the
+  requested commit and any existing release/assets match the exact
+  source/version/manifest/checksum contract; otherwise refuse.
 - Mutating GitHub calls require AUTOMATION_TOKEN_SOURCE=github_app only.
 - No personal-token / GITHUB_TOKEN / Bugbot-user fallback.
 """
@@ -70,8 +73,109 @@ class Binding:
     package_name: str = PACKAGE_NAME
 
 
+@dataclass(frozen=True)
+class PublicationState:
+    """Remote tag/release observation relative to the requested binding."""
+
+    tag_sha: str | None
+    release: dict[str, Any] | None
+    matched_assets: frozenset[str]
+    missing_assets: frozenset[str]
+
+    @property
+    def complete(self) -> bool:
+        return (
+            self.tag_sha is not None
+            and self.release is not None
+            and not self.missing_assets
+        )
+
+
 def _reject(code: str, message: str) -> None:
     raise ReleasePublishError(code, message)
+
+
+def _normalize_digest(value: str) -> str:
+    raw = (value or "").strip().lower()
+    if not raw:
+        return ""
+    if raw.startswith("sha256:"):
+        return raw
+    return f"sha256:{raw}"
+
+
+def _release_asset_digests(release: dict[str, Any]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for asset in release.get("assets") or []:
+        name = str(asset.get("name") or "")
+        if not name:
+            continue
+        out[name] = _normalize_digest(str(asset.get("digest") or asset.get("sha256") or ""))
+    return out
+
+
+def _assert_release_matches_binding(binding: Binding, release: dict[str, Any]) -> None:
+    """Fail closed unless an existing release matches source/version/tag/manifest."""
+    tag_name = str(release.get("tag_name") or "")
+    if tag_name and tag_name != binding.tag:
+        _reject(
+            "release_tag_conflict",
+            f"release tag_name {tag_name} != requested {binding.tag}",
+        )
+    release_name = str(release.get("name") or "")
+    expected_name = f"managed-core {binding.version}"
+    if release_name and release_name != expected_name:
+        _reject(
+            "release_version_conflict",
+            f"release name {release_name!r} != expected {expected_name!r}",
+        )
+    target = str(release.get("target_commitish") or "").strip().lower()
+    if FULL_SHA_RE.fullmatch(target) and target != binding.source_sha:
+        _reject(
+            "release_source_conflict",
+            f"release target_commitish {target} != requested {binding.source_sha}",
+        )
+    body = str(release.get("body") or "")
+    source_marker = f"sourceCommit: `{binding.source_sha}`"
+    manifest_marker = f"manifestHash: `{binding.manifest_hash}`"
+    if source_marker not in body:
+        _reject(
+            "release_source_conflict",
+            "existing release body does not bind the requested sourceCommit",
+        )
+    if manifest_marker not in body:
+        _reject(
+            "release_manifest_conflict",
+            "existing release body does not bind the requested manifestHash",
+        )
+
+
+def _classify_release_assets(
+    binding: Binding, release: dict[str, Any]
+) -> tuple[frozenset[str], frozenset[str]]:
+    """Return (matched, missing) archive names; fail closed on digest conflicts."""
+    asset_digests = _release_asset_digests(release)
+    matched: set[str] = set()
+    missing: set[str] = set()
+    for row in binding.archives:
+        name = str(row["name"])
+        local = _normalize_digest(str(row["sha256"]))
+        if name not in asset_digests:
+            missing.add(name)
+            continue
+        remote = asset_digests[name]
+        if not remote:
+            _reject(
+                "checksum_unverified",
+                f"existing release asset {name} has no digest; refuse unsafe retry",
+            )
+        if remote != local:
+            _reject(
+                "checksum_conflict",
+                f"release asset {name} digest {remote} != rebuilt {local}",
+            )
+        matched.add(name)
+    return frozenset(matched), frozenset(missing)
 
 
 def require_app_token(
@@ -361,47 +465,41 @@ def assert_no_conflict_or_replay(
     repository: str,
     token: str,
     api: ApiFn | None = None,
-) -> None:
-    """Fail closed if tag/release already exists (conflict or replay)."""
+) -> PublicationState:
+    """Fail closed on conflicts; allow consistent partial/complete retry.
+
+    A retry may continue only when:
+    - any existing tag is bound to the requested commit, and
+    - any existing release/assets match the exact source/version/manifest/checksum
+      contract.
+
+    Complete identical publication is treated as idempotent replay success (no
+    reject). Divergent tag/release/checksum state remains blocked.
+    """
     existing_sha = resolve_tag_object_sha(
         repository=repository, tag=binding.tag, token=token, api=api
     )
-    if existing_sha is not None:
-        if existing_sha != binding.source_sha:
-            _reject(
-                "tag_conflict",
-                f"tag {binding.tag} exists at {existing_sha}, requested {binding.source_sha}",
-            )
+    if existing_sha is not None and existing_sha != binding.source_sha:
         _reject(
-            "tag_replay",
-            f"tag {binding.tag} already exists at {existing_sha}; refuse replay",
+            "tag_conflict",
+            f"tag {binding.tag} exists at {existing_sha}, requested {binding.source_sha}",
         )
 
     existing_release = resolve_release_by_tag(
         repository=repository, tag=binding.tag, token=token, api=api
     )
+    matched: frozenset[str] = frozenset()
+    missing = frozenset(str(row["name"]) for row in binding.archives)
     if existing_release is not None:
-        assets = existing_release.get("assets") or []
-        asset_digests = {
-            str(a.get("name") or ""): str(a.get("digest") or a.get("sha256") or "")
-            for a in assets
-        }
-        for row in binding.archives:
-            name = row["name"]
-            if name in asset_digests and asset_digests[name]:
-                remote = asset_digests[name]
-                local = row["sha256"]
-                # GitHub may return digest as sha256:hex or bare hex.
-                norm_remote = remote if remote.startswith("sha256:") else f"sha256:{remote}"
-                if norm_remote != local:
-                    _reject(
-                        "checksum_conflict",
-                        f"release asset {name} digest {norm_remote} != rebuilt {local}",
-                    )
-        _reject(
-            "release_replay",
-            f"GitHub Release for {binding.tag} already exists; refuse replay",
-        )
+        _assert_release_matches_binding(binding, existing_release)
+        matched, missing = _classify_release_assets(binding, existing_release)
+
+    return PublicationState(
+        tag_sha=existing_sha,
+        release=existing_release,
+        matched_assets=matched,
+        missing_assets=missing,
+    )
 
 
 def build_release_evidence(
@@ -476,41 +574,55 @@ def create_tag_and_release(
     archive_paths: dict[str, Path],
     api: ApiFn | None = None,
 ) -> dict[str, Any]:
+    """Create or complete tag/release/assets idempotently under fail-closed checks."""
     call = api or (
         lambda method, url, body=None, raw=None: github_api(
             method, url, token=token, body=body, raw_body=raw
         )
     )
-    # Annotated tag object + ref.
-    tag_payload = call(
-        "POST",
-        f"https://api.github.com/repos/{repository}/git/tags",
-        {
-            "tag": binding.tag,
-            "message": (
-                f"managed-core {binding.version}\n\n"
-                f"sourceCommit={binding.source_sha}\n"
-                f"manifestHash={binding.manifest_hash}\n"
-            ),
-            "object": binding.source_sha,
-            "type": "commit",
-            "tagger": {
-                "name": "LiNKtrend GitOps",
-                "email": "gitops@linktrend.local",
-                "date": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    existing_sha = resolve_tag_object_sha(
+        repository=repository, tag=binding.tag, token=token, api=api
+    )
+    tag_obj_sha = ""
+    if existing_sha is None:
+        # Annotated tag object + ref.
+        tag_payload = call(
+            "POST",
+            f"https://api.github.com/repos/{repository}/git/tags",
+            {
+                "tag": binding.tag,
+                "message": (
+                    f"managed-core {binding.version}\n\n"
+                    f"sourceCommit={binding.source_sha}\n"
+                    f"manifestHash={binding.manifest_hash}\n"
+                ),
+                "object": binding.source_sha,
+                "type": "commit",
+                "tagger": {
+                    "name": "LiNKtrend GitOps",
+                    "email": "gitops@linktrend.local",
+                    "date": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                },
             },
-        },
-        None,
-    )
-    tag_obj_sha = str((tag_payload or {}).get("sha") or "")
-    if not tag_obj_sha:
-        _reject("tag_create_failed", "git tag object SHA missing from API response")
-    call(
-        "POST",
-        f"https://api.github.com/repos/{repository}/git/refs",
-        {"ref": f"refs/tags/{binding.tag}", "sha": tag_obj_sha},
-        None,
-    )
+            None,
+        )
+        tag_obj_sha = str((tag_payload or {}).get("sha") or "")
+        if not tag_obj_sha:
+            _reject("tag_create_failed", "git tag object SHA missing from API response")
+        call(
+            "POST",
+            f"https://api.github.com/repos/{repository}/git/refs",
+            {"ref": f"refs/tags/{binding.tag}", "sha": tag_obj_sha},
+            None,
+        )
+    elif existing_sha != binding.source_sha:
+        _reject(
+            "tag_conflict",
+            f"tag {binding.tag} exists at {existing_sha}, requested {binding.source_sha}",
+        )
+    else:
+        # Tag already points at the requested commit; continue to release/assets.
+        tag_obj_sha = existing_sha
 
     body_lines = [
         f"Immutable managed-core release `{binding.version}`.",
@@ -524,39 +636,63 @@ def create_tag_and_release(
     for a in binding.archives:
         body_lines.append(f"- {a['name']}: `{a['sha256']}` ({a['bytes']} bytes)")
 
-    release = call(
-        "POST",
-        f"https://api.github.com/repos/{repository}/releases",
-        {
-            "tag_name": binding.tag,
-            "target_commitish": binding.source_sha,
-            "name": f"managed-core {binding.version}",
-            "body": "\n".join(body_lines),
-            "draft": False,
-            "prerelease": False,
-            "generate_release_notes": False,
-        },
-        None,
+    release = resolve_release_by_tag(
+        repository=repository, tag=binding.tag, token=token, api=api
     )
+    if release is None:
+        release = call(
+            "POST",
+            f"https://api.github.com/repos/{repository}/releases",
+            {
+                "tag_name": binding.tag,
+                "target_commitish": binding.source_sha,
+                "name": f"managed-core {binding.version}",
+                "body": "\n".join(body_lines),
+                "draft": False,
+                "prerelease": False,
+                "generate_release_notes": False,
+            },
+            None,
+        )
+    else:
+        _assert_release_matches_binding(binding, release)
+        _classify_release_assets(binding, release)
+
     upload_url_template = str((release or {}).get("upload_url") or "")
     release_url = str((release or {}).get("html_url") or "")
     release_id = (release or {}).get("id")
     if not upload_url_template or not release_url:
         _reject("release_create_failed", "release upload_url/html_url missing")
 
+    existing_assets = _release_asset_digests(release or {})
     base_upload = upload_url_template.split("{", 1)[0]
     for a in binding.archives:
-        path = archive_paths.get(a["name"])
+        name = a["name"]
+        expected = _normalize_digest(str(a["sha256"]))
+        if name in existing_assets:
+            remote = existing_assets[name]
+            if not remote:
+                _reject(
+                    "checksum_unverified",
+                    f"existing release asset {name} has no digest; refuse unsafe retry",
+                )
+            if remote != expected:
+                _reject(
+                    "checksum_conflict",
+                    f"release asset {name} digest {remote} != rebuilt {expected}",
+                )
+            continue
+        path = archive_paths.get(name)
         if path is None or not path.is_file():
-            _reject("upload_archive_missing", f"local archive missing for upload: {a['name']}")
+            _reject("upload_archive_missing", f"local archive missing for upload: {name}")
         raw = path.read_bytes()
         file_digest = f"sha256:{hashlib.sha256(raw).hexdigest()}"
-        if file_digest != a["sha256"]:
+        if file_digest != expected:
             _reject(
                 "upload_checksum_mismatch",
-                f"refusing upload of {a['name']}: {file_digest} != {a['sha256']}",
+                f"refusing upload of {name}: {file_digest} != {expected}",
             )
-        q = urllib.parse.urlencode({"name": a["name"], "label": a["name"]})
+        q = urllib.parse.urlencode({"name": name, "label": name})
         url = f"{base_upload}?{q}"
         # Use github_api directly for binary upload (api shim may ignore content-type).
         if api is None:
@@ -638,13 +774,21 @@ def run_publish(
     outcome["manifestHash"] = binding.manifest_hash
     outcome["archives"] = binding.archives
 
+    publication_state: PublicationState | None = None
     if not skip_remote_checks:
-        assert_no_conflict_or_replay(
+        publication_state = assert_no_conflict_or_replay(
             binding=binding,
             repository=repository,
             token=app_token,
             api=api,
         )
+        outcome["publicationState"] = {
+            "tagPresent": publication_state.tag_sha is not None,
+            "releasePresent": publication_state.release is not None,
+            "matchedAssets": sorted(publication_state.matched_assets),
+            "missingAssets": sorted(publication_state.missing_assets),
+            "complete": publication_state.complete,
+        }
 
     if action == "verify-only" or dry_run:
         status = "dry_run_ok" if dry_run else "verify_only_ok"
