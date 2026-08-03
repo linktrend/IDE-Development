@@ -297,6 +297,12 @@ else
   fail "Missing scripts/tests/test-gitops-behavioral.sh"
 fi
 
+if [ -x "scripts/tests/test-stale-cleanup-controls.sh" ]; then
+  bash scripts/tests/test-stale-cleanup-controls.sh || fail "Stale cleanup controls test failed"
+else
+  fail "Missing scripts/tests/test-stale-cleanup-controls.sh"
+fi
+
 if [ -x "scripts/tests/test-gitops-lifecycle.sh" ]; then
   bash scripts/tests/test-gitops-lifecycle.sh || fail "GitOps lifecycle test failed"
 else
@@ -325,4 +331,3 @@ fi
 echo ""
 echo "Stage 1 verification: ALL CHECKS PASSED"
 exit 0
-
