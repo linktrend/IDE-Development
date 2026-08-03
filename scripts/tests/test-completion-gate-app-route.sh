@@ -218,7 +218,7 @@ from argparse import Namespace
 os.environ["LINKTREND_STATUS_BACKEND"] = "file"
 os.environ["LINKTREND_STATUS_DIR"] = str(tmp / "cli-status-2")
 
-def fail_publish(sha_, issue_id, notes, *, branch=""):
+def fail_publish(sha_, issue_id, notes, *, branch="", workdir=None):
     return False, rs.missing_app_publish_token_error(branch=branch, sha=sha_)
 
 orig_pub = cg.publish_ready
@@ -446,6 +446,131 @@ assert payload.get("branch") == "phase/wp-01-demo"
 print("phase branch completion_gate review-ready ok")
 PY
 pass "phase-integration tips are App-eligible via completion/App path"
+
+# ---------------------------------------------------------------------------
+# 2d) Custom phaseBranchPrefix from --workdir (not Path.cwd()) for routes
+# ---------------------------------------------------------------------------
+python3 - "$ROOT" "$TMP" <<'PY'
+import json, os, subprocess, sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+tmp = Path(sys.argv[2])
+sys.path.insert(0, str(root / "scripts" / "gitops"))
+import completion_gate as cg
+import readiness_status as rs
+
+# Foreign cwd without wave/ config; target repo has phaseBranchPrefix=wave/.
+alien = tmp / "alien-cwd"
+alien.mkdir(parents=True, exist_ok=True)
+repo = tmp / "custom-prefix-repo"
+repo.mkdir()
+subprocess.check_call(["git", "init", "-q", "-b", "wave/wp-01-demo"], cwd=repo)
+subprocess.check_call(["git", "config", "user.email", "t@example.com"], cwd=repo)
+subprocess.check_call(["git", "config", "user.name", "t"], cwd=repo)
+subprocess.check_call(["git", "commit", "-q", "--allow-empty", "-m", "tip"], cwd=repo)
+cfg_dir = repo / ".github"
+cfg_dir.mkdir(parents=True, exist_ok=True)
+(cfg_dir / "linktrend-delivery-mode.json").write_text(
+    json.dumps(
+        {
+            "schemaVersion": 1,
+            "deliveryMode": "phase-integration",
+            "phaseBranchPrefix": "wave/",
+        }
+    )
+    + "\n",
+    encoding="utf-8",
+)
+sha = "ffffffffffffffffffffffffffffffffffffffff"
+branch = "wave/wp-01-demo"
+
+prev = Path.cwd()
+os.chdir(alien)
+try:
+    # cwd has no config → default phase/; workdir must win.
+    assert cg.app_backed_route(branch, sha) == ""
+    route = cg.app_backed_route(branch, sha, workdir=repo)
+    assert route and f"-f branch={branch}" in route, route
+    assert "wave/wp-01-demo" in route
+
+    payload = cg._review_ready_publish_failure_payload(
+        sha=sha,
+        branch=branch,
+        error="privileged_publish_requires_github_app: missing",
+        workdir=repo,
+    )
+    assert payload.get("appBackedRoute")
+    assert f"-f branch={branch}" in payload["appBackedRoute"]
+    assert "remediation" not in payload
+
+    # Without workdir from alien cwd, custom tip is not App-eligible.
+    bare = cg._review_ready_publish_failure_payload(
+        sha=sha,
+        branch=branch,
+        error="privileged_publish_requires_github_app: missing",
+    )
+    assert "appBackedRoute" not in bare
+    assert bare.get("remediation")
+
+    # readiness_status CLI mark error: eligibility uses --workdir config.
+    for k in ("AUTOMATION_TOKEN", "LINKTREND_APP_TOKEN"):
+        os.environ.pop(k, None)
+    os.environ["LINKTREND_STATUS_BACKEND"] = "github"
+    os.environ["GITHUB_REPOSITORY"] = "linktrend/IDE-Development"
+    os.environ.pop("LINKTREND_STATUS_DIR", None)
+    os.environ.pop("GITOPS_WORKDIR", None)
+
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(root / "scripts/gitops/readiness_status.py"),
+            "mark",
+            sha,
+            "phase:wp-01-demo",
+            "diag",
+            "--branch",
+            branch,
+            "--workdir",
+            str(repo),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(alien),
+    )
+    assert r.returncode == 78, (r.returncode, r.stdout, r.stderr)
+    cli_payload = json.loads(r.stdout)
+    assert cli_payload.get("ok") is False
+    assert cli_payload.get("appBackedRoute"), cli_payload
+    assert f"-f branch={branch}" in cli_payload["appBackedRoute"]
+    assert "remediation" not in cli_payload
+
+    # Same CLI without --workdir from alien cwd → migration, not doomed route.
+    r2 = subprocess.run(
+        [
+            sys.executable,
+            str(root / "scripts/gitops/readiness_status.py"),
+            "mark",
+            sha,
+            "phase:wp-01-demo",
+            "diag",
+            "--branch",
+            branch,
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(alien),
+    )
+    assert r2.returncode == 78, (r2.returncode, r2.stdout, r2.stderr)
+    bare_cli = json.loads(r2.stdout)
+    assert "appBackedRoute" not in bare_cli, bare_cli
+    assert bare_cli.get("remediation"), bare_cli
+finally:
+    os.chdir(prev)
+
+print("custom prefix workdir route resolution ok")
+PY
+pass "custom phaseBranchPrefix resolved from --workdir, not Path.cwd()"
 
 # ---------------------------------------------------------------------------
 # 3) Static: no ambient publish fallback in readiness_status source

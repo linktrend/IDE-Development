@@ -441,10 +441,11 @@ def withdraw_sha(sha: str, reason: str = "withdrawn", *, branch: str = "") -> Re
     return backend.post(sha, "failure", why)
 
 
-def _parse_cli_branch(argv: list[str]) -> tuple[list[str], str]:
-    """Extract optional --branch <name> from argv; return (remaining, branch)."""
+def _parse_cli_options(argv: list[str]) -> tuple[list[str], str, Path | None]:
+    """Extract optional --branch / --workdir from argv; return (remaining, branch, workdir)."""
     out: list[str] = []
     branch = ""
+    workdir: Path | None = None
     i = 0
     while i < len(argv):
         if argv[i] == "--branch" and i + 1 < len(argv):
@@ -455,21 +456,39 @@ def _parse_cli_branch(argv: list[str]) -> tuple[list[str], str]:
             branch = argv[i].split("=", 1)[1]
             i += 1
             continue
+        if argv[i] == "--workdir" and i + 1 < len(argv):
+            workdir = Path(argv[i + 1]).resolve()
+            i += 2
+            continue
+        if argv[i].startswith("--workdir="):
+            workdir = Path(argv[i].split("=", 1)[1]).resolve()
+            i += 1
+            continue
         out.append(argv[i])
         i += 1
-    return out, branch
+    if workdir is None:
+        env_wd = (os.environ.get("GITOPS_WORKDIR") or "").strip()
+        if env_wd:
+            workdir = Path(env_wd).resolve()
+    return out, branch, workdir
+
+
+def _cli_phase_prefix(workdir: Path | None) -> str:
+    """Resolve configured phaseBranchPrefix for CLI mark/withdraw eligibility."""
+    return resolve_phase_branch_prefix(workdir)
 
 
 def main(argv: list[str]) -> int:
-    args, branch = _parse_cli_branch(argv)
+    args, branch, workdir = _parse_cli_options(argv)
     if len(args) < 2:
         print(
             "Usage: readiness_status.py <get|mark|withdraw> <sha> [issue_id|reason] "
-            "[notes] [--branch issue/<n>-<slug>]",
+            "[notes] [--branch issue/<n>-<slug>] [--workdir <repo>]",
             file=sys.stderr,
         )
         return 2
     cmd = args[1]
+    phase_prefix = _cli_phase_prefix(workdir)
     if cmd == "get":
         sha = args[2]
         ok, detail = is_sha_review_ready(sha)
@@ -486,9 +505,12 @@ def main(argv: list[str]) -> int:
                 "sha": sha,
                 "error": str(e),
             }
-            if is_app_backed_publish_branch(branch):
+            if is_app_backed_publish_branch(branch, phase_prefix):
                 payload["appBackedRoute"] = app_backed_review_ready_route(
-                    branch=branch, sha=sha, action="publish"
+                    branch=branch,
+                    sha=sha,
+                    action="publish",
+                    phase_prefix=phase_prefix,
                 )
             else:
                 payload["remediation"] = app_branch_migration_remediation(
@@ -509,9 +531,13 @@ def main(argv: list[str]) -> int:
                 "sha": sha,
                 "error": str(e),
             }
-            if is_app_backed_publish_branch(branch):
+            if is_app_backed_publish_branch(branch, phase_prefix):
                 payload["appBackedRoute"] = app_backed_review_ready_route(
-                    branch=branch, sha=sha, action="withdraw", reason=reason
+                    branch=branch,
+                    sha=sha,
+                    action="withdraw",
+                    reason=reason,
+                    phase_prefix=phase_prefix,
                 )
             else:
                 payload["remediation"] = app_branch_migration_remediation(

@@ -238,13 +238,25 @@ def parse_evidence_commands(raw_commands: list[str]) -> tuple[list[dict], str]:
     return cmds, ""
 
 
-def app_backed_route(branch: str = "", sha: str = "") -> str:
+def _phase_prefix_for_workdir(workdir: Path | None = None) -> str:
+    """Resolve phaseBranchPrefix from the target repository root (not ambient cwd)."""
+    root = workdir if workdir is not None else Path.cwd()
+    return load_delivery_config(root).phase_branch_prefix
+
+
+def app_backed_route(
+    branch: str = "",
+    sha: str = "",
+    *,
+    workdir: Path | None = None,
+) -> str:
     """Exact safe App-backed publication route when local credentials are absent.
 
     Returns empty string when the branch is not App-eligible so callers never
     advertise a dispatch command that review_ready_dispatch would reject.
+    Prefix eligibility follows the explicit --workdir repository config.
     """
-    phase_prefix = load_delivery_config(Path.cwd()).phase_branch_prefix
+    phase_prefix = _phase_prefix_for_workdir(workdir)
     if branch and not is_app_backed_publish_branch(branch, phase_prefix):
         return ""
     if rs is None:
@@ -268,6 +280,7 @@ def _review_ready_publish_failure_payload(
     sha: str,
     branch: str,
     error: str,
+    workdir: Path | None = None,
 ) -> dict:
     """Build fail-closed diagnostics: valid App route or truthful migration path."""
     payload: dict = {
@@ -279,9 +292,9 @@ def _review_ready_publish_failure_payload(
         "branch": branch,
         "at": utc_now(),
     }
-    phase_prefix = load_delivery_config(Path.cwd()).phase_branch_prefix
+    phase_prefix = _phase_prefix_for_workdir(workdir)
     if is_app_backed_publish_branch(branch, phase_prefix):
-        route = app_backed_route(branch, sha)
+        route = app_backed_route(branch, sha, workdir=workdir)
         payload["appBackedRoute"] = route
         payload["detail"] = (
             "Local review-ready publish is fail-closed without GitHub App "
@@ -302,6 +315,7 @@ def publish_ready(
     notes: str,
     *,
     branch: str = "",
+    workdir: Path | None = None,
 ) -> tuple[bool, str]:
     if rs is None:
         return False, "readiness_status_unavailable"
@@ -322,7 +336,10 @@ def publish_ready(
                     "credentials",
                 )
             ):
-                detail = f"{detail}; Use App-backed route: {app_backed_route(branch, sha)}"
+                detail = (
+                    f"{detail}; Use App-backed route: "
+                    f"{app_backed_route(branch, sha, workdir=workdir)}"
+                )
         return False, detail
 
 
@@ -477,9 +494,13 @@ def cmd_review_ready(args: argparse.Namespace) -> int:
         else:
             issue_id = "unknown"
     notes = args.notes or os.environ.get("COMPLETION_NOTES") or "completion_gate"
-    ok, detail = publish_ready(sha, issue_id, notes, branch=br)
+    ok, detail = publish_ready(sha, issue_id, notes, branch=br, workdir=workdir)
     if not ok:
-        emit(_review_ready_publish_failure_payload(sha=sha, branch=br, error=detail))
+        emit(
+            _review_ready_publish_failure_payload(
+                sha=sha, branch=br, error=detail, workdir=workdir
+            )
+        )
         return EXIT_FAILED
 
     # Confirm published
@@ -490,6 +511,7 @@ def cmd_review_ready(args: argparse.Namespace) -> int:
                 sha=sha,
                 branch=br,
                 error=f"post_publish_verify_failed:{ready_detail}",
+                workdir=workdir,
             )
         )
         return EXIT_FAILED
