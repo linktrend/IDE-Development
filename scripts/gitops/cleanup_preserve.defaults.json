@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "description": "Issue #51 active-work preserve list for cleanup controls. Remove entries when those issues/PRs close.",
-  "preserveIssueNumbers": [43, 44, 51],
-  "preservePrNumbers": [49],
+  "description": "Active-work preserve list for cleanup controls. Add entries only while the named issues or PRs remain intentionally protected.",
+  "preserveIssueNumbers": [],
+  "preservePrNumbers": [],
   "preserveBranchExact": [],
   "notes": [
     "Protected permanent branches (main/staging/development) are always preserved by cleanup-merged-branches.sh.",

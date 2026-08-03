@@ -1,8 +1,8 @@
 # IDE Development — Current status
 
 **Audience:** Principal and operators who need the truth without reading historical build logs.
-**Date:** 2026-08-02
-**Package:** portable managed-core **v2.0.0** (identity in `VERSION`; no Git tag / GitHub Release claimed)
+**Date:** 2026-08-03
+**Package:** portable managed-core **v2.1.0** (identity in `VERSION`; no Git tag / GitHub Release claimed)
 **Platforms:** Cursor + native Codex supported; **Claude Code excluded**
 
 This page is the concise launch-readiness / current-status surface. Historical detail lives in [`BUILD-LOG.md`](./BUILD-LOG.md), [`OPEN-ISSUES.md`](./OPEN-ISSUES.md), and work packets under [`work-packets/`](./work-packets/).
@@ -11,7 +11,7 @@ This page is the concise launch-readiness / current-status surface. Historical d
 
 ## One-line verdict
 
-**Post-WP03 / pre-WP04.** System source is integrated and promoted across protected lines. Consumer rollout is **prepared and not executed** — Principal approval still required. Issue #72 pre-launch cleanup is in progress on this branch.
+**Pre-rollout cleanup complete.** The v2.1 system source is integrated and promoted across protected lines. Consumer rollout is **prepared and not executed** — Principal approval is still required.
 
 ---
 
@@ -22,20 +22,21 @@ This page is the concise launch-readiness / current-status surface. Historical d
 | **WP1** | #67 | Proved RC on disposable targets (installer, migration, Cursor/Codex adapters, packaging, recovery, security, read-only external-state, OS matrix expectations) | **Complete** |
 | **WP2** | #68 | Built canonical lineage + IDE Development live readiness (checkpoint; no consumer mutation) | **Complete** |
 | **WP03** | integration/promote | PR #69 → `development`, #70 → `staging`, #71 → `main` | **Complete** |
+| **Issue #72** | pre-launch cleanup | System-repo active-doc truth, archive, tooling hygiene | **Complete** |
+| **Issue #81** | v2.1 phase delivery | PR #82 → `development`, #85 → `staging`, #86 → `main` | **Complete** |
 | **WP04** | consumer rollout | Locked-order consumer installs/updates | **Prepared — NOT EXECUTED** (approval pending) |
-| **Issue #72** | pre-launch cleanup | System-repo active-doc truth, archive, tooling hygiene | **In progress** (this branch) |
 
 ---
 
-## Protected-line tree equality (post-WP03)
+## Protected-line equality
 
-`origin/development`, `origin/staging`, and `origin/main` share content tree:
+After PR #86, `origin/development`, `origin/staging`, and `origin/main` shared content tree:
 
 ```text
-43b1333ae21f43a34c3bdcccb2aac96f3d6e007f
+fb1eb79a6a0e2b7990c13b6a16f90682bb7b2a77
 ```
 
-Issue #72 work branch tip starts at `e6301fc` (= `origin/development` merge of PR #69).
+The final pre-rollout reconciliation is promoted through the same governed path; operators must verify live equality before WP04 execution.
 
 ---
 
@@ -47,7 +48,7 @@ Issue #72 work branch tip starts at `e6301fc` (= `origin/development` merge of P
 | Claude | **Excluded** from v2 support and roadmap |
 | WP04 | Packet prepared at [`work-packets/2026-08-02-work-packet-04-consumer-rollout.md`](./work-packets/2026-08-02-work-packet-04-consumer-rollout.md); **no consumer mutation authorized** until Principal approval |
 | Locked consumer order | `openclaw_prime` → LiNKplatform → LiNKskills → LiNKbrain → LiNKsites → LiNKdeveloper → LiNKlibraries → LiNKautowork → LiNKtrading-codebase ([`GITOPS-CONSUMER-ROLLOUT.md`](./GITOPS-CONSUMER-ROLLOUT.md)) |
-| Tag / Release | Still not claimed as published for `v2.0.0` unless separately approved |
+| Tag / Release | Still not claimed as published for `v2.1.0` unless separately approved |
 
 ---
 
