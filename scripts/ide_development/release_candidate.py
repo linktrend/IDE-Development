@@ -70,12 +70,12 @@ _SECRET_PATTERNS = (
     re.compile(r"(?i)xox[baprs]-[A-Za-z0-9-]{10,}"),
 )
 
-_INSTALL_INSTRUCTIONS = """\
+_INSTALL_INSTRUCTIONS = f"""\
 # Install from release candidate (extracted archive)
 
 1. Extract the archive to a directory that is NOT the consumer repository.
-   - macOS/Linux: tar -xzf ide-development-managed-core-2.0.0.tar.gz
-   - Windows: Expand-Archive ide-development-managed-core-2.0.0.zip
+   - macOS/Linux: tar -xzf ide-development-managed-core-{PACKAGE_VERSION_TARGET}.tar.gz
+   - Windows: Expand-Archive ide-development-managed-core-{PACKAGE_VERSION_TARGET}.zip
 2. Initialize or choose a consumer git repository (separate from the package root).
 3. Install:
    python3 <extracted>/scripts/ide-development.py install \\
@@ -83,7 +83,7 @@ _INSTALL_INSTRUCTIONS = """\
 4. Verify:
    python3 <extracted>/scripts/ide-development.py verify \\
      --package <extracted> --target <consumer-repo> --json
-5. Confirm packageVersion is 2.0.0 and verify reports ok.
+5. Confirm packageVersion is {PACKAGE_VERSION_TARGET} and verify reports ok.
 
 Claude surfaces are out of scope. Secrets are never packaged.
 """

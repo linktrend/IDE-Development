@@ -41,9 +41,9 @@ class BuildManifestPackagingTests(unittest.TestCase):
         path = bm.MANIFEST_PATH
         self.assertTrue(path.is_file())
         data = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(data.get("packageVersion"), "2.0.0")
+        self.assertEqual(data.get("packageVersion"), "2.1.0")
         managed = bm.VERSION_PATH.read_text(encoding="utf-8").strip().lstrip("v")
-        self.assertEqual(managed, "2.0.0")
+        self.assertEqual(managed, "2.1.0")
 
 
 if __name__ == "__main__":

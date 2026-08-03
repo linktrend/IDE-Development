@@ -7,6 +7,7 @@
     "scripts/gitops/conflict_task.py",
     "scripts/gitops/create_issue_branch.py",
     "scripts/gitops/integrator_evaluate.sh",
+    "scripts/gitops/delivery_modes.py",
     "scripts/gitops/packager_discover.py",
     "scripts/gitops/packager_evaluate.py",
     "scripts/gitops/packager_logic.py",

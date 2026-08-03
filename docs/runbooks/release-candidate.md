@@ -34,7 +34,7 @@ Claude Code is **excluded** — not a supported platform and not packaged as an 
 1. Clean git worktree on the Work Packet 1 issue branch (or the exact checkpoint SHA under test).
 2. Python 3 available (`python3`).
 3. Installer entrypoint present: `scripts/ide-development.py`.
-4. Package identity consistent: root `VERSION`, `core/managed-core/VERSION`, and `MANIFEST.json` `packageVersion` (target **2.0.0** / `v2.0.0`).
+4. Package identity consistent: root `VERSION`, `core/managed-core/VERSION`, and `MANIFEST.json` `packageVersion` (target **2.1.0** / `v2.1.0`).
 5. Required acceptance evidence for this SHA exists or will be attached (see acceptance matrix). Do **not** claim production readiness when a required platform gate is skipped, neutral, or untested.
 
 ---
