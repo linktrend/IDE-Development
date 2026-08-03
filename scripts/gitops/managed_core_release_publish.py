@@ -410,9 +410,16 @@ def resolve_tag_object_sha(
             method, url, token=token, body=body, raw_body=raw
         )
     )
-    enc = urllib.parse.quote(f"tags/{tag}", safe="")
+    # GitHub expects path segments …/git/ref/tags/{tag}, not a single
+    # URL-encoded "tags%2F…" segment (that 404s even when the tag exists).
+    enc_tag = urllib.parse.quote(tag, safe="")
     try:
-        ref = call("GET", f"https://api.github.com/repos/{repository}/git/ref/{enc}", None, None)
+        ref = call(
+            "GET",
+            f"https://api.github.com/repos/{repository}/git/ref/tags/{enc_tag}",
+            None,
+            None,
+        )
     except ReleasePublishError as e:
         if "-> 404:" in e.message:
             return None

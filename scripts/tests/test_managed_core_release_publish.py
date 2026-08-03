@@ -59,6 +59,143 @@ class RequireAppTokenTests(unittest.TestCase):
         self.assertEqual(token, "ghs_app_installation_token_shape")
 
 
+class ResolveTagObjectShaUrlTests(unittest.TestCase):
+    """Regression: git/ref URL must use tags/{encoded-tag} path segments."""
+
+    def test_resolve_tag_uses_segmented_ref_url(self) -> None:
+        seen: list[str] = []
+
+        def api(method: str, url: str, body: dict[str, Any] | None = None, raw: bytes | None = None) -> Any:
+            seen.append(url)
+            self.assertEqual(method, "GET")
+            return {
+                "object": {
+                    "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "type": "commit",
+                }
+            }
+
+        sha = pub.resolve_tag_object_sha(
+            repository="linktrend/IDE-Development",
+            tag="v2.1.0",
+            token="ghs_x",
+            api=api,
+        )
+        self.assertEqual(sha, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(
+            seen[0],
+            "https://api.github.com/repos/linktrend/IDE-Development/git/ref/tags/v2.1.0",
+        )
+        self.assertNotIn("tags%2F", seen[0])
+        self.assertNotIn("/git/ref/tags%2F", seen[0])
+
+    def test_resolve_tag_encodes_tag_name_only(self) -> None:
+        seen: list[str] = []
+
+        def api(method: str, url: str, body: dict[str, Any] | None = None, raw: bytes | None = None) -> Any:
+            seen.append(url)
+            raise pub.ReleasePublishError("github_api_error", f"API GET {url} -> 404: missing")
+
+        sha = pub.resolve_tag_object_sha(
+            repository="linktrend/IDE-Development",
+            tag="v2.1.0+build/meta",
+            token="ghs_x",
+            api=api,
+        )
+        self.assertIsNone(sha)
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(
+            seen[0],
+            "https://api.github.com/repos/linktrend/IDE-Development/git/ref/tags/v2.1.0%2Bbuild%2Fmeta",
+        )
+        self.assertTrue(seen[0].endswith("/git/ref/tags/v2.1.0%2Bbuild%2Fmeta"))
+        self.assertNotIn("tags%2Fv2.1.0", seen[0])
+
+    def test_existing_tag_conflict_uses_correct_ref_lookup(self) -> None:
+        binding = pub.Binding(
+            source_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            version="2.1.0",
+            tag="v2.1.0",
+            manifest_hash="sha256:" + ("ab" * 32),
+            archives=[
+                {
+                    "format": "tar.gz",
+                    "name": "ide-development-managed-core-2.1.0.tar.gz",
+                    "path": "build/x.tar.gz",
+                    "sha256": "sha256:" + ("11" * 32),
+                    "bytes": 10,
+                }
+            ],
+        )
+        seen: list[str] = []
+
+        def api(method: str, url: str, body: dict[str, Any] | None = None, raw: bytes | None = None) -> Any:
+            seen.append(url)
+            if "/git/ref/tags/" in url:
+                return {
+                    "object": {
+                        "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                        "type": "commit",
+                    }
+                }
+            raise AssertionError(f"unexpected {method} {url}")
+
+        with self.assertRaises(pub.ReleasePublishError) as ctx:
+            pub.assert_no_conflict_or_replay(
+                binding=binding,
+                repository="linktrend/IDE-Development",
+                token="ghs_x",
+                api=api,
+            )
+        self.assertEqual(ctx.exception.code, "tag_conflict")
+        self.assertEqual(
+            seen[0],
+            "https://api.github.com/repos/linktrend/IDE-Development/git/ref/tags/v2.1.0",
+        )
+
+    def test_existing_tag_idempotent_partial_uses_correct_ref_lookup(self) -> None:
+        binding = pub.Binding(
+            source_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            version="2.1.0",
+            tag="v2.1.0",
+            manifest_hash="sha256:" + ("ab" * 32),
+            archives=[
+                {
+                    "format": "tar.gz",
+                    "name": "ide-development-managed-core-2.1.0.tar.gz",
+                    "path": "build/x.tar.gz",
+                    "sha256": "sha256:" + ("11" * 32),
+                    "bytes": 10,
+                }
+            ],
+        )
+        seen: list[str] = []
+
+        def api(method: str, url: str, body: dict[str, Any] | None = None, raw: bytes | None = None) -> Any:
+            seen.append(url)
+            if "/git/ref/tags/" in url:
+                return {"object": {"sha": binding.source_sha, "type": "commit"}}
+            if "/releases/tags/" in url:
+                raise pub.ReleasePublishError("github_api_error", "API GET x -> 404: missing")
+            raise AssertionError(f"unexpected {method} {url}")
+
+        state = pub.assert_no_conflict_or_replay(
+            binding=binding,
+            repository="linktrend/IDE-Development",
+            token="ghs_x",
+            api=api,
+        )
+        self.assertEqual(state.tag_sha, binding.source_sha)
+        self.assertIsNone(state.release)
+        self.assertFalse(state.complete)
+        self.assertEqual(
+            seen[0],
+            "https://api.github.com/repos/linktrend/IDE-Development/git/ref/tags/v2.1.0",
+        )
+        self.assertNotIn("tags%2F", seen[0])
+
+
 class ConflictReplayTests(unittest.TestCase):
     def _binding(self, *, dual_archives: bool = False) -> pub.Binding:
         archives = [
