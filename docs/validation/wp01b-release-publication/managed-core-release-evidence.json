@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "kind": "ide-development-managed-core-release",
+  "packageName": "ide-development-managed-core",
+  "packageVersion": "2.1.0",
+  "tag": "v2.1.0",
+  "sourceCommit": "612fb17931fa822ac2b9fd071b35f47cc77b970d",
+  "manifestHash": "sha256:2b3c7c26f09ed7ffe78cfc8695e397606454f15ac4a3360d8607a4bf13b4ecab",
+  "repository": "linktrend/IDE-Development",
+  "releaseUrl": null,
+  "releaseId": null,
+  "archives": [
+    {
+      "format": "tar.gz",
+      "name": "ide-development-managed-core-2.1.0.tar.gz",
+      "sha256": "sha256:276b9044422195b737881bc7cf6ccd5b4eca2aa8e643b0558f32c25ae6d637e6",
+      "bytes": 229193
+    },
+    {
+      "format": "zip",
+      "name": "ide-development-managed-core-2.1.0.zip",
+      "sha256": "sha256:5cde35233834cec4abad9e92e8c2a4968c62101a438dfaaf783e2dd6a8a11a9f",
+      "bytes": 301791
+    }
+  ],
+  "publisher": "linktrend-managed-core-release-publisher",
+  "publicationStatus": "pending_governed_publish",
+  "dryRun": true,
+  "createdAt": "2026-08-03T07:41:36Z",
+  "locator": {
+    "tag": "v2.1.0",
+    "sourceCommit": "612fb17931fa822ac2b9fd071b35f47cc77b970d",
+    "manifestHash": "sha256:2b3c7c26f09ed7ffe78cfc8695e397606454f15ac4a3360d8607a4bf13b4ecab",
+    "primaryArchive": {
+      "format": "tar.gz",
+      "name": "ide-development-managed-core-2.1.0.tar.gz",
+      "sha256": "sha256:276b9044422195b737881bc7cf6ccd5b4eca2aa8e643b0558f32c25ae6d637e6",
+      "bytes": 229193
+    }
+  },
+  "notes": "Validation/rebuild passed; tag and GitHub Release were not created (action=verify-only, dry_run=True)."
+}
