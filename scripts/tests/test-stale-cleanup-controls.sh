@@ -133,11 +133,17 @@ grep -qv '^DELETED_' "$TMP/wt.out" || fail "dry-run must not DELETE worktree cas
 pass "clean attached worktree → KEEP"
 
 # ============================================================================
-# 3) Preserve policy: issue/44-* KEEP even with MERGED evidence + no worktree
+# 3) Preserve overlay: an explicitly protected branch stays KEEP even with
+# MERGED evidence + no worktree. Committed defaults may legitimately be empty
+# after the named work is reconciled.
 # ============================================================================
 REPO3="$TMP/preserve"
 make_repo "$REPO3"
 seed_cleanup "$REPO3"
+mkdir -p "$REPO3/.linktrend"
+cat >"$REPO3/.linktrend/cleanup-preserve.json" <<'EOF'
+{"schemaVersion":1,"issueNumbers":[44],"prNumbers":[],"branches":[]}
+EOF
 git -C "$REPO3" checkout -q -b issue/44-add-app-backed-review-ready-publisher-and-produc
 echo z >"$REPO3/z.txt" && git -C "$REPO3" add z.txt && git -C "$REPO3" commit -q -m "preserve me"
 PRESERVE_HEAD="$(git -C "$REPO3" rev-parse HEAD)"
@@ -163,7 +169,7 @@ grep -q 'KEEP:.*issue/44-add-app-backed-review-ready-publisher-and-produc' "$TMP
 grep -qi 'preserve' "$TMP/pres.out" \
   || fail "preserve reason missing: $(cat "$TMP/pres.out")"
 grep -qv '^DELETED_' "$TMP/pres.out" || fail "dry-run must not DELETE preserve case"
-pass "preserve issue/44-* → KEEP"
+pass "explicit preserve overlay issue/44-* → KEEP"
 
 # ============================================================================
 # 4) Eligible merged branch without preserve/worktree → WOULD_DELETE (dry-run)
@@ -376,6 +382,7 @@ chmod +x "$TMP/bin/gh"
 
 PLAN7="$(
   PATH="$TMP/bin:$PATH" \
+  LINKTREND_CLEANUP_PRESERVE=issue/44-add-app-backed-review-ready-publisher-and-produc \
   python3 "$ROOT/scripts/gitops/cleanup_controls.py" plan-completed-repairs \
     --repo linktrend/IDE-Development \
     --repair-dir "$REPAIR_DIR"
@@ -403,6 +410,7 @@ pass "plan-completed-repairs: preserve + open-PR KEEP; eligible WOULD_DELETE"
 
 APPLY7="$(
   PATH="$TMP/bin:$PATH" \
+  LINKTREND_CLEANUP_PRESERVE=issue/44-add-app-backed-review-ready-publisher-and-produc \
   python3 "$ROOT/scripts/gitops/cleanup_controls.py" plan-completed-repairs \
     --repo linktrend/IDE-Development \
     --repair-dir "$REPAIR_DIR" --apply
