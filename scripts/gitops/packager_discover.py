@@ -35,6 +35,13 @@ from packager_logic import (  # noqa: E402
     is_allowed_work_branch,
     require_packager_pr_author,
 )
+from delivery_modes import (  # noqa: E402
+    PHASE_DELIVERY_REL,
+    load_delivery_config,
+    load_exception_for_tip,
+    should_open_pr_for_branch,
+    validate_phase_delivery_record,
+)
 from readiness_status import is_sha_review_ready  # noqa: E402
 from write_outcome import write_outcome  # noqa: E402
 
@@ -49,6 +56,8 @@ SECTION_RE = re.compile(
 _RUN_HOOK: Callable[[list[str], dict[str, str]], str] | None = None
 # Test hook: (token, repo) -> branch list. When set, skips live Branches API.
 _LIST_BRANCHES_HOOK: Callable[[str, str], list[dict]] | None = None
+# Test hook: (token, repo, sha) -> phase delivery record dict | None.
+_PHASE_DELIVERY_HOOK: Callable[[str, str, str], dict[str, Any] | None] | None = None
 
 
 class PackagerAuthorError(RuntimeError):
@@ -84,6 +93,62 @@ def gh_api(method: str, url: str, token: str, body=None):
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"{method} {url} -> {e.code}: {detail}") from e
+
+
+def fetch_issue_pr_exception(
+    token: str, repo: str, sha: str
+) -> dict[str, Any] | None:
+    """Load `.linktrend/issue-pr-exception.json` from the exact tip SHA (fail closed)."""
+    import base64
+
+    url = (
+        f"https://api.github.com/repos/{repo}/contents/"
+        f".linktrend/issue-pr-exception.json?ref={sha}"
+    )
+    try:
+        payload = gh_api("GET", url, token)
+    except RuntimeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    encoding = payload.get("encoding")
+    content = payload.get("content")
+    if encoding != "base64" or not isinstance(content, str):
+        return None
+    try:
+        raw = base64.b64decode(content).decode("utf-8")
+        data = json.loads(raw)
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def fetch_phase_delivery_record(
+    token: str, repo: str, sha: str
+) -> dict[str, Any] | None:
+    """Load `.linktrend/phase-delivery-record.json` from the exact tip SHA."""
+    if _PHASE_DELIVERY_HOOK is not None:
+        return _PHASE_DELIVERY_HOOK(token, repo, sha)
+    import base64
+
+    rel = PHASE_DELIVERY_REL.as_posix()
+    url = f"https://api.github.com/repos/{repo}/contents/{rel}?ref={sha}"
+    try:
+        payload = gh_api("GET", url, token)
+    except RuntimeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    encoding = payload.get("encoding")
+    content = payload.get("content")
+    if encoding != "base64" or not isinstance(content, str):
+        return None
+    try:
+        raw = base64.b64decode(content).decode("utf-8")
+        data = json.loads(raw)
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def managed_section(sha: str, branch: str) -> str:
@@ -307,11 +372,12 @@ def main() -> int:
         return 0
 
     repo = os.environ["GITHUB_REPOSITORY"]
+    delivery = load_delivery_config(Path.cwd())
     report: list[dict[str, Any]] = []
     packaged = 0
     for b in list_branches(token, repo):
         name = b.get("name") or ""
-        if not is_allowed_work_branch(name):
+        if not is_allowed_work_branch(name, delivery.phase_branch_prefix):
             continue
         sha = ((b.get("commit") or {}).get("sha") or "").lower()
         if not sha:
@@ -322,11 +388,49 @@ def main() -> int:
             "headSha": sha,
             "ready": ok,
             "detail": detail,
+            "deliveryMode": delivery.delivery_mode,
         }
         if not ok:
             entry["action"] = "skipped_not_ready"
             report.append(entry)
             continue
+
+        risk_payload = fetch_issue_pr_exception(token, repo, sha)
+        risk_class, risk_detail = load_exception_for_tip(
+            repo_root=None,
+            branch=name,
+            sha=sha,
+            payload=risk_payload,
+        )
+        decision = should_open_pr_for_branch(
+            name,
+            delivery,
+            risk_class=risk_class,
+            review_ready=True,
+        )
+        entry["prDecision"] = decision.reason
+        if risk_class:
+            entry["riskClass"] = risk_class
+            entry["riskDetail"] = risk_detail
+        if not decision.open_pr:
+            entry["action"] = decision.reason
+            report.append(entry)
+            continue
+
+        if decision.reason == "phase_branch_pr":
+            phase_record = fetch_phase_delivery_record(token, repo, sha)
+            ok_phase, phase_detail = validate_phase_delivery_record(
+                phase_record,
+                branch=name,
+                head_sha=sha,
+                phase_branch_prefix=delivery.phase_branch_prefix,
+            )
+            entry["phaseDelivery"] = phase_detail
+            if not ok_phase:
+                entry["action"] = f"skipped_phase_delivery:{phase_detail}"
+                report.append(entry)
+                continue
+
         try:
             pr = ensure_draft_pr(token, name, sha)
             viewed = json.loads(
@@ -423,7 +527,7 @@ def main() -> int:
     write_outcome(
         Path("gitops-outcome.json"),
         status,
-        f"discover packaged_or_refreshed={packaged}",
+        f"discover packaged_or_refreshed={packaged} deliveryMode={delivery.delivery_mode}",
         report=report,
     )
     print(json.dumps(report, indent=2))

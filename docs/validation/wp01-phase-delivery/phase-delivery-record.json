@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "deliveryMode": "phase-integration",
+  "phaseBranch": "phase/wp-01-demo",
+  "baseSha": "cccccccccccccccccccccccccccccccccccccccc",
+  "headSha": "dddddddddddddddddddddddddddddddddddddddd",
+  "mergeSha": null,
+  "acceptedIssues": [
+    {
+      "branch": "issue/1-alpha",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "accepted": true,
+      "included": true
+    },
+    {
+      "branch": "issue/2-beta",
+      "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "accepted": true,
+      "included": true
+    }
+  ],
+  "namedGateEvidence": {
+    "gate": "fast-gate",
+    "sha": "dddddddddddddddddddddddddddddddddddddddd",
+    "status": "success",
+    "detail": "all required success",
+    "checks": [
+      {
+        "name": "Verify IDE Development",
+        "state": "SUCCESS"
+      },
+      {
+        "name": "Enforce allowed PR source branches",
+        "state": "SUCCESS"
+      }
+    ]
+  },
+  "phasePr": {
+    "number": 101,
+    "url": "https://example.test/pr/101",
+    "base": "development"
+  }
+}

@@ -24,6 +24,7 @@ from .constants import (
     DEFAULT_MARKER_BEGIN,
     DEFAULT_MARKER_END,
     PACKAGE_NAME,
+    PACKAGE_VERSION_TARGET,
     SCHEMA_VERSION,
 )
 from .hashing import sha256_file
@@ -46,6 +47,7 @@ LIFECYCLE_CURSOR_RULES = (
 # Doctrine files mirrored into .ide-development/content/ for consumer offline use.
 CONTENT_DOCTRINE = (
     ("docs/contracts/AGENT-COMPLETION.md", "content/doctrine/AGENT-COMPLETION.md"),
+    ("docs/contracts/DELIVERY-MODES.md", "content/doctrine/DELIVERY-MODES.md"),
     ("docs/contracts/MANAGED-CORE-V2.md", "content/doctrine/MANAGED-CORE-V2.md"),
     ("docs/contracts/REPOSITORY-PROTECTION.md", "content/doctrine/REPOSITORY-PROTECTION.md"),
     ("docs/adr/0003-autonomous-ship-pull-promote.md", "content/doctrine/0003-autonomous-ship-pull-promote.md"),
@@ -194,6 +196,10 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "schemas/release-candidate-checksums.schema.json",
             ".ide-development/schemas/release-candidate-checksums.schema.json",
+        ),
+        (
+            "schemas/delivery-modes.schema.json",
+            ".ide-development/schemas/delivery-modes.schema.json",
         ),
         ("platforms/README.md", ".ide-development/platforms/README.md"),
         ("platforms/codex/README.md", ".ide-development/platforms/codex/README.md"),
@@ -535,7 +541,7 @@ def write_manifest(path: Path = MANIFEST_PATH) -> dict[str, Any]:
 
 
 def _version_alignment_errors() -> list[str]:
-    """Ensure root VERSION, managed VERSION, and packageVersion stay aligned at 2.0.0 identity."""
+    """Ensure root VERSION, managed VERSION, and packageVersion stay aligned."""
     errors: list[str] = []
     root_ver_path = REPO_ROOT / "VERSION"
     if not root_ver_path.is_file():
@@ -548,8 +554,11 @@ def _version_alignment_errors() -> list[str]:
     pkg_norm = pkg_ver.lstrip("v")
     if root_norm != pkg_norm:
         errors.append(f"VERSION alignment drift: root={root_ver!r} managed={pkg_ver!r}")
-    if pkg_norm != "2.0.0":
-        errors.append(f"package VERSION must remain 2.0.0 identity (got {pkg_ver!r})")
+    if pkg_norm != PACKAGE_VERSION_TARGET:
+        errors.append(
+            f"package VERSION must remain {PACKAGE_VERSION_TARGET} identity "
+            f"(got {pkg_ver!r})"
+        )
     return errors
 
 
@@ -588,9 +597,9 @@ def verify_manifest(path: Path = MANIFEST_PATH) -> list[str]:
     actual = json.loads(path.read_text(encoding="utf-8"))
     if actual.get("packageVersion") != expected["packageVersion"]:
         errors.append("packageVersion drift")
-    if actual.get("packageVersion") != "2.0.0":
+    if actual.get("packageVersion") != PACKAGE_VERSION_TARGET:
         errors.append(
-            f"packageVersion must remain 2.0.0 identity "
+            f"packageVersion must remain {PACKAGE_VERSION_TARGET} identity "
             f"(got {actual.get('packageVersion')!r})"
         )
     if actual.get("schemaVersion") != expected["schemaVersion"]:

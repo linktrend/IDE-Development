@@ -48,21 +48,21 @@ class ReleaseCandidateIntegrationTests(unittest.TestCase):
         self.assertIsNotNone(self.create_payload)
         assert self.create_payload is not None
         self.assertTrue(self.create_payload["ok"])
-        self.assertEqual(self.create_payload["packageVersion"], "2.0.0")
+        self.assertEqual(self.create_payload["packageVersion"], "2.1.0")
         self.assertTrue(self.create_payload["summary"]["reproducible"])
         self.assertIsNotNone(self.create_payload.get("installVerify"))
-        self.assertEqual(self.create_payload["installVerify"]["installedVersion"], "2.0.0")
+        self.assertEqual(self.create_payload["installVerify"]["installedVersion"], "2.1.0")
 
     def test_archives_exist_with_checksums(self) -> None:
         self.assertTrue(BUILD_DIR.is_dir(), "build/release-candidate missing")
-        tar = BUILD_DIR / "ide-development-managed-core-2.0.0.tar.gz"
-        zip_path = BUILD_DIR / "ide-development-managed-core-2.0.0.zip"
+        tar = BUILD_DIR / "ide-development-managed-core-2.1.0.tar.gz"
+        zip_path = BUILD_DIR / "ide-development-managed-core-2.1.0.zip"
         meta = BUILD_DIR / "release-candidate.json"
         sums = BUILD_DIR / "SHA256SUMS.json"
         for path in (tar, zip_path, meta, sums):
             self.assertTrue(path.is_file(), path.name)
         meta_obj = json.loads(meta.read_text(encoding="utf-8"))
-        self.assertEqual(meta_obj["packageVersion"], "2.0.0")
+        self.assertEqual(meta_obj["packageVersion"], "2.1.0")
         self.assertEqual(len(meta_obj["archives"]), 2)
         for archive in meta_obj["archives"]:
             self.assertTrue(archive["path"].startswith("build/release-candidate/"))
@@ -73,7 +73,7 @@ class ReleaseCandidateIntegrationTests(unittest.TestCase):
             self.assertNotIn(":", ident.split("/")[0])
 
     def test_verify_subcommand_reports_version_and_checksum(self) -> None:
-        tar = BUILD_DIR / "ide-development-managed-core-2.0.0.tar.gz"
+        tar = BUILD_DIR / "ide-development-managed-core-2.1.0.tar.gz"
         if not tar.is_file():
             self.skipTest("archive missing from create")
         cmd = [
@@ -95,7 +95,7 @@ class ReleaseCandidateIntegrationTests(unittest.TestCase):
         if "--- json ---" in raw:
             raw = raw.split("--- json ---", 1)[1]
         payload = json.loads(raw)
-        self.assertEqual(payload["installedVersion"], "2.0.0")
+        self.assertEqual(payload["installedVersion"], "2.1.0")
         self.assertTrue(payload["packageChecksum"].startswith("sha256:"))
 
     def test_dirty_refusal_via_cli(self) -> None:
