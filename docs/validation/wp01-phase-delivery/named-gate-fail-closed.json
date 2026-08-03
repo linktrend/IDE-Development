@@ -1,0 +1,35 @@
+{
+  "missing": {
+    "gate": "fast-gate",
+    "sha": "dddddddddddddddddddddddddddddddddddddddd",
+    "status": "missing",
+    "detail": "Verify IDE Development=missing",
+    "checks": [
+      {
+        "name": "Verify IDE Development",
+        "state": "MISSING"
+      }
+    ]
+  },
+  "zero_sha": {
+    "gate": "fast-gate",
+    "sha": "0000000000000000000000000000000000000000",
+    "status": "failed",
+    "detail": "invalid_or_zero_sha",
+    "checks": []
+  },
+  "wrong_sha": {
+    "gate": "fast-gate",
+    "sha": "dddddddddddddddddddddddddddddddddddddddd",
+    "status": "failed",
+    "detail": "wrong_sha:expected=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "checks": []
+  },
+  "stale": {
+    "gate": "fast-gate",
+    "sha": "dddddddddddddddddddddddddddddddddddddddd",
+    "status": "failed",
+    "detail": "stale_event_head",
+    "checks": []
+  }
+}

@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: "Exact issue/<number>-<slug> branch whose remote tip will be marked or cleared"
+        description: "Exact issue/<number>-<slug> or configured phase/<slug> branch whose remote tip will be marked or cleared"
         required: true
         type: string
       sha:
@@ -133,6 +133,8 @@ jobs:
           ACTION: ${{ steps.inputs.outputs.action }}
           REASON: ${{ steps.inputs.outputs.reason }}
           ISSUE_NUMBER: ${{ steps.inputs.outputs.issue_number }}
+          BRANCH_KIND: ${{ steps.inputs.outputs.branch_kind }}
+          ISSUE_SLUG: ${{ steps.inputs.outputs.issue_slug }}
           EVIDENCE_PATH: ${{ steps.inputs.outputs.evidence_path }}
           DRY_RUN: ${{ steps.inputs.outputs.dry_run }}
           HAS_EVIDENCE_JSON: ${{ steps.inputs.outputs.has_evidence_json }}
@@ -180,7 +182,9 @@ jobs:
           sha = os.environ["SHA"].lower()
           action = (os.environ.get("ACTION") or "publish").strip().lower() or "publish"
           reason = (os.environ.get("REASON") or "withdrawn").strip() or "withdrawn"
-          issue_number = os.environ["ISSUE_NUMBER"]
+          issue_number = os.environ.get("ISSUE_NUMBER") or "0"
+          branch_kind = (os.environ.get("BRANCH_KIND") or "issue").strip().lower() or "issue"
+          issue_slug = (os.environ.get("ISSUE_SLUG") or "").strip()
           evidence_rel = os.environ["EVIDENCE_PATH"]
           dry_run = os.environ.get("DRY_RUN", "false").lower() == "true"
           has_inline = os.environ.get("HAS_EVIDENCE_JSON", "false").lower() == "true"
@@ -218,17 +222,28 @@ jobs:
                   f"FAIL: sha_mismatch requested={sha} remote_tip={tip} branch={branch}"
               )
 
-          issue = api(f"https://api.github.com/repos/{repo}/issues/{issue_number}")
-          if int(issue.get("number") or 0) != int(issue_number):
-              raise SystemExit("FAIL: issue_number mismatch from API")
+          issue_state = None
+          status_issue_id = issue_number
+          if branch_kind == "issue":
+              issue = api(f"https://api.github.com/repos/{repo}/issues/{issue_number}")
+              if int(issue.get("number") or 0) != int(issue_number):
+                  raise SystemExit("FAIL: issue_number mismatch from API")
+              issue_state = issue.get("state")
+              status_issue_id = str(issue_number)
+          elif branch_kind == "phase":
+              # Phase tips have no GitHub Issues binding; keep issue safeguards intact.
+              status_issue_id = f"phase:{issue_slug or branch.split('/', 1)[-1]}"
+          else:
+              raise SystemExit(f"FAIL: branch_kind_invalid:{branch_kind}")
 
           outcome = {
               "mode": "review-ready-publisher",
               "branch": branch,
               "sha": sha,
               "action": action,
-              "issue": issue_number,
-              "issueState": issue.get("state"),
+              "branchKind": branch_kind,
+              "issue": status_issue_id,
+              "issueState": issue_state,
               "dryRun": dry_run,
               "published": False,
               "withdrawn": False,
@@ -326,7 +341,7 @@ jobs:
           try:
               st = rs.publish_review_ready(
                   sha,
-                  str(issue_number),
+                  str(status_issue_id),
                   notes="app-backed-publisher",
                   branch=branch,
               )

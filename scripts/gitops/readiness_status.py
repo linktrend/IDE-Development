@@ -42,6 +42,8 @@ try:
     from review_ready_dispatch import (
         app_branch_migration_remediation,
         is_app_backed_issue_branch,
+        is_app_backed_publish_branch,
+        resolve_phase_branch_prefix,
     )
 except ImportError:  # pragma: no cover
     import re
@@ -49,15 +51,29 @@ except ImportError:  # pragma: no cover
     _ISSUE_BRANCH_RE = re.compile(
         r"^issue/([1-9][0-9]{0,8})-([a-z0-9]+(?:-[a-z0-9]+)*)$"
     )
+    _PHASE_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
     def is_app_backed_issue_branch(name: str) -> bool:
         return bool(name) and bool(_ISSUE_BRANCH_RE.fullmatch(str(name).strip()))
 
+    def is_app_backed_publish_branch(name: str, phase_prefix: str = "phase/") -> bool:
+        raw = str(name or "").strip()
+        if is_app_backed_issue_branch(raw):
+            return True
+        prefix = phase_prefix if phase_prefix.endswith("/") else f"{phase_prefix}/"
+        if not raw.startswith(prefix):
+            return False
+        slug = raw[len(prefix) :]
+        return bool(slug) and "/" not in slug and bool(_PHASE_SLUG_RE.fullmatch(slug))
+
+    def resolve_phase_branch_prefix(repo_root=None) -> str:  # type: ignore[no-untyped-def]
+        return "phase/"
+
     def app_branch_migration_remediation(branch: str) -> str:
         br = (branch or "").strip() or "<current-branch>"
         return (
-            "App-backed Linktrend Review Ready publisher accepts only verified "
-            "issue/<number>-<slug> branches. "
+            "App-backed Linktrend Review Ready publisher accepts verified "
+            "issue/<number>-<slug> branches and configured phase/<slug> tips. "
             f"Migrate branch {br!r} via create_issue_branch.py or /agentcomply."
         )
 
@@ -107,15 +123,25 @@ def app_backed_review_ready_route(
     dry_run: bool = False,
     action: str = "publish",
     reason: str = "",
+    phase_prefix: str | None = None,
 ) -> str:
     """Exact safe App-backed route for publishing or withdrawing Review Ready.
 
-    Only embeds a concrete branch when it matches verified issue/<number>-<slug>.
-    Legacy allowed prefixes (feature/, dev/, …) must never appear as a runnable
-    dispatch command — those inputs are rejected by review_ready_dispatch.
+    Only embeds a concrete branch when it matches verified issue/<number>-<slug>
+    or a configured phase/<slug> tip. Legacy allowed prefixes (feature/, dev/, …)
+    must never appear as a runnable dispatch command — those inputs are rejected
+    by review_ready_dispatch.
     """
     raw = (branch or "").strip()
-    br = raw if is_app_backed_issue_branch(raw) else "<issue/<number>-<slug>>"
+    prefix = (
+        phase_prefix
+        if phase_prefix is not None
+        else resolve_phase_branch_prefix()
+    )
+    if is_app_backed_publish_branch(raw, prefix):
+        br = raw
+    else:
+        br = "<issue/<number>-<slug>|phase/<slug>>"
     tip = (sha or "").strip() or "<40-char-immutable-sha>"
     dry = "true" if dry_run else "false"
     act = normalize_status_action(action)
@@ -142,25 +168,35 @@ def missing_app_publish_token_error(
     sha: str = "",
     action: str = "publish",
     reason: str = "",
+    phase_prefix: str | None = None,
 ) -> str:
     """Fail-closed diagnostic when local privileged status write lacks App credentials."""
     act = normalize_status_action(action)
     raw = (branch or "").strip()
     prefix = (
+        phase_prefix
+        if phase_prefix is not None
+        else resolve_phase_branch_prefix()
+    )
+    prefix_msg = (
         "privileged_publish_requires_github_app: "
         "AUTOMATION_TOKEN or LINKTREND_APP_TOKEN required; "
         "no GH_TOKEN/GITHUB_TOKEN fallback for Linktrend Review Ready status writes. "
     )
-    if raw and not is_app_backed_issue_branch(raw):
+    if raw and not is_app_backed_publish_branch(raw, prefix):
         return (
-            prefix
+            prefix_msg
             + f"app_publish_requires_issue_branch:{raw}. "
             + app_branch_migration_remediation(raw)
         )
     route = app_backed_review_ready_route(
-        branch=branch, sha=sha, action=act, reason=reason
+        branch=branch,
+        sha=sha,
+        action=act,
+        reason=reason,
+        phase_prefix=prefix,
     )
-    return prefix + f"Use App-backed route: {route}"
+    return prefix_msg + f"Use App-backed route: {route}"
 
 
 def _read_status_token() -> str:
@@ -405,10 +441,11 @@ def withdraw_sha(sha: str, reason: str = "withdrawn", *, branch: str = "") -> Re
     return backend.post(sha, "failure", why)
 
 
-def _parse_cli_branch(argv: list[str]) -> tuple[list[str], str]:
-    """Extract optional --branch <name> from argv; return (remaining, branch)."""
+def _parse_cli_options(argv: list[str]) -> tuple[list[str], str, Path | None]:
+    """Extract optional --branch / --workdir from argv; return (remaining, branch, workdir)."""
     out: list[str] = []
     branch = ""
+    workdir: Path | None = None
     i = 0
     while i < len(argv):
         if argv[i] == "--branch" and i + 1 < len(argv):
@@ -419,21 +456,39 @@ def _parse_cli_branch(argv: list[str]) -> tuple[list[str], str]:
             branch = argv[i].split("=", 1)[1]
             i += 1
             continue
+        if argv[i] == "--workdir" and i + 1 < len(argv):
+            workdir = Path(argv[i + 1]).resolve()
+            i += 2
+            continue
+        if argv[i].startswith("--workdir="):
+            workdir = Path(argv[i].split("=", 1)[1]).resolve()
+            i += 1
+            continue
         out.append(argv[i])
         i += 1
-    return out, branch
+    if workdir is None:
+        env_wd = (os.environ.get("GITOPS_WORKDIR") or "").strip()
+        if env_wd:
+            workdir = Path(env_wd).resolve()
+    return out, branch, workdir
+
+
+def _cli_phase_prefix(workdir: Path | None) -> str:
+    """Resolve configured phaseBranchPrefix for CLI mark/withdraw eligibility."""
+    return resolve_phase_branch_prefix(workdir)
 
 
 def main(argv: list[str]) -> int:
-    args, branch = _parse_cli_branch(argv)
+    args, branch, workdir = _parse_cli_options(argv)
     if len(args) < 2:
         print(
             "Usage: readiness_status.py <get|mark|withdraw> <sha> [issue_id|reason] "
-            "[notes] [--branch issue/<n>-<slug>]",
+            "[notes] [--branch issue/<n>-<slug>] [--workdir <repo>]",
             file=sys.stderr,
         )
         return 2
     cmd = args[1]
+    phase_prefix = _cli_phase_prefix(workdir)
     if cmd == "get":
         sha = args[2]
         ok, detail = is_sha_review_ready(sha)
@@ -450,13 +505,16 @@ def main(argv: list[str]) -> int:
                 "sha": sha,
                 "error": str(e),
             }
-            if is_app_backed_issue_branch(branch):
+            if is_app_backed_publish_branch(branch, phase_prefix):
                 payload["appBackedRoute"] = app_backed_review_ready_route(
-                    branch=branch, sha=sha, action="publish"
+                    branch=branch,
+                    sha=sha,
+                    action="publish",
+                    phase_prefix=phase_prefix,
                 )
             else:
                 payload["remediation"] = app_branch_migration_remediation(
-                    branch or "<issue/<number>-<slug>>"
+                    branch or "<issue/<number>-<slug>|phase/<slug>>"
                 )
             print(json.dumps(payload, indent=2))
             return 78
@@ -473,13 +531,17 @@ def main(argv: list[str]) -> int:
                 "sha": sha,
                 "error": str(e),
             }
-            if is_app_backed_issue_branch(branch):
+            if is_app_backed_publish_branch(branch, phase_prefix):
                 payload["appBackedRoute"] = app_backed_review_ready_route(
-                    branch=branch, sha=sha, action="withdraw", reason=reason
+                    branch=branch,
+                    sha=sha,
+                    action="withdraw",
+                    reason=reason,
+                    phase_prefix=phase_prefix,
                 )
             else:
                 payload["remediation"] = app_branch_migration_remediation(
-                    branch or "<issue/<number>-<slug>>"
+                    branch or "<issue/<number>-<slug>|phase/<slug>>"
                 )
             print(json.dumps(payload, indent=2))
             return 78

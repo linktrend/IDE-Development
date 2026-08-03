@@ -94,6 +94,17 @@ Do **not** create or use `.linktrend/review-ready.json`.
 Bugbot mention-only: `docs/contracts/BUGBOT-MENTION-ONLY.md` (required before consumer rollout).
 Completion contract: `docs/contracts/AGENT-COMPLETION.md`.
 
+## Delivery modes
+
+Configurable modes are defined in `docs/contracts/DELIVERY-MODES.md`:
+
+| Mode | Behavior |
+|---|---|
+| `issue-pr` (default) | Review Packager may open one draft PR per review-ready work branch into `development` (existing generic behavior). |
+| `phase-integration` | Issue checkpoints stay PR-less. Independently accepted Issue SHAs feed a `phase/*` branch. Packager opens **one Phase PR** into `development`. Issue-level PRs require an explicit risk classification (`.linktrend/issue-pr-exception.json`). |
+
+Checkpoint pushes never open a PR and never request Bugbot. Named gates still evaluate the **exact** PR head SHA.
+
 ## Bugbot contract
 
 - Success check name remains exactly **`Cursor Bugbot`**.

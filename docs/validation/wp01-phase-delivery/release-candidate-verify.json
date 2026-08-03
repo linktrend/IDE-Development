@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "release-candidate",
+  "action": "verify",
+  "packageVersion": "2.1.0",
+  "packageChecksum": "sha256:add0529545b504d42402f4c90f0273a0c5551399d34059e1e1dbc3b86831a501",
+  "installedVersion": "2.1.0",
+  "archive": "ide-development-managed-core-2.1.0.tar.gz",
+  "summary": {
+    "ok": true,
+    "installedVersion": "2.1.0",
+    "packageChecksum": "sha256:add0529545b504d42402f4c90f0273a0c5551399d34059e1e1dbc3b86831a501",
+    "archive": "ide-development-managed-core-2.1.0.tar.gz",
+    "installExitCode": 0
+  }
+}

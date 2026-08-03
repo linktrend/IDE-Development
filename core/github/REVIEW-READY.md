@@ -42,9 +42,9 @@ Workflow source and validation scripts are checked out from the **protected defa
 Exact input names live in the workflow YAML / dispatch validator. The contract requires all of:
 
 1. **This repository only** — cannot publish for another repo.
-2. **Exact branch name** matching `issue/<number>-<slug>` (reject foreign/mutable refs).
+2. **Exact branch name** matching `issue/<number>-<slug>` **or** configured `phase/<slug>` (reject foreign/mutable refs and legacy `feature/`/`dev/` prefixes).
 3. **Immutable SHA** — full commit SHA that must equal the current remote tip of that branch.
-4. **Issue relationship** — issue number consistent with the branch name (reject ambiguity).
+4. **Issue relationship** — for Issue tips, issue number consistent with the branch name (reject ambiguity). Phase tips skip GitHub Issues binding and use `phase:<slug>` in the status description only.
 5. **Action** — `publish` (default) or `withdraw`. Withdraw posts non-success for the same status context and does **not** require completion evidence.
 6. **Evidence** (publish only) — schema-versioned completion evidence tied to that exact SHA (see `docs/contracts/AGENT-COMPLETION.md`).
 7. **Optional dry-run** — validate everything, publish/withdraw nothing.
@@ -56,7 +56,7 @@ Mismatched SHA, malformed/foreign branch, changed/missing evidence, missing App 
 ### Operator / agent steps
 
 1. Finish work; keep proof; working tree clean; push so `HEAD == origin/<branch>`.
-2. Ensure the branch is verified `issue/<number>-<slug>` (App publisher rejects `feature/`, `dev/`, and other legacy allowlist prefixes). If still on a legacy allowed branch, migrate with `create_issue_branch.py` / `/agentcomply` before requesting App publish — the local gate fails closed with that remediation and will not invent a doomed dispatch command.
+2. Ensure the branch is verified `issue/<number>-<slug>` **or** a configured Phase tip (`phase/<slug>` by default). App publisher rejects `feature/`, `dev/`, and other legacy allowlist prefixes. If still on a legacy allowed branch, migrate with `create_issue_branch.py` / `/agentcomply` before requesting App publish — the local gate fails closed with that remediation and will not invent a doomed dispatch command.
 3. Write evidence: `python3 scripts/gitops/completion_gate.py write-evidence` (or equivalent schema JSON).
 4. Run `python3 scripts/gitops/completion_gate.py review-ready`.
 5. If local privileged publish is unavailable **and** the branch is App-eligible, dispatch `linktrend-review-ready-publisher` with this repo's exact branch + SHA (dry-run first when testing).

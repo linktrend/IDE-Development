@@ -39,8 +39,8 @@ class EngineTests(TempRepoTestCase):
     def test_version(self) -> None:
         result = run_version(package=self.package)
         self.assertEqual(result.exit_code, EXIT_OK)
-        self.assertEqual(result.payload["packageVersion"], "2.0.0")
-        self.assertEqual(result.payload["installerVersion"], "2.0.0")
+        self.assertEqual(result.payload["packageVersion"], "2.1.0")
+        self.assertEqual(result.payload["installerVersion"], "2.1.0")
 
     def test_marker_upsert_preserves_consumer_text(self) -> None:
         agents = self.target / "AGENTS.md"
@@ -58,8 +58,8 @@ class EngineTests(TempRepoTestCase):
         self.assertIn("Managed AGENTS block from package.", text)
         result = run_version(package=self.package)
         self.assertEqual(result.exit_code, EXIT_OK)
-        self.assertEqual(result.payload["packageVersion"], "2.0.0")
-        self.assertEqual(result.payload["installerVersion"], "2.0.0")
+        self.assertEqual(result.payload["packageVersion"], "2.1.0")
+        self.assertEqual(result.payload["installerVersion"], "2.1.0")
 
     def test_plan_and_dry_run_no_writes(self) -> None:
         before = _snapshot(self.target)
@@ -366,7 +366,7 @@ class EngineTests(TempRepoTestCase):
                 "schemaVersion": 1,
                 "transactionId": "test-interrupted",
                 "command": "update",
-                "packageVersion": "2.0.0",
+                "packageVersion": "2.1.0",
                 "phase": "apply",
                 "backups": [
                     {
@@ -387,7 +387,7 @@ class EngineTests(TempRepoTestCase):
             "schemaVersion": 1,
             "transactionId": "test-interrupted",
             "command": "update",
-            "packageVersion": "2.0.0",
+            "packageVersion": "2.1.0",
             "phase": "apply",
             "backups": [
                 {
