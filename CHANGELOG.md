@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.1.0 — 2026-08-03 (Issue #81)
+
+- Added governed phase-delivery modes, schemas, readiness reporting, and fail-closed review-ready dispatch
+- Promoted the release through PR #82 / #85 / #86
+- Reconciled pre-rollout status truth and cleared preserve entries for closed work
+
 ## Unreleased — 2026-08-02 (Issue #72 Lane A)
 
 - Post-WP03 / pre-WP04 documentation truth: WP1–WP03 complete; WP04 consumer rollout prepared / not executed; Issue #72 cleanup in progress

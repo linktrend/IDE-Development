@@ -181,7 +181,7 @@ Model choice is pinned to named routes (default coding model, escalation model, 
 | OpenClaw / Telegram executive operators | **Not live for this system.** Older manuals that promised Stage 2/3 OpenClaw for *this* repo are historical framing only. |
 | Claude Code as a supported platform | **Excluded.** Not in current v2 support or roadmap. Historical files may remain; Cursor and Codex are the supported platforms. |
 | Real consumer rollout | **Not started.** WP1 proved the RC on disposable targets; WP2 built lineage + live readiness; WP03 integrated/promoted the system line. Installing real product repos is **WP04** — prepared, not executed — and needs Principal approval (`docs/CURRENT-STATUS.md`, `docs/GITOPS-CONSUMER-ROLLOUT.md`). |
-| Git tag / GitHub Release | **Not claimed as published** for `v2.0.0` by WP1–WP03 alone. An RC archive was proven; tag/Release remain separately approval-gated. |
+| Git tag / GitHub Release | **Not claimed as published** for `v2.1.0`. RC archive proof exists; tag/Release remain separately approval-gated. |
 | Live GitHub settings apply (consumers) | **Not in WP04 until approved.** IDE Development live readiness was closed in WP2; consumer apply/install remains Principal-gated. |
 | Dollar spend dashboard | **Not computed** here. |
 

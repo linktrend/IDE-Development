@@ -3,7 +3,7 @@
 **Audience:** Operators packaging and verifying IDE Development portable managed-core **v2** for production readiness proof.
 **Scope:** System repository only. No consumer install, no GitHub tag/release, no live consumer settings apply.
 **Related:** [`rollback.md`](./rollback.md) · [`../acceptance/acceptance-matrix.md`](../acceptance/acceptance-matrix.md) · [`../GITOPS-CONSUMER-ROLLOUT.md`](../GITOPS-CONSUMER-ROLLOUT.md) · [`../CURRENT-STATUS.md`](../CURRENT-STATUS.md) · Issue #67 / Work Packet 1
-**Status boundary (2026-08-02):** WP1 RC proof **complete**. WP2 lineage/live readiness **complete**. WP03 integrate/promote **complete** (tree `43b1333…`). WP04 consumer rollout **prepared / not executed**. This runbook remains the RC operator procedure; it does not authorize consumer mutation.
+**Status boundary (2026-08-03):** WP1 RC proof, WP2 lineage/live readiness, WP03 integration/promotion, Issue #72 cleanup, and Issue #81 v2.1 phase delivery are **complete**. WP04 consumer rollout is **prepared / not executed**. This runbook remains the RC operator procedure; it does not authorize consumer mutation.
 
 ---
 
@@ -146,9 +146,10 @@ Exact archive layout and entrypoint path are defined by Lane D packaging output;
 
 ---
 
-## Work Packet boundaries (post-WP03)
+## Work Packet boundaries (pre-rollout)
 
 - **WP1:** RC proof on disposable targets (this runbook).
 - **WP2:** Lineage + IDE Development live readiness (checkpoint).
-- **WP03:** Integrate/promote — protected lines share tree `43b1333…`.
+- **WP03:** Integrated/promoted the v2.0 line.
+- **Issue #81:** v2.1 phase delivery promoted through PR #82/#85/#86.
 - **WP04:** Consumer rollout — prepared / **not executed**; Principal approval required (`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).

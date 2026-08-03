@@ -1,6 +1,6 @@
 # IDE Development
 
-IDE Development is LiNKtrend’s shared, human-assisted Application Factory operating system — version **v2.0.0**. It installs a portable managed core into product repositories as committed physical files (`.ide-development/` plus Cursor/Codex discovery adapters) so agents follow one doctrine, one six-Module pipeline, one hybrid skill surface, and fail-closed gates — with the Principal approving Intent and release, not day-to-day coding.
+IDE Development is LiNKtrend’s shared, human-assisted Application Factory operating system — version **v2.1.0**. It installs a portable managed core into product repositories as committed physical files (`.ide-development/` plus Cursor/Codex discovery adapters) so agents follow one doctrine, one six-Module pipeline, one hybrid skill surface, and fail-closed gates — with the Principal approving Intent and release, not day-to-day coding.
 
 It is distinct from **LiNKdeveloper**, the separate VPS-hosted autonomous application-factory Program. LiNKdeveloper may be *authored* using this system’s guidance, but it does not depend on this repo at runtime.
 
@@ -8,7 +8,7 @@ It is distinct from **LiNKdeveloper**, the separate VPS-hosted autonomous applic
 
 **Claude Code is excluded** from current v2 support and roadmap. Do not add Claude entrypoints or treat archived Claude packaging (`docs/archive/platform-entrypoints/claude/`) as an install path.
 
-**Post-WP03 / pre-WP04:** WP1 proved the RC on disposable targets; WP2 built canonical lineage + live readiness; WP03 integrated and promoted so `development` / `staging` / `main` share tree `43b1333…`. **Consumer rollout (WP04) is prepared and not executed** — Principal approval still required. Issue #72 is pre-launch system-repo cleanup. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md) and [`docs/GITOPS-CONSUMER-ROLLOUT.md`](docs/GITOPS-CONSUMER-ROLLOUT.md).
+**Pre-rollout:** WP1 proved the RC on disposable targets; WP2 built canonical lineage + live readiness; WP03 integrated and promoted the v2.0 line; Issue #72 completed the pre-launch cleanup; and Issue #81 delivered the v2.1 phase-delivery release through PR #82 / #85 / #86. **Consumer rollout (WP04) is prepared and not executed** — Principal approval is still required. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md) and [`docs/GITOPS-CONSUMER-ROLLOUT.md`](docs/GITOPS-CONSUMER-ROLLOUT.md).
 
 ## Start here (source of truth)
 
@@ -109,7 +109,7 @@ WP1 production-readiness proof required **macOS, Ubuntu Linux, and Windows** mat
 
 ## Status
 
-**Version `v2.0.0`.** Identified in `VERSION`. WP1 produced RC **archive** proof; WP03 promoted the system line. This still does **not** by itself create a Git tag or GitHub Release. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
+**Version `v2.1.0`.** Identified in `VERSION`. WP1 produced RC **archive** proof; the v2.1 phase-delivery release was promoted through PR #82 / #85 / #86. This still does **not** by itself create a Git tag or GitHub Release. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
 
 Automated Stage 1 / system verification: `scripts/verify-ide-development.sh`. Portable v2 integration harness: `tests/test-portable-v2-integration.sh`.
 

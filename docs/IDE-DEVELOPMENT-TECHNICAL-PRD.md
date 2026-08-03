@@ -1,6 +1,6 @@
 # IDE Development — Technical PRD
 
-**Status:** Technical reference for the IDE Development repository as built for portable managed-core **v2.0.0** (Wave 1 / Issue #43). WP1 (Issue #67) RC proof, WP2 (Issue #68) lineage + live readiness, and WP03 integration/promotion (PR #69/#70/#71; tree `43b1333…`) are **complete**. WP04 consumer rollout is prepared / not executed. Issue #72 is pre-launch system-repo cleanup. Verified against `core/`, `.cursor/`, `scripts/`, `.githooks/`, and the v2 installer/contracts.
+**Status:** Technical reference for the IDE Development repository as built for portable managed-core **v2.1.0**. WP1 (Issue #67) RC proof, WP2 (Issue #68) lineage + live readiness, WP03 integration/promotion (PR #69/#70/#71), Issue #72 pre-launch cleanup, and Issue #81 phase delivery (PR #82/#85/#86) are **complete**. WP04 consumer rollout is prepared / not executed. Verified against `core/`, `.cursor/`, `scripts/`, `.githooks/`, and the v2 installer/contracts.
 
 **Ground rule:** The filesystem and verification scripts are the source of truth. Where older docs (`docs/archive/**`, historical Stage 1/2/3 framing, earlier “skills are stubs” audits, Mac-local `.cursor` symlink install guides) disagree with what is wired today, this document follows the filesystem and calls out the discrepancy in §12.
 
@@ -382,7 +382,7 @@ Honest gaps (do not treat as “almost done” checkboxes):
 7. **Dollar-cost accounting dashboard** — not present.
 8. **Mandatory environment bootstrap Module** — deliberately not ported; optional Starter Kit + light git/CI sanity only.
 9. **Claude Code platform support** — explicitly outside current v2 support and roadmap (historical packaging archived under `docs/archive/platform-entrypoints/claude/`).
-10. **Git tag / GitHub Release for v2.0.0** — version is identified in `VERSION`; Wave 1 does not tag or publish a release.
+10. **Git tag / GitHub Release for v2.1.0** — version is identified in `VERSION`; no tag or release is claimed.
 
 Known past mistake to avoid repeating: earlier audits sometimes claimed hybrid skills were stubs when they were already vendored and wired. Always re-check `core/runtime/skills/{gstack,mattpocock}/`, `VENDOR-MANIFEST.json`, and `hybrid-*.md` entrypoints before asserting “not installed.”
 
@@ -421,7 +421,7 @@ Known past mistake to avoid repeating: earlier audits sometimes claimed hybrid s
 | `docs/` | Source-of-truth docs (this set), hybrid registry, ADR, archive |
 | `codex/` | Codex-oriented system entrypoints (consumers also get native adapters on install) |
 | `docs/archive/platform-entrypoints/claude/` | Historical Claude packaging only — **not** current v2 support |
-| `SETUP.md`, `VERSION`, `CHANGELOG.md` | Operator setup, version (`v2.0.0`), changelog |
+| `SETUP.md`, `VERSION`, `CHANGELOG.md` | Operator setup, version (`v2.1.0`), changelog |
 
 ---
 
@@ -451,7 +451,7 @@ CI invokes the first three families via `ci.yml` with `CI=true` (skips machine-l
 | IDE Development is a consumer rollout first adopter | System source / self-verification only — not a consumer rollout entry |
 | WP1 publishes a GitHub Release / tag | WP1 builds an RC **archive** for proof only; tag/Release remains separately approval-gated |
 | WP1 applies live GitHub protections/App/Bugbot | WP1 is plan/verify read-only; IDE live readiness closed in WP2; consumer apply is WP04/Principal-gated |
-| WP2/WP03 still pending merge/promote | WP2 checkpoint complete; WP03 promoted — `development`/`staging`/`main` share tree `43b1333…` |
+| WP2/WP03 still pending merge/promote | WP2 and WP03 complete; v2.1 phase delivery also promoted through PR #82/#85/#86 |
 | Consumer rollout already executed | WP04 prepared / not executed — Principal approval pending |
 | Ship/Pull lists omit `LiNKtrading-codebase` / treat IDE Development as install #1 | Ship/Pull may process IDE Development first as system source; consumer install order starts at `openclaw_prime` and includes `LiNKtrading-codebase` (`docs/GITOPS-CONSUMER-ROLLOUT.md`); real rollout remains deferred until WP04 approval |
 | Six Modules including Living Document / dual PRD | Intent + **single Technical PRD**; Living Document retired |
@@ -460,6 +460,6 @@ CI invokes the first three families via `ci.yml` with `CI=true` (skips machine-l
 | Module 6 auto-deploys / LAW-06 auto-promotion | Module 6 → `release_ready` + Principal pre-deploy only |
 | Factory Operations Common Blueprint is live | Archived; product-specific ops belong in product repos |
 | Flat model slugs in route frontmatter | Bracket-param syntax required by Cursor subagent docs |
-| `VERSION` is `v1.2` | `VERSION` is `v2.0.0` (no Git tag/release in Wave 1) |
+| `VERSION` is `v1.2` | `VERSION` is `v2.1.0` (no Git tag/release claimed) |
 
 If something under `docs/archive/` conflicts with Intent, Technical PRD, or Operations Manual, **those three win.**

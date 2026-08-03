@@ -1,6 +1,6 @@
 # IDE Development — Intent
 
-**Status:** Confirmed Intent for the IDE Development repository itself (this repository), written in the same spirit as a Module 1 confirmed Intent artifact — a plain-English statement of what is being built, why, for whom, and what "done" means. Grounded in the portable managed-core v2 model (version **v2.0.0**; Wave 1 / Issue #43), WP1 production-readiness proof (Issue #67), WP2 lineage + live readiness (Issue #68), and post-WP03 promotion (PR #69/#70/#71). Issue #72 pre-launch cleanup in progress; see `docs/CURRENT-STATUS.md`. Describes what the filesystem + verification scripts deliver, not aspirational Stage 2/3 autonomy language.
+**Status:** Confirmed Intent for the IDE Development repository itself (this repository), written in the same spirit as a Module 1 confirmed Intent artifact — a plain-English statement of what is being built, why, for whom, and what "done" means. Grounded in the portable managed-core v2 model, WP1 production-readiness proof (Issue #67), WP2 lineage + live readiness (Issue #68), WP03 promotion (PR #69/#70/#71), completed Issue #72 pre-launch cleanup, and the **v2.1.0** phase-delivery release (Issue #81; PR #82/#85/#86); see `docs/CURRENT-STATUS.md`. Describes what the filesystem + verification scripts deliver, not aspirational Stage 2/3 autonomy language.
 
 **Audience:** The Principal (sole human authority) and any agent or Integrator that needs to understand *why this repository exists* before reading the Technical PRD.
 

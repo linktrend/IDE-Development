@@ -5,8 +5,8 @@
 **Authorization:** **Principal approval still pending.** This packet does **not** authorize any consumer repository mutation until Carlos explicitly approves execution.
 **Owner (when approved):** Cursor Grok 4.5 High lead + subagents as assigned; Claude Code excluded
 **SOT:** [`docs/GITOPS-CONSUMER-ROLLOUT.md`](../GITOPS-CONSUMER-ROLLOUT.md) · [`docs/CURRENT-STATUS.md`](../CURRENT-STATUS.md) · [`docs/runbooks/release-candidate.md`](../runbooks/release-candidate.md) · [`docs/runbooks/rollback.md`](../runbooks/rollback.md)
-**Package:** portable managed-core **v2.0.0**
-**Prerequisite tree:** post-WP03 protected lines share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f` (`origin/development` / `staging` / `main`)
+**Package:** portable managed-core **v2.1.0**
+**Prerequisite:** the final pre-rollout reconciliation is merged and promoted; `origin/development`, `origin/staging`, `origin/main`, and the clean local `main` checkout are content-identical; no open PR or unintegrated checkpoint remains.
 
 ---
 
@@ -68,10 +68,12 @@ Preparing this document is documentation-only. It is not a go signal.
 | WP1 RC proof | Issue #67 — disposable/RC proof complete |
 | WP2 lineage + live readiness | Issue #68 — COMPLETE for stated scope (checkpoint) |
 | WP03 integrate + promote | PR #69 → development, #70 → staging, #71 → main; tree equality `43b1333…` |
+| v2.1 phase delivery | Issue #81; PR #82 → development, #85 → staging, #86 → main |
+| Pre-rollout reconciliation | Closed/superseded work reconciled; stale branches/worktrees removed; protected lines and local verified equal before execution |
 | Claude exclusion | Remains in force |
 | System-source boundary | IDE Development absent from consumer table |
 
-Issue #72 may still be cleaning active docs/tooling; that work does **not** change the WP04 approval gate.
+Issue #72 cleanup is complete. That completion does **not** change the WP04 approval gate.
 
 ---
 
