@@ -17,6 +17,7 @@ jobs:
         with:
           sparse-checkout: |
             scripts/gitops/work-branch-allowlist.sh
+            .github/linktrend-delivery-mode.json
           sparse-checkout-cone-mode: false
 
       - name: Enforce promotion and work-branch flow

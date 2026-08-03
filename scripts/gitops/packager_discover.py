@@ -36,9 +36,11 @@ from packager_logic import (  # noqa: E402
     require_packager_pr_author,
 )
 from delivery_modes import (  # noqa: E402
+    PHASE_DELIVERY_REL,
     load_delivery_config,
     load_exception_for_tip,
     should_open_pr_for_branch,
+    validate_phase_delivery_record,
 )
 from readiness_status import is_sha_review_ready  # noqa: E402
 from write_outcome import write_outcome  # noqa: E402
@@ -54,6 +56,8 @@ SECTION_RE = re.compile(
 _RUN_HOOK: Callable[[list[str], dict[str, str]], str] | None = None
 # Test hook: (token, repo) -> branch list. When set, skips live Branches API.
 _LIST_BRANCHES_HOOK: Callable[[str, str], list[dict]] | None = None
+# Test hook: (token, repo, sha) -> phase delivery record dict | None.
+_PHASE_DELIVERY_HOOK: Callable[[str, str, str], dict[str, Any] | None] | None = None
 
 
 class PackagerAuthorError(RuntimeError):
@@ -101,6 +105,34 @@ def fetch_issue_pr_exception(
         f"https://api.github.com/repos/{repo}/contents/"
         f".linktrend/issue-pr-exception.json?ref={sha}"
     )
+    try:
+        payload = gh_api("GET", url, token)
+    except RuntimeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    encoding = payload.get("encoding")
+    content = payload.get("content")
+    if encoding != "base64" or not isinstance(content, str):
+        return None
+    try:
+        raw = base64.b64decode(content).decode("utf-8")
+        data = json.loads(raw)
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def fetch_phase_delivery_record(
+    token: str, repo: str, sha: str
+) -> dict[str, Any] | None:
+    """Load `.linktrend/phase-delivery-record.json` from the exact tip SHA."""
+    if _PHASE_DELIVERY_HOOK is not None:
+        return _PHASE_DELIVERY_HOOK(token, repo, sha)
+    import base64
+
+    rel = PHASE_DELIVERY_REL.as_posix()
+    url = f"https://api.github.com/repos/{repo}/contents/{rel}?ref={sha}"
     try:
         payload = gh_api("GET", url, token)
     except RuntimeError:
@@ -384,6 +416,20 @@ def main() -> int:
             entry["action"] = decision.reason
             report.append(entry)
             continue
+
+        if decision.reason == "phase_branch_pr":
+            phase_record = fetch_phase_delivery_record(token, repo, sha)
+            ok_phase, phase_detail = validate_phase_delivery_record(
+                phase_record,
+                branch=name,
+                head_sha=sha,
+                phase_branch_prefix=delivery.phase_branch_prefix,
+            )
+            entry["phaseDelivery"] = phase_detail
+            if not ok_phase:
+                entry["action"] = f"skipped_phase_delivery:{phase_detail}"
+                report.append(entry)
+                continue
 
         try:
             pr = ensure_draft_pr(token, name, sha)

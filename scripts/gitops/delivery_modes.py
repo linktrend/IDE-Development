@@ -21,6 +21,7 @@ DEFAULT_PHASE_PREFIX = "phase/"
 
 CONFIG_REL = Path(".github/linktrend-delivery-mode.json")
 EXCEPTION_REL = Path(".linktrend/issue-pr-exception.json")
+PHASE_DELIVERY_REL = Path(".linktrend/phase-delivery-record.json")
 
 ISSUE_PR_RISK_CLASSES = frozenset(
     {
@@ -381,6 +382,46 @@ def phase_ready_for_pr(accepted_issues: list[dict[str, Any]]) -> tuple[bool, str
         if not is_valid_sha(row.get("sha")):
             return False, f"issue_sha_invalid:{row.get('branch')}"
     return True, "all_required_issues_accepted_and_included"
+
+
+def validate_phase_delivery_record(
+    record: dict[str, Any] | None,
+    *,
+    branch: str,
+    head_sha: str,
+    phase_branch_prefix: str = DEFAULT_PHASE_PREFIX,
+) -> tuple[bool, str]:
+    """Fail-closed validation of a Phase delivery record before opening a Phase PR.
+
+    Requires the tip SHA, configured Phase branch prefix, and every accepted Issue
+    SHA inclusion row to be present and consistent.
+    """
+    if not isinstance(record, dict):
+        return False, "phase_delivery_record_missing"
+    if record.get("schemaVersion") != 1:
+        return False, "phase_delivery_schema_invalid"
+    if record.get("deliveryMode") != MODE_PHASE_INTEGRATION:
+        return False, "phase_delivery_mode_invalid"
+    phase_branch = str(record.get("phaseBranch") or "").strip()
+    if not phase_branch:
+        return False, "phase_delivery_branch_missing"
+    if phase_branch != branch:
+        return False, f"phase_delivery_branch_mismatch:{phase_branch}"
+    if not is_phase_branch(phase_branch, phase_branch_prefix):
+        return False, f"phase_delivery_branch_prefix_mismatch:{phase_branch}"
+    record_head = normalize_sha(str(record.get("headSha") or ""))
+    tip = normalize_sha(head_sha)
+    if not is_valid_sha(record_head) or not is_valid_sha(tip):
+        return False, "phase_delivery_head_sha_invalid"
+    if record_head != tip:
+        return False, f"phase_delivery_head_sha_mismatch:{record_head[:8]}!={tip[:8]}"
+    base = normalize_sha(str(record.get("baseSha") or ""))
+    if not is_valid_sha(base):
+        return False, "phase_delivery_base_sha_invalid"
+    accepted = record.get("acceptedIssues")
+    if not isinstance(accepted, list):
+        return False, "phase_delivery_accepted_issues_invalid"
+    return phase_ready_for_pr(accepted)
 
 
 def main(argv: list[str] | None = None) -> int:

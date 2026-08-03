@@ -47,9 +47,15 @@ except ImportError:  # pragma: no cover
 try:
     from packager_logic import is_allowed_work_branch
 except ImportError:  # pragma: no cover
-    def is_allowed_work_branch(name: str) -> bool:
+    def is_allowed_work_branch(name: str, phase_branch_prefix: str = "phase/") -> bool:
+        phase = (
+            phase_branch_prefix
+            if phase_branch_prefix.endswith("/")
+            else f"{phase_branch_prefix}/"
+        )
         prefixes = (
             "issue/",
+            phase,
             "feature/",
             "fix/",
             "chore/",
@@ -62,23 +68,44 @@ except ImportError:  # pragma: no cover
         return any(name.startswith(p) for p in prefixes)
 
 try:
+    from delivery_modes import load_delivery_config
+except ImportError:  # pragma: no cover
+    def load_delivery_config(repo_root=None, *, env=None):  # type: ignore[no-untyped-def]
+        class _Cfg:
+            phase_branch_prefix = "phase/"
+
+        return _Cfg()
+
+try:
     from review_ready_dispatch import (
         app_branch_migration_remediation,
         is_app_backed_issue_branch,
+        is_app_backed_publish_branch,
     )
 except ImportError:  # pragma: no cover
     _APP_ISSUE_RE = re.compile(
         r"^issue/([1-9][0-9]{0,8})-([a-z0-9]+(?:-[a-z0-9]+)*)$"
     )
+    _PHASE_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
     def is_app_backed_issue_branch(name: str) -> bool:
         return bool(name) and bool(_APP_ISSUE_RE.fullmatch(str(name).strip()))
 
+    def is_app_backed_publish_branch(name: str, phase_prefix: str = "phase/") -> bool:
+        if is_app_backed_issue_branch(name):
+            return True
+        raw = str(name or "").strip()
+        prefix = phase_prefix if phase_prefix.endswith("/") else f"{phase_prefix}/"
+        if not raw.startswith(prefix):
+            return False
+        slug = raw[len(prefix) :]
+        return bool(slug) and "/" not in slug and bool(_PHASE_SLUG_RE.fullmatch(slug))
+
     def app_branch_migration_remediation(branch: str) -> str:
         br = (branch or "").strip() or "<current-branch>"
         return (
-            "App-backed publisher requires issue/<number>-<slug>. "
-            f"Migrate {br!r} via create_issue_branch.py or /agentcomply."
+            "App-backed publisher requires issue/<number>-<slug> or configured "
+            f"phase/<slug>. Migrate {br!r} via create_issue_branch.py or /agentcomply."
         )
 
 try:
@@ -127,7 +154,8 @@ def origin_tip_matches(workdir: Path) -> tuple[bool, str]:
         return False, "detached_or_missing_branch"
     if branch in {"development", "staging", "main"}:
         return False, f"protected_branch:{branch}"
-    if not is_allowed_work_branch(branch):
+    phase_prefix = load_delivery_config(workdir).phase_branch_prefix
+    if not is_allowed_work_branch(branch, phase_prefix):
         return False, f"disallowed_branch:{branch}"
     # File-backend unit fixtures may omit a real origin remote.
     if os.environ.get("LINKTREND_STATUS_BACKEND") == "file":
@@ -216,15 +244,19 @@ def app_backed_route(branch: str = "", sha: str = "") -> str:
     Returns empty string when the branch is not App-eligible so callers never
     advertise a dispatch command that review_ready_dispatch would reject.
     """
-    if branch and not is_app_backed_issue_branch(branch):
+    phase_prefix = load_delivery_config(Path.cwd()).phase_branch_prefix
+    if branch and not is_app_backed_publish_branch(branch, phase_prefix):
         return ""
     if rs is None:
         return (
             "gh workflow run linktrend-review-ready-publisher.yml "
-            "-f branch=<issue/<number>-<slug>> -f sha=<40-char-immutable-sha> "
+            "-f branch=<issue/<number>-<slug>|phase/<slug>> "
+            "-f sha=<40-char-immutable-sha> "
             "-f dry_run=false"
         )
-    return rs.app_backed_review_ready_route(branch=branch, sha=sha)
+    return rs.app_backed_review_ready_route(
+        branch=branch, sha=sha, phase_prefix=phase_prefix
+    )
 
 
 def _status_backend_name() -> str:
@@ -247,7 +279,8 @@ def _review_ready_publish_failure_payload(
         "branch": branch,
         "at": utc_now(),
     }
-    if is_app_backed_issue_branch(branch):
+    phase_prefix = load_delivery_config(Path.cwd()).phase_branch_prefix
+    if is_app_backed_publish_branch(branch, phase_prefix):
         route = app_backed_route(branch, sha)
         payload["appBackedRoute"] = route
         payload["detail"] = (
@@ -372,12 +405,16 @@ def cmd_review_ready(args: argparse.Namespace) -> int:
         missing.append("no_sha")
 
     br = branch_name(workdir)
+    phase_prefix = load_delivery_config(workdir).phase_branch_prefix
     if br in {"development", "staging", "main", "HEAD", ""}:
         missing.append("protected_or_detached_branch")
-    elif not is_allowed_work_branch(br):
+    elif not is_allowed_work_branch(br, phase_prefix):
         missing.append(f"disallowed_branch:{br}")
-    elif _status_backend_name() != "file" and not is_app_backed_issue_branch(br):
+    elif _status_backend_name() != "file" and not is_app_backed_publish_branch(
+        br, phase_prefix
+    ):
         # Production / GitHub backend: App publisher is the only privileged path.
+        # Issue slug safeguards stay; Phase tips under configured prefix are eligible.
         # Do not pretend feature/dev/cursor branches can dispatch the App route.
         # File backend remains available for offline unit fixtures.
         missing.append(f"app_publish_requires_issue_branch:{br}")
@@ -431,7 +468,14 @@ def cmd_review_ready(args: argparse.Namespace) -> int:
     issue_id = args.issue_id or os.environ.get("COMPLETION_ISSUE_ID") or ""
     if not issue_id:
         m = re.match(r"^issue/([A-Za-z0-9._]+)-", br)
-        issue_id = m.group(1) if m else "unknown"
+        if m:
+            issue_id = m.group(1)
+        elif is_app_backed_publish_branch(br, phase_prefix) and not is_app_backed_issue_branch(
+            br
+        ):
+            issue_id = f"phase:{br.split('/', 1)[-1]}"
+        else:
+            issue_id = "unknown"
     notes = args.notes or os.environ.get("COMPLETION_NOTES") or "completion_gate"
     ok, detail = publish_ready(sha, issue_id, notes, branch=br)
     if not ok:

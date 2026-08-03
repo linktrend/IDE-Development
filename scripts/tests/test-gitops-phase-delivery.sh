@@ -129,6 +129,87 @@ ok2, _ = phase_ready_for_pr(
 )
 assert ok2 is False
 
+from delivery_modes import validate_phase_delivery_record
+import review_ready_dispatch as rrd
+
+# Bugbot: Packager must validate Phase delivery record before Phase PR
+ok_rec, det_rec = validate_phase_delivery_record(
+    {
+        "schemaVersion": 1,
+        "deliveryMode": "phase-integration",
+        "phaseBranch": "phase/wp-01-demo",
+        "baseSha": base,
+        "headSha": head,
+        "mergeSha": None,
+        "acceptedIssues": accepted,
+        "namedGateEvidence": {
+            "gate": "fast-gate",
+            "sha": head,
+            "status": "success",
+            "detail": "ok",
+            "checks": [],
+        },
+    },
+    branch="phase/wp-01-demo",
+    head_sha=head,
+)
+assert ok_rec, det_rec
+ok_miss, det_miss = validate_phase_delivery_record(
+    None, branch="phase/wp-01-demo", head_sha=head
+)
+assert ok_miss is False and det_miss == "phase_delivery_record_missing"
+ok_inc, det_inc = validate_phase_delivery_record(
+    {
+        "schemaVersion": 1,
+        "deliveryMode": "phase-integration",
+        "phaseBranch": "phase/wp-01-demo",
+        "baseSha": base,
+        "headSha": head,
+        "mergeSha": None,
+        "acceptedIssues": [
+            accepted[0],
+            {
+                "branch": "issue/2-beta",
+                "sha": sha_b,
+                "accepted": True,
+                "included": False,
+            },
+        ],
+        "namedGateEvidence": {
+            "gate": "fast-gate",
+            "sha": head,
+            "status": "success",
+            "detail": "ok",
+            "checks": [],
+        },
+    },
+    branch="phase/wp-01-demo",
+    head_sha=head,
+)
+assert ok_inc is False and "issue_not_included" in det_inc
+
+disc_src = (ROOT / "scripts" / "gitops" / "packager_discover.py").read_text(
+    encoding="utf-8"
+)
+assert "validate_phase_delivery_record" in disc_src
+assert "fetch_phase_delivery_record" in disc_src
+assert "skipped_phase_delivery" in disc_src
+
+# App-backed Phase tip eligibility without weakening issue safeguards
+assert rrd.is_app_backed_issue_branch("issue/81-wp-01-demo")
+assert not rrd.is_app_backed_issue_branch("phase/wp-01-demo")
+assert rrd.is_app_backed_phase_branch("phase/wp-01-demo")
+assert rrd.is_app_backed_publish_branch("phase/wp-01-demo")
+assert not rrd.is_app_backed_publish_branch("feature/81-x")
+assert rrd.is_app_backed_phase_branch("wave/wp-01-demo", phase_prefix="wave/")
+phase_dispatch = rrd.validate_dispatch_inputs(
+    branch="phase/wp-01-demo",
+    sha=head,
+    github_repository="linktrend/IDE-Development",
+)
+assert phase_dispatch.branch_kind == "phase"
+assert phase_dispatch.issue_number == 0
+
 gate = named_gate_evidence(
     gate="fast-gate",
     sha=head,
@@ -318,7 +399,7 @@ print("phase-delivery unit fixtures ok")
 PY
 pass "phase delivery unit fixtures (checkpoint/phase/risk/gates)"
 
-# Allowlist accepts phase/*
+# Allowlist accepts phase/* and custom phaseBranchPrefix (Bugbot #3)
 # shellcheck source=scripts/gitops/work-branch-allowlist.sh
 source "$ROOT/scripts/gitops/work-branch-allowlist.sh"
 is_allowed_work_branch "phase/wp-01-demo" || fail "phase/* must be allowed"
@@ -326,10 +407,22 @@ is_allowed_work_branch "issue/1-x" || fail "issue/* must remain allowed"
 ! is_allowed_work_branch "development" || fail "development must stay disallowed"
 pass "work-branch allowlist includes phase/*"
 
+# Custom prefix via env (same helper used by branch-source-policy CI)
+(
+  export LINKTREND_PHASE_BRANCH_PREFIX="wave/"
+  # shellcheck source=scripts/gitops/work-branch-allowlist.sh
+  source "$ROOT/scripts/gitops/work-branch-allowlist.sh"
+  is_allowed_work_branch "wave/wp-01-demo" || fail "custom wave/* must be allowed when configured"
+  ! is_allowed_work_branch "phase/wp-01-demo" || fail "default phase/* must not pass when prefix is wave/"
+)
+pass "work-branch allowlist honors custom phaseBranchPrefix"
+
 # Contract + schema present
 [ -f "$ROOT/docs/contracts/DELIVERY-MODES.md" ] || fail "missing DELIVERY-MODES.md"
 [ -f "$ROOT/core/managed-core/schemas/delivery-modes.schema.json" ] || fail "missing schema"
 grep -q 'phase-integration' "$ROOT/docs/contracts/DELIVERY-MODES.md" || fail "contract missing mode"
+grep -q 'phase-delivery-record.json' "$ROOT/docs/contracts/DELIVERY-MODES.md" || fail "contract missing phase delivery path"
+grep -q 'linktrend-delivery-mode.json' "$ROOT/.github/workflows/branch-source-policy.yml" || fail "branch-source-policy must checkout delivery-mode config"
 pass "delivery-mode contract and schema present"
 
 echo "test-gitops-phase-delivery: OK ($PASS checks)"

@@ -279,7 +279,11 @@ route = rs.app_backed_review_ready_route(
 )
 assert "linktrend-review-ready-publisher.yml" in route
 assert "feature/44-legacy-allowed" not in route
-assert "-f branch=<issue/<number>-<slug>>" in route or "-f branch=issue/" in route
+assert (
+    "-f branch=<issue/<number>-<slug>>" in route
+    or "-f branch=<issue/<number>-<slug>|phase/<slug>>" in route
+    or "-f branch=issue/" in route
+)
 
 err = rs.missing_app_publish_token_error(
     branch="feature/44-legacy-allowed",
@@ -359,6 +363,89 @@ assert f"-f branch={branch}" not in blob
 print("legacy allowed branch remediation ok")
 PY
 pass "legacy allowed branches get migration remediation, not a doomed App route"
+
+# ---------------------------------------------------------------------------
+# 2c) Phase-integration tips are App-eligible without weakening issue safeguards
+# ---------------------------------------------------------------------------
+python3 - "$ROOT" "$TMP" <<'PY'
+import json, os, subprocess, sys, io
+from argparse import Namespace
+from contextlib import redirect_stdout
+from pathlib import Path
+
+root = Path(sys.argv[1])
+tmp = Path(sys.argv[2])
+sys.path.insert(0, str(root / "scripts" / "gitops"))
+import completion_gate as cg
+import readiness_status as rs
+import review_ready_dispatch as dispatch
+
+assert dispatch.is_app_backed_publish_branch("phase/wp-01-demo")
+assert not dispatch.is_app_backed_issue_branch("phase/wp-01-demo")
+assert not dispatch.is_app_backed_publish_branch("feature/44-x")
+
+route = rs.app_backed_review_ready_route(
+    branch="phase/wp-01-demo",
+    sha="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+)
+assert "-f branch=phase/wp-01-demo" in route
+
+repo = tmp / "phase-branch-repo"
+repo.mkdir()
+subprocess.check_call(["git", "init", "-q", "-b", "phase/wp-01-demo"], cwd=repo)
+subprocess.check_call(["git", "config", "user.email", "t@example.com"], cwd=repo)
+subprocess.check_call(["git", "config", "user.name", "t"], cwd=repo)
+subprocess.check_call(["git", "commit", "-q", "--allow-empty", "-m", "tip"], cwd=repo)
+exclude = repo / ".git" / "info" / "exclude"
+exclude.write_text(".linktrend/\n", encoding="utf-8")
+subprocess.check_call(["git", "remote", "add", "origin", str(repo)], cwd=repo)
+sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+branch = subprocess.check_output(
+    ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo, text=True
+).strip()
+subprocess.check_call(["git", "update-ref", f"refs/remotes/origin/{branch}", sha], cwd=repo)
+
+ev = repo / ".linktrend" / "completion-evidence.json"
+ev.parent.mkdir(parents=True, exist_ok=True)
+ev.write_text(
+    json.dumps(
+        {
+            "schemaVersion": 1,
+            "headSha": sha,
+            "classification": "tests",
+            "acceptance": "phase tip may mark review-ready via App path",
+            "commands": [{"cmd": "true", "exitCode": 0}],
+        }
+    )
+    + "\n",
+    encoding="utf-8",
+)
+
+# File backend: phase tip must validate and publish (completion path).
+os.environ.pop("AUTOMATION_TOKEN", None)
+os.environ.pop("LINKTREND_APP_TOKEN", None)
+os.environ["LINKTREND_STATUS_BACKEND"] = "file"
+os.environ["LINKTREND_STATUS_DIR"] = str(tmp / "phase-status")
+os.environ["GITHUB_REPOSITORY"] = "linktrend/IDE-Development"
+
+args = Namespace(
+    workdir=str(repo),
+    evidence_file=str(ev),
+    issue_id="",
+    notes="phase-gate",
+    tests_ok=False,
+)
+buf = io.StringIO()
+with redirect_stdout(buf):
+    code = cg.cmd_review_ready(args)
+out = buf.getvalue()
+payload = json.loads(out)
+assert code == cg.EXIT_OK, (code, payload)
+assert payload.get("published") is True
+assert payload.get("branch") == "phase/wp-01-demo"
+print("phase branch completion_gate review-ready ok")
+PY
+pass "phase-integration tips are App-eligible via completion/App path"
 
 # ---------------------------------------------------------------------------
 # 3) Static: no ambient publish fallback in readiness_status source
