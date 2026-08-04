@@ -569,7 +569,11 @@ function main(argv) {
   fail('unknown_command', `Unknown command: ${command}`)
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+// Node can preserve an archive/extraction spelling in argv[1] that is not
+// byte-identical to the decoded module URL (notably on paths containing
+// spaces). The suffix check keeps direct CLI execution reliable while still
+// allowing the client to be imported by tests and other commands.
+const isMain = Boolean(process.argv[1] && (process.argv[1].endsWith('/library-client.mjs') || process.argv[1].endsWith('\\library-client.mjs')))
 if (isMain) {
   try { main(process.argv.slice(2)) } catch (error) {
     console.error(error.message ?? error)

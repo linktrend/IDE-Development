@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { LibraryClient, LibraryClientError } from '../library-client.mjs'
@@ -165,4 +166,9 @@ test('reports truthful publication-disabled and missing-authority outcomes', () 
     else process.env.LINKTREND_SHARED_LIBRARY_PUBLISH_AUTHORITY = oldAuthority
     rmSync(authority.root, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true })
   }
+})
+
+test('executes the physical client as a CLI from a path containing spaces', () => {
+  const output = execFileSync(process.execPath, [fileURLToPath(new URL('../library-client.mjs', import.meta.url)), 'help'], { encoding: 'utf8' })
+  assert.match(output, /sync\|search\|show\|select/)
 })
