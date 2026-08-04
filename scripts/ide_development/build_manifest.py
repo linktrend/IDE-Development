@@ -373,6 +373,67 @@ def build_entries() -> list[dict[str, Any]]:
                 source_hash=_hash_rel(source),
             )
         )
+
+    # --- Portable LiNKlibraries consumer surface ---
+    # The client is authored under core/library/ and is copied into both the
+    # versioned managed package and the physical Cursor discovery path.  This
+    # deliberately uses regular manifest entries; consumers never inherit the
+    # system checkout through a symlink.
+    library_root = REPO_ROOT / "core" / "library"
+    if library_root.is_dir():
+        for path in sorted(library_root.rglob("*")):
+            if not path.is_file() or path.is_symlink() or ".cache" in path.parts:
+                continue
+            rel = str(path.relative_to(REPO_ROOT)).replace("\\", "/")
+            library_rel = str(path.relative_to(library_root)).replace("\\", "/")
+            digest = _hash_rel(rel)
+            entries.append(
+                _entry(
+                    entry_id=f"library-package-{_slug(library_rel)}",
+                    ownership="managed-core",
+                    source=rel,
+                    destination=f".ide-development/library/{library_rel}",
+                    mode=_mode_for(path),
+                    platform="all",
+                    merge="replace",
+                    source_hash=digest,
+                    notes="Portable LiNKlibraries client, contract, schemas, and tests.",
+                )
+            )
+            if library_rel in {"library-client.mjs", "library-contract.json", "README.md"}:
+                entries.append(
+                    _entry(
+                        entry_id=f"library-cursor-{_slug(library_rel)}",
+                        ownership="managed-entrypoint",
+                        source=rel,
+                        destination=f".cursor/library/{library_rel}",
+                        mode=_mode_for(path),
+                        platform="cursor",
+                        merge="replace",
+                        source_hash=digest,
+                        notes="Physical Cursor Library command/report surface.",
+                    )
+                )
+
+    for src_tail, dest in (
+        ("platforms/cursor/commands/library-search.md", ".cursor/commands/library-search.md"),
+        ("platforms/cursor/commands/library-report.md", ".cursor/commands/library-report.md"),
+    ):
+        source = f"core/managed-core/{src_tail}"
+        if not (REPO_ROOT / source).is_file():
+            continue
+        entries.append(
+            _entry(
+                entry_id=f"cursor-{_slug(dest)}",
+                ownership="managed-entrypoint",
+                source=source,
+                destination=dest,
+                mode="0644",
+                platform="cursor",
+                merge="replace",
+                source_hash=_hash_rel(source),
+            )
+        )
         # Also keep under .ide-development/platforms
         entries.append(
             _entry(

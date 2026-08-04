@@ -1,0 +1,168 @@
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { LibraryClient, LibraryClientError } from '../library-client.mjs'
+
+const sha256 = (value) => createHash('sha256').update(value).digest('hex')
+const json = (value) => `${JSON.stringify(value, null, 2)}\n`
+
+function git(cwd, args) {
+  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+}
+
+function entry({ id, state = 'usable', selectable = true, framework = 'react' }) {
+  const readme = `# ${id}\n\nA verified test component.\n`
+  return {
+    schemaVersion: 2,
+    entryId: id,
+    kind: 'vetted_oss',
+    name: id,
+    summary: 'A verified reusable library entry for consumer conformance tests.',
+    problemDomains: ['testing'],
+    tags: ['test'],
+    languages: ['javascript'],
+    frameworks: framework ? [framework] : [],
+    state,
+    contentMode: state === 'metadata_only' ? 'documentation' : 'executable',
+    selectable,
+    compatibility: { node: '>=20', runtimes: ['node'] },
+    dependencies: { packages: state === 'metadata_only' ? [] : [{ name: 'react', version: '19.1.1', ecosystem: 'npm' }], services: [] },
+    ...(state === 'metadata_only' ? {} : { testContract: { runner: 'node:test', files: ['tests/example.test.mjs'], timeoutMs: 30000 } }),
+    license: { spdx: 'MIT', redistributionAllowed: true },
+    securityReview: { reviewedAt: '2026-08-04T00:00:00.000Z', reviewedBy: 'test', notes: 'Safe local fixture.' },
+    usage: { howToUse: 'Import the verified fixture into a test consumer.' },
+    integrationNotes: 'Use only as a disposable conformance fixture and verify the exact source commit.',
+    gotchas: ['Do not use this fixture as a production Starter Kit.'],
+    provenance: { sourceSystem: 'manual', sourceRevisionSha: 'a'.repeat(40), contributedAt: '2026-08-04T00:00:00.000Z' },
+    files: state === 'metadata_only'
+      ? [{ path: 'README.md', sha256: sha256(readme) }]
+      : [{ path: 'README.md', sha256: sha256(readme) }, { path: 'assets/example.js', sha256: sha256('export const example = true\n') }, { path: 'tests/example.test.mjs', sha256: sha256('import { test } from "node:test"\ntest("fixture", () => {})\n') }],
+  }
+}
+
+function createAuthority() {
+  const root = mkdtempSync(join(tmpdir(), 'linklibraries-authority-'))
+  mkdirSync(join(root, 'entries', 'hello-world'), { recursive: true })
+  mkdirSync(join(root, 'entries', 'historical-note'), { recursive: true })
+  mkdirSync(join(root, 'indexes'), { recursive: true })
+  const hello = entry({ id: 'hello-world' })
+  const historical = entry({ id: 'historical-note', state: 'metadata_only', selectable: false, framework: 'react' })
+  for (const item of [hello, historical]) {
+    const path = join(root, 'entries', item.entryId)
+    const readme = `# ${item.entryId}\n\nA verified test component.\n`
+    writeFileSync(join(path, 'entry.json'), json(item))
+    writeFileSync(join(path, 'README.md'), readme)
+    if (item.state !== 'metadata_only') {
+      mkdirSync(join(path, 'assets'))
+      mkdirSync(join(path, 'tests'))
+      writeFileSync(join(path, 'assets', 'example.js'), 'export const example = true\n')
+      writeFileSync(join(path, 'tests', 'example.test.mjs'), 'import { test } from "node:test"\ntest("fixture", () => {})\n')
+    }
+  }
+  const project = (item) => {
+    const row = {}
+    for (const key of ['entryId', 'kind', 'name', 'summary', 'problemDomains', 'tags', 'languages', 'frameworks', 'state', 'contentMode', 'selectable', 'compatibility', 'dependencies']) row[key] = item[key]
+    row.path = `entries/${item.entryId}`
+    return row
+  }
+  const rows = [project(hello), project(historical)].sort((a, b) => a.entryId.localeCompare(b.entryId))
+  writeFileSync(join(root, 'indexes', 'catalog.json'), json({ schemaVersion: 2, entriesSha256: sha256(JSON.stringify(rows)), entries: rows }))
+  git(root, ['init', '-b', 'development'])
+  git(root, ['config', 'user.email', 'library-test@example.com'])
+  git(root, ['config', 'user.name', 'Library Test'])
+  git(root, ['add', '.'])
+  git(root, ['commit', '-m', 'fixture authority'])
+  return { root, sha: git(root, ['rev-parse', 'HEAD']), hello, historical }
+}
+
+function client(authority, cacheRoot, options = {}) {
+  return new LibraryClient({ repoUrl: authority.root, baseBranch: 'development', cacheRoot, runId: 'test-run', consumerId: 'test-consumer', ...options })
+}
+
+test('binds catalog and entry to one immutable SHA and records provenance', () => {
+  const authority = createAuthority()
+  const cache = mkdtempSync(join(tmpdir(), 'linklibraries-cache-'))
+  try {
+    const result = client(authority, cache).fetchEntry('hello-world')
+    assert.equal(result.fetchCommitSha, authority.sha)
+    assert.equal(result.entryJson.entryId, 'hello-world')
+    assert.equal(result.metadata.catalogCommitSha, authority.sha)
+    assert.deepEqual(Object.keys(result.metadata.payloadHashes), ['assets/example.js', 'README.md', 'tests/example.test.mjs'])
+    const selected = client(authority, cache, { consumerRoot: cache }).selectEntry('hello-world', { dependencies: { react: '19.1.1' }, frameworks: ['react'] })
+    assert.equal(selected.compatibility.ok, true)
+    assert.equal(readFileSync(join(cache, 'provenance', `hello-world@${authority.sha}.json`), 'utf8').includes(authority.sha), true)
+  } finally { rmSync(authority.root, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }) }
+})
+
+test('rejects mismatched catalog/entry SHA and traversal identifiers', () => {
+  const authority = createAuthority()
+  const cache = mkdtempSync(join(tmpdir(), 'linklibraries-cache-'))
+  try {
+    const instance = client(authority, cache)
+    instance.fetchCatalog()
+    assert.throws(() => instance.fetchEntry('hello-world', '0'.repeat(40)), (error) => error instanceof LibraryClientError && error.code === 'entry_catalog_sha_mismatch')
+    assert.throws(() => instance.fetchEntry('../escape'), (error) => error instanceof LibraryClientError && error.code === 'invalid_entry_id')
+  } finally { rmSync(authority.root, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }) }
+})
+
+test('rejects metadata-only selection and incompatible dependencies', () => {
+  const authority = createAuthority()
+  const cache = mkdtempSync(join(tmpdir(), 'linklibraries-cache-'))
+  try {
+    const instance = client(authority, cache)
+    assert.throws(() => instance.selectEntry('historical-note'), (error) => error.code === 'entry_not_selectable')
+    assert.throws(() => instance.selectEntry('hello-world', { nodeVersion: '19.0.0', frameworks: ['vue'], dependencies: {} }), (error) => error.code === 'entry_incompatible' && error.details.errors.length >= 2)
+  } finally { rmSync(authority.root, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }) }
+})
+
+test('fails closed on tampered cache and only reuses revalidated offline evidence', () => {
+  const authority = createAuthority()
+  const cache = mkdtempSync(join(tmpdir(), 'linklibraries-cache-'))
+  try {
+    const online = client(authority, cache)
+    online.fetchEntry('hello-world')
+    writeFileSync(join(cache, 'entries', `hello-world@${authority.sha}`, 'assets', 'example.js'), 'tampered\n')
+    assert.throws(() => client(authority, cache).fetchEntry('hello-world'), (error) => error.code === 'cache_integrity_failure' || error.code === 'payload_sha256_mismatch')
+    rmSync(join(cache, 'entries', `hello-world@${authority.sha}`), { recursive: true, force: true })
+    online.fetchEntry('hello-world')
+    const offline = client(authority, cache, { offline: true })
+    const reused = offline.fetchEntry('hello-world')
+    assert.equal(reused.stale, true)
+    rmSync(join(cache, 'entries', `hello-world@${authority.sha}`, 'verification.json'))
+    assert.throws(() => offline.fetchEntry('hello-world'), (error) => error.code === 'offline_verification_missing')
+  } finally { rmSync(authority.root, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }) }
+})
+
+test('reports truthful publication-disabled and missing-authority outcomes', () => {
+  const authority = createAuthority()
+  const cache = mkdtempSync(join(tmpdir(), 'linklibraries-cache-'))
+  const bundle = join(cache, 'bundle')
+  mkdirSync(join(bundle, 'assets'), { recursive: true })
+  const readme = '# contribution\n\nA verified test component.\n'
+  writeFileSync(join(bundle, 'README.md'), readme)
+  const contribution = entry({ id: 'contribution', framework: null })
+  contribution.contentMode = 'documentation'
+  delete contribution.testContract
+  contribution.files = [{ path: 'README.md', sha256: sha256(readme) }]
+  contribution.dependencies = { packages: [], services: [] }
+  writeFileSync(join(bundle, 'entry.json'), json(contribution))
+  const oldPublish = process.env.LINKTREND_SHARED_LIBRARY_PUBLISH
+  const oldAuthority = process.env.LINKTREND_SHARED_LIBRARY_PUBLISH_AUTHORITY
+  try {
+    delete process.env.LINKTREND_SHARED_LIBRARY_PUBLISH
+    delete process.env.LINKTREND_SHARED_LIBRARY_PUBLISH_AUTHORITY
+    assert.equal(client(authority, cache).publishContribution(bundle).status, 'publication_disabled')
+    process.env.LINKTREND_SHARED_LIBRARY_PUBLISH = '1'
+    assert.equal(client(authority, cache).publishContribution(bundle).status, 'publication_missing_authority')
+  } finally {
+    if (oldPublish === undefined) delete process.env.LINKTREND_SHARED_LIBRARY_PUBLISH
+    else process.env.LINKTREND_SHARED_LIBRARY_PUBLISH = oldPublish
+    if (oldAuthority === undefined) delete process.env.LINKTREND_SHARED_LIBRARY_PUBLISH_AUTHORITY
+    else process.env.LINKTREND_SHARED_LIBRARY_PUBLISH_AUTHORITY = oldAuthority
+    rmSync(authority.root, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true })
+  }
+})

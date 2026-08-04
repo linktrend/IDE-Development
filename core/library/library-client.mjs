@@ -1,40 +1,351 @@
 #!/usr/bin/env node
 /**
- * IDE Development Shared Library client (Phase 8).
+ * Portable LiNKlibraries consumer client.
  *
- * Access pattern (same as LiNKdeveloper @linkdeveloper/shared-library):
- * 1. fetchCatalog — sparse-fetch indexes/catalog.json; cache with fetch commit SHA
- * 2. fetchEntry — sparse-fetch entries/<id>/ only; cache as entryId@commitSHA
- * 3. Cache is disposable; never authoritative over a fresh catalog fetch
- * 4. No fallback to a private/local Library
- *
- * CLI: sync | search | show | prepare-contribution | validate-contribution | publish-contribution
+ * The Library is a Git-backed registry, not a runtime dependency.  Every
+ * successful read is bound to one immutable catalog commit and an entry at
+ * that same commit.  Cache bytes are disposable; verification metadata is
+ * authoritative only after it has been revalidated.
  */
+import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import {
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_REPO = process.env.LINKTREND_SHARED_LIBRARY_REPO_URL ?? 'https://github.com/linktrend/LiNKlibraries.git'
 const DEFAULT_BRANCH = process.env.LINKTREND_SHARED_LIBRARY_BASE_BRANCH ?? 'development'
-const DEFAULT_CACHE =
-  process.env.LINKTREND_SHARED_LIBRARY_CHECKOUT ?? join(HERE, '.cache', 'linklibraries')
+const DEFAULT_CACHE = process.env.LINKTREND_SHARED_LIBRARY_CHECKOUT ?? join(HERE, '.cache', 'linklibraries')
+const SHA_RE = /^[a-f0-9]{40}$/
+const HASH_RE = /^[a-f0-9]{64}$/
+const ENTRY_ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const MAX_FILES = 256
+const MAX_FILE_BYTES = 5 * 1024 * 1024
+const MAX_TOTAL_BYTES = 25 * 1024 * 1024
+const ENTRY_STATES = new Set(['usable', 'metadata_only', 'deprecated', 'quarantined', 'superseded'])
+const ENTRY_KINDS = new Set(['custom_component', 'code_pattern', 'template', 'starter_kit', 'vetted_oss'])
+const CONTENT_MODES = new Set(['executable', 'documentation'])
+const RUNNERS = new Set(['node:test', 'tsx', 'vitest', 'jest', 'pytest'])
+const PACKAGE_ECOSYSTEMS = new Set(['npm', 'pypi', 'cargo', 'go', 'maven', 'nuget', 'other'])
 
-function run(cmd, args, cwd) {
-  return execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+export class LibraryClientError extends Error {
+  constructor(code, message, details = {}) {
+    super(message)
+    this.name = 'LibraryClientError'
+    this.code = code
+    this.details = details
+  }
 }
 
-function ensureDir(p) {
-  mkdirSync(p, { recursive: true })
+function fail(code, message, details = {}) {
+  throw new LibraryClientError(code, message, details)
+}
+
+function run(cmd, args, cwd) {
+  try {
+    return execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  } catch (error) {
+    const stderr = String(error?.stderr ?? '').trim().replace(/\s+/g, ' ').slice(0, 500)
+    fail('git_operation_failed', `${cmd} ${args.join(' ')} failed${stderr ? `: ${stderr}` : ''}`)
+  }
+}
+
+function ensureDir(path) {
+  mkdirSync(path, { recursive: true })
+}
+
+function writeJsonAtomic(path, value) {
+  ensureDir(dirname(path))
+  const temp = `${path}.tmp-${process.pid}`
+  writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+  renameSync(temp, path)
+}
+
+function readJson(path, label) {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'))
+  } catch (error) {
+    fail('invalid_json', `${label} is not valid JSON`, { path, detail: String(error.message ?? error) })
+  }
+}
+
+function sha256Bytes(bytes) {
+  return createHash('sha256').update(bytes).digest('hex')
+}
+
+function sha256File(path) {
+  return sha256Bytes(readFileSync(path))
+}
+
+function hashField(value, label) {
+  if (typeof value !== 'string' || !HASH_RE.test(value)) fail('schema_validation_failed', `${label} must be a lowercase SHA-256 hex string`)
+  return value
+}
+
+function stringField(value, label) {
+  if (typeof value !== 'string' || value.length === 0) fail('schema_validation_failed', `${label} must be a non-empty string`)
+  return value
+}
+
+function arrayField(value, label, { min = 0 } = {}) {
+  if (!Array.isArray(value) || value.length < min || value.some((item) => typeof item !== 'string' || item.length === 0)) {
+    fail('schema_validation_failed', `${label} must be an array of non-empty strings`)
+  }
+  return value
+}
+
+function objectField(value, label) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) fail('schema_validation_failed', `${label} must be an object`)
+  return value
+}
+
+function assertKeys(value, allowed, label) {
+  for (const key of Object.keys(value)) if (!allowed.has(key)) fail('schema_validation_failed', `${label} contains unsupported field: ${key}`)
+}
+
+function safeRelativePath(value) {
+  if (typeof value !== 'string' || value.length === 0 || value.includes('\0') || value.startsWith('/') || value.startsWith('\\') || /^[A-Za-z]:/.test(value) || value.includes('\\')) return false
+  return value.split('/').every((part) => part.length > 0 && part !== '.' && part !== '..')
+}
+
+function pathInside(root, path) {
+  const rootAbs = resolve(root)
+  const pathAbs = resolve(path)
+  const rel = relative(rootAbs, pathAbs)
+  return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !rel.startsWith(sep))
+}
+
+function parseSemver(value) {
+  const match = String(value ?? '').trim().match(/^(?:v)?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:[-+].*)?$/)
+  return match ? [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)] : null
+}
+
+function compareVersions(left, right) {
+  for (let index = 0; index < 3; index += 1) {
+    if (left[index] !== right[index]) return left[index] - right[index]
+  }
+  return 0
+}
+
+function satisfiesVersion(version, range) {
+  const actual = parseSemver(version)
+  if (!actual || typeof range !== 'string' || range.trim() === '') return false
+  return range.split('||').some((alternative) => alternative.trim().split(/\s+/).filter(Boolean).every((token) => {
+    if (token === '*' || token.toLowerCase() === 'x') return true
+    const operator = token.match(/^(>=|<=|>|<|=|\^|~)?\s*(.*)$/)
+    const expected = parseSemver(operator?.[2])
+    if (!operator || !expected) return false
+    const cmp = compareVersions(actual, expected)
+    switch (operator[1] ?? '=') {
+      case '>=': return cmp >= 0
+      case '<=': return cmp <= 0
+      case '>': return cmp > 0
+      case '<': return cmp < 0
+      case '^': return actual[0] === expected[0] && cmp >= 0
+      case '~': return actual[0] === expected[0] && actual[1] === expected[1] && cmp >= 0
+      default: return cmp === 0
+    }
+  }))
+}
+
+function validateCompatibility(value, label) {
+  objectField(value, label)
+  assertKeys(value, new Set(['node', 'runtimes', 'operatingSystems']), label)
+  stringField(value.node, `${label}.node`)
+  arrayField(value.runtimes, `${label}.runtimes`, { min: 1 })
+  if (value.operatingSystems !== undefined) arrayField(value.operatingSystems, `${label}.operatingSystems`)
+}
+
+function validateDependencies(value, label) {
+  objectField(value, label)
+  assertKeys(value, new Set(['packages', 'services']), label)
+  if (!Array.isArray(value.packages) || !Array.isArray(value.services)) fail('schema_validation_failed', `${label} requires packages and services arrays`)
+  for (const dependency of value.packages) {
+    objectField(dependency, `${label}.packages[]`)
+    assertKeys(dependency, new Set(['name', 'version', 'ecosystem', 'optional']), `${label}.packages[]`)
+    stringField(dependency.name, 'dependency.name')
+    stringField(dependency.version, 'dependency.version')
+    if (!PACKAGE_ECOSYSTEMS.has(dependency.ecosystem)) fail('schema_validation_failed', `unsupported dependency ecosystem: ${dependency.ecosystem}`)
+    if (dependency.optional !== undefined && typeof dependency.optional !== 'boolean') fail('schema_validation_failed', 'dependency.optional must be boolean')
+  }
+  for (const dependency of value.services) {
+    objectField(dependency, `${label}.services[]`)
+    assertKeys(dependency, new Set(['name', 'purpose', 'required']), `${label}.services[]`)
+    stringField(dependency.name, 'service.name')
+    stringField(dependency.purpose, 'service.purpose')
+    if (typeof dependency.required !== 'boolean') fail('schema_validation_failed', 'service.required must be boolean')
+  }
+}
+
+function validateEntryDocument(entry, label = 'entry') {
+  objectField(entry, label)
+  assertKeys(entry, new Set(['schemaVersion', 'entryId', 'kind', 'name', 'summary', 'problemDomains', 'tags', 'languages', 'frameworks', 'state', 'contentMode', 'selectable', 'compatibility', 'dependencies', 'testContract', 'license', 'securityReview', 'usage', 'integrationNotes', 'gotchas', 'provenance', 'files', 'supersededBy', 'quarantine', 'deprecation']), label)
+  if (entry.schemaVersion !== 2) fail('schema_validation_failed', `${label}.schemaVersion must be 2`)
+  if (typeof entry.entryId !== 'string' || !ENTRY_ID_RE.test(entry.entryId) || entry.entryId.length < 2 || entry.entryId.length > 128) fail('schema_validation_failed', `${label}.entryId is invalid`)
+  if (!ENTRY_KINDS.has(entry.kind)) fail('schema_validation_failed', `${label}.kind is invalid`)
+  for (const key of ['name', 'summary', 'integrationNotes']) stringField(entry[key], `${label}.${key}`)
+  for (const key of ['problemDomains', 'tags', 'languages', 'frameworks']) arrayField(entry[key], `${label}.${key}`, { min: key === 'problemDomains' ? 1 : 0 })
+  if (!ENTRY_STATES.has(entry.state)) fail('schema_validation_failed', `${label}.state is invalid`)
+  if (!CONTENT_MODES.has(entry.contentMode) || typeof entry.selectable !== 'boolean') fail('schema_validation_failed', `${label}.contentMode/selectable is invalid`)
+  validateCompatibility(entry.compatibility, `${label}.compatibility`)
+  validateDependencies(entry.dependencies, `${label}.dependencies`)
+  objectField(entry.license, `${label}.license`)
+  assertKeys(entry.license, new Set(['spdx', 'redistributionAllowed', 'notes']), `${label}.license`)
+  stringField(entry.license.spdx, `${label}.license.spdx`)
+  if (typeof entry.license.redistributionAllowed !== 'boolean') fail('schema_validation_failed', `${label}.license.redistributionAllowed must be boolean`)
+  objectField(entry.securityReview, `${label}.securityReview`)
+  assertKeys(entry.securityReview, new Set(['reviewedAt', 'reviewedBy', 'notes']), `${label}.securityReview`)
+  for (const key of ['reviewedAt', 'reviewedBy', 'notes']) stringField(entry.securityReview[key], `${label}.securityReview.${key}`)
+  if (Number.isNaN(Date.parse(entry.securityReview.reviewedAt))) fail('schema_validation_failed', `${label}.securityReview.reviewedAt must be date-time`)
+  objectField(entry.usage, `${label}.usage`)
+  assertKeys(entry.usage, new Set(['howToUse', 'examples']), `${label}.usage`)
+  stringField(entry.usage.howToUse, `${label}.usage.howToUse`)
+  if (entry.usage.examples !== undefined) arrayField(entry.usage.examples, `${label}.usage.examples`)
+  arrayField(entry.gotchas, `${label}.gotchas`)
+  objectField(entry.provenance, `${label}.provenance`)
+  assertKeys(entry.provenance, new Set(['sourceSystem', 'sourceRevisionSha', 'contributedAt', 'sourceUrl', 'versionOrRange', 'productRunId', 'pullRequestNumber']), `${label}.provenance`)
+  if (!new Set(['ide-development', 'linkdeveloper', 'manual', 'migration']).has(entry.provenance.sourceSystem)) fail('schema_validation_failed', `${label}.provenance.sourceSystem is invalid`)
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(entry.provenance.sourceRevisionSha)) fail('schema_validation_failed', `${label}.provenance.sourceRevisionSha is invalid`)
+  if (Number.isNaN(Date.parse(entry.provenance.contributedAt))) fail('schema_validation_failed', `${label}.provenance.contributedAt must be date-time`)
+  if (entry.provenance.sourceUrl !== undefined) {
+    try { new URL(entry.provenance.sourceUrl) } catch { fail('schema_validation_failed', `${label}.provenance.sourceUrl must be a URI`) }
+  }
+  if (!Array.isArray(entry.files) || entry.files.length < 1) fail('schema_validation_failed', `${label}.files must be non-empty`)
+  const paths = new Set()
+  for (const file of entry.files) {
+    objectField(file, `${label}.files[]`)
+    assertKeys(file, new Set(['path', 'sha256']), `${label}.files[]`)
+    if (!safeRelativePath(file.path) || file.path === 'entry.json') fail('schema_validation_failed', `${label}.files contains unsafe path`)
+    if (paths.has(file.path)) fail('schema_validation_failed', `${label}.files contains duplicate path: ${file.path}`)
+    paths.add(file.path)
+    hashField(file.sha256, `${label}.files[${file.path}].sha256`)
+  }
+  if (entry.testContract !== undefined) {
+    objectField(entry.testContract, `${label}.testContract`)
+    assertKeys(entry.testContract, new Set(['runner', 'files', 'timeoutMs']), `${label}.testContract`)
+    if (!RUNNERS.has(entry.testContract.runner)) fail('schema_validation_failed', `${label}.testContract.runner is not allowlisted`)
+    arrayField(entry.testContract.files, `${label}.testContract.files`, { min: 1 })
+    if (!Number.isInteger(entry.testContract.timeoutMs) || entry.testContract.timeoutMs < 1 || entry.testContract.timeoutMs > 300000) fail('schema_validation_failed', `${label}.testContract.timeoutMs is invalid`)
+    for (const file of entry.testContract.files) if (!paths.has(file)) fail('schema_validation_failed', `test contract file is not declared: ${file}`)
+  }
+  for (const file of entry.files) if (file.path === 'entry.json') fail('schema_validation_failed', 'entry.json cannot be a payload file')
+  if (entry.state === 'rejected') fail('entry_not_admissible', 'rejected entries are not production entries')
+  if (entry.state === 'metadata_only' && (entry.contentMode !== 'documentation' || entry.selectable || entry.testContract || entry.dependencies.packages.length || entry.dependencies.services.length)) fail('entry_state_invalid', 'metadata_only entries must be documentation-only, non-selectable, dependency-free, and untested')
+  if (entry.state === 'usable' && entry.contentMode === 'executable' && (!entry.files.some((file) => file.path.startsWith('assets/')) || !entry.testContract)) fail('entry_state_invalid', 'usable executable entries require assets and a test contract')
+  if (entry.state === 'usable' && entry.contentMode === 'documentation' && !new Set(['template', 'code_pattern', 'vetted_oss']).has(entry.kind)) fail('entry_state_invalid', 'usable documentation entry kind is not reusable')
+  if (entry.state === 'superseded' && entry.supersededBy === entry.entryId) fail('entry_state_invalid', 'supersededBy cannot reference the same entry')
+  return entry
+}
+
+function projectCatalogEntry(entry) {
+  const result = {}
+  for (const key of ['entryId', 'kind', 'name', 'summary', 'problemDomains', 'tags', 'languages', 'frameworks', 'state', 'contentMode', 'selectable', 'compatibility', 'dependencies']) result[key] = entry[key]
+  if (entry.supersededBy !== undefined) result.supersededBy = entry.supersededBy
+  result.path = `entries/${entry.entryId}`
+  return result
+}
+
+function validateCatalogDocument(catalog) {
+  objectField(catalog, 'catalog')
+  assertKeys(catalog, new Set(['schemaVersion', 'entriesSha256', 'entries']), 'catalog')
+  if (catalog.schemaVersion !== 2 || !HASH_RE.test(catalog.entriesSha256) || !Array.isArray(catalog.entries)) fail('catalog_schema_invalid', 'catalog must satisfy schema v2')
+  const ids = new Set()
+  for (let index = 0; index < catalog.entries.length; index += 1) {
+    const row = catalog.entries[index]
+    objectField(row, `catalog.entries[${index}]`)
+    assertKeys(row, new Set(['entryId', 'kind', 'name', 'summary', 'problemDomains', 'tags', 'languages', 'frameworks', 'state', 'contentMode', 'selectable', 'compatibility', 'dependencies', 'supersededBy', 'path']), `catalog.entries[${index}]`)
+    for (const key of ['entryId', 'kind', 'name', 'summary', 'state', 'contentMode', 'path']) stringField(row[key], `catalog.entries[${index}].${key}`)
+    if (!ENTRY_ID_RE.test(row.entryId) || ids.has(row.entryId)) fail('catalog_semantic_invalid', `catalog entryId is duplicate or invalid: ${row.entryId}`)
+    ids.add(row.entryId)
+    if (!ENTRY_KINDS.has(row.kind) || !ENTRY_STATES.has(row.state) || !CONTENT_MODES.has(row.contentMode) || typeof row.selectable !== 'boolean') fail('catalog_schema_invalid', `catalog row is invalid: ${row.entryId}`)
+    if (row.path !== `entries/${row.entryId}`) fail('catalog_entry_path_mismatch', `catalog path does not match entryId: ${row.entryId}`)
+    validateCompatibility(row.compatibility, `catalog.entries[${index}].compatibility`)
+    validateDependencies(row.dependencies, `catalog.entries[${index}].dependencies`)
+    if (row.state === 'metadata_only' && row.selectable) fail('metadata_only_selection_forbidden', `metadata-only entry is selectable: ${row.entryId}`)
+    if (index > 0 && catalog.entries[index - 1].entryId.localeCompare(row.entryId) > 0) fail('catalog_not_sorted', 'catalog entries must be sorted by entryId')
+  }
+  const digest = sha256Bytes(Buffer.from(JSON.stringify(catalog.entries), 'utf8'))
+  if (digest !== catalog.entriesSha256) fail('catalog_digest_mismatch', 'catalog entriesSha256 does not match entries', { expected: digest, actual: catalog.entriesSha256 })
+  return catalog
+}
+
+function listPayloadFiles(root) {
+  const files = []
+  const walk = (directory, prefix = '') => {
+    for (const item of readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const path = join(directory, item.name)
+      const rel = prefix ? `${prefix}/${item.name}` : item.name
+      const info = lstatSync(path)
+      if ((item.name === 'entry.json' && prefix === '') || (item.name === 'verification.json' && prefix === '')) continue
+      if (info.isSymbolicLink()) fail('symlink_payload', `payload symlink is not allowed: ${rel}`)
+      if (info.isDirectory()) walk(path, rel)
+      else if (info.isFile()) {
+        if (files.length >= MAX_FILES) fail('payload_file_count_exceeded', `payload exceeds ${MAX_FILES} files`)
+        if (info.size > MAX_FILE_BYTES) fail('payload_file_too_large', `payload file exceeds ${MAX_FILE_BYTES} bytes: ${rel}`)
+        files.push({ path: rel, absolute: path, size: info.size })
+      } else fail('non_regular_payload', `payload is not a regular file: ${rel}`)
+    }
+  }
+  walk(root)
+  const total = files.reduce((sum, file) => sum + file.size, 0)
+  if (total > MAX_TOTAL_BYTES) fail('payload_aggregate_size_exceeded', `payload exceeds ${MAX_TOTAL_BYTES} bytes`)
+  return files
+}
+
+function verifyEntryPayload(entry, entryRoot) {
+  if (!pathInside(entryRoot, entryRoot)) fail('path_escape', 'entry root is unsafe')
+  const actual = listPayloadFiles(entryRoot)
+  const declared = new Map(entry.files.map((file) => [file.path, file.sha256]))
+  for (const file of actual) {
+    if (!declared.has(file.path)) fail('undeclared_payload', `payload file is not declared: ${file.path}`)
+    const digest = sha256File(file.absolute)
+    if (digest !== declared.get(file.path)) fail('payload_sha256_mismatch', `payload hash mismatch: ${file.path}`, { expected: declared.get(file.path), actual: digest })
+  }
+  for (const path of declared.keys()) if (!actual.some((file) => file.path === path)) fail('missing_declared_payload', `declared payload file is missing: ${path}`)
+  return Object.fromEntries(actual.sort((a, b) => a.path.localeCompare(b.path)).map((file) => [file.path, sha256File(file.absolute)]))
+}
+
+function readConsumerPackage(root) {
+  const path = join(resolve(root), 'package.json')
+  if (!existsSync(path)) return null
+  return readJson(path, 'consumer package.json')
+}
+
+function packageMap(packageJson) {
+  return Object.assign({}, packageJson?.dependencies ?? {}, packageJson?.devDependencies ?? {}, packageJson?.peerDependencies ?? {})
+}
+
+function compatibilityReport(entry, { consumerRoot, runtime = 'node', nodeVersion = process.versions.node, frameworks, dependencies, services } = {}) {
+  const errors = []
+  if (!entry.compatibility.runtimes.includes(runtime)) errors.push({ code: 'runtime_incompatible', runtime, supported: entry.compatibility.runtimes })
+  if (!satisfiesVersion(nodeVersion, entry.compatibility.node)) errors.push({ code: 'node_incompatible', nodeVersion, required: entry.compatibility.node })
+  const packageJson = consumerRoot ? readConsumerPackage(consumerRoot) : null
+  const packages = dependencies ?? packageMap(packageJson)
+  const availableFrameworks = new Set((frameworks ?? Object.keys(packages)).map((item) => String(item).toLowerCase()))
+  const frameworkAliases = { react: ['react'], vue: ['vue'], angular: ['@angular/core'], next: ['next'], svelte: ['svelte'] }
+  for (const framework of entry.frameworks) {
+    const aliases = frameworkAliases[framework.toLowerCase()] ?? [framework]
+    if (!aliases.some((alias) => availableFrameworks.has(alias.toLowerCase()))) errors.push({ code: 'framework_incompatible', framework })
+  }
+  for (const dependency of entry.dependencies.packages) {
+    const declared = packages[dependency.name]
+    if (declared === undefined && !dependency.optional) errors.push({ code: 'dependency_missing', name: dependency.name, required: dependency.version })
+    else if (declared !== undefined && dependency.ecosystem === 'npm' && parseSemver(dependency.version) && parseSemver(declared) && !satisfiesVersion(dependency.version, declared)) errors.push({ code: 'dependency_incompatible', name: dependency.name, required: dependency.version, declared })
+  }
+  const availableServices = new Set((services ?? []).map((item) => String(item)))
+  for (const dependency of entry.dependencies.services) if (dependency.required && !availableServices.has(dependency.name)) errors.push({ code: 'service_missing', name: dependency.name })
+  return { ok: errors.length === 0, errors, nodeVersion, runtime, frameworkCount: entry.frameworks.length, dependencyCount: entry.dependencies.packages.length }
 }
 
 export class LibraryClient {
@@ -43,243 +354,225 @@ export class LibraryClient {
     baseBranch = DEFAULT_BRANCH,
     cacheRoot = DEFAULT_CACHE,
     offline = process.env.LINKTREND_SHARED_LIBRARY_OFFLINE === '1',
+    consumerRoot = process.env.LINKTREND_SHARED_LIBRARY_CONSUMER_ROOT,
+    consumerId = process.env.LINKTREND_SHARED_LIBRARY_CONSUMER_ID ?? 'consumer',
+    runId = process.env.LINKTREND_SHARED_LIBRARY_RUN_ID ?? 'local-run',
   } = {}) {
     this.repoUrl = repoUrl
     this.baseBranch = baseBranch
     this.cacheRoot = resolve(cacheRoot)
     this.offline = offline
+    this.consumerRoot = consumerRoot ? resolve(consumerRoot) : undefined
+    this.consumerId = consumerId
+    this.runId = runId
     this.mirrorDir = join(this.cacheRoot, 'mirror')
     this.catalogCacheDir = join(this.cacheRoot, 'catalog')
     this.entryCacheDir = join(this.cacheRoot, 'entries')
+    this.provenanceDir = join(this.cacheRoot, 'provenance')
     this.lastCatalog = null
     ensureDir(this.cacheRoot)
     ensureDir(this.catalogCacheDir)
     ensureDir(this.entryCacheDir)
+    ensureDir(this.provenanceDir)
   }
 
   ensureMirror() {
     if (this.offline) {
-      if (!existsSync(join(this.mirrorDir, '.git'))) {
-        throw new Error(`Offline: no mirror at ${this.mirrorDir}`)
-      }
+      if (!existsSync(join(this.mirrorDir, '.git'))) fail('offline_mirror_missing', `Offline mirror is missing: ${this.mirrorDir}`)
       return
     }
     if (!existsSync(join(this.mirrorDir, '.git'))) {
       ensureDir(this.mirrorDir)
-      run('git', [
-        'clone',
-        '--filter=blob:none',
-        '--sparse',
-        '--branch',
-        this.baseBranch,
-        '--single-branch',
-        this.repoUrl,
-        this.mirrorDir,
-      ])
-      run('git', ['-C', this.mirrorDir, 'sparse-checkout', 'set', 'indexes'])
-    } else {
-      run('git', ['-C', this.mirrorDir, 'fetch', 'origin', this.baseBranch])
-      run('git', ['-C', this.mirrorDir, 'checkout', `origin/${this.baseBranch}`])
-    }
+      run('git', ['clone', '--filter=blob:none', '--sparse', '--branch', this.baseBranch, '--single-branch', this.repoUrl, this.mirrorDir])
+    } else run('git', ['-C', this.mirrorDir, 'fetch', 'origin', this.baseBranch])
+  }
+
+  checkoutCatalog() {
+    this.ensureMirror()
+    if (!this.offline) run('git', ['-C', this.mirrorDir, 'checkout', '-f', `origin/${this.baseBranch}`])
+    if (!this.offline) run('git', ['-C', this.mirrorDir, 'sparse-checkout', 'set', 'indexes'])
   }
 
   tipSha() {
-    return run('git', ['-C', this.mirrorDir, 'rev-parse', 'HEAD'])
+    const sha = run('git', ['-C', this.mirrorDir, 'rev-parse', 'HEAD'])
+    if (!SHA_RE.test(sha)) fail('invalid_commit_sha', `Library tip is not an immutable commit SHA: ${sha}`)
+    return sha
   }
 
   fetchCatalog() {
     if (this.offline) {
-      const latest = join(this.catalogCacheDir, 'latest.json')
-      if (!existsSync(latest)) throw new Error('Offline: no cached catalog')
-      const snap = JSON.parse(readFileSync(latest, 'utf8'))
-      snap.stale = true
-      this.lastCatalog = snap
-      return snap
+      const path = join(this.catalogCacheDir, 'latest.json')
+      if (!existsSync(path)) fail('offline_catalog_missing', 'Offline catalog verification record is missing')
+      const snapshot = readJson(path, 'cached catalog')
+      if (!SHA_RE.test(snapshot.fetchCommitSha) || snapshot.catalogCommitSha !== snapshot.fetchCommitSha) fail('catalog_provenance_invalid', 'Cached catalog lacks one immutable commit binding')
+      validateCatalogDocument(snapshot.catalog)
+      const cachePath = join(this.catalogCacheDir, `${snapshot.fetchCommitSha}.json`)
+      if (!existsSync(cachePath) || readFileSync(cachePath, 'utf8') !== readFileSync(path, 'utf8')) fail('catalog_cache_tampered', 'Cached latest catalog does not match its immutable snapshot')
+      snapshot.stale = true
+      this.lastCatalog = snapshot
+      return snapshot
     }
-    this.ensureMirror()
-    run('git', ['-C', this.mirrorDir, 'sparse-checkout', 'set', 'indexes'])
-    run('git', [
-      '-C',
-      this.mirrorDir,
-      'checkout',
-      `origin/${this.baseBranch}`,
-      '--',
-      'indexes',
-    ])
+    this.checkoutCatalog()
     const fetchCommitSha = this.tipSha()
-    const catalog = JSON.parse(readFileSync(join(this.mirrorDir, 'indexes', 'catalog.json'), 'utf8'))
-    const snapshot = {
-      fetchCommitSha,
-      catalog,
-      cachePath: join(this.catalogCacheDir, `${fetchCommitSha}.json`),
-      stale: false,
-    }
-    writeFileSync(snapshot.cachePath, `${JSON.stringify(snapshot, null, 2)}\n`)
-    writeFileSync(join(this.catalogCacheDir, 'latest.json'), `${JSON.stringify(snapshot, null, 2)}\n`)
+    const catalogPath = join(this.mirrorDir, 'indexes', 'catalog.json')
+    if (!existsSync(catalogPath)) fail('catalog_missing', 'Library authority does not contain indexes/catalog.json')
+    const catalog = readJson(catalogPath, 'authority catalog')
+    validateCatalogDocument(catalog)
+    const snapshot = { schemaVersion: 1, fetchCommitSha, catalogCommitSha: fetchCommitSha, catalog, stale: false }
+    writeJsonAtomic(join(this.catalogCacheDir, `${fetchCommitSha}.json`), snapshot)
+    writeJsonAtomic(join(this.catalogCacheDir, 'latest.json'), snapshot)
     this.lastCatalog = snapshot
     return snapshot
   }
 
-  search({ query = '', kind } = {}) {
+  search({ query = '', kind, selectable } = {}) {
     const snapshot = this.lastCatalog ?? this.fetchCatalog()
-    const q = query.toLowerCase().trim()
-    const matches = snapshot.catalog.entries.filter((e) => {
-      if (kind && e.kind !== kind) return false
+    const q = String(query).toLowerCase().trim()
+    const matches = snapshot.catalog.entries.filter((entry) => {
+      if (kind && entry.kind !== kind) return false
+      if (selectable !== undefined && entry.selectable !== selectable) return false
       if (!q) return true
-      const hay = `${e.entryId} ${e.name} ${e.summary} ${(e.problemDomains || []).join(' ')}`.toLowerCase()
-      return hay.includes(q)
+      return `${entry.entryId} ${entry.name} ${entry.summary} ${(entry.problemDomains || []).join(' ')}`.toLowerCase().includes(q)
     })
     return { snapshot, matches }
   }
 
+  cachePath(entryId, sha) {
+    if (!ENTRY_ID_RE.test(entryId) || !SHA_RE.test(sha)) fail('unsafe_cache_key', 'Entry cache key is invalid')
+    return join(this.entryCacheDir, `${entryId}@${sha}`)
+  }
+
+  verifyCachedEntry(entryId, sha, { snapshot = this.lastCatalog } = {}) {
+    const localPath = this.cachePath(entryId, sha)
+    const metadataPath = join(localPath, 'verification.json')
+    if (!existsSync(metadataPath)) fail('offline_verification_missing', `Verification record is missing for ${entryId}@${sha}`)
+    const metadata = readJson(metadataPath, 'entry verification record')
+    if (metadata.entryId !== entryId || metadata.entryCommitSha !== sha || metadata.catalogCommitSha !== sha || !snapshot || snapshot.catalogCommitSha !== sha) fail('entry_catalog_sha_mismatch', `Entry cache is not bound to the current catalog commit: ${entryId}@${sha}`)
+    const entryPath = join(localPath, 'entry.json')
+    if (!existsSync(entryPath)) fail('offline_entry_missing', `Cached entry metadata is missing: ${entryId}@${sha}`)
+    const entry = readJson(entryPath, 'cached entry')
+    validateEntryDocument(entry, `cached ${entryId}`)
+    if (sha256File(entryPath) !== metadata.entryJsonSha256) fail('cache_integrity_failure', `Cached entry metadata was tampered: ${entryId}@${sha}`)
+    const payloadHashes = verifyEntryPayload(entry, localPath)
+    if (JSON.stringify(payloadHashes) !== JSON.stringify(metadata.payloadHashes)) fail('cache_integrity_failure', `Cached payload evidence was tampered: ${entryId}@${sha}`)
+    const row = snapshot.catalog.entries.find((candidate) => candidate.entryId === entryId)
+    if (!row || JSON.stringify(projectCatalogEntry(entry)) !== JSON.stringify(row)) fail('catalog_entry_mismatch', `Cached entry metadata does not match the catalog row: ${entryId}`)
+    return { entryId, fetchCommitSha: sha, localPath, entryJson: entry, metadata, cacheStatus: 'verified', stale: Boolean(snapshot.stale) }
+  }
+
   fetchEntry(entryId, commitSha) {
-    const sha = commitSha ?? this.lastCatalog?.fetchCommitSha ?? this.fetchCatalog().fetchCommitSha
-    const cacheKey = `${entryId}@${sha}`
-    const localPath = join(this.entryCacheDir, cacheKey)
-    if (existsSync(join(localPath, 'entry.json'))) {
-      return {
-        entryId,
-        fetchCommitSha: sha,
-        localPath,
-        entryJson: JSON.parse(readFileSync(join(localPath, 'entry.json'), 'utf8')),
-      }
-    }
-    if (this.offline) throw new Error(`Offline cache miss: ${cacheKey}`)
+    if (!ENTRY_ID_RE.test(entryId)) fail('invalid_entry_id', `Invalid entryId: ${entryId}`)
+    const snapshot = this.lastCatalog ?? this.fetchCatalog()
+    const sha = commitSha ?? snapshot.catalogCommitSha
+    if (sha !== snapshot.catalogCommitSha) fail('entry_catalog_sha_mismatch', `Entry ${entryId} must be fetched at catalog commit ${snapshot.catalogCommitSha}`, { catalogCommitSha: snapshot.catalogCommitSha, requested: sha })
+    const localPath = this.cachePath(entryId, sha)
+    if (existsSync(localPath)) return this.verifyCachedEntry(entryId, sha, { snapshot })
+    if (this.offline) fail('offline_verification_missing', `Offline verification record is missing for ${entryId}@${sha}`)
+    const row = snapshot.catalog.entries.find((candidate) => candidate.entryId === entryId)
+    if (!row) fail('entry_not_found', `Entry not found in catalog: ${entryId}`)
     this.ensureMirror()
+    try { run('git', ['-C', this.mirrorDir, 'cat-file', '-e', `${sha}^{commit}`]) } catch { fail('entry_commit_unavailable', `Authority cannot provide immutable commit ${sha}`) }
     run('git', ['-C', this.mirrorDir, 'sparse-checkout', 'set', `entries/${entryId}`])
+    rmSync(join(this.mirrorDir, 'entries', entryId), { recursive: true, force: true })
     run('git', ['-C', this.mirrorDir, 'checkout', sha, '--', `entries/${entryId}`])
-    const src = join(this.mirrorDir, 'entries', entryId)
-    if (!existsSync(src)) throw new Error(`Entry not found: ${entryId}@${sha}`)
-    if (existsSync(localPath)) rmSync(localPath, { recursive: true, force: true })
+    const source = join(this.mirrorDir, 'entries', entryId)
+    if (!existsSync(source) || !lstatSync(source).isDirectory()) fail('entry_not_found', `Entry payload is missing: ${entryId}@${sha}`)
     ensureDir(localPath)
-    cpSync(src, localPath, { recursive: true })
-    return {
-      entryId,
-      fetchCommitSha: sha,
-      localPath,
-      entryJson: JSON.parse(readFileSync(join(localPath, 'entry.json'), 'utf8')),
-    }
+    cpSync(source, localPath, { recursive: true, errorOnExist: false })
+    const entry = readJson(join(localPath, 'entry.json'), 'authority entry')
+    validateEntryDocument(entry, `entry ${entryId}`)
+    if (entry.entryId !== entryId || JSON.stringify(projectCatalogEntry(entry)) !== JSON.stringify(row)) fail('catalog_entry_mismatch', `Entry does not match its catalog row: ${entryId}`)
+    const payloadHashes = verifyEntryPayload(entry, localPath)
+    const metadata = { schemaVersion: 1, entryId, entryCommitSha: sha, catalogCommitSha: sha, catalogEntriesSha256: snapshot.catalog.entriesSha256, entryJsonSha256: sha256File(join(localPath, 'entry.json')), payloadHashes, verified: true }
+    writeJsonAtomic(join(localPath, 'verification.json'), metadata)
+    return this.verifyCachedEntry(entryId, sha, { snapshot })
+  }
+
+  selectEntry(entryId, options = {}) {
+    const fetched = this.fetchEntry(entryId, options.commitSha)
+    if (!fetched.entryJson.selectable || !['usable', 'deprecated'].includes(fetched.entryJson.state)) fail('entry_not_selectable', `Entry is not selectable: ${entryId}`, { state: fetched.entryJson.state, selectable: fetched.entryJson.selectable })
+    const compatibility = compatibilityReport(fetched.entryJson, { consumerRoot: options.consumerRoot ?? this.consumerRoot, runtime: options.runtime, nodeVersion: options.nodeVersion, frameworks: options.frameworks, dependencies: options.dependencies, services: options.services })
+    if (!compatibility.ok) fail('entry_incompatible', `Entry is incompatible with the consumer: ${entryId}`, compatibility)
+    const provenance = this.recordProvenance(fetched, { selected: true, compatibility })
+    return { ...fetched, compatibility, provenance }
+  }
+
+  recordProvenance(fetched, { selected = false, compatibility = null } = {}) {
+    const report = { schemaVersion: 1, consumerId: this.consumerId, runId: this.runId, repoUrl: this.repoUrl, branch: this.baseBranch, catalogCommitSha: fetched.metadata?.catalogCommitSha ?? fetched.fetchCommitSha, entryId: fetched.entryId, entryCommitSha: fetched.fetchCommitSha, catalogEntriesSha256: fetched.metadata?.catalogEntriesSha256 ?? this.lastCatalog?.catalog.entriesSha256, entryJsonSha256: fetched.metadata?.entryJsonSha256, payloadHashes: fetched.metadata?.payloadHashes, state: fetched.entryJson.state, selectable: fetched.entryJson.selectable, selected, compatibility, cacheStatus: fetched.cacheStatus, stale: fetched.stale }
+    const path = join(this.provenanceDir, `${fetched.entryId}@${fetched.fetchCommitSha}.json`)
+    writeJsonAtomic(path, report)
+    return { path, ...report }
+  }
+
+  report(entryId) {
+    const snapshot = this.lastCatalog ?? this.fetchCatalog()
+    if (!entryId) return { snapshot, cacheRoot: this.cacheRoot, consumerId: this.consumerId, runId: this.runId }
+    const fetched = this.fetchEntry(entryId)
+    const provenancePath = join(this.provenanceDir, `${entryId}@${fetched.fetchCommitSha}.json`)
+    return { snapshot, entry: fetched, provenance: existsSync(provenancePath) ? readJson(provenancePath, 'provenance report') : null }
   }
 
   prepareContribution(bundlePath) {
     const abs = resolve(bundlePath)
-    const entry = JSON.parse(readFileSync(join(abs, 'entry.json'), 'utf8'))
-    if (!entry.entryId) throw new Error('bundle missing entryId')
+    if (!pathInside(abs, abs) || !existsSync(join(abs, 'entry.json'))) fail('invalid_contribution', 'Contribution bundle must contain entry.json')
+    const entry = readJson(join(abs, 'entry.json'), 'contribution entry')
+    validateEntryDocument(entry, 'contribution entry')
     return { bundlePath: abs, entryId: entry.entryId }
   }
 
   validateContribution(bundlePath) {
-    const abs = resolve(bundlePath)
-    const errors = []
-    if (!existsSync(join(abs, 'entry.json'))) return { ok: false, errors: ['missing entry.json'] }
-    if (!existsSync(join(abs, 'README.md'))) errors.push('missing README.md')
-    const entry = JSON.parse(readFileSync(join(abs, 'entry.json'), 'utf8'))
-    if (entry.schemaVersion !== 1) errors.push('schemaVersion must be 1')
-    if (!entry.integrationNotes || String(entry.integrationNotes).trim().length < 12) {
-      errors.push('integrationNotes too short')
+    try {
+      const prepared = this.prepareContribution(bundlePath)
+      const entryPath = join(prepared.bundlePath, 'entry.json')
+      const entry = readJson(entryPath, 'contribution entry')
+      const payloadHashes = verifyEntryPayload(entry, prepared.bundlePath)
+      return { ok: true, entryId: prepared.entryId, payloadHashes }
+    } catch (error) {
+      return { ok: false, errors: [{ code: error.code ?? 'invalid_contribution', message: error.message }] }
     }
-    if (
-      (entry.kind === 'custom_component' || entry.kind === 'code_pattern') &&
-      (!Array.isArray(entry.gotchas) || entry.gotchas.length === 0)
-    ) {
-      errors.push('gotchas required')
-    }
-    return { ok: errors.length === 0, errors }
   }
 
   publishContribution(bundlePath) {
-    const prepared = this.prepareContribution(bundlePath)
-    const v = this.validateContribution(bundlePath)
-    if (!v.ok) return { status: 'publication_pending', detail: v.errors.join('; ') }
-    if (process.env.LINKTREND_SHARED_LIBRARY_PUBLISH !== '1') {
-      return {
-        status: 'publication_pending',
-        detail: `Bundle ready for ${prepared.entryId}. Librarian merges PRs into LiNKlibraries development.`,
-      }
-    }
-    return {
-      status: 'publication_pending',
-      detail: 'Set up gh auth and re-run with PUBLISH=1 from a contribution workflow; default stays pending.',
-    }
+    const validation = this.validateContribution(bundlePath)
+    if (!validation.ok) return { status: 'publication_rejected', published: false, validation }
+    if (process.env.LINKTREND_SHARED_LIBRARY_PUBLISH !== '1') return { status: 'publication_disabled', published: false, detail: `Contribution ${validation.entryId} is valid locally; publication is disabled.` }
+    if (!process.env.LINKTREND_SHARED_LIBRARY_PUBLISH_AUTHORITY && !process.env.GH_TOKEN && !process.env.GITHUB_TOKEN) return { status: 'publication_missing_authority', published: false, detail: 'Publication was requested but no approved publication authority is available.' }
+    return { status: 'publication_pending', published: false, detail: 'Contribution is valid and authority is present; Librarian PR creation remains an external governed action.' }
   }
 }
 
-function printJson(value) {
-  console.log(JSON.stringify(value, null, 2))
+function printJson(value) { console.log(JSON.stringify(value, null, 2)) }
+
+function option(args, name) {
+  const index = args.indexOf(name)
+  return index >= 0 ? args[index + 1] : undefined
 }
 
 function main(argv) {
-  const [cmd, ...rest] = argv
+  const [command, ...args] = argv
   const client = new LibraryClient()
-  switch (cmd) {
-    case 'sync': {
-      printJson(client.fetchCatalog())
-      break
-    }
-    case 'search': {
-      let query = ''
-      let kind
-      for (let i = 0; i < rest.length; i += 1) {
-        if (rest[i] === '--query') query = rest[++i]
-        else if (rest[i] === '--kind') kind = rest[++i]
-      }
-      printJson(client.search({ query, kind }))
-      break
-    }
-    case 'show': {
-      let entry
-      for (let i = 0; i < rest.length; i += 1) {
-        if (rest[i] === '--entry') entry = rest[++i]
-      }
-      if (!entry) throw new Error('--entry required')
-      printJson(client.fetchEntry(entry))
-      break
-    }
-    case 'prepare-contribution': {
-      let bundle
-      for (let i = 0; i < rest.length; i += 1) {
-        if (rest[i] === '--bundle') bundle = rest[++i]
-      }
-      if (!bundle) throw new Error('--bundle required')
-      printJson(client.prepareContribution(bundle))
-      break
-    }
-    case 'validate-contribution': {
-      let bundle
-      for (let i = 0; i < rest.length; i += 1) {
-        if (rest[i] === '--bundle') bundle = rest[++i]
-      }
-      if (!bundle) throw new Error('--bundle required')
-      const result = client.validateContribution(bundle)
-      printJson(result)
-      process.exit(result.ok ? 0 : 1)
-      break
-    }
-    case 'publish-contribution': {
-      let bundle
-      for (let i = 0; i < rest.length; i += 1) {
-        if (rest[i] === '--bundle') bundle = rest[++i]
-      }
-      if (!bundle) throw new Error('--bundle required')
-      printJson(client.publishContribution(bundle))
-      break
-    }
-    case 'help':
-    case undefined: {
-      console.log(`Usage: node library-client.mjs <sync|search|show|prepare-contribution|validate-contribution|publish-contribution>`)
-      break
-    }
-    default:
-      throw new Error(`Unknown command: ${cmd}`)
+  if (command === 'sync') return printJson(client.fetchCatalog())
+  if (command === 'search') return printJson(client.search({ query: option(args, '--query') ?? '', kind: option(args, '--kind'), selectable: option(args, '--selectable') === undefined ? undefined : option(args, '--selectable') === 'true' }))
+  if (command === 'show') return printJson(client.fetchEntry(option(args, '--entry') ?? fail('argument_required', '--entry required')))
+  if (command === 'select') return printJson(client.selectEntry(option(args, '--entry') ?? fail('argument_required', '--entry required')))
+  if (command === 'verify-cache') return printJson(client.verifyCachedEntry(option(args, '--entry') ?? fail('argument_required', '--entry required'), client.fetchCatalog().catalogCommitSha))
+  if (command === 'report') return printJson(client.report(option(args, '--entry')))
+  if (command === 'prepare-contribution') return printJson(client.prepareContribution(option(args, '--bundle') ?? fail('argument_required', '--bundle required')))
+  if (command === 'validate-contribution') {
+    const result = client.validateContribution(option(args, '--bundle') ?? fail('argument_required', '--bundle required'))
+    printJson(result)
+    if (!result.ok) process.exitCode = 1
+    return
   }
+  if (command === 'publish-contribution') return printJson(client.publishContribution(option(args, '--bundle') ?? fail('argument_required', '--bundle required')))
+  if (!command || command === 'help') return console.log('Usage: node library-client.mjs <sync|search|show|select|verify-cache|report|prepare-contribution|validate-contribution|publish-contribution>')
+  fail('unknown_command', `Unknown command: ${command}`)
 }
 
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 if (isMain) {
-  try {
-    main(process.argv.slice(2))
-  } catch (err) {
-    console.error(err.message || err)
-    process.exit(1)
+  try { main(process.argv.slice(2)) } catch (error) {
+    console.error(error.message ?? error)
+    process.exitCode = 1
   }
 }
