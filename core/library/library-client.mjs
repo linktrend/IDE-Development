@@ -222,6 +222,7 @@ function validateEntryDocument(entry, label = 'entry') {
     try { new URL(entry.provenance.sourceUrl) } catch { fail('schema_validation_failed', `${label}.provenance.sourceUrl must be a URI`) }
   }
   if (!Array.isArray(entry.files) || entry.files.length < 1) fail('schema_validation_failed', `${label}.files must be non-empty`)
+  if (!entry.files.some((file) => file.path === 'README.md')) fail('schema_validation_failed', `${label}.files must include README.md`)
   const paths = new Set()
   for (const file of entry.files) {
     objectField(file, `${label}.files[]`)
@@ -536,7 +537,7 @@ export class LibraryClient {
     const validation = this.validateContribution(bundlePath)
     if (!validation.ok) return { status: 'publication_rejected', published: false, validation }
     if (process.env.LINKTREND_SHARED_LIBRARY_PUBLISH !== '1') return { status: 'publication_disabled', published: false, detail: `Contribution ${validation.entryId} is valid locally; publication is disabled.` }
-    if (!process.env.LINKTREND_SHARED_LIBRARY_PUBLISH_AUTHORITY && !process.env.GH_TOKEN && !process.env.GITHUB_TOKEN) return { status: 'publication_missing_authority', published: false, detail: 'Publication was requested but no approved publication authority is available.' }
+    if (!process.env.LINKTREND_SHARED_LIBRARY_PUBLISH_AUTHORITY) return { status: 'publication_missing_authority', published: false, detail: 'Publication was requested but no approved publication authority is available.' }
     return { status: 'publication_pending', published: false, detail: 'Contribution is valid and authority is present; Librarian PR creation remains an external governed action.' }
   }
 }
