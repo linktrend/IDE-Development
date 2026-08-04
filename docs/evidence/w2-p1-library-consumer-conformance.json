@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "workPacket": "W2-P1",
   "purpose": "Portable LiNKlibraries consumer conformance proof",
-  "sourceCommit": "e80db432cb7e5f2f2db0cf91958bc8dd51a57c43",
-  "parentCommit": "8ffe33ca45a5fdea681d8e5963c8d381b65d922b",
+  "sourceCommit": "086a3d9093b3e0b9680d15fe20a5384621fc8106",
+  "parentCommit": "bb39b284ed0c2d6e48e0dc8cd9c33139f24e4702",
   "releaseCandidate": {
     "packageVersion": "2.1.0",
-    "manifestSha256": "55dbd2643154216828d6da754384d7fe913c5ec5e2056eae6be95cda7bc00af8",
-    "tarSha256": "8ee15c36f49f71d1b43c2ac0c241b652882f1a5429f28f5ca5c8b64e3ed0722b",
-    "zipSha256": "989fc94d8f4baf738e1edda9242f0a9717a13303b555cfa21f3f88082050cfbe",
+    "manifestSha256": "edcc65eae92ff0646deaa9e39d224c648e2990cd8b1c36290edd2f51c388f5b1",
+    "tarSha256": "8bd02c352e21b51c975c30b87f8c408508abce2f87868b04a177974cd5255d1e",
+    "zipSha256": "faec05744f19762b84e286f60194b9240051bdb6eaf4b1b6cd007084b852a015",
     "reproducible": true,
     "createInstallVerify": true,
     "archiveVerify": true
@@ -34,8 +34,23 @@
     { "case": "Node/framework/dependency incompatibility", "outcome": "entry_incompatible" },
     { "case": "tampered cached payload", "outcome": "payload_sha256_mismatch" },
     { "case": "offline missing verification record", "outcome": "offline_verification_missing" },
+    { "case": "schema-invalid deprecated selectable entry missing metadata", "outcome": "schema_validation_failed" },
+    { "case": "schema additionalProperties and format failures", "outcome": "schema_validation_failed" },
+    { "case": "npm caret requirement against incompatible installed version", "outcome": "dependency_incompatible" },
+    { "case": "malformed npm range", "outcome": "dependency_range_malformed" },
+    { "case": "unsupported npm range", "outcome": "dependency_range_unsupported" },
     { "case": "publication disabled", "outcome": "publication_disabled" },
     { "case": "publication authority missing", "outcome": "publication_missing_authority" }
   ],
+  "verification": {
+    "libraryTests": "9 passed",
+    "releaseCandidateTests": "11 passed",
+    "packageReproducibilityTests": "4 passed",
+    "releaseCandidateArchiveVerify": true,
+    "releaseCandidateExtractInstallVerify": true,
+    "manifestVerify": true,
+    "verifyIdeDevelopment": true,
+    "gitDiffCheck": true
+  },
   "sanitization": "No credentials, temporary paths, host paths, or live mutation results are recorded."
 }
