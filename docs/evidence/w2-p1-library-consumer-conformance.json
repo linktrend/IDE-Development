@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "workPacket": "W2-P1",
+  "purpose": "Portable LiNKlibraries consumer conformance proof",
+  "sourceCommit": "9f2d057d8ec65c66ee222493c8fd2d0633cdaf09",
+  "parentCommit": "fdf91f915f95cf329ef30b70e8253a726586c50d",
+  "releaseCandidate": {
+    "packageVersion": "2.1.0",
+    "manifestSha256": "481a70af797dac8a7f8c01c144aa976a9a1f7586dc558875016e8514a9264844",
+    "tarSha256": "a0b27665fd35eff5991bd90415dfe2a47c122ad654816c711f11e1289a5906b3",
+    "zipSha256": "aed903d5ab5cf67b7cd639b47c601c1b20f7442379ac4a0f29b6dcdabb700e8c",
+    "reproducible": true,
+    "createInstallVerify": true,
+    "archiveVerify": true
+  },
+  "authority": {
+    "repository": "LiNKlibraries",
+    "branchRef": "dev/minicodex/WP-0-linklibraries-w1-corrected",
+    "immutableCommitSha": "926f105a9eb7599bd54181b856becdd29610fda6"
+  },
+  "disposableConsumer": {
+    "installApplied": true,
+    "installerVerify": true,
+    "installedPackageVersion": "2.1.0",
+    "managedSymlinkCount": 0,
+    "catalogCommitSha": "926f105a9eb7599bd54181b856becdd29610fda6",
+    "entryCommitSha": "926f105a9eb7599bd54181b856becdd29610fda6",
+    "offlineReuse": "verified cache only"
+  },
+  "negativeProbes": [
+    { "case": "mismatched catalog/entry SHA", "outcome": "entry_catalog_sha_mismatch" },
+    { "case": "entry traversal", "outcome": "invalid_entry_id" },
+    { "case": "metadata-only selection", "outcome": "entry_not_selectable" },
+    { "case": "Node/framework/dependency incompatibility", "outcome": "entry_incompatible" },
+    { "case": "tampered cached payload", "outcome": "payload_sha256_mismatch" },
+    { "case": "offline missing verification record", "outcome": "offline_verification_missing" },
+    { "case": "publication disabled", "outcome": "publication_disabled" },
+    { "case": "publication authority missing", "outcome": "publication_missing_authority" }
+  ],
+  "sanitization": "No credentials, temporary paths, host paths, or live mutation results are recorded."
+}
