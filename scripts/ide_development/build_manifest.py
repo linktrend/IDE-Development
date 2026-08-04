@@ -151,6 +151,50 @@ def _sync_file(src: Path, dest: Path) -> None:
     shutil.copy2(src, dest)
 
 
+def _library_source_files() -> list[tuple[str, Path]]:
+    """Return authored Library files and their physical managed mapping paths."""
+    library_root = REPO_ROOT / "core" / "library"
+    if not library_root.is_dir():
+        return []
+    return [
+        (
+            str(path.relative_to(library_root)).replace("\\", "/"),
+            path,
+        )
+        for path in sorted(library_root.rglob("*"))
+        if path.is_file() and not path.is_symlink() and ".cache" not in path.parts
+    ]
+
+
+def _library_platform_rel(library_rel: str) -> str:
+    return f"core/managed-core/platforms/library/{library_rel}"
+
+
+def _library_mapping_errors() -> list[str]:
+    """Ensure the physical platform mapping is a generated copy of core/library."""
+    errors: list[str] = []
+    expected: set[str] = set()
+    platform_root = MANAGED / "platforms" / "library"
+    for library_rel, authored in _library_source_files():
+        expected.add(library_rel)
+        mapped = platform_root / library_rel
+        if not mapped.is_file():
+            errors.append(f"Library platform mapping missing: {library_rel}")
+        elif mapped.is_symlink():
+            errors.append(f"Library platform mapping is symlinked: {library_rel}")
+        elif sha256_file(authored) != sha256_file(mapped):
+            errors.append(f"Library platform mapping drift: {library_rel}")
+    if platform_root.is_dir():
+        actual = {
+            str(path.relative_to(platform_root)).replace("\\", "/")
+            for path in platform_root.rglob("*")
+            if path.is_file() and ".cache" not in path.parts
+        }
+        for stale in sorted(actual - expected):
+            errors.append(f"Stale Library platform mapping: {stale}")
+    return errors
+
+
 def sync_package_payload() -> None:
     """Materialize approved lifecycle payload under core/managed-core/."""
     # Content doctrine copies (self-contained for consumers).
@@ -189,6 +233,13 @@ def sync_package_payload() -> None:
         src = REPO_ROOT / "core" / "skills" / name / "SKILL.md"
         if src.is_file():
             _sync_file(src, MANAGED / "skills" / name / "SKILL.md")
+
+    # The Cursor materialization manifest is resolved relative to platforms/.
+    # Keep one authored Library tree and generate a physical, versioned mapping
+    # there so package, installer, and peer harness all resolve real files.
+    library_platform_root = MANAGED / "platforms" / "library"
+    for library_rel, source in _library_source_files():
+        _sync_file(source, library_platform_root / library_rel)
 
 
 def _gitops_script_sources() -> list[str]:
@@ -379,47 +430,42 @@ def build_entries() -> list[dict[str, Any]]:
     # versioned managed package and the physical Cursor discovery path.  This
     # deliberately uses regular manifest entries; consumers never inherit the
     # system checkout through a symlink.
-    library_root = REPO_ROOT / "core" / "library"
-    if library_root.is_dir():
-        for path in sorted(library_root.rglob("*")):
-            if not path.is_file() or path.is_symlink() or ".cache" in path.parts:
-                continue
-            rel = str(path.relative_to(REPO_ROOT)).replace("\\", "/")
-            library_rel = str(path.relative_to(library_root)).replace("\\", "/")
-            digest = _hash_rel(rel)
+    for library_rel, authored_path in _library_source_files():
+        rel = _library_platform_rel(library_rel)
+        digest = _hash_rel(rel)
+        entries.append(
+            _entry(
+                entry_id=f"library-package-{_slug(library_rel)}",
+                ownership="managed-core",
+                source=rel,
+                destination=f".ide-development/library/{library_rel}",
+                mode=_mode_for(authored_path),
+                platform="all",
+                merge="replace",
+                source_hash=digest,
+                notes="Portable LiNKlibraries client, contract, schemas, and tests.",
+            )
+        )
+        if library_rel.startswith("vendor/") or library_rel in {
+            "library-client.mjs",
+            "library-contract.json",
+            "README.md",
+            "schemas/catalog.schema.json",
+            "schemas/library-entry.schema.json",
+        }:
             entries.append(
                 _entry(
-                    entry_id=f"library-package-{_slug(library_rel)}",
-                    ownership="managed-core",
+                    entry_id=f"library-cursor-{_slug(library_rel)}",
+                    ownership="managed-entrypoint",
                     source=rel,
-                    destination=f".ide-development/library/{library_rel}",
-                    mode=_mode_for(path),
-                    platform="all",
+                    destination=f".cursor/library/{library_rel}",
+                    mode=_mode_for(authored_path),
+                    platform="cursor",
                     merge="replace",
                     source_hash=digest,
-                    notes="Portable LiNKlibraries client, contract, schemas, and tests.",
+                    notes="Physical Cursor Library command/report surface.",
                 )
             )
-            if library_rel in {
-                "library-client.mjs",
-                "library-contract.json",
-                "README.md",
-                "schemas/catalog.schema.json",
-                "schemas/library-entry.schema.json",
-            }:
-                entries.append(
-                    _entry(
-                        entry_id=f"library-cursor-{_slug(library_rel)}",
-                        ownership="managed-entrypoint",
-                        source=rel,
-                        destination=f".cursor/library/{library_rel}",
-                        mode=_mode_for(path),
-                        platform="cursor",
-                        merge="replace",
-                        source_hash=digest,
-                        notes="Physical Cursor Library command/report surface.",
-                    )
-                )
 
     for src_tail, dest in (
         ("platforms/cursor/commands/library-search.md", ".cursor/commands/library-search.md"),
@@ -689,6 +735,7 @@ def verify_manifest(path: Path | None = None) -> list[str]:
     errors: list[str] = []
     errors.extend(_version_alignment_errors())
     errors.extend(_doctrine_sync_errors())
+    errors.extend(_library_mapping_errors())
     if not target.is_file():
         errors.append("MANIFEST.json missing")
         return errors
