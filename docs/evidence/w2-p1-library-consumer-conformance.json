@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "workPacket": "W2-P1",
   "purpose": "Portable LiNKlibraries consumer conformance proof",
-  "sourceCommit": "9f2d057d8ec65c66ee222493c8fd2d0633cdaf09",
-  "parentCommit": "fdf91f915f95cf329ef30b70e8253a726586c50d",
+  "sourceCommit": "e80db432cb7e5f2f2db0cf91958bc8dd51a57c43",
+  "parentCommit": "8ffe33ca45a5fdea681d8e5963c8d381b65d922b",
   "releaseCandidate": {
     "packageVersion": "2.1.0",
-    "manifestSha256": "481a70af797dac8a7f8c01c144aa976a9a1f7586dc558875016e8514a9264844",
-    "tarSha256": "a0b27665fd35eff5991bd90415dfe2a47c122ad654816c711f11e1289a5906b3",
-    "zipSha256": "aed903d5ab5cf67b7cd639b47c601c1b20f7442379ac4a0f29b6dcdabb700e8c",
+    "manifestSha256": "55dbd2643154216828d6da754384d7fe913c5ec5e2056eae6be95cda7bc00af8",
+    "tarSha256": "8ee15c36f49f71d1b43c2ac0c241b652882f1a5429f28f5ca5c8b64e3ed0722b",
+    "zipSha256": "989fc94d8f4baf738e1edda9242f0a9717a13303b555cfa21f3f88082050cfbe",
     "reproducible": true,
     "createInstallVerify": true,
     "archiveVerify": true
