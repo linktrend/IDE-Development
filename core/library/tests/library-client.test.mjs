@@ -15,7 +15,7 @@ function git(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 }
 
-function entry({ id, state = 'usable', selectable = true, framework = 'react' }) {
+function entry({ id, state = 'usable', selectable = true, framework = 'react', nodeRequirement = '>=20', dependencyVersion = '19.1.1' }) {
   const readme = `# ${id}\n\nA verified test component.\n`
   return {
     schemaVersion: 2,
@@ -30,30 +30,31 @@ function entry({ id, state = 'usable', selectable = true, framework = 'react' })
     state,
     contentMode: state === 'metadata_only' ? 'documentation' : 'executable',
     selectable,
-    compatibility: { node: '>=20', runtimes: ['node'] },
-    dependencies: { packages: state === 'metadata_only' ? [] : [{ name: 'react', version: '19.1.1', ecosystem: 'npm' }], services: [] },
+    compatibility: { node: nodeRequirement, runtimes: ['node'] },
+    dependencies: { packages: state === 'metadata_only' ? [] : [{ name: 'react', version: dependencyVersion, ecosystem: 'npm' }], services: [] },
     ...(state === 'metadata_only' ? {} : { testContract: { runner: 'node:test', files: ['tests/example.test.mjs'], timeoutMs: 30000 } }),
     license: { spdx: 'MIT', redistributionAllowed: true },
     securityReview: { reviewedAt: '2026-08-04T00:00:00.000Z', reviewedBy: 'test', notes: 'Safe local fixture.' },
     usage: { howToUse: 'Import the verified fixture into a test consumer.' },
     integrationNotes: 'Use only as a disposable conformance fixture and verify the exact source commit.',
     gotchas: ['Do not use this fixture as a production Starter Kit.'],
-    provenance: { sourceSystem: 'manual', sourceRevisionSha: 'a'.repeat(40), contributedAt: '2026-08-04T00:00:00.000Z' },
+    provenance: { sourceSystem: 'manual', sourceRevisionSha: 'a'.repeat(40), contributedAt: '2026-08-04T00:00:00.000Z', sourceUrl: 'https://example.com/source', versionOrRange: '1.0.0' },
     files: state === 'metadata_only'
       ? [{ path: 'README.md', sha256: sha256(readme) }]
       : [{ path: 'README.md', sha256: sha256(readme) }, { path: 'assets/example.js', sha256: sha256('export const example = true\n') }, { path: 'tests/example.test.mjs', sha256: sha256('import { test } from "node:test"\ntest("fixture", () => {})\n') }],
   }
 }
 
-function createAuthority() {
+function createAuthority(extraEntries = []) {
   const root = mkdtempSync(join(tmpdir(), 'linklibraries-authority-'))
   mkdirSync(join(root, 'entries', 'hello-world'), { recursive: true })
   mkdirSync(join(root, 'entries', 'historical-note'), { recursive: true })
   mkdirSync(join(root, 'indexes'), { recursive: true })
   const hello = entry({ id: 'hello-world' })
   const historical = entry({ id: 'historical-note', state: 'metadata_only', selectable: false, framework: 'react' })
-  for (const item of [hello, historical]) {
+  for (const item of [hello, historical, ...extraEntries]) {
     const path = join(root, 'entries', item.entryId)
+    mkdirSync(path, { recursive: true })
     const readme = `# ${item.entryId}\n\nA verified test component.\n`
     writeFileSync(join(path, 'entry.json'), json(item))
     writeFileSync(join(path, 'README.md'), readme)
@@ -70,7 +71,7 @@ function createAuthority() {
     row.path = `entries/${item.entryId}`
     return row
   }
-  const rows = [project(hello), project(historical)].sort((a, b) => a.entryId.localeCompare(b.entryId))
+  const rows = [hello, historical, ...extraEntries].map(project).sort((a, b) => a.entryId.localeCompare(b.entryId))
   writeFileSync(join(root, 'indexes', 'catalog.json'), json({ schemaVersion: 2, entriesSha256: sha256(JSON.stringify(rows)), entries: rows }))
   git(root, ['init', '-b', 'development'])
   git(root, ['config', 'user.email', 'library-test@example.com'])
@@ -82,6 +83,21 @@ function createAuthority() {
 
 function client(authority, cacheRoot, options = {}) {
   return new LibraryClient({ repoUrl: authority.root, baseBranch: 'development', cacheRoot, runId: 'test-run', consumerId: 'test-consumer', ...options })
+}
+
+function writeBundle(root, item) {
+  mkdirSync(root, { recursive: true })
+  writeFileSync(join(root, 'entry.json'), json(item))
+  const readme = `# ${item.entryId}\n\nA verified test component.\n`
+  writeFileSync(join(root, 'README.md'), readme)
+  if (item.files.some((file) => file.path === 'assets/example.js')) {
+    mkdirSync(join(root, 'assets'), { recursive: true })
+    writeFileSync(join(root, 'assets', 'example.js'), 'export const example = true\n')
+  }
+  if (item.files.some((file) => file.path === 'tests/example.test.mjs')) {
+    mkdirSync(join(root, 'tests'), { recursive: true })
+    writeFileSync(join(root, 'tests', 'example.test.mjs'), 'import { test } from "node:test"\ntest("fixture", () => {})\n')
+  }
 }
 
 test('binds catalog and entry to one immutable SHA and records provenance', () => {
@@ -117,6 +133,70 @@ test('rejects metadata-only selection and incompatible dependencies', () => {
     const instance = client(authority, cache)
     assert.throws(() => instance.selectEntry('historical-note'), (error) => error.code === 'entry_not_selectable')
     assert.throws(() => instance.selectEntry('hello-world', { nodeVersion: '19.0.0', frameworks: ['vue'], dependencies: {} }), (error) => error.code === 'entry_incompatible' && error.details.errors.length >= 2)
+  } finally { rmSync(authority.root, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }) }
+})
+
+test('executes packaged v2 schema conditionals, additionalProperties, formats, and valid cases', () => {
+  const authority = createAuthority()
+  const cache = mkdtempSync(join(tmpdir(), 'linklibraries-schema-'))
+  const valid = entry({ id: 'schema-valid' })
+  const validBundle = join(cache, 'valid')
+  writeBundle(validBundle, valid)
+  try {
+    assert.equal(client(authority, cache).validateContribution(validBundle).ok, true)
+
+    const deprecatedMissingMetadata = { ...entry({ id: 'deprecated-missing', state: 'deprecated', selectable: true }) }
+    delete deprecatedMissingMetadata.deprecation
+    writeBundle(join(cache, 'deprecated'), deprecatedMissingMetadata)
+    const deprecatedResult = client(authority, cache).validateContribution(join(cache, 'deprecated'))
+    assert.equal(deprecatedResult.ok, false)
+    assert.equal(deprecatedResult.errors[0].code, 'schema_validation_failed')
+
+    const extraProperty = { ...valid, extraProperty: true }
+    writeBundle(join(cache, 'extra'), extraProperty)
+    const extraResult = client(authority, cache).validateContribution(join(cache, 'extra'))
+    assert.equal(extraResult.ok, false)
+    assert.equal(extraResult.errors[0].code, 'schema_validation_failed')
+
+    const invalidFormat = { ...valid, securityReview: { ...valid.securityReview, reviewedAt: 'not-a-date-time' } }
+    writeBundle(join(cache, 'format'), invalidFormat)
+    const formatResult = client(authority, cache).validateContribution(join(cache, 'format'))
+    assert.equal(formatResult.ok, false)
+    assert.equal(formatResult.errors[0].code, 'schema_validation_failed')
+  } finally { rmSync(authority.root, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }) }
+})
+
+test('rejects schema-invalid deprecated selectable entries before selection', () => {
+  const broken = entry({ id: 'deprecated-selectable', state: 'deprecated', selectable: true })
+  delete broken.deprecation
+  const authority = createAuthority([broken])
+  const cache = mkdtempSync(join(tmpdir(), 'linklibraries-deprecation-'))
+  const selectionCache = mkdtempSync(join(tmpdir(), 'linklibraries-deprecation-select-'))
+  try {
+    assert.throws(() => client(authority, cache).fetchEntry(broken.entryId), (error) => error.code === 'schema_validation_failed')
+    assert.throws(() => client(authority, selectionCache).selectEntry(broken.entryId), (error) => error.code === 'schema_validation_failed')
+  } finally { rmSync(authority.root, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); rmSync(selectionCache, { recursive: true, force: true }) }
+})
+
+test('enforces exact, caret, tilde, comparator conjunction, malformed, and unsupported npm ranges', () => {
+  const ranges = [
+    entry({ id: 'range-exact', dependencyVersion: '20.2.3' }),
+    entry({ id: 'range-caret', dependencyVersion: '^20.0.0', nodeRequirement: '^20.0.0' }),
+    entry({ id: 'range-tilde', dependencyVersion: '~20.2.0' }),
+    entry({ id: 'range-comparator', dependencyVersion: '>=20.0.0 <21.0.0' }),
+    entry({ id: 'range-malformed', dependencyVersion: '>=20.0.0 <' }),
+    entry({ id: 'range-unsupported', dependencyVersion: '*' }),
+  ]
+  const authority = createAuthority(ranges)
+  const cache = mkdtempSync(join(tmpdir(), 'linklibraries-semver-'))
+  try {
+    const instance = client(authority, cache)
+    for (const id of ['range-exact', 'range-caret', 'range-tilde', 'range-comparator']) {
+      assert.doesNotThrow(() => instance.selectEntry(id, { nodeVersion: '20.2.3', dependencies: { react: '^20.1.0' } }))
+    }
+    assert.throws(() => instance.selectEntry('range-caret', { nodeVersion: '20.2.3', dependencies: { react: '19.1.1' } }), (error) => error.code === 'entry_incompatible' && error.details.errors.some((item) => item.code === 'dependency_incompatible'))
+    assert.throws(() => instance.selectEntry('range-malformed', { nodeVersion: '20.2.3', dependencies: { react: '20.2.3' } }), (error) => error.code === 'entry_incompatible' && error.details.errors.some((item) => item.code === 'dependency_range_malformed'))
+    assert.throws(() => instance.selectEntry('range-unsupported', { nodeVersion: '20.2.3', dependencies: { react: '20.2.3' } }), (error) => error.code === 'entry_incompatible' && error.details.errors.some((item) => item.code === 'dependency_range_unsupported'))
   } finally { rmSync(authority.root, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }) }
 })
 

@@ -27,6 +27,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_REPO = process.env.LINKTREND_SHARED_LIBRARY_REPO_URL ?? 'https://github.com/linktrend/LiNKlibraries.git'
 const DEFAULT_BRANCH = process.env.LINKTREND_SHARED_LIBRARY_BASE_BRANCH ?? 'development'
 const DEFAULT_CACHE = process.env.LINKTREND_SHARED_LIBRARY_CHECKOUT ?? join(HERE, '.cache', 'linklibraries')
+const SCHEMA_DIR = join(HERE, 'schemas')
 const SHA_RE = /^[a-f0-9]{40}$/
 const HASH_RE = /^[a-f0-9]{64}$/
 const ENTRY_ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -114,6 +115,182 @@ function assertKeys(value, allowed, label) {
   for (const key of Object.keys(value)) if (!allowed.has(key)) fail('schema_validation_failed', `${label} contains unsupported field: ${key}`)
 }
 
+const schemaCache = new Map()
+
+function loadSchema(name) {
+  if (!schemaCache.has(name)) schemaCache.set(name, readJson(join(SCHEMA_DIR, name), `packaged schema ${name}`))
+  return schemaCache.get(name)
+}
+
+function schemaTypeMatches(value, type) {
+  if (type === 'object') return value !== null && typeof value === 'object' && !Array.isArray(value)
+  if (type === 'array') return Array.isArray(value)
+  if (type === 'integer') return typeof value === 'number' && Number.isInteger(value)
+  if (type === 'number') return typeof value === 'number' && Number.isFinite(value)
+  if (type === 'string') return typeof value === 'string'
+  if (type === 'boolean') return typeof value === 'boolean'
+  if (type === 'null') return value === null
+  return false
+}
+
+function equalJson(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+function validDateTime(value) {
+  const match = typeof value === 'string' && value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/)
+  if (!match) return false
+  const [, year, month, day, hour, minute, second, offset] = match
+  const monthNumber = Number(month)
+  const dayNumber = Number(day)
+  const hourNumber = Number(hour)
+  const minuteNumber = Number(minute)
+  const secondNumber = Number(second)
+  const offsetMatch = offset === 'Z' ? null : offset.match(/^[+-](\d{2}):(\d{2})$/)
+  return monthNumber >= 1 && monthNumber <= 12
+    && dayNumber >= 1 && dayNumber <= new Date(Date.UTC(Number(year), monthNumber, 0)).getUTCDate()
+    && hourNumber <= 23 && minuteNumber <= 59 && secondNumber <= 59
+    && (!offsetMatch || (Number(offsetMatch[1]) <= 23 && Number(offsetMatch[2]) <= 59))
+}
+
+function validSpdxExpression(value) {
+  if (typeof value !== 'string' || value.trim() === '') return false
+  const tokenPattern = /\s*(AND|OR|WITH|\(|\)|[A-Za-z0-9][A-Za-z0-9.+-]*)\s*/gy
+  const tokens = []
+  let position = 0
+  while (position < value.length) {
+    tokenPattern.lastIndex = position
+    const match = tokenPattern.exec(value)
+    if (!match || match.index !== position) return false
+    tokens.push(match[1])
+    position = tokenPattern.lastIndex
+  }
+  let index = 0
+  const licenseId = () => {
+    const token = tokens[index]
+    if (!token || ['AND', 'OR', 'WITH', '(', ')'].includes(token)) return false
+    index += 1
+    return true
+  }
+  const term = () => {
+    if (tokens[index] === '(') {
+      index += 1
+      if (!expression() || tokens[index] !== ')') return false
+      index += 1
+    } else if (!licenseId()) return false
+    if (tokens[index] === 'WITH') {
+      index += 1
+      if (!licenseId()) return false
+    }
+    return true
+  }
+  const expression = () => {
+    if (!term()) return false
+    while (tokens[index] === 'AND' || tokens[index] === 'OR') {
+      index += 1
+      if (!term()) return false
+    }
+    return true
+  }
+  return expression() && index === tokens.length
+}
+
+function validFormat(value, format) {
+  if (format === 'date-time') return validDateTime(value)
+  if (format === 'uri') {
+    try {
+      return typeof value === 'string' && Boolean(new URL(value).protocol)
+    } catch {
+      return false
+    }
+  }
+  if (format === 'spdx-expression') return validSpdxExpression(value)
+  return false
+}
+
+function resolveSchemaRef(root, ref) {
+  if (!ref.startsWith('#/')) return null
+  return ref.slice(2).split('/').reduce((value, part) => value?.[part.replace(/~1/g, '/').replace(/~0/g, '~')], root)
+}
+
+function schemaErrors(value, schema, root, path = '$', errors = []) {
+  if (schema === true) return errors
+  if (schema === false) {
+    errors.push({ path, keyword: 'falseSchema' })
+    return errors
+  }
+  if (schema.$ref) {
+    const target = resolveSchemaRef(root, schema.$ref)
+    if (!target) errors.push({ path, keyword: '$ref', detail: schema.$ref })
+    else schemaErrors(value, target, root, path, errors)
+    return errors
+  }
+  if (schema.type !== undefined) {
+    const types = Array.isArray(schema.type) ? schema.type : [schema.type]
+    if (!types.some((type) => schemaTypeMatches(value, type))) {
+      errors.push({ path, keyword: 'type', expected: types })
+      return errors
+    }
+  }
+  if (schema.const !== undefined && !equalJson(value, schema.const)) errors.push({ path, keyword: 'const', expected: schema.const })
+  if (schema.enum !== undefined && !schema.enum.some((item) => equalJson(value, item))) errors.push({ path, keyword: 'enum' })
+  if (typeof value === 'string') {
+    if (schema.minLength !== undefined && Array.from(value).length < schema.minLength) errors.push({ path, keyword: 'minLength' })
+    if (schema.maxLength !== undefined && Array.from(value).length > schema.maxLength) errors.push({ path, keyword: 'maxLength' })
+    if (schema.pattern !== undefined) {
+      try {
+        if (!new RegExp(schema.pattern).test(value)) errors.push({ path, keyword: 'pattern' })
+      } catch {
+        errors.push({ path, keyword: 'invalidPattern' })
+      }
+    }
+    if (schema.format !== undefined && !validFormat(value, schema.format)) errors.push({ path, keyword: 'format', format: schema.format })
+  }
+  if (typeof value === 'number') {
+    if (schema.minimum !== undefined && value < schema.minimum) errors.push({ path, keyword: 'minimum' })
+    if (schema.maximum !== undefined && value > schema.maximum) errors.push({ path, keyword: 'maximum' })
+  }
+  if (Array.isArray(value)) {
+    if (schema.minItems !== undefined && value.length < schema.minItems) errors.push({ path, keyword: 'minItems' })
+    if (schema.maxItems !== undefined && value.length > schema.maxItems) errors.push({ path, keyword: 'maxItems' })
+    if (schema.items !== undefined) value.forEach((item, index) => schemaErrors(item, schema.items, root, `${path}[${index}]`, errors))
+  }
+  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    const properties = schema.properties ?? {}
+    for (const required of schema.required ?? []) if (!Object.prototype.hasOwnProperty.call(value, required)) errors.push({ path, keyword: 'required', property: required })
+    for (const [key, propertySchema] of Object.entries(properties)) if (Object.prototype.hasOwnProperty.call(value, key)) schemaErrors(value[key], propertySchema, root, `${path}.${key}`, errors)
+    if (schema.additionalProperties !== undefined) {
+      for (const [key, propertyValue] of Object.entries(value)) {
+        if (Object.prototype.hasOwnProperty.call(properties, key)) continue
+        if (schema.additionalProperties === false) errors.push({ path: `${path}.${key}`, keyword: 'additionalProperties' })
+        else schemaErrors(propertyValue, schema.additionalProperties, root, `${path}.${key}`, errors)
+      }
+    }
+  }
+  for (const subschema of schema.allOf ?? []) schemaErrors(value, subschema, root, path, errors)
+  if (schema.anyOf) {
+    const valid = schema.anyOf.some((subschema) => schemaErrors(value, subschema, root, path, []).length === 0)
+    if (!valid) errors.push({ path, keyword: 'anyOf' })
+  }
+  if (schema.oneOf) {
+    const matches = schema.oneOf.filter((subschema) => schemaErrors(value, subschema, root, path, []).length === 0).length
+    if (matches !== 1) errors.push({ path, keyword: 'oneOf' })
+  }
+  if (schema.if !== undefined) {
+    const conditionMatches = schemaErrors(value, schema.if, root, path, []).length === 0
+    if (conditionMatches && schema.then !== undefined) schemaErrors(value, schema.then, root, path, errors)
+    if (!conditionMatches && schema.else !== undefined) schemaErrors(value, schema.else, root, path, errors)
+  }
+  if (schema.not !== undefined && schemaErrors(value, schema.not, root, path, []).length === 0) errors.push({ path, keyword: 'not' })
+  return errors
+}
+
+function validatePackagedSchema(value, schemaName, label) {
+  const schema = loadSchema(schemaName)
+  const errors = schemaErrors(value, schema, schema)
+  if (errors.length > 0) fail('schema_validation_failed', `${label} does not satisfy packaged ${schemaName}`, { schema: schemaName, errors: errors.slice(0, 20) })
+}
+
 function safeRelativePath(value) {
   if (typeof value !== 'string' || value.length === 0 || value.includes('\0') || value.startsWith('/') || value.startsWith('\\') || /^[A-Za-z]:/.test(value) || value.includes('\\')) return false
   return value.split('/').every((part) => part.length > 0 && part !== '.' && part !== '..')
@@ -126,9 +303,10 @@ function pathInside(root, path) {
   return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !rel.startsWith(sep))
 }
 
-function parseSemver(value) {
-  const match = String(value ?? '').trim().match(/^(?:v)?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:[-+].*)?$/)
-  return match ? [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)] : null
+function parseVersion(value, { partial = false } = {}) {
+  const match = String(value ?? '').trim().match(new RegExp(`^v?(\\d+)(?:\\.(\\d+))?(?:\\.(\\d+))?$`))
+  if (!match || (!partial && (match[2] === undefined || match[3] === undefined))) return null
+  return { value: [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)], parts: match[3] === undefined ? (match[2] === undefined ? 1 : 2) : 3 }
 }
 
 function compareVersions(left, right) {
@@ -138,25 +316,97 @@ function compareVersions(left, right) {
   return 0
 }
 
-function satisfiesVersion(version, range) {
-  const actual = parseSemver(version)
-  if (!actual || typeof range !== 'string' || range.trim() === '') return false
-  return range.split('||').some((alternative) => alternative.trim().split(/\s+/).filter(Boolean).every((token) => {
-    if (token === '*' || token.toLowerCase() === 'x') return true
-    const operator = token.match(/^(>=|<=|>|<|=|\^|~)?\s*(.*)$/)
-    const expected = parseSemver(operator?.[2])
-    if (!operator || !expected) return false
-    const cmp = compareVersions(actual, expected)
-    switch (operator[1] ?? '=') {
-      case '>=': return cmp >= 0
-      case '<=': return cmp <= 0
-      case '>': return cmp > 0
-      case '<': return cmp < 0
-      case '^': return actual[0] === expected[0] && cmp >= 0
-      case '~': return actual[0] === expected[0] && actual[1] === expected[1] && cmp >= 0
-      default: return cmp === 0
+function rangeFailure(kind, detail) {
+  return { ok: false, kind, detail }
+}
+
+function bound(version, inclusive) {
+  return { version, inclusive }
+}
+
+function intersectBounds(current, next, lower) {
+  if (!current) return next
+  const comparison = compareVersions(current.version, next.version)
+  if ((lower && comparison < 0) || (!lower && comparison > 0)) return next
+  if (comparison !== 0) return current
+  return bound(current.version, current.inclusive && next.inclusive)
+}
+
+function parseVersionRange(range) {
+  if (typeof range !== 'string' || range.trim() === '') return rangeFailure('malformed', 'range must be a non-empty string')
+  const text = range.trim()
+  if (/\*|\bx\b|\bX\b|\blatest\b|\bworkspace:|\bfile:|\bgithub:/i.test(text)) return rangeFailure('unsupported', 'wildcard, workspace, file, github, and tag ranges are unsupported')
+  const alternatives = text.split('||')
+  if (alternatives.some((alternative) => alternative.trim() === '')) return rangeFailure('malformed', 'range contains an empty alternative')
+  const parsed = []
+  for (const alternative of alternatives) {
+    const tokens = alternative.trim().split(/\s+/)
+    let lower = null
+    let upper = null
+    for (const token of tokens) {
+      const match = token.match(/^(>=|<=|>|<|=|\^|~)?(v?\d+(?:\.\d+){0,2})$/)
+      if (!match) {
+        if (/^[~^]/.test(token) || /[-*+]/.test(token)) return rangeFailure('unsupported', `unsupported range token: ${token}`)
+        return rangeFailure('malformed', `malformed range token: ${token}`)
+      }
+      const operator = match[1] ?? '='
+      const parsedVersion = parseVersion(match[2], { partial: true })
+      if (!parsedVersion) return rangeFailure('malformed', `malformed version token: ${token}`)
+      const version = parsedVersion.value
+      if ((operator === '^' || operator === '~') && parsedVersion.parts !== 3) return rangeFailure('unsupported', `${operator} requires a complete major.minor.patch version`)
+      if (operator === '^') {
+        let next
+        if (version[0] > 0) next = [version[0] + 1, 0, 0]
+        else if (version[1] > 0) next = [0, version[1] + 1, 0]
+        else next = [0, 0, version[2] + 1]
+        lower = intersectBounds(lower, bound(version, true), true)
+        upper = intersectBounds(upper, bound(next, false), false)
+      } else if (operator === '~') {
+        lower = intersectBounds(lower, bound(version, true), true)
+        upper = intersectBounds(upper, bound([version[0], version[1] + 1, 0], false), false)
+      } else if (operator === '>=') lower = intersectBounds(lower, bound(version, true), true)
+      else if (operator === '>') lower = intersectBounds(lower, bound(version, false), true)
+      else if (operator === '<=') upper = intersectBounds(upper, bound(version, true), false)
+      else if (operator === '<') upper = intersectBounds(upper, bound(version, false), false)
+      else {
+        if (parsedVersion.parts !== 3) return rangeFailure('unsupported', 'exact ranges require a complete major.minor.patch version')
+        lower = intersectBounds(lower, bound(version, true), true)
+        upper = intersectBounds(upper, bound(version, true), false)
+      }
     }
-  }))
+    parsed.push({ lower, upper })
+  }
+  return { ok: true, alternatives: parsed }
+}
+
+function intervalHasVersion(interval, version) {
+  if (interval.lower) {
+    const comparison = compareVersions(version, interval.lower.version)
+    if (comparison < 0 || (comparison === 0 && !interval.lower.inclusive)) return false
+  }
+  if (interval.upper) {
+    const comparison = compareVersions(version, interval.upper.version)
+    if (comparison > 0 || (comparison === 0 && !interval.upper.inclusive)) return false
+  }
+  return true
+}
+
+function intervalsIntersect(left, right) {
+  const lower = intersectBounds(left.lower, right.lower, true)
+  const upper = intersectBounds(left.upper, right.upper, false)
+  if (!lower || !upper) return true
+  const comparison = compareVersions(lower.version, upper.version)
+  return comparison < 0 || (comparison === 0 && lower.inclusive && upper.inclusive)
+}
+
+function satisfiesVersion(version, range) {
+  const actual = parseVersion(version)
+  const parsed = typeof range === 'object' && range?.ok !== undefined ? range : parseVersionRange(range)
+  return Boolean(actual && parsed.ok && parsed.alternatives.some((alternative) => intervalHasVersion(alternative, actual.value)))
+}
+
+function rangeCompatibilityError(code, name, required, declared, detail) {
+  return { code, name, required, ...(declared === undefined ? {} : { declared }), detail }
 }
 
 function validateCompatibility(value, label) {
@@ -189,6 +439,7 @@ function validateDependencies(value, label) {
 }
 
 function validateEntryDocument(entry, label = 'entry') {
+  validatePackagedSchema(entry, 'library-entry.schema.json', label)
   objectField(entry, label)
   assertKeys(entry, new Set(['schemaVersion', 'entryId', 'kind', 'name', 'summary', 'problemDomains', 'tags', 'languages', 'frameworks', 'state', 'contentMode', 'selectable', 'compatibility', 'dependencies', 'testContract', 'license', 'securityReview', 'usage', 'integrationNotes', 'gotchas', 'provenance', 'files', 'supersededBy', 'quarantine', 'deprecation']), label)
   if (entry.schemaVersion !== 2) fail('schema_validation_failed', `${label}.schemaVersion must be 2`)
@@ -258,6 +509,7 @@ function projectCatalogEntry(entry) {
 }
 
 function validateCatalogDocument(catalog) {
+  validatePackagedSchema(catalog, 'catalog.schema.json', 'catalog')
   objectField(catalog, 'catalog')
   assertKeys(catalog, new Set(['schemaVersion', 'entriesSha256', 'entries']), 'catalog')
   if (catalog.schemaVersion !== 2 || !HASH_RE.test(catalog.entriesSha256) || !Array.isArray(catalog.entries)) fail('catalog_schema_invalid', 'catalog must satisfy schema v2')
@@ -330,7 +582,10 @@ function packageMap(packageJson) {
 function compatibilityReport(entry, { consumerRoot, runtime = 'node', nodeVersion = process.versions.node, frameworks, dependencies, services } = {}) {
   const errors = []
   if (!entry.compatibility.runtimes.includes(runtime)) errors.push({ code: 'runtime_incompatible', runtime, supported: entry.compatibility.runtimes })
-  if (!satisfiesVersion(nodeVersion, entry.compatibility.node)) errors.push({ code: 'node_incompatible', nodeVersion, required: entry.compatibility.node })
+  const nodeRange = parseVersionRange(entry.compatibility.node)
+  if (!nodeRange.ok) errors.push(rangeCompatibilityError(`node_range_${nodeRange.kind}`, 'node', entry.compatibility.node, undefined, nodeRange.detail))
+  else if (!parseVersion(nodeVersion)) errors.push({ code: 'node_version_malformed', nodeVersion })
+  else if (!satisfiesVersion(nodeVersion, nodeRange)) errors.push({ code: 'node_incompatible', nodeVersion, required: entry.compatibility.node })
   const packageJson = consumerRoot ? readConsumerPackage(consumerRoot) : null
   const packages = dependencies ?? packageMap(packageJson)
   const availableFrameworks = new Set((frameworks ?? Object.keys(packages)).map((item) => String(item).toLowerCase()))
@@ -341,8 +596,27 @@ function compatibilityReport(entry, { consumerRoot, runtime = 'node', nodeVersio
   }
   for (const dependency of entry.dependencies.packages) {
     const declared = packages[dependency.name]
-    if (declared === undefined && !dependency.optional) errors.push({ code: 'dependency_missing', name: dependency.name, required: dependency.version })
-    else if (declared !== undefined && dependency.ecosystem === 'npm' && parseSemver(dependency.version) && parseSemver(declared) && !satisfiesVersion(dependency.version, declared)) errors.push({ code: 'dependency_incompatible', name: dependency.name, required: dependency.version, declared })
+    if (dependency.ecosystem !== 'npm') {
+      if (declared === undefined && !dependency.optional) errors.push({ code: 'dependency_missing', name: dependency.name, required: dependency.version })
+      continue
+    }
+    const requiredRange = parseVersionRange(dependency.version)
+    if (!requiredRange.ok) {
+      errors.push(rangeCompatibilityError(`dependency_range_${requiredRange.kind}`, dependency.name, dependency.version, declared, requiredRange.detail))
+      continue
+    }
+    if (declared === undefined) {
+      if (!dependency.optional) errors.push({ code: 'dependency_missing', name: dependency.name, required: dependency.version })
+      continue
+    }
+    const declaredRange = parseVersionRange(declared)
+    if (!declaredRange.ok) {
+      errors.push(rangeCompatibilityError(`dependency_declared_range_${declaredRange.kind}`, dependency.name, dependency.version, declared, declaredRange.detail))
+      continue
+    }
+    if (!requiredRange.alternatives.some((required) => declaredRange.alternatives.some((available) => intervalsIntersect(required, available)))) {
+      errors.push({ code: 'dependency_incompatible', name: dependency.name, required: dependency.version, declared })
+    }
   }
   const availableServices = new Set((services ?? []).map((item) => String(item)))
   for (const dependency of entry.dependencies.services) if (dependency.required && !availableServices.has(dependency.name)) errors.push({ code: 'service_missing', name: dependency.name })

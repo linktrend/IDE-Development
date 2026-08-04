@@ -25,6 +25,20 @@
       "note": "Consumer command/report documentation."
     },
     {
+      "source": "library/schemas/catalog.schema.json",
+      "destination": ".cursor/library/schemas/catalog.schema.json",
+      "mode": "managed-file",
+      "required": true,
+      "note": "Packaged catalog schema executed by the physical Library client."
+    },
+    {
+      "source": "library/schemas/library-entry.schema.json",
+      "destination": ".cursor/library/schemas/library-entry.schema.json",
+      "mode": "managed-file",
+      "required": true,
+      "note": "Packaged entry schema executed by the physical Library client."
+    },
+    {
       "source": "platforms/cursor/commands/library-search.md",
       "destination": ".cursor/commands/library-search.md",
       "mode": "managed-file",

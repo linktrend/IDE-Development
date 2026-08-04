@@ -400,7 +400,13 @@ def build_entries() -> list[dict[str, Any]]:
                     notes="Portable LiNKlibraries client, contract, schemas, and tests.",
                 )
             )
-            if library_rel in {"library-client.mjs", "library-contract.json", "README.md"}:
+            if library_rel in {
+                "library-client.mjs",
+                "library-contract.json",
+                "README.md",
+                "schemas/catalog.schema.json",
+                "schemas/library-entry.schema.json",
+            }:
                 entries.append(
                     _entry(
                         entry_id=f"library-cursor-{_slug(library_rel)}",
