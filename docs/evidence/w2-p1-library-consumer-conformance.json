@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "workPacket": "W2-P1",
+  "purpose": "Portable LiNKlibraries consumer conformance proof",
+  "sourceCommit": "31e51fc66ca9ea1cf8b6bbd1b7f7efcef2a3be92",
+  "parentCommit": "1d32acf26124cbad2ddcd7ea17fb544dc4d5eebc",
+  "auditedHoldEvidenceSha": "1d32acf26124cbad2ddcd7ea17fb544dc4d5eebc",
+  "implementationParentCommit": "086a3d9093b3e0b9680d15fe20a5384621fc8106",
+  "releaseCandidate": {
+    "packageVersion": "2.1.0",
+    "manifestSha256": "2cb797751e93c4d1b725fccea9b02976f47486e69f15aa65c9ebd8008f0012a5",
+    "tarSha256": "4ff328058a186f53bae833cfc205fbbc86159189d95dc177e1fa63a83f019d57",
+    "zipSha256": "d9252536903add7128b4b31f7432613ddee533fc1818e5cdf09540e1683dbed7",
+    "reproducible": true,
+    "createInstallVerify": true,
+    "archiveVerify": true
+  },
+  "authority": {
+    "repository": "LiNKlibraries",
+    "branchRef": "dev/minicodex/WP-0-linklibraries-w1-corrected",
+    "immutableCommitSha": "926f105a9eb7599bd54181b856becdd29610fda6"
+  },
+  "disposableConsumer": {
+    "installApplied": true,
+    "installerVerify": true,
+    "installedPackageVersion": "2.1.0",
+    "managedSymlinkCount": 0,
+    "catalogCommitSha": "926f105a9eb7599bd54181b856becdd29610fda6",
+    "entryCommitSha": "926f105a9eb7599bd54181b856becdd29610fda6",
+    "offlineReuse": "verified cache only"
+  },
+  "negativeProbes": [
+    { "case": "mismatched catalog/entry SHA", "outcome": "entry_catalog_sha_mismatch" },
+    { "case": "entry traversal", "outcome": "invalid_entry_id" },
+    { "case": "metadata-only selection", "outcome": "entry_not_selectable" },
+    { "case": "Node/framework/dependency incompatibility", "outcome": "entry_incompatible" },
+    { "case": "tampered cached payload", "outcome": "payload_sha256_mismatch" },
+    { "case": "offline missing verification record", "outcome": "offline_verification_missing" },
+    { "case": "schema-invalid deprecated selectable entry missing metadata", "outcome": "schema_validation_failed" },
+    { "case": "schema additionalProperties and format failures", "outcome": "schema_validation_failed" },
+    { "case": "npm caret requirement against incompatible installed version", "outcome": "dependency_incompatible" },
+    { "case": "malformed npm range", "outcome": "dependency_range_malformed" },
+    { "case": "unsupported npm range", "outcome": "dependency_range_unsupported" },
+    { "case": "publication disabled", "outcome": "publication_disabled" },
+    { "case": "publication authority missing", "outcome": "publication_missing_authority" },
+    { "case": "unknown SPDX license or exception", "outcome": "schema_validation_failed" },
+    { "case": "malformed SPDX expression", "outcome": "schema_validation_failed" },
+    { "case": "schema-valid pullRequestUrl", "outcome": "accepted" },
+    { "case": "missing platforms/library physical mapping", "outcome": "resolved_by_versioned_mapping" }
+  ],
+  "verification": {
+    "libraryTests": "11 passed",
+    "spdxDifferentialExpressions": "49106 compared with locked LiNKlibraries authority; 0 mismatches",
+    "releaseCandidateTests": "11 passed",
+    "packageReproducibilityTests": "4 passed",
+    "releaseCandidateArchiveVerify": true,
+    "releaseCandidateExtractInstallVerify": true,
+    "tarZipVerify": true,
+    "deterministicReleaseCandidateTwice": true,
+    "portableHarnessWithPeers": true,
+    "securityAcceptance": "61 passed, 1 Windows-only skip",
+    "installedLibraryTests": "11 passed",
+    "zeroSymlinks": true,
+    "manifestVerify": true,
+    "verifyIdeDevelopment": true,
+    "gitDiffCheck": true
+  },
+  "sanitization": "No credentials, temporary paths, host paths, or live mutation results are recorded."
+}
