@@ -10,7 +10,9 @@ permissions:
 jobs:
   branch-source-policy:
     name: Enforce allowed PR source branches
-    runs-on: __LINKTREND_RUNS_ON__
+    # This workflow checks out the pull-request merge ref, so private consumers
+    # must route it to the isolated candidate runner, never the privileged Mac.
+    runs-on: __LINKTREND_UNTRUSTED_RUNS_ON__
     steps:
       - name: Checkout allowlist helper
         uses: actions/checkout@v4
