@@ -37,8 +37,7 @@ assert p["source"] == "dry-run"
 assert p["statusContext"] == "Linktrend Review Ready"
 assert p["summary"]["ready"] is False
 statuses = {c["id"]: c["status"] for c in p["checks"]}
-assert statuses["github_app.app_id_variable"] == "unchecked"
-assert statuses["github_app.private_key_secret"] == "unchecked"
+assert statuses["github_auth.automation_token_secret"] == "unchecked"
 assert statuses["bugbot.user_token_secret"] == "unchecked"
 assert statuses["bugbot.manual_trigger_only"] == "unchecked"
 assert statuses["protection.development_ruleset"] == "unchecked"
@@ -48,7 +47,7 @@ assert statuses["protection.allow_auto_merge"] == "unchecked"
 assert statuses["carlos.user_token_boundary"] in {"unchecked", "unknown"}
 assert statuses["workflows.required_presence"] in {"unchecked", "unknown"}
 assert statuses["completion.status_context"] == "ok"
-assert "LINKTREND_GITOPS_APP_PRIVATE_KEY" in json.dumps(p["checklist"])
+assert "LINKTREND_AUTOMATION_TOKEN" in json.dumps(p["checklist"])
 assert p.get("applyRefused") is True
 assert p["mutations"] == []
 assert p.get("humanSummary")
@@ -145,16 +144,14 @@ from pathlib import Path
 p = json.loads(Path("${TMP}/missing-out.json").read_text())
 assert p["summary"]["ready"] is False
 by = {c["id"]: c for c in p["checks"]}
-assert by["github_app.app_id_variable"]["status"] == "missing"
-assert by["github_app.private_key_secret"]["status"] == "credential-missing"
-assert by["github_app.installation"]["status"] == "missing"
+assert by["github_auth.automation_token_secret"]["status"] == "credential-missing"
 assert by["bugbot.user_token_secret"]["status"] == "credential-missing"
 assert p["mutations"] == []
 print("missing ok")
 PY
 pass "missing/credential-missing fixture verify exits 3"
 
-# ---- fixture: drift on ruleset checks + non-numeric app id ----
+# ---- fixture: drift on ruleset checks ----
 DRIFT_FX="${ROOT}/scripts/tests/fixtures/external-state-wp1/drifted"
 [ -d "$DRIFT_FX" ] || fail "missing WP1 drifted fixture"
 
@@ -169,7 +166,6 @@ import json
 from pathlib import Path
 p = json.loads(Path("${TMP}/drift-out.json").read_text())
 by = {c["id"]: c for c in p["checks"]}
-assert by["github_app.app_id_variable"]["status"] == "drift"
 assert by["bugbot.check_name"]["status"] == "drift"
 assert by["protection.development_ruleset"]["status"] == "drift"
 assert "Cursor Bugbot" in by["protection.development_ruleset"]["detail"]
@@ -189,7 +185,7 @@ dest.mkdir(parents=True, exist_ok=True)
 state = json.loads(src.read_text())
 state.pop("actions_secret_names", None)
 state["actions_secrets"] = [
-    {"name": "LINKTREND_GITOPS_APP_PRIVATE_KEY", "value": "SHOULD_NEVER_APPEAR_IN_OUTPUT"},
+    {"name": "LINKTREND_AUTOMATION_TOKEN", "value": "SHOULD_NEVER_APPEAR_IN_OUTPUT"},
     {"name": "LINKTREND_BUGBOT_USER_TOKEN", "value": "ALSO_SHOULD_NEVER_APPEAR"},
 ]
 (dest / "state.json").write_text(json.dumps(state, indent=2) + "\n")
@@ -206,16 +202,16 @@ assert "SHOULD_NEVER_APPEAR_IN_OUTPUT" not in text
 assert "ALSO_SHOULD_NEVER_APPEAR" not in text
 p = json.loads(text)
 by = {c["id"]: c for c in p["checks"]}
-assert by["github_app.private_key_secret"]["status"] == "ok"
+assert by["github_auth.automation_token_secret"]["status"] == "ok"
 assert by["bugbot.user_token_secret"]["status"] == "ok"
-assert by["github_app.private_key_secret"]["observed"] == "name_present"
+assert by["github_auth.automation_token_secret"]["observed"] == "name_present"
 print("secret values ignored")
 PY
 pass "fixture secret values never appear in report output"
 
 # ---- process-env secret presence warns without printing value ----
 SECRET_VAL="pem-material-MUST-NOT-LEAK-into-json-output-$$"
-export LINKTREND_GITOPS_APP_PRIVATE_KEY="${SECRET_VAL}"
+export LINKTREND_AUTOMATION_TOKEN="${SECRET_VAL}"
 python3 "$PY" report --repo linktrend/Fixture --json-output "${TMP}/leak-warn.json" >/dev/null
 python3 - <<PY
 import json
@@ -223,21 +219,21 @@ from pathlib import Path
 text = Path("${TMP}/leak-warn.json").read_text()
 assert "pem-material-MUST-NOT-LEAK-into-json-output" not in text
 p = json.loads(text)
-assert any("LINKTREND_GITOPS_APP_PRIVATE_KEY=present_in_process_env" in w for w in p["warnings"])
+assert any("LINKTREND_AUTOMATION_TOKEN=present_in_process_env" in w for w in p["warnings"])
 print("env warn ok")
 PY
-unset LINKTREND_GITOPS_APP_PRIVATE_KEY
+unset LINKTREND_AUTOMATION_TOKEN
 pass "secret env presence warns without leaking value"
 
 # ---- contract doc mentions hard rules ----
 grep -q 'dry-run' "$CONTRACT" || fail "contract missing dry-run"
 grep -q 'Never' "$CONTRACT" || fail "contract missing Never prohibition language"
-grep -q 'LINKTREND_GITOPS_APP_PRIVATE_KEY' "$CONTRACT" || fail "contract missing App private key name"
+grep -q 'LINKTREND_AUTOMATION_TOKEN' "$CONTRACT" || fail "contract missing automation token name"
 grep -q 'manualTriggerOnly' "$CONTRACT" || fail "contract missing manualTriggerOnly"
 grep -q 'development-autonomous-merge' "$CONTRACT" || fail "contract missing ruleset name"
 grep -q 'Linktrend Review Ready' "$CONTRACT" || fail "contract missing status context"
 grep -q 'mutations' "$CONTRACT" || fail "contract missing mutations empty guarantee"
-pass "contract documents App/Bugbot/protection audit surface"
+pass "contract documents automation/Bugbot/protection audit surface"
 
 # ---- default argv (no mode) equals report ----
 python3 "$PY" --repo linktrend/Fixture >"${TMP}/default-mode.json"
