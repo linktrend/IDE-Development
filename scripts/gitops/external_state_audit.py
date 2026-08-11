@@ -1666,7 +1666,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
             required=True,
             expected=(
                 f"Privileged publish context remains {STATUS_CONTEXT!r} "
-                "(App-backed publisher only)"
+                "(normal-token publisher from trusted workflow context only)"
             ),
             observed=STATUS_CONTEXT,
             status="ok",
