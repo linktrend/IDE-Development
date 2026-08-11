@@ -74,7 +74,7 @@ p = json.loads(Path("${TMP}/verify-matched.json").read_text())
 assert p["mode"] == "verify"
 assert p["summary"]["ready"] is True
 by = {c["id"]: c for c in p["checks"]}
-assert by["github_app.authority_scope"]["status"] in {"ok", "matched"}
+assert by["github_auth.automation_token_secret"]["status"] in {"ok", "matched"}
 assert by["carlos.user_token_boundary"]["status"] in {"ok", "matched"}
 assert by["protection.staging_ruleset"]["status"] == "ok"
 assert by["protection.main_ruleset"]["status"] == "ok"
@@ -101,7 +101,6 @@ from pathlib import Path
 p = json.loads(Path("${TMP}/verify-drifted.json").read_text())
 assert p["summary"]["ready"] is False
 by = {c["id"]: c for c in p["checks"]}
-assert by["github_app.app_id_variable"]["status"] == "drift"
 assert by["bugbot.check_name"]["status"] == "drift"
 assert by["protection.development_ruleset"]["status"] == "drift"
 assert by["protection.promotion_source_policy"]["status"] == "drift"
@@ -124,7 +123,6 @@ import json
 from pathlib import Path
 p = json.loads(Path("${TMP}/verify-forbidden.json").read_text())
 by = {c["id"]: c for c in p["checks"]}
-assert by["github_app.authority_scope"]["status"] == "forbidden"
 assert by["carlos.user_token_boundary"]["status"] == "forbidden"
 assert by["workflows.permissions_posture"]["status"] == "forbidden"
 assert p["mutations"] == []
@@ -175,10 +173,8 @@ import json
 from pathlib import Path
 p = json.loads(Path("${TMP}/verify-cred.json").read_text())
 by = {c["id"]: c for c in p["checks"]}
-assert by["github_app.private_key_secret"]["status"] == "credential-missing"
+assert by["github_auth.automation_token_secret"]["status"] == "credential-missing"
 assert by["bugbot.user_token_secret"]["status"] == "credential-missing"
-assert by["github_app.app_id_variable"]["status"] == "missing"
-assert by["github_app.installation"]["status"] == "missing"
 text = Path("${TMP}/verify-cred.json").read_text()
 assert "BEGIN PRIVATE KEY" not in text
 assert "ghs_" not in text

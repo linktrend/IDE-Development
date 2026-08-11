@@ -10,7 +10,7 @@
     }
   ],
   "actions_secret_names": [
-    "LINKTREND_GITOPS_APP_PRIVATE_KEY",
+    "LINKTREND_AUTOMATION_TOKEN",
     "LINKTREND_BUGBOT_USER_TOKEN"
   ],
   "installation": {

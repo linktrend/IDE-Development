@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate workflow_dispatch inputs for App-backed managed-core release publisher.
+"""Validate workflow_dispatch inputs for normal-token managed-core release publisher.
 
 Pure, unit-testable input validation only. Does not mint tokens, create tags,
 upload releases, read secrets, or execute untrusted source trees.

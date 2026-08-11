@@ -1,6 +1,6 @@
-# External-state audit (App / Bugbot / protection)
+# External-state audit (automation / Bugbot / protection)
 
-**Status:** Active — Wave 2 App-backed completion bridge; WP1 plan/verify complete; WP02 IDE Development live readiness closed under packet; **consumer** external-state apply / installs remain deferred (WP04 prepared / not executed)
+**Status:** Active — normal-token GitOps readiness bridge; **consumer** external-state installs remain deferred until their protected rollout PRs are ready.
 **Date:** 2026-08-02
 **Audience:** Operators confirming rollout readiness; Verifier; Implementers (read-only)
 **SOT:** `docs/CURRENT-STATUS.md` · `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md` · `docs/contracts/BUGBOT-MENTION-ONLY.md` · `docs/GITOPS-CONSUMER-ROLLOUT.md` · `docs/archive/work-packets/2026-08-02-work-packet-1-production-readiness.md` · `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
@@ -11,7 +11,7 @@
 
 ## Purpose
 
-Produce a **read-only, dry-run-default** report of the external GitHub App, Bugbot, and repository-protection state required before App-backed `Linktrend Review Ready` publication can be trusted in production.
+Produce a **read-only, dry-run-default** report of the normal automation credential, Bugbot, and repository-protection state required before `Linktrend Review Ready` publication can be trusted in production.
 
 This tool **reports**. It does **not** create Apps, secrets, variables, Bugbot settings, rulesets, PRs, statuses, or promotions.
 
@@ -34,9 +34,7 @@ Consumer rollout remains deferred; external-state readiness does **not** authori
 
 | Kind | Examples | Audit behavior |
 |------|----------|----------------|
-| Non-secret config | `LINKTREND_GITOPS_APP_ID` variable | May observe presence + numeric shape; does not echo unnecessary detail |
-| Secrets | `LINKTREND_GITOPS_APP_PRIVATE_KEY`, `LINKTREND_BUGBOT_USER_TOKEN` | Observe Actions secret **names** only; **never** retrieve or print values |
-| Installations | GitHub App installed on the repo | Presence metadata only |
+| Secrets | `LINKTREND_AUTOMATION_TOKEN`, `LINKTREND_BUGBOT_USER_TOKEN` | Observe Actions secret **names** only; **never** retrieve or print values |
 | Bugbot dashboard | `manualTriggerOnly` | Fixture or operator confirmation; GitHub API cannot prove mention-only |
 | Protections | `development-autonomous-merge` ruleset, `allow_auto_merge` | Read-only ruleset/repo metadata |
 | Process env leaks | Any of the secret env names above | Warn `present_in_process_env` without printing values; refuse emit if a value would leak into JSON |
@@ -49,19 +47,17 @@ Git working-tree files are **not** external state. Workflow YAML and local scrip
 
 | ID | Category | Required observation |
 |----|----------|----------------------|
-| `github_app.app_id_variable` | github_app | `LINKTREND_GITOPS_APP_ID` present and numeric |
-| `github_app.private_key_secret` | github_app | `LINKTREND_GITOPS_APP_PRIVATE_KEY` secret **name** listed |
-| `github_app.installation` | github_app | App installation present on the repository |
+| `github_auth.automation_token_secret` | github_auth | `LINKTREND_AUTOMATION_TOKEN` secret **name** listed |
 | `bugbot.user_token_secret` | bugbot | `LINKTREND_BUGBOT_USER_TOKEN` secret **name** listed |
 | `bugbot.manual_trigger_only` | bugbot | `manualTriggerOnly=true` (mention-only) |
 | `bugbot.check_name` | bugbot | Check name is `Cursor Bugbot` (default or matching variable) |
 | `protection.development_ruleset` | protection | Active `development-autonomous-merge` requires `Cursor Bugbot` and `Enforce allowed PR source branches` |
 | `protection.allow_auto_merge` | protection | `allow_auto_merge=true` |
-| `completion.status_context` | completion | Privileged context remains `Linktrend Review Ready` (App-backed publisher only) |
+| `completion.status_context` | completion | Privileged context remains `Linktrend Review Ready` (normal-token publisher from trusted workflow context only) |
 
 Related contracts:
 
-- App minting / fail-closed automation token: `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`
+- Normal automation credential / fail-closed token: `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`
 - Bugbot mention-only: `docs/contracts/BUGBOT-MENTION-ONLY.md`
 - Agent completion / status context: `docs/contracts/AGENT-COMPLETION.md`
 
@@ -102,14 +98,10 @@ python3 scripts/gitops/external_state_audit.py verify --repo linktrend/IDE-Devel
 
 ```json
 {
-  "actions_variables": [
-    { "name": "LINKTREND_GITOPS_APP_ID", "value": "12345" }
-  ],
   "actions_secret_names": [
-    "LINKTREND_GITOPS_APP_PRIVATE_KEY",
+    "LINKTREND_AUTOMATION_TOKEN",
     "LINKTREND_BUGBOT_USER_TOKEN"
   ],
-  "installation": { "id": 1, "app_slug": "linktrend-gitops" },
   "bugbot": { "manualTriggerOnly": true, "enabled": true },
   "rulesets": [
     { "id": 10, "name": "development-autonomous-merge", "enforcement": "active" }
@@ -170,8 +162,8 @@ Machine-readable JSON on stdout (optional `--json-output PATH`):
 1. Do **not** use this tool as a license to create or rotate credentials.
 2. Do **not** print, artifact, or commit secret values, PEMs, or PATs.
 3. Do **not** treat `summary.ready=true` on a fixture as proof of production readiness.
-4. Do **not** change branch protections, Bugbot dashboard settings, or App installs from an Implementer session — Principal / operator only.
-5. Carlos's restricted user identity must not publish statuses; the GitHub App remains the only privileged publisher for `Linktrend Review Ready`.
+4. Do **not** change branch protections or Bugbot dashboard settings from an Implementer session — Principal / operator only.
+5. Carlos's restricted user identity must not publish statuses; only the normal automation token in the trusted workflow context may publish `Linktrend Review Ready`.
 6. Work Packet 1 agents must not treat a green verify report as permission to roll out consumers or apply protections — consumer installs/settings apply remain WP04 / Principal-gated (packet prepared; not executed until approval).
 
 ---
