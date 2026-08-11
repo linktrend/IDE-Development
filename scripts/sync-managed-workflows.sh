@@ -160,6 +160,23 @@ for key, typ in required.items():
     if len(value) > 100:
         raise SystemExit(f"consumer config field too long: {key}")
 
+runner_type = str(cfg.get("runnerType", "github-hosted")).strip()
+runner_types = {
+    "github-hosted": {
+        "privileged": "ubuntu-latest",
+        "untrusted": "ubuntu-latest",
+    },
+    "linktrend-private-macos-arm64": {
+        "privileged": "[self-hosted, macOS, ARM64, linktrend-privileged]",
+        "untrusted": "[self-hosted, Linux, ARM64, linktrend-ci-isolated]",
+    },
+}
+if runner_type not in runner_types:
+    raise SystemExit(
+        "unsupported consumer config runnerType: "
+        f"{runner_type} (expected one of: {', '.join(sorted(runner_types))})"
+    )
+
 text = src.read_text(encoding="utf-8")
 rendered = text
 rendered = rendered.replace("__LINKTREND_CI_WORKFLOW_NAME__", str(cfg["ciWorkflowName"]).strip())
@@ -168,6 +185,10 @@ rendered = rendered.replace(
     str(cfg["branchPolicyWorkflowName"]).strip(),
 )
 rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", str(cfg["bugbotCheckName"]).strip())
+rendered = rendered.replace(
+    "__LINKTREND_UNTRUSTED_RUNS_ON__", runner_types[runner_type]["untrusted"]
+)
+rendered = rendered.replace("__LINKTREND_RUNS_ON__", runner_types[runner_type]["privileged"])
 if "__LINKTREND_" in rendered:
     raise SystemExit(f"unrendered __LINKTREND_ placeholder remains in {src}")
 out.write_text(rendered, encoding="utf-8")
