@@ -1,12 +1,14 @@
 # Actions Cost Controls
 
 **Status:** Active guidance
-**Date:** 2026-07-30
+**Date:** 2026-08-11
 **Owner:** IDE Development
 
 ## Reality check
 
 There is **no** supported GitHub billing API for agents to read minute balances in Free-tier orgs reliably. Do **not** invent fake billing APIs or scrape billing pages.
+
+GitHub Free includes 2,000 GitHub-hosted Actions minutes per month for private repositories. Exhaustion must never stop ordinary development. Public repositories remain on standard GitHub-hosted runners; approved private repositories route trusted managed workflows to the Mac mini profile `linktrend-private-macos-arm64`. Candidate CI must use a separately isolated runner and never the privileged host label.
 
 ## Controls we can enforce in YAML
 
@@ -16,6 +18,14 @@ There is **no** supported GitHub billing API for agents to read minute balances 
 4. **Filter own outcome check names** (`Linktrend * Outcome`, Packager/Integrator Result) so result checks do not re-wake the same workflow.
 5. **Concurrency groups** with `cancel-in-progress: false` for promote (correctness over thrash).
 6. Prefer **schedule + workflow_dispatch** over high-churn events when possible.
+7. Do not use `pull_request_target` merely to perform an early Packager/Integrator evaluation; wait for the configured CI or branch-policy completion, an external check, or an explicit dispatch.
+
+## Runner trust boundary
+
+- `github-hosted`: default for public repositories.
+- `linktrend-private-macos-arm64`: renders only trusted managed workflows to `[self-hosted, macOS, ARM64, linktrend-privileged]`.
+- Consumer-owned candidate CI must use `[self-hosted, linux, ARM64, linktrend-ci-isolated]` or another approved disposable isolated worker.
+- A privileged runner checks out only the protected default branch and must never execute PR-head code.
 
 ## Notification / wake event types (managed promote)
 
