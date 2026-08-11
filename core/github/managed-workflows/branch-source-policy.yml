@@ -10,7 +10,7 @@ permissions:
 jobs:
   branch-source-policy:
     name: Enforce allowed PR source branches
-    runs-on: ubuntu-latest
+    runs-on: __LINKTREND_RUNS_ON__
     steps:
       - name: Checkout allowlist helper
         uses: actions/checkout@v4

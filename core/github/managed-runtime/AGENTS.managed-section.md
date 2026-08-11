@@ -33,7 +33,7 @@ Static `workflow_run.workflows` names are rendered at install time from the comm
 
 `.github/linktrend-gitops-consumer.json`
 
-Fields: `ciWorkflowName`, `branchPolicyWorkflowName`, `bugbotCheckName`.
+Fields: `ciWorkflowName`, `branchPolicyWorkflowName`, `bugbotCheckName`, and optional `runnerType` (`github-hosted` by default or `linktrend-private-macos-arm64` for trusted managed jobs in approved private repositories).
 
 Repository Actions **variables** still configure required **check/job display names** for gates:
 
