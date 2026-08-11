@@ -1244,6 +1244,7 @@ for name in (
     rendered = managed.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
     rendered = rendered.replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
     rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+    rendered = rendered.replace("__LINKTREND_RUNS_ON__", "ubuntu-latest")
     assert rendered == live, name
 
 print("resolver matrix rows", len(rows))
@@ -1541,6 +1542,7 @@ def render(text: str) -> str:
         text.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
         .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
         .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+        .replace("__LINKTREND_RUNS_ON__", "ubuntu-latest")
     )
 
 # Live ≡ rendered managed for entire managed set
@@ -2327,6 +2329,7 @@ for name in wf_names:
         managed.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
         .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
         .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+        .replace("__LINKTREND_RUNS_ON__", "ubuntu-latest")
     )
     assert rendered == live, name
 
