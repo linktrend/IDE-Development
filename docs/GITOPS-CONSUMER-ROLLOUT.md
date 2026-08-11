@@ -197,9 +197,12 @@ Managed workflows contain `__LINKTREND_*` placeholders. Install/sync paths rende
   "schemaVersion": 1,
   "ciWorkflowName": "Consumer CI",
   "branchPolicyWorkflowName": "Branch Source Policy",
-  "bugbotCheckName": "Cursor Bugbot"
+  "bugbotCheckName": "Cursor Bugbot",
+  "runnerType": "github-hosted"
 }
 ```
+
+Public repositories keep `github-hosted`. Approved private repositories use `linktrend-private-macos-arm64` for trusted managed jobs. This does not route consumer `ci.yml` onto the privileged runner; private candidate CI requires a separately isolated worker.
 
 Repository variables cannot change `workflow_run.workflows` — names must be rendered into static YAML.
 
