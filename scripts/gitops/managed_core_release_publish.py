@@ -11,8 +11,7 @@ Hard rules:
 - Idempotent retry may continue only when an existing tag (if any) is bound to the
   requested commit and any existing release/assets match the exact
   source/version/manifest/checksum contract; otherwise refuse.
-- Mutating GitHub calls require AUTOMATION_TOKEN_SOURCE=github_app only.
-- No personal-token / GITHUB_TOKEN / Bugbot-user fallback.
+- Mutating GitHub calls require the trusted Mac Mini automation token.
 """
 
 from __future__ import annotations
@@ -178,43 +177,24 @@ def _classify_release_assets(
     return frozenset(matched), frozenset(missing)
 
 
-def require_app_token(
+def require_automation_token(
     *,
     token: str | None = None,
     token_source: str | None = None,
 ) -> str:
-    """Refuse any non-App identity for privileged tag/release mutations."""
+    """Require the trusted normal GitHub automation identity for release mutations."""
     source = (token_source or os.environ.get("AUTOMATION_TOKEN_SOURCE") or "").strip()
     value = (token or os.environ.get("AUTOMATION_TOKEN") or "").strip()
-    if source != "github_app":
+    if source != "github_token":
         _reject(
             "automation_credentials_blocked",
-            "managed-core release publisher requires AUTOMATION_TOKEN_SOURCE=github_app "
-            f"(got {source or 'none'}); no personal-token or GITHUB_TOKEN fallback",
+            "managed-core release publisher requires AUTOMATION_TOKEN_SOURCE=github_token "
+            f"(got {source or 'none'})",
         )
     if not value:
         _reject(
             "automation_credentials_blocked",
-            "AUTOMATION_TOKEN missing after App resolve",
-        )
-    # Explicit refusal markers for personal / ordinary tokens.
-    banned_env = (
-        "LINKTREND_BUGBOT_USER_TOKEN",
-        "BUGBOT_USER_TOKEN",
-        "GH_PAT",
-        "GITHUB_PAT",
-        "PERSONAL_ACCESS_TOKEN",
-    )
-    for name in banned_env:
-        if (os.environ.get(name) or "").strip():
-            _reject(
-                "personal_token_forbidden",
-                f"{name} must not be present in the release publisher job",
-            )
-    if value.startswith(("ghp_", "github_pat_")):
-        _reject(
-            "personal_token_forbidden",
-            "personal access token material refused for release publication",
+            "AUTOMATION_TOKEN missing after normal-token resolve",
         )
     return value
 
@@ -758,7 +738,7 @@ def run_publish(
 
     app_token = ""
     if not skip_remote_checks:
-        app_token = require_app_token(token=token, token_source=token_source)
+        app_token = require_automation_token(token=token, token_source=token_source)
         bind_source_sha_to_default_tip(
             source_sha=source_sha,
             repository=repository,
@@ -841,7 +821,7 @@ def run_publish(
         release_url=published["releaseUrl"],
         release_id=published.get("releaseId"),
         dry_run=False,
-        notes="Published via App-backed managed-core release publisher.",
+        notes="Published via normal-token managed-core release publisher.",
     )
     outcome["published"] = True
     outcome["status"] = "published"

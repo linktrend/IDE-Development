@@ -1,4 +1,4 @@
-# Linktrend Managed-Core Release Publisher — App-backed immutable publication
+# Linktrend Managed-Core Release Publisher — normal-token immutable publication
 #
 # System-repository only (IDE Development). Not synced to consumers via
 # scripts/sync-managed-workflows.sh — consumers must not publish managed-core.
@@ -8,7 +8,7 @@
 # The requested source SHA is checked out as data only — never execute untrusted
 # tip code with write credentials.
 #
-# Identity: GitHub App installation token only. No human / PAT / GITHUB_TOKEN
+# Identity: normal GitHub automation installation token only. No human / PAT / GITHUB_TOKEN
 # fallback. Fail closed when App mint/resolve fails, when source SHA does not
 # equal the default-branch tip, or on tag/release/checksum conflict/replay.
 #
@@ -118,19 +118,10 @@ jobs:
             exit 1
           fi
 
-      - name: Mint GitHub App token
-        id: app
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
-        continue-on-error: true
-        with:
-          app-id: ${{ vars.LINKTREND_GITOPS_APP_ID }}
-          private-key: ${{ secrets.LINKTREND_GITOPS_APP_PRIVATE_KEY }}
-
-      - name: Resolve App token; rebuild/verify; publish or dry-run
+      - name: Resolve normal automation token; rebuild/verify; publish or dry-run
         env:
-          LINKTREND_GITOPS_APP_ID: ${{ vars.LINKTREND_GITOPS_APP_ID }}
-          LINKTREND_APP_TOKEN: ${{ steps.app.outputs.token }}
-          REQUIRE_APP_TOKEN: "1"
+          LINKTREND_AUTOMATION_TOKEN: ${{ secrets.LINKTREND_AUTOMATION_TOKEN }}
+          REQUIRE_AUTOMATION_TOKEN: "1"
           GITHUB_REPOSITORY: ${{ github.repository }}
           SOURCE_SHA: ${{ steps.inputs.outputs.source_sha }}
           VERSION: ${{ steps.inputs.outputs.version }}
@@ -143,24 +134,23 @@ jobs:
           if ! source scripts/gitops/resolve_automation_token.sh; then
             python3 scripts/gitops/write_outcome.py \
               --status automation_credentials_blocked \
-              --detail "App token unavailable for managed-core release publisher"
+              --detail "normal automation token unavailable for managed-core release publisher"
             echo "### Managed-core release publisher: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
           export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE AUTOMATION_CREDENTIALS_STATUS
-          # Privileged identity is App only — refuse GITHUB_TOKEN publish fallback.
+          # Privileged identity is normal-token only — refuse GITHUB_TOKEN publish fallback.
           if [ -z "${AUTOMATION_TOKEN:-}" ]; then
             echo "FAIL: AUTOMATION_TOKEN missing; refuse GITHUB_TOKEN publish fallback" >&2
             exit 1
           fi
-          if [ "${AUTOMATION_TOKEN_SOURCE}" != "github_app" ]; then
-            echo "FAIL: AUTOMATION_TOKEN_SOURCE must be github_app (got ${AUTOMATION_TOKEN_SOURCE})" >&2
+          if [ "${AUTOMATION_TOKEN_SOURCE}" != "github_token" ]; then
+            echo "FAIL: AUTOMATION_TOKEN_SOURCE must be github_token (got ${AUTOMATION_TOKEN_SOURCE})" >&2
             exit 1
           fi
           # Never export github.token as the mutation credential.
           export GH_TOKEN="${AUTOMATION_TOKEN}"
           export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
-          export LINKTREND_APP_TOKEN="${AUTOMATION_TOKEN}"
           echo "AUTOMATION_TOKEN_SOURCE=${AUTOMATION_TOKEN_SOURCE}" >> "$GITHUB_STEP_SUMMARY"
 
           DATA_ROOT="$(pwd)/untrusted-source-data"
