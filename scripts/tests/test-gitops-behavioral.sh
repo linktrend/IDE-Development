@@ -533,7 +533,7 @@ PY
 pass "wake path + Bugbot request scenarios"
 
 # ============================================================================
-# 13) App credentials: minted token accepted without private key; fail closed otherwise
+# 13) Normal automation credential: repository token accepted; fail closed otherwise
 # ============================================================================
 python3 - "$ROOT" <<'PY'
 from pathlib import Path
@@ -543,33 +543,23 @@ script = str(root / "scripts/gitops/resolve_automation_token.sh")
 
 def run(env_extra):
     env = os.environ.copy()
-    for k in ("LINKTREND_APP_TOKEN","LINKTREND_GITOPS_APP_ID","LINKTREND_GITOPS_APP_PRIVATE_KEY",
-              "LINKTREND_GITOPS_APP_ID_VAR","AUTOMATION_TOKEN","GH_TOKEN","GITHUB_TOKEN"):
+    for k in ("LINKTREND_AUTOMATION_TOKEN", "AUTOMATION_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"):
         env.pop(k, None)
-    env["REQUIRE_APP_TOKEN"] = "1"
+    env["REQUIRE_AUTOMATION_TOKEN"] = "1"
     env.update(env_extra)
     return subprocess.run(["bash", script], capture_output=True, text=True, env=env)
 
-# Real workflow shape: App ID + minted token; private key ABSENT
-r = run({"LINKTREND_GITOPS_APP_ID": "12345", "LINKTREND_APP_TOKEN": "ghs_test_minted_token_value"})
+# Real workflow shape: normal repository secret
+r = run({"LINKTREND_AUTOMATION_TOKEN": "ghs_test_normal_token_value"})
 assert r.returncode == 0, (r.returncode, r.stderr, r.stdout)
-assert "AUTOMATION_TOKEN_SOURCE=github_app" in r.stdout, r.stdout
-assert "ghs_test_minted_token_value" not in r.stdout  # never print token
-assert "ghs_test_minted_token_value" not in r.stderr
+assert "AUTOMATION_TOKEN_SOURCE=github_token" in r.stdout, r.stdout
+assert "ghs_test_normal_token_value" not in r.stdout  # never print token
+assert "ghs_test_normal_token_value" not in r.stderr
 
 # Missing token → blocked
-r = run({"LINKTREND_GITOPS_APP_ID": "12345"})
+r = run({})
 assert r.returncode != 0, (r.returncode, r.stderr, r.stdout)
 assert "automation_credentials_blocked" in (r.stderr + r.stdout)
-
-# Private key leaked into consumer → blocked
-r = run({
-    "LINKTREND_GITOPS_APP_ID": "12345",
-    "LINKTREND_APP_TOKEN": "ghs_test",
-    "LINKTREND_GITOPS_APP_PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----\nX\n-----END PRIVATE KEY-----",
-})
-assert r.returncode != 0, (r.returncode, r.stderr, r.stdout)
-assert "private_key_leaked" in (r.stderr + r.stdout) or "automation_credentials_blocked" in (r.stderr + r.stdout)
 
 # GITHUB_TOKEN alone must not grant autonomy
 r = run({"GITHUB_TOKEN": "ghs_workflow_token_only", "GH_TOKEN": "ghs_workflow_token_only"})
@@ -577,11 +567,11 @@ assert r.returncode != 0, (r.returncode, r.stderr, r.stdout)
 assert "automation_credentials_blocked" in (r.stderr + r.stdout)
 
 doc = (root/"docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md").read_text()
-assert "same job" in doc.lower() or "SAME job" in doc
+assert "LINKTREND_AUTOMATION_TOKEN" in doc
 assert "job outputs" in doc.lower()
 print("credentials contract ok")
 PY
-pass "App credentials fail closed; no silent GITHUB_TOKEN autonomy"
+pass "Normal automation credentials fail closed; no silent GITHUB_TOKEN autonomy"
 
 # ============================================================================
 # 13b) Carlos BUGBOT_USER_TOKEN: fail closed; env scrubbing; author gate;
@@ -647,16 +637,16 @@ for op in ("merge", "promote", "repair", "status", "cleanup", "branch_push", "pr
     except BugbotUserCredentialsError:
         pass
 
-# App/GITHUB_TOKEN equality → reject
+# A single normal GitHub identity may supply both trusted automation and Bugbot.
 os.environ["BUGBOT_USER_TOKEN"] = "same_secret_value"
 os.environ["AUTOMATION_TOKEN"] = "same_secret_value"
 tok, src, st = resolve_bugbot_user_token()
-assert tok is None and st == "must_not_equal_automation_or_github_token"
+assert tok == "same_secret_value" and st == "configured"
 clear_env(os.environ)
 os.environ["LINKTREND_BUGBOT_USER_TOKEN"] = "same_gh"
 os.environ["GITHUB_TOKEN"] = "same_gh"
 tok, src, st = resolve_bugbot_user_token()
-assert tok is None and st == "must_not_equal_automation_or_github_token"
+assert tok == "same_gh" and st == "configured"
 
 # Shell accepts ONLY LINKTREND_BUGBOT_USER_TOKEN (no BUGBOT_USER_TOKEN input fallback)
 script = str(root / "scripts/gitops/resolve_bugbot_user_token.sh")
@@ -681,8 +671,7 @@ assert r.returncode != 0
 assert "bugbot_user_credentials_blocked" in (r.stderr + r.stdout)
 
 r = run_shell({"LINKTREND_BUGBOT_USER_TOKEN": "dup", "AUTOMATION_TOKEN": "dup"})
-assert r.returncode != 0
-assert "bugbot_user_credentials_blocked" in (r.stderr + r.stdout)
+assert r.returncode == 0
 
 # --- Author validation (pure) ---
 assert packager_pr_author_login({"author": {"login": "linktrend"}}) == "linktrend"
@@ -1587,9 +1576,10 @@ for name in (
     assert render(managed) == live, name
     assert "LINKTREND___" not in managed, name
 
-# Repair Observer: App mint + resolve; no ordinary-token mutations
+# Repair Observer: normal-token resolve; no ordinary workflow-token mutations
 obs_live = (root / ".github/workflows/linktrend-repair-observer.yml").read_text()
-assert "create-github-app-token@" in obs_live
+assert "LINKTREND_AUTOMATION_TOKEN" in obs_live
+assert "create-github-app-token@" not in obs_live
 assert "resolve_automation_token.sh" in obs_live
 assert 'export GH_TOKEN="${AUTOMATION_TOKEN}"' in obs_live
 assert 'export GITHUB_TOKEN="${AUTOMATION_TOKEN}"' in obs_live
@@ -1603,9 +1593,9 @@ assert "GITHUB_TOKEN only" not in obs_live
 assert "persist-credentials: false" in obs_live
 
 # Privileged mutation jobs must not grant write scopes to ordinary workflow token.
-# Mutation jobs = those that mint App / run repair_observer / promote / evaluate / cleanup apply.
+# Mutation jobs run repair_observer / promote / evaluate / cleanup apply.
 mutation_markers = (
-    "create-github-app-token@",
+    "LINKTREND_AUTOMATION_TOKEN",
     "repair_observer.py",
     "promote_staging.sh",
     "promote_main.sh",
@@ -1657,7 +1647,7 @@ assert 'failure_type="ci_failure"' in observer
 assert "bugbot_failure" in observer and "usage_limit" in observer
 assert '("bugbot_failure", "usage_limit")' in observer or "('bugbot_failure', 'usage_limit')" in observer
 
-# Docs no longer claim GITHUB_TOKEN observer / no App mint
+# Docs no longer claim GITHUB_TOKEN observer / App mint
 readme = (root / "core/github/managed-workflows/README.md").read_text()
 assert "no App mint" not in readme
 assert "GITHUB_TOKEN issues:write" not in readme
@@ -2418,7 +2408,7 @@ for name in (
         assert "--token-env GITHUB_TOKEN" not in live, name
         assert "--token-env GH_TOKEN" not in live, name
 
-# Scripts: App-missing = local outcome only
+# Scripts: automation-token-missing = local outcome only
 for rel in (
     "scripts/gitops/integrator_evaluate.sh",
     "scripts/gitops/promote_staging.sh",
@@ -2426,8 +2416,8 @@ for rel in (
 ):
     text = (root / rel).read_text()
     assert "AUTOMATION_TOKEN_SOURCE" in text
-    # Find App-missing block
-    idx = text.find('!= "github_app"')
+    # Find normal-token-missing block
+    idx = text.find('!= "github_token"')
     assert idx > 0, rel
     block = text[idx : idx + 500]
     assert "write_outcome" in block or "write_out" in block or "automation_credentials_blocked" in block
@@ -2561,7 +2551,7 @@ for rel in (
 
 print("identity boundary zero-mutation proofs ok")
 PY
-pass "write_outcome/App-missing zero-mutation + App-success AUTOMATION_TOKEN + managed≡live"
+pass "write_outcome/normal-token-missing zero-mutation + normal-token success + managed≡live"
 
 echo ""
 echo "PASS: behavioral gitops tests (${PASS} groups)"

@@ -102,7 +102,7 @@ for wf in "${WRITE_WFS[@]}"; do
   if grep -nE 'github\.event\.pull_request\.(title|body)' "$wf"; then
     fail "untrusted PR title/body interpolated: $wf"
   fi
-  grep -q 'LINKTREND_GITOPS_APP' "$wf" || fail "missing App credential contract: $wf"
+  grep -q 'LINKTREND_AUTOMATION_TOKEN' "$wf" || fail "missing normal-token credential contract: $wf"
   grep -q 'automation_credentials_blocked\|resolve_automation_token' "$wf" \
     || fail "missing fail-closed credentials path: $wf"
 done
@@ -111,7 +111,7 @@ grep -q 'permissions:' "$CI" || fail "ci missing permissions"
 grep -q 'contents: read' "$CI" || fail "ci must be contents:read"
 grep -q 'pull_request:' "$CI" || fail "ci must test PRs with pull_request"
 ! grep -q 'contents: write' "$CI" || fail "ci must not have contents:write"
-pass "Trust boundary: trusted checkout + App fail-closed; CI unprivileged"
+pass "Trust boundary: trusted checkout + normal-token fail-closed; CI unprivileged"
 
 # Self-trigger guards
 grep -q "github-actions" "$PKG" || fail "packager must filter Actions check_run"
@@ -126,8 +126,8 @@ pass "Doctrine Ship 05/Pull 07 + status readiness"
 
 grep -q 'default branch' docs/GITOPS-CONSUMER-ROLLOUT.md
 grep -qi 'mention-only\|manualTriggerOnly' docs/contracts/BUGBOT-MENTION-ONLY.md
-grep -q 'LINKTREND_GITOPS_APP' docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md
-pass "Activation + mention-only + App credential docs"
+grep -q 'LINKTREND_AUTOMATION_TOKEN' docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md
+pass "Activation + mention-only + normal credential docs"
 
 for s in scripts/mark-review-ready.sh scripts/validate-review-ready.sh \
          scripts/pull-update-work-branches.sh scripts/cleanup-merged-branches.sh \
@@ -262,11 +262,12 @@ print("outcomes ok")
 PY
 pass "Honest outcome vocabulary present"
 
-# ---- App token: same-job mint; never job-output secrets ----
-PINNED="fee1f7d63c2ff003460e3d139729b119787bc349"
+# ---- Normal automation token: same-job secret; never job-output secrets ----
 for wf in "${WRITE_WFS[@]}"; do
-  grep -q "create-github-app-token@${PINNED}" "$wf" \
-    || fail "App token action not pinned to reviewed SHA: $wf"
+  grep -q 'LINKTREND_AUTOMATION_TOKEN' "$wf" \
+    || fail "normal automation token missing: $wf"
+  ! grep -q 'create-github-app-token' "$wf" \
+    || fail "GitHub automation token action remains: $wf"
   if grep -nE 'outputs:\s*$' "$wf" >/dev/null; then
     # Any job-level outputs block must not expose app_token / token
     python3 - "$wf" <<'PY'
@@ -276,19 +277,19 @@ text=open(sys.argv[1],encoding="utf-8").read()
 for m in re.finditer(r'(?m)^  [A-Za-z0-9_-]+:\n(?:.*\n)*?(?=^  [A-Za-z0-9_-]+:|\Z)', text.split("jobs:\n",1)[-1] if "jobs:" in text else ""):
     block=m.group(0)
     if re.search(r'(?m)^\s+outputs:\s*$', block):
-        if re.search(r'(?i)app_token|outputs\.token|token:', block.split("steps:",1)[0]):
+        if re.search(r'(?i)automation_token|app_token|outputs\.token|token:', block.split("steps:",1)[0]):
             raise SystemExit(f"token-like job output in {sys.argv[1]}")
 print("ok")
 PY
   fi
-  if grep -nE 'needs\.[A-Za-z0-9_-]+\.outputs\.(app_token|token)\b' "$wf"; then
-    fail "consumes App token via needs.*.outputs: $wf"
+  if grep -nE 'needs\.[A-Za-z0-9_-]+\.outputs\.(automation_token|app_token|token)\b' "$wf"; then
+    fail "consumes automation token via needs.*.outputs: $wf"
   fi
   if grep -nE 'skip-token-revoke:\s*true' "$wf"; then
     fail "skip-token-revoke workaround forbidden: $wf"
   fi
 done
-# Consumer steps must not inject private key env
+# Consumer steps must not inject GitHub App private-key env
 for wf in "${WRITE_WFS[@]}"; do
   # private-key: is allowed only under create-github-app-token with: block
   python3 - "$wf" <<'PY'
@@ -304,7 +305,7 @@ if re.search(r'(?m)^\s+app_token:\s*', text):
 print("ok")
 PY
 done
-pass "App token same-job only; no job-output secret transport"
+pass "Normal token same-job only; no job-output secret transport"
 
 # ---- Concurrency: uniform head SHA for automatic events ----
 for wf in "$PKG" "$INT"; do
@@ -336,7 +337,7 @@ if not m:
     raise SystemExit(f'no resolve job: {sys.argv[1]}')
 block = m.group(0)
 if 'create-github-app-token' in block:
-    raise SystemExit(f'App token minted inside resolve job: {sys.argv[1]}')
+    raise SystemExit(f'automation token minted inside resolve job: {sys.argv[1]}')
 if 'LINKTREND_GITOPS_APP_PRIVATE_KEY' in block:
     raise SystemExit(f'private key referenced inside resolve job: {sys.argv[1]}')
 print('ok')
@@ -367,11 +368,11 @@ else
 fi
 
 # ============================================================================
-# Exact-SHA compatibility with App-backed Review Ready publisher
+# Exact-SHA compatibility with normal-token Review Ready publisher
 # ============================================================================
 # Packager must treat a successful ``Linktrend Review Ready`` status on the
 # immutable tip SHA as eligible — same contract whether the status was posted
-# by the local completion gate or the App-backed Actions publisher. No live
+# by the local completion gate or the normal-token Actions publisher. No live
 # credentials or GitHub mutation required (file status backend + hooks).
 python3 - <<'PY'
 from __future__ import annotations
@@ -416,7 +417,7 @@ OTHER_SHA = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 DRIFT_SHA = "cccccccccccccccccccccccccccccccccccccccc"
 BRANCH = "issue/44-add-app-backed-review-ready-publisher-and-produc"
 
-# Simulate App-backed publisher: post success for CONTEXT on exact SHA only.
+# Simulate normal-token publisher: post success for CONTEXT on exact SHA only.
 rs.mark_sha(READY_SHA, "44", "app_backed_publish")
 ok, detail = rs.is_sha_review_ready(READY_SHA)
 assert ok and "issue=44" in detail, (ok, detail)
@@ -429,12 +430,12 @@ assert 'CONTEXT = "Linktrend Review Ready"' in gh_src
 assert '(r.get("context") or "") == CONTEXT' in gh_src
 
 # ---- Discover: packages exact ready tip; skips not-ready / head drift ----
-os.environ["AUTOMATION_TOKEN"] = "ghs_app_token_for_packager_test"
-os.environ["AUTOMATION_TOKEN_SOURCE"] = "github_app"
+os.environ["AUTOMATION_TOKEN"] = "ghs_automation_token_for_packager_test"
+os.environ["AUTOMATION_TOKEN_SOURCE"] = "github_token"
 os.environ["LINKTREND_BUGBOT_USER_TOKEN"] = "user_pat_for_packager_test"
 os.environ["BUGBOT_USER_TOKEN"] = "user_pat_for_packager_test"
 os.environ["GITHUB_REPOSITORY"] = "linktrend/IDE-Development"
-# Ensure workflow token cannot substitute for App automation in this process.
+# Ensure workflow token cannot substitute for normal automation in this process.
 os.environ["GITHUB_TOKEN"] = "ghs_workflow_must_not_substitute"
 os.environ.pop("GH_TOKEN", None)
 
@@ -442,7 +443,7 @@ recorded: list[dict] = []
 
 
 def list_branches_hook(token: str, repo: str) -> list[dict]:
-    assert token == "ghs_app_token_for_packager_test"
+    assert token == "ghs_automation_token_for_packager_test"
     assert repo == "linktrend/IDE-Development"
     return [
         {
@@ -467,7 +468,7 @@ def list_branches_hook(token: str, repo: str) -> list[dict]:
 def run_hook(args: list[str], env: dict[str, str]) -> str:
     recorded.append({"args": list(args), "env": dict(env)})
     # Never leak Carlos secret names into App-role children.
-    if env.get("GH_TOKEN") == "ghs_app_token_for_packager_test":
+    if env.get("GH_TOKEN") == "ghs_automation_token_for_packager_test":
         assert "LINKTREND_BUGBOT_USER_TOKEN" not in env
         assert "BUGBOT_USER_TOKEN" not in env
     joined = " ".join(args)
@@ -598,7 +599,7 @@ rs.withdraw_sha(READY_SHA, "not_yet")
 eval_mod._RUN_HOOK = eval_run
 eval_mod._API_HOOK = eval_api
 try:
-    waiting = eval_mod.evaluate_pr(44, "ghs_app_token_for_packager_test")
+    waiting = eval_mod.evaluate_pr(44, "ghs_automation_token_for_packager_test")
     assert waiting["status"] == "waiting"
     assert waiting["detail"].startswith("not_ready:")
     assert waiting["headSha"] == READY_SHA
@@ -613,7 +614,7 @@ eval_recorded.clear()
 eval_mod._RUN_HOOK = eval_run
 eval_mod._API_HOOK = eval_api
 try:
-    ok_eval = eval_mod.evaluate_pr(44, "ghs_app_token_for_packager_test")
+    ok_eval = eval_mod.evaluate_pr(44, "ghs_automation_token_for_packager_test")
     assert ok_eval["status"] == "bugbot_requested", ok_eval
     assert ok_eval["headSha"] == READY_SHA
     assert ok_eval["bugbot_comment_token"] == "bugbot_user"
@@ -633,7 +634,7 @@ os.environ["HEAD_SHA"] = OTHER_SHA
 eval_mod._RUN_HOOK = eval_run
 eval_mod._API_HOOK = eval_api
 try:
-    stale = eval_mod.evaluate_pr(44, "ghs_app_token_for_packager_test")
+    stale = eval_mod.evaluate_pr(44, "ghs_automation_token_for_packager_test")
     assert stale["status"] == "skipped"
     assert stale["detail"].startswith("stale_event_head:")
 finally:
@@ -667,7 +668,7 @@ eval_mod.is_sha_review_ready = flip  # type: ignore[assignment]
 eval_mod._RUN_HOOK = eval_run
 eval_mod._API_HOOK = eval_api
 try:
-    lost = eval_mod.evaluate_pr(44, "ghs_app_token_for_packager_test")
+    lost = eval_mod.evaluate_pr(44, "ghs_automation_token_for_packager_test")
     assert lost["status"] == "skipped"
     assert lost["detail"] == "readiness_lost"
     assert flip.n == 2
