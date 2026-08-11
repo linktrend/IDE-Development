@@ -162,8 +162,14 @@ for key, typ in required.items():
 
 runner_type = str(cfg.get("runnerType", "github-hosted")).strip()
 runner_types = {
-    "github-hosted": "ubuntu-latest",
-    "linktrend-private-macos-arm64": "[self-hosted, macOS, ARM64, linktrend-privileged]",
+    "github-hosted": {
+        "privileged": "ubuntu-latest",
+        "untrusted": "ubuntu-latest",
+    },
+    "linktrend-private-macos-arm64": {
+        "privileged": "[self-hosted, macOS, ARM64, linktrend-privileged]",
+        "untrusted": "[self-hosted, Linux, ARM64, linktrend-ci-isolated]",
+    },
 }
 if runner_type not in runner_types:
     raise SystemExit(
@@ -179,7 +185,10 @@ rendered = rendered.replace(
     str(cfg["branchPolicyWorkflowName"]).strip(),
 )
 rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", str(cfg["bugbotCheckName"]).strip())
-rendered = rendered.replace("__LINKTREND_RUNS_ON__", runner_types[runner_type])
+rendered = rendered.replace(
+    "__LINKTREND_UNTRUSTED_RUNS_ON__", runner_types[runner_type]["untrusted"]
+)
+rendered = rendered.replace("__LINKTREND_RUNS_ON__", runner_types[runner_type]["privileged"])
 if "__LINKTREND_" in rendered:
     raise SystemExit(f"unrendered __LINKTREND_ placeholder remains in {src}")
 out.write_text(rendered, encoding="utf-8")

@@ -33,15 +33,17 @@ make_consumer "$private" linktrend-private-macos-arm64
 bash "$ROOT/scripts/sync-managed-workflows.sh" "$hosted" >/dev/null
 bash "$ROOT/scripts/sync-managed-workflows.sh" "$private" >/dev/null
 
-if grep -R -q '__LINKTREND_RUNS_ON__' "$hosted/.github/workflows" "$private/.github/workflows"; then
+if grep -R -q '__LINKTREND_.*RUNS_ON__' "$hosted/.github/workflows" "$private/.github/workflows"; then
   echo "FAIL: runner placeholder remained after render" >&2
   exit 1
 fi
 
 hosted_count="$(grep -R -h -c 'runs-on: ubuntu-latest' "$hosted/.github/workflows" | awk '{s += $1} END {print s + 0}')"
 private_count="$(grep -R -h -c 'runs-on: \[self-hosted, macOS, ARM64, linktrend-privileged\]' "$private/.github/workflows" | awk '{s += $1} END {print s + 0}')"
+private_untrusted_count="$(grep -R -h -c 'runs-on: \[self-hosted, Linux, ARM64, linktrend-ci-isolated\]' "$private/.github/workflows" | awk '{s += $1} END {print s + 0}')"
 [ "$hosted_count" -eq 14 ] || { echo "FAIL: expected 14 hosted jobs, got $hosted_count" >&2; exit 1; }
-[ "$private_count" -eq 14 ] || { echo "FAIL: expected 14 private jobs, got $private_count" >&2; exit 1; }
+[ "$private_count" -eq 13 ] || { echo "FAIL: expected 13 privileged private jobs, got $private_count" >&2; exit 1; }
+[ "$private_untrusted_count" -eq 1 ] || { echo "FAIL: expected 1 isolated private job, got $private_untrusted_count" >&2; exit 1; }
 
 make_consumer "$TMP/bad" arbitrary-runner
 if bash "$ROOT/scripts/sync-managed-workflows.sh" "$TMP/bad" >"$TMP/bad.out" 2>&1; then
