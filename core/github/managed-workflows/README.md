@@ -11,7 +11,7 @@ Templates synced into consumer repos (and IDE Development itself) by:
 | File | Purpose |
 |---|---|
 | `branch-source-policy.yml` | Allowed work branches into development; `promote/*` into staging/main |
-| `linktrend-review-packager.yml` | Discover (Tue/Fri 08:00) + evaluate (`pull_request_target` / `workflow_run` CI / external `check_run`) |
+| `linktrend-review-packager.yml` | Discover (Tue/Fri 08:00) + evaluate (`workflow_run` CI / external `check_run` / explicit dispatch) |
 | `linktrend-review-ready-publisher.yml` | App-backed `workflow_dispatch` publisher/withdrawer for `Linktrend Review Ready` (`action=publish|withdraw`; default-branch scripts; tip is data only) |
 | `linktrend-development-to-staging.yml` | Build (Tue/Fri 10:00) + exact-candidate reevaluate |
 | `linktrend-staging-to-main.yml` | Package / approve-merge (bound SHAs) / observe |
@@ -39,3 +39,9 @@ Templates synced into consumer repos (and IDE Development itself) by:
 ## Never synced
 
 - `ci.yml` (unprivileged PR testing; `contents: read`)
+
+## Runner routing
+
+- `runnerType` is optional in `.github/linktrend-gitops-consumer.json` and defaults to `github-hosted`.
+- Approved private repositories use `linktrend-private-macos-arm64`, which renders trusted managed jobs onto `[self-hosted, macOS, ARM64, linktrend-privileged]`.
+- Candidate CI is consumer-owned and must use a separately isolated runner; managed sync never overwrites `ci.yml`.

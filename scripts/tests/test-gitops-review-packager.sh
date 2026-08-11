@@ -34,6 +34,7 @@ def render(text: str) -> str:
         text.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
         .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
         .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+        .replace("__LINKTREND_RUNS_ON__", "ubuntu-latest")
     )
 
 for name in (
