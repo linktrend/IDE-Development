@@ -49,16 +49,29 @@ pass "No job-level env context in promote workflows"
 
 python3 - "$ROOT" <<'PY'
 from pathlib import Path
-import sys
+import json, sys
 
 root = Path(sys.argv[1])
+runner_type = json.loads(
+    (root / ".github/linktrend-gitops-consumer.json").read_text()
+).get("runnerType", "github-hosted")
+runner_types = {
+    "github-hosted": ("ubuntu-latest", "ubuntu-latest"),
+    "linktrend-private-macos-arm64": (
+        "[self-hosted, macOS, ARM64, linktrend-privileged]",
+        "[self-hosted, Linux, ARM64, linktrend-ci-isolated]",
+    ),
+}
+assert runner_type in runner_types, f"Unsupported runnerType: {runner_type}"
+privileged_runner, untrusted_runner = runner_types[runner_type]
 
 def render(text: str) -> str:
     return (
         text.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
         .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
         .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
-        .replace("__LINKTREND_RUNS_ON__", "ubuntu-latest")
+        .replace("__LINKTREND_UNTRUSTED_RUNS_ON__", untrusted_runner)
+        .replace("__LINKTREND_RUNS_ON__", privileged_runner)
     )
 
 for name in (

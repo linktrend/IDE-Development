@@ -1134,9 +1134,22 @@ pass "uniform SHA concurrency + production-path Bugbot idempotency"
 # 17) Actual resolver matrix (empty PR arrays, forks, promote roles)
 # ============================================================================
 python3 - "$ROOT" <<'PY'
-import sys
+import json, sys
 from pathlib import Path
-sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
+root = Path(sys.argv[1])
+runner_type = json.loads(
+    (root / ".github/linktrend-gitops-consumer.json").read_text()
+).get("runnerType", "github-hosted")
+runner_types = {
+    "github-hosted": ("ubuntu-latest", "ubuntu-latest"),
+    "linktrend-private-macos-arm64": (
+        "[self-hosted, macOS, ARM64, linktrend-privileged]",
+        "[self-hosted, Linux, ARM64, linktrend-ci-isolated]",
+    ),
+}
+assert runner_type in runner_types, f"Unsupported runnerType: {runner_type}"
+privileged_runner, untrusted_runner = runner_types[runner_type]
+sys.path.insert(0, str(root / "scripts" / "gitops"))
 from resolve_event_pr import resolve_candidate
 
 sha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -1244,7 +1257,8 @@ for name in (
     rendered = managed.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
     rendered = rendered.replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
     rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
-    rendered = rendered.replace("__LINKTREND_RUNS_ON__", "ubuntu-latest")
+    rendered = rendered.replace("__LINKTREND_UNTRUSTED_RUNS_ON__", untrusted_runner)
+    rendered = rendered.replace("__LINKTREND_RUNS_ON__", privileged_runner)
     assert rendered == live, name
 
 print("resolver matrix rows", len(rows))
@@ -1483,6 +1497,18 @@ from pathlib import Path
 
 root = Path(sys.argv[1])
 tmp = Path(sys.argv[2])
+runner_type = json.loads(
+    (root / ".github/linktrend-gitops-consumer.json").read_text()
+).get("runnerType", "github-hosted")
+runner_types = {
+    "github-hosted": ("ubuntu-latest", "ubuntu-latest"),
+    "linktrend-private-macos-arm64": (
+        "[self-hosted, macOS, ARM64, linktrend-privileged]",
+        "[self-hosted, Linux, ARM64, linktrend-ci-isolated]",
+    ),
+}
+assert runner_type in runner_types, f"Unsupported runnerType: {runner_type}"
+privileged_runner, untrusted_runner = runner_types[runner_type]
 workflow_paths = list((root / ".github" / "workflows").glob("linktrend-*.yml"))
 workflow_paths += list((root / "core" / "github" / "managed-workflows").glob("linktrend-*.yml"))
 
@@ -1542,7 +1568,8 @@ def render(text: str) -> str:
         text.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
         .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
         .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
-        .replace("__LINKTREND_RUNS_ON__", "ubuntu-latest")
+        .replace("__LINKTREND_UNTRUSTED_RUNS_ON__", untrusted_runner)
+        .replace("__LINKTREND_RUNS_ON__", privileged_runner)
     )
 
 # Live ≡ rendered managed for entire managed set
@@ -2236,6 +2263,18 @@ from pathlib import Path
 
 root = Path(sys.argv[1])
 tmp = Path(sys.argv[2])
+runner_type = json.loads(
+    (root / ".github/linktrend-gitops-consumer.json").read_text()
+).get("runnerType", "github-hosted")
+runner_types = {
+    "github-hosted": ("ubuntu-latest", "ubuntu-latest"),
+    "linktrend-private-macos-arm64": (
+        "[self-hosted, macOS, ARM64, linktrend-privileged]",
+        "[self-hosted, Linux, ARM64, linktrend-ci-isolated]",
+    ),
+}
+assert runner_type in runner_types, f"Unsupported runnerType: {runner_type}"
+privileged_runner, untrusted_runner = runner_types[runner_type]
 sys.path.insert(0, str(root / "scripts" / "gitops"))
 import write_outcome as wo
 
@@ -2329,7 +2368,8 @@ for name in wf_names:
         managed.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
         .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
         .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
-        .replace("__LINKTREND_RUNS_ON__", "ubuntu-latest")
+        .replace("__LINKTREND_UNTRUSTED_RUNS_ON__", untrusted_runner)
+        .replace("__LINKTREND_RUNS_ON__", privileged_runner)
     )
     assert rendered == live, name
 
