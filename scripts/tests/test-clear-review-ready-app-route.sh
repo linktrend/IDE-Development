@@ -58,7 +58,7 @@ with mock.patch.object(rs, "_api", side_effect=fake_api):
         raise SystemExit("expected withdraw to fail closed without App token")
     except RuntimeError as exc:
         msg = str(exc)
-        assert "privileged_publish_requires_github_app" in msg or "privileged_withdraw_requires_github_app" in msg, msg
+        assert "privileged_publish_requires_github_token" in msg or "privileged_publish_requires_github_token" in msg, msg
         assert "no GH_TOKEN/GITHUB_TOKEN fallback" in msg, msg
         assert "linktrend-review-ready-publisher.yml" in msg, msg
         assert "-f action=withdraw" in msg, msg
@@ -67,7 +67,7 @@ with mock.patch.object(rs, "_api", side_effect=fake_api):
 assert posted == [], f"no API status writes allowed, got {posted}"
 
 # App token present → withdraw posts failure with App token only.
-os.environ["LINKTREND_APP_TOKEN"] = "ghs_APP_WITHDRAW_TOKEN_ONLY"
+os.environ["AUTOMATION_TOKEN"] = "ghs_NORMAL_WITHDRAW_TOKEN_ONLY"
 posted.clear()
 with mock.patch.object(rs, "_api", side_effect=fake_api):
     st = rs.withdraw_sha(sha, reason, branch=branch)
@@ -75,7 +75,7 @@ assert st.state == "failure"
 assert any(p["method"] == "POST" for p in posted), posted
 for p in posted:
     if p["method"] == "POST":
-        assert p["token"] == "ghs_APP_WITHDRAW_TOKEN_ONLY", p
+        assert p["token"] == "ghs_NORMAL_WITHDRAW_TOKEN_ONLY", p
         assert p["body"]["state"] == "failure"
         assert p["body"]["context"] == rs.CONTEXT
 print("withdraw app-only ok")
@@ -151,7 +151,7 @@ for line in (r.stdout or "").splitlines():
     except json.JSONDecodeError:
         continue
     assert payload.get("ok") is False
-    route = payload.get("appBackedRoute") or ""
+    route = payload.get("normalTokenRoute") or ""
     assert "-f action=withdraw" in route
     assert "linktrend-review-ready-publisher.yml" in route
     break
@@ -171,7 +171,9 @@ wf = (root / ".github/workflows/linktrend-review-ready-publisher.yml").read_text
 managed = (root / "core/github/managed-workflows/linktrend-review-ready-publisher.yml").read_text(
     encoding="utf-8"
 )
-assert wf == managed, "live workflow must match managed template"
+assert wf == managed.replace("__LINKTREND_RUNS_ON__", "ubuntu-latest"), (
+    "live workflow must match the rendered managed template"
+)
 for text in (wf, managed):
     assert "action:" in text
     assert "withdraw" in text
@@ -187,8 +189,10 @@ assert "readiness_status" in clear_src
 docs = (root / "core/github/REVIEW-READY.md").read_text(encoding="utf-8")
 assert "action=withdraw" in docs or "action: withdraw" in docs or "`withdraw`" in docs
 assert "clear-review-ready" in docs
-# Rollback must point at App-backed route, not imply ambient PAT works.
-assert "App" in docs and ("workflow_dispatch" in docs or "linktrend-review-ready-publisher" in docs)
+# Rollback must point at the normal-token route, not imply ambient PAT works.
+assert "normal-token" in docs and (
+    "workflow_dispatch" in docs or "linktrend-review-ready-publisher" in docs
+)
 print("static withdraw binding ok")
 PY
 pass "workflow/docs bind clear/rollback withdraw to App-backed route"

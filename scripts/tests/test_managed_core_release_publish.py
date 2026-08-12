@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for App-backed managed-core release publisher helpers (WP-01B).
+"""Unit tests for normal-token managed-core release publisher helpers.
 
 Does not mint tokens, create tags, or mutate GitHub.
 """
@@ -23,40 +23,41 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from gitops import managed_core_release_publish as pub  # noqa: E402
 
 
-class RequireAppTokenTests(unittest.TestCase):
-    def test_requires_github_app_source(self) -> None:
+class RequireAutomationTokenTests(unittest.TestCase):
+    def test_requires_normal_token_source(self) -> None:
         with mock.patch.dict(os.environ, {"AUTOMATION_TOKEN_SOURCE": "pat", "AUTOMATION_TOKEN": "x"}, clear=False):
             with self.assertRaises(pub.ReleasePublishError) as ctx:
-                pub.require_app_token(token="x", token_source="pat")
+                pub.require_automation_token(token="x", token_source="pat")
             self.assertEqual(ctx.exception.code, "automation_credentials_blocked")
 
     def test_refuses_missing_token(self) -> None:
         with self.assertRaises(pub.ReleasePublishError) as ctx:
-            pub.require_app_token(token="", token_source="github_app")
+            pub.require_automation_token(token="", token_source="github_token")
         self.assertEqual(ctx.exception.code, "automation_credentials_blocked")
 
-    def test_refuses_personal_token_prefix(self) -> None:
-        with self.assertRaises(pub.ReleasePublishError) as ctx:
-            pub.require_app_token(token="ghp_not_a_real_token", token_source="github_app")
-        self.assertEqual(ctx.exception.code, "personal_token_forbidden")
+    def test_accepts_repository_automation_pat_shape(self) -> None:
+        token = pub.require_automation_token(
+            token="ghp_repository_automation_token",
+            token_source="github_token",
+        )
+        self.assertEqual(token, "ghp_repository_automation_token")
 
-    def test_refuses_banned_env(self) -> None:
+    def test_uses_only_named_automation_token(self) -> None:
         env = {
-            "AUTOMATION_TOKEN_SOURCE": "github_app",
-            "AUTOMATION_TOKEN": "ghs_app_installation_token_shape",
+            "AUTOMATION_TOKEN_SOURCE": "github_token",
+            "AUTOMATION_TOKEN": "ghs_normal_automation_token_shape",
             "LINKTREND_BUGBOT_USER_TOKEN": "should-not-be-present",
         }
         with mock.patch.dict(os.environ, env, clear=False):
-            with self.assertRaises(pub.ReleasePublishError) as ctx:
-                pub.require_app_token()
-            self.assertEqual(ctx.exception.code, "personal_token_forbidden")
+            token = pub.require_automation_token()
+        self.assertEqual(token, "ghs_normal_automation_token_shape")
 
-    def test_accepts_app_token(self) -> None:
-        token = pub.require_app_token(
-            token="ghs_app_installation_token_shape",
-            token_source="github_app",
+    def test_accepts_normal_token(self) -> None:
+        token = pub.require_automation_token(
+            token="ghs_normal_automation_token_shape",
+            token_source="github_token",
         )
-        self.assertEqual(token, "ghs_app_installation_token_shape")
+        self.assertEqual(token, "ghs_normal_automation_token_shape")
 
 
 class ResolveTagObjectShaUrlTests(unittest.TestCase):

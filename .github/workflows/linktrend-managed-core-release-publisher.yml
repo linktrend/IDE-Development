@@ -9,7 +9,7 @@
 # tip code with write credentials.
 #
 # Identity: normal GitHub automation installation token only. No human / PAT / GITHUB_TOKEN
-# fallback. Fail closed when App mint/resolve fails, when source SHA does not
+# fallback. Fail closed when normal-token resolution fails, when source SHA does not
 # equal the default-branch tip, or on tag/release/checksum conflict/replay.
 #
 # Trigger: workflow_dispatch. dry_run / action=verify-only validate and rebuild
