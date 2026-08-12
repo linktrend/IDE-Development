@@ -34,7 +34,7 @@ Claude Code is **excluded** — not a supported platform and not packaged as an 
 1. Clean git worktree on the Work Packet 1 issue branch (or the exact checkpoint SHA under test).
 2. Python 3 available (`python3`).
 3. Installer entrypoint present: `scripts/ide-development.py`.
-4. Package identity consistent: root `VERSION`, `core/managed-core/VERSION`, and `MANIFEST.json` `packageVersion` (target **2.1.2** / `v2.1.2`).
+4. Package identity consistent: root `VERSION`, `core/managed-core/VERSION`, and `MANIFEST.json` `packageVersion` (target **2.1.3** / `v2.1.3`).
 5. Required acceptance evidence for this SHA exists or will be attached (see acceptance matrix). Do **not** claim production readiness when a required platform gate is skipped, neutral, or untested.
 
 ---
@@ -94,16 +94,16 @@ Outputs stay under an ignored build/artifact directory — **never** a GitHub ta
 
 ---
 
-## Immutable publication (WP-01B — App-backed publisher)
+## Immutable publication (WP-01B — normal-token Mac Mini publisher)
 
-Tag and GitHub Release creation for managed-core **v2.1.2** is owned by the system-repository workflow `.github/workflows/linktrend-managed-core-release-publisher.yml` (not consumer-synced).
+Tag and GitHub Release creation for managed-core **v2.1.3** is owned by the system-repository workflow `.github/workflows/linktrend-managed-core-release-publisher.yml` (not consumer-synced).
 
 Hard rules:
 
 - Workflow YAML and publish helpers execute from the protected **default branch (`main`)** only.
 - Requested `source_sha` must equal the remote `main` tip; the SHA is checked out as **data only**.
 - Archives are **rebuilt and verified** from that source before any tag/Release mutation.
-- Privileged identity is the repository **GitHub App installation token only** — no personal-token / `GITHUB_TOKEN` fallback.
+- Privileged identity is the repository's configured **normal automation token** on the Mac Mini — no workflow `GITHUB_TOKEN` fallback.
 - Tag/release/checksum conflicts and publication replays **fail closed**.
 - Operators may use `dry_run=true` or `action=verify-only` to rebuild/verify without creating a tag or Release.
 
@@ -114,7 +114,7 @@ Helpers:
 - Evidence schema: `core/managed-core/schemas/managed-core-release.schema.json`
 - Contract tests: `scripts/tests/test-managed-core-release-publisher.sh`
 
-This implementer path does **not** trigger live publication. Live tag/Release follows the governed PR + promotion sequence, then an authorized App-backed dispatch.
+This implementer path does **not** trigger live publication. Live tag/Release follows the governed PR + promotion sequence, then an authorized normal-token Mac Mini publication.
 
 ---
 
