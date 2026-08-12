@@ -521,6 +521,8 @@ def run_hook(args: list[str], env: dict[str, str]) -> str:
 
 disc_mod._LIST_BRANCHES_HOOK = list_branches_hook
 disc_mod._RUN_HOOK = run_hook
+original_fetch_issue_pr_exception = disc_mod.fetch_issue_pr_exception
+disc_mod.fetch_issue_pr_exception = lambda token, repo, sha: None
 cwd = Path.cwd()
 tmpdir = Path(tempfile.mkdtemp(prefix="packager-discover-cwd-"))
 os.chdir(tmpdir)
@@ -542,6 +544,7 @@ finally:
     os.chdir(cwd)
     disc_mod._LIST_BRANCHES_HOOK = None
     disc_mod._RUN_HOOK = None
+    disc_mod.fetch_issue_pr_exception = original_fetch_issue_pr_exception
 
 # Withdrawal on the tip must make discover skip (no success status).
 rs.withdraw_sha(READY_SHA, "publisher_withdrawn")
