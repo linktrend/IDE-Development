@@ -22,6 +22,11 @@ test('real path containment rejects an intermediate symlink escape', () => {
   assert.equal(realPathInside('/consumer', '/consumer/link/bundle', canonicalize), false)
 })
 
+test('real path containment fails closed when canonicalization fails', () => {
+  const canonicalize = () => { throw Object.assign(new Error('missing path'), { code: 'ENOENT' }) }
+  assert.equal(realPathInside('/consumer', '/consumer/missing', canonicalize), false)
+})
+
 function git(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 }

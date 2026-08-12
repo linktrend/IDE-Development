@@ -264,7 +264,11 @@ export function pathInside(root, path, pathApi = { isAbsolute, relative, resolve
 }
 
 export function realPathInside(root, path, canonicalize = realpathSync) {
-  return pathInside(canonicalize(root), canonicalize(path))
+  try {
+    return pathInside(canonicalize(root), canonicalize(path))
+  } catch {
+    return false
+  }
 }
 
 function parseVersion(value, { partial = false } = {}) {
