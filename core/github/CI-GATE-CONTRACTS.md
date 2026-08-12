@@ -98,7 +98,7 @@ When syncing managed workflows into a consumer:
 3. **`workflow_run.workflows` is STATIC YAML** and cannot be driven by repository variables. For each consumer, substitute or generate the managed workflow so the list contains **every** GitHub Actions workflow **display name** that produces a configured named gate check. IDE Development lists `CI` and `Branch Source Policy`.
 4. Document the mapping in the consumer’s `docs/` or workflow comments.
 5. Never invent “wait for all checks” as a shortcut.
-6. Configure the GitHub App credential contract (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`) before claiming autonomy. Mint and consume the App token in the **same job**; never via job outputs.
+6. Configure the normal-token credential contract (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`) before claiming autonomy. Resolve and consume the normal automation token in the **same trusted job**; never via job outputs.
 7. Do **not** roll out until this corrected system is on the default branch, smoke-tested, and Bugbot `manualTriggerOnly` is confirmed.
 
 Optional / informational checks that must **not** block `fast-gate`:
