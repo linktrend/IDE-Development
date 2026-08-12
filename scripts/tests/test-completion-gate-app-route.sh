@@ -64,7 +64,7 @@ with mock.patch.object(rs, "_api", side_effect=fake_api):
         raise SystemExit("expected publish to fail closed without App token")
     except RuntimeError as exc:
         msg = str(exc)
-        assert "privileged_publish_requires_github_app" in msg, msg
+        assert "privileged_publish_requires_github_token" in msg, msg
         assert "no GH_TOKEN/GITHUB_TOKEN fallback" in msg, msg
         assert "linktrend-review-ready-publisher.yml" in msg, msg
         assert "issue/44-add-app-backed-review-ready-publisher-and-produc" in msg, msg
@@ -166,7 +166,7 @@ import readiness_status as rs
 
 # Direct helper: missing App token message includes route for this branch/sha.
 err = rs.missing_app_publish_token_error(branch=branch, sha=sha)
-assert "privileged_publish_requires_github_app" in err
+assert "privileged_publish_requires_github_token" in err
 assert "linktrend-review-ready-publisher.yml" in err
 assert branch in err and sha in err
 
@@ -184,7 +184,7 @@ try:
 finally:
     rs.mark_sha = orig  # type: ignore
 assert ok is False
-assert "privileged_publish_requires_github_app" in detail
+assert "privileged_publish_requires_github_token" in detail
 assert "linktrend-review-ready-publisher.yml" in detail
 assert cg.app_backed_route(branch, sha) in detail or "gh workflow run" in detail
 
@@ -242,9 +242,9 @@ finally:
 assert code == cg.EXIT_FAILED
 payload = json.loads(out)
 assert payload.get("published") is False
-assert payload.get("appBackedRoute")
-assert "linktrend-review-ready-publisher.yml" in payload["appBackedRoute"]
-assert "privileged_publish_requires_github_app" in payload.get("error", "")
+assert payload.get("normalTokenRoute")
+assert "linktrend-review-ready-publisher.yml" in payload["normalTokenRoute"]
+assert "privileged_publish_requires_github_token" in payload.get("error", "")
 print("completion_gate diagnostics ok")
 PY
 pass "completion_gate fail-closed diagnostics include exact App-backed route"
@@ -289,7 +289,7 @@ err = rs.missing_app_publish_token_error(
     branch="feature/44-legacy-allowed",
     sha="dddddddddddddddddddddddddddddddddddddddd",
 )
-assert "privileged_publish_requires_github_app" in err
+assert "privileged_publish_requires_github_token" in err
 assert "feature/44-legacy-allowed" in err
 assert "create_issue_branch.py" in err or "agentcomply" in err
 assert "-f branch=feature/44-legacy-allowed" not in err
@@ -351,7 +351,7 @@ payload = json.loads(out)
 assert code in (cg.EXIT_INCOMPLETE, cg.EXIT_FAILED), (code, payload)
 assert payload.get("published") is False
 # Must not advertise a doomed App route for feature/*.
-route_field = payload.get("appBackedRoute")
+route_field = payload.get("normalTokenRoute")
 if route_field:
     assert f"branch={branch}" not in route_field, route_field
     assert "feature/" not in route_field, route_field
@@ -497,20 +497,20 @@ try:
     payload = cg._review_ready_publish_failure_payload(
         sha=sha,
         branch=branch,
-        error="privileged_publish_requires_github_app: missing",
+        error="privileged_publish_requires_github_token: missing",
         workdir=repo,
     )
-    assert payload.get("appBackedRoute")
-    assert f"-f branch={branch}" in payload["appBackedRoute"]
+    assert payload.get("normalTokenRoute")
+    assert f"-f branch={branch}" in payload["normalTokenRoute"]
     assert "remediation" not in payload
 
     # Without workdir from alien cwd, custom tip is not App-eligible.
     bare = cg._review_ready_publish_failure_payload(
         sha=sha,
         branch=branch,
-        error="privileged_publish_requires_github_app: missing",
+        error="privileged_publish_requires_github_token: missing",
     )
-    assert "appBackedRoute" not in bare
+    assert "normalTokenRoute" not in bare
     assert bare.get("remediation")
 
     # readiness_status CLI mark error: eligibility uses --workdir config.
@@ -541,8 +541,8 @@ try:
     assert r.returncode == 78, (r.returncode, r.stdout, r.stderr)
     cli_payload = json.loads(r.stdout)
     assert cli_payload.get("ok") is False
-    assert cli_payload.get("appBackedRoute"), cli_payload
-    assert f"-f branch={branch}" in cli_payload["appBackedRoute"]
+    assert cli_payload.get("normalTokenRoute"), cli_payload
+    assert f"-f branch={branch}" in cli_payload["normalTokenRoute"]
     assert "remediation" not in cli_payload
 
     # Same CLI without --workdir from alien cwd → migration, not doomed route.
@@ -563,7 +563,7 @@ try:
     )
     assert r2.returncode == 78, (r2.returncode, r2.stdout, r2.stderr)
     bare_cli = json.loads(r2.stdout)
-    assert "appBackedRoute" not in bare_cli, bare_cli
+    assert "normalTokenRoute" not in bare_cli, bare_cli
     assert bare_cli.get("remediation"), bare_cli
 finally:
     os.chdir(prev)

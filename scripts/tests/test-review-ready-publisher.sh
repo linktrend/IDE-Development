@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Adversarial + static proofs for App-backed Review Ready publisher (Issue #44 Wave 2).
+# Adversarial + static proofs for the normal-token Review Ready publisher.
 # Ownership: this script + scripts/tests/fixtures/review-ready-publisher/**
 # Does not mutate GitHub. Does not edit production workflow/scripts/docs.
 set -euo pipefail
@@ -69,20 +69,13 @@ for raw in Path(sys.argv[3]).read_text(encoding="utf-8").splitlines():
     else:
         raise SystemExit(f"unknown pattern kind: {kind}")
 
-if "create-github-app-token" not in prod:
-    raise SystemExit("missing create-github-app-token mint step")
-
-for i, ln in enumerate(prod.splitlines(), 1):
-    if "LINKTREND_GITOPS_APP_PRIVATE_KEY" not in ln:
-        continue
-    stripped = ln.strip()
-    if stripped.startswith("#"):
-        continue
-    if "private-key:" in ln:
-        continue
-    raise SystemExit(
-        f"private key appears outside mint private-key input at line {i}: {stripped}"
-    )
+for banned_app_marker in (
+    "create-github-app-token",
+    "LINKTREND_GITOPS_APP_ID",
+    "LINKTREND_GITOPS_APP_PRIVATE_KEY",
+):
+    if banned_app_marker in prod:
+        raise SystemExit(f"obsolete GitHub App dependency present: {banned_app_marker}")
 
 for banned in (
     "LINKTREND_BUGBOT_USER_TOKEN",
@@ -352,7 +345,7 @@ print("ok")
 PY
 pass "Dispatch validator has no token leakage / human fallback references"
 
-# ---- 8) Fixture contract matches readiness_status App-backed route ----
+# ---- 8) Fixture contract matches readiness_status normal-token route ----
 python3 - <<'PY' "$ROOT" "$CONTRACT"
 import json
 import sys
@@ -386,6 +379,6 @@ assert "withdrawRoute" in contract
 assert "-f action=withdraw" in contract["withdrawRoute"]
 print("ok")
 PY
-pass "Fixture contract matches readiness_status App-backed route"
+pass "Fixture contract matches readiness_status normal-token route"
 
 echo "PASS: review-ready publisher adversarial/static suite"
