@@ -1,6 +1,6 @@
 # IDE Development
 
-IDE Development is LiNKtrend’s shared, human-assisted Application Factory operating system — version **v2.1.8**. It installs a portable managed core into product repositories as committed physical files (`.ide-development/` plus Cursor/Codex discovery adapters) so agents follow one doctrine, one six-Module pipeline, one hybrid skill surface, and fail-closed gates — with the Principal approving Intent and release, not day-to-day coding.
+IDE Development is LiNKtrend’s shared, human-assisted Application Factory operating system — version **v2.1.9**. It installs a portable managed core into product repositories as committed physical files (`.ide-development/` plus Cursor/Codex discovery adapters) so agents follow one doctrine, one six-Module pipeline, one hybrid skill surface, and fail-closed gates — with the Principal approving Intent and release, not day-to-day coding.
 
 It is distinct from **LiNKdeveloper**, the separate VPS-hosted autonomous application-factory Program. LiNKdeveloper may be *authored* using this system’s guidance, but it does not depend on this repo at runtime.
 
@@ -109,7 +109,7 @@ WP1 production-readiness proof required **macOS, Ubuntu Linux, and Windows** mat
 
 ## Status
 
-**Version `v2.1.8`.** Identified in `VERSION`. This patch release makes managed Library path containment fail closed for Windows cross-drive paths while retaining the normal-token Mac Mini runner and the v2.1.7 migration cleanup. Version identity still does **not** by itself create a Git tag or GitHub Release. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
+**Version `v2.1.9`.** Identified in `VERSION`. This patch release resolves real filesystem paths before managed Library containment checks, closing both intermediate-symlink and Windows cross-drive escapes. Version identity still does **not** by itself create a Git tag or GitHub Release. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
 
 Automated Stage 1 / system verification: `scripts/verify-ide-development.sh`. Portable v2 integration harness: `tests/test-portable-v2-integration.sh`.
 
