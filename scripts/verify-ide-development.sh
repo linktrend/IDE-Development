@@ -238,6 +238,12 @@ else
 fi
 pass "No active absolute hybrid sibling paths"
 
+# --- Managed-core package hashes and doctrine sync ---
+if ! env PYTHONPATH=scripts python3 -m ide_development.build_manifest --verify; then
+  fail "Managed-core manifest or doctrine is stale; regenerate before release"
+fi
+pass "Managed-core manifest hashes and doctrine sync"
+
 # --- Vendored skill hashes ---
 if [ -x "scripts/verify-vendored-skills.sh" ]; then
   bash scripts/verify-vendored-skills.sh || fail "verify-vendored-skills.sh failed"
