@@ -1,9 +1,11 @@
 ---
-description: LiNKtrend GitOps bootstrap for managed consumer repos (Ship/Packager/completion/repair).
+description: LiNKtrend managed bootstrap for installed consumer repos (Ship/Packager/completion/repair).
 alwaysApply: true
 ---
 
-# LiNKtrend GitOps bootstrap (managed)
+# LiNKtrend managed bootstrap (v2)
+
+Installed managed core: `.ide-development/`.
 
 ## Ship checkpoint
 
