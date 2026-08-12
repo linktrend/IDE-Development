@@ -101,7 +101,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr }}
           HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
-          REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development,Enforce allowed PR source branches' }}
+          REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || format('{0},Enforce allowed PR source branches', vars.LINKTREND_FAST_CI_CHECK || 'Verify IDE Development') }}
           BUGBOT_SUCCESS_CHECK_NAME: __LINKTREND_BUGBOT_CHECK_NAME__
           GATE_WAIT_SECONDS: "120"
           GATE_POLL_SECONDS: "15"

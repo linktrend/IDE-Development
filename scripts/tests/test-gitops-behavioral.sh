@@ -2317,7 +2317,7 @@ try:
         assert rc == 0, err
         payload = json.loads(out.read_text())
         assert payload["status"] == "automation_credentials_blocked"
-        assert "skipping check-run" in err
+        assert "skipping commit-status" in err
         assert "no ambient" in err
         assert calls == [], f"unexpected API calls: {calls}"
 
@@ -2486,6 +2486,20 @@ for script in (
 # App-success path still posts checks via AUTOMATION_TOKEN (unit of write_outcome)
 posted = []
 
+expected_states = {
+    "merged": "success",
+    "bugbot_requested": "success",
+    "packaged": "success",
+    "waiting": "pending",
+    "skipped": "error",
+    "blocked": "error",
+    "failed": "failure",
+    "automation_credentials_blocked": "failure",
+    "bugbot_user_credentials_blocked": "failure",
+}
+for status, expected in expected_states.items():
+    assert wo.commit_status_state(status) == expected, (status, expected)
+
 def capture_run(cmd, **kwargs):
     posted.append({"cmd": cmd, "env": dict(kwargs.get("env") or {})})
     class R:
@@ -2529,7 +2543,7 @@ try:
     assert len(posted) == 1
     assert posted[0]["env"]["GH_TOKEN"] == "ghs_APP_SUCCESS_TOKEN"
     assert posted[0]["env"]["GITHUB_TOKEN"] == "ghs_APP_SUCCESS_TOKEN"
-    assert "check-runs" in " ".join(str(x) for x in posted[0]["cmd"])
+    assert "statuses/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" in " ".join(str(x) for x in posted[0]["cmd"])
 finally:
     wo.subprocess.run = orig
     os.environ.pop("AUTOMATION_TOKEN", None)
