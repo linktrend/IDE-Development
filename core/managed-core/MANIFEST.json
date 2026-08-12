@@ -2270,7 +2270,7 @@
       "id": "gitops-scripts-gitops-completion-gate-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/completion_gate.py",
-      "sourceHash": "sha256:73ca41fe9dd9d8b91169a96a5a41e506eb8ebc8f1e293da24e69142729b48171",
+      "sourceHash": "sha256:9e3088a444b5851a7e0f6b3bffe45670a7e32b679d1241abdc879bffa024d00e",
       "destination": "scripts/gitops/completion_gate.py",
       "mode": "0755",
       "platform": "github",

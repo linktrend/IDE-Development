@@ -478,6 +478,20 @@ done
 git -C "$WT" remote set-url origin "https://github.com/fixture/from-origin.git"
 pass "blocked rejects non-GitHub and ambiguous origin remotes"
 
+git -C "$WT" remote set-url origin "org-123@github.com:fixture/from-origin.git"
+python3 "$ROOT/scripts/gitops/completion_gate.py" blocked \
+  --workdir "$WT" \
+  --reason "accept GitHub certificate-authority SSH origin" >/tmp/blocked-ca-origin.out 2>/tmp/blocked-ca-origin.err || true
+python3 - <<'PY'
+import json
+d=json.load(open("/tmp/blocked-ca-origin.out"))
+assert d.get("durableRecord") is True, d
+assert d.get("repository") == "fixture/from-origin", d
+assert d.get("repositorySource") == "origin_remote", d
+PY
+git -C "$WT" remote set-url origin "https://github.com/fixture/from-origin.git"
+pass "blocked accepts exact GitHub certificate-authority SSH origin"
+
 # Ambiguous origin+upstream → local cache only
 git -C "$WT" remote add upstream "https://github.com/other/upstream.git"
 export LINKTREND_REPAIR_DIR="$TMP/repair-blocked-ambiguous"
