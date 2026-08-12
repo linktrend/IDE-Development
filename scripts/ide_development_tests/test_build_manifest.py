@@ -41,9 +41,9 @@ class BuildManifestPackagingTests(unittest.TestCase):
         path = bm.MANIFEST_PATH
         self.assertTrue(path.is_file())
         data = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(data.get("packageVersion"), "2.1.6")
+        self.assertEqual(data.get("packageVersion"), "2.1.7")
         managed = bm.VERSION_PATH.read_text(encoding="utf-8").strip().lstrip("v")
-        self.assertEqual(managed, "2.1.6")
+        self.assertEqual(managed, "2.1.7")
 
     def test_required_cursor_materialization_sources_are_packaged(self) -> None:
         manifest = bm.build_manifest_object()
@@ -66,6 +66,29 @@ class BuildManifestPackagingTests(unittest.TestCase):
                 missing_cursor.append(cursor_destination)
         self.assertEqual(missing, [])
         self.assertEqual(missing_cursor, [])
+
+    def test_library_vendor_rename_has_exact_removal_migrations(self) -> None:
+        catalog = json.loads(
+            (bm.MANAGED / "migrations" / "catalog.json").read_text(encoding="utf-8")
+        )
+        removals = {
+            row["path"]: row["contentHash"]
+            for row in catalog["entries"]
+            if row.get("action") == "remove"
+        }
+        hashes = {
+            "NOTICE.md": "sha256:8bb0aa96c38ee65660037f50f4768f08861bc00665fe3efd284aea5ca57f4b0e",
+            "spdx-exceptions.json": "sha256:05079063787565a9c14278d09144df3430cd353aab5c2db2a372b9230cf04594",
+            "spdx-expression-validate.mjs": "sha256:b159caceed95671aacfa6adb939856cd9df800b327cf01590f0f439b73075d9c",
+            "spdx-license-ids-deprecated.json": "sha256:58657e9b38a85b4ab2ea56115738590ee06d28c87667efaa5b83737657d43094",
+            "spdx-license-ids.json": "sha256:01229f894127ed2c09222de370817e7128340d89fc10a521f0d309dd89647873",
+        }
+        expected = {
+            f"{root}/library/vendor/{name}": digest
+            for root in (".cursor", ".ide-development")
+            for name, digest in hashes.items()
+        }
+        self.assertEqual({path: removals.get(path) for path in expected}, expected)
 
 
 if __name__ == "__main__":
