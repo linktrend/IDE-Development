@@ -2,15 +2,20 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, win32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { LibraryClient, LibraryClientError } from '../library-client.mjs'
+import { LibraryClient, LibraryClientError, pathInside } from '../library-client.mjs'
 import { validSpdxExpression } from '../dependencies/spdx-expression-validate.mjs'
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex')
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`
+
+test('path containment rejects Windows cross-drive paths', () => {
+  assert.equal(pathInside('C:\\consumer', 'C:\\consumer\\bundle', win32), true)
+  assert.equal(pathInside('C:\\consumer', 'D:\\bundle', win32), false)
+})
 
 function git(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()

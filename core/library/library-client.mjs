@@ -20,7 +20,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join, relative, resolve, sep } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { validSpdxExpression } from './dependencies/spdx-expression-validate.mjs'
 
@@ -255,11 +255,11 @@ function safeRelativePath(value) {
   return value.split('/').every((part) => part.length > 0 && part !== '.' && part !== '..')
 }
 
-function pathInside(root, path) {
-  const rootAbs = resolve(root)
-  const pathAbs = resolve(path)
-  const rel = relative(rootAbs, pathAbs)
-  return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !rel.startsWith(sep))
+export function pathInside(root, path, pathApi = { isAbsolute, relative, resolve, sep }) {
+  const rootAbs = pathApi.resolve(root)
+  const pathAbs = pathApi.resolve(path)
+  const rel = pathApi.relative(rootAbs, pathAbs)
+  return rel === '' || (!pathApi.isAbsolute(rel) && !rel.startsWith(`..${pathApi.sep}`) && rel !== '..')
 }
 
 function parseVersion(value, { partial = false } = {}) {
