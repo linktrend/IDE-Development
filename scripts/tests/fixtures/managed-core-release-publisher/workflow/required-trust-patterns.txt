@@ -6,9 +6,7 @@ must|source_sha
 must|dry_run
 must|github.event.repository.default_branch
 must|persist-credentials: false
-must|create-github-app-token
-must|LINKTREND_GITOPS_APP_ID
-must|LINKTREND_GITOPS_APP_PRIVATE_KEY
+must|LINKTREND_AUTOMATION_TOKEN
 must|resolve_automation_token
 must|automation_credentials_blocked
 must|managed_core_release_dispatch.py
@@ -24,3 +22,6 @@ must_not|LINKTREND_BUGBOT_USER_TOKEN
 must_not|BUGBOT_USER_TOKEN
 must_not|github_pat_
 must_not|ghp_
+must_not|create-github-app-token
+must_not|LINKTREND_GITOPS_APP_ID
+must_not|LINKTREND_GITOPS_APP_PRIVATE_KEY
