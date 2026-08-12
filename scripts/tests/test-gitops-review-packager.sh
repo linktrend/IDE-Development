@@ -411,14 +411,14 @@ status_dir = Path(tempfile.mkdtemp(prefix="packager-exact-sha-"))
 os.environ["LINKTREND_STATUS_BACKEND"] = "file"
 os.environ["LINKTREND_STATUS_DIR"] = str(status_dir)
 
-# App-publisher-shaped success on immutable tip (same context + success state).
+# Normal-token publisher success on immutable tip (same context + success state).
 READY_SHA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 OTHER_SHA = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 DRIFT_SHA = "cccccccccccccccccccccccccccccccccccccccc"
 BRANCH = "issue/44-add-app-backed-review-ready-publisher-and-produc"
 
 # Simulate normal-token publisher: post success for CONTEXT on exact SHA only.
-rs.mark_sha(READY_SHA, "44", "app_backed_publish")
+rs.mark_sha(READY_SHA, "44", "normal_token_publish")
 ok, detail = rs.is_sha_review_ready(READY_SHA)
 assert ok and "issue=44" in detail, (ok, detail)
 ok_other, detail_other = rs.is_sha_review_ready(OTHER_SHA)
@@ -550,7 +550,7 @@ assert not ok_w and detail_w.startswith("status_"), (ok_w, detail_w)
 
 # ---- Evaluate: exact head ready vs waiting / readiness_lost / stale event ----
 # Re-mark ready for evaluate success path.
-rs.mark_sha(READY_SHA, "44", "app_backed_publish")
+rs.mark_sha(READY_SHA, "44", "normal_token_publish")
 
 os.environ["FAST_GATE_CHECKS"] = "Verify IDE Development"
 os.environ["BUGBOT_REVIEW_COMMAND"] = "@cursor review"
@@ -608,7 +608,7 @@ finally:
     eval_mod._API_HOOK = None
 
 # Success path: App-published status on exact head → bugbot_requested
-rs.mark_sha(READY_SHA, "44", "app_backed_publish")
+rs.mark_sha(READY_SHA, "44", "normal_token_publish")
 api_calls.clear()
 eval_recorded.clear()
 eval_mod._RUN_HOOK = eval_run
@@ -677,8 +677,8 @@ finally:
     eval_mod._RUN_HOOK = None
     eval_mod._API_HOOK = None
 
-print("exact-SHA App-publisher packager compatibility ok")
+print("exact-SHA normal-token publisher packager compatibility ok")
 PY
-pass "Exact-SHA App-publisher compatibility (discover + evaluate)"
+pass "Exact-SHA normal-token publisher compatibility (discover + evaluate)"
 
 echo "PASS: gitops static redesign + trust-boundary checks"
