@@ -1,6 +1,6 @@
 # IDE Development
 
-IDE Development is LiNKtrend’s shared, human-assisted Application Factory operating system — version **v2.1.0**. It installs a portable managed core into product repositories as committed physical files (`.ide-development/` plus Cursor/Codex discovery adapters) so agents follow one doctrine, one six-Module pipeline, one hybrid skill surface, and fail-closed gates — with the Principal approving Intent and release, not day-to-day coding.
+IDE Development is LiNKtrend’s shared, human-assisted Application Factory operating system — version **v2.1.1**. It installs a portable managed core into product repositories as committed physical files (`.ide-development/` plus Cursor/Codex discovery adapters) so agents follow one doctrine, one six-Module pipeline, one hybrid skill surface, and fail-closed gates — with the Principal approving Intent and release, not day-to-day coding.
 
 It is distinct from **LiNKdeveloper**, the separate VPS-hosted autonomous application-factory Program. LiNKdeveloper may be *authored* using this system’s guidance, but it does not depend on this repo at runtime.
 
@@ -109,7 +109,7 @@ WP1 production-readiness proof required **macOS, Ubuntu Linux, and Windows** mat
 
 ## Status
 
-**Version `v2.1.0`.** Identified in `VERSION`. WP1 produced RC **archive** proof; the v2.1 phase-delivery release was promoted through PR #82 / #85 / #86. This still does **not** by itself create a Git tag or GitHub Release. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
+**Version `v2.1.1`.** Identified in `VERSION`. This patch release corrects Library-client cache recovery, compatibility context, OS constraints, and complete Cursor package materialization. Version identity still does **not** by itself create a Git tag or GitHub Release. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
 
 Automated Stage 1 / system verification: `scripts/verify-ide-development.sh`. Portable v2 integration harness: `tests/test-portable-v2-integration.sh`.
 
