@@ -43,7 +43,7 @@ concurrency:
 
 env:
   BUGBOT_REVIEW_COMMAND: ${{ vars.LINKTREND_BUGBOT_REVIEW_COMMAND || '@cursor review' }}
-  FAST_GATE_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || 'Verify IDE Development,Enforce allowed PR source branches' }}
+  FAST_GATE_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || format('{0},Enforce allowed PR source branches', vars.LINKTREND_FAST_CI_CHECK || 'Verify IDE Development') }}
 
 jobs:
   discover:
