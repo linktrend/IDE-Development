@@ -307,6 +307,27 @@ test('rejects contribution bundles that escape the declared consumer root', () =
   } finally { rmSync(authority.root, { recursive: true, force: true }); rmSync(consumer, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }) }
 })
 
+test('contribution CLI binds an explicit consumer root when launched elsewhere', () => {
+  const consumer = mkdtempSync(join(tmpdir(), 'linklibraries-contribution-cli-root-'))
+  const elsewhere = mkdtempSync(join(tmpdir(), 'linklibraries-contribution-cli-cwd-'))
+  const cache = mkdtempSync(join(tmpdir(), 'linklibraries-contribution-cli-cache-'))
+  const bundle = join(consumer, 'bundle')
+  try {
+    writeBundle(bundle, entry({ id: 'cli-contribution' }))
+    const script = fileURLToPath(new URL('../library-client.mjs', import.meta.url))
+    const output = execFileSync(process.execPath, [script, 'prepare-contribution', '--bundle', bundle, '--consumer-root', consumer], {
+      cwd: elsewhere,
+      encoding: 'utf8',
+      env: { ...process.env, LINKTREND_SHARED_LIBRARY_CHECKOUT: cache },
+    })
+    assert.equal(JSON.parse(output).entryId, 'cli-contribution')
+  } finally {
+    rmSync(consumer, { recursive: true, force: true })
+    rmSync(elsewhere, { recursive: true, force: true })
+    rmSync(cache, { recursive: true, force: true })
+  }
+})
+
 test('enforces exact, caret, tilde, comparator conjunction, malformed, and unsupported npm ranges', () => {
   const ranges = [
     entry({ id: 'range-exact', dependencyVersion: '20.2.3' }),
