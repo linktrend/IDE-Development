@@ -16,6 +16,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -260,6 +261,14 @@ export function pathInside(root, path, pathApi = { isAbsolute, relative, resolve
   const pathAbs = pathApi.resolve(path)
   const rel = pathApi.relative(rootAbs, pathAbs)
   return rel === '' || (!pathApi.isAbsolute(rel) && !rel.startsWith(`..${pathApi.sep}`) && rel !== '..')
+}
+
+export function realPathInside(root, path, canonicalize = realpathSync) {
+  try {
+    return pathInside(canonicalize(root), canonicalize(path))
+  } catch {
+    return false
+  }
 }
 
 function parseVersion(value, { partial = false } = {}) {
@@ -525,7 +534,7 @@ function listPayloadFiles(root) {
 }
 
 function verifyEntryPayload(entry, entryRoot, allowedRoot) {
-  if (!pathInside(allowedRoot, entryRoot)) fail('path_escape', 'entry root escapes its allowed cache or contribution root')
+  if (!realPathInside(allowedRoot, entryRoot)) fail('path_escape', 'entry root escapes its allowed cache or contribution root')
   const actual = listPayloadFiles(entryRoot)
   const declared = new Map(entry.files.map((file) => [file.path, file.sha256]))
   for (const file of actual) {
@@ -768,7 +777,7 @@ export class LibraryClient {
   prepareContribution(bundlePath) {
     const abs = resolve(bundlePath)
     const entryPath = join(abs, 'entry.json')
-    if (!pathInside(this.consumerRoot, abs) || !existsSync(entryPath) || !lstatSync(abs).isDirectory() || lstatSync(entryPath).isSymbolicLink()) fail('invalid_contribution', 'Contribution bundle must be a real directory inside the consumer root and contain a regular entry.json')
+    if (!existsSync(entryPath) || !lstatSync(abs).isDirectory() || lstatSync(entryPath).isSymbolicLink() || !realPathInside(this.consumerRoot, abs)) fail('invalid_contribution', 'Contribution bundle must be a real directory inside the consumer root and contain a regular entry.json')
     const entry = readJson(entryPath, 'contribution entry')
     validateEntryDocument(entry, 'contribution entry')
     return { bundlePath: abs, entryId: entry.entryId }
