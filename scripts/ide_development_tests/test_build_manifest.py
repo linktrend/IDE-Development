@@ -54,13 +54,18 @@ class BuildManifestPackagingTests(unittest.TestCase):
             )
         )
         missing = []
+        missing_cursor = []
         for row in materialization["entries"]:
             if not row.get("required"):
                 continue
             package_source = f'.ide-development/{row["source"]}'
             if package_source not in destinations:
                 missing.append(package_source)
+            cursor_destination = row["destination"]
+            if cursor_destination not in destinations:
+                missing_cursor.append(cursor_destination)
         self.assertEqual(missing, [])
+        self.assertEqual(missing_cursor, [])
 
 
 if __name__ == "__main__":
