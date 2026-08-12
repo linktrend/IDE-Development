@@ -2317,7 +2317,7 @@ try:
         assert rc == 0, err
         payload = json.loads(out.read_text())
         assert payload["status"] == "automation_credentials_blocked"
-        assert "skipping check-run" in err
+        assert "skipping commit-status" in err
         assert "no ambient" in err
         assert calls == [], f"unexpected API calls: {calls}"
 
@@ -2529,7 +2529,7 @@ try:
     assert len(posted) == 1
     assert posted[0]["env"]["GH_TOKEN"] == "ghs_APP_SUCCESS_TOKEN"
     assert posted[0]["env"]["GITHUB_TOKEN"] == "ghs_APP_SUCCESS_TOKEN"
-    assert "check-runs" in " ".join(str(x) for x in posted[0]["cmd"])
+    assert "statuses/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" in " ".join(str(x) for x in posted[0]["cmd"])
 finally:
     wo.subprocess.run = orig
     os.environ.pop("AUTOMATION_TOKEN", None)

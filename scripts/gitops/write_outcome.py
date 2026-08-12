@@ -46,34 +46,34 @@ def post_check_run(
     repo: str,
     token: str,
 ) -> None:
+    """Publish the outcome as a normal GitHub commit status.
+
+    Keep the historical function name for callers, but deliberately avoid the
+    Checks API: GitHub restricts creating check runs to GitHub Apps. Commit
+    statuses support the same named gate contexts with the normal automation
+    token used by IDE Development.
+    """
     if not head_sha or not token or not repo:
         return
     env = scrub_carlos_token_env(os.environ)
     env["GH_TOKEN"] = token
     env["GITHUB_TOKEN"] = token
-    # Map outcome → check conclusion. success only for documented terminal successes.
-    conclusion = "neutral"
+    # Commit statuses support error|failure|pending|success (no neutral).
+    state = "pending"
     if status in {"merged", "bugbot_requested", "packaged"}:
-        conclusion = "success"
+        state = "success"
     elif status in {
         "failed",
         "automation_credentials_blocked",
         "bugbot_user_credentials_blocked",
     }:
-        conclusion = "failure"
-    elif status in {"blocked"}:
-        conclusion = "neutral"
-    elif status in {"waiting", "skipped"}:
-        conclusion = "neutral"
+        state = "failure"
+    elif status == "skipped":
+        state = "success"
     body = {
-        "name": name,
-        "head_sha": head_sha,
-        "status": "completed",
-        "conclusion": conclusion,
-        "output": {
-            "title": f"{name}: {status}",
-            "summary": detail[:65000],
-        },
+        "state": state,
+        "context": name,
+        "description": f"{status}: {detail}"[:140],
     }
     subprocess.run(
         [
@@ -81,7 +81,7 @@ def post_check_run(
             "api",
             "--method",
             "POST",
-            f"repos/{repo}/check-runs",
+            f"repos/{repo}/statuses/{head_sha}",
             "--input",
             "-",
         ],
@@ -120,7 +120,7 @@ def main() -> int:
     ap.add_argument(
         "--token-env",
         default="AUTOMATION_TOKEN",
-        help="Exact env var name whose non-empty value authorizes check-run posts",
+        help="Exact env var name whose non-empty value authorizes commit-status posts",
     )
     args = ap.parse_args()
     write_outcome(Path(args.file), args.status, args.detail)
@@ -129,7 +129,7 @@ def main() -> int:
         if not token:
             # Local outcome already written. Failed workflow / redacted warn only.
             print(
-                "WARN: skipping check-run post; "
+                "WARN: skipping commit-status post; "
                 f"--token-env={args.token_env} empty or unset "
                 "(no ambient GH_TOKEN/GITHUB_TOKEN fallback)",
                 file=sys.stderr,
