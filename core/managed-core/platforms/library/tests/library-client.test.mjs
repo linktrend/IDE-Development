@@ -318,7 +318,7 @@ test('contribution CLI binds an explicit consumer root when launched elsewhere',
     const output = execFileSync(process.execPath, [script, 'prepare-contribution', '--bundle', bundle, '--consumer-root', consumer], {
       cwd: elsewhere,
       encoding: 'utf8',
-      env: { ...process.env, LINKTREND_SHARED_LIBRARY_CACHE: cache },
+      env: { ...process.env, LINKTREND_SHARED_LIBRARY_CHECKOUT: cache },
     })
     assert.equal(JSON.parse(output).entryId, 'cli-contribution')
   } finally {

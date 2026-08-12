@@ -1437,7 +1437,7 @@
       "id": "library-package-tests-library-client-test-mjs",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/platforms/library/tests/library-client.test.mjs",
-      "sourceHash": "sha256:9e0bec5db9218fb3966568450e404941ef1e4265051aa6c2bdc4c738c86017b5",
+      "sourceHash": "sha256:92844efa59f70d42b7b9018230ceba6343099074afa083b190654ca17edcf926",
       "destination": ".ide-development/library/tests/library-client.test.mjs",
       "mode": "0644",
       "platform": "all",
