@@ -69,22 +69,13 @@ for raw in Path(sys.argv[3]).read_text(encoding="utf-8").splitlines():
     else:
         raise SystemExit(f"unknown pattern kind: {kind}")
 
-if "create-github-app-token" not in prod:
-    raise SystemExit("missing create-github-app-token mint step")
-if "fee1f7d63c2ff003460e3d139729b119787bc349" not in prod:
-    raise SystemExit("mint action pin missing/wrong")
-
-for i, ln in enumerate(prod.splitlines(), 1):
-    if "LINKTREND_GITOPS_APP_PRIVATE_KEY" not in ln:
-        continue
-    stripped = ln.strip()
-    if stripped.startswith("#"):
-        continue
-    if "private-key:" in ln:
-        continue
-    raise SystemExit(
-        f"private key appears outside mint private-key input at line {i}: {stripped}"
-    )
+for banned_app_marker in (
+    "create-github-app-token",
+    "LINKTREND_GITOPS_APP_ID",
+    "LINKTREND_GITOPS_APP_PRIVATE_KEY",
+):
+    if banned_app_marker in prod:
+        raise SystemExit(f"obsolete GitHub App dependency present: {banned_app_marker}")
 
 for banned in (
     "LINKTREND_BUGBOT_USER_TOKEN",
@@ -110,7 +101,7 @@ if "sync-managed-workflows.sh" in prod and "Not synced" not in prod.split("\n", 
 
 print("ok")
 PY
-pass "Production workflow enforces trusted default-branch + App-only mint"
+pass "Production workflow enforces trusted default-branch + normal-token publication"
 
 # ---- 3) Must not be consumer-synced ----
 if grep -q 'linktrend-managed-core-release-publisher.yml' scripts/sync-managed-workflows.sh; then
