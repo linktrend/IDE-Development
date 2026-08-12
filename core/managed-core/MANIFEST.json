@@ -2611,7 +2611,7 @@
       "id": "gitops-scripts-gitops-write-outcome-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/write_outcome.py",
-      "sourceHash": "sha256:b4894639c96c9862a07b24885e138fe53e23e647a45f944ee41f3739141df995",
+      "sourceHash": "sha256:1416a1b858d6a0868c6e1fd824b28607bd08f1cb5b0ae4c102240d1ad5b169b8",
       "destination": "scripts/gitops/write_outcome.py",
       "mode": "0755",
       "platform": "github",

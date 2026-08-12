@@ -2486,6 +2486,20 @@ for script in (
 # App-success path still posts checks via AUTOMATION_TOKEN (unit of write_outcome)
 posted = []
 
+expected_states = {
+    "merged": "success",
+    "bugbot_requested": "success",
+    "packaged": "success",
+    "waiting": "pending",
+    "skipped": "error",
+    "blocked": "error",
+    "failed": "failure",
+    "automation_credentials_blocked": "failure",
+    "bugbot_user_credentials_blocked": "failure",
+}
+for status, expected in expected_states.items():
+    assert wo.commit_status_state(status) == expected, (status, expected)
+
 def capture_run(cmd, **kwargs):
     posted.append({"cmd": cmd, "env": dict(kwargs.get("env") or {})})
     class R:

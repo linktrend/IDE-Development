@@ -37,6 +37,17 @@ def write_outcome(path: Path, status: str, detail: str, **extra: Any) -> dict[st
     return payload
 
 
+def commit_status_state(status: str) -> str:
+    """Map an internal outcome to an honest terminal GitHub commit status."""
+    if status in {"merged", "bugbot_requested", "packaged"}:
+        return "success"
+    if status == "waiting":
+        return "pending"
+    if status in {"skipped", "blocked"}:
+        return "error"
+    return "failure"
+
+
 def post_check_run(
     *,
     name: str,
@@ -58,18 +69,10 @@ def post_check_run(
     env = scrub_carlos_token_env(os.environ)
     env["GH_TOKEN"] = token
     env["GITHUB_TOKEN"] = token
-    # Commit statuses support error|failure|pending|success (no neutral).
-    state = "pending"
-    if status in {"merged", "bugbot_requested", "packaged"}:
-        state = "success"
-    elif status in {
-        "failed",
-        "automation_credentials_blocked",
-        "bugbot_user_credentials_blocked",
-    }:
-        state = "failure"
-    elif status == "skipped":
-        state = "success"
+    # A skipped or blocked operation is terminal but not successful. Publishing
+    # either as success would create false gate evidence; leaving either pending
+    # would keep the combined status yellow forever.
+    state = commit_status_state(status)
     body = {
         "state": state,
         "context": name,
