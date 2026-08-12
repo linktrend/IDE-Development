@@ -451,6 +451,33 @@ assert d.get("repositorySource") == "origin_remote", d
 PY
 pass "blocked resolves sanitized origin remote; credentials never printed"
 
+# Non-GitHub SCP hosts and ambiguous path segments must never resolve to a
+# durable GitHub repository target.
+for bad_origin in \
+  "git@evil.example:fixture/from-origin.git" \
+  "git@evil-github.com:fixture/from-origin.git" \
+  "https://evil-github.com/fixture/from-origin.git" \
+  "git@github.com:fixture/../from-origin.git" \
+  "git@github.com:fixture/from%20origin.git"; do
+  git -C "$WT" remote set-url origin "$bad_origin"
+  set +e
+  python3 "$ROOT/scripts/gitops/completion_gate.py" blocked \
+    --workdir "$WT" \
+    --reason "reject unsafe origin" >/tmp/blocked-unsafe-origin.out 2>/tmp/blocked-unsafe-origin.err
+  bec=$?
+  set -e
+  [ "$bec" -eq 2 ] || fail "unsafe-origin blocked expected exit 2"
+  python3 - <<'PY'
+import json
+d=json.load(open("/tmp/blocked-unsafe-origin.out"))
+assert d.get("durableRecord") is False, d
+assert d.get("localCacheOnly") is True, d
+assert not d.get("repository"), d
+PY
+done
+git -C "$WT" remote set-url origin "https://github.com/fixture/from-origin.git"
+pass "blocked rejects non-GitHub and ambiguous origin remotes"
+
 # Ambiguous origin+upstream → local cache only
 git -C "$WT" remote add upstream "https://github.com/other/upstream.git"
 export LINKTREND_REPAIR_DIR="$TMP/repair-blocked-ambiguous"
