@@ -701,7 +701,7 @@
       "id": "cursor-cursor-rules-cursor-gitops-bootstrap-mdc",
       "ownershipClass": "managed-entrypoint",
       "source": "core/managed-core/platforms/cursor/rules/cursor-gitops-bootstrap.mdc",
-      "sourceHash": "sha256:7962dc2d44a346bead17d553494d8857cd837f61f8dc061497387b77bfda0522",
+      "sourceHash": "sha256:0765604ad1110ec0689bee05d7cb8d6fe5ba3f232d481b3a9a1738360114f6b8",
       "destination": ".cursor/rules/cursor-gitops-bootstrap.mdc",
       "mode": "0644",
       "platform": "cursor",
