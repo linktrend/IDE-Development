@@ -3,7 +3,7 @@
 # System-repository only (IDE Development). Not synced to consumers via
 # scripts/sync-managed-workflows.sh — consumers must not publish managed-core.
 #
-# Privileged tag + GitHub Release publication for managed-core v2.1.2.
+# Privileged tag + GitHub Release publication for managed-core v2.1.3.
 # Workflow YAML and publish scripts come from the protected default branch only.
 # The requested source SHA is checked out as data only — never execute untrusted
 # tip code with write credentials.
@@ -27,15 +27,15 @@ on:
         required: true
         type: string
       version:
-        description: "Package semver (authorized: 2.1.2)"
+        description: "Package semver (authorized: 2.1.3)"
         required: false
         type: string
-        default: "2.1.2"
+        default: "2.1.3"
       tag:
         description: "Immutable release tag (must be v<version>)"
         required: false
         type: string
-        default: "v2.1.2"
+        default: "v2.1.3"
       action:
         description: "publish (default) or verify-only"
         required: false
@@ -59,7 +59,7 @@ concurrency:
 jobs:
   publish:
     name: Rebuild, verify, and publish managed-core release
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, linktrend-privileged]
     timeout-minutes: 45
     permissions:
       contents: read
