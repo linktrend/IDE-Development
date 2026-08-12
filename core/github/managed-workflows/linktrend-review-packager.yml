@@ -23,7 +23,7 @@ on:
         description: "Why this packaging run is needed"
         required: false
         default: "manual"
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers] trusted CI metadata only; resolver binds current PR and exact head before mutation
     workflows:
       - __LINKTREND_CI_WORKFLOW_NAME__
       - __LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__
