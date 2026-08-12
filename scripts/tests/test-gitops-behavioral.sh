@@ -490,6 +490,26 @@ required = parse_required_checks(
     "Verify IDE Development,Enforce allowed PR source branches"
 )
 assert required == ["Verify IDE Development", "Enforce allowed PR source branches"]
+comma_name = "Install, typecheck, test, build"
+json_required = parse_required_checks(
+    '["Install, typecheck, test, build", "Enforce allowed PR source branches"]'
+)
+assert json_required == [comma_name, "Enforce allowed PR source branches"]
+semicolon_required = parse_required_checks(
+    "Install, typecheck, test, build;Enforce allowed PR source branches"
+)
+assert semicolon_required == [comma_name, "Enforce allowed PR source branches"]
+assert parse_required_checks('["unterminated"') == []
+assert parse_required_checks('{"not": "a list"}') == [
+    '{"not": "a list"}'
+]
+
+comma_checks = [
+    {"name": comma_name, "state": "SUCCESS", "completedAt": "t1"},
+    {"name": "Enforce allowed PR source branches", "state": "SUCCESS", "completedAt": "t2"},
+]
+comma_status, comma_detail = fast_gate_status(comma_checks, json_required)
+assert comma_status == "success", (comma_status, comma_detail)
 
 # 1-2) PR/head ready; CI completes; Branch Source Policy still pending
 checks_after_ci = [
