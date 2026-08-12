@@ -163,6 +163,7 @@ pass "clear-review-ready.sh fails closed with App-backed withdraw route"
 # 3) Static: workflow + docs bind withdraw to App route (not ambient gh token)
 # ---------------------------------------------------------------------------
 python3 - "$ROOT" <<'PY'
+import json
 from pathlib import Path
 import sys
 
@@ -171,7 +172,15 @@ wf = (root / ".github/workflows/linktrend-review-ready-publisher.yml").read_text
 managed = (root / "core/github/managed-workflows/linktrend-review-ready-publisher.yml").read_text(
     encoding="utf-8"
 )
-assert wf == managed.replace("__LINKTREND_RUNS_ON__", "ubuntu-latest"), (
+runner_type = json.loads(
+    (root / ".github/linktrend-gitops-consumer.json").read_text(encoding="utf-8")
+).get("runnerType", "github-hosted")
+runner_labels = {
+    "github-hosted": "ubuntu-latest",
+    "linktrend-private-macos-arm64": "[self-hosted, macOS, ARM64, linktrend-privileged]",
+}
+assert runner_type in runner_labels, f"unsupported runnerType: {runner_type}"
+assert wf == managed.replace("__LINKTREND_RUNS_ON__", runner_labels[runner_type]), (
     "live workflow must match the rendered managed template"
 )
 for text in (wf, managed):
