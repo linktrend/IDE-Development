@@ -6,7 +6,7 @@ import { join, win32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { LibraryClient, LibraryClientError, pathInside } from '../library-client.mjs'
+import { LibraryClient, LibraryClientError, pathInside, realPathInside } from '../library-client.mjs'
 import { validSpdxExpression } from '../dependencies/spdx-expression-validate.mjs'
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex')
@@ -15,6 +15,16 @@ const json = (value) => `${JSON.stringify(value, null, 2)}\n`
 test('path containment rejects Windows cross-drive paths', () => {
   assert.equal(pathInside('C:\\consumer', 'C:\\consumer\\bundle', win32), true)
   assert.equal(pathInside('C:\\consumer', 'D:\\bundle', win32), false)
+})
+
+test('real path containment rejects an intermediate symlink escape', () => {
+  const canonicalize = (value) => value === '/consumer/link/bundle' ? '/outside/bundle' : value
+  assert.equal(realPathInside('/consumer', '/consumer/link/bundle', canonicalize), false)
+})
+
+test('real path containment fails closed when canonicalization fails', () => {
+  const canonicalize = () => { throw Object.assign(new Error('missing path'), { code: 'ENOENT' }) }
+  assert.equal(realPathInside('/consumer', '/consumer/missing', canonicalize), false)
 })
 
 function git(cwd, args) {
