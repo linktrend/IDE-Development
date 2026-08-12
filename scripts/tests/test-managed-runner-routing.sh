@@ -33,6 +33,22 @@ make_consumer "$private" linktrend-private-macos-arm64
 bash "$ROOT/scripts/sync-managed-workflows.sh" "$hosted" >/dev/null
 bash "$ROOT/scripts/sync-managed-workflows.sh" "$private" >/dev/null
 
+python3 - "$hosted/.github/workflows" "$private/.github/workflows" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+unpinned = []
+for root_arg in sys.argv[1:]:
+    for workflow in sorted(Path(root_arg).glob("*.yml")):
+        for line_number, line in enumerate(workflow.read_text(encoding="utf-8").splitlines(), 1):
+            match = re.search(r"\buses:\s+([^./\s][^@\s]*)@([^\s#]+)", line)
+            if match and not re.fullmatch(r"[0-9a-f]{40}", match.group(2)):
+                unpinned.append(f"{workflow.name}:{line_number}: {match.group(0)}")
+if unpinned:
+    raise SystemExit("FAIL: unpinned external actions:\n" + "\n".join(unpinned))
+PY
+
 if grep -R -q '__LINKTREND_.*RUNS_ON__' "$hosted/.github/workflows" "$private/.github/workflows"; then
   echo "FAIL: runner placeholder remained after render" >&2
   exit 1
