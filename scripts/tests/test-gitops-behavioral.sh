@@ -691,7 +691,7 @@ assert not ok and d == "missing_packager_pr_author"
 clear_env(os.environ)
 os.environ["LINKTREND_BUGBOT_USER_TOKEN"] = "carlos_secret_PARENT"
 os.environ["BUGBOT_USER_TOKEN"] = "carlos_secret_PARENT"
-os.environ["AUTOMATION_TOKEN"] = "app_token_PARENT"
+os.environ["AUTOMATION_TOKEN"] = "automation_token_PARENT"
 recorded = []
 
 def record_run(args, env):
@@ -712,10 +712,10 @@ def record_run(args, env):
 disc_mod._RUN_HOOK = record_run
 try:
     # App-role scrub
-    env_app = subprocess_env_for_token("app_token_PARENT", role="app")
-    assert "LINKTREND_BUGBOT_USER_TOKEN" not in env_app
-    assert "BUGBOT_USER_TOKEN" not in env_app
-    assert env_app["GH_TOKEN"] == "app_token_PARENT"
+    env_automation = subprocess_env_for_token("automation_token_PARENT", role="automation")
+    assert "LINKTREND_BUGBOT_USER_TOKEN" not in env_automation
+    assert "BUGBOT_USER_TOKEN" not in env_automation
+    assert env_automation["GH_TOKEN"] == "automation_token_PARENT"
     # pr_create role: token value as GH_*, secret names scrubbed
     env_c = subprocess_env_for_token("carlos_secret_PARENT", role="pr_create")
     assert "LINKTREND_BUGBOT_USER_TOKEN" not in env_c
@@ -723,7 +723,7 @@ try:
     assert env_c["GH_TOKEN"] == "carlos_secret_PARENT"
     assert scrub_carlos_token_env({"LINKTREND_BUGBOT_USER_TOKEN": "x", "BUGBOT_USER_TOKEN": "y", "A": "1"}) == {"A": "1"}
 
-    pr = disc_mod.ensure_draft_pr("app_token_PARENT", "issue/31-x", "abc")
+    pr = disc_mod.ensure_draft_pr("automation_token_PARENT", "issue/31-x", "abc")
     assert pr["created"] is True and pr["author"] == "linktrend"
     # Find create child
     creates = [r for r in recorded if r["args"][:3] == ["gh", "pr", "create"]]
@@ -734,13 +734,13 @@ try:
     assert "BUGBOT_USER_TOKEN" not in cenv
     # App list/view children scrub Carlos names
     apps = [r for r in recorded if r["args"][:3] == ["gh", "pr", "list"] or (
-        r["args"][:3] == ["gh", "pr", "view"] and r["env"].get("GH_TOKEN") == "app_token_PARENT"
+        r["args"][:3] == ["gh", "pr", "view"] and r["env"].get("GH_TOKEN") == "automation_token_PARENT"
     )]
     assert apps
     for r in apps:
         assert "LINKTREND_BUGBOT_USER_TOKEN" not in r["env"]
         assert "BUGBOT_USER_TOKEN" not in r["env"]
-        assert r["env"].get("GH_TOKEN") == "app_token_PARENT"
+        assert r["env"].get("GH_TOKEN") == "automation_token_PARENT"
 finally:
     disc_mod._RUN_HOOK = None
 
@@ -760,7 +760,7 @@ def record_bot_list(args, env):
 disc_mod._RUN_HOOK = record_bot_list
 try:
     try:
-        disc_mod.ensure_draft_pr("app_token_PARENT", "issue/28-x", "abc")
+        disc_mod.ensure_draft_pr("automation_token_PARENT", "issue/28-x", "abc")
         raise SystemExit("bot author must fail closed")
     except disc_mod.PackagerAuthorError as e:
         assert "wrong_packager_pr_author" in str(e) or "linktrend-gitops[bot]" in str(e)
@@ -801,7 +801,7 @@ eval_mod.is_sha_review_ready = lambda sha: (True, "ok")
 eval_mod._RUN_HOOK = eval_run
 eval_mod._API_HOOK = eval_api
 try:
-    out = eval_mod.evaluate_pr(30, "app_token_PARENT")
+    out = eval_mod.evaluate_pr(30, "automation_token_PARENT")
     assert out["status"] == "blocked"
     assert "superseded_wrong_author" in out["detail"]
     assert "linktrend-gitops[bot]" in out["detail"]
@@ -812,7 +812,7 @@ try:
     repairs = [r for r in recorded if "repair_task.py" in " ".join(r["args"])]
     assert repairs, "expected App-authored repair upsert"
     for r in repairs:
-        assert r["env"].get("GH_TOKEN") == "app_token_PARENT"
+        assert r["env"].get("GH_TOKEN") == "automation_token_PARENT"
         assert "LINKTREND_BUGBOT_USER_TOKEN" not in r["env"]
         assert "BUGBOT_USER_TOKEN" not in r["env"]
         assert "packager_author_blocked" in r["args"]
@@ -842,7 +842,7 @@ def eval_run_ok(args, env):
         return json.dumps([{"name": "Verify IDE Development", "state": "SUCCESS"}])
     if args[:3] == ["gh", "pr", "ready"]:
         assert "LINKTREND_BUGBOT_USER_TOKEN" not in env and "BUGBOT_USER_TOKEN" not in env
-        assert env.get("GH_TOKEN") == "app_token_PARENT"
+        assert env.get("GH_TOKEN") == "automation_token_PARENT"
         return ""
     if "repair_task.py" in joined:
         raise AssertionError("repair must not run on Carlos-authored success path")
@@ -858,14 +858,14 @@ eval_mod.is_sha_review_ready = lambda sha: (True, "ok")
 eval_mod._RUN_HOOK = eval_run_ok
 eval_mod._API_HOOK = eval_api_ok
 try:
-    out = eval_mod.evaluate_pr(31, "app_token_PARENT")
+    out = eval_mod.evaluate_pr(31, "automation_token_PARENT")
     assert out["status"] == "bugbot_requested", out
     assert out.get("author") == "linktrend"
     posts = [c for c in api_calls if c["method"] == "POST"]
     assert len(posts) == 2  # bugbot + freeze
     assert posts[0]["token"] == "carlos_secret_PARENT"
     assert "@cursor review" in (posts[0]["body"] or {}).get("body", "")
-    assert posts[1]["token"] == "app_token_PARENT"
+    assert posts[1]["token"] == "automation_token_PARENT"
     assert "Review freeze" in (posts[1]["body"] or {}).get("body", "")
     # undraft child scrubbed
     readies = [r for r in recorded if r["args"][:3] == ["gh", "pr", "ready"]]
@@ -910,7 +910,7 @@ eval_mod.is_sha_review_ready = lambda sha: (True, "ok")
 eval_mod._RUN_HOOK = eval_run_drift
 eval_mod._API_HOOK = eval_api_drift
 try:
-    out = eval_mod.evaluate_pr(32, "app_token_PARENT")
+    out = eval_mod.evaluate_pr(32, "automation_token_PARENT")
     assert out["status"] == "blocked"
     assert "before_bugbot" in out["detail"]
     assert not any(c["method"] == "POST" for c in api_calls)
