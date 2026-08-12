@@ -837,7 +837,8 @@ function dependencyOptions(args) {
 
 function main(argv) {
   const [command, ...args] = argv
-  const client = new LibraryClient()
+  const cliConsumerRoot = option(args, '--consumer-root')
+  const client = new LibraryClient({ consumerRoot: cliConsumerRoot })
   if (command === 'sync') return printJson(client.fetchCatalog())
   if (command === 'search') return printJson(client.search({ query: option(args, '--query') ?? '', kind: option(args, '--kind'), selectable: option(args, '--selectable') === undefined ? undefined : option(args, '--selectable') === 'true' }))
   if (command === 'show') return printJson(client.fetchEntry(option(args, '--entry') ?? fail('argument_required', '--entry required')))
@@ -845,7 +846,7 @@ function main(argv) {
     const frameworks = options(args, '--framework')
     const services = options(args, '--service')
     return printJson(client.selectEntry(option(args, '--entry') ?? fail('argument_required', '--entry required'), {
-      consumerRoot: option(args, '--consumer-root') ?? process.cwd(),
+      consumerRoot: cliConsumerRoot ?? process.cwd(),
       runtime: option(args, '--runtime'),
       nodeVersion: option(args, '--node-version'),
       operatingSystem: option(args, '--operating-system'),
@@ -864,7 +865,7 @@ function main(argv) {
     return
   }
   if (command === 'publish-contribution') return printJson(client.publishContribution(option(args, '--bundle') ?? fail('argument_required', '--bundle required')))
-  if (!command || command === 'help') return console.log('Usage: node library-client.mjs <sync|search|show|select|verify-cache|report|prepare-contribution|validate-contribution|publish-contribution>')
+  if (!command || command === 'help') return console.log('Usage: node library-client.mjs <sync|search|show|select|verify-cache|report|prepare-contribution|validate-contribution|publish-contribution> [--consumer-root <path>]')
   fail('unknown_command', `Unknown command: ${command}`)
 }
 
