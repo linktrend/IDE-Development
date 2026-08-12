@@ -41,9 +41,26 @@ class BuildManifestPackagingTests(unittest.TestCase):
         path = bm.MANIFEST_PATH
         self.assertTrue(path.is_file())
         data = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(data.get("packageVersion"), "2.1.0")
+        self.assertEqual(data.get("packageVersion"), "2.1.1")
         managed = bm.VERSION_PATH.read_text(encoding="utf-8").strip().lstrip("v")
-        self.assertEqual(managed, "2.1.0")
+        self.assertEqual(managed, "2.1.1")
+
+    def test_required_cursor_materialization_sources_are_packaged(self) -> None:
+        manifest = bm.build_manifest_object()
+        destinations = {row["destination"] for row in manifest["files"]}
+        materialization = json.loads(
+            (bm.MANAGED / "platforms" / "cursor" / "materialization-manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        missing = []
+        for row in materialization["entries"]:
+            if not row.get("required"):
+                continue
+            package_source = f'.ide-development/{row["source"]}'
+            if package_source not in destinations:
+                missing.append(package_source)
+        self.assertEqual(missing, [])
 
 
 if __name__ == "__main__":
