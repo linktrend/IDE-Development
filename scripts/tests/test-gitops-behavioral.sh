@@ -2511,7 +2511,7 @@ expected_states = {
     "bugbot_requested": "success",
     "packaged": "success",
     "waiting": "pending",
-    "skipped": "error",
+    "skipped": None,
     "blocked": "error",
     "failed": "failure",
     "automation_credentials_blocked": "failure",
@@ -2564,6 +2564,16 @@ try:
     assert posted[0]["env"]["GH_TOKEN"] == "ghs_APP_SUCCESS_TOKEN"
     assert posted[0]["env"]["GITHUB_TOKEN"] == "ghs_APP_SUCCESS_TOKEN"
     assert "statuses/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" in " ".join(str(x) for x in posted[0]["cmd"])
+    posted.clear()
+    wo.post_check_run(
+        name="Linktrend Packager Result",
+        head_sha="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        status="skipped",
+        detail="stale_event_head",
+        repo="linktrend/IDE-Development",
+        token=wo.resolve_check_token("AUTOMATION_TOKEN"),
+    )
+    assert posted == [], "stale-event skip must not overwrite live-head status"
 finally:
     wo.subprocess.run = orig
     os.environ.pop("AUTOMATION_TOKEN", None)
