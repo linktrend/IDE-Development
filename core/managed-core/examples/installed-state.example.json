@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packageName": "ide-development-managed-core",
-  "packageVersion": "2.1.6",
+  "packageVersion": "2.1.7",
   "manifestHash": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "installedAt": "2026-08-01T00:00:00Z",
   "lastTransactionId": "txn-20260801T000000Z-install",
