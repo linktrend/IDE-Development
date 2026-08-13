@@ -6,6 +6,7 @@ import json
 import shlex
 import hashlib
 import subprocess
+import tempfile
 import threading
 import time
 from dataclasses import dataclass
@@ -181,6 +182,23 @@ class CoordinatorDaemon:
             return None
         return {"repository": repository, "sourceSha": sha, "gitTreeSha": tree, "dependencyDigests": digests, "testProfile": "fast"}
 
+    @staticmethod
+    def _disposable_checkout(repository_root: str, source_sha: str) -> Optional[str]:
+        """Create a per-lease, detached exact checkout outside the operator tree."""
+        if len(source_sha) != 40 or any(char not in "0123456789abcdef" for char in source_sha):
+            return None
+        parent = tempfile.mkdtemp(prefix="linktrend-coordinator-")
+        checkout = str(Path(parent) / "candidate")
+        try:
+            subprocess.run(("git", "-C", repository_root, "cat-file", "-e", source_sha + "^{commit}"), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+            subprocess.run(("git", "clone", "--no-checkout", "--no-local", repository_root, checkout), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+            subprocess.run(("git", "-C", checkout, "checkout", "--detach", source_sha), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
+            return checkout
+        except (OSError, subprocess.SubprocessError):
+            import shutil
+            shutil.rmtree(parent, ignore_errors=True)
+            return None
+
     def cancel_obsolete(self, repository: str, pr_number: Optional[int], live_identity: Any = None) -> list[str]:
         return self.store.cancel_obsolete(repository, pr_number, live_identity)
 
@@ -246,9 +264,13 @@ class CoordinatorDaemon:
         # order instead of silently running only the first one.
         command = ("/bin/sh", "-ec", " && ".join(shlex.join(tuple(item)) for item in commands))
         limits = self._execution_limits(config)
+        checkout = self._disposable_checkout(str(registration["root"]), row["candidate_identity"]["sourceSha"])
+        if checkout is None:
+            self.scheduler.complete(lease, "rejected", {"error": "exact candidate checkout unavailable", "sanitized": "exact candidate checkout unavailable"})
+            return {"status": "failed-closed", "jobId": row["id"], "reason": "exact candidate checkout unavailable"}
         job = Job(
-            job_id=row["id"], checkout_path=registration["root"],
-            workspace_root=str(Path(registration["root"]).parent),
+            job_id=row["id"], checkout_path=checkout,
+            workspace_root=str(Path(checkout).parent), temporary_checkout=True,
             image=str(payload.get("image", "alpine:3.20")), command=tuple(command),
             test_profile=row["candidate_identity"]["testProfile"],
             timeout_seconds=int(payload.get("timeoutSeconds", profile.timeout_seconds if profile else 300)),

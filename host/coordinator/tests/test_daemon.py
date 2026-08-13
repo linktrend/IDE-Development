@@ -101,7 +101,7 @@ class DaemonTests(unittest.TestCase):
             daemon.register_worker(Worker("test-mac", "macos", "arm64", capabilities=frozenset({"fast"}), max_fast_jobs=1, repositories=("owner/repo",), last_heartbeat=time.time()))
             daemon.load_protected_config("owner/repo", candidate_ref="refs/pull/8/head")
             queued = daemon.enqueue_request(QueueRequest("owner/repo", "fast-gate", identity(), payload={"command": ["candidate-command", "--unsafe"]}))
-            with patch.object(daemon.store, "mark_started", side_effect=AssertionError("legacy mark_started path used")):
+            with patch.object(daemon.store, "mark_started", side_effect=AssertionError("legacy mark_started path used")), patch.object(daemon, "_disposable_checkout", return_value=directory):
                 result = daemon.run_next()
             self.assertEqual(result["workerId"], "test-mac")
             self.assertEqual(seen, [(('/bin/sh', '-ec', 'protected-command --safe'), 'test-mac', 'isolated-candidate', ('fast',))])
