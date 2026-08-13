@@ -48,6 +48,7 @@ class Job:
     workspace_root: Optional[str] = None
     workdir: str = "/workspace"
     temporary_checkout: bool = False
+    writable_workspace: bool = False
     volumes: Tuple[Any, ...] = ()
     nested_docker: bool = False
     protected_nested_config: Optional[Mapping[str, Any]] = None
@@ -55,6 +56,7 @@ class Job:
     worker_id: Optional[str] = None
     worker_trust: Optional[str] = None
     worker_capabilities: Tuple[str, ...] = ()
+    worker_arch: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not _JOB_ID.fullmatch(self.job_id):
@@ -105,6 +107,7 @@ def _job(value: Any) -> Job:
         workspace_root=_get(value, "workspace_root", "workspaceRoot"),
         workdir=str(_get(value, "workdir", "working_directory", default="/workspace")),
         temporary_checkout=bool(_get(value, "temporary_checkout", "temporaryCheckout", default=False)),
+        writable_workspace=bool(_get(value, "writable_workspace", "writableWorkspace", default=False)),
         volumes=tuple(_get(value, "volumes", default=()) or ()),
         nested_docker=bool(_get(value, "nested_docker", "nestedDocker", default=False)),
         protected_nested_config=_get(value, "protected_nested_config", "protectedNestedConfig"),
@@ -112,6 +115,7 @@ def _job(value: Any) -> Job:
         worker_id=_get(value, "worker_id", "workerId"),
         worker_trust=_get(value, "worker_trust", "workerTrust"),
         worker_capabilities=tuple(_get(value, "worker_capabilities", "workerCapabilities", default=()) or ()),
+        worker_arch=_get(value, "worker_arch", "workerArch"),
     )
 
 
@@ -172,6 +176,8 @@ def _validate_worker_trust(job: Job) -> None:
         raise ValueError("privileged worker trust cannot execute candidate code")
     if job.worker_id and job.worker_trust is None:
         raise ValueError("worker identity requires explicit isolated trust")
+    if job.worker_arch is not None and job.worker_arch not in {"amd64", "arm64"}:
+        raise ValueError("worker architecture is not supported")
     if job.worker_capabilities:
         allowed = {"fast", "heavy", "nestedDocker"}
         if not set(job.worker_capabilities).issubset(allowed):
@@ -181,6 +187,8 @@ def _validate_worker_trust(job: Job) -> None:
             raise ValueError("worker does not match candidate test capability")
         if job.nested_docker and "nestedDocker" not in job.worker_capabilities:
             raise ValueError("nested Docker capability must be explicit")
+    if job.writable_workspace and not job.temporary_checkout:
+        raise ValueError("writable workspace requires a disposable coordinator checkout")
 
 
 def _validate_volumes(job: Job, checkout: Path) -> Tuple[Tuple[str, str], ...]:
@@ -219,7 +227,7 @@ def build_docker_invocation(job_value: Any, limits_value: Any = None, docker_bin
         "run",
         "--rm",
         "--platform",
-        "linux/amd64",
+        "linux/{}".format(job.worker_arch or "amd64"),
         "--name",
         name,
         "--label",
@@ -242,12 +250,18 @@ def build_docker_invocation(job_value: Any, limits_value: Any = None, docker_bin
         str(max(1, min(job.timeout_seconds, 120))),
         "--network",
         "none",
+        "--env",
+        "PATH=/home/runner/externals/node24/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         "--read-only",
         "--tmpfs",
         "/tmp:rw,noexec,nosuid,size=64m",
     ]
     for source, target in mounts:
-        argv.extend(["--mount", "type=bind,src={},dst={},readonly".format(source, target)])
+        # A generated test may write only into the per-lease checkout.  It is
+        # never an operator tree, is removed after the job, and candidate
+        # payload cannot select this mode.
+        suffix = "" if target == "/workspace" and job.writable_workspace else ",readonly"
+        argv.extend(["--mount", "type=bind,src={},dst={}{}".format(source, target, suffix)])
     if not job.workdir.startswith("/") or ".." in Path(job.workdir).parts:
         raise ValueError("working directory must be an absolute container path")
     argv.extend(["--workdir", job.workdir, job.image])
