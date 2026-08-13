@@ -1,251 +1,100 @@
-# Review Packager — discovery + evaluate
-# Privileged jobs ALWAYS checkout the repository default branch for scripts.
-# Never execute PR head/merge code with write credentials.
-#
-# Wake paths:
-#   - schedule / workflow_dispatch → discover (draft PRs only)
-#   - workflow_run / external check_run → resolve (read-only) then evaluate
-#
-# Empty pull_requests arrays: trusted resolve job uses GITHUB_TOKEN + commits API
-# and fails closed if zero/ambiguous. normal automation token is minted only in evaluate when relevant.
-#
-# Consumers: workflow_run.workflows is STATIC YAML rendered from
-# .github/linktrend-gitops-consumer.json by scripts/sync-managed-workflows.sh.
-# Profiles: github-actions preserves the event-driven fallback below; local-coordinator
-# is rendered by sync-managed-workflows.sh with only bounded workflow_dispatch recovery.
-# Frozen coordinator contexts: Linktrend Fast Gate, Linktrend Full Suite,
-# Linktrend Phase Ready, Linktrend Coordinator; external Cursor Bugbot is unchanged.
+name: Linktrend Fast Checks
 
-name: Linktrend Review Packager
-
+# A checkpoint push is intentionally absent.  Phase PR updates are the only
+# automatic fast-check wake, and the PR concurrency key cancels obsolete work.
 on:
-  schedule:
-    - cron: "0 0 * * 2,5"
+  pull_request:
+    branches: [development]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   workflow_dispatch:
     inputs:
-      reason:
-        description: "Why this packaging run is needed"
-        required: false
-        default: "manual"
-  workflow_run: # zizmor: ignore[dangerous-triggers] trusted CI metadata only; resolver binds current PR and exact head before mutation
-    workflows:
-      - CI
-      - Branch Source Policy
-    types: [completed]
-  check_run:
-    types: [completed]
+      pr_number:
+        required: true
+        type: string
+      head_sha:
+        required: true
+        type: string
 
 permissions: {}
 
-# Uniform concurrency identity: exact candidate head SHA for all automatic events.
-# Never mix PR numbers. Never use workflow_run.id / check_run.id.
-# Cross-run serialization is GitHub Actions concurrency; idempotency is rereading
-# PR comments after acquiring the serialization slot (packager_evaluate.py).
 concurrency:
-  group: linktrend-packager-eval-${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha || github.event.check_run.head_sha || format('misc-{0}', github.run_id) }}
-  cancel-in-progress: false
-
-env:
-  BUGBOT_REVIEW_COMMAND: ${{ vars.LINKTREND_BUGBOT_REVIEW_COMMAND || '@cursor review' }}
-  FAST_GATE_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || format('{0},Enforce allowed PR source branches', vars.LINKTREND_FAST_CI_CHECK || 'Verify IDE Development') }}
+  group: ${{ github.repository }}|${{ github.workflow }}|pr-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
 
 jobs:
-  discover:
-    name: Discover ready tips (draft PRs only)
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, macOS, ARM64, linktrend-privileged]
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout trusted default branch only
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          persist-credentials: false
-
-      - name: Discover
-        env:
-          LINKTREND_AUTOMATION_TOKEN: ${{ secrets.LINKTREND_AUTOMATION_TOKEN }}
-          LINKTREND_BUGBOT_USER_TOKEN: ${{ secrets.LINKTREND_BUGBOT_USER_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          REQUIRE_AUTOMATION_TOKEN: "1"
-          REQUIRE_BUGBOT_USER_TOKEN: "1"
-        run: |
-          set -euo pipefail
-          if ! source scripts/gitops/resolve_automation_token.sh; then
-            # automation token unavailable: fail closed on workflow result only — no GITHUB_TOKEN mutations.
-            python3 scripts/gitops/write_outcome.py \
-              --status automation_credentials_blocked \
-              --detail "normal automation token unavailable for Packager discover"
-            echo "### Packager discover: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE AUTOMATION_CREDENTIALS_STATUS
-          if ! source scripts/gitops/resolve_bugbot_user_token.sh; then
-            # automation token present: durable repair + outcome via normal automation token only.
-            GH_TOKEN="${AUTOMATION_TOKEN}" GITHUB_TOKEN="${AUTOMATION_TOKEN}" \
-              python3 scripts/gitops/repair_task.py upsert \
-              --repo "${GITHUB_REPOSITORY}" \
-              --failure-type automation_credentials_blocked \
-              --severity immediate \
-              --workflow "Linktrend Review Packager" \
-              --next-action "Configure LINKTREND_BUGBOT_USER_TOKEN for Packager PR create; do not auto-repair."
-            GH_TOKEN="${AUTOMATION_TOKEN}" GITHUB_TOKEN="${AUTOMATION_TOKEN}" \
-              python3 scripts/gitops/write_outcome.py \
-              --status bugbot_user_credentials_blocked \
-              --detail "Carlos user token unavailable for Packager discover PR create"
-            echo "### Packager discover: \`bugbot_user_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          export BUGBOT_USER_TOKEN BUGBOT_USER_TOKEN_SOURCE BUGBOT_USER_CREDENTIALS_STATUS
-          # Default GH identity is normal automation; packager_discover scrubs Carlos env for automation child processes
-          # and injects Carlos token only into the exact gh pr create child.
-          export GH_TOKEN="${AUTOMATION_TOKEN}"
-          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
-          python3 scripts/gitops/packager_discover.py
-          status="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json"))["status"])')"
-          echo "### Packager discover: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
-          case "${status}" in
-            failed|automation_credentials_blocked|bugbot_user_credentials_blocked|blocked) exit 1 ;;
-            *) exit 0 ;;
-          esac
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: packager-discover-report
-          path: |
-            packager-discover-report.json
-            gitops-outcome.json
-          if-no-files-found: ignore
-          retention-days: 5
-
-  resolve:
-    name: Resolve candidate (read-only)
-    if: >
-      (
-        github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success'
-      ) ||
-      (
-        github.event_name == 'check_run' &&
-        github.event.check_run.app.slug != 'github-actions' &&
-        github.event.check_run.name != 'Linktrend Packager Result' &&
-        github.event.check_run.name != 'Linktrend Integrator Result' &&
-        github.event.check_run.name != 'Linktrend Staging Outcome' &&
-        github.event.check_run.name != 'Linktrend Main Outcome' &&
-        github.event.check_run.name != 'evaluate'
-      )
-    runs-on: [self-hosted, macOS, ARM64, linktrend-privileged]
+  fast:
+    name: Linktrend Fast Checks
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'pull_request' && startsWith(github.event.pull_request.head.ref, 'phase/'))
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
-    outputs:
-      relevant: ${{ steps.r.outputs.relevant }}
-      pr: ${{ steps.r.outputs.pr }}
-      base: ${{ steps.r.outputs.base }}
-      head_ref: ${{ steps.r.outputs.head_ref }}
-      head_sha: ${{ steps.r.outputs.head_sha }}
-      reason: ${{ steps.r.outputs.reason }}
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || inputs.head_sha }}
+      SOURCE_BRANCH: ${{ github.event.pull_request.head.ref || 'phase/dispatch' }}
     steps:
-      - name: Checkout trusted default branch only
+      - name: Checkout exact Phase PR head
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event.pull_request.head.sha || inputs.head_sha }}
+          fetch-depth: 0
           persist-credentials: false
 
-      - name: Resolve PR/base/head (no normal automation token)
-        id: r
+      - name: Reject stale or non-Phase dispatch
         env:
           GH_TOKEN: ${{ github.token }}
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          GITHUB_EVENT_PATH: ${{ github.event_path }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          RESOLVE_ROLE: packager
-        run: python3 scripts/gitops/resolve_event_pr.py
-
-  evaluate:
-    name: Evaluate draft PR after gates
-    needs: resolve
-    if: needs.resolve.outputs.relevant == 'true'
-    runs-on: [self-hosted, macOS, ARM64, linktrend-privileged]
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      statuses: read
-      pull-requests: read
-    steps:
-      - name: Checkout trusted default branch only
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          persist-credentials: false
-
-      - name: Evaluate one PR
-        env:
-          LINKTREND_AUTOMATION_TOKEN: ${{ secrets.LINKTREND_AUTOMATION_TOKEN }}
-          LINKTREND_BUGBOT_USER_TOKEN: ${{ secrets.LINKTREND_BUGBOT_USER_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ needs.resolve.outputs.pr }}
-          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
-          BUGBOT_REVIEW_COMMAND: ${{ env.BUGBOT_REVIEW_COMMAND }}
-          FAST_GATE_CHECKS: ${{ env.FAST_GATE_CHECKS }}
-          REQUIRE_AUTOMATION_TOKEN: "1"
-          REQUIRE_BUGBOT_USER_TOKEN: "1"
         run: |
           set -euo pipefail
-          if ! source scripts/gitops/resolve_automation_token.sh; then
-            # automation token unavailable: fail closed on workflow result only — no GITHUB_TOKEN mutations.
-            python3 scripts/gitops/write_outcome.py \
-              --status automation_credentials_blocked \
-              --detail "normal automation token unavailable for Packager evaluate"
-            echo "### Packager evaluate: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE AUTOMATION_CREDENTIALS_STATUS
-          if ! source scripts/gitops/resolve_bugbot_user_token.sh; then
-            # automation token present: repair + check-run via normal automation token only.
-            GH_TOKEN="${AUTOMATION_TOKEN}" GITHUB_TOKEN="${AUTOMATION_TOKEN}" \
-              python3 scripts/gitops/repair_task.py upsert \
-              --repo "${GITHUB_REPOSITORY}" \
-              --failure-type automation_credentials_blocked \
-              --severity immediate \
-              --workflow "Linktrend Review Packager" \
-              --next-action "Configure LINKTREND_BUGBOT_USER_TOKEN for Packager Bugbot comment; do not auto-repair."
-            GH_TOKEN="${AUTOMATION_TOKEN}" GITHUB_TOKEN="${AUTOMATION_TOKEN}" \
-              python3 scripts/gitops/write_outcome.py \
-              --status bugbot_user_credentials_blocked \
-              --detail "Carlos user token unavailable for Packager Bugbot comment" \
-              --check-name "Linktrend Packager Result" \
-              --head-sha "${HEAD_SHA}" \
-              --token-env AUTOMATION_TOKEN
-            echo "### Packager evaluate: \`bugbot_user_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          export BUGBOT_USER_TOKEN BUGBOT_USER_TOKEN_SOURCE BUGBOT_USER_CREDENTIALS_STATUS
-          # Default GH identity is normal automation; evaluate scrubs Carlos env for automation child processes;
-          # @cursor review uses Carlos token only via dedicated API Authorization header.
-          export GH_TOKEN="${AUTOMATION_TOKEN}"
-          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
-          python3 scripts/gitops/packager_evaluate.py
-          status="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json"))["status"])')"
-          detail="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json")).get("detail",""))')"
-          echo "### Packager evaluate: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
-          echo "resolve_reason=${{ needs.resolve.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
-          case "${status}" in
-            failed|automation_credentials_blocked|bugbot_user_credentials_blocked|blocked) exit 1 ;;
-            *) exit 0 ;;
+          case "${SOURCE_BRANCH}" in
+            phase/*) ;;
+            *) echo "fast_checks_require_phase_branch: ${SOURCE_BRANCH}"; exit 1 ;;
           esac
+          actual="$(git rev-parse HEAD)"
+          test "${actual}" = "${EXPECTED_HEAD}" || {
+            echo "fast_checks_head_mismatch: expected=${EXPECTED_HEAD} actual=${actual}"
+            exit 1
+          }
+          if [ -n "${PR_NUMBER}" ]; then
+            live="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)"
+            test "${live}" = "${EXPECTED_HEAD}" || {
+              echo "fast_checks_stale_pr_head: expected=${EXPECTED_HEAD} live=${live}"
+              exit 1
+            }
+          fi
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - name: Run fast profile
+        run: |
+          set -euo pipefail
+          git diff --check
+          python3 -m py_compile \
+            scripts/gitops/phase_integrator.py \
+            scripts/gitops/coordinator/state.py \
+            scripts/gitops/coordinator/receipts.py \
+            scripts/gitops/promotion_receipt_gate.py
+          python3 -m unittest \
+            scripts.tests.test_candidate_lifecycle \
+            scripts.tests.test_gate_receipts \
+            scripts.tests.test_promotion_receipt_gate
+
+      - name: Retain fast-check evidence
         if: always()
+        run: |
+          {
+            echo "workflow=Linktrend Fast Checks"
+            echo "repository=${GITHUB_REPOSITORY}"
+            echo "pr=${PR_NUMBER}"
+            echo "head=${EXPECTED_HEAD}"
+            echo "runner=ubuntu-24.04-arm"
+          } > fast-check-summary.txt
+
+      - name: Upload fast-check evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: packager-evaluate-report
-          path: |
-            packager-evaluate-report.json
-            gitops-outcome.json
-          if-no-files-found: ignore
-          retention-days: 5
+          name: linktrend-fast-check-${{ github.run_id }}
+          path: fast-check-summary.txt
+          retention-days: 30

@@ -54,7 +54,7 @@ jobs:
           github.event.check_run.conclusion == 'neutral'
         )
       )
-    runs-on: __LINKTREND_RUNS_ON__
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     permissions:
       contents: read

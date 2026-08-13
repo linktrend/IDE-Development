@@ -1,162 +1,233 @@
-name: LiNKtrend Integrator Merge To Development
+name: Linktrend Full Suite
 
-# Privileged jobs checkout the default branch only (never PR head/merge).
-# Resolve (read-only GITHUB_TOKEN) then evaluate (normal automation token) only when relevant.
-#
-# Concurrency: exact candidate head SHA for automatic events; workflow_dispatch may
-# use explicit pr_number when no SHA is present. cancel-in-progress=false.
-#
-# Consumers: workflow_run.workflows is STATIC YAML rendered from
-# .github/linktrend-gitops-consumer.json by scripts/sync-managed-workflows.sh.
-# Profiles: github-actions preserves the event-driven fallback below; local-coordinator
-# is rendered by sync-managed-workflows.sh with only bounded workflow_dispatch recovery.
-# Frozen coordinator contexts: Linktrend Fast Gate, Linktrend Full Suite,
-# Linktrend Phase Ready, Linktrend Coordinator; external Cursor Bugbot is unchanged.
-
+# Full validation is an explicit seal-bound dispatch.  It never wakes from a
+# checkpoint push or from opening a draft PR.
 on:
-  workflow_run: # zizmor: ignore[dangerous-triggers] trusted workflow completion metadata only; no candidate checkout or execution
-    workflows:
-      - __LINKTREND_CI_WORKFLOW_NAME__
-      - __LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__
-    types: [completed]
-  check_run:
-    types: [completed]
   workflow_dispatch:
     inputs:
       pr_number:
-        description: "Optional PR number to evaluate"
-        required: false
+        description: Exact Phase PR number
+        required: true
+        type: string
+      source_branch:
+        description: Exact Phase source branch
+        required: true
+        type: string
+      head_sha:
+        description: Exact sealed Phase head SHA
+        required: true
+        type: string
+      candidate_id:
+        description: Exact derived candidate ID from the seal
+        required: true
+        type: string
+      seal_revision:
+        description: Sealed candidate revision, 1 or 2
+        required: true
+        type: string
+      attempt:
+        description: Infrastructure attempt for this exact candidate, 1 or 2
+        required: true
         type: string
 
 permissions: {}
 
 concurrency:
-  group: linktrend-integrator-eval-${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha || github.event.check_run.head_sha || github.event.inputs.pr_number || format('misc-{0}', github.run_id) }}
-  cancel-in-progress: false
+  group: ${{ github.repository }}|${{ github.workflow }}|pr-${{ inputs.pr_number }}|head-${{ inputs.head_sha }}
+  cancel-in-progress: true
 
 jobs:
-  resolve:
-    name: Resolve candidate (read-only)
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success'
-      ) ||
-      (
-        github.event_name == 'check_run' &&
-        github.event.check_run.app.slug != 'github-actions' &&
-        github.event.check_run.name != 'evaluate' &&
-        github.event.check_run.name != 'Linktrend Integrator Result' &&
-        github.event.check_run.name != 'Linktrend Packager Result' &&
-        github.event.check_run.name != 'Linktrend Staging Outcome' &&
-        github.event.check_run.name != 'Linktrend Main Outcome' &&
-        github.event.check_run.name != 'enable-auto-merge' &&
-        github.event.check_run.name != 'merge-when-ready'
-      )
-    runs-on: __LINKTREND_RUNS_ON__
-    timeout-minutes: 5
+  full:
+    name: Linktrend Full Suite
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
     permissions:
       contents: read
       pull-requests: read
-    outputs:
-      relevant: ${{ steps.r.outputs.relevant }}
-      pr: ${{ steps.r.outputs.pr }}
-      base: ${{ steps.r.outputs.base }}
-      head_ref: ${{ steps.r.outputs.head_ref }}
-      head_sha: ${{ steps.r.outputs.head_sha }}
-      reason: ${{ steps.r.outputs.reason }}
+      actions: read
+    env:
+      PR_NUMBER: ${{ inputs.pr_number }}
+      SOURCE_BRANCH: ${{ inputs.source_branch }}
+      EXPECTED_HEAD: ${{ inputs.head_sha }}
+      CANDIDATE_ID: ${{ inputs.candidate_id }}
+      SEAL_REVISION: ${{ inputs.seal_revision }}
+      ATTEMPT: ${{ inputs.attempt }}
     steps:
-      - name: Checkout trusted default branch only
+      - name: Capture start time
+        id: clock
+        run: echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout trusted workflow source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
           persist-credentials: false
 
-      - name: Resolve PR/base/head (no normal automation token)
-        id: r
+      - name: Checkout exact sealed Phase head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.head_sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate live head and exact seal
+        working-directory: candidate
         env:
           GH_TOKEN: ${{ github.token }}
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          GITHUB_EVENT_PATH: ${{ github.event_path }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          RESOLVE_ROLE: integrator
-        run: python3 scripts/gitops/resolve_event_pr.py
-
-  evaluate:
-    name: evaluate
-    needs: resolve
-    if: needs.resolve.outputs.relevant == 'true'
-    runs-on: __LINKTREND_RUNS_ON__
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout trusted default branch only
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          persist-credentials: false
-
-      - name: Evaluate and maybe merge
-        env:
-          LINKTREND_AUTOMATION_TOKEN: ${{ secrets.LINKTREND_AUTOMATION_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ needs.resolve.outputs.pr }}
-          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
-          REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || format('{0},Enforce allowed PR source branches', vars.LINKTREND_FAST_CI_CHECK || 'Verify IDE Development') }}
-          BUGBOT_SUCCESS_CHECK_NAME: __LINKTREND_BUGBOT_CHECK_NAME__
-          GATE_WAIT_SECONDS: "120"
-          GATE_POLL_SECONDS: "15"
-          REQUIRE_AUTOMATION_TOKEN: "1"
         run: |
           set -euo pipefail
-          if ! source scripts/gitops/resolve_automation_token.sh; then
-            # automation token unavailable: local outcome + failed workflow only — no GITHUB_TOKEN mutations.
-            python3 scripts/gitops/write_outcome.py \
-              --file integrator-result.json \
-              --status automation_credentials_blocked \
-              --detail "Integrator requires GitHub automation token for autonomous merge"
-            cp integrator-result.json gitops-outcome.json
-            echo "### Integrator status: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE
-          export GH_TOKEN="${AUTOMATION_TOKEN}"
-          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
-          bash scripts/gitops/integrator_evaluate.sh
+          printf '%s' "${SEAL_REVISION}" | grep -Eq '^[12]$' || {
+            echo "invalid_seal_revision=${SEAL_REVISION}"; exit 1;
+          }
+          printf '%s' "${ATTEMPT}" | grep -Eq '^[12]$' || {
+            echo "full_suite_attempt_limit: ${ATTEMPT}"; exit 1;
+          }
+          case "${SOURCE_BRANCH}" in
+            phase/*) ;;
+            *) echo "full_suite_requires_phase_branch=${SOURCE_BRANCH}"; exit 1 ;;
+          esac
+          case "${CANDIDATE_ID}" in
+            sha256:????????????????????????????????????????????????????????????????) ;;
+            *) echo "invalid_candidate_id"; exit 1 ;;
+          esac
+          actual="$(git rev-parse HEAD)"
+          test "${actual}" = "${EXPECTED_HEAD}" || {
+            echo "full_suite_head_mismatch: expected=${EXPECTED_HEAD} actual=${actual}"; exit 1;
+          }
+          live="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)"
+          test "${live}" = "${EXPECTED_HEAD}" || {
+            echo "full_suite_stale_seal: expected=${EXPECTED_HEAD} live=${live}"; exit 1;
+          }
+          python3 - "${EXPECTED_HEAD}" "${CANDIDATE_ID}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
 
-      - name: Upload integrator result
-        if: always()
+          expected_head, expected_candidate = sys.argv[1:]
+          path = Path(".linktrend/phase-delivery-record.json")
+          if not path.is_file():
+              raise SystemExit("sealed_phase_record_missing")
+          record = json.loads(path.read_text(encoding="utf-8"))
+          identity = record.get("candidateIdentity") or {}
+          if record.get("sealed") is not True or record.get("sealedSha") != expected_head:
+              raise SystemExit("sealed_phase_record_mismatch")
+          if identity.get("sourceSha") != expected_head:
+              raise SystemExit("sealed_candidate_head_mismatch")
+          record_candidate = str(record.get("candidateId") or "")
+          if record_candidate and record_candidate != expected_candidate:
+              raise SystemExit("sealed_candidate_id_mismatch")
+          if not expected_candidate.startswith("sha256:"):
+              raise SystemExit("candidate_id_missing")
+          print("exact sealed candidate accepted")
+          PY
+
+      - name: Run full profile
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          git diff --check
+          python3 -m unittest \
+            scripts.tests.test_candidate_lifecycle \
+            scripts.tests.test_gate_receipts \
+            scripts.tests.test_promotion_receipt_gate \
+            scripts.tests.test_phase_batch_lifecycle
+          bash scripts/tests/test-gitops-phase-delivery.sh
+
+      - name: Write exact full-suite receipt
+        if: success()
+        working-directory: candidate
+        env:
+          STARTED: ${{ steps.clock.outputs.started_at }}
+        run: |
+          set -euo pipefail
+          COMPLETED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python3 - "${STARTED}" "${COMPLETED}" <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          import sys
+          sys.path.insert(0, os.environ["GITHUB_WORKSPACE"])
+          from scripts.gitops.coordinator.receipts import (
+              canonical_digest,
+              compute_candidate_identity,
+              write_receipt,
+          )
+
+          started, completed = __import__("sys").argv[1:]
+          commands = [
+              "python3 -m unittest scripts.tests.test_candidate_lifecycle scripts.tests.test_gate_receipts scripts.tests.test_promotion_receipt_gate scripts.tests.test_phase_batch_lifecycle",
+              "bash scripts/tests/test-gitops-phase-delivery.sh",
+          ]
+          identity = compute_candidate_identity(
+              Path("."),
+              [],
+              "full",
+              profile_files=[".github/linktrend-delivery-mode.json"],
+              source_branch=os.environ["SOURCE_BRANCH"],
+          )
+          summary = Path("full-suite-summary.txt")
+          summary.write_text(
+              "workflow=Linktrend Full Suite\n"
+              f"repository={os.environ['GITHUB_REPOSITORY']}\n"
+              f"head={identity.head_commit}\n"
+              "runner=ubuntu-24.04-arm\n",
+              encoding="utf-8",
+          )
+          evidence = {
+              "full-suite-summary.txt": "sha256:" + hashlib.sha256(summary.read_bytes()).hexdigest()
+          }
+          result = {
+              "schemaVersion": 2,
+              "candidateIdentity": identity.to_dict(),
+              "workflowRunId": int(os.environ["GITHUB_RUN_ID"]),
+              "workflowRunAttempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "runnerLabel": "ubuntu-24.04-arm",
+              "startedAt": started,
+              "completedAt": completed,
+              "conclusion": "success",
+              "commandDigest": canonical_digest({"profile": "full", "commands": commands}),
+              "evidenceDigests": evidence,
+          }
+          write_receipt(result, Path("full-suite-receipt.json"))
+          print(json.dumps(result, sort_keys=True))
+          PY
+
+      - name: Upload retained full-suite receipt
+        if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: integrator-result
+          name: linktrend-full-suite-receipt-${{ inputs.pr_number }}-${{ inputs.head_sha }}
           path: |
-            integrator-result.json
-            gitops-outcome.json
-          if-no-files-found: ignore
+            candidate/full-suite-receipt.json
+            candidate/full-suite-summary.txt
+          retention-days: 30
 
-          retention-days: 5
-      - name: Summarize honest status
-        if: always()
+  bugbot:
+    name: Linktrend Final Candidate Bugbot Request
+    needs: full
+    if: needs.full.result == 'success'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ inputs.pr_number }}
+      HEAD_SHA: ${{ inputs.head_sha }}
+    steps:
+      - name: Request Bugbot once for the sealed candidate
         run: |
           set -euo pipefail
-          f=""
-          if [ -f integrator-result.json ]; then f=integrator-result.json
-          elif [ -f gitops-outcome.json ]; then f=gitops-outcome.json
+          marker="<!-- linktrend-bugbot-requested: ${HEAD_SHA} -->"
+          comments="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --jq '.[].body' || true)"
+          if printf '%s\n' "${comments}" | grep -Fq "${marker}"; then
+            echo "final_candidate_bugbot_request_already_recorded"
+            exit 0
           fi
-          if [ -n "$f" ]; then
-            status="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$f")"
-            detail="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("detail",""))' "$f")"
-            echo "### Integrator status: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
-            echo "resolve_reason=${{ needs.resolve.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
-            case "${status}" in
-              failed|automation_credentials_blocked) exit 1 ;;
-              *) exit 0 ;;
-            esac
-          else
-            echo "missing outcome file" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            -f body="@cursor review\n${marker}"

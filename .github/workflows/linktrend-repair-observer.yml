@@ -54,7 +54,7 @@ jobs:
           github.event.check_run.conclusion == 'neutral'
         )
       )
-    runs-on: [self-hosted, macOS, ARM64, linktrend-privileged]
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     permissions:
       contents: read
