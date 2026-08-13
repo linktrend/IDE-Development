@@ -1,0 +1,19 @@
+{
+  "packet": "W2-P3",
+  "base": "9e9abf4da7361e765f8c276d708035be261f8359",
+  "scope": "owned paths only",
+  "profileTests": "PASS",
+  "receiptGateTests": "PASS",
+  "existingReceiptTests": "PASS",
+  "managedRunnerRouting": "PASS",
+  "gitDiffCheck": "PASS",
+  "actionlintWithKnownEnvironmentIgnores": "PASS",
+  "acceptanceCommandNotes": {
+    "bash scripts/tests/test-gitops-lifecycle.sh": "HOLD: inherited origin/development comparison reports pre-existing blank EOF lines in unowned planning documents",
+    "actionlint .github/workflows/*.yml": "HOLD: inherited custom self-hosted labels and SC2129 diagnostics; changed workflow syntax passes with those known baseline diagnostics ignored"
+  },
+  "liveMutation": false,
+  "pullRequest": false,
+  "promotion": false,
+  "rulesetApply": false
+}

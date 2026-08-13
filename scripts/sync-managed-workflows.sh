@@ -30,13 +30,15 @@ info() {
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") <repo-path> [--config PATH] [--dry-run]
+Usage: $(basename "$0") <repo-path> [--config PATH] [--orchestration-mode MODE] [--dry-run]
 
 Copy managed GitHub workflow templates into <repo-path>/.github/workflows/.
 Never overwrites ci.yml. Idempotent when files already match.
 
 Workflow templates may contain __LINKTREND_* placeholders. They are rendered
 from <repo-path>/.github/linktrend-gitops-consumer.json unless --config is set.
+MODE is local-coordinator or github-actions. When omitted, the v2 delivery
+configuration is consulted, then the consumer config, then github-actions.
 
 Examples:
   $(basename "$0") /Users/you/Projects/SomeProductRepo
@@ -47,6 +49,7 @@ EOF
 DRY_RUN=0
 TARGET_INPUT=""
 CONFIG_INPUT=""
+ORCHESTRATION_MODE=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -65,6 +68,15 @@ while [ $# -gt 0 ]; do
       ;;
     --config=*)
       CONFIG_INPUT="${1#--config=}"
+      shift
+      ;;
+    --orchestration-mode)
+      [ $# -ge 2 ] || fail "--orchestration-mode requires a value"
+      ORCHESTRATION_MODE="$2"
+      shift 2
+      ;;
+    --orchestration-mode=*)
+      ORCHESTRATION_MODE="${1#--orchestration-mode=}"
       shift
       ;;
     *)
@@ -95,10 +107,38 @@ else
   CONFIG_PATH="${TARGET_REPO}/.github/linktrend-gitops-consumer.json"
 fi
 
+if [ -z "${ORCHESTRATION_MODE}" ]; then
+  ORCHESTRATION_MODE="$({
+    python3 - "${TARGET_REPO}" "${CONFIG_PATH}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+target = Path(sys.argv[1])
+consumer = Path(sys.argv[2])
+for path in (target / ".github" / "linktrend-delivery-mode.json", consumer):
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        continue
+    if isinstance(value, dict) and value.get("orchestrationMode"):
+        print(str(value["orchestrationMode"]).strip())
+        break
+else:
+    print("github-actions")
+PY
+  })"
+fi
+case "${ORCHESTRATION_MODE}" in
+  local-coordinator|github-actions) ;;
+  *) fail "unsupported orchestration mode: ${ORCHESTRATION_MODE} (expected local-coordinator or github-actions)" ;;
+esac
+
 info "System repository: $SYSTEM_ROOT"
 info "Target repository: $TARGET_REPO"
 info "Template source: $TEMPLATE_DIR"
 info "Consumer config: $CONFIG_PATH"
+info "Orchestration profile: $ORCHESTRATION_MODE"
 
 [ -f "$CONFIG_PATH" ] || fail "Consumer config missing: $CONFIG_PATH (create .github/linktrend-gitops-consumer.json or pass --config)"
 
@@ -115,14 +155,16 @@ trap cleanup EXIT
 render_template() {
   local src="$1"
   local out="$2"
-  python3 - "$CONFIG_PATH" "$src" "$out" <<'PY'
+  python3 - "$CONFIG_PATH" "$src" "$out" "$ORCHESTRATION_MODE" <<'PY'
 import json
+import re
 import sys
 from pathlib import Path
 
 config_path = Path(sys.argv[1])
 src = Path(sys.argv[2])
 out = Path(sys.argv[3])
+profile = sys.argv[4]
 
 try:
     cfg = json.loads(config_path.read_text(encoding="utf-8"))
@@ -191,6 +233,71 @@ rendered = rendered.replace(
 rendered = rendered.replace("__LINKTREND_RUNS_ON__", runner_types[runner_type]["privileged"])
 if "__LINKTREND_" in rendered:
     raise SystemExit(f"unrendered __LINKTREND_ placeholder remains in {src}")
+
+
+def remove_event_blocks(value: str, prohibited: set[str]) -> str:
+    """Remove event mappings without YAML parsing ``on`` as a boolean."""
+    lines = value.splitlines(keepends=True)
+    output: list[str] = []
+    index = 0
+    while index < len(lines):
+        if lines[index].rstrip("\r\n") != "on:":
+            output.append(lines[index])
+            index += 1
+            continue
+        output.append(lines[index])
+        index += 1
+        while index < len(lines):
+            line = lines[index]
+            if line.strip() and not line.startswith(" "):
+                break
+            match = re.match(r"^  ([A-Za-z0-9_-]+):", line)
+            if not match:
+                output.append(line)
+                index += 1
+                continue
+            event = match.group(1)
+            block: list[str] = [line]
+            index += 1
+            while index < len(lines):
+                candidate = lines[index]
+                if candidate.strip() and not candidate.startswith(" "):
+                    break
+                if re.match(r"^  [A-Za-z0-9_-]+:", candidate):
+                    break
+                block.append(candidate)
+                index += 1
+            if event not in prohibited:
+                output.extend(block)
+    return "".join(output)
+
+
+if profile == "local-coordinator" and src.name in {
+    "linktrend-review-packager.yml",
+    "linktrend-integrator-merge.yml",
+    "linktrend-repair-observer.yml",
+    "linktrend-development-to-staging.yml",
+    "linktrend-staging-to-main.yml",
+}:
+    rendered = remove_event_blocks(
+        rendered, {"schedule", "check_run", "workflow_run", "pull_request_target"}
+    )
+    if src.name == "linktrend-repair-observer.yml" and "\n  workflow_dispatch:" not in rendered:
+        rendered = rendered.replace("on:\n", "on:\n  workflow_dispatch:\n", 1)
+        rendered = rendered.replace(
+            "    if: >\n      (\n",
+            "    if: >\n      github.event_name == 'workflow_dispatch' ||\n      (\n",
+            1,
+        )
+    rendered = (
+        "# Orchestration profile: local-coordinator\n"
+        "# Automatic schedule/check-run/workflow-run/pull-request-target wakes are disabled.\n"
+        "# Manual recovery remains available; the local coordinator publishes these frozen contexts:\n"
+        "# Linktrend Fast Gate | Linktrend Full Suite | Linktrend Phase Ready\n"
+        "# Linktrend Staging Gate | Linktrend Release Gate | Linktrend Coordinator\n"
+        "# Cursor Bugbot remains an external unchanged context.\n"
+        + rendered
+    )
 out.write_text(rendered, encoding="utf-8")
 PY
 }

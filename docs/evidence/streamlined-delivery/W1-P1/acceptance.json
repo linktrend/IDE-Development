@@ -1,0 +1,17 @@
+{
+  "packet": "W1-P1",
+  "baseSha": "9d8ca8794ce1bee8e07e71826eaaccebffc650f2",
+  "branch": "issue/213-w1-p1-streamlined-delivery-configuration-and-lif",
+  "commands": [
+    {"command": "python3 -m unittest scripts.tests.test_streamlined_delivery_config", "exitCode": 0, "result": "9 tests passed"},
+    {"command": "bash scripts/tests/test-gitops-phase-delivery.sh", "exitCode": 0, "result": "4 checks passed"},
+    {"command": "python3 -m py_compile scripts/gitops/coordinator/config.py scripts/gitops/coordinator/state.py", "exitCode": 0, "result": "compiled"},
+    {"command": "git diff --check", "exitCode": 0, "result": "clean"}
+  ],
+  "additionalChecks": [
+    {"check": "delivery schemas JSON parse", "result": "passed"},
+    {"check": "frozen v2 normalization", "result": "passed"},
+    {"check": "state JSON round trip", "result": "passed"}
+  ],
+  "sanitized": true
+}

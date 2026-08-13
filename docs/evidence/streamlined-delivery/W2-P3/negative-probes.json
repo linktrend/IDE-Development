@@ -1,0 +1,17 @@
+{
+  "packet": "W2-P3",
+  "base": "9e9abf4da7361e765f8c276d708035be261f8359",
+  "probes": [
+    {"name": "missing-receipt", "result": "PASS", "expected": "blocked"},
+    {"name": "wrong-or-failed-receipt", "result": "PASS", "expected": "blocked"},
+    {"name": "different-commit-identical-tree", "result": "PASS", "expected": "accepted"},
+    {"name": "one-byte-source-change", "result": "PASS", "expected": "tree_mismatch"},
+    {"name": "one-byte-dependency-change", "result": "PASS", "expected": "dependency_mismatch"},
+    {"name": "stale-main-approval", "result": "PASS", "expected": "blocked"},
+    {"name": "duplicate-promotion-candidates", "result": "PASS", "expected": "deterministic-block"},
+    {"name": "full-suite-reentered-during-promotion", "result": "PASS", "expected": "blocked"},
+    {"name": "automatic-main-without-release-or-receipt-gate", "result": "PASS", "expected": "blocked"},
+    {"name": "local-profile-automatic-cascades", "result": "PASS", "expected": "absent"}
+  ],
+  "sanitized": true
+}
