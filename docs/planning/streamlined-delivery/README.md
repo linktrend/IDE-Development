@@ -1,4 +1,9 @@
-# IDE Development Streamlined Delivery
+# IDE Development Streamlined Delivery — Superseded planning archive
+
+> **Historical, non-authoritative.** This planning set is retained for
+> provenance only. It is superseded by the hosted phase-delivery contract in
+> `docs/contracts/STREAMLINED-DELIVERY.md` and the frozen interfaces under
+> `docs/planning/github-compute-final-fix/`. Do not implement from this set.
 
 Status: approved design direction; implementation requires a separately approved goal.
 

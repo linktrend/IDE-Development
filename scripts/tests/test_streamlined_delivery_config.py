@@ -9,7 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts.gitops.coordinator.config import ConfigError, load_delivery_config
+from scripts.gitops.coordinator.config import ConfigError, config_digest, load_delivery_config
 from scripts.gitops.coordinator.state import (
     CandidateIdentity,
     DeliveryState,
@@ -24,7 +24,34 @@ BASE = "c" * 40
 IDENTITY = CandidateIdentity("owner/name", "a" * 40, "b" * 40, {}, "fast")
 
 
-def v2_payload() -> dict:
+def hosted_payload() -> dict:
+    return {
+        "schemaVersion": 2,
+        "mode": "phase-integration",
+        "compute": {
+            "provider": "github-hosted",
+            "runner": "ubuntu-24.04-arm",
+            "checkpointCI": False,
+            "cancelObsolete": True,
+            "maxInfrastructureAttempts": 2,
+            "maxSealedCandidates": 2,
+        },
+        "profiles": {
+            "fast": {"commands": [["scripts/check.sh", "--fast"]], "timeoutMinutes": 5},
+            "full": {"required": False, "commands": [], "timeoutMinutes": 60},
+            "release": {"commands": [], "timeoutMinutes": 5},
+        },
+        "promotion": {
+            "reuseExactReceipt": True,
+            "identity": [
+                "repository", "gitTree", "dependencyDigest", "profileDigest", "workflowDigest"
+            ],
+        },
+        "review": {"bugbot": "final-candidate-only"},
+    }
+
+
+def legacy_streamlined_payload() -> dict:
     return {
         "schemaVersion": 2,
         "deliveryMode": "phase-integration",
@@ -38,11 +65,11 @@ def v2_payload() -> dict:
         "stagingPromotion": "automatic",
         "mainPromotion": "principal-approval",
         "testProfiles": {
-            "fast": {"commands": [["scripts/check.sh", "--fast"]], "timeoutSeconds": 300},
-            "full": {"required": False, "commands": [], "timeoutSeconds": 3600},
-            "release": {"commands": [], "timeoutSeconds": 300},
+            "fast": {"commands": [["bash", "scripts/check.sh", "--fast"]], "timeoutSeconds": 300},
+            "full": {"required": False, "commands": [["python3", "-m", "unittest"]], "timeoutSeconds": 3600},
+            "release": {"commands": [["python3", "scripts/release.py"]], "timeoutSeconds": 300},
         },
-        "dependencyFiles": ["package-lock.json", "package.json", "package.json"],
+        "dependencyFiles": ["package-lock.json", "package.json"],
         "resourceLimits": {
             "fastCpus": 1.0,
             "fastMemoryMiB": 2048,
@@ -57,7 +84,7 @@ def v2_payload() -> dict:
 
 
 class DeliveryConfigTests(unittest.TestCase):
-    def test_v1_fixture_loads_unchanged(self) -> None:
+    def test_legacy_v1_is_readable_but_migrates_to_hosted_profile(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / ".github").mkdir()
@@ -66,40 +93,99 @@ class DeliveryConfigTests(unittest.TestCase):
                 encoding="utf-8",
             )
             config = load_delivery_config(root, env={})
-        self.assertEqual(config.schema_version, 1)
+        self.assertEqual(config.schema_version, 2)
         self.assertEqual(config.delivery_mode, "phase-integration")
         self.assertEqual(config.phase_branch_prefix, "phase/")
+        self.assertEqual(config.compute.provider, "github-hosted")
+        self.assertEqual(config.compute.runner, "ubuntu-24.04-arm")
+        self.assertNotIn("deliveryMode", config.to_dict())
 
-    def test_v2_normalizes_deterministically(self) -> None:
-        first = load_delivery_config(v2_payload())
-        payload = v2_payload()
-        payload["dependencyFiles"] = ["package.json", "package-lock.json"]
+    def test_streamlined_migration_preserves_repository_commands(self) -> None:
+        config = load_delivery_config(legacy_streamlined_payload())
+        self.assertEqual(config.schema_version, 2)
+        self.assertEqual(config.compute.runner, "ubuntu-24.04-arm")
+        self.assertEqual(config.profiles["fast"].commands, (("bash", "scripts/check.sh", "--fast"),))
+        self.assertEqual(config.profiles["full"].commands, (("python3", "-m", "unittest"),))
+        self.assertEqual(config.profiles["release"].commands, (("python3", "scripts/release.py"),))
+        self.assertNotIn("testProfiles", config.to_dict())
+
+    def test_valid_hosted_config_normalizes_and_digests_deterministically(self) -> None:
+        first = load_delivery_config(hosted_payload())
+        payload = hosted_payload()
+        payload["promotion"]["identity"] = list(reversed(payload["promotion"]["identity"]))
         second = load_delivery_config(payload)
         self.assertEqual(first.to_dict(), second.to_dict())
-        self.assertEqual(first.dependency_files, ("package-lock.json", "package.json"))
+        self.assertEqual(config_digest(first), config_digest(second))
+        self.assertEqual(first.compute.runner, "ubuntu-24.04-arm")
+        self.assertIsInstance(first.compute.runner, str)
         self.assertEqual(first.test_profiles["fast"].commands, (("scripts/check.sh", "--fast"),))
 
-    def assert_config_rejected(self, payload: dict, code: str) -> None:
+    def assert_config_rejected(self, payload: dict, code: str, path: str | None = None) -> None:
         with self.assertRaises(ConfigError) as raised:
             load_delivery_config(payload)
         self.assertEqual(raised.exception.code, code)
+        if path is not None:
+            self.assertEqual(raised.exception.path, path)
 
-    def test_unknown_and_unsafe_config_is_rejected(self) -> None:
-        unknown = v2_payload()
+    def test_unknown_and_malformed_config_is_rejected(self) -> None:
+        unknown = hosted_payload()
         unknown["unexpected"] = True
         self.assert_config_rejected(unknown, "unknown_or_missing_field")
 
-        absolute = v2_payload()
-        absolute["testProfiles"]["fast"]["commands"] = ["/bin/echo"]
-        self.assert_config_rejected(absolute, "unsafe_path")
+        malformed = hosted_payload()
+        malformed["profiles"]["fast"]["commands"] = "bash scripts/check.sh"
+        self.assert_config_rejected(malformed, "invalid_commands")
 
-        outside = v2_payload()
-        outside["dependencyFiles"] = ["../secrets.txt"]
-        self.assert_config_rejected(outside, "path_escape")
+        empty_item = hosted_payload()
+        empty_item["profiles"]["fast"]["commands"] = [["bash", ""]]
+        self.assert_config_rejected(empty_item, "invalid_command")
 
-        limits = v2_payload()
-        limits["maxFastJobs"] = 3
-        self.assert_config_rejected(limits, "invalid_limits")
+    def test_runner_must_be_supported_scalar_hosted_label(self) -> None:
+        for runner in (
+            ["self-hosted", "macos"],
+            "macos-14",
+            "ephemeral",
+            "linktrend-private-macos-arm64",
+            "ubuntu-24.04-arm:privileged",
+        ):
+            payload = hosted_payload()
+            payload["compute"]["runner"] = runner
+            with self.subTest(runner=runner):
+                self.assert_config_rejected(payload, "invalid_runner", "compute.runner")
+
+    def test_checkpoint_and_timeout_policies_fail_closed(self) -> None:
+        missing = hosted_payload()
+        del missing["compute"]["checkpointCI"]
+        self.assert_config_rejected(missing, "unknown_or_missing_field", "compute")
+
+        enabled = hosted_payload()
+        enabled["compute"]["checkpointCI"] = True
+        self.assert_config_rejected(enabled, "invalid_checkpoint_policy", "compute.checkpointCI")
+
+        for key in ("maxInfrastructureAttempts", "maxSealedCandidates"):
+            payload = hosted_payload()
+            payload["compute"][key] = 0
+            with self.subTest(key=key):
+                self.assert_config_rejected(payload, "invalid_limits", f"compute.{key}")
+
+        timeout = hosted_payload()
+        timeout["profiles"]["fast"]["timeoutMinutes"] = 0
+        self.assert_config_rejected(timeout, "invalid_timeout", "profiles.fast.timeoutMinutes")
+
+        too_long = hosted_payload()
+        too_long["profiles"]["fast"]["timeoutMinutes"] = 61
+        self.assert_config_rejected(too_long, "invalid_timeout", "profiles.fast.timeoutMinutes")
+
+    def test_receipt_reuse_requires_complete_identity(self) -> None:
+        for identity in (
+            ["repository"],
+            ["repository", "gitTree", "dependencyDigest", "profileDigest"],
+            ["repository", "gitTree", "dependencyDigest", "profileDigest", "other"],
+        ):
+            payload = hosted_payload()
+            payload["promotion"]["identity"] = identity
+            with self.subTest(identity=identity):
+                self.assert_config_rejected(payload, "incomplete_receipt_identity", "promotion.identity")
 
     def test_v1_unknown_fields_are_rejected(self) -> None:
         payload = {"schemaVersion": 1, "deliveryMode": "issue-pr", "unknown": True}
