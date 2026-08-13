@@ -41,9 +41,25 @@ test('Skills require a qualified exact release and bounded telemetry', () => {
 test('Autowork and Libraries receive bounded immutable Revision 2 references only', () => {
   assert.equal(validateAutoworkReceipt({ contractVersion: 'provider-contract/v1', requestId: 'opaque:request-1', idempotencyKey: 'opaque:key-1', status: 'completed', result: { count: 1 } }).status, 'completed')
   throws(() => validateAutoworkReceipt({ contractVersion: 'provider-contract/v1', requestId: 'opaque:request-1', idempotencyKey: 'opaque:key-1', status: 'completed', result: { secret: 'x' } }), 'sensitive_field')
-  const digest = `sha256:${'a'.repeat(64)}`
-  assert.equal(validateLibraryReference({ commit: FROZEN_PROVIDERS.libraries.commit, tree: FROZEN_PROVIDERS.libraries.tree, cataloguePath: 'indexes/v2/catalog.json', catalogueDigest: digest, entryId: 'safe-kit', version: '1.0.0', manifestDigest: digest, inventoryDigest: digest, closureDigest: digest }).entryId, 'safe-kit')
-  throws(() => validateLibraryReference({ commit: 'a'.repeat(40), tree: 'b'.repeat(40), entryRef: 'opaque:entry-1' }), 'unknown_field')
+  const facts = {
+    sourceCommitSha: FROZEN_PROVIDERS.libraries.commit,
+    sourceTreeSha: FROZEN_PROVIDERS.libraries.tree,
+    releaseSourceCommitSha: '96d6972b836e8ccb51ea6fe1377ed6440ab7e1d9',
+    releaseSourceTreeSha: 'f8f20316b62492b9b1d0363f1c7983fc64de58ec',
+    artifactTreeSha1: '2107a410b1308048a138f2dcb80c9cc7d8b7867a',
+    entryId: 'synthetic-component',
+    version: '1.0.0',
+    releaseManifestSha256: '6b9979777561d1771294ff4ddd10159b543c3b3cdd699c82ad759ab04ea67212',
+    inventorySha256: 'deea48fd4fd547513f12216cd71191128eb8c3a78820d08862617d14498247a0',
+    payloadSha256: '8cad275e50f5c468ee7bb53e0594dd4c4c53b49a78aa1da6e8cb1ab737fd7e37',
+    dependencyLockSha256: '59f4db72af5de4731c68ee44b525f494c6cd067b42f8da310c345829f1b09c23',
+    receiptType: 'verified_cache',
+    receiptId: 'external-synthetic-component-1.0.0',
+  }
+  assert.equal(validateLibraryReference(facts).entryId, 'synthetic-component')
+  throws(() => validateLibraryReference({ ...facts, closureDigest: facts.dependencyLockSha256 }), 'unknown_field')
+  throws(() => validateLibraryReference({ ...facts, sourceCommitSha: '0123456789abcdef0123456789abcdef01234567' }), 'library_reference_not_frozen')
+  throws(() => validateLibraryReference({ ...facts, receiptType: 'execute' }), 'library_receipt_invalid')
 })
 
 test('MCP and OKF transitions fail closed', () => {

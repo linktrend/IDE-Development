@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 2,
+  "schemaRevision": 2,
+  "inventoryType": "exhaustive_tree_inventory",
+  "root": "artifact",
+  "complete": true,
+  "includesDirectories": true,
+  "includesFiles": true,
+  "includesSymlinks": false,
+  "entries": [
+    {
+      "path": "src",
+      "type": "directory"
+    },
+    {
+      "path": "src/synthetic.js",
+      "type": "file",
+      "byteLength": 62,
+      "sha256": "318057b67da578ab22290ccda92880a50dcbf21a7e50c25801d60f7107797f5d"
+    }
+  ],
+  "inventorySha256": "8cad275e50f5c468ee7bb53e0594dd4c4c53b49a78aa1da6e8cb1ab737fd7e37",
+  "artifactTreeSha1": "2107a410b1308048a138f2dcb80c9cc7d8b7867a"
+}

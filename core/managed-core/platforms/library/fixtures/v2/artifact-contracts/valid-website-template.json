@@ -1,0 +1,26 @@
+{
+  "artifactType": "website_template",
+  "selectability": "selectable",
+  "extension": {
+    "templateClass": "shared_renderer_declarative",
+    "contentScope": {
+      "siteId": true,
+      "locale": true,
+      "publicationStatus": true
+    },
+    "draftOnly": true,
+    "directPublication": false,
+    "urls": [
+      "/about",
+      "https://source.example/provenance",
+      "https://source.example/license",
+      "https://docs.example/documentation"
+    ],
+    "urlPolicy": {
+      "provenanceUrls": ["https://source.example/provenance"],
+      "licenseUrls": ["https://source.example/license"],
+      "docsUrls": ["https://docs.example/documentation"]
+    },
+    "compatibilityDisposition": "compatible"
+  }
+}

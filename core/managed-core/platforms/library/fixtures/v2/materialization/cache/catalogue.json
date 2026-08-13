@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 2,
+  "schemaRevision": 2,
+  "catalogueType": "catalogue",
+  "recordsSha256": "e1659929c19176227b8349c532f2b6744b6c130e035351d1bc89fb30fa39ad77",
+  "records": [
+    {
+      "schemaVersion": 2,
+      "schemaRevision": 2,
+      "recordType": "catalogue_record",
+      "entryId": "synthetic-component",
+      "version": "1.0.0",
+      "artifactType": "component",
+      "name": "synthetic-component-1.0.0",
+      "summary": "Immutable component release synthetic-component@1.0.0",
+      "releaseManifestSha256": "6b9979777561d1771294ff4ddd10159b543c3b3cdd699c82ad759ab04ea67212",
+      "releaseSource": {
+        "releaseSourceCommitSha": "96d6972b836e8ccb51ea6fe1377ed6440ab7e1d9",
+        "releaseSourceRepositoryTreeSha1": "f8f20316b62492b9b1d0363f1c7983fc64de58ec"
+      },
+      "artifactTreeSha1": "2107a410b1308048a138f2dcb80c9cc7d8b7867a",
+      "inventorySha256": "deea48fd4fd547513f12216cd71191128eb8c3a78820d08862617d14498247a0",
+      "lifecycle": "selectable",
+      "selectability": "selectable",
+      "compatibility": "compatible",
+      "bundlePath": "registry/v2/entries/synthetic-component/versions/1.0.0",
+      "tags": [],
+      "governance": {
+        "qualification": {
+          "status": "qualified",
+          "receiptId": "qualification-synthetic-component-1.0.0",
+          "independentPass": true
+        },
+        "admission": {
+          "status": "admitted",
+          "receiptId": "admission-synthetic-component-1.0.0"
+        }
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "schemaRevision": 2,
+      "recordType": "catalogue_record",
+      "entryId": "synthetic-starter-kit",
+      "version": "1.0.0",
+      "artifactType": "starter_kit",
+      "name": "synthetic-starter-kit-1.0.0",
+      "summary": "Immutable starter_kit release synthetic-starter-kit@1.0.0",
+      "releaseManifestSha256": "1ac2ebbc3506c848f8c01d182b50cea8d327873b2347df6fa210ff68f45b40d7",
+      "releaseSource": {
+        "releaseSourceCommitSha": "94d9d79bc7d5c06936b9a810803dff251c3c000a",
+        "releaseSourceRepositoryTreeSha1": "24dbbea220c396cf513ee3058b0f3a0095c82278"
+      },
+      "artifactTreeSha1": "1a3fb264e443d121f274681e5cf17f6e1fc3af15",
+      "inventorySha256": "0cb4156b7161716c4524994fcc24fec075c58f26248e72b8142d2fb95f420c27",
+      "lifecycle": "draft",
+      "selectability": "non_selectable",
+      "compatibility": "unknown",
+      "bundlePath": "registry/v2/entries/synthetic-starter-kit/versions/1.0.0",
+      "tags": []
+    },
+    {
+      "schemaVersion": 2,
+      "schemaRevision": 2,
+      "recordType": "catalogue_record",
+      "entryId": "synthetic-website-template",
+      "version": "1.0.0",
+      "artifactType": "website_template",
+      "name": "synthetic-website-template-1.0.0",
+      "summary": "Immutable website_template release synthetic-website-template@1.0.0",
+      "releaseManifestSha256": "701cc9bfb8062693aa75acf33aa64df9030115b09cab8a26f4a024f32420176f",
+      "releaseSource": {
+        "releaseSourceCommitSha": "2888456d2269f1f2355422400938d2e0a424819e",
+        "releaseSourceRepositoryTreeSha1": "57bfb9b10412229e9692fdc0eee5c737a82e20cb"
+      },
+      "artifactTreeSha1": "acd0a0bb53f27933e2d2857e079a50aa57466283",
+      "inventorySha256": "d7131ec7cb6c8e4362d09f06f0d6eabd0a760a48c6376691d1ed311be362cc19",
+      "lifecycle": "draft",
+      "selectability": "non_selectable",
+      "compatibility": "unknown",
+      "bundlePath": "registry/v2/entries/synthetic-website-template/versions/1.0.0",
+      "tags": []
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/linktrend/LiNKlibraries/schemas/v2/materialization.schema.json",
+  "title": "LiNKlibraries controlled materialization plan revision 2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "schemaRevision", "planType", "plan", "planSha256"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "schemaRevision": { "const": 2 },
+    "planType": { "const": "controlled_materialization" },
+    "plan": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/materialization" },
+    "planSha256": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/sha256" }
+  }
+}

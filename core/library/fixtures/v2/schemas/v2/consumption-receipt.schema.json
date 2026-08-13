@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/linktrend/LiNKlibraries/schemas/v2/consumption-receipt.schema.json",
+  "title": "LiNKlibraries consumption receipt revision 2",
+  "allOf": [
+    { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/receiptBase" },
+    { "type": "object", "required": ["consumerId", "consumptionMode"], "properties": { "receiptType": { "const": "consumption" } } },
+    { "if": { "type": "object", "properties": { "result": { "const": "pass" } } }, "then": { "type": "object", "required": ["consumerMaterializedTreeSha1"] } }
+  ]
+}

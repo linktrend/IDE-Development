@@ -1,0 +1,25 @@
+{
+  "artifactType": "starter_kit",
+  "extension": {
+    "cleanBootstrap": {
+      "executable": "npm",
+      "args": ["ci"]
+    },
+    "noExternalSymlinks": true,
+    "environmentVariables": [
+      {
+        "name": "PORT",
+        "required": false,
+        "description": "Local development server port"
+      }
+    ],
+    "substitutions": [
+      {
+        "target": "src/config/site.js",
+        "explicit": true
+      }
+    ],
+    "reservedPathCollisions": [".agents", ".git"],
+    "compositionOrder": "kit_then_managed_core"
+  }
+}

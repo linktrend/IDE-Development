@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 2,
+  "schemaRevision": 2,
+  "entryId": "button-component",
+  "version": "1.0.0",
+  "extension": {
+    "extensionType": "component",
+    "entrypoint": "src/button.js",
+    "exports": ["Button"],
+    "materialization": {
+      "mode": "copy",
+      "sourceRoot": "src",
+      "destinationRoot": "src",
+      "commands": [],
+      "substitutions": [],
+      "outputs": ["src/button.js"],
+      "network": { "allowNetwork": false, "allowedHosts": [] }
+    }
+  }
+}

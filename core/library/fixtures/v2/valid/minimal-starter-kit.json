@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 2,
+  "schemaRevision": 2,
+  "entryId": "starter-kit",
+  "version": "1.0.0",
+  "extension": {
+      "extensionType": "starter_kit",
+      "surfaces": ["web"],
+      "requiredEntrypoints": ["src/main.js"],
+      "cleanBootstrap": { "id": "bootstrap", "executable": "node", "args": ["--version"], "shell": false },
+      "noExternalSymlinks": true,
+      "environmentVariables": [],
+      "substitutions": [],
+      "reservedPathCollisions": [],
+      "compositionOrder": "kit_then_managed_core",
+      "materialization": {
+      "mode": "template",
+      "sourceRoot": "template",
+      "destinationRoot": "project",
+      "commands": [],
+      "substitutions": [],
+      "outputs": ["src/main.js"],
+      "network": { "allowNetwork": false, "allowedHosts": [] }
+    }
+  }
+}

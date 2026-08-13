@@ -1,0 +1,16 @@
+{
+  "artifactType": "website_template",
+  "selectability": "selectable",
+  "extension": {
+    "templateClass": "shared_renderer_declarative",
+    "contentScope": {
+      "siteId": true,
+      "locale": true,
+      "publicationStatus": true
+    },
+    "draftOnly": true,
+    "directPublication": false,
+    "urls": ["https://customer.example/about"],
+    "compatibilityDisposition": "compatible"
+  }
+}

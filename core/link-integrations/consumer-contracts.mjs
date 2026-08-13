@@ -5,12 +5,13 @@
  * deliberately has no transport, credentials, provider execution, Git, gate,
  * or ledger mutation capability.
  */
+import { LIBRARY_V2_SOURCE } from '../library/library-v2-client.mjs'
 
 export const MCP_PROTOCOL_VERSION = '2026-07-28'
 
 export const FROZEN_PROVIDERS = Object.freeze({
   platform: Object.freeze({ commit: '6a7114674c23fc6b9ba9ae2b3277b8aec7a3fb15', tree: '91d565a988150da39a13b66c4bcd51f7bc47c9be' }),
-  libraries: Object.freeze({ commit: '87dbb71da8b07be8f83eb82f8f769e16b062e7b2', tree: 'f258bf45d91a90fb4c818ee9012c7a85b1fa96da' }),
+  libraries: Object.freeze({ commit: 'b2d2bbb035c6e6a3f859480ce57f12e0882dd3f0', tree: '2701e6a190468f437102946425a64e890eed6690' }),
   brain: Object.freeze({ commit: '43887ffc3b51ef2e54c30820d41cab67f54d5d0f', tree: '40c7acfcd7b204f19a1278e6801033c4ee64b369' }),
   skills: Object.freeze({ commit: '93ec4b9df2ebe2a9d9b412fb8b3bcde2aa8e97f3', tree: '1845b996a7ec4d217a57e6f66574d6c5d676bb67' }),
   autowork: Object.freeze({ commit: '10f75a8d840160a10d131371e94a338dfd1ebb4a', tree: 'c433907818f2cd4adbfdd61549f9f91396e31819' }),
@@ -18,6 +19,7 @@ export const FROZEN_PROVIDERS = Object.freeze({
 
 const SHA256 = /^sha256:[a-f0-9]{64}$/
 const GIT_SHA = /^[a-f0-9]{40}$/
+const RAW_SHA256 = /^[a-f0-9]{64}$/
 const OPAQUE = /^opaque:[A-Za-z0-9][A-Za-z0-9._:/-]{1,94}$/
 const FORBIDDEN = /(?:secret|password|token|authorization|private.?key|prompt|transcript|conversation|raw(?:_|$)|full.?content|body)/i
 
@@ -91,12 +93,20 @@ export function validateAutoworkReceipt(value) {
 }
 
 export function validateLibraryReference(value) {
-  const reference = object(value); exactKeys(reference, new Set(['commit', 'tree', 'cataloguePath', 'catalogueDigest', 'entryId', 'version', 'manifestDigest', 'inventoryDigest', 'closureDigest']))
-  const frozen = FROZEN_PROVIDERS.libraries
-  if (reference.commit !== frozen.commit || reference.tree !== frozen.tree || reference.cataloguePath !== 'indexes/v2/catalog.json') fail('library_reference_not_frozen')
-  for (const field of ['catalogueDigest', 'manifestDigest', 'inventoryDigest', 'closureDigest']) if (!SHA256.test(reference[field] ?? '')) fail('library_digest_invalid')
-  for (const field of ['entryId', 'version']) text(reference[field], 'library_reference_invalid')
-  return Object.freeze({ ...reference })
+  const facts = object(value)
+  exactKeys(facts, new Set([
+    'sourceCommitSha', 'sourceTreeSha', 'releaseSourceCommitSha',
+    'releaseSourceTreeSha', 'artifactTreeSha1', 'entryId', 'version',
+    'releaseManifestSha256', 'inventorySha256', 'payloadSha256',
+    'dependencyLockSha256', 'receiptType', 'receiptId',
+  ]))
+  if (facts.sourceCommitSha !== LIBRARY_V2_SOURCE.commit || facts.sourceTreeSha !== LIBRARY_V2_SOURCE.tree) fail('library_reference_not_frozen')
+  if (facts.sourceCommitSha !== FROZEN_PROVIDERS.libraries.commit || facts.sourceTreeSha !== FROZEN_PROVIDERS.libraries.tree) fail('library_provider_pin_mismatch')
+  for (const field of ['releaseSourceCommitSha', 'releaseSourceTreeSha', 'artifactTreeSha1']) if (!GIT_SHA.test(facts[field] ?? '')) fail('library_git_identity_invalid')
+  for (const field of ['releaseManifestSha256', 'inventorySha256', 'payloadSha256', 'dependencyLockSha256']) if (!RAW_SHA256.test(facts[field] ?? '')) fail('library_digest_invalid')
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(facts.entryId ?? '') || !/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(facts.version ?? '')) fail('library_identity_invalid')
+  if (!['verified_cache', 'consumption'].includes(facts.receiptType) || !/^[a-z0-9][a-z0-9._-]*$/.test(facts.receiptId ?? '')) fail('library_receipt_invalid')
+  return Object.freeze({ ...facts })
 }
 
 export function negotiateMcp(version, era) { if (version !== MCP_PROTOCOL_VERSION || era !== 'modern') fail('mcp_negotiation_failed'); return MCP_PROTOCOL_VERSION }

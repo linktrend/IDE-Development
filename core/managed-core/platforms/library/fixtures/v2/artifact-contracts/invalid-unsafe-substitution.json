@@ -1,0 +1,19 @@
+{
+  "artifactType": "starter_kit",
+  "extension": {
+    "cleanBootstrap": {
+      "executable": "npm",
+      "args": ["ci"]
+    },
+    "noExternalSymlinks": true,
+    "environmentVariables": [],
+    "substitutions": [
+      {
+        "target": "../outside/config.js",
+        "explicit": true
+      }
+    ],
+    "reservedPathCollisions": [".agents"],
+    "compositionOrder": "kit_then_managed_core"
+  }
+}

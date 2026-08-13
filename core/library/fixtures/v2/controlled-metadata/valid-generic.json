@@ -1,0 +1,24 @@
+{
+  "domain": "software",
+  "locales": ["en-US", "zh-TW"],
+  "jurisdictions": ["US", "TW"],
+  "venues": ["web", "cli"],
+  "platforms": ["browser", "node"],
+  "channels": ["website", "api"],
+  "dataSensitivity": "public",
+  "commercialUseRights": "conditional",
+  "humanReviewRequired": true,
+  "sideEffectRiskClass": "low",
+  "review": {
+    "status": "passed",
+    "reviewedAt": "2026-08-12T00:00:00.000Z"
+  },
+  "expiry": {
+    "expiresAt": "2027-08-12T00:00:00.000Z"
+  },
+  "artifactMedia": {
+    "type": "application/json",
+    "size": 2048
+  },
+  "scopeReference": "scope:metadata-v2"
+}

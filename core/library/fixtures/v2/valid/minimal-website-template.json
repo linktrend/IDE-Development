@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 2,
+  "schemaRevision": 2,
+  "entryId": "sites-template",
+  "version": "1.0.0",
+  "extension": {
+    "extensionType": "website_template",
+    "templateClass": "shared_renderer_declarative",
+    "contentScope": { "siteId": true, "locale": true, "publicationStatus": true },
+    "draftOnly": true,
+    "directPublication": false,
+    "urls": ["/", "https://source.example.test/provenance"],
+    "compatibilityDisposition": "unknown",
+    "routes": [{ "route": "/", "page": "pages/home.html" }],
+    "assets": [],
+    "urlPolicy": {
+      "provenanceUrls": ["https://source.example.test/provenance"],
+      "licenseUrls": ["https://spdx.org/licenses/MIT.html"],
+      "docsUrls": ["https://docs.example.test/getting-started"]
+    },
+    "runtimeEndpointContracts": [],
+    "materialization": {
+      "mode": "copy",
+      "sourceRoot": "site",
+      "destinationRoot": "site-output",
+      "commands": [],
+      "substitutions": [],
+      "outputs": ["pages/home.html"],
+      "network": { "allowNetwork": false, "allowedHosts": [] }
+    }
+  }
+}
