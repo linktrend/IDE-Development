@@ -97,7 +97,7 @@ class Lease:
 class MultiHostCoordinator:
     """Coordinate multiple unprivileged candidate workers through one queue."""
 
-    def __init__(self, database: str | Path = ":memory:", *, coordinator_id: str = "local-coordinator", coordinator_version: str = "2.2.0", store: Optional[QueueStore] = None, registry: Optional[WorkerRegistry] = None, admission_config: CoordinatorAdmissionConfig | Mapping[str, Any] | None = None) -> None:
+    def __init__(self, database: str | Path = ":memory:", *, coordinator_id: str = "local-coordinator", coordinator_version: str = "2.3.0", store: Optional[QueueStore] = None, registry: Optional[WorkerRegistry] = None, admission_config: CoordinatorAdmissionConfig | Mapping[str, Any] | None = None) -> None:
         self.store = store or QueueStore(database)
         self.registry = registry or WorkerRegistry(database)
         self.coordinator_id = coordinator_id
