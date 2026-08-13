@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/linktrend/LiNKlibraries/schemas/v2/governance-envelope.schema.json",
+  "title": "LiNKlibraries governance and admission envelope revision 2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "schemaRevision", "envelopeType", "envelopeId", "entryId", "version", "sourceCommitSha", "releaseManifestSha256", "lifecycle", "selectability", "compatibility", "qualification", "admission", "updatedAt"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "schemaRevision": { "const": 2 },
+    "envelopeType": { "const": "governance_admission" },
+    "envelopeId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$", "maxLength": 160 },
+    "entryId": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/entryId" },
+    "version": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/semver" },
+    "sourceCommitSha": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/sha1" },
+    "releaseManifestSha256": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/sha256" },
+    "lifecycle": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/lifecycleDisposition" },
+    "selectability": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/selectabilityDisposition" },
+    "compatibility": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/compatibilityDisposition" },
+    "qualification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "receiptId"],
+      "properties": {
+        "status": { "type": "string", "enum": ["pending", "qualified", "failed"] },
+        "receiptId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" }
+      }
+    },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "receiptId"],
+      "properties": {
+        "status": { "type": "string", "enum": ["pending", "admitted", "rejected", "revoked"] },
+        "receiptId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" }
+      }
+    },
+    "updatedAt": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/dateTime" }
+  }
+}

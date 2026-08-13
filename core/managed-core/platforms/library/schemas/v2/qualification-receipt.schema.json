@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/linktrend/LiNKlibraries/schemas/v2/qualification-receipt.schema.json",
+  "title": "LiNKlibraries qualification receipt revision 2",
+  "allOf": [
+    { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/receiptBase" },
+    { "type": "object", "required": ["qualificationChecks", "qualificationDisposition", "compatibilityDisposition"], "properties": { "receiptType": { "const": "qualification" } } }
+  ]
+}

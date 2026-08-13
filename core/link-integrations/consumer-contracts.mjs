@@ -91,9 +91,12 @@ export function validateAutoworkReceipt(value) {
 }
 
 export function validateLibraryReference(value) {
-  const reference = object(value); exactKeys(reference, new Set(['commit', 'tree', 'entryRef']))
-  if (!GIT_SHA.test(reference.commit) || !GIT_SHA.test(reference.tree) || !OPAQUE.test(reference.entryRef ?? '')) fail('library_reference_invalid')
-  return Object.freeze({ commit: reference.commit, tree: reference.tree, entryRef: reference.entryRef })
+  const reference = object(value); exactKeys(reference, new Set(['commit', 'tree', 'cataloguePath', 'catalogueDigest', 'entryId', 'version', 'manifestDigest', 'inventoryDigest', 'closureDigest']))
+  const frozen = FROZEN_PROVIDERS.libraries
+  if (reference.commit !== frozen.commit || reference.tree !== frozen.tree || reference.cataloguePath !== 'indexes/v2/catalog.json') fail('library_reference_not_frozen')
+  for (const field of ['catalogueDigest', 'manifestDigest', 'inventoryDigest', 'closureDigest']) if (!SHA256.test(reference[field] ?? '')) fail('library_digest_invalid')
+  for (const field of ['entryId', 'version']) text(reference[field], 'library_reference_invalid')
+  return Object.freeze({ ...reference })
 }
 
 export function negotiateMcp(version, era) { if (version !== MCP_PROTOCOL_VERSION || era !== 'modern') fail('mcp_negotiation_failed'); return MCP_PROTOCOL_VERSION }

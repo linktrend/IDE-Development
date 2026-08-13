@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/linktrend/LiNKlibraries/schemas/v2/current-pointer.schema.json",
+  "title": "LiNKlibraries mutable per-entry current pointer revision 2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "schemaRevision", "pointerType", "entryId", "version", "releaseManifestSha256", "lifecycle", "selectability", "compatibility", "updatedAt"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "schemaRevision": { "const": 2 },
+    "pointerType": { "const": "current" },
+    "entryId": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/entryId" },
+    "version": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/semver" },
+    "releaseManifestSha256": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/sha256" },
+    "lifecycle": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/lifecycleDisposition" },
+    "selectability": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/selectabilityDisposition" },
+    "compatibility": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/compatibilityDisposition" },
+    "updatedAt": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/dateTime" }
+  }
+}

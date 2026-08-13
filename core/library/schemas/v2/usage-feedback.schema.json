@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/linktrend/LiNKlibraries/schemas/v2/usage-feedback.schema.json",
+  "title": "LiNKlibraries product-neutral usage feedback revision 2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "schemaRevision", "feedbackType", "feedbackId", "entryId", "version", "submittedAt", "outcome", "observations"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "schemaRevision": { "const": 2 },
+    "feedbackType": { "const": "usage" },
+    "feedbackId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$", "maxLength": 160 },
+    "entryId": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/entryId" },
+    "version": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/semver" },
+    "submittedAt": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/dateTime" },
+    "outcome": { "type": "string", "enum": ["success", "partial", "blocked", "failed"] },
+    "observations": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/nonEmptyString" }
+    },
+    "compatibility": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/compatibilityDisposition" },
+    "reproducibility": { "type": "string", "enum": ["reproduced", "not_reproduced", "not_attempted"] }
+  }
+}

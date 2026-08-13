@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/linktrend/LiNKlibraries/schemas/v2/catalogue.schema.json",
+  "title": "LiNKlibraries deterministic catalogue revision 2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "schemaRevision", "catalogueType", "recordsSha256", "records"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "schemaRevision": { "const": 2 },
+    "catalogueType": { "const": "catalogue" },
+    "recordsSha256": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/sha256" },
+    "records": {
+      "type": "array",
+      "items": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/catalogue-record.schema.json" }
+    }
+  }
+}

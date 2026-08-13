@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/linktrend/LiNKlibraries/schemas/v2/entry-index.schema.json",
+  "title": "LiNKlibraries per-entry immutable version index revision 2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "schemaRevision", "indexType", "entryId", "versions", "current"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "schemaRevision": { "const": 2 },
+    "indexType": { "const": "entry_index" },
+    "entryId": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/entryId" },
+    "versions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["version", "releaseManifestSha256", "gitTreeSha1", "lifecycle", "selectability", "compatibility"],
+          "properties": {
+            "version": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/semver" },
+            "releaseManifestSha256": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/sha256" },
+            "gitTreeSha1": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/sha1" },
+            "lifecycle": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/lifecycleDisposition" },
+            "selectability": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/selectabilityDisposition" },
+            "compatibility": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/compatibilityDisposition" },
+            "governance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["qualification", "admission"],
+              "properties": {
+                "qualification": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["status", "receiptId", "independentPass"],
+                  "properties": {
+                    "status": { "const": "qualified" },
+                    "receiptId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+                    "independentPass": { "const": true }
+                  }
+                },
+                "admission": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["status", "receiptId"],
+                  "properties": {
+                    "status": { "const": "admitted" },
+                    "receiptId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" }
+                  }
+                }
+              }
+            }
+          }
+        }
+    },
+    "current": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "releaseManifestSha256"],
+      "properties": {
+        "version": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/semver" },
+        "releaseManifestSha256": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/sha256" }
+      }
+    }
+  }
+}

@@ -9,7 +9,22 @@ Repo-relative client for the canonical LiNKtrend Component/Template/Asset Librar
   immutable Wave 1 contract copies; the client applies their v2 shape plus the
   authority's admission, inventory, and state semantics.
 
-## Access pattern (resolved)
+## Revision 2 consumer (canonical)
+
+`library-v2-client.mjs` is the canonical frozen-provider consumer for the
+LiNKlibraries Revision 2 contract. It accepts only provider commit
+`87dbb71da8b07be8f83eb82f8f769e16b062e7b2` and tree
+`f258bf45d91a90fb4c818ee9012c7a85b1fa96da`, then enforces the progressive
+sequence: a bounded catalogue page, a shortlist record, its immutable manifest,
+and selected facts with a local consumption receipt. It validates the catalogue,
+manifest, inventory, and closure chain, rejects legacy catalogues or mutable
+references, and permits offline reuse only of a fresh, receipt-verified v2
+chain. It does not execute provider code or make provider authority decisions.
+
+`library-client.mjs` below is the retained legacy compatibility client. It is
+not Revision 2 proof and must not be used to claim Revision 2 consumption.
+
+## Legacy access pattern (resolved)
 
 Same mechanism as LiNKdeveloper `@linkdeveloper/shared-library` (do not invent a third client):
 

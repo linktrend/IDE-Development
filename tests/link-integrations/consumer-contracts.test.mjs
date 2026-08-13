@@ -38,10 +38,12 @@ test('Skills require a qualified exact release and bounded telemetry', () => {
   throws(() => validateSkillsTelemetry({ reportKind: 'completed_use', score: 10, issue: { code: 'x' }, skillReleaseRef: 'opaque:release-1', actorRef: 'opaque:actor-1', idempotencyKey: 'opaque:key-1' }), 'skills_perfect_use_has_issue')
 })
 
-test('Autowork and Libraries receive bounded immutable references only', () => {
+test('Autowork and Libraries receive bounded immutable Revision 2 references only', () => {
   assert.equal(validateAutoworkReceipt({ contractVersion: 'provider-contract/v1', requestId: 'opaque:request-1', idempotencyKey: 'opaque:key-1', status: 'completed', result: { count: 1 } }).status, 'completed')
   throws(() => validateAutoworkReceipt({ contractVersion: 'provider-contract/v1', requestId: 'opaque:request-1', idempotencyKey: 'opaque:key-1', status: 'completed', result: { secret: 'x' } }), 'sensitive_field')
-  assert.equal(validateLibraryReference({ commit: 'a'.repeat(40), tree: 'b'.repeat(40), entryRef: 'opaque:entry-1' }).tree, 'b'.repeat(40))
+  const digest = `sha256:${'a'.repeat(64)}`
+  assert.equal(validateLibraryReference({ commit: FROZEN_PROVIDERS.libraries.commit, tree: FROZEN_PROVIDERS.libraries.tree, cataloguePath: 'indexes/v2/catalog.json', catalogueDigest: digest, entryId: 'safe-kit', version: '1.0.0', manifestDigest: digest, inventoryDigest: digest, closureDigest: digest }).entryId, 'safe-kit')
+  throws(() => validateLibraryReference({ commit: 'a'.repeat(40), tree: 'b'.repeat(40), entryRef: 'opaque:entry-1' }), 'unknown_field')
 })
 
 test('MCP and OKF transitions fail closed', () => {

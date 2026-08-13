@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/linktrend/LiNKlibraries/schemas/v2/inventory.schema.json",
+  "title": "LiNKlibraries exhaustive binary-safe inventory revision 2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "schemaRevision", "inventoryType", "root", "complete", "includesDirectories", "includesFiles", "includesSymlinks", "entries", "inventorySha256", "treeSha1"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "schemaRevision": { "const": 2 },
+    "inventoryType": { "const": "exhaustive_tree_inventory" },
+    "root": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/relativePath" },
+    "complete": { "const": true },
+    "includesDirectories": { "const": true },
+    "includesFiles": { "const": true },
+    "includesSymlinks": { "const": false },
+    "entries": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "type"],
+            "properties": {
+              "path": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/relativePath" },
+              "type": { "const": "directory" }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "type", "byteLength", "sha256"],
+            "properties": {
+              "path": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/relativePath" },
+              "type": { "const": "file" },
+              "byteLength": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              "sha256": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/sha256" },
+              "mediaType": { "$ref": "#/$defs/mediaType" },
+              "classification": { "const": "public_reusable" },
+              "retention": { "enum": ["release", "review_only"] },
+              "immutable": { "const": true },
+              "runtimeDownload": { "const": false }
+            },
+            "allOf": [
+              {
+                "if": { "required": ["mediaType"] },
+                "then": { "required": ["classification", "retention", "immutable", "runtimeDownload"] }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "inventorySha256": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/sha256" },
+    "treeSha1": { "$ref": "https://github.com/linktrend/LiNKlibraries/schemas/v2/common.schema.json#/$defs/sha1" }
+  },
+  "$defs": {
+    "mediaType": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*$",
+      "maxLength": 127
+    }
+  }
+}
