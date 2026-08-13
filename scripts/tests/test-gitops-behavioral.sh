@@ -270,7 +270,9 @@ pass "durable conflict attempts persist and stop at three"
 grep -q 'requires both EXPECTED_STAGING_SHA and EXPECTED_PROMOTE_HEAD' "$ROOT/scripts/gitops/promote_main.sh"
 grep -q 'EXPECTED_MAIN_SHA' "$ROOT/scripts/gitops/promote_main.sh"
 grep -q 'Linktrend Receipt Gate' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
-grep -q 'head_sha' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
+grep -q 'github.event.pull_request.head.sha' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
+! grep -q 'workflow_dispatch:' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
+! grep -q 'inputs\.' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
 pass "main approval requires both expected SHAs"
 
 # ============================================================================
@@ -406,7 +408,8 @@ grep -qi 'mention-only\|manualTriggerOnly' "$ROOT/docs/GITOPS-CONSUMER-ROLLOUT.m
   || grep -qi 'mention-only\|manualTriggerOnly' "$ROOT/docs/contracts/"*.md \
   || fail "mention-only documentation missing"
 grep -q 'pull_request:' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
-grep -q 'workflow_dispatch:' "$ROOT/core/github/managed-workflows/linktrend-development-to-staging.yml"
+! grep -q 'workflow_dispatch:' "$ROOT/core/github/managed-workflows/linktrend-development-to-staging.yml"
+! grep -q 'inputs\.' "$ROOT/core/github/managed-workflows/linktrend-development-to-staging.yml"
 ! grep -q 'cron:' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
 ! grep -q 'cron:' "$ROOT/core/github/managed-workflows/linktrend-development-to-staging.yml"
 ! grep -q 'workflow_run:' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
@@ -469,7 +472,8 @@ assert "requires repackage" in main or "valid for reuse" in main
 assert "already exists for this exact source/target" in stg or "sourceSha" in stg
 wf = (root / "core/github/managed-workflows/linktrend-development-to-staging.yml").read_text()
 assert "Linktrend Receipt Gate" in wf
-assert "head_sha" in wf
+assert "github.event.pull_request.head.sha" in wf
+assert "workflow_dispatch:" not in wf and "inputs." not in wf
 # Branch prefix policy lives in trusted resolver + promote script (not duplicated in YAML ifs)
 resolver = (root / "scripts/gitops/resolve_event_pr.py").read_text()
 assert "promote/staging/" in resolver and "promote/staging/" in stg

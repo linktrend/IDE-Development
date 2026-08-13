@@ -79,6 +79,9 @@ assert 'candidate/' not in full
 
 for name in ("linktrend-development-to-staging.yml", "linktrend-staging-to-main.yml"):
     text = (managed / name).read_text(encoding="utf-8")
+    assert "workflow_dispatch:" not in text
+    assert "inputs." not in text
+    assert "github.event.pull_request.head.sha" in text
     assert "name: Linktrend Receipt Gate" in text
     assert "Linktrend Branch Source Policy" in text
     assert "gate_receipt.py" in text and "--gate full-gate" in text
