@@ -219,13 +219,18 @@ for key, typ in required.items():
     if "__LINKTREND_" in value:
         raise SystemExit(f"consumer config field still contains placeholder: {key}")
     # Fail closed on names that would corrupt YAML or GitHub Expressions
-    forbidden = set('\'"`${}\\\n\r\t<>|&;()[]{}!*?#')
+    forbidden = {
+        "'", '"', "`", "$", "{", "}", "\\", "\n", "\r", "\t",
+        "<", ">", "|", "&", ";", "(", ")", "[", "]", "*", "!", "?", "#",
+    }
     if any(ch in forbidden for ch in value) or value != value.strip():
         raise SystemExit(
             f"consumer config field contains unsafe characters for workflow YAML/expressions: {key}"
         )
     if len(value) > 100:
         raise SystemExit(f"consumer config field too long: {key}")
+if cfg["fastWorkflowName"] != "Linktrend Fast Checks":
+    raise SystemExit("consumer config fastWorkflowName must equal Linktrend Fast Checks")
 
 runner_type = str(cfg.get("runnerType", "github-hosted")).strip()
 runner_types = {

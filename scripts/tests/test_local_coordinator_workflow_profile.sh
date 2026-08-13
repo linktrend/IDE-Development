@@ -11,7 +11,7 @@ make_consumer() {
   cat >"$target/.github/linktrend-gitops-consumer.json" <<'JSON'
 {
   "schemaVersion": 1,
-  "fastWorkflowName": "Consumer Fast",
+  "fastWorkflowName": "Linktrend Fast Checks",
   "ciWorkflowName": "Consumer CI",
   "branchPolicyWorkflowName": "Branch Source Policy",
   "bugbotCheckName": "Cursor Bugbot",
@@ -46,7 +46,13 @@ text = path.read_text(encoding="utf-8")
 events = text.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
 for event in ("schedule", "check_run", "workflow_run", "pull_request_target"):
     assert not re.search(rf"^  {event}:", events, re.M), f"{path.name}: {event} remained"
-assert re.search(r"^  workflow_dispatch:", events, re.M), f"{path.name}: manual recovery missing"
+if path.name in {"linktrend-development-to-staging.yml", "linktrend-staging-to-main.yml"}:
+    # Receipt promotions are trusted PR gates, not local/manual execution.
+    # The coordinator profile disables their triggers instead of exposing a
+    # mutable dispatch path that could bypass promotion identity checks.
+    assert not re.search(r"^  workflow_dispatch:", events, re.M), f"{path.name}: unsafe promotion dispatch remained"
+else:
+    assert re.search(r"^  workflow_dispatch:", events, re.M), f"{path.name}: manual recovery missing"
 assert "Orchestration profile: local-coordinator" in text
 for context in (
     "Linktrend Fast Gate", "Linktrend Full Suite", "Linktrend Phase Ready",
