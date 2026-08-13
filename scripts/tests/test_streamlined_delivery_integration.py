@@ -13,9 +13,9 @@ from scripts.ide_development.release_candidate import collect_package_paths
 
 class StreamlinedDeliveryIntegrationTests(unittest.TestCase):
     def test_version_and_managed_doctrine_are_current(self) -> None:
-        self.assertEqual(PACKAGE_VERSION_TARGET, "2.3.0")
-        self.assertEqual((bm.REPO_ROOT / "VERSION").read_text().strip(), "v2.3.0")
-        self.assertEqual((bm.VERSION_PATH).read_text().strip(), "2.3.0")
+        self.assertEqual(PACKAGE_VERSION_TARGET, "2.3.1")
+        self.assertEqual((bm.REPO_ROOT / "VERSION").read_text().strip(), "v2.3.1")
+        self.assertEqual((bm.VERSION_PATH).read_text().strip(), "2.3.1")
         doctrine = {source for source, _ in bm.CONTENT_DOCTRINE}
         self.assertIn("docs/contracts/STREAMLINED-DELIVERY.md", doctrine)
         self.assertIn("docs/adr/0005-streamlined-delivery-coordinator.md", doctrine)
