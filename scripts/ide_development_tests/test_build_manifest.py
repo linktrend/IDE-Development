@@ -41,9 +41,9 @@ class BuildManifestPackagingTests(unittest.TestCase):
         path = bm.MANIFEST_PATH
         self.assertTrue(path.is_file())
         data = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(data.get("packageVersion"), "2.3.4")
+        self.assertEqual(data.get("packageVersion"), "2.3.5")
         managed = bm.VERSION_PATH.read_text(encoding="utf-8").strip().lstrip("v")
-        self.assertEqual(managed, "2.3.4")
+        self.assertEqual(managed, "2.3.5")
 
     def test_required_cursor_materialization_sources_are_packaged(self) -> None:
         manifest = bm.build_manifest_object()
@@ -98,7 +98,7 @@ class BuildManifestPackagingTests(unittest.TestCase):
         self.assertEqual(config["compute"]["provider"], "github-hosted")
         self.assertEqual(config["compute"]["runner"], "ubuntu-24.04-arm")
         self.assertFalse(config["compute"]["checkpointCI"])
-        expected = [["python3", "scripts/ide-development.py", "verify", "--json"]]
+        expected = [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py"]]
         self.assertEqual(config["profiles"]["fast"]["commands"], expected)
         self.assertEqual(config["profiles"]["full"]["commands"], expected)
         self.assertTrue(config["profiles"]["full"]["required"])
