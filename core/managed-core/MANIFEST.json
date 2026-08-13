@@ -2416,7 +2416,7 @@
       "id": "gitops-scripts-gitops-coordinator-config-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/coordinator/config.py",
-      "sourceHash": "sha256:1917c1c90fabd9e75e83ff13f126ab042417312beb29cf40c6cf4a4ec175a64d",
+      "sourceHash": "sha256:9794595277e33c8ecdec4256792403b1085fa46606cb3fbde73eceb5d7e923bb",
       "destination": "scripts/gitops/coordinator/config.py",
       "mode": "0644",
       "platform": "github",
