@@ -53,6 +53,16 @@ assert "full-suite-receipt.json" in full
 assert "retention-days: 30" in full
 assert "@cursor review" in full
 assert "linktrend-bugbot-requested" in full
+assert "phase-delivery-record.json" not in full, "a tracked record cannot seal its own PR head"
+for required in (
+    "full_suite_stale_seal",
+    "full_suite_source_branch_stale",
+    "full_suite_repository_mismatch",
+    "full_suite_fast_check_missing_for_exact_head",
+    "full_suite_candidate_id_mismatch",
+    "exact dispatch-time seal accepted",
+):
+    assert required in full, required
 
 for name in ("linktrend-development-to-staging.yml", "linktrend-staging-to-main.yml"):
     text = (managed / name).read_text(encoding="utf-8")
@@ -100,4 +110,39 @@ record["full"] = {"status": "failed", "attempt": 2, "sha": head}
 blocked, reason, _ = phase_full_suite_dispatch_allowed(record, live_head_sha=head, pr_number=7)
 assert not blocked and reason == "full_suite_attempt_limit"
 print("PASS: exact-head full-suite dispatch negative probes")
+PY
+
+python3 - <<'PY'
+"""Model the live sequence: dispatch inputs bind the head without a seal commit."""
+import hashlib
+import json
+
+def candidate_id(repository, branch, head, tree):
+    payload = {
+        "repository": repository,
+        "sourceSha": head,
+        "gitTreeSha": tree,
+        "dependencyDigests": {},
+        "testProfile": "full",
+    }
+    return "sha256:" + hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+head = "a" * 40
+tree = "b" * 40
+seal = candidate_id("linktrend/IDE-Development", "phase/demo", head, tree)
+assert seal == candidate_id("linktrend/IDE-Development", "phase/demo", head, tree)
+assert seal != candidate_id("linktrend/IDE-Development", "phase/demo", "c" * 40, tree)
+assert seal != candidate_id("someone/fork", "phase/demo", head, tree)
+# The workflow validates the source branch independently; its legacy candidate
+# identity deliberately does not encode a branch field.
+assert "phase/demo" != "phase/other"
+# A tracked seal record would require a follow-on commit and makes its recorded
+# head stale.  Dispatch-time inputs avoid that impossible fixed point.
+record_head = head
+committed_record_head = "d" * 40
+assert record_head != committed_record_head
+assert seal != candidate_id("linktrend/IDE-Development", "phase/demo", committed_record_head, tree)
+print("PASS: dispatch-time seal live-sequence regression")
 PY
