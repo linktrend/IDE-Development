@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from host.coordinator.daemon import CoordinatorDaemon
+from host.coordinator.daemon import COORDINATOR_VERSION, CoordinatorDaemon
 from host.coordinator.github_client import GitHubClient
 from host.coordinator.queue import QueueRequest
 from host.coordinator.workers import Worker
@@ -147,6 +147,13 @@ class DaemonTests(unittest.TestCase):
             self.assertEqual(result["workerId"], "test-mac")
             self.assertEqual(seen, [(('/bin/sh', '-ec', 'protected-command --safe'), 'test-mac', 'isolated-candidate', ('fast',))])
             self.assertEqual(daemon.store.get(queued.job_id)["status"], "completed")
+            receipt = Path(directory) / "receipts" / ("b" * 40 + "-fast-gate.json")
+            self.assertTrue(receipt.is_file())
+            payload = json.loads(receipt.read_text(encoding="utf-8"))
+            self.assertEqual(payload["workerId"], "test-mac")
+            self.assertEqual(payload["workerTrust"], "isolated-candidate")
+            self.assertEqual(payload["coordinatorIdentity"], "local-coordinator")
+            self.assertEqual(payload["coordinatorVersion"], COORDINATOR_VERSION)
             daemon.close()
 
     def test_missing_token_fails_closed_before_attempt_start(self):

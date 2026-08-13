@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
 from scripts.gitops.coordinator.config import ConfigError, DeliveryConfig, load_delivery_config
+from scripts.gitops.coordinator.receipts import GateReceipt, write_receipt
 from scripts.gitops.coordinator.state import load_state, transition
 
 from .executor import Job, run_job
@@ -46,6 +47,7 @@ class CoordinatorDaemon:
 
     def __init__(self, database: str | Path, *, github: Optional[GitHubClient] = None, runner: Optional[Callable[..., Any]] = None) -> None:
         self.store = QueueStore(database)
+        self._receipt_root = Path(database).expanduser().parent / "receipts"
         self.workers = WorkerRegistry(database)
         self.scheduler = MultiHostCoordinator(store=self.store, registry=self.workers, coordinator_version=COORDINATOR_VERSION)
         if not self.workers.inspect():
@@ -226,6 +228,34 @@ class CoordinatorDaemon:
         except OSError:
             pass
 
+    def _write_execution_receipt(self, row: Mapping[str, Any], lease: Any, result: Any) -> str:
+        """Persist one atomic, exact-identity receipt for a passed lease only."""
+        identity = row["candidate_identity"]
+        source_sha = str(identity["sourceSha"])
+        evidence = (str(getattr(result, "stdout", "")) + "\n" + str(getattr(result, "stderr", ""))).encode("utf-8")
+        provenance = self.scheduler.receipt_metadata(
+            lease,
+            execution_environment={"container": str(getattr(result, "container_name", "")), "network": "none"},
+        )
+        receipt = GateReceipt(
+            schema_version=1, status="passed", repository=str(identity["repository"]),
+            gate=str(row["gate"]), source_sha=source_sha, tested_checkout_sha=source_sha,
+            git_tree_sha=str(identity["gitTreeSha"]), dependency_digests=dict(identity["dependencyDigests"]),
+            test_profile=str(identity["testProfile"]), attempt=int(row["attempt_count"]),
+            coordinator_version=COORDINATOR_VERSION, started_at=str(getattr(result, "started_at", "")),
+            completed_at=str(getattr(result, "completed_at", "")),
+            evidence_digests={"logs/{}.txt".format(row["id"]): "sha256:" + hashlib.sha256(evidence).hexdigest()},
+            github={"pullRequest": row.get("pr_number"), "runUrl": None}, worker_id=str(provenance["workerId"]),
+            worker_capabilities=tuple(provenance["workerCapabilities"]), worker_trust=str(provenance["workerTrust"]),
+            coordinator_identity=str(provenance["coordinatorIdentity"]),
+            execution_environment=dict(provenance["executionEnvironment"]),
+        )
+        # Receipts are reusable for an identical tree and dependency identity,
+        # including a no-ff promotion commit whose SHA necessarily differs.
+        path = self._receipt_root / (str(identity["gitTreeSha"]) + "-" + str(row["gate"]) + ".json")
+        write_receipt(receipt, path)
+        return str(path)
+
     def cancel_obsolete(self, repository: str, pr_number: Optional[int], live_identity: Any = None) -> list[str]:
         return self.store.cancel_obsolete(repository, pr_number, live_identity)
 
@@ -317,6 +347,13 @@ class CoordinatorDaemon:
             result = self.runner(job, limits, lambda: self._lease_cancelled(lease))
             result_status = "completed" if getattr(result, "status", "") == "passed" else "cancelled" if getattr(result, "status", "") == "cancelled" else "failed"
             data = {"status": getattr(result, "status", "unknown"), "sanitized": getattr(result, "stdout", "") + "\n" + getattr(result, "stderr", ""), "error": getattr(result, "error", None)}
+            if result_status == "completed":
+                try:
+                    data["receiptPath"] = self._write_execution_receipt(row, lease, result)
+                except Exception as receipt_error:
+                    result_status = "failed"
+                    data["error"] = "receipt recording failed: {}".format(receipt_error)
+                    data["sanitized"] = data["error"]
             final = self.scheduler.complete(lease, result_status, data)
         except Exception as exc:
             data = {"error": str(exc), "sanitized": str(exc)}

@@ -35,6 +35,7 @@ OUTCOME="${OUTCOME_FILE:-gitops-outcome.json}"
 RECEIPT_GATE="${SCRIPT_DIR}/promotion_receipt_gate.py"
 RECEIPT_PATH="${RECEIPT_PATH:-${LINKTREND_RECEIPT_PATH:-}}"
 RECEIPT_DEPENDENCY_FILES="${RECEIPT_DEPENDENCY_FILES:-}"
+COORDINATOR_RECEIPT_ROOT="${LINKTREND_COORDINATOR_RECEIPT_ROOT:-${HOME}/.linktrend/ide-coordinator/receipts}"
 
 
 repair_task_upsert() {
@@ -344,6 +345,10 @@ if ! git -C "${WT}" merge --no-ff origin/development -m "chore(promote): merge d
 fi
 
 CANDIDATE="$(git -C "${WT}" rev-parse HEAD)"
+CANDIDATE_TREE="$(git -C "${WT}" rev-parse HEAD^{tree})"
+if [ -z "${RECEIPT_PATH}" ]; then
+  RECEIPT_PATH="${COORDINATOR_RECEIPT_ROOT}/${CANDIDATE_TREE}-full-gate.json"
+fi
 receipt_identity_args
 python3 "${SCRIPT_DIR}/gate_receipt.py" identity \
   --repo "${WT}" --profile full \
