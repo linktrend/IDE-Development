@@ -4,8 +4,8 @@
   "workflow": ".github/workflows/linktrend-managed-core-release-publisher.yml",
   "dispatch": "scripts/gitops/managed_core_release_dispatch.py",
   "publish": "scripts/gitops/managed_core_release_publish.py",
-  "packageVersion": "2.3.4",
-  "tag": "v2.3.4",
+  "packageVersion": "2.3.5",
+  "tag": "v2.3.5",
   "consumerSynced": false,
   "personalTokenFallback": false
 }

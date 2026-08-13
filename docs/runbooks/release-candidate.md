@@ -34,7 +34,7 @@ Claude Code is **excluded** — not a supported platform and not packaged as an 
 1. Clean git worktree on the Work Packet 1 issue branch (or the exact checkpoint SHA under test).
 2. Python 3 available (`python3`).
 3. Installer entrypoint present: `scripts/ide-development.py`.
-4. Package identity consistent: root `VERSION`, `core/managed-core/VERSION`, and `MANIFEST.json` `packageVersion` (target **2.3.4** / `v2.3.4`).
+4. Package identity consistent: root `VERSION`, `core/managed-core/VERSION`, and `MANIFEST.json` `packageVersion` (target **2.3.5** / `v2.3.5`).
 5. Required acceptance evidence for this SHA exists or will be attached (see acceptance matrix). Do **not** claim production readiness when a required platform gate is skipped, neutral, or untested.
 
 ---
@@ -96,7 +96,7 @@ Outputs stay under an ignored build/artifact directory — **never** a GitHub ta
 
 ## Immutable publication (W3 operator procedure)
 
-Tag and GitHub Release creation for managed-core **v2.3.4** is owned by Terra/operator release procedure and the system-repository workflow `.github/workflows/linktrend-managed-core-release-publisher.yml` (not consumer-synced). W3-P1 packet execution does not perform publication.
+Tag and GitHub Release creation for managed-core **v2.3.5** is owned by Terra/operator release procedure and the system-repository workflow `.github/workflows/linktrend-managed-core-release-publisher.yml` (not consumer-synced). W3-P1 packet execution does not perform publication.
 
 Hard rules:
 
