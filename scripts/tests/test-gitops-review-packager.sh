@@ -13,7 +13,10 @@ INT="core/github/managed-workflows/linktrend-integrator-merge.yml"
 CI=".github/workflows/ci.yml"
 
 grep -q 'pull_request:' "$PKG" || fail "packager missing Phase PR trigger"
-grep -q 'workflow_dispatch:' "$PKG" || fail "packager missing explicit dispatch"
+! grep -q 'workflow_dispatch:' "$PKG" || fail "packager must not execute untrusted Phase code from default-branch dispatch"
+grep -q 'pull_request:' "$INT" || fail "full suite must run in unprivileged PR context"
+grep -q 'types: \[labeled\]' "$INT" || fail "full suite must require trusted explicit label wake"
+! grep -q 'workflow_dispatch:' "$INT" || fail "full suite must not execute candidate code from default-branch dispatch"
 grep -q 'cancel-in-progress: true' "$PKG" || fail "packager must cancel obsolete PR runs"
 grep -q 'pull_request_target:' "$STG" || fail "staging must use explicit promotion trigger"
 grep -q 'pull_request_target: # zizmor: ignore\[dangerous-triggers\]' "$STG" \
