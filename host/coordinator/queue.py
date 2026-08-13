@@ -307,8 +307,9 @@ class QueueStore:
                 raise
 
     def get(self, job_id: str) -> Optional[dict[str, Any]]:
-        row = self._connection.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
-        return self._row(row) if row else None
+        with self._lock:
+            row = self._connection.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+            return self._row(row) if row else None
 
     @staticmethod
     def _row(row: sqlite3.Row) -> dict[str, Any]:
@@ -368,7 +369,7 @@ class QueueStore:
                 self._connection.execute("ROLLBACK")
                 raise
 
-    def record_result(self, job_id: str, status: str, result: Mapping[str, Any] | None = None, *, failure_category: str = "execution", evidence_location: str = "", required_action: str = "Inspect sanitized evidence and correct the candidate.") -> dict[str, Any]:
+    def record_result(self, job_id: str, status: str, result: Mapping[str, Any] | None = None, *, failure_category: str = "execution", evidence_location: str = "", required_action: str = "Inspect sanitized evidence and correct the candidate.", clear_lease: bool = False) -> dict[str, Any]:
         if status not in {"completed", "failed", "cancelled", "timed_out", "rejected"}:
             raise ValueError("invalid job result status")
         now = _now()
@@ -391,7 +392,10 @@ class QueueStore:
                     alert = self._upsert_alert(row, failure_category, str(result_data.get("sanitized", result_data.get("error", "execution failed"))), evidence_location, required_action, now)
                 elif status not in {"completed", "cancelled"} and attempt < MAX_ATTEMPTS:
                     job_status = "queued"
-                self._connection.execute("UPDATE jobs SET status=?, completed_at=?, result_json=?, updated_at=? WHERE id=?", (job_status, now, _json(result_data), now, job_id))
+                self._connection.execute(
+                    "UPDATE jobs SET status=?, completed_at=?, result_json=?, worker_id=CASE WHEN ? THEN NULL ELSE worker_id END, lease_id=CASE WHEN ? THEN NULL ELSE lease_id END, lease_expires_at=CASE WHEN ? THEN NULL ELSE lease_expires_at END, updated_at=? WHERE id=?",
+                    (job_status, now, _json(result_data), clear_lease, clear_lease, clear_lease, now, job_id),
+                )
                 self._connection.execute("COMMIT")
                 return {"job": self.get(job_id), "alert": alert}
             except Exception:
@@ -591,10 +595,7 @@ class QueueStore:
             if not row:
                 raise ValueError("stale or duplicate lease result")
             result_data = dict(result or {})
-            # Fence the lease before a result can make a failed attempt queued.
-            # We keep the same lock and SQLite transaction boundary throughout.
-            self._connection.execute("UPDATE jobs SET worker_id=NULL, lease_id=NULL, lease_expires_at=NULL WHERE id=?", (job_id,))
-            final = self.record_result(job_id, status, result_data, failure_category=failure_category, evidence_location=evidence_location, required_action=required_action)
+            final = self.record_result(job_id, status, result_data, failure_category=failure_category, evidence_location=evidence_location, required_action=required_action, clear_lease=True)
             return final
 
     def poll_state(self, repository: str) -> dict[str, Any]:
