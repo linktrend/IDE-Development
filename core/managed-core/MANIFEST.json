@@ -2584,7 +2584,7 @@
       "id": "gitops-scripts-gitops-promote-main-sh",
       "ownershipClass": "managed",
       "source": "scripts/gitops/promote_main.sh",
-      "sourceHash": "sha256:db28219820465189a59b07e373102605a1d333bd51b8e336e649fef4497aee8a",
+      "sourceHash": "sha256:960b90f0461af3e2dd7dced4edc06ca1ca78e5dfa9b3769be506c4e86a9eb1b1",
       "destination": "scripts/gitops/promote_main.sh",
       "mode": "0755",
       "platform": "github",
