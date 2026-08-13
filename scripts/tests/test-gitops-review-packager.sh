@@ -16,6 +16,10 @@ grep -q 'pull_request:' "$PKG" || fail "packager missing Phase PR trigger"
 grep -q 'workflow_dispatch:' "$PKG" || fail "packager missing explicit dispatch"
 grep -q 'cancel-in-progress: true' "$PKG" || fail "packager must cancel obsolete PR runs"
 grep -q 'pull_request_target:' "$STG" || fail "staging must use explicit promotion trigger"
+grep -q 'pull_request_target: # zizmor: ignore\[dangerous-triggers\]' "$STG" \
+  || fail "staging trusted trigger must carry reviewed zizmor suppression"
+grep -q 'pull_request_target: # zizmor: ignore\[dangerous-triggers\]' "$MAIN" \
+  || fail "main trusted trigger must carry reviewed zizmor suppression"
 ! grep -q 'cron:' "$PKG" || fail "retired packager cron remains"
 ! grep -q 'cron:' "$STG" || fail "retired staging cron remains"
 ! grep -q 'workflow_run:' "$PKG" || fail "retired workflow cascade remains"
