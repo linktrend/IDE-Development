@@ -35,6 +35,7 @@ OUTCOME="${OUTCOME_FILE:-gitops-outcome.json}"
 RECEIPT_GATE="${SCRIPT_DIR}/promotion_receipt_gate.py"
 RECEIPT_PATH="${RECEIPT_PATH:-${LINKTREND_RECEIPT_PATH:-}}"
 RECEIPT_DEPENDENCY_FILES="${RECEIPT_DEPENDENCY_FILES:-}"
+RECEIPT_IDENTITY_ARGS=()
 COORDINATOR_RECEIPT_ROOT="${LINKTREND_COORDINATOR_RECEIPT_ROOT:-${HOME}/.linktrend/ide-coordinator/receipts}"
 
 
@@ -129,7 +130,7 @@ verify_receipt_before_mutation() {
     --profile "${profile}" \
     --profile-file .github/linktrend-delivery-mode.json \
     --gate full-gate \
-    "${RECEIPT_IDENTITY_ARGS[@]}"
+    ${RECEIPT_IDENTITY_ARGS[@]+"${RECEIPT_IDENTITY_ARGS[@]}"}
 }
 
 if [ -z "${TOKEN}" ] || [ "${AUTOMATION_TOKEN_SOURCE:-}" != "github_token" ]; then
@@ -356,7 +357,7 @@ receipt_identity_args
 python3 "${SCRIPT_DIR}/gate_receipt.py" identity \
   --repo "${WT}" --profile full \
   --profile-file .github/linktrend-delivery-mode.json \
-  "${RECEIPT_IDENTITY_ARGS[@]}" >"${RECEIPT_IDENTITY_FILE}"
+  ${RECEIPT_IDENTITY_ARGS[@]+"${RECEIPT_IDENTITY_ARGS[@]}"} >"${RECEIPT_IDENTITY_FILE}"
 verify_receipt_before_mutation "${WT}" full || exit 0
 git -C "${WT}" push -u origin "HEAD:refs/heads/${PROMOTE_BRANCH}"
 

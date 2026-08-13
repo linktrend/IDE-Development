@@ -187,6 +187,9 @@ import re
 
 for relative in ("scripts/gitops/promote_staging.sh", "scripts/gitops/promote_main.sh"):
     text = Path(relative).read_text(encoding="utf-8")
+    assert "RECEIPT_IDENTITY_ARGS=()" in text, relative
+    assert '"${RECEIPT_IDENTITY_ARGS[@]}"' not in text.replace('${RECEIPT_IDENTITY_ARGS[@]+"${RECEIPT_IDENTITY_ARGS[@]}"}', ''), relative
+    assert '${RECEIPT_IDENTITY_ARGS[@]+"${RECEIPT_IDENTITY_ARGS[@]}"}' in text, relative
     match = re.search(r"receipt_identity_args\(\) \{(.*?)\n\}", text, re.S)
     assert match, f"missing receipt_identity_args in {relative}"
     body = match.group(1)
