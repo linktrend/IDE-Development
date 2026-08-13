@@ -1,0 +1,8 @@
+{
+  "checkpoint": {"ci": true, "managedTrigger": true},
+  "fast": {"runner": "[self-hosted, macOS, ARM64, linktrend-privileged]", "cancelObsolete": false, "concurrency": "global"},
+  "seal": {"requiresExactHead": false, "bugbot": "every-pr", "fullSuiteRuns": 3},
+  "limits": {"infrastructureAttempts": 3, "sealedCandidates": 4},
+  "promotion": {"receiptGate": false, "fullSuiteRerun": true},
+  "permissions": {"contents": "write", "actions": "write", "pullRequests": "write", "statuses": "write"}
+}

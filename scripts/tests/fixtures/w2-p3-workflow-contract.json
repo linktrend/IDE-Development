@@ -1,0 +1,8 @@
+{
+  "checkpoint": {"ci": false, "managedTrigger": false},
+  "fast": {"runner": "ubuntu-24.04-arm", "timeoutMinutes": 5, "cancelObsolete": true, "concurrency": "repository:workflow:pr-number"},
+  "seal": {"requiresExactHead": true, "bugbot": "final-candidate-only", "fullSuiteRuns": 1},
+  "limits": {"infrastructureAttempts": 2, "sealedCandidates": 2},
+  "promotion": {"receiptGate": true, "fullSuiteRerun": false},
+  "permissions": {"contents": "read", "actions": "none", "pullRequests": "none", "statuses": "none"}
+}

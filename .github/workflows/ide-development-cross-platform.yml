@@ -2,7 +2,7 @@ name: IDE Development Cross-Platform Matrix
 
 # Branch-safe installer matrix for Issue #67 Lane A.
 # Triggers on push to issue/** only — no pull_request / Bugbot coupling.
-# Uses GitHub-hosted free runners exclusively (no self-hosted / paid labels).
+# Uses standard GitHub-hosted runners exclusively (no self-hosted labels).
 
 on:
   push:

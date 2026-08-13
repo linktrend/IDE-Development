@@ -265,13 +265,7 @@ import json
 runner_type = json.loads(
     Path(".github/linktrend-gitops-consumer.json").read_text()
 ).get("runnerType", "github-hosted")
-runner_types = {
-    "github-hosted": ("ubuntu-latest", "ubuntu-latest"),
-    "linktrend-private-macos-arm64": (
-        "[self-hosted, macOS, ARM64, linktrend-privileged]",
-        "[self-hosted, Linux, ARM64, linktrend-ci-isolated]",
-    ),
-}
+runner_types = {"github-hosted": ("ubuntu-24.04-arm", "ubuntu-24.04-arm")}
 assert runner_type in runner_types, f"Unsupported runnerType: {runner_type}"
 privileged_runner, untrusted_runner = runner_types[runner_type]
 

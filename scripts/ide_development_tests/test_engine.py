@@ -90,6 +90,9 @@ class EngineTests(TempRepoTestCase):
         )
         self.assertEqual(first.exit_code, EXIT_OK, first.payload)
         snap1 = _file_identity_map(self.target)
+        installed_state_before_repeat = (
+            self.target / ".ide-development" / "installed-state.json"
+        ).read_bytes()
 
         # Ensure physical files (not symlinks)
         for rel in (
@@ -115,6 +118,11 @@ class EngineTests(TempRepoTestCase):
         snap2 = _file_identity_map(self.target)
         # Byte-identical content + mode for all managed destinations
         self.assertEqual(snap1, snap2)
+        self.assertEqual(
+            installed_state_before_repeat,
+            (self.target / ".ide-development" / "installed-state.json").read_bytes(),
+            "second install must not rewrite committed installed-state bytes",
+        )
 
         update = run_install_or_update(
             target=self.target,

@@ -33,9 +33,9 @@ from packager_logic import is_allowed_work_branch
 
 assert checkpoint_opens_pr() is False
 
-# Default preserves issue-pr
+# The shipped hosted profile defaults to Phase integration.
 cfg = load_delivery_config(None, env={})
-assert cfg.delivery_mode == MODE_ISSUE_PR
+assert cfg.delivery_mode == MODE_PHASE_INTEGRATION
 
 with tempfile.TemporaryDirectory() as tmp:
     root = Path(tmp)
@@ -54,11 +54,11 @@ with tempfile.TemporaryDirectory() as tmp:
     )
     phase_cfg = load_delivery_config(root, env={})
     assert phase_cfg.delivery_mode == MODE_PHASE_INTEGRATION
-    # Env override wins
+    # Environment variables cannot switch the frozen hosted profile.
     overridden = load_delivery_config(
         root, env={"LINKTREND_DELIVERY_MODE": "issue-pr"}
     )
-    assert overridden.delivery_mode == MODE_ISSUE_PR
+    assert overridden.delivery_mode == MODE_PHASE_INTEGRATION
 
 phase_cfg = DeliveryConfig(
     delivery_mode=MODE_PHASE_INTEGRATION, phase_branch_prefix="phase/"
@@ -421,8 +421,8 @@ pass "work-branch allowlist honors custom phaseBranchPrefix"
 [ -f "$ROOT/docs/contracts/DELIVERY-MODES.md" ] || fail "missing DELIVERY-MODES.md"
 [ -f "$ROOT/core/managed-core/schemas/delivery-modes.schema.json" ] || fail "missing schema"
 grep -q 'phase-integration' "$ROOT/docs/contracts/DELIVERY-MODES.md" || fail "contract missing mode"
-grep -q 'phase-delivery-record.json' "$ROOT/docs/contracts/DELIVERY-MODES.md" || fail "contract missing phase delivery path"
-grep -q 'linktrend-delivery-mode.json' "$ROOT/.github/workflows/branch-source-policy.yml" || fail "branch-source-policy must checkout delivery-mode config"
+grep -q 'Linktrend Full Suite' "$ROOT/docs/contracts/DELIVERY-MODES.md" || fail "contract missing full-suite path"
+grep -q 'Linktrend Branch Source Policy' "$ROOT/.github/workflows/branch-source-policy.yml" || fail "missing branch-source-policy workflow"
 pass "delivery-mode contract and schema present"
 
 echo "test-gitops-phase-delivery: OK ($PASS checks)"

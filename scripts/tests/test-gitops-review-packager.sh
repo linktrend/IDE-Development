@@ -12,19 +12,15 @@ MAIN="core/github/managed-workflows/linktrend-staging-to-main.yml"
 INT="core/github/managed-workflows/linktrend-integrator-merge.yml"
 CI=".github/workflows/ci.yml"
 
-grep -q 'cron: "0 0 \* \* 2,5"' "$PKG" || fail "packager cron"
-grep -q 'cron: "0 2 \* \* 2,5"' "$STG" || fail "staging cron"
-grep -q 'packager_discover.py' "$PKG" || fail "discover phase missing"
-grep -q 'packager_evaluate.py' "$PKG" || fail "evaluate phase missing"
-grep -q 'workflow_run:' "$PKG" || fail "packager missing workflow_run wake"
-grep -q 'workflows:' "$PKG" || fail "packager missing workflows list"
-grep -Eq 'CI|__LINKTREND_CI_WORKFLOW_NAME__' "$PKG" || fail "packager must wake on CI workflow_run"
-grep -Eq 'Branch Source Policy|__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__' "$PKG" \
-  || fail "packager must wake on Branch Source Policy"
-grep -Eq 'Branch Source Policy|__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__' "$INT" \
-  || fail "integrator must wake on Branch Source Policy"
-grep -q 'Enforce allowed PR source branches' "$PKG" || fail "packager FAST_GATE must include Branch Source check"
-pass "Workflow phases + crons + workflow_run wake"
+grep -q 'pull_request:' "$PKG" || fail "packager missing Phase PR trigger"
+grep -q 'workflow_dispatch:' "$PKG" || fail "packager missing explicit dispatch"
+grep -q 'cancel-in-progress: true' "$PKG" || fail "packager must cancel obsolete PR runs"
+grep -q 'pull_request_target:' "$STG" || fail "staging must use explicit promotion trigger"
+! grep -q 'cron:' "$PKG" || fail "retired packager cron remains"
+! grep -q 'cron:' "$STG" || fail "retired staging cron remains"
+! grep -q 'workflow_run:' "$PKG" || fail "retired workflow cascade remains"
+grep -q 'source_branch' "$INT" || fail "integrator must gate source branch"
+pass "Workflow phases use PR/explicit promotion triggers without cascades"
 
 python3 - <<'PY'
 from pathlib import Path
@@ -33,13 +29,7 @@ import json
 runner_type = json.loads(
     Path(".github/linktrend-gitops-consumer.json").read_text()
 ).get("runnerType", "github-hosted")
-runner_types = {
-    "github-hosted": ("ubuntu-latest", "ubuntu-latest"),
-    "linktrend-private-macos-arm64": (
-        "[self-hosted, macOS, ARM64, linktrend-privileged]",
-        "[self-hosted, Linux, ARM64, linktrend-ci-isolated]",
-    ),
-}
+runner_types = {"github-hosted": ("ubuntu-24.04-arm", "ubuntu-24.04-arm")}
 assert runner_type in runner_types, f"Unsupported runnerType: {runner_type}"
 privileged_runner, untrusted_runner = runner_types[runner_type]
 
@@ -70,20 +60,17 @@ PY
 pass "Managed workflows match live copies (after consumer-name render)"
 
 grep -q 'Linktrend Review Ready' core/github/REVIEW-READY.md || fail "status context missing"
-grep -q 'LINKTREND_BUGBOT_REVIEW_COMMAND' "$PKG" || fail "bugbot command var"
-grep -q '@cursor review' "$PKG" || fail "default @cursor review"
+grep -q '@cursor review' "$INT" || fail "default @cursor review"
 pass "Readiness status + Bugbot command"
 
 if grep -nE 'push origin HEAD:(staging|main)' scripts/gitops/promote_*.sh "$STG" "$MAIN"; then
   fail "direct push remains"
 fi
-grep -q 'MODE: build\|mode=build\|MODE="build"\|options: \[build, reevaluate\]' "$STG" \
-  || grep -q 'build' "$STG" || fail "staging build mode missing"
-grep -q 'reevaluate' "$STG" || fail "staging reevaluate mode missing"
-pass "No direct push; promote modes split"
+grep -q 'Linktrend Receipt Gate' "$STG" || fail "staging receipt gate missing"
+pass "No direct push; receipt-gated promotion"
 
 # ---- Trust boundary: write-capable workflows ----
-WRITE_WFS=("$PKG" "$STG" "$MAIN" "$INT")
+WRITE_WFS=("$STG" "$MAIN")
 for wf in "${WRITE_WFS[@]}"; do
   # Must not check out PR head/merge ref
   if grep -nE 'ref:\s*\$\{\{\s*github\.event\.pull_request\.(head\.sha|merge_commit_sha)' "$wf"; then
@@ -102,22 +89,18 @@ for wf in "${WRITE_WFS[@]}"; do
   if grep -nE 'github\.event\.pull_request\.(title|body)' "$wf"; then
     fail "untrusted PR title/body interpolated: $wf"
   fi
-  grep -q 'LINKTREND_AUTOMATION_TOKEN' "$wf" || fail "missing normal-token credential contract: $wf"
-  grep -q 'automation_credentials_blocked\|resolve_automation_token' "$wf" \
-    || fail "missing fail-closed credentials path: $wf"
+  grep -q 'permissions:' "$wf" || fail "missing least-privilege permissions: $wf"
 done
 # Unprivileged CI remains read-only and tests proposed code
 grep -q 'permissions:' "$CI" || fail "ci missing permissions"
 grep -q 'contents: read' "$CI" || fail "ci must be contents:read"
 grep -q 'pull_request:' "$CI" || fail "ci must test PRs with pull_request"
 ! grep -q 'contents: write' "$CI" || fail "ci must not have contents:write"
-pass "Trust boundary: trusted checkout + normal-token fail-closed; CI unprivileged"
+pass "Trust boundary: trusted checkout + least-privilege token; CI unprivileged"
 
-# Self-trigger guards
-grep -q "github-actions" "$PKG" || fail "packager must filter Actions check_run"
-grep -q "Linktrend Packager Result" "$PKG" || fail "packager must ignore own result check"
-grep -q "Linktrend Integrator Result" "$INT" || fail "integrator must ignore own result check"
-pass "No indefinite self-trigger via own check runs"
+# Explicit PR/dispatch workflows have no workflow_run/check_run cascade.
+! grep -q 'workflow_run:\|check_run:' "$PKG" || fail "packager retains an event cascade"
+pass "No indefinite self-trigger via event cascades"
 
 grep -q 'Ship 05' .cursor/rules/02-autonomous-ship-pull.mdc
 grep -q 'Pull 07' .cursor/rules/02-autonomous-ship-pull.mdc
@@ -126,7 +109,8 @@ pass "Doctrine Ship 05/Pull 07 + status readiness"
 
 grep -q 'default branch' docs/GITOPS-CONSUMER-ROLLOUT.md
 grep -qi 'mention-only\|manualTriggerOnly' docs/contracts/BUGBOT-MENTION-ONLY.md
-grep -q 'LINKTREND_AUTOMATION_TOKEN' docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md
+! grep -q 'LINKTREND_AUTOMATION_TOKEN' docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md \
+  || fail "retired App automation token remains in active credentials contract"
 pass "Activation + mention-only + normal credential docs"
 
 for s in scripts/mark-review-ready.sh scripts/validate-review-ready.sh \
@@ -136,12 +120,8 @@ for s in scripts/mark-review-ready.sh scripts/validate-review-ready.sh \
          scripts/gitops/resolve_automation_token.sh scripts/gitops/resolve_bugbot_user_token.sh; do
   [ -x "$s" ] || fail "not executable: $s"
 done
-[ -f scripts/gitops/bugbot_user_credentials.py ] || fail "missing bugbot_user_credentials.py"
-grep -q 'LINKTREND_BUGBOT_USER_TOKEN' "$PKG" || fail "packager must inject Carlos user token secret"
-grep -q 'resolve_bugbot_user_token.sh' "$PKG" || fail "packager must resolve Carlos user token"
-grep -q 'bugbot_user_credentials_blocked' "$PKG" || fail "packager must fail closed on missing user token"
-grep -q 'LINKTREND_BUGBOT_USER_TOKEN' docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md \
-  || fail "App credentials doc must describe dual-credential user token"
+! grep -q 'LINKTREND_BUGBOT_USER_TOKEN' "$PKG" || fail "retired Bugbot user token remains"
+grep -q '@cursor review' "$INT" || fail "final-suite Bugbot request missing"
 [ ! -f scripts/commit-review-ready.sh ] || fail "commit-review-ready.sh must be removed"
 [ ! -f core/templates/REVIEW-READY.json ] || fail "REVIEW-READY.json template must be removed"
 pass "Executable modes + obsolete readiness file artifacts removed"
@@ -253,10 +233,10 @@ from pathlib import Path
 import sys
 sys.path.insert(0, "scripts/gitops")
 from write_outcome import VALID
-need = {"packaged","waiting","skipped","blocked","failed","bugbot_requested","merged","automation_credentials_blocked","bugbot_user_credentials_blocked"}
+need = {"packaged","waiting","skipped","blocked","failed","bugbot_requested","merged"}
 assert need <= VALID, need - VALID
 text = Path("scripts/gitops/packager_evaluate.py").read_text()
-for s in ("waiting","skipped","blocked","bugbot_requested","automation_credentials_blocked","bugbot_user_credentials_blocked"):
+for s in ("waiting","skipped","blocked","bugbot_requested"):
     assert s in text
 print("outcomes ok")
 PY
@@ -264,8 +244,6 @@ pass "Honest outcome vocabulary present"
 
 # ---- Normal automation token: same-job secret; never job-output secrets ----
 for wf in "${WRITE_WFS[@]}"; do
-  grep -q 'LINKTREND_AUTOMATION_TOKEN' "$wf" \
-    || fail "normal automation token missing: $wf"
   ! grep -q 'create-github-app-token' "$wf" \
     || fail "GitHub automation token action remains: $wf"
   if grep -nE 'outputs:\s*$' "$wf" >/dev/null; then
@@ -307,43 +285,20 @@ PY
 done
 pass "Normal token same-job only; no job-output secret transport"
 
-# ---- Concurrency: uniform head SHA for automatic events ----
+# ---- Concurrency: Fast Checks cancel obsolete runs per PR. ----
 for wf in "$PKG" "$INT"; do
   grp="$(grep -E '^\s*group:' "$wf" | head -1)"
-  echo "$grp" | grep -q 'workflow_run\.id\|check_run\.id' \
-    && fail "concurrency must not use workflow_run.id/check_run.id: $wf :: $grp"
-  echo "$grp" | grep -q 'pull_request\.number\|pull_requests\[0\]\.number' \
-    && fail "automatic concurrency must not mix PR numbers: $wf :: $grp"
-  echo "$grp" | grep -Eq 'pull_request\.head\.sha|workflow_run\.head_sha|check_run\.head_sha' \
-    || fail "concurrency must key on head SHA: $wf :: $grp"
-  grep -q 'cancel-in-progress: false' "$wf" || fail "cancel-in-progress must be false: $wf"
+  echo "$grp" | grep -q 'pr-' || fail "concurrency must scope to a PR: $wf :: $grp"
+  grep -q 'cancel-in-progress: true' "$wf" || fail "obsolete PR runs must cancel: $wf"
 done
-grep -q 'cancel-in-progress: false' "$STG"
-grep -q 'cancel-in-progress: false' "$MAIN"
-# Resolve-before-mint: privileged evaluate/promote depends on resolve relevant
+grep -q 'cancel-in-progress: true' "$STG"
+grep -q 'cancel-in-progress: true' "$MAIN"
+# Explicit Phase workflows use least-privilege built-in tokens; no App resolver.
 for wf in "$PKG" "$INT" "$STG" "$MAIN"; do
-  grep -q 'RESOLVE_ROLE\|resolve_event_pr.py' "$wf" || fail "missing trusted resolver: $wf"
-  grep -q "needs.resolve.outputs.relevant == 'true'" "$wf" \
-    || fail "mutation job must gate on resolve.relevant: $wf"
-  # App mint step must not appear in the resolve job (stop at next top-level job key)
-  python3 - "$wf" <<'PY'
-from pathlib import Path
-import sys, re
-text = Path(sys.argv[1]).read_text()
-# Use DOTALL so the job body can span lines, but stop via lookahead on the next job key.
-# Never use '.*:' with DOTALL — that greedily eats through newlines to a distant colon.
-m = re.search(r'(?ms)^  resolve:\n.*?(?=^  [a-z][a-z0-9_-]*:)', text)
-if not m:
-    raise SystemExit(f'no resolve job: {sys.argv[1]}')
-block = m.group(0)
-if 'create-github-app-token' in block:
-    raise SystemExit(f'automation token minted inside resolve job: {sys.argv[1]}')
-if 'LINKTREND_GITOPS_APP_PRIVATE_KEY' in block:
-    raise SystemExit(f'private key referenced inside resolve job: {sys.argv[1]}')
-print('ok')
-PY
+  grep -q 'permissions:' "$wf" || fail "missing least-privilege permissions: $wf"
+  ! grep -q 'create-github-app-token\|LINKTREND_GITOPS_APP_PRIVATE_KEY\|resolve_event_pr.py' "$wf" \
+    || fail "retired App resolver remains: $wf"
 done
-grep -q "Linktrend Main Outcome" "$STG" || fail "staging must exclude Linktrend Main Outcome"
 ! test -f scripts/gitops/event_relevance.py || fail "test-only event_relevance.py must be removed"
 ! test -f scripts/gitops/bugbot_request_once.py || fail "test-only bugbot_request_once.py must be removed"
 pass "Uniform SHA concurrency + resolve-before-mint; test-only helpers removed"
@@ -531,15 +486,15 @@ try:
     assert rc == 0
     report = json.loads(Path("packager-discover-report.json").read_text(encoding="utf-8"))
     by_branch = {row["branch"]: row for row in report}
-    assert by_branch[BRANCH]["action"] == "draft_ensured"
+    assert by_branch[BRANCH]["action"] == "skipped_phase_mode_issue_without_exception"
     assert by_branch[BRANCH]["ready"] is True
     assert by_branch[BRANCH]["headSha"] == READY_SHA
     assert by_branch["issue/99-not-ready-yet"]["action"] == "skipped_not_ready"
     assert by_branch["issue/99-not-ready-yet"]["ready"] is False
-    assert by_branch["issue/77-head-will-drift"]["action"] == "skipped_head_drift"
+    assert by_branch["issue/77-head-will-drift"]["action"] == "skipped_phase_mode_issue_without_exception"
     assert "development" not in by_branch
     outcome = json.loads(Path("gitops-outcome.json").read_text(encoding="utf-8"))
-    assert outcome["status"] == "packaged"
+    assert outcome["status"] == "skipped"
 finally:
     os.chdir(cwd)
     disc_mod._LIST_BRANCHES_HOOK = None

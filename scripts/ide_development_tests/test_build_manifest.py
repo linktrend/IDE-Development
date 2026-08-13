@@ -90,6 +90,34 @@ class BuildManifestPackagingTests(unittest.TestCase):
         }
         self.assertEqual({path: removals.get(path) for path in expected}, expected)
 
+    def test_hosted_defaults_and_redacted_cleanup_inventory_are_packaged(self) -> None:
+        config = json.loads(
+            (bm.MANAGED / "config" / "delivery.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(config["schemaVersion"], 2)
+        self.assertEqual(config["compute"]["provider"], "github-hosted")
+        self.assertEqual(config["compute"]["runner"], "ubuntu-24.04-arm")
+        self.assertFalse(config["compute"]["checkpointCI"])
+        self.assertEqual(config["profiles"]["fast"]["commands"], [])
+        self.assertEqual(config["profiles"]["full"]["commands"], [])
+        self.assertTrue(config["profiles"]["full"]["required"])
+
+        cleanup = json.loads(
+            (bm.MANAGED / "migrations" / "external-cleanup-plan.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(len(cleanup["repositories"]), 9)
+        self.assertEqual(cleanup["applyAuthority"], "W3")
+        self.assertFalse(any("value" in row for row in cleanup["targets"]))
+
+        manifest = bm.build_manifest_object()
+        sources = {row["source"] for row in manifest["files"]}
+        self.assertIn("core/managed-core/config/delivery.json", sources)
+        self.assertIn("core/managed-core/migrations/external-cleanup-plan.json", sources)
+        self.assertNotIn("scripts/gitops/resolve_automation_token.sh", sources)
+        self.assertNotIn("scripts/gitops/packager_discover.py", sources)
+
 
 if __name__ == "__main__":
     unittest.main()

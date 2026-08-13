@@ -1,14 +1,12 @@
 name: LiNKtrend Repair Observer
 
 # Observes __LINKTREND_CI_WORKFLOW_NAME__ / __LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__ / __LINKTREND_BUGBOT_CHECK_NAME__ lifecycle events and
-# maintains durable repair tasks via the LiNKtrend GitOps normal GitHub automation.
+# maintains durable repair tasks with the built-in least-privilege workflow token.
 # Does NOT spawn Cursor.
 #
 # Trust boundary:
 #   - checkout repository default branch only (never PR head)
-#   - durable repair mutations use AUTOMATION_TOKEN (normal GitHub automation) only
-#   - automation token unavailable → local automation_credentials_blocked outcome + failed workflow
-#   - ordinary github.token is never used for Issue/check/comment/PR mutations
+#   - durable repair mutations use the job-scoped built-in token
 #   - repair_observer.py proves current PR/branch head before resolving
 # Profiles: github-actions preserves the event-driven fallback below; local-coordinator
 # is rendered with bounded manual recovery only.
@@ -54,10 +52,12 @@ jobs:
           github.event.check_run.conclusion == 'neutral'
         )
       )
-    runs-on: __LINKTREND_RUNS_ON__
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     permissions:
       contents: read
+      issues: write
+      pull-requests: read
     steps:
       - name: Checkout trusted default branch only
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -67,24 +67,13 @@ jobs:
 
       - name: Observe repair lifecycle
         env:
-          LINKTREND_AUTOMATION_TOKEN: ${{ secrets.LINKTREND_AUTOMATION_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           LINKTREND_CI_WORKFLOW_NAME: __LINKTREND_CI_WORKFLOW_NAME__
           LINKTREND_BRANCH_POLICY_WORKFLOW_NAME: __LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__
           LINKTREND_BUGBOT_CHECK_NAME: __LINKTREND_BUGBOT_CHECK_NAME__
-          REQUIRE_AUTOMATION_TOKEN: "1"
         run: |
           set -euo pipefail
-          if ! source scripts/gitops/resolve_automation_token.sh; then
-            # automation token unavailable: local outcome + failed workflow only — no github.token mutations.
-            python3 scripts/gitops/write_outcome.py \
-              --status automation_credentials_blocked \
-              --detail "Repair Observer requires GitHub automation token for durable repair mutations"
-            echo "### Repair Observer: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE
-          export GH_TOKEN="${AUTOMATION_TOKEN}"
-          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
           python3 scripts/gitops/repair_observer.py handle-event --event-path "$GITHUB_EVENT_PATH" --repo "$GITHUB_REPOSITORY"

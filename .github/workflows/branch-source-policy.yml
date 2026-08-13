@@ -1,66 +1,53 @@
-name: Branch Source Policy
+name: Linktrend Branch Source Policy
 
 on:
   pull_request:
     branches: [main, staging, development]
+  workflow_call:
+    inputs:
+      source_branch:
+        required: false
+        type: string
+      target_branch:
+        required: false
+        type: string
 
 permissions:
-  contents: read
+  pull-requests: read
 
 jobs:
   branch-source-policy:
-    name: Enforce allowed PR source branches
-    # This workflow checks out the pull-request merge ref, so private consumers
-    # must route it to the isolated candidate runner, never the privileged Mac.
-    runs-on: [self-hosted, Linux, ARM64, linktrend-ci-isolated]
+    name: Linktrend Branch Source Policy
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    env:
+      BASE_BRANCH: ${{ inputs.target_branch || github.base_ref }}
+      HEAD_BRANCH: ${{ inputs.source_branch || github.head_ref }}
     steps:
-      - name: Checkout allowlist helper
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          sparse-checkout: |
-            scripts/gitops/work-branch-allowlist.sh
-            .github/linktrend-delivery-mode.json
-          sparse-checkout-cone-mode: false
-
-      - name: Enforce promotion and work-branch flow
-        env:
-          BASE_BRANCH: ${{ github.base_ref }}
-          HEAD_BRANCH: ${{ github.head_ref }}
+      - name: Enforce allowed PR source branches
         run: |
           set -euo pipefail
-          # shellcheck source=scripts/gitops/work-branch-allowlist.sh
-          source scripts/gitops/work-branch-allowlist.sh
           echo "PR source: ${HEAD_BRANCH}"
           echo "PR target: ${BASE_BRANCH}"
           case "${BASE_BRANCH}" in
             main)
-              if is_main_promote_branch "${HEAD_BRANCH}"; then
-                echo "Allowed: temporary main promote branch."
-                exit 0
-              fi
-              echo "Only promote/main/* temporary branches may be merged into main."
-              exit 1
+              case "${HEAD_BRANCH}" in
+                promote/main/*) ;;
+                *) echo "Only promote/main/* temporary branches may be merged into main."; exit 1 ;;
+              esac
               ;;
             staging)
-              if is_staging_promote_branch "${HEAD_BRANCH}"; then
-                echo "Allowed: temporary staging promote branch."
-                exit 0
-              fi
-              echo "Only promote/staging/* temporary branches may be merged into staging."
-              exit 1
+              case "${HEAD_BRANCH}" in
+                promote/staging/*) ;;
+                *) echo "Only promote/staging/* temporary branches may be merged into staging."; exit 1 ;;
+              esac
               ;;
             development)
-              if is_allowed_work_branch "${HEAD_BRANCH}"; then
-                echo "Allowed work branch."
-                exit 0
-              fi
-              echo "Only short-lived work branches may be merged into development."
-              echo "Allowed forms:"
-              allowed_work_branch_globs
-              exit 1
+              case "${HEAD_BRANCH}" in
+                issue/*|phase/*|dev/*) ;;
+                *) echo "Only issue/*, phase/*, or dev/* branches may be merged into development."; exit 1 ;;
+              esac
               ;;
-            *)
-              echo "Unhandled base branch: ${BASE_BRANCH}"
-              exit 1
-              ;;
+            *) echo "Unhandled base branch: ${BASE_BRANCH}"; exit 1 ;;
           esac
+          echo "Linktrend Branch Source Policy passed for ${HEAD_BRANCH} -> ${BASE_BRANCH}."

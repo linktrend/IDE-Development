@@ -1,0 +1,8 @@
+name: Legacy delivery fixture
+on: [push]
+permissions: write-all
+jobs:
+  run:
+    runs-on: [self-hosted, macOS, ARM64, linktrend-privileged]
+    steps:
+      - run: mint former custom GitHub App token
