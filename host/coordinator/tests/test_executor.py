@@ -159,6 +159,23 @@ class ExecutorTests(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertTrue(any("outside" in error or "broad" in error for error in result.errors))
 
+    def test_disposable_checkout_removes_its_empty_private_parent(self):
+        workspace = self.root / "linktrend-coordinator-private"
+        checkout = workspace / "candidate"
+        checkout.mkdir(parents=True)
+        (checkout / "input.txt").write_text("candidate", encoding="utf-8")
+        register_job(
+            "private-1",
+            container_name="linktrend-coordinator-private-1",
+            checkout_path=str(checkout),
+            workspace_root=str(workspace),
+            temporary_checkout=True,
+        )
+        result = cleanup_job("private-1", runner=lambda argv: _FakeDockerResult())
+        self.assertTrue(result.success)
+        self.assertFalse(workspace.exists())
+        self.assertEqual(set(result.removed_paths), {str(checkout.resolve()), str(workspace.resolve())})
+
     def test_startup_removes_labelled_orphan_only(self):
         orphan = "a" * 12
         active = "b" * 12

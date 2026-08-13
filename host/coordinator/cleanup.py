@@ -148,7 +148,17 @@ def _remove_owned_checkout(owned: _OwnedJob) -> Tuple[Tuple[str, ...], Tuple[str
         shutil.rmtree(str(checkout))
     except OSError as exc:
         return (), ("checkout removal failed: {}".format(exc),)
-    return (str(checkout),), ()
+    # The coordinator creates one private parent directory per disposable
+    # checkout.  Remove that parent only when it is now empty; never recurse
+    # outside the registered checkout, so an unexpected sibling remains a
+    # visible, non-destructive cleanup condition.
+    removed = [str(checkout)]
+    try:
+        root.rmdir()
+        removed.append(str(root))
+    except OSError:
+        pass
+    return tuple(removed), ()
 
 
 def cleanup_job(

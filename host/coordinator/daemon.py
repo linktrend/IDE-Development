@@ -191,8 +191,16 @@ class CoordinatorDaemon:
         checkout = str(Path(parent) / "candidate")
         try:
             subprocess.run(("git", "-C", repository_root, "cat-file", "-e", source_sha + "^{commit}"), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
-            subprocess.run(("git", "clone", "--no-checkout", "--no-local", repository_root, checkout), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
-            subprocess.run(("git", "-C", checkout, "checkout", "--detach", source_sha), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
+            # PR heads are often unadvertised objects in the operator clone.
+            # Fetch the verified object directly instead of relying on clone's
+            # advertised-ref negotiation, which would make a valid candidate
+            # checkout fail closed merely because its ref is not advertised.
+            subprocess.run(("git", "init", "--quiet", checkout), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+            subprocess.run(("git", "-C", checkout, "fetch", "--no-tags", repository_root, source_sha), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+            subprocess.run(("git", "-C", checkout, "checkout", "--detach", "FETCH_HEAD"), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
+            resolved = subprocess.check_output(("git", "-C", checkout, "rev-parse", "HEAD"), text=True, timeout=15).strip()
+            if resolved != source_sha:
+                raise subprocess.CalledProcessError(1, ("git", "rev-parse", "HEAD"))
             return checkout
         except (OSError, subprocess.SubprocessError):
             import shutil

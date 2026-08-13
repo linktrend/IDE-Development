@@ -1,5 +1,7 @@
 import base64
 import json
+import shutil
+import subprocess
 import tempfile
 import time
 import unittest
@@ -31,6 +33,31 @@ class FakeGitHub:
 
 
 class DaemonTests(unittest.TestCase):
+    def test_disposable_checkout_fetches_exact_unadvertised_commit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "operator"
+            root.mkdir()
+            def git(*args, capture=False):
+                result = subprocess.run(
+                    ("git", "-C", str(root), *args), check=True, text=True,
+                    stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                return result.stdout.strip() if capture else None
+            git("init", "--quiet")
+            git("config", "user.email", "coordinator@example.invalid")
+            git("config", "user.name", "Coordinator Test")
+            (root / "candidate.txt").write_text("base\n", encoding="utf-8")
+            git("add", "candidate.txt")
+            git("commit", "--quiet", "-m", "base")
+            tree = git("rev-parse", "HEAD^{tree}", capture=True)
+            dangling = git("commit-tree", tree, "-m", "unadvertised candidate", capture=True)
+            checkout = CoordinatorDaemon._disposable_checkout(str(root), dangling)
+            self.assertIsNotNone(checkout)
+            self.assertEqual(subprocess.check_output(("git", "-C", str(checkout), "rev-parse", "HEAD"), text=True).strip(), dangling)
+            self.assertNotEqual(Path(checkout).resolve(), root.resolve())
+            shutil.rmtree(Path(checkout).parent)
+
     def test_allowlist_and_protected_config(self):
         with tempfile.TemporaryDirectory() as directory:
             daemon = CoordinatorDaemon(Path(directory) / "state.sqlite3", github=FakeGitHub())
