@@ -4,6 +4,11 @@
 # TRUST BOUNDARY: privileged jobs check out the default branch only.
 # Resolve (read-only) then promote (normal automation token) only when relevant.
 # Empty pull_requests: commits API lookup; fail closed if unresolved.
+# Profiles: github-actions preserves the event-driven fallback below; local-coordinator
+# is rendered by sync-managed-workflows.sh with only bounded workflow_dispatch recovery.
+# Frozen coordinator contexts: Linktrend Fast Gate, Linktrend Full Suite,
+# Linktrend Phase Ready, Linktrend Staging Gate, Linktrend Coordinator;
+# external Cursor Bugbot is unchanged.
 name: Development → Staging Promotion
 
 on:

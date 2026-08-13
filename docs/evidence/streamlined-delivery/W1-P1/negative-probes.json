@@ -1,0 +1,19 @@
+{
+  "packet": "W1-P1",
+  "sanitized": true,
+  "probes": [
+    {"name": "unknown v2 field", "result": "rejected: unknown_or_missing_field"},
+    {"name": "unknown v1 field", "result": "rejected: unknown_field"},
+    {"name": "absolute executable path", "result": "rejected: unsafe_path"},
+    {"name": "repository escape dependency path", "result": "rejected: path_escape"},
+    {"name": "invalid fast-job limit", "result": "rejected: invalid_limits"},
+    {"name": "stale candidate SHA", "result": "rejected: stale_identity"},
+    {"name": "staging promotion before gates", "result": "rejected: illegal_order"},
+    {"name": "third sealed candidate", "result": "rejected: third_seal"},
+    {"name": "terminal stopped state mutation", "result": "rejected: terminal_state"},
+    {"name": "terminal blocked state mutation", "result": "rejected: terminal_state"},
+    {"name": "terminal main-promoted state mutation", "result": "rejected: terminal_state"},
+    {"name": "interrupted atomic replacement", "result": "previous valid state preserved"},
+    {"name": "passive observation and pre-start cancellation", "result": "attempt count unchanged"}
+  ]
+}

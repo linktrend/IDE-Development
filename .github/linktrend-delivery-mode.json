@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 2,
+  "deliveryMode": "phase-integration",
+  "phaseBranchPrefix": "phase/",
+  "orchestrationMode": "local-coordinator",
+  "fastTargetSeconds": 300,
+  "maxAttemptsPerCandidate": 2,
+  "maxSealedCandidateRevisions": 2,
+  "maxFastJobs": 2,
+  "maxHeavyJobs": 1,
+  "stagingPromotion": "automatic",
+  "mainPromotion": "principal-approval",
+  "testProfiles": {
+    "fast": {
+      "commands": [["bash", "scripts/tests/test_local_coordinator_workflow_profile.sh"]],
+      "timeoutSeconds": 300
+    },
+    "full": {
+      "required": false,
+      "commands": [["bash", "tests/test-portable-v2-integration.sh", "--full"]],
+      "timeoutSeconds": 3600
+    },
+    "release": {
+      "commands": [["python3", "scripts/ide-development.py", "version", "--json", "--dry-run"]],
+      "timeoutSeconds": 300
+    }
+  },
+  "dependencyFiles": ["VERSION", "core/managed-core/VERSION", "core/managed-core/MANIFEST.json"],
+  "resourceLimits": {
+    "fastCpus": 1.0,
+    "fastMemoryMiB": 2048,
+    "heavyCpus": 2.0,
+    "heavyMemoryMiB": 4096,
+    "pidsLimit": 768,
+    "pauseCpuPercent": 80,
+    "pauseMemoryPercent": 80,
+    "minimumFreeDiskGiB": 20
+  }
+}

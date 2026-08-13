@@ -23,6 +23,7 @@ make_repo() {
 seed_scripts() {
   local d="$1"
   mkdir -p "$d/scripts/gitops"
+  mkdir -p "$d/scripts/gitops/coordinator"
   printf '%s\n' "__pycache__/" "*.py[cod]" >"$d/.gitignore"
   cp "$ROOT/scripts/mark-review-ready.sh" "$d/scripts/"
   cp "$ROOT/scripts/validate-review-ready.sh" "$d/scripts/"
@@ -31,6 +32,7 @@ seed_scripts() {
   cp "$ROOT/scripts/cleanup-merged-branches.sh" "$d/scripts/"
   cp "$ROOT/scripts/gitops/"*.sh "$d/scripts/gitops/" 2>/dev/null || true
   cp "$ROOT/scripts/gitops/"*.py "$d/scripts/gitops/"
+  cp "$ROOT/scripts/gitops/coordinator/"*.py "$d/scripts/gitops/coordinator/"
   cp "$ROOT/scripts/gitops/"*.json "$d/scripts/gitops/" 2>/dev/null || true
   chmod +x "$d/scripts/"*.sh "$d/scripts/gitops/"*.sh "$d/scripts/gitops/"*.py
   git -C "$d" add .gitignore scripts
