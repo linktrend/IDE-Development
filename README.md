@@ -8,7 +8,7 @@ It is distinct from **LiNKdeveloper**, the separate VPS-hosted autonomous applic
 
 **Claude Code is excluded** from current v2 support and roadmap. Do not add Claude entrypoints or treat archived Claude packaging (`docs/archive/platform-entrypoints/claude/`) as an install path.
 
-**Pre-rollout:** WP1 proved the RC on disposable targets; WP2 built canonical lineage + live readiness; WP03 integrated and promoted the v2.0 line; Issue #72 completed the pre-launch cleanup; Issue #81 delivered phase delivery; and W3-P1 adds the bounded local coordinator, exact receipts, Phase release evidence, and compatibility profiles. **Consumer rollout remains prepared and not executed** — Principal approval is still required. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md), [`docs/contracts/STREAMLINED-DELIVERY.md`](docs/contracts/STREAMLINED-DELIVERY.md), and [`docs/GITOPS-CONSUMER-ROLLOUT.md`](docs/GITOPS-CONSUMER-ROLLOUT.md).
+**Pre-rollout:** WP1 proved the RC on disposable targets; WP2 built canonical lineage + live readiness; WP03 integrated and promoted the v2.0 line; Issue #72 completed the pre-launch cleanup; Issue #81 delivered phase delivery; W3-P1 adds the bounded local coordinator, exact receipts, Phase release evidence, and compatibility profiles; and W4 adds multi-host-capable isolated workers while the current Mac Mini remains the sole enabled production worker. **Consumer rollout remains prepared and not executed** — Principal approval is still required. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md), [`docs/contracts/STREAMLINED-DELIVERY.md`](docs/contracts/STREAMLINED-DELIVERY.md), and [`docs/contracts/MULTI-HOST-COORDINATOR.md`](docs/contracts/MULTI-HOST-COORDINATOR.md).
 
 ## Start here (source of truth)
 

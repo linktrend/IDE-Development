@@ -81,3 +81,16 @@ LiNKtrend GitHub App credential is packaged. Rollback restores the previous
 coordinator/package version and exact consumer bytes through the existing
 transaction journal. A failed trust, identity, cleanup, or protection check
 stops promotion.
+
+## W4 multi-host capacity
+
+The local coordinator owns one global queue and durable isolated-worker
+registry. The current Mac Mini fixture is the sole enabled production worker;
+future Mac/Linux/VPS workers may register only as `isolated-candidate` workers
+with explicit platform, architecture, capabilities, resource/concurrency
+limits, heartbeat, state, and repository allowlist. Privileged coordinator
+operations never run candidate code, and VPS registration cannot gain a
+privileged role. Capability matching, pressure admission, repository-fair
+priority selection, lease renewal/expiry, fenced stale results, and global
+attempt preservation are covered by the W4 focused tests. See
+[`MULTI-HOST-COORDINATOR.md`](MULTI-HOST-COORDINATOR.md).

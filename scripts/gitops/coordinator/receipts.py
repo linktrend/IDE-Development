@@ -311,6 +311,14 @@ RECEIPT_FIELDS = {
     "completedAt",
     "evidenceDigests",
     "github",
+    "workerId",
+    "workerCapabilities",
+    "workerTrust",
+    "coordinatorIdentity",
+    "executionEnvironment",
+}
+LEGACY_RECEIPT_FIELDS = RECEIPT_FIELDS - {
+    "workerId", "workerCapabilities", "workerTrust", "coordinatorIdentity", "executionEnvironment"
 }
 
 
@@ -331,6 +339,11 @@ class GateReceipt:
     completed_at: str
     evidence_digests: dict[str, str]
     github: dict[str, Any]
+    worker_id: str | None = None
+    worker_capabilities: tuple[str, ...] = ()
+    worker_trust: str | None = None
+    coordinator_identity: str | None = None
+    execution_environment: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -349,12 +362,17 @@ class GateReceipt:
             "completedAt": self.completed_at,
             "evidenceDigests": dict(sorted(self.evidence_digests.items())),
             "github": self.github,
+            "workerId": self.worker_id,
+            "workerCapabilities": list(self.worker_capabilities),
+            "workerTrust": self.worker_trust,
+            "coordinatorIdentity": self.coordinator_identity,
+            "executionEnvironment": self.execution_environment or {},
         }
 
     @classmethod
     def from_dict(cls, value: Any) -> "GateReceipt":
         data = _mapping(value)
-        if set(data) != RECEIPT_FIELDS:
+        if set(data) != LEGACY_RECEIPT_FIELDS and set(data) != RECEIPT_FIELDS:
             raise ReceiptError("invalid_receipt", "receipt fields are incomplete or unknown")
         if data["schemaVersion"] != 1 or not isinstance(data["schemaVersion"], int):
             raise ReceiptError("invalid_receipt", "unsupported receipt schema")
@@ -369,6 +387,19 @@ class GateReceipt:
             raise ReceiptError("invalid_receipt", "pullRequest must be an integer or null")
         if github["runUrl"] is not None and not isinstance(github["runUrl"], str):
             raise ReceiptError("invalid_receipt", "runUrl must be a string or null")
+        worker_capabilities = tuple(data.get("workerCapabilities", ()))
+        if any(not isinstance(item, str) or item not in {"fast", "heavy", "nestedDocker"} for item in worker_capabilities):
+            raise ReceiptError("invalid_receipt", "workerCapabilities is invalid")
+        worker_trust = data.get("workerTrust")
+        if worker_trust is not None and worker_trust != "isolated-candidate":
+            raise ReceiptError("trust_boundary", "receipt worker trust is not isolated-candidate")
+        if data.get("workerId") is not None and (not isinstance(data["workerId"], str) or not data["workerId"]):
+            raise ReceiptError("invalid_receipt", "workerId is invalid")
+        if data.get("coordinatorIdentity") is not None and (not isinstance(data["coordinatorIdentity"], str) or not data["coordinatorIdentity"]):
+            raise ReceiptError("invalid_receipt", "coordinatorIdentity is invalid")
+        environment = data.get("executionEnvironment", {})
+        if not isinstance(environment, Mapping):
+            raise ReceiptError("invalid_receipt", "executionEnvironment must be an object")
         return cls(
             schema_version=1,
             status=data["status"],
@@ -385,6 +416,11 @@ class GateReceipt:
             completed_at=data["completedAt"],
             evidence_digests=evidence,
             github=dict(github),
+            worker_id=data.get("workerId"),
+            worker_capabilities=worker_capabilities,
+            worker_trust=worker_trust,
+            coordinator_identity=data.get("coordinatorIdentity"),
+            execution_environment=dict(environment),
         )
 
 
@@ -423,6 +459,10 @@ def _validate_completed_receipt(receipt: GateReceipt) -> None:
         raise ReceiptError("invalid_receipt", "attempt must be a positive integer")
     if not isinstance(receipt.coordinator_version, str) or not SEMVER_RE.fullmatch(receipt.coordinator_version):
         raise ReceiptError("invalid_receipt", "coordinatorVersion must be released semver")
+    if receipt.worker_id is not None and receipt.worker_trust != "isolated-candidate":
+        raise ReceiptError("trust_boundary", "worker receipt metadata must identify an isolated candidate worker")
+    if receipt.worker_id is not None and not receipt.worker_capabilities:
+        raise ReceiptError("invalid_receipt", "worker receipt metadata must include capabilities")
     timestamp_re = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$")
     if (
         not isinstance(receipt.started_at, str)

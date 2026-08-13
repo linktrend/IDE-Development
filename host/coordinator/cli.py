@@ -76,6 +76,10 @@ def build_parser() -> argparse.ArgumentParser:
     approve.add_argument("--main-base-sha", required=True)
     approve.add_argument("--pr-head-sha", required=True)
     approve.add_argument("--receipt-identity", required=True)
+    worker = sub.add_parser("worker", help="manage isolated candidate worker registry entries")
+    worker.add_argument("action", choices=("register", "enable", "disable", "drain", "offline", "heartbeat", "inspect", "remove"))
+    worker.add_argument("worker_id", nargs="?")
+    worker.add_argument("--definition", help="JSON worker definition for register")
     return parser
 
 
@@ -111,6 +115,19 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "approve-main":
             approval = json.loads(Path(args.approval).read_text(encoding="utf-8"))
             print(_json(daemon.approve_main(approval, current_staging_sha=args.staging_source_sha, current_main_base_sha=args.main_base_sha, current_pr_head_sha=args.pr_head_sha, current_receipt_identity=args.receipt_identity)))
+        elif args.command == "worker":
+            if args.action == "register":
+                if not args.definition:
+                    parser.error("worker register requires --definition")
+                definition = json.loads(Path(args.definition).read_text(encoding="utf-8"))
+                print(_json(daemon.register_worker(definition).to_dict()))
+            elif args.action == "inspect":
+                print(_json(daemon.inspect_workers(args.worker_id)))
+            else:
+                if not args.worker_id:
+                    parser.error("worker lifecycle action requires WORKER_ID")
+                result = daemon.worker_heartbeat(args.worker_id) if args.action == "heartbeat" else daemon.worker_command(args.action, args.worker_id)
+                print(_json(result.to_dict() if hasattr(result, "to_dict") else {"removed": bool(result)}))
         return 0
     except Exception as exc:
         print(_json({"error": str(exc)}), file=sys.stderr)

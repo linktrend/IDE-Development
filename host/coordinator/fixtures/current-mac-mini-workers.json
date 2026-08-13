@@ -1,0 +1,19 @@
+[
+  {
+    "workerId": "mac-mini-primary",
+    "platform": "macos",
+    "arch": "arm64",
+    "trust": "isolated-candidate",
+    "capabilities": ["fast", "heavy"],
+    "maxFastJobs": 2,
+    "maxHeavyJobs": 1,
+    "cpuLimit": 4.0,
+    "memoryMiB": 8192,
+    "pidsLimit": 768,
+    "heartbeatIntervalSeconds": 30,
+    "enabled": true,
+    "draining": false,
+    "offline": false,
+    "repositories": ["linktrend/IDE-Development"]
+  }
+]

@@ -16,6 +16,7 @@ from .executor import Job, run_job
 from .github_client import GitHubClient, GitHubError, validate_main_approval
 from .queue import QueueRequest, QueueResult, QueueStore, configure_default_store, priority_for
 from .resources import HostSnapshot, ResourceLimits, admit_job
+from .workers import Worker, WorkerRegistry
 
 
 COORDINATOR_VERSION = "2.0.0"
@@ -39,6 +40,7 @@ class CoordinatorDaemon:
 
     def __init__(self, database: str | Path, *, github: Optional[GitHubClient] = None, runner: Optional[Callable[..., Any]] = None) -> None:
         self.store = QueueStore(database)
+        self.workers = WorkerRegistry(database)
         configure_default_store(self.store)
         self.github = github or GitHubClient()
         self.runner = runner or run_job
@@ -47,7 +49,31 @@ class CoordinatorDaemon:
         self._pause_lock = threading.Lock()
 
     def close(self) -> None:
+        self.workers.close()
         self.store.close()
+
+    def register_worker(self, worker: Worker | Mapping[str, Any]) -> Worker:
+        """Register only an isolated candidate worker; no privileged role."""
+        return self.workers.register(worker)
+
+    def worker_heartbeat(self, worker_id: str) -> Worker:
+        return self.workers.heartbeat(worker_id)
+
+    def worker_command(self, command: str, worker_id: str) -> Worker | bool:
+        commands = {
+            "enable": self.workers.enable,
+            "disable": self.workers.disable,
+            "drain": self.workers.drain,
+            "offline": self.workers.mark_offline,
+        }
+        if command == "remove":
+            return self.workers.remove(worker_id)
+        if command not in commands:
+            raise ValueError("unknown worker lifecycle command")
+        return commands[command](worker_id)
+
+    def inspect_workers(self, worker_id: Optional[str] = None) -> list[dict[str, Any]]:
+        return self.workers.inspect(worker_id)
 
     def register(self, repository: str, root: str, default_branch: str = "development") -> RepositoryRegistration:
         self.store.register_repository(repository, root, default_branch)
@@ -185,7 +211,7 @@ class CoordinatorDaemon:
             return self._paused
 
     def status(self) -> dict[str, Any]:
-        return {"version": COORDINATOR_VERSION, "paused": self.paused, "repositories": self.registrations(), "jobs": self.store.list_jobs(), "alerts": self.store.alerts()}
+        return {"version": COORDINATOR_VERSION, "paused": self.paused, "repositories": self.registrations(), "workers": self.inspect_workers(), "jobs": self.store.list_jobs(), "alerts": self.store.alerts()}
 
     def service_once(self, *, execute: bool = False) -> dict[str, Any]:
         """Run one safe coordinator service pass.

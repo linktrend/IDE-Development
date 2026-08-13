@@ -52,6 +52,9 @@ class Job:
     nested_docker: bool = False
     protected_nested_config: Optional[Mapping[str, Any]] = None
     repository: str = ""
+    worker_id: Optional[str] = None
+    worker_trust: Optional[str] = None
+    worker_capabilities: Tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not _JOB_ID.fullmatch(self.job_id):
@@ -106,6 +109,9 @@ def _job(value: Any) -> Job:
         nested_docker=bool(_get(value, "nested_docker", "nestedDocker", default=False)),
         protected_nested_config=_get(value, "protected_nested_config", "protectedNestedConfig"),
         repository=str(_get(value, "repository", default="")),
+        worker_id=_get(value, "worker_id", "workerId"),
+        worker_trust=_get(value, "worker_trust", "workerTrust"),
+        worker_capabilities=tuple(_get(value, "worker_capabilities", "workerCapabilities", default=()) or ()),
     )
 
 
@@ -160,6 +166,23 @@ def _validate_nested(job: Job) -> None:
         raise ValueError("nested Docker bounds must be positive")
 
 
+def _validate_worker_trust(job: Job) -> None:
+    """Candidate execution may only run under an explicitly isolated worker."""
+    if job.worker_trust is not None and job.worker_trust != "isolated-candidate":
+        raise ValueError("privileged worker trust cannot execute candidate code")
+    if job.worker_id and job.worker_trust is None:
+        raise ValueError("worker identity requires explicit isolated trust")
+    if job.worker_capabilities:
+        allowed = {"fast", "heavy", "nestedDocker"}
+        if not set(job.worker_capabilities).issubset(allowed):
+            raise ValueError("worker capability is not recognized")
+        required = "fast" if job.test_profile == "fast" else "heavy"
+        if required not in job.worker_capabilities:
+            raise ValueError("worker does not match candidate test capability")
+        if job.nested_docker and "nestedDocker" not in job.worker_capabilities:
+            raise ValueError("nested Docker capability must be explicit")
+
+
 def _validate_volumes(job: Job, checkout: Path) -> Tuple[Tuple[str, str], ...]:
     volumes = [(str(checkout), "/workspace")]
     for volume in job.volumes:
@@ -183,6 +206,7 @@ def build_docker_invocation(job_value: Any, limits_value: Any = None, docker_bin
     limits = limits_value if isinstance(limits_value, ResourceLimits) else ResourceLimits.from_mapping(limits_value or {})
     checkout = _safe_checkout(job.checkout_path, job.workspace_root)
     _validate_image(job.image)
+    _validate_worker_trust(job)
     _validate_nested(job)
     mounts = _validate_volumes(job, checkout)
     name = _container_name(job)

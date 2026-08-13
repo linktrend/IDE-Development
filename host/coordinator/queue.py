@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Mapping, Optional
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 MAX_ATTEMPTS = 2
 _TERMINAL = {"completed", "failed", "cancelled", "stopped", "rejected"}
 _ACTIVE = {"queued", "running"}
@@ -230,6 +230,20 @@ class QueueStore:
                         COMMIT;
                         """
                     )
+                    current = 2
+                if current < 3:
+                    self._connection.executescript(
+                        """
+                        BEGIN IMMEDIATE;
+                        ALTER TABLE jobs ADD COLUMN required_capability TEXT NOT NULL DEFAULT 'fast';
+                        ALTER TABLE jobs ADD COLUMN worker_id TEXT;
+                        ALTER TABLE jobs ADD COLUMN lease_id TEXT;
+                        ALTER TABLE jobs ADD COLUMN lease_expires_at REAL;
+                        CREATE INDEX IF NOT EXISTS jobs_leases ON jobs(status, lease_expires_at);
+                        INSERT INTO schema_migrations(version, applied_at) VALUES (3, datetime('now'));
+                        COMMIT;
+                        """
+                    )
             except Exception:
                 if self._connection.in_transaction:
                     self._connection.execute("ROLLBACK")
@@ -264,6 +278,11 @@ class QueueStore:
                 payload=request.get("payload", {}), urgent=bool(request.get("urgent", False)),
             ).normalized()
         key = data["repository"] + "|" + data["gate"] + "|" + candidate_key(data["candidate"])
+        capability = str(data["payload"].get("requiredCapability") or ("fast" if data["candidate"]["testProfile"] == "fast" else "heavy"))
+        if capability not in {"fast", "heavy", "nestedDocker"}:
+            raise ValueError("requiredCapability must be fast, heavy, or nestedDocker")
+        if capability == "nestedDocker" and data["payload"].get("nestedDocker") is not True:
+            raise ValueError("nestedDocker capability must be explicitly requested")
         now = _now()
         job_id = "job-" + uuid.uuid4().hex
         with self._lock:
@@ -274,8 +293,8 @@ class QueueStore:
                     self._connection.execute("COMMIT")
                     return QueueResult(True, existing["id"], True, "duplicate request was ignored")
                 self._connection.execute(
-                    "INSERT INTO jobs(id, request_key, repository, gate, candidate_json, candidate_key, priority, pr_number, phase_id, payload_json, status, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?, 'queued', ?, ?)",
-                    (job_id, key, data["repository"], data["gate"], _json(data["candidate"]), candidate_key(data["candidate"]), data["priority"], data["pr_number"], data["phase_id"], _json(data["payload"]), now, now),
+                    "INSERT INTO jobs(id, request_key, repository, gate, candidate_json, candidate_key, priority, pr_number, phase_id, payload_json, status, required_capability, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?, 'queued', ?, ?, ?)",
+                    (job_id, key, data["repository"], data["gate"], _json(data["candidate"]), candidate_key(data["candidate"]), data["priority"], data["pr_number"], data["phase_id"], _json(data["payload"]), capability, now, now),
                 )
                 self._connection.execute("COMMIT")
                 return QueueResult(True, job_id, False, "queued")
@@ -412,6 +431,141 @@ class QueueStore:
             if ids:
                 self._connection.executemany("UPDATE jobs SET status='interrupted', updated_at=? WHERE id=?", [(_now(), job_id) for job_id in ids])
             return ids
+
+    def recover_expired_leases(self, now: Optional[float] = None) -> list[str]:
+        """Return expired worker leases to the queue without changing attempts.
+
+        A lost worker is an assignment failure, not a new candidate attempt.
+        The attempt row is marked ``lost`` and the same attempt number is
+        reused by the next worker.  The old lease token is cleared, so a late
+        result cannot commit duplicate execution.
+        """
+        now_value = time.time() if now is None else float(now)
+        stamp = _now()
+        with self._lock, self._connection:
+            rows = self._connection.execute(
+                "SELECT id, attempt_count FROM jobs WHERE status='running' AND lease_id IS NOT NULL AND lease_expires_at <= ?",
+                (now_value,),
+            ).fetchall()
+            ids = [row["id"] for row in rows]
+            for row in rows:
+                if row["attempt_count"]:
+                    self._connection.execute(
+                        "UPDATE attempts SET status='lost', completed_at=? WHERE job_id=? AND attempt_number=? AND status='running'",
+                        (stamp, row["id"], row["attempt_count"]),
+                    )
+            if ids:
+                self._connection.executemany(
+                    "UPDATE jobs SET status='queued', worker_id=NULL, lease_id=NULL, lease_expires_at=NULL, updated_at=? WHERE id=?",
+                    [(stamp, job_id) for job_id in ids],
+                )
+            return ids
+
+    def renew_lease(self, job_id: str, lease_id: str, worker_id: str, *, lease_seconds: int = 120, now: Optional[float] = None) -> bool:
+        if not lease_id or not worker_id or int(lease_seconds) <= 0:
+            raise ValueError("lease renewal requires a worker, lease, and positive duration")
+        now_value = time.time() if now is None else float(now)
+        with self._lock, self._connection:
+            cursor = self._connection.execute(
+                "UPDATE jobs SET lease_expires_at=?, updated_at=? WHERE id=? AND status='running' AND worker_id=? AND lease_id=? AND lease_expires_at > ?",
+                (now_value + int(lease_seconds), _now(), job_id, worker_id, lease_id, now_value),
+            )
+            return cursor.rowcount == 1
+
+    def claim_next(self, worker: Mapping[str, Any], *, snapshot: Optional[Mapping[str, Any]] = None, lease_seconds: int = 120, now: Optional[float] = None) -> Optional[dict[str, Any]]:
+        """Atomically claim one eligible job for one isolated worker.
+
+        Selection is global and fair: the highest-priority eligible band is
+        selected, then repositories rotate within that band.  Capability,
+        allowlist, per-worker concurrency, and host-pressure checks happen in
+        the same transaction as the lease, preventing duplicate pickup.
+        """
+        worker_id = str(worker.get("workerId", worker.get("worker_id", "")))
+        capabilities = set(worker.get("capabilities", ()))
+        repositories = set(worker.get("repositories", worker.get("repoAllowlist", ())) or ())
+        if not worker_id or worker.get("trust") != "isolated-candidate" or worker.get("enabled") is False or worker.get("draining") is True or worker.get("offline") is True:
+            return None
+        now_value = time.time() if now is None else float(now)
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                rows = self._connection.execute("SELECT * FROM jobs WHERE status='queued' ORDER BY priority, created_at, id").fetchall()
+                active = self._connection.execute("SELECT required_capability, COUNT(*) AS count FROM jobs WHERE status='running' AND worker_id=? GROUP BY required_capability", (worker_id,)).fetchall()
+                active_counts = {row["required_capability"]: int(row["count"]) for row in active}
+                fast_limit = int(worker.get("maxFastJobs", worker.get("max_fast_jobs", 0)))
+                heavy_limit = int(worker.get("maxHeavyJobs", worker.get("max_heavy_jobs", 0)))
+                snapshot = snapshot or {}
+                pressure = (
+                    float(snapshot.get("cpuPercent", snapshot.get("cpu_percent", 0))) >= float(worker.get("pauseCpuPercent", 80))
+                    or float(snapshot.get("memoryPercent", snapshot.get("memory_percent", 0))) >= float(worker.get("pauseMemoryPercent", 80))
+                    or float(snapshot.get("freeDiskGiB", snapshot.get("free_disk_gib", 100))) < float(worker.get("minimumFreeDiskGiB", 20))
+                    or snapshot.get("dockerAvailable", snapshot.get("docker_available", True)) is False
+                    or bool(snapshot.get("interactiveUse", snapshot.get("interactive_use", False)))
+                )
+                eligible = []
+                for row in rows:
+                    capability = row["required_capability"]
+                    if capability not in capabilities or row["repository"] not in repositories:
+                        continue
+                    if capability == "fast" and active_counts.get("fast", 0) >= fast_limit:
+                        continue
+                    if capability != "fast" and active_counts.get("heavy", 0) >= heavy_limit:
+                        continue
+                    if pressure:
+                        continue
+                    eligible.append(row)
+                if not eligible:
+                    self._connection.execute("COMMIT")
+                    return None
+                minimum_priority = min(int(row["priority"]) for row in eligible)
+                band = [row for row in eligible if int(row["priority"]) == minimum_priority]
+                repositories_in_band = sorted({row["repository"] for row in band})
+                cursor_value = self.runtime("fair_cursor", "") or ""
+                ordered_repos = repositories_in_band
+                if cursor_value in repositories_in_band:
+                    index = repositories_in_band.index(cursor_value)
+                    ordered_repos = repositories_in_band[index + 1:] + repositories_in_band[:index + 1]
+                selected_repo = ordered_repos[0]
+                row = next(item for item in band if item["repository"] == selected_repo)
+                attempt = int(row["attempt_count"])
+                previous = self._connection.execute("SELECT status FROM attempts WHERE job_id=? AND attempt_number=?", (row["id"], attempt)).fetchone() if attempt else None
+                if not attempt or not previous or previous["status"] != "lost":
+                    attempt += 1
+                    if attempt > MAX_ATTEMPTS:
+                        self._connection.execute("UPDATE jobs SET status='stopped', cancel_reason='attempt-limit', updated_at=? WHERE id=?", (_now(), row["id"]))
+                        self._connection.execute("COMMIT")
+                        return None
+                    self._connection.execute("INSERT INTO attempts(job_id, attempt_number, status, started_at) VALUES(?,?, 'running', ?)", (row["id"], attempt, _now()))
+                else:
+                    self._connection.execute("UPDATE attempts SET status='running', completed_at=NULL, result_json=NULL, started_at=? WHERE job_id=? AND attempt_number=?", (_now(), row["id"], attempt))
+                lease_id = "lease-" + uuid.uuid4().hex
+                self._connection.execute(
+                    "UPDATE jobs SET status='running', attempt_count=?, worker_id=?, lease_id=?, lease_expires_at=?, started_at=COALESCE(started_at, ?), updated_at=? WHERE id=?",
+                    (attempt, worker_id, lease_id, now_value + int(lease_seconds), _now(), _now(), row["id"]),
+                )
+                self._connection.execute(
+                    "INSERT INTO runtime(key, value, updated_at) VALUES('fair_cursor', ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+                    (selected_repo, _now()),
+                )
+                self._connection.execute("COMMIT")
+                return dict(self._row(self._connection.execute("SELECT * FROM jobs WHERE id=?", (row["id"],)).fetchone()), leaseId=lease_id)
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+
+    def record_lease_result(self, job_id: str, lease_id: str, worker_id: str, status: str, result: Optional[Mapping[str, Any]] = None, *, failure_category: str = "execution", evidence_location: str = "", required_action: str = "Inspect sanitized evidence and correct the candidate.") -> dict[str, Any]:
+        """Commit a result only from the current lease owner, once."""
+        if status not in {"completed", "failed", "cancelled", "timed_out", "rejected"}:
+            raise ValueError("invalid job result status")
+        with self._lock:
+            row = self._connection.execute("SELECT * FROM jobs WHERE id=? AND status='running' AND worker_id=? AND lease_id=?", (job_id, worker_id, lease_id)).fetchone()
+            if not row:
+                raise ValueError("stale or duplicate lease result")
+            result_data = dict(result or {})
+            final = self.record_result(job_id, status, result_data, failure_category=failure_category, evidence_location=evidence_location, required_action=required_action)
+            with self._connection:
+                self._connection.execute("UPDATE jobs SET worker_id=NULL, lease_id=NULL, lease_expires_at=NULL WHERE id=?", (job_id,))
+            return final
 
     def poll_state(self, repository: str) -> dict[str, Any]:
         row = self._connection.execute("SELECT * FROM polls WHERE repository=?", (repository,)).fetchone()
