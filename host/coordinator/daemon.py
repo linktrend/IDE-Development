@@ -167,7 +167,7 @@ class CoordinatorDaemon:
         sha = str(head.get("sha", ""))
         registration = self.store.repository(repository)
         config = self._protected_configs.get(repository)
-        if not registration or not config or len(sha) != 40:
+        if not registration or not config or len(sha) != 40 or any(char not in "0123456789abcdef" for char in sha):
             return None
         root = str(registration["root"])
         try:
