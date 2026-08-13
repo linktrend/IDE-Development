@@ -1,0 +1,17 @@
+name: IDE ARM64 Preflight Canary
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/ide-arm64-preflight-canary.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  hosted-arm64-canary:
+    name: Hosted ARM64 preflight canary
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - run: uname -m
