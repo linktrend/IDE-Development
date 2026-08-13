@@ -18,6 +18,9 @@ grep -q 'pull_request:' "$INT" || fail "full suite must run in unprivileged PR c
 grep -q 'types: \[labeled\]' "$INT" || fail "full suite must require trusted explicit label wake"
 ! grep -q 'workflow_dispatch:' "$INT" || fail "full suite must not execute candidate code from default-branch dispatch"
 grep -q 'cancel-in-progress: true' "$PKG" || fail "packager must cancel obsolete PR runs"
+grep -q 'run_delivery_profile.py fast' "$PKG" || fail "fast must run an explicit delivery profile"
+grep -q 'run_delivery_profile.py full' "$INT" || fail "full must run an explicit delivery profile"
+! grep -q 'GITHUB_REPOSITORY.*linktrend/IDE-Development' "$INT" || fail "full must not branch on repository name"
 grep -q 'pull_request_target:' "$STG" || fail "staging must use explicit promotion trigger"
 grep -q 'pull_request_target: # zizmor: ignore\[dangerous-triggers\]' "$STG" \
   || fail "staging trusted trigger must carry reviewed zizmor suppression"

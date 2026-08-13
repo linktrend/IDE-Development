@@ -43,6 +43,8 @@ assert "name: Linktrend Fast Checks" in fast
 assert "pull_request.number" in fast and "github.workflow" in fast
 assert "cancel-in-progress: true" in fast
 assert "timeout-minutes: 5" in fast
+assert "run_delivery_profile.py fast" in fast
+assert "scripts.tests.test_candidate_lifecycle" not in fast
 
 full = (managed / "linktrend-integrator-merge.yml").read_text(encoding="utf-8")
 assert not re.search(r"^\s+push:", full, re.M), "full suite has a checkpoint trigger"
@@ -76,6 +78,9 @@ assert 'if executions > 2:' in full
 assert 'Every paid execution counts' in full
 assert 'pull-requests: write' not in full.split('  bugbot:', 1)[0]
 assert 'candidate/' not in full
+assert "run_delivery_profile.py full" in full
+assert 'GITHUB_REPOSITORY" = "linktrend/IDE-Development' not in full
+assert "full_suite_required_ci_missing_for_exact_head" in full
 
 for name in ("linktrend-development-to-staging.yml", "linktrend-staging-to-main.yml"):
     text = (managed / name).read_text(encoding="utf-8")
