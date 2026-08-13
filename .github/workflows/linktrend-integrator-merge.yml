@@ -218,7 +218,7 @@ jobs:
       pull-requests: write
     env:
       GH_TOKEN: ${{ github.token }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_NUMBER: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.pull_request.number }}
     steps:
       - name: Request Bugbot once for the sealed candidate
         run: |
