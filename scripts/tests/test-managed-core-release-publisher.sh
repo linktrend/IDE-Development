@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Static + adversarial proofs for App-backed managed-core release publisher (WP-01B).
+# Static + adversarial proofs for built-in-token managed-core release publisher.
 # Does not mint tokens, create tags, or mutate GitHub.
 set -euo pipefail
 
@@ -45,7 +45,7 @@ print("ok")
 PY
 pass "Adversarial untrusted-source fixture encodes forbidden patterns"
 
-# ---- 2) Production workflow trusted-source / no human fallback ----
+# ---- 2) Production workflow trusted-source / scoped built-in token ----
 python3 - <<'PY' "$WF" "$NEG_WF" "$PATTERNS"
 import re
 import sys
@@ -87,21 +87,15 @@ for banned in (
     if banned in prod:
         raise SystemExit(f"human/PAT credential fallback present: {banned}")
 
-# github.token must not authorize tag/release publication.
-blocks = re.split(r"\n(?=      - name:)", prod)
-for block in blocks:
-    uses_github_token = bool(
-        re.search(r"(GH_TOKEN|GITHUB_TOKEN):\s*\$\{\{\s*github\.token", block)
-    )
-    if uses_github_token:
-        raise SystemExit("github.token wired as mutation credential")
+if not re.search(r"GH_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}", prod):
+    raise SystemExit("scoped built-in github.token is not wired to the publisher")
 
 if "sync-managed-workflows.sh" in prod and "Not synced" not in prod.split("\n", 20).__repr__():
     pass  # header comment covers system-only; enforced below via sync list check
 
 print("ok")
 PY
-pass "Production workflow enforces trusted default-branch + normal-token publication"
+pass "Production workflow enforces trusted default-branch + scoped built-in-token publication"
 
 # ---- 3) Must not be consumer-synced ----
 if grep -q 'linktrend-managed-core-release-publisher.yml' scripts/sync-managed-workflows.sh; then

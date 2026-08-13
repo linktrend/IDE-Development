@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for normal-token managed-core release publisher helpers.
+"""Unit tests for built-in-token managed-core release publisher helpers.
 
 Does not mint tokens, create tags, or mutate GitHub.
 """
@@ -24,40 +24,40 @@ from gitops import managed_core_release_publish as pub  # noqa: E402
 
 
 class RequireAutomationTokenTests(unittest.TestCase):
-    def test_requires_normal_token_source(self) -> None:
-        with mock.patch.dict(os.environ, {"AUTOMATION_TOKEN_SOURCE": "pat", "AUTOMATION_TOKEN": "x"}, clear=False):
+    def test_requires_scoped_builtin_token_source(self) -> None:
+        with mock.patch.dict(os.environ, {"AUTOMATION_TOKEN_SOURCE": "pat", "GH_TOKEN": "x"}, clear=False):
             with self.assertRaises(pub.ReleasePublishError) as ctx:
                 pub.require_automation_token(token="x", token_source="pat")
             self.assertEqual(ctx.exception.code, "automation_credentials_blocked")
 
     def test_refuses_missing_token(self) -> None:
         with self.assertRaises(pub.ReleasePublishError) as ctx:
-            pub.require_automation_token(token="", token_source="github_token")
+            pub.require_automation_token(token="", token_source="builtin_github_token")
         self.assertEqual(ctx.exception.code, "automation_credentials_blocked")
 
-    def test_accepts_repository_automation_pat_shape(self) -> None:
+    def test_accepts_scoped_builtin_token(self) -> None:
         token = pub.require_automation_token(
-            token="ghp_repository_automation_token",
-            token_source="github_token",
+            token="ghs_scoped_builtin_token",
+            token_source="builtin_github_token",
         )
-        self.assertEqual(token, "ghp_repository_automation_token")
+        self.assertEqual(token, "ghs_scoped_builtin_token")
 
-    def test_uses_only_named_automation_token(self) -> None:
+    def test_uses_builtin_token_without_app_or_pat_env(self) -> None:
         env = {
-            "AUTOMATION_TOKEN_SOURCE": "github_token",
-            "AUTOMATION_TOKEN": "ghs_normal_automation_token_shape",
-            "LINKTREND_BUGBOT_USER_TOKEN": "should-not-be-present",
+            "AUTOMATION_TOKEN_SOURCE": "builtin_github_token",
+            "GH_TOKEN": "ghs_scoped_builtin_token",
+            "LINKTREND_AUTOMATION_TOKEN": "retired-token-must-not-be-used",
         }
         with mock.patch.dict(os.environ, env, clear=False):
             token = pub.require_automation_token()
-        self.assertEqual(token, "ghs_normal_automation_token_shape")
+        self.assertEqual(token, "ghs_scoped_builtin_token")
 
-    def test_accepts_normal_token(self) -> None:
+    def test_accepts_builtin_token(self) -> None:
         token = pub.require_automation_token(
-            token="ghs_normal_automation_token_shape",
-            token_source="github_token",
+            token="ghs_scoped_builtin_token",
+            token_source="builtin_github_token",
         )
-        self.assertEqual(token, "ghs_normal_automation_token_shape")
+        self.assertEqual(token, "ghs_scoped_builtin_token")
 
 
 class ResolveTagObjectShaUrlTests(unittest.TestCase):
