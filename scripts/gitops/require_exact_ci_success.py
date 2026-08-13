@@ -45,10 +45,10 @@ def workflow_runs(repository: str, head: str) -> list[object]:
     return runs
 
 
-def require_success(repository: str, head: str, root: Path, config_key: str = "ciWorkflowName") -> str:
+def require_success(repository: str, head: str, root: Path, config_key: str = "ciWorkflowName", workflow_name: str | None = None) -> str:
     if not repository or not head:
         raise SystemExit("consumer_ci_identity_invalid")
-    name = declared_workflow_name(root, config_key)
+    name = workflow_name or declared_workflow_name(root, config_key)
     for run in workflow_runs(repository, head):
         if not isinstance(run, dict):
             continue
@@ -66,8 +66,9 @@ def main() -> int:
         choices=("fastWorkflowName", "ciWorkflowName", "branchPolicyWorkflowName"),
         default="ciWorkflowName",
     )
+    parser.add_argument("--workflow-name", help="exact security workflow name; never inferred")
     args = parser.parse_args()
-    print(require_success(args.repository, args.head, Path.cwd(), args.config_key))
+    print(require_success(args.repository, args.head, Path.cwd(), args.config_key, args.workflow_name))
     return 0
 
 

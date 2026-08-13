@@ -31,6 +31,10 @@ on:
         description: "Canonical installed-state identity digest for non-promotable canary mode"
         required: false
         type: string
+      security_workflow_name:
+        description: "Exact successful security workflow name for reconciled canary mode"
+        required: false
+        type: string
       pr_number:
         description: "Existing same-repository Phase PR number for canary-only Full"
         required: false
@@ -276,13 +280,15 @@ jobs:
           EXPECTED_TREE: ${{ inputs.expected_tree }}
           PACKAGE_VERSION: ${{ inputs.package_version }}
           INSTALLED_STATE_DIGEST: ${{ inputs.installed_state_digest }}
+          SECURITY_WORKFLOW_NAME: ${{ inputs.security_workflow_name }}
         run: |
           set -euo pipefail
           [[ "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || { echo reconciled_canary_commit_invalid; exit 1; }
           [[ "${EXPECTED_TREE}" =~ ^[0-9a-f]{40}$ ]] || { echo reconciled_canary_tree_invalid; exit 1; }
           python3 scripts/gitops/require_exact_ci_success.py --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_COMMIT}" --config-key fastWorkflowName
           python3 scripts/gitops/require_exact_ci_success.py --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_COMMIT}" --config-key ciWorkflowName
-          python3 scripts/gitops/require_exact_ci_success.py --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_COMMIT}" --config-key branchPolicyWorkflowName
+          test -n "${SECURITY_WORKFLOW_NAME}" || { echo reconciled_canary_security_workflow_missing; exit 1; }
+          python3 scripts/gitops/require_exact_ci_success.py --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_COMMIT}" --workflow-name "${SECURITY_WORKFLOW_NAME}"
           printf '{"fast":"success","ci":"success","security":"success"}\n' > checks.json
           git fetch origin staging main
           staging_tree="$(git merge-tree --write-tree origin/staging "${EXPECTED_COMMIT}")"
