@@ -94,7 +94,7 @@ Outputs stay under an ignored build/artifact directory — **never** a GitHub ta
 
 ---
 
-## Immutable publication (WP-01B — normal-token Mac Mini publisher)
+## Immutable publication (W3 operator procedure)
 
 Tag and GitHub Release creation for managed-core **v2.2.0** is owned by Terra/operator release procedure and the system-repository workflow `.github/workflows/linktrend-managed-core-release-publisher.yml` (not consumer-synced). W3-P1 packet execution does not perform publication.
 
@@ -103,7 +103,7 @@ Hard rules:
 - Workflow YAML and publish helpers execute from the protected **default branch (`main`)** only.
 - Requested `source_sha` must equal the remote `main` tip; the SHA is checked out as **data only**.
 - Archives are **rebuilt and verified** from that source before any tag/Release mutation.
-- Privileged identity is the repository's configured **normal automation token** on the Mac Mini — no workflow `GITHUB_TOKEN` fallback.
+- Publication uses the separately authorized W3 operator procedure; this runbook does not create, select, or print credentials.
 - Tag/release/checksum conflicts and publication replays **fail closed**.
 - Operators may use `dry_run=true` or `action=verify-only` to rebuild/verify without creating a tag or Release.
 
@@ -114,7 +114,7 @@ Helpers:
 - Evidence schema: `core/managed-core/schemas/managed-core-release.schema.json`
 - Contract tests: `scripts/tests/test-managed-core-release-publisher.sh`
 
-This implementer path does **not** trigger live publication. Live tag/Release follows the governed PR + promotion sequence, then an authorized normal-token Mac Mini publication.
+This implementer path does **not** trigger live publication. Any tag or release follows the governed PR + promotion sequence and separate W3 authorization.
 
 ---
 
