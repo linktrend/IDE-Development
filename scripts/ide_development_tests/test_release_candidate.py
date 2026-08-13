@@ -68,7 +68,7 @@ class ReleaseCandidateGateTests(unittest.TestCase):
             (managed / "VERSION").write_text("9.9.9\n", encoding="utf-8")
             with self.assertRaises(InstallerError) as ctx:
                 rc.validate_versions(root)
-            self.assertIn("2.3.6", ctx.exception.message.lower() + str(ctx.exception.details))
+            self.assertIn("2.3.7", ctx.exception.message.lower() + str(ctx.exception.details))
 
 
 class ReleaseCandidateArchiveTests(unittest.TestCase):

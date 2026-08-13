@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from scripts.gitops.verify_reconciled_tree import main, state_digest
+from scripts.gitops.verify_reconciled_fast_dispatch import main as fast_dispatch_main
 
 
 class ReconciledTreeReceiptTests(unittest.TestCase):
@@ -23,6 +24,7 @@ class ReconciledTreeReceiptTests(unittest.TestCase):
         (self.root / "managed.txt").write_text("exact")
         subprocess.run(["git", "-C", str(self.root), "add", "."], check=True)
         subprocess.run(["git", "-C", str(self.root), "commit", "-qm", "exact"], check=True)
+        subprocess.run(["git", "-C", str(self.root), "branch", "-M", "development"], check=True)
         self.commit = subprocess.check_output(["git", "-C", str(self.root), "rev-parse", "HEAD"], text=True).strip()
         self.tree = subprocess.check_output(["git", "-C", str(self.root), "rev-parse", "HEAD^{tree}"], text=True).strip()
         self.state = state
@@ -52,3 +54,16 @@ class ReconciledTreeReceiptTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as error:
             main(self.args())
         self.assertEqual(str(error.exception), "reconciled_canary_managed_drift")
+
+    def test_reconciled_fast_dispatch_binds_only_exact_development_identity(self) -> None:
+        args = [
+            "--repo", str(self.root), "--expected-repository", "linktrend/example",
+            "--actual-repository", "linktrend/example", "--ref", "development",
+            "--expected-commit", self.commit, "--expected-tree", self.tree,
+            "--package-version", "2.3.7", "--installed-state-digest", state_digest(self.state),
+        ]
+        self.assertEqual(fast_dispatch_main(args), 0)
+        for index, replacement in ((5, "main"), (7, "f" * 40), (9, "e" * 40), (11, "2.3.8"), (13, "sha256:" + "0" * 64)):
+            bad = list(args); bad[index] = replacement
+            with self.assertRaises(SystemExit):
+                fast_dispatch_main(bad)

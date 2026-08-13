@@ -15,6 +15,7 @@
     "scripts/gitops/coordinator/state.py",
     "scripts/gitops/gate_receipt.py",
     "scripts/gitops/verify_reconciled_tree.py",
+    "scripts/gitops/verify_reconciled_fast_dispatch.py",
     "scripts/gitops/main_approve_package_discover.py",
     "scripts/gitops/main_approve_package_reuse.py",
     "scripts/gitops/packager_logic.py",
