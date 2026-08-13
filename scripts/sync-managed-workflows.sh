@@ -173,6 +173,7 @@ except Exception as exc:
 
 required = {
     "schemaVersion": int,
+    "fastWorkflowName": str,
     "ciWorkflowName": str,
     "branchPolicyWorkflowName": str,
     "bugbotCheckName": str,

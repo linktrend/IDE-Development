@@ -15,7 +15,7 @@ for name in "${consumers[@]}"; do
   mkdir -p "$repo/.github"
   git -C "$repo" init -q -b development
   cat >"$repo/.github/linktrend-gitops-consumer.json" <<JSON
-{"schemaVersion":1,"ciWorkflowName":"${name} CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Cursor Bugbot","runnerType":"github-hosted"}
+{"schemaVersion":1,"fastWorkflowName":"${name} Fast","ciWorkflowName":"${name} CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Cursor Bugbot","runnerType":"github-hosted"}
 JSON
 
   # Exercise the candidate package as an installed consumer, rather than
@@ -28,6 +28,7 @@ import json, sys
 from pathlib import Path
 root, ci = Path(sys.argv[1]), sys.argv[2]
 config = json.loads((root / ".github/linktrend-gitops-consumer.json").read_text())
+assert config["fastWorkflowName"] == ci.removesuffix(" CI") + " Fast"
 assert config["ciWorkflowName"] == ci and config["runnerType"] == "github-hosted"
 assert not (root / "scripts/tests/test_candidate_lifecycle.py").exists()
 PY
@@ -39,8 +40,10 @@ PY
   # Exact hosted Full command after checkout: the declared repository-owned
   # CI must have succeeded for this exact head. The fixture injects only the
   # GitHub API response, so the same managed discovery code is exercised.
-  runs="{\"workflow_runs\":[{\"name\":\"${name} CI\",\"head_sha\":\"${head}\",\"conclusion\":\"success\"}]}"
+  runs="{\"workflow_runs\":[{\"name\":\"${name} Fast\",\"head_sha\":\"${head}\",\"conclusion\":\"success\"},{\"name\":\"${name} CI\",\"head_sha\":\"${head}\",\"conclusion\":\"success\"}]}"
   (cd "$repo" && git diff --check && python3 scripts/gitops/run_delivery_profile.py full && \
+    LINKTREND_ACTIONS_RUNS_JSON="$runs" python3 scripts/gitops/require_exact_ci_success.py \
+      --repository "linktrend/${name}" --head "$head" --config-key fastWorkflowName && \
     LINKTREND_ACTIONS_RUNS_JSON="$runs" python3 scripts/gitops/require_exact_ci_success.py \
       --repository "linktrend/${name}" --head "$head")
 done
@@ -54,7 +57,7 @@ if (cd "$bad" && python3 scripts/gitops/run_delivery_profile.py fast) >/dev/null
 fi
 mkdir -p "$bad/.github"
 cp "$ROOT/scripts/gitops/require_exact_ci_success.py" "$bad/scripts/gitops/"
-printf '%s\n' '{"ciWorkflowName":"Bad CI"}' >"$bad/.github/linktrend-gitops-consumer.json"
+printf '%s\n' '{"fastWorkflowName":"Bad Fast","ciWorkflowName":"Bad CI"}' >"$bad/.github/linktrend-gitops-consumer.json"
 if (cd "$bad" && LINKTREND_ACTIONS_RUNS_JSON='{"workflow_runs":[]}' \
   python3 scripts/gitops/require_exact_ci_success.py --repository linktrend/bad --head "$head") >/dev/null 2>&1; then
   echo "FAIL: missing exact-head consumer CI was accepted" >&2; exit 1

@@ -33,7 +33,7 @@ Static `workflow_run.workflows` names are rendered at install time from the comm
 
 `.github/linktrend-gitops-consumer.json`
 
-Fields: `ciWorkflowName`, `branchPolicyWorkflowName`, `bugbotCheckName`, and optional `runnerType` (`github-hosted`; retired self-hosted profiles are rejected).
+Fields: `fastWorkflowName`, `ciWorkflowName`, `branchPolicyWorkflowName`, `bugbotCheckName`, and optional `runnerType` (`github-hosted`; retired self-hosted profiles are rejected). Both workflow names are exact display names that must run on the same Phase PR head.
 
 Repository Actions **variables** still configure required **check/job display names** for gates:
 
