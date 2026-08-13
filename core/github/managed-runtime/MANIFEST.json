@@ -25,6 +25,7 @@
     "scripts/gitops/external_state_audit.py",
     "scripts/gitops/resolve_event_pr.py",
     "scripts/gitops/readiness_status.py",
+    "scripts/gitops/run_delivery_profile.py",
     "scripts/gitops/resolve_bugbot_user_token.sh",
     "scripts/gitops/bugbot_user_credentials.py",
     "scripts/gitops/repair_observer.py",
