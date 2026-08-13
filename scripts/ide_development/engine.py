@@ -19,15 +19,17 @@ from .io_atomic import atomic_write_bytes
 
 CONSUMER_CONFIG = Path(".github/linktrend-gitops-consumer.json")
 MANAGED_FAST_WORKFLOW = "Linktrend Fast Checks"
+MANAGED_RUNNER_TYPE = "github-hosted"
+RETIRED_RUNNER_TYPE = "linktrend-private-macos-arm64"
 
 
 def _normalize_consumer_workflow_contract(target_root: Path, *, mutate: bool) -> bool:
-    """Upgrade the one legacy omitted Fast key without inferring consumer CI.
+    """Upgrade bounded legacy delivery declarations without inferring CI.
 
     The workflow config is repository-owned, so an installer may only fill the
-    historic absent managed Fast declaration.  Explicit blank/wrong values and
-    any missing/blank CI declaration fail closed before managed workflows are
-    installed or updated.
+    historic absent managed Fast declaration and the one retired private runner
+    declaration. Explicit blank/wrong values and any missing/blank CI
+    declaration fail closed before managed workflows are installed or updated.
     """
     path = target_root / CONSUMER_CONFIG
     if not path.is_file():
@@ -41,17 +43,26 @@ def _normalize_consumer_workflow_contract(target_root: Path, *, mutate: bool) ->
     ci = config.get("ciWorkflowName")
     if not isinstance(ci, str) or not ci.strip():
         raise InvalidPackageError(f"consumer workflow config requires non-empty ciWorkflowName: {path}")
+    changed = False
     fast = config.get("fastWorkflowName")
     if fast is None:
-        if mutate:
-            config["fastWorkflowName"] = MANAGED_FAST_WORKFLOW
-            atomic_write_bytes(path, (json.dumps(config, indent=2) + "\n").encode("utf-8"), mode="0644")
-        return True
-    if not isinstance(fast, str) or fast != MANAGED_FAST_WORKFLOW:
+        config["fastWorkflowName"] = MANAGED_FAST_WORKFLOW
+        changed = True
+    elif not isinstance(fast, str) or fast != MANAGED_FAST_WORKFLOW:
         raise InvalidPackageError(
             f"consumer workflow config fastWorkflowName must equal {MANAGED_FAST_WORKFLOW!r}: {path}"
         )
-    return False
+    runner = config.get("runnerType", MANAGED_RUNNER_TYPE)
+    if runner == RETIRED_RUNNER_TYPE:
+        config["runnerType"] = MANAGED_RUNNER_TYPE
+        changed = True
+    elif runner != MANAGED_RUNNER_TYPE:
+        raise InvalidPackageError(
+            f"consumer workflow config runnerType must equal {MANAGED_RUNNER_TYPE!r}: {path}"
+        )
+    if mutate and changed:
+        atomic_write_bytes(path, (json.dumps(config, indent=2) + "\n").encode("utf-8"), mode="0644")
+    return changed
 
 
 class EngineResult:

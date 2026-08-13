@@ -64,6 +64,21 @@ assert cfg["fastWorkflowName"] == "Linktrend Fast Checks"
 assert cfg["ciWorkflowName"] == "Legacy CI"
 PY
 
+# The one historic private runner declaration is a managed delivery migration,
+# not a consumer choice. The installer must upgrade it with the missing Fast
+# key, while arbitrary runner values remain rejected below.
+private_legacy="$TMP/legacy-private-runner"; mkdir -p "$private_legacy/.github"
+git -C "$private_legacy" init -q -b development
+printf '%s\n' '{"schemaVersion":1,"ciWorkflowName":"Legacy CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Cursor Bugbot","runnerType":"linktrend-private-macos-arm64"}' >"$private_legacy/.github/linktrend-gitops-consumer.json"
+python3 "$ROOT/scripts/ide-development.py" install --package "$ROOT" --target "$private_legacy" --json >/dev/null
+python3 - "$private_legacy/.github/linktrend-gitops-consumer.json" <<'PY'
+import json, sys
+cfg = json.load(open(sys.argv[1], encoding="utf-8"))
+assert cfg["fastWorkflowName"] == "Linktrend Fast Checks"
+assert cfg["runnerType"] == "github-hosted"
+assert cfg["ciWorkflowName"] == "Legacy CI"
+PY
+
 # Exercise real upgrades from both published legacy package layouts.  They
 # intentionally omit the later receipt-bound Fast declaration; current install
 # must add it while retaining each repository-owned CI declaration.
