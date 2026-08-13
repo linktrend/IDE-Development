@@ -14,9 +14,15 @@ load, ruleset change, PR, merge, promotion, or installation was performed.
 
 ## Acceptance and negative probes
 
+Correction attempt 2 closes the launchd canary defect: the rendered
+`ProgramArguments` now ends with the required safe-by-default `run` command.
+The service loop performs bounded local poll/status passes, remains healthy
+without `LINKTREND_AUTOMATION_TOKEN`, handles `SIGINT`, and does not enable
+candidate execution from the launchd template.
+
 | Probe | Result |
 | --- | --- |
-| `python3 -m unittest discover -s host/coordinator/tests` | PASS, 37 tests |
+| `python3 -m unittest discover -s host/coordinator/tests` | PASS, 39 tests |
 | `python3 -m py_compile host/coordinator/*.py scripts/host/*.py` | PASS |
 | `python3 -m host.coordinator --help` | PASS |
 | `python3 scripts/host/install-ide-coordinator.py --help` | PASS |

@@ -187,6 +187,25 @@ class CoordinatorDaemon:
     def status(self) -> dict[str, Any]:
         return {"version": COORDINATOR_VERSION, "paused": self.paused, "repositories": self.registrations(), "jobs": self.store.list_jobs(), "alerts": self.store.alerts()}
 
+    def service_once(self, *, execute: bool = False) -> dict[str, Any]:
+        """Run one safe coordinator service pass.
+
+        The launchd-facing command deliberately does not execute queued
+        candidates by default.  It refreshes only the allowlisted repository
+        observations and reports local state.  A missing credential (or any
+        other GitHub fail-closed condition) is isolated to that repository so
+        the local service remains healthy and available for ``status``.
+        """
+        polls: list[dict[str, Any]] = []
+        for registration in self.registrations():
+            repository = registration["repository"]
+            try:
+                polls.append(self.poll_once(repository))
+            except GitHubError as exc:
+                polls.append({"status": "failed-closed", "repository": repository, "reason": str(exc)})
+        execution = self.run_next() if execute else {"status": "disabled-by-default"}
+        return {"status": "healthy", "polls": polls, "execution": execution, "state": self.status()}
+
     def doctor(self) -> dict[str, Any]:
         checks = {
             "database": True,

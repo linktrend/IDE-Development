@@ -11,6 +11,7 @@
     <string>host.coordinator</string>
     <string>--db</string>
     <string>{{DATABASE}}</string>
+    <string>run</string>
   </array>
   <key>WorkingDirectory</key>
   <string>{{INSTALL_ROOT}}</string>
