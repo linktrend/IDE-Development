@@ -1,0 +1,105 @@
+{
+  "acceptedIssues": [
+    {
+      "acceptanceSha": "277739f7702b211ea260139962b70f36a079290b",
+      "accepted": true,
+      "branch": "issue/249-w1-p1-github-hosted-arm64-compute-configuration",
+      "included": true,
+      "sha": "277739f7702b211ea260139962b70f36a079290b"
+    },
+    {
+      "acceptanceSha": "a89b462111d577a1c4479267f4c13824575b7b4b",
+      "accepted": true,
+      "branch": "issue/250-w1-p2-candidate-lifecycle-sealing-cancellation-l",
+      "included": true,
+      "sha": "a89b462111d577a1c4479267f4c13824575b7b4b"
+    },
+    {
+      "acceptanceSha": "c0b74c6916ffdf65645bb3d3db84baa8ad31ab29",
+      "accepted": true,
+      "branch": "issue/251-w1-p3-exact-receipts-promotion-authentication-bo",
+      "included": true,
+      "sha": "c0b74c6916ffdf65645bb3d3db84baa8ad31ab29"
+    },
+    {
+      "acceptanceSha": "f29666eda079177b783c0de906b2df28e2920368",
+      "accepted": true,
+      "branch": "issue/252-w2-p1-managed-workflows-and-phase-integration-fo",
+      "included": true,
+      "sha": "f29666eda079177b783c0de906b2df28e2920368"
+    },
+    {
+      "acceptanceSha": "56fbfd3abb28824964fdd2ccaa48630e9598562b",
+      "accepted": true,
+      "branch": "issue/253-w2-p2-package-installer-manifest-migration-and-l",
+      "included": true,
+      "sha": "56fbfd3abb28824964fdd2ccaa48630e9598562b"
+    },
+    {
+      "acceptanceSha": "a695d0ca152961c4e0a324a3166cab57c07c6147",
+      "accepted": true,
+      "branch": "issue/254-w2-p3-regression-tests-operator-documentation-an",
+      "included": true,
+      "sha": "a695d0ca152961c4e0a324a3166cab57c07c6147"
+    }
+  ],
+  "baseSha": "be4299860828dd403edde8d54b5ee224e2ba71d0",
+  "bugbot": {
+    "status": "not-run"
+  },
+  "candidateId": "sha256:9d73583a5e051605af17d68eff455332bd472cc396ce34fb91e6dd58cfb59894",
+  "candidateIdentity": {
+    "dependencyDigests": {},
+    "gitTreeSha": "cbc2b4f0dae8b8438d4ab48bf359bc2d4f473ca8",
+    "repository": "linktrend/IDE-Development",
+    "sourceSha": "74fc5293fde4a25b704e1153cd1df5b43b0bf415",
+    "testProfile": "full"
+  },
+  "deliveryMode": "phase-integration",
+  "draftPr": {
+    "base": "development",
+    "headSha": "74fc5293fde4a25b704e1153cd1df5b43b0bf415",
+    "number": 255,
+    "url": "https://github.com/linktrend/IDE-Development/pull/255"
+  },
+  "fast": {
+    "detail": "GitHub Actions run 31711698471; Linktrend Fast Checks passed",
+    "sha": "74fc5293fde4a25b704e1153cd1df5b43b0bf415",
+    "status": "passed"
+  },
+  "full": {
+    "status": "not-run"
+  },
+  "headSha": "74fc5293fde4a25b704e1153cd1df5b43b0bf415",
+  "immutableBaseSha": "be4299860828dd403edde8d54b5ee224e2ba71d0",
+  "mergeSha": null,
+  "namedGateEvidence": {
+    "checks": [],
+    "detail": "GitHub Actions run 31711698471; Linktrend Fast Checks passed",
+    "gate": "fast-gate",
+    "sha": "74fc5293fde4a25b704e1153cd1df5b43b0bf415",
+    "status": "success"
+  },
+  "phaseBranch": "phase/github-compute-final-fix",
+  "phaseId": "github-compute-final-fix",
+  "phasePr": {
+    "base": "development",
+    "headSha": "74fc5293fde4a25b704e1153cd1df5b43b0bf415",
+    "number": 255,
+    "url": "https://github.com/linktrend/IDE-Development/pull/255"
+  },
+  "phaseReady": true,
+  "release": {
+    "status": "not-run"
+  },
+  "schemaVersion": 1,
+  "sealRevision": 1,
+  "sealed": true,
+  "sealedCandidateRevisions": 1,
+  "sealedSha": "74fc5293fde4a25b704e1153cd1df5b43b0bf415",
+  "staging": {
+    "status": "not-run"
+  },
+  "status": "sealed",
+  "stopReason": null
+}
