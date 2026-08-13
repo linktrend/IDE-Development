@@ -112,6 +112,7 @@ receipt_identity_args() {
   while IFS= read -r dep; do
     [ -n "${dep}" ] && RECEIPT_IDENTITY_ARGS+=(--dependency "${dep}")
   done <<< "${raw}"
+  return 0
 }
 
 verify_receipt_before_mutation() {
