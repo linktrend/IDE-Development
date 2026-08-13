@@ -185,4 +185,3 @@ After the second failure, create exactly one durable GitHub Issue/update keyed b
 - `automatic`: coordinator may merge after all exact gates pass.
 
 The implementation must support both. Default is `principal-approval`.
-

@@ -68,4 +68,3 @@ git diff --check
 ## Handoff
 
 Commit/push and report B1, exact SHA, files, tests, negative probes, three-Issue/one-PR proof, concurrent-feature proof, clean state, and blocker or `none`. No live PR, merge, review-ready, or promotion.
-

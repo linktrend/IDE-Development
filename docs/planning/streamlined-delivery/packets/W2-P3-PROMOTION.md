@@ -69,4 +69,3 @@ git diff --check
 ## Handoff
 
 Commit/push and report B1, exact SHA, files, profile comparison, tests, negative probes, ruleset dry-run evidence, clean state, and blocker or `none`. No live mutation and no PR.
-

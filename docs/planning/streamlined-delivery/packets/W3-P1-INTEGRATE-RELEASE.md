@@ -115,4 +115,3 @@ Terra may use the approved override only when an obsolete status context is the 
 ## Completion evidence
 
 Include B0/B1/B2; packet Issue/branch/attempt/executor/final SHA; Terra takeovers; tests and negative probes; disposable consumer; canary timing/resources/restart/cancellation/stop/cleanup; service install and rollback; rulesets before/after; concurrent-feature preservation; Phase/staging/main PRs and merges; final trees; version/tag/release; and unresolved issue or `none`.
-

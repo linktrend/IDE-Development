@@ -65,4 +65,3 @@ The real smoke must use a unique explicit container name and prove that exact na
 ## Handoff
 
 Commit/push and report base, branch, exact SHA equality, files, tests, negative probes, live smoke/cleanup, resource invocation, clean state, and blocker or `none`. No PR or review-ready.
-

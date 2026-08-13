@@ -64,4 +64,3 @@ If module discovery is incompatible, use discovery scoped to the exact test file
 ## Handoff
 
 Commit and push the packet branch. Report base SHA, branch, final local/remote SHA, changed files, commands and exit codes, negative probes, evidence directory, clean status, and blocker or `none`. Do not open a PR or mark review-ready.
-
