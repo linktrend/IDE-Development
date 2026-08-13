@@ -61,7 +61,7 @@ for required in (
     "full_suite_stale_seal",
     "full_suite_requires_phase_branch",
     "full_suite_repository_mismatch",
-    "full_suite_fast_check_missing_for_exact_head",
+    "--config-key fastWorkflowName",
     "exact dispatch-time seal accepted",
     "github.event.pull_request.head.sha",
     "full_suite_sealed_candidate_limit",
@@ -80,7 +80,8 @@ assert 'pull-requests: write' not in full.split('  bugbot:', 1)[0]
 assert 'candidate/' not in full
 assert "run_delivery_profile.py full" in full
 assert 'GITHUB_REPOSITORY" = "linktrend/IDE-Development' not in full
-assert "full_suite_required_ci_missing_for_exact_head" in full
+assert "require_exact_ci_success.py" in full
+assert '"Linktrend Fast Checks" and .conclusion' not in full
 
 for name in ("linktrend-development-to-staging.yml", "linktrend-staging-to-main.yml"):
     text = (managed / name).read_text(encoding="utf-8")
@@ -198,6 +199,43 @@ assert executions([(title1, 2)]) == 2                 # one run plus one UI reru
 assert executions([(title1, 1), (title2, 1), (title2, 1)]) == 3
 assert executions([(title1, 3)]) == 3
 print("PASS: paid Full Suite execution cap covers fresh dispatches and UI reruns")
+PY
+
+python3 - <<'PY'
+"""Receipt identity must use the resolved profile, including consumer fallback."""
+from pathlib import Path
+
+for relative in (
+    ".github/workflows/linktrend-integrator-merge.yml",
+    "core/github/managed-workflows/linktrend-integrator-merge.yml",
+):
+    text = Path(relative).read_text(encoding="utf-8")
+    assert 'profile_files=[str(config_path.relative_to(Path.cwd()))]' in text, relative
+    assert 'profile_files=[".github/linktrend-delivery-mode.json"]' not in text, relative
+    assert 'fastWorkflowName' in text, relative
+    assert '"Linktrend Fast Checks" and .conclusion' not in text, relative
+print("PASS: Full receipt binds resolved source or consumer profile and declared Fast gate")
+PY
+
+python3 - <<'PY'
+"""Promotion and receipt CLI must resolve the installed consumer profile."""
+from pathlib import Path
+
+for relative in (
+    "scripts/gitops/promote_staging.sh",
+    "scripts/gitops/promote_main.sh",
+    ".github/workflows/linktrend-development-to-staging.yml",
+    ".github/workflows/linktrend-staging-to-main.yml",
+    "core/github/managed-workflows/linktrend-development-to-staging.yml",
+    "core/github/managed-workflows/linktrend-staging-to-main.yml",
+):
+    text = Path(relative).read_text(encoding="utf-8")
+    assert "--profile-file .github/linktrend-delivery-mode.json" not in text, relative
+
+receipt = Path("scripts/gitops/gate_receipt.py").read_text(encoding="utf-8")
+assert ".ide-development/config/delivery.json" in receipt
+assert "resolved_profile_files" in receipt
+print("PASS: receipt and promotion identities resolve source or installed profile")
 PY
 
 python3 - <<'PY'

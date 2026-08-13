@@ -18,7 +18,7 @@ class ExactCiSuccessTests(unittest.TestCase):
         root = Path(tmp)
         config = root / ".github" / "linktrend-gitops-consumer.json"
         config.parent.mkdir()
-        config.write_text(json.dumps({"ciWorkflowName": "Consumer CI"}), encoding="utf-8")
+        config.write_text(json.dumps({"fastWorkflowName": "Consumer Fast", "ciWorkflowName": "Consumer CI"}), encoding="utf-8")
         return root
 
     def test_accepts_only_declared_success_at_exact_head(self) -> None:
@@ -38,3 +38,14 @@ class ExactCiSuccessTests(unittest.TestCase):
             (root / ".github" / "linktrend-gitops-consumer.json").write_text("{}", encoding="utf-8")
             with self.assertRaisesRegex(SystemExit, "consumer_ci_config_invalid"):
                 require_success("linktrend/fixture", self.head, root)
+
+    def test_uses_declared_fast_name_not_a_hard_coded_check(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict(os.environ, {"LINKTREND_ACTIONS_RUNS_JSON": json.dumps({"workflow_runs": [
+                {"name": "Consumer Fast", "head_sha": self.head, "conclusion": "success"},
+                {"name": "Linktrend Fast Checks", "head_sha": self.head, "conclusion": "failure"},
+            ]})}, clear=False):
+                self.assertEqual(
+                    require_success("linktrend/fixture", self.head, self.root(tmp), "fastWorkflowName"),
+                    "Consumer Fast",
+                )

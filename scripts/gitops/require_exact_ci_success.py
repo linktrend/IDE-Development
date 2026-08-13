@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require the consumer-declared CI workflow to pass for one exact head.
+"""Require a consumer-declared workflow to pass for one exact head.
 
 This is deliberately data-only: workflow inputs never become shell fragments.
 Tests may provide the API response through ``LINKTREND_ACTIONS_RUNS_JSON``;
@@ -14,14 +14,14 @@ import subprocess
 from pathlib import Path
 
 
-def declared_ci_name(root: Path) -> str:
+def declared_workflow_name(root: Path, config_key: str) -> str:
     path = root / ".github" / "linktrend-gitops-consumer.json"
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))["ciWorkflowName"]
+        value = json.loads(path.read_text(encoding="utf-8"))[config_key]
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise SystemExit(f"consumer_ci_config_invalid:{path}:{exc}") from exc
     if not isinstance(value, str) or not value.strip():
-        raise SystemExit(f"consumer_ci_config_invalid:{path}:ciWorkflowName")
+        raise SystemExit(f"consumer_ci_config_invalid:{path}:{config_key}")
     return value
 
 
@@ -45,10 +45,10 @@ def workflow_runs(repository: str, head: str) -> list[object]:
     return runs
 
 
-def require_success(repository: str, head: str, root: Path) -> str:
+def require_success(repository: str, head: str, root: Path, config_key: str = "ciWorkflowName") -> str:
     if not repository or not head:
         raise SystemExit("consumer_ci_identity_invalid")
-    name = declared_ci_name(root)
+    name = declared_workflow_name(root, config_key)
     for run in workflow_runs(repository, head):
         if not isinstance(run, dict):
             continue
@@ -61,8 +61,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
     parser.add_argument("--head", required=True)
+    parser.add_argument("--config-key", choices=("fastWorkflowName", "ciWorkflowName"), default="ciWorkflowName")
     args = parser.parse_args()
-    print(require_success(args.repository, args.head, Path.cwd()))
+    print(require_success(args.repository, args.head, Path.cwd(), args.config_key))
     return 0
 
 
