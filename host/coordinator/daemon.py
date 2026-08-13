@@ -328,6 +328,10 @@ class CoordinatorDaemon:
         job = Job(
             job_id=row["id"], checkout_path=checkout,
             workspace_root=str(Path(checkout).parent), temporary_checkout=True,
+            # Every daemon checkout is a newly fetched, per-lease private
+            # copy.  Some protected reproducibility tests generate files in
+            # that copy; no operator checkout or privileged mount is writable.
+            writable_workspace=True,
             image=str(payload.get("image", "alpine:3.20")), command=tuple(command),
             test_profile=row["candidate_identity"]["testProfile"],
             timeout_seconds=int(payload.get("timeoutSeconds", profile.timeout_seconds if profile else 300)),

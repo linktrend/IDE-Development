@@ -78,6 +78,14 @@ class ExecutorTests(unittest.TestCase):
         self.assertIn("--stop-timeout", argv)
         self.assertIn("--mount", argv)
         self.assertIn("--workdir", argv)
+        self.assertIn("type=bind,src={},dst=/workspace,readonly".format(self.checkout.resolve()), argv)
+
+    def test_writable_workspace_is_limited_to_disposable_checkout(self):
+        argv = build_docker_invocation(self.job(temporary_checkout=True, writable_workspace=True), ResourceLimits())
+        self.assertIn("type=bind,src={},dst=/workspace".format(self.checkout.resolve()), argv)
+        self.assertNotIn("type=bind,src={},dst=/workspace,readonly".format(self.checkout.resolve()), argv)
+        with self.assertRaises(ValueError):
+            build_docker_invocation(self.job(writable_workspace=True), ResourceLimits())
 
     def test_shell_string_and_path_escape_are_rejected(self):
         with self.assertRaises(ValueError):

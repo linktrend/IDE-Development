@@ -48,6 +48,7 @@ class Job:
     workspace_root: Optional[str] = None
     workdir: str = "/workspace"
     temporary_checkout: bool = False
+    writable_workspace: bool = False
     volumes: Tuple[Any, ...] = ()
     nested_docker: bool = False
     protected_nested_config: Optional[Mapping[str, Any]] = None
@@ -105,6 +106,7 @@ def _job(value: Any) -> Job:
         workspace_root=_get(value, "workspace_root", "workspaceRoot"),
         workdir=str(_get(value, "workdir", "working_directory", default="/workspace")),
         temporary_checkout=bool(_get(value, "temporary_checkout", "temporaryCheckout", default=False)),
+        writable_workspace=bool(_get(value, "writable_workspace", "writableWorkspace", default=False)),
         volumes=tuple(_get(value, "volumes", default=()) or ()),
         nested_docker=bool(_get(value, "nested_docker", "nestedDocker", default=False)),
         protected_nested_config=_get(value, "protected_nested_config", "protectedNestedConfig"),
@@ -181,6 +183,8 @@ def _validate_worker_trust(job: Job) -> None:
             raise ValueError("worker does not match candidate test capability")
         if job.nested_docker and "nestedDocker" not in job.worker_capabilities:
             raise ValueError("nested Docker capability must be explicit")
+    if job.writable_workspace and not job.temporary_checkout:
+        raise ValueError("writable workspace requires a disposable coordinator checkout")
 
 
 def _validate_volumes(job: Job, checkout: Path) -> Tuple[Tuple[str, str], ...]:
@@ -247,7 +251,11 @@ def build_docker_invocation(job_value: Any, limits_value: Any = None, docker_bin
         "/tmp:rw,noexec,nosuid,size=64m",
     ]
     for source, target in mounts:
-        argv.extend(["--mount", "type=bind,src={},dst={},readonly".format(source, target)])
+        # A generated test may write only into the per-lease checkout.  It is
+        # never an operator tree, is removed after the job, and candidate
+        # payload cannot select this mode.
+        suffix = "" if target == "/workspace" and job.writable_workspace else ",readonly"
+        argv.extend(["--mount", "type=bind,src={},dst={}{}".format(source, target, suffix)])
     if not job.workdir.startswith("/") or ".." in Path(job.workdir).parts:
         raise ValueError("working directory must be an absolute container path")
     argv.extend(["--workdir", job.workdir, job.image])
