@@ -543,12 +543,14 @@ comments = [{"body": build_bugbot_comment("@cursor review", sha)}]
 ok3, reason3 = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
 assert not ok3 and reason3 == "skipped_duplicate_marker"
 
-# Fast work wakes from the Phase PR; the full suite is explicit dispatch and
-# requests Bugbot only after its exact-head full receipt succeeds.
+# Fast work wakes from the Phase PR; the full suite is an explicit trusted
+# label wake in the same unprivileged PR context and requests Bugbot only after
+# its exact-head full receipt succeeds.
 fast = Path(sys.argv[1], "core/github/managed-workflows/linktrend-review-packager.yml").read_text()
 full = Path(sys.argv[1], "core/github/managed-workflows/linktrend-integrator-merge.yml").read_text()
 assert "pull_request:" in fast and "cancel-in-progress: true" in fast
-assert "workflow_dispatch:" in full and "Linktrend Final Candidate Bugbot Request" in full
+assert "types: [labeled]" in full and "linktrend-full-suite" in full and "Linktrend Final Candidate Bugbot Request" in full
+assert "workflow_dispatch:" not in full
 assert "workflow_run:" not in fast
 assert "vars.LINKTREND_WORKFLOW_RUN" not in fast + full
 print("explicit-wake+final-bugbot scenarios ok")
@@ -1016,7 +1018,7 @@ for marker in (
 assert "pull_request:" in fast
 assert "cancel-in-progress: true" in fast
 assert "contents: read" in fast
-assert "workflow_dispatch:" in full
+assert "types: [labeled]" in full and "workflow_dispatch:" not in full
 assert "contents: read" in full and "pull-requests: write" in full
 assert "github.token" in full
 assert "@cursor review" in full
@@ -1166,7 +1168,7 @@ pkg = concurrency_expr(root / "core/github/managed-workflows/linktrend-review-pa
 live = concurrency_expr(root / ".github/workflows/linktrend-review-packager.yml")
 assert pkg == live, "managed/live packager concurrency diverged"
 assert "workflow_run.id" not in pkg and "check_run.id" not in pkg
-assert "pull_request.number" in pkg and "inputs.pr_number" in pkg
+assert "pull_request.number" in pkg and "inputs.pr_number" not in pkg
 assert "workflow_run.head_sha" not in pkg
 assert "check_run.head_sha" not in pkg
 
@@ -1178,7 +1180,7 @@ def eval_packager_group(event_name: str, *, pr_sha="", wr_sha="", cr_sha="", run
 assert eval_packager_group("pull_request", pr_sha=sha) == sha
 
 ig = concurrency_expr(root / "core/github/managed-workflows/linktrend-integrator-merge.yml")
-assert "inputs.pr_number" in ig
+assert "pull_request.number" in ig and "inputs.pr_number" not in ig
 assert "workflow_run" not in ig and "check_run" not in ig
 assert "cancel-in-progress: true" in (root / "core/github/managed-workflows/linktrend-integrator-merge.yml").read_text()
 
