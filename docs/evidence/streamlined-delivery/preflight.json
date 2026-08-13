@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "feature": "streamlined-delivery",
+  "planningAuthority": {
+    "branch": "origin/issue/212-document-streamlined-delivery-implementation-pla",
+    "sha": "d0425d289e7a4c9a96e830ad7271d9cf40b659ec",
+    "documents": 12,
+    "packetDocuments": 7,
+    "worktree": "/Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-212-document-streamlined-delivery-implementation-pla",
+    "clean": true
+  },
+  "implementationBase": {
+    "branch": "origin/development",
+    "sha": "9d8ca8794ce1bee8e07e71826eaaccebffc650f2"
+  },
+  "phase": {
+    "branch": "phase/streamlined-delivery",
+    "baseSha": "9d8ca8794ce1bee8e07e71826eaaccebffc650f2",
+    "planningDocumentsCommit": "afd47baa8ee63222157cb0d20671e842cefd6202"
+  },
+  "concurrentFeatureInventory": {
+    "openPullRequests": [],
+    "nonPlanningRemoteFeatureBranches": [],
+    "nonPlanningFeatureWorktrees": [],
+    "ownershipOverlap": "none"
+  },
+  "codex": {
+    "cliVersion": "0.147.0-alpha.6.5",
+    "model": "gpt-5.6-luna",
+    "reasoningEffort": "high",
+    "verificationResponse": "LUNA_MODEL_VERIFIED"
+  },
+  "host": {
+    "runningContainers": [],
+    "installedIdeCoordinator": false,
+    "separateActionsScheduler": "ai.linktrend.actions-ci.scheduler"
+  },
+  "result": "pass"
+}

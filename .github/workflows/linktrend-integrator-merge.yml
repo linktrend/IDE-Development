@@ -8,6 +8,10 @@ name: LiNKtrend Integrator Merge To Development
 #
 # Consumers: workflow_run.workflows is STATIC YAML rendered from
 # .github/linktrend-gitops-consumer.json by scripts/sync-managed-workflows.sh.
+# Profiles: github-actions preserves the event-driven fallback below; local-coordinator
+# is rendered by sync-managed-workflows.sh with only bounded workflow_dispatch recovery.
+# Frozen coordinator contexts: Linktrend Fast Gate, Linktrend Full Suite,
+# Linktrend Phase Ready, Linktrend Coordinator; external Cursor Bugbot is unchanged.
 
 on:
   workflow_run: # zizmor: ignore[dangerous-triggers] trusted workflow completion metadata only; no candidate checkout or execution
