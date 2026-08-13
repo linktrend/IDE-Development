@@ -190,7 +190,7 @@ def _digest_set(identity: CandidateIdentity) -> str:
 
 
 def candidate_identity_for(
-    *, repository: str, source_sha: str, git_tree_sha: str, dependency_digests: Mapping[str, str], test_profile: str = "fast"
+    *, repository: str, source_sha: str, git_tree_sha: str, dependency_digests: Mapping[str, str], test_profile: str = "full"
 ) -> CandidateIdentity:
     return CandidateIdentity(repository, normalize_sha(source_sha), normalize_sha(git_tree_sha), dict(dependency_digests), test_profile)
 
@@ -553,6 +553,8 @@ class PhaseIntegrator:
         candidate = candidate_identity if isinstance(candidate_identity, CandidateIdentity) else CandidateIdentity.from_dict(candidate_identity)
         if normalize_sha(candidate.source_sha) != head:
             raise PhaseLifecycleError("candidate_head_mismatch", "candidate sourceSha must equal sealed Phase head")
+        if candidate.test_profile != "full":
+            raise PhaseLifecycleError("candidate_profile_mismatch", "sealed candidate identity must use the full test profile")
         revisions = int(record.get("sealRevision", record.get("sealedCandidateRevisions", 0)) or 0)
         if revisions >= 2:
             raise PhaseLifecycleError("third_seal", "a third sealed candidate requires principal authorization")

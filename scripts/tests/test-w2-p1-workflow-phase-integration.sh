@@ -67,6 +67,8 @@ for required in (
     "display_title",
 ):
     assert required in full, required
+assert 'int(match.group(4))' in full, "declared attempt metadata must be authoritative"
+assert 'run.get("run_attempt")' not in full, "GitHub UI reruns must not consume declared attempt budget"
 
 for name in ("linktrend-development-to-staging.yml", "linktrend-staging-to-main.yml"):
     text = (managed / name).read_text(encoding="utf-8")
