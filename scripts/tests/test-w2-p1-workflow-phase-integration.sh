@@ -179,3 +179,17 @@ assert executions([(title1, 1), (title2, 1), (title2, 1)]) == 3
 assert executions([(title1, 3)]) == 3
 print("PASS: paid Full Suite execution cap covers fresh dispatches and UI reruns")
 PY
+
+python3 - <<'PY'
+"""Empty dependency configuration must not trip `set -e` in promotion."""
+from pathlib import Path
+import re
+
+for relative in ("scripts/gitops/promote_staging.sh", "scripts/gitops/promote_main.sh"):
+    text = Path(relative).read_text(encoding="utf-8")
+    match = re.search(r"receipt_identity_args\(\) \{(.*?)\n\}", text, re.S)
+    assert match, f"missing receipt_identity_args in {relative}"
+    body = match.group(1)
+    assert re.search(r'done <<< "\$\{raw\}"\s+return 0\s*$', body), relative
+print("PASS: empty receipt dependency list returns success in both promotion scripts")
+PY
