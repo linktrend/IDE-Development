@@ -50,6 +50,8 @@ def _parser() -> argparse.ArgumentParser:
         help="repository-relative dependency file; repeat for multiple files",
     )
     identity.add_argument("--profile", choices=("fast", "full", "release"), default="full")
+    identity.add_argument("--profile-file", action="append", default=[])
+    identity.add_argument("--workflow-file", action="append", default=[])
 
     write = commands.add_parser("write", help="atomically write a completed passed receipt")
     write.add_argument("--input", "--result", dest="input_path", required=True, type=Path)
@@ -64,6 +66,8 @@ def _parser() -> argparse.ArgumentParser:
         help="repository-relative dependency file; repeat for multiple files",
     )
     verify.add_argument("--profile", choices=("fast", "full", "release"), default="full")
+    verify.add_argument("--profile-file", action="append", default=[])
+    verify.add_argument("--workflow-file", action="append", default=[])
     verify.add_argument("--gate", required=True, help="required gate id")
     return parser
 
@@ -72,7 +76,15 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.operation == "identity":
-            _json_output(compute_candidate_identity(args.repo, args.dependencies, args.profile))
+            _json_output(
+                compute_candidate_identity(
+                    args.repo,
+                    args.dependencies,
+                    args.profile,
+                    profile_files=args.profile_file,
+                    workflow_files=args.workflow_file or None,
+                )
+            )
             return 0
         if args.operation == "write":
             receipt = write_receipt(load_json(args.input_path), args.output)
@@ -85,7 +97,13 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 if args.repo is None:
                     raise ReceiptError("invalid_path", "--repo or --identity is required")
-                identity = compute_candidate_identity(args.repo, args.dependencies, args.profile)
+                identity = compute_candidate_identity(
+                    args.repo,
+                    args.dependencies,
+                    args.profile,
+                    profile_files=args.profile_file,
+                    workflow_files=args.workflow_file or None,
+                )
             verdict = verify_receipt(receipt, identity, args.gate)
             _json_output(
                 {
