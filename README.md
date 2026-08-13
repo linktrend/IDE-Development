@@ -1,6 +1,6 @@
 # IDE Development
 
-IDE Development is LiNKtrend’s shared, human-assisted Application Factory operating system — version **v2.2.0**. It installs a portable managed core into product repositories as committed physical files (`.ide-development/` plus Cursor/Codex discovery adapters) so agents follow one doctrine, one six-Module pipeline, one hybrid skill surface, and fail-closed gates — with the Principal approving Intent and release, not day-to-day coding.
+IDE Development is LiNKtrend’s shared, human-assisted Application Factory operating system — version **v2.3.0**. It installs a portable managed core into product repositories as committed physical files (`.ide-development/` plus Cursor/Codex discovery adapters) so agents follow one doctrine, one six-Module pipeline, one hybrid skill surface, and fail-closed gates — with the Principal approving Intent and release, not day-to-day coding.
 
 It is distinct from **LiNKdeveloper**, the separate VPS-hosted autonomous application-factory Program. LiNKdeveloper may be *authored* using this system’s guidance, but it does not depend on this repo at runtime.
 
@@ -109,7 +109,7 @@ WP1 production-readiness proof required **macOS, Ubuntu Linux, and Windows** mat
 
 ## Status
 
-**Version `v2.2.0`.** Identified in `VERSION`. This feature release packages streamlined Phase delivery and bounded local coordination. Version identity still does **not** by itself create a Git tag or GitHub Release; Terra owns live publication. See [`docs/contracts/STREAMLINED-DELIVERY.md`](docs/contracts/STREAMLINED-DELIVERY.md) and [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
+**Version `v2.3.0`.** Identified in `VERSION`. This feature release packages streamlined Phase delivery and bounded local coordination. Version identity still does **not** by itself create a Git tag or GitHub Release; Terra owns live publication. See [`docs/contracts/STREAMLINED-DELIVERY.md`](docs/contracts/STREAMLINED-DELIVERY.md) and [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
 
 Automated Stage 1 / system verification: `scripts/verify-ide-development.sh`. Portable v2 integration harness: `tests/test-portable-v2-integration.sh`.
 
