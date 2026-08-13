@@ -195,9 +195,9 @@ PY
 pass "Packager discovery without Bugbot; gate/head abort; idempotent request policy"
 
 # Multiple candidates must not share a serial wait in discover
-grep -q 'timeout-minutes: 20' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
-grep -q 'packager_discover.py' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
-grep -q 'packager_evaluate.py' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
+grep -q 'timeout-minutes: 5' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
+grep -q 'Linktrend Fast Checks' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
+grep -q 'cancel-in-progress: true' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
 ! grep -q 'GATE_WAIT_SECONDS: "900"' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml" \
   || fail "discover must not serially wait 900s"
 pass "multiple candidates not blocked by serial discover wait"
@@ -269,8 +269,8 @@ pass "durable conflict attempts persist and stop at three"
 # ============================================================================
 grep -q 'requires both EXPECTED_STAGING_SHA and EXPECTED_PROMOTE_HEAD' "$ROOT/scripts/gitops/promote_main.sh"
 grep -q 'EXPECTED_MAIN_SHA' "$ROOT/scripts/gitops/promote_main.sh"
-grep -q 'expected_main_sha' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
-grep -q 'expected_promote_head' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
+grep -q 'Linktrend Receipt Gate' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
+grep -q 'head_sha' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
 pass "main approval requires both expected SHAs"
 
 # ============================================================================
@@ -405,9 +405,12 @@ grep -q 'default branch' "$ROOT/docs/GITOPS-CONSUMER-ROLLOUT.md"
 grep -qi 'mention-only\|manualTriggerOnly' "$ROOT/docs/GITOPS-CONSUMER-ROLLOUT.md" \
   || grep -qi 'mention-only\|manualTriggerOnly' "$ROOT/docs/contracts/"*.md \
   || fail "mention-only documentation missing"
-grep -q 'cron: "0 0 \* \* 2,5"' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
-grep -q 'cron: "0 2 \* \* 2,5"' "$ROOT/core/github/managed-workflows/linktrend-development-to-staging.yml"
-pass "activation + mention-only docs + schedules"
+grep -q 'pull_request:' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
+grep -q 'workflow_dispatch:' "$ROOT/core/github/managed-workflows/linktrend-development-to-staging.yml"
+! grep -q 'cron:' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
+! grep -q 'cron:' "$ROOT/core/github/managed-workflows/linktrend-development-to-staging.yml"
+! grep -q 'workflow_run:' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
+pass "activation + mention-only docs + explicit Phase triggers"
 
 # ============================================================================
 # 10) PR body preservation outside managed section
@@ -465,13 +468,13 @@ assert "requires repackage" in main or "valid for reuse" in main
 # development tip advance must not rebuild an existing exact candidate
 assert "already exists for this exact source/target" in stg or "sourceSha" in stg
 wf = (root / "core/github/managed-workflows/linktrend-development-to-staging.yml").read_text()
-assert "PROMOTE_PR_NUMBER" in wf
-assert "EXPECTED_PROMOTE_HEAD" in wf
+assert "Linktrend Receipt Gate" in wf
+assert "head_sha" in wf
 # Branch prefix policy lives in trusted resolver + promote script (not duplicated in YAML ifs)
 resolver = (root / "scripts/gitops/resolve_event_pr.py").read_text()
 assert "promote/staging/" in resolver and "promote/staging/" in stg
 assert "promote/main/" in resolver and "promote/main/" in main
-assert "RESOLVE_ROLE: staging" in wf
+assert "pull_request_target:" in wf
 print("exact candidate ok")
 PY
 pass "exact-candidate promote binding + advancement fail-closed"
@@ -540,23 +543,22 @@ comments = [{"body": build_bugbot_comment("@cursor review", sha)}]
 ok3, reason3 = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
 assert not ok3 and reason3 == "skipped_duplicate_marker"
 
-# Workflow wiring: both wake names present; static YAML (not vars)
-for rel in (
-    "core/github/managed-workflows/linktrend-review-packager.yml",
-    "core/github/managed-workflows/linktrend-integrator-merge.yml",
-):
-    text = Path(sys.argv[1], rel).read_text()
-    assert "Branch Source Policy" in text or "__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__" in text
-    assert "- CI" in text or "__LINKTREND_CI_WORKFLOW_NAME__" in text
-    # Must not claim dynamic workflow_run names via vars
-    assert "vars.LINKTREND_WORKFLOW_RUN" not in text
-print("wake+bugbot dual-gate scenarios ok")
+# Fast work wakes from the Phase PR; the full suite is explicit dispatch and
+# requests Bugbot only after its exact-head full receipt succeeds.
+fast = Path(sys.argv[1], "core/github/managed-workflows/linktrend-review-packager.yml").read_text()
+full = Path(sys.argv[1], "core/github/managed-workflows/linktrend-integrator-merge.yml").read_text()
+assert "pull_request:" in fast and "cancel-in-progress: true" in fast
+assert "workflow_dispatch:" in full and "Linktrend Final Candidate Bugbot Request" in full
+assert "workflow_run:" not in fast
+assert "vars.LINKTREND_WORKFLOW_RUN" not in fast + full
+print("explicit-wake+final-bugbot scenarios ok")
 PY
 pass "wake path + Bugbot request scenarios"
 
 # ============================================================================
 # 13) Normal automation credential: repository token accepted; fail closed otherwise
 # ============================================================================
+: <<'RETIRED_CREDENTIAL_FIXTURES'
 python3 - "$ROOT" <<'PY'
 from pathlib import Path
 import subprocess, os, sys
@@ -985,6 +987,51 @@ assert "packager_author_blocked" in (root / "scripts/gitops/repair_task.py").rea
 print("bugbot user credential boundary ok")
 PY
 pass "Carlos user token fail-closed; Packager-only; no App substitution"
+RETIRED_CREDENTIAL_FIXTURES
+
+# Permanent hosted-delivery credential boundary. The retired App/PAT fixture
+# above is retained as historical test text but is not an active requirement.
+python3 - "$ROOT" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+workflow_dir = root / "core" / "github" / "managed-workflows"
+fast = (workflow_dir / "linktrend-review-packager.yml").read_text(encoding="utf-8")
+full = (workflow_dir / "linktrend-integrator-merge.yml").read_text(encoding="utf-8")
+staging = (workflow_dir / "linktrend-development-to-staging.yml").read_text(encoding="utf-8")
+main = (workflow_dir / "linktrend-staging-to-main.yml").read_text(encoding="utf-8")
+active = "\n".join((fast, full, staging, main))
+
+for marker in (
+    "LINKTREND_AUTOMATION_TOKEN",
+    "LINKTREND_BUGBOT_USER_TOKEN",
+    "resolve_automation_token",
+    "resolve_bugbot_user_token",
+    "actions/create-github-app-token",
+    "linktrend-gitops[bot]",
+):
+    assert marker not in active, f"retired credential path remains: {marker}"
+
+assert "pull_request:" in fast
+assert "cancel-in-progress: true" in fast
+assert "contents: read" in fast
+assert "workflow_dispatch:" in full
+assert "contents: read" in full and "pull-requests: write" in full
+assert "github.token" in full
+assert "@cursor review" in full
+for promotion in (staging, main):
+    assert "Linktrend Receipt Gate" in promotion
+    assert "github.token" in promotion
+    assert "permissions:" in promotion
+
+credential_doc = (root / "docs" / "contracts" / "GITHUB-APP-GITOPS-CREDENTIALS.md").read_text(encoding="utf-8")
+assert "retired" in credential_doc.lower() or "no longer" in credential_doc.lower()
+assert "LINKTREND_AUTOMATION_TOKEN" not in credential_doc
+assert "LINKTREND_BUGBOT_USER_TOKEN" not in credential_doc
+print("built-in token and no-App credential boundary ok")
+PY
+pass "Built-in least-privilege token; custom App and PAT automation retired"
 
 
 # ============================================================================
@@ -1035,6 +1082,7 @@ pass "trusted event PR/SHA resolver"
 # ============================================================================
 # 15) Discovery readiness uses AUTOMATION_TOKEN (workflow-shaped env)
 # ============================================================================
+: <<'RETIRED_DISCOVERY_TOKEN_FIXTURE'
 python3 - "$ROOT" <<'PY'
 import os, sys, json, tempfile
 from pathlib import Path
@@ -1079,6 +1127,21 @@ assert "ghs_workflow_token_MUST_NOT_WIN" not in out
 print("discovery readiness token ok")
 PY
 pass "discovery readiness prefers AUTOMATION_TOKEN; fail closed without App"
+RETIRED_DISCOVERY_TOKEN_FIXTURE
+python3 - "$ROOT" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+fast = (root / "core/github/managed-workflows/linktrend-review-packager.yml").read_text(encoding="utf-8")
+assert "contents: read" in fast and "pull-requests: read" in fast
+assert "AUTOMATION_TOKEN" not in fast
+assert "LINKTREND_APP_TOKEN" not in fast
+assert "resolve_automation_token" not in fast
+assert "actions/create-github-app-token" not in fast
+print("discovery uses built-in read-only workflow authority")
+PY
+pass "Discovery uses built-in read-only workflow authority; no App token"
 
 # ============================================================================
 # 16) Uniform SHA concurrency (actual workflow expressions) + serialized
@@ -1103,27 +1166,21 @@ pkg = concurrency_expr(root / "core/github/managed-workflows/linktrend-review-pa
 live = concurrency_expr(root / ".github/workflows/linktrend-review-packager.yml")
 assert pkg == live, "managed/live packager concurrency diverged"
 assert "workflow_run.id" not in pkg and "check_run.id" not in pkg
-assert "pull_request.number" not in pkg and "pull_requests[0].number" not in pkg
-assert "pull_request.head.sha" in pkg
-assert "workflow_run.head_sha" in pkg
-assert "check_run.head_sha" in pkg
+assert "pull_request.number" in pkg and "inputs.pr_number" in pkg
+assert "workflow_run.head_sha" not in pkg
+assert "check_run.head_sha" not in pkg
 
 # Simulate expression fallbacks for same SHA with/without pull_requests arrays
 def eval_packager_group(event_name: str, *, pr_sha="", wr_sha="", cr_sha="", run_id="9"):
     # Mirror YAML: a || b || c || misc-run_id
     return pr_sha or wr_sha or cr_sha or f"misc-{run_id}"
 
-g_prt = eval_packager_group("pull_request_target", pr_sha=sha)
-g_wr_with = eval_packager_group("workflow_run", wr_sha=sha)  # PR array present or not — SHA is uniform
-g_wr_empty = eval_packager_group("workflow_run", wr_sha=sha)
-g_cr_with = eval_packager_group("check_run", cr_sha=sha)
-g_cr_empty = eval_packager_group("check_run", cr_sha=sha)
-assert g_prt == g_wr_with == g_wr_empty == g_cr_with == g_cr_empty == sha
+assert eval_packager_group("pull_request", pr_sha=sha) == sha
 
 ig = concurrency_expr(root / "core/github/managed-workflows/linktrend-integrator-merge.yml")
-assert "pull_request.head.sha" in ig and "workflow_run.head_sha" in ig and "check_run.head_sha" in ig
-assert "inputs.pr_number" in ig  # dispatch-only fallback
-assert "cancel-in-progress: false" in (root / "core/github/managed-workflows/linktrend-integrator-merge.yml").read_text()
+assert "inputs.pr_number" in ig
+assert "workflow_run" not in ig and "check_run" not in ig
+assert "cancel-in-progress: true" in (root / "core/github/managed-workflows/linktrend-integrator-merge.yml").read_text()
 
 # Production-path idempotency: first request, then reread comments → duplicate skip
 comments = []
@@ -1281,6 +1338,7 @@ pass "actual resolver event matrix (incl. empty PR arrays)"
 # 18) Repair observer lifecycle: failure → dispatch → current-head success resolve;
 #     stale success ignored; neutral Bugbot usage_limit; workflow permissions
 # ============================================================================
+: <<'RETIRED_APP_OBSERVER_FIXTURE'
 python3 - "$ROOT" "$TMP" <<'PY'
 import json
 import os
@@ -1739,9 +1797,35 @@ assert run_section.index('GH_TOKEN="${AUTOMATION_TOKEN}"') < run_section.index("
 print("repair observer App identity + no workflow-token writes ok")
 PY
 pass "Repair Observer App identity; mutation jobs deny workflow-token writes; managed≡live"
+RETIRED_APP_OBSERVER_FIXTURE
+
+python3 - "$ROOT" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+workflow_paths = list((root / ".github/workflows").glob("linktrend-*.yml"))
+workflow_paths += list((root / "core/github/managed-workflows").glob("linktrend-*.yml"))
+active = "\n".join(path.read_text(encoding="utf-8") for path in workflow_paths)
+for marker in (
+    "LINKTREND_AUTOMATION_TOKEN",
+    "LINKTREND_BUGBOT_USER_TOKEN",
+    "create-github-app-token",
+    "resolve_automation_token.sh",
+    "resolve_bugbot_user_token.sh",
+):
+    assert marker not in active, f"retired App credential remains: {marker}"
+for path in workflow_paths:
+    text = path.read_text(encoding="utf-8")
+    assert "ubuntu-latest" not in text, path
+    assert "self-hosted" not in text, path
+print("hosted workflows have no App or private-runner authority")
+PY
+pass "Hosted workflows use least-privilege built-in authority; no custom App"
 
 # ============================================================================
 # App-credential failure actually creates/updates a repair task (file backend)
+: <<'RETIRED_APP_FAILURE_FIXTURE'
 # ============================================================================
 CRED_REPAIR="$TMP/cred-repair"
 mkdir -p "$CRED_REPAIR"
@@ -1783,6 +1867,7 @@ print("ok", sys.argv[1])
 PY
 done
 pass "App-credential failure creates/updates repair task; upserts not masked"
+RETIRED_APP_FAILURE_FIXTURE
 
 # ============================================================================
 # Main Approve store: gates, freshness, trust, expiry, Lisa schema, reuse
@@ -2265,6 +2350,7 @@ pass "Main Approve live gh checks/reread/variable fail-closed"
 # ============================================================================
 # Identity boundary: write_outcome exact --token-env; App-missing zero mutation
 # ============================================================================
+: <<'RETIRED_APP_IDENTITY_BOUNDARY'
 python3 - "$ROOT" "$TMP" <<'PY'
 import json
 import os
@@ -2598,6 +2684,32 @@ for rel in (
 print("identity boundary zero-mutation proofs ok")
 PY
 pass "write_outcome/normal-token-missing zero-mutation + normal-token success + managed≡live"
+RETIRED_APP_IDENTITY_BOUNDARY
+python3 - "$ROOT" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+managed = root / "core/github/managed-workflows"
+live = root / ".github/workflows"
+for path in managed.glob("linktrend-*.yml"):
+    counterpart = live / path.name
+    if counterpart.exists():
+        assert "LINKTREND_AUTOMATION_TOKEN" not in path.read_text(encoding="utf-8")
+        assert "LINKTREND_BUGBOT_USER_TOKEN" not in path.read_text(encoding="utf-8")
+for name in (
+    "linktrend-review-packager.yml",
+    "linktrend-integrator-merge.yml",
+    "linktrend-development-to-staging.yml",
+    "linktrend-staging-to-main.yml",
+    "linktrend-cleanup-merged.yml",
+):
+    text = (live / name).read_text(encoding="utf-8")
+    assert "permissions:" in text
+    assert "github.token" in text
+print("built-in token identity boundary ok")
+PY
+pass "Built-in token identity is explicit; retired App identity absent"
 
 echo ""
 echo "PASS: behavioral gitops tests (${PASS} groups)"

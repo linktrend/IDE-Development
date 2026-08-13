@@ -1,45 +1,43 @@
 {
   "schemaVersion": 2,
-  "deliveryMode": "phase-integration",
-  "phaseBranchPrefix": "phase/",
-  "orchestrationMode": "local-coordinator",
-  "fastTargetSeconds": 300,
-  "maxAttemptsPerCandidate": 2,
-  "maxSealedCandidateRevisions": 2,
-  "maxFastJobs": 2,
-  "maxHeavyJobs": 1,
-  "stagingPromotion": "automatic",
-  "mainPromotion": "principal-approval",
-  "testProfiles": {
+  "mode": "phase-integration",
+  "compute": {
+    "provider": "github-hosted",
+    "runner": "ubuntu-24.04-arm",
+    "checkpointCI": false,
+    "cancelObsolete": true,
+    "maxInfrastructureAttempts": 2,
+    "maxSealedCandidates": 2
+  },
+  "profiles": {
     "fast": {
       "commands": [["bash", "scripts/tests/test_local_coordinator_workflow_profile.sh"]],
-      "timeoutSeconds": 300
+      "timeoutMinutes": 5
     },
     "full": {
-      "required": false,
-      "image": "linktrend/actions-runner-isolated:2.336.0",
+      "required": true,
       "commands": [
         ["python3", "-m", "unittest", "host.coordinator.tests.test_executor", "host.coordinator.tests.test_daemon", "host.coordinator.tests.test_resources", "host.coordinator.tests.test_multihost"],
         ["python3", "-m", "unittest", "scripts.tests.test_w4_multihost", "scripts.tests.test_streamlined_delivery_integration", "scripts.tests.test_promotion_receipt_gate"],
         ["bash", "scripts/tests/test_local_coordinator_workflow_profile.sh"],
         ["env", "PYTHONPATH=scripts", "python3", "-m", "ide_development.build_manifest", "--verify"]
-      ],
-      "timeoutSeconds": 3600
+      ]
     },
     "release": {
-      "commands": [["python3", "scripts/ide-development.py", "version", "--json", "--dry-run"]],
-      "timeoutSeconds": 300
+      "commands": [["python3", "scripts/ide-development.py", "version", "--json", "--dry-run"]]
     }
   },
-  "dependencyFiles": ["VERSION", "core/managed-core/VERSION", "core/managed-core/MANIFEST.json"],
-  "resourceLimits": {
-    "fastCpus": 1.0,
-    "fastMemoryMiB": 2048,
-    "heavyCpus": 2.0,
-    "heavyMemoryMiB": 4096,
-    "pidsLimit": 768,
-    "pauseCpuPercent": 80,
-    "pauseMemoryPercent": 80,
-    "minimumFreeDiskGiB": 20
+  "promotion": {
+    "reuseExactReceipt": true,
+    "identity": [
+      "repository",
+      "gitTree",
+      "dependencyDigest",
+      "profileDigest",
+      "workflowDigest"
+    ]
+  },
+  "review": {
+    "bugbot": "final-candidate-only"
   }
 }

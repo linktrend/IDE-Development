@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "scope": "repository",
+  "repository": "linktrend/IDE-Development",
+  "capturedAt": "2026-08-13T00:00:00Z",
+  "resources": [
+    {
+      "kind": "github-app",
+      "id": "app-ide-owned",
+      "name": "former-delivery-app",
+      "owner": "IDE Development",
+      "ownership": "owned",
+      "ownershipEvidence": "recorded-ide-owned",
+      "fixturePath": "resources/app-ide-owned.json"
+    },
+    {
+      "kind": "github-secret-name",
+      "id": "secret-name-only",
+      "secretName": "FORMER_DELIVERY_TOKEN",
+      "owner": "IDE Development",
+      "ownership": "owned",
+      "ownershipEvidence": "recorded-ide-owned",
+      "fixturePath": "resources/secret-name-only.json"
+    },
+    {
+      "kind": "github-runner",
+      "id": "runner-lookalike",
+      "name": "shared-runner-not-owned",
+      "owner": "another-team",
+      "ownership": "lookalike"
+    }
+  ]
+}

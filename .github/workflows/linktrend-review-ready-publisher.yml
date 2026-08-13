@@ -1,4 +1,4 @@
-# Linktrend Review Ready Publisher — normal-token completion bridge
+# Linktrend Review Ready Publisher — built-in-token completion bridge
 # Sync: scripts/sync-managed-workflows.sh
 #
 # Privileged status publication for context "Linktrend Review Ready".
@@ -6,9 +6,7 @@
 # branch only. The target issue branch / SHA is checked out as data only —
 # never execute untrusted tip code with write credentials.
 #
-# Identity: normal GitHub automation installation token only. No human fallback.
-# Refuse GITHUB_TOKEN publish fallback for status publish. Fail closed when
-# normal-token resolution fails.
+# Identity: explicit workflow dispatch with the built-in, job-scoped status token.
 #
 # Trigger: workflow_dispatch (manual / agent-driven). Dry-run validates without
 # publishing or withdrawing. action=publish (default) or action=withdraw.
@@ -70,10 +68,12 @@ concurrency:
 jobs:
   publish:
     name: Validate and publish Review Ready
-    runs-on: [self-hosted, macOS, ARM64, linktrend-privileged]
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
     permissions:
       contents: read
+      issues: read
+      statuses: write
     steps:
       - name: Checkout trusted default branch only (scripts)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -85,6 +85,7 @@ jobs:
         id: inputs
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
+          LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER: "1"
           INPUT_BRANCH: ${{ inputs.branch }}
           INPUT_SHA: ${{ inputs.sha }}
           INPUT_ACTION: ${{ inputs.action }}
@@ -114,10 +115,10 @@ jobs:
           path: untrusted-branch-data
           persist-credentials: false
 
-      - name: Resolve normal automation token; verify remote tip equals immutable SHA; publish or withdraw
+      - name: Verify remote tip equals immutable SHA; publish or withdraw
         env:
-          LINKTREND_AUTOMATION_TOKEN: ${{ secrets.LINKTREND_AUTOMATION_TOKEN }}
-          REQUIRE_AUTOMATION_TOKEN: "1"
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           BRANCH: ${{ steps.inputs.outputs.branch }}
           SHA: ${{ steps.inputs.outputs.sha }}
@@ -132,22 +133,6 @@ jobs:
           EVIDENCE_JSON: ${{ steps.inputs.outputs.evidence_json }}
         run: |
           set -euo pipefail
-          if ! source scripts/gitops/resolve_automation_token.sh; then
-            python3 scripts/gitops/write_outcome.py \
-              --status automation_credentials_blocked \
-              --detail "normal automation token unavailable for Review Ready publisher"
-            echo "### Review Ready publisher: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE AUTOMATION_CREDENTIALS_STATUS
-          # Privileged identity is normal-token only — refuse GITHUB_TOKEN publish fallback.
-          if [ -z "${AUTOMATION_TOKEN:-}" ]; then
-            echo "FAIL: AUTOMATION_TOKEN missing; refuse GITHUB_TOKEN publish fallback" >&2
-            exit 1
-          fi
-          export GH_TOKEN="${AUTOMATION_TOKEN}"
-          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
-          echo "AUTOMATION_TOKEN_SOURCE=${AUTOMATION_TOKEN_SOURCE}" >> "$GITHUB_STEP_SUMMARY"
           echo "Verify remote tip equals immutable SHA" >> "$GITHUB_STEP_SUMMARY"
 
           python3 <<'PY'
@@ -163,9 +148,9 @@ jobs:
           import completion_gate as cg
           import readiness_status as rs
 
-          token = (os.environ.get("AUTOMATION_TOKEN") or "").strip()
+          token = (os.environ.get("GH_TOKEN") or "").strip()
           if not token:
-              raise SystemExit("FAIL: AUTOMATION_TOKEN missing after resolve")
+              raise SystemExit("FAIL: built-in workflow token missing")
 
           repo = os.environ["GITHUB_REPOSITORY"]
           branch = os.environ["BRANCH"]
@@ -237,7 +222,7 @@ jobs:
               "dryRun": dry_run,
               "published": False,
               "withdrawn": False,
-              "automationTokenSource": os.environ.get("AUTOMATION_TOKEN_SOURCE"),
+              "tokenSource": "github.token",
           }
 
           if action == "withdraw":
