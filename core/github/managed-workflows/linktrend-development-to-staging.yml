@@ -93,7 +93,7 @@ jobs:
           run_id="$(jq -r .runId <<<"${coordinates}")"
           requested_name="$(jq -r .artifactName <<<"${coordinates}")"
           run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
-          jq -e '.path == ".github/workflows/linktrend-integrator-merge.yml" and .event == "workflow_dispatch" and .conclusion == "success"' <<<"${run}" >/dev/null \
+          jq -e '.path == ".github/workflows/linktrend-integrator-merge.yml" and .event == "pull_request" and .conclusion == "success"' <<<"${run}" >/dev/null \
             || { echo "receipt_gate_full_run_not_reusable=${run_id}"; exit 1; }
           artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")"
           artifact_name="$(jq -r --arg requested "${requested_name}" --arg suffix "-${run_id}" '
