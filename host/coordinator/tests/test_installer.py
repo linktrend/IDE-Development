@@ -83,6 +83,15 @@ class InstallerTests(unittest.TestCase):
             rollback(root)
             self.assertEqual((root / "current").resolve().name, "1.0.0")
 
+    def test_install_includes_all_multi_host_runtime_modules(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "install"
+            plist = Path(directory) / (SERVICE_LABEL + ".plist")
+            install_version(Path.cwd(), root, "2.0.0", plist, database=Path(directory) / "state.sqlite3")
+            installed = root / "current" / "host" / "coordinator"
+            for name in ("daemon.py", "multihost.py", "workers.py", "queue.py"):
+                self.assertTrue((installed / name).is_file(), name)
+
     def test_uninstall_is_scoped_and_dry_run_does_not_delete(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "install"
