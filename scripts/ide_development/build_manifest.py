@@ -172,6 +172,42 @@ def _library_platform_rel(library_rel: str) -> str:
     return f"core/managed-core/platforms/library/{library_rel}"
 
 
+def _link_integration_source_files() -> list[tuple[str, Path]]:
+    """Return portable provider-boundary files and their managed mapping paths."""
+    root = REPO_ROOT / "core" / "link-integrations"
+    if not root.is_dir():
+        return []
+    return [
+        (str(path.relative_to(root)).replace("\\", "/"), path)
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and not path.is_symlink()
+    ]
+
+
+def _link_integration_platform_rel(rel: str) -> str:
+    return f"core/managed-core/platforms/providers/{rel}"
+
+
+def _link_integration_mapping_errors() -> list[str]:
+    errors: list[str] = []
+    expected: set[str] = set()
+    mapped_root = MANAGED / "platforms" / "providers"
+    for rel, authored in _link_integration_source_files():
+        expected.add(rel)
+        mapped = mapped_root / rel
+        if not mapped.is_file():
+            errors.append(f"Provider integration mapping missing: {rel}")
+        elif mapped.is_symlink():
+            errors.append(f"Provider integration mapping is symlinked: {rel}")
+        elif sha256_file(authored) != sha256_file(mapped):
+            errors.append(f"Provider integration mapping drift: {rel}")
+    if mapped_root.is_dir():
+        actual = {str(path.relative_to(mapped_root)).replace("\\", "/") for path in mapped_root.rglob("*") if path.is_file()}
+        for stale in sorted(actual - expected):
+            errors.append(f"Stale provider integration mapping: {stale}")
+    return errors
+
+
 def _library_mapping_errors() -> list[str]:
     """Ensure the physical platform mapping is a generated copy of core/library."""
     errors: list[str] = []
@@ -242,6 +278,10 @@ def sync_package_payload() -> None:
     library_platform_root = MANAGED / "platforms" / "library"
     for library_rel, source in _library_source_files():
         _sync_file(source, library_platform_root / library_rel)
+
+    provider_platform_root = MANAGED / "platforms" / "providers"
+    for rel, source in _link_integration_source_files():
+        _sync_file(source, provider_platform_root / rel)
 
 
 def _gitops_script_sources() -> list[str]:
@@ -472,6 +512,7 @@ def build_entries() -> list[dict[str, Any]]:
                 notes="Portable LiNKlibraries client, contract, schemas, and tests.",
             )
         )
+
         if library_rel.startswith("dependencies/") or library_rel in {
             "library-client.mjs",
             "library-contract.json",
@@ -492,6 +533,23 @@ def build_entries() -> list[dict[str, Any]]:
                     notes="Physical Cursor Library command/report surface.",
                 )
             )
+
+    # --- Portable five-provider consumer boundary ---
+    for rel, authored_path in _link_integration_source_files():
+        source = _link_integration_platform_rel(rel)
+        entries.append(
+            _entry(
+                entry_id=f"provider-package-{_slug(rel)}",
+                ownership="managed-core",
+                source=source,
+                destination=f".ide-development/providers/{rel}",
+                mode=_mode_for(authored_path),
+                platform="all",
+                merge="replace",
+                source_hash=_hash_rel(source),
+                notes="Frozen-provider consumer validation boundary; no transport or authority mutation.",
+            )
+        )
 
     for src_tail, dest in (
         ("platforms/cursor/commands/library-search.md", ".cursor/commands/library-search.md"),
@@ -762,6 +820,7 @@ def verify_manifest(path: Path | None = None) -> list[str]:
     errors.extend(_version_alignment_errors())
     errors.extend(_doctrine_sync_errors())
     errors.extend(_library_mapping_errors())
+    errors.extend(_link_integration_mapping_errors())
     if not target.is_file():
         errors.append("MANIFEST.json missing")
         return errors

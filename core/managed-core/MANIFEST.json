@@ -1743,6 +1743,30 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "provider-package-readme-md",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/platforms/providers/README.md",
+      "sourceHash": "sha256:377c234e09f8dec99c2148da83dd91cea4acd80a4214b7d5dac7e1e878b05d5f",
+      "destination": ".ide-development/providers/README.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Frozen-provider consumer validation boundary; no transport or authority mutation."
+    },
+    {
+      "id": "provider-package-consumer-contracts-mjs",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/platforms/providers/consumer-contracts.mjs",
+      "sourceHash": "sha256:2cacdca9225f4d56d4cfadcd8c258e12ae60220563701006fc6089ecb2262888",
+      "destination": ".ide-development/providers/consumer-contracts.mjs",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Frozen-provider consumer validation boundary; no transport or authority mutation."
+    },
+    {
       "id": "core-schemas-delivery-modes-schema-json",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/schemas/delivery-modes.schema.json",
@@ -2796,7 +2820,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:dbd80a01ad64121dd1aa174bc761d3b87723602054d33d70c39ac81387f894a0",
+      "sourceHash": "sha256:efa7b79f54ffdc8c2c2a708f1dac14f72e632ae881ae572a358521ebf44eb94b",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",

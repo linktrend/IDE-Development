@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "riskClass": "major_shared_api",
+  "reason": "This change materializes the governed five-provider consumer contract boundary into the portable managed core used by all IDE Development consumer repositories."
+}
