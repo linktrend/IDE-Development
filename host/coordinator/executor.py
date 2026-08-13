@@ -246,6 +246,8 @@ def build_docker_invocation(job_value: Any, limits_value: Any = None, docker_bin
         str(max(1, min(job.timeout_seconds, 120))),
         "--network",
         "none",
+        "--env",
+        "PATH=/home/runner/externals/node24/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         "--read-only",
         "--tmpfs",
         "/tmp:rw,noexec,nosuid,size=64m",

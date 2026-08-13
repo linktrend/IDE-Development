@@ -132,7 +132,7 @@ class DaemonTests(unittest.TestCase):
 
         seen = []
         def fake_runner(job, limits, cancellation):
-            seen.append((job.command, job.worker_id, job.worker_trust, job.worker_capabilities))
+            seen.append((job.command, job.image, job.worker_id, job.worker_trust, job.worker_capabilities))
             from host.coordinator.executor import ExecutionResult
             return ExecutionResult("passed", job.job_id, 0, "2026-01-01T00:00:00Z", "2026-01-01T00:00:01Z", "container")
 
@@ -145,7 +145,7 @@ class DaemonTests(unittest.TestCase):
             with patch.object(daemon.store, "mark_started", side_effect=AssertionError("legacy mark_started path used")), patch.object(daemon, "_disposable_checkout", return_value=directory):
                 result = daemon.run_next()
             self.assertEqual(result["workerId"], "test-mac")
-            self.assertEqual(seen, [(('/bin/sh', '-ec', 'protected-command --safe'), 'test-mac', 'isolated-candidate', ('fast',))])
+            self.assertEqual(seen, [(('/bin/sh', '-ec', 'protected-command --safe'), 'alpine:3.20', 'test-mac', 'isolated-candidate', ('fast',))])
             self.assertEqual(daemon.store.get(queued.job_id)["status"], "completed")
             receipt = Path(directory) / "receipts" / ("b" * 40 + "-fast-gate.json")
             self.assertTrue(receipt.is_file())
