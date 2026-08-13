@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "fastWorkflowName": "Linktrend Fast Checks",
   "ciWorkflowName": "CI",
   "branchPolicyWorkflowName": "Branch Source Policy",
   "bugbotCheckName": "Cursor Bugbot",
