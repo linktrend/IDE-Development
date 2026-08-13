@@ -164,4 +164,3 @@ Report:
 - concurrent-feature preservation evidence;
 - installed service version and rollback command;
 - unresolved issue or `none`.
-

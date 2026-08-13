@@ -71,4 +71,3 @@ git diff --check
 ## Handoff
 
 Commit/push and report B1, exact SHA, files, migrations, tests, negative probes, installer dry-run, evidence, secret scan, clean state, and blocker or `none`. No live install, PR, review-ready, merge, or promotion.
-

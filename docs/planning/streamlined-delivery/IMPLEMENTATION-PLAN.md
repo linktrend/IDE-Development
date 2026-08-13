@@ -188,4 +188,3 @@ All conditions are mandatory:
 - Branch protections are active with the replacement status contract.
 - The next release is tagged and published.
 - Final evidence contains packet SHAs, attempts, PRs, merge SHAs, timing, resources, tests, rulesets, service state, release identity, and rollback steps.
-

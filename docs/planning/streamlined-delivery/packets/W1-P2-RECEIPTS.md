@@ -57,4 +57,3 @@ git diff --check
 ## Handoff
 
 Commit/push checkpoint and report immutable base, exact pushed SHA, owned-path diff, tests, negative probes, evidence, clean state, and blocker or `none`. No PR and no review-ready.
-
