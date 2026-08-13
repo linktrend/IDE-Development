@@ -437,6 +437,17 @@ class CoordinatorDaemon:
         other GitHub fail-closed condition) is isolated to that repository so
         the local service remains healthy and available for ``status``.
         """
+        # launchd deliberately keeps candidate execution opt-in, but its
+        # regular observation pass is the local Mac Mini's liveness signal.
+        # Without this refresh an otherwise healthy idle service ages its only
+        # enabled worker offline and cannot accept the next eligible lease.
+        try:
+            self.workers.heartbeat("mac-mini-primary")
+        except KeyError:
+            # A registry with only remote workers must not manufacture a
+            # privileged/local identity.
+            pass
+
         polls: list[dict[str, Any]] = []
         for registration in self.registrations():
             repository = registration["repository"]
