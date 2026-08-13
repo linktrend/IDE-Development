@@ -338,6 +338,7 @@ class CoordinatorDaemon:
             timeout_seconds=int(payload.get("timeoutSeconds", profile.timeout_seconds if profile else 300)),
             repository=row["repository"], worker_id=worker.worker_id,
             worker_trust=worker.trust, worker_capabilities=tuple(sorted(worker.capabilities)),
+            worker_arch=worker.arch,
             nested_docker=bool(payload.get("nestedDocker", False)),
             protected_nested_config=payload.get("protectedNestedConfig"),
         )

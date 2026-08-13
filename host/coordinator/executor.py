@@ -56,6 +56,7 @@ class Job:
     worker_id: Optional[str] = None
     worker_trust: Optional[str] = None
     worker_capabilities: Tuple[str, ...] = ()
+    worker_arch: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not _JOB_ID.fullmatch(self.job_id):
@@ -114,6 +115,7 @@ def _job(value: Any) -> Job:
         worker_id=_get(value, "worker_id", "workerId"),
         worker_trust=_get(value, "worker_trust", "workerTrust"),
         worker_capabilities=tuple(_get(value, "worker_capabilities", "workerCapabilities", default=()) or ()),
+        worker_arch=_get(value, "worker_arch", "workerArch"),
     )
 
 
@@ -174,6 +176,8 @@ def _validate_worker_trust(job: Job) -> None:
         raise ValueError("privileged worker trust cannot execute candidate code")
     if job.worker_id and job.worker_trust is None:
         raise ValueError("worker identity requires explicit isolated trust")
+    if job.worker_arch is not None and job.worker_arch not in {"amd64", "arm64"}:
+        raise ValueError("worker architecture is not supported")
     if job.worker_capabilities:
         allowed = {"fast", "heavy", "nestedDocker"}
         if not set(job.worker_capabilities).issubset(allowed):
@@ -223,7 +227,7 @@ def build_docker_invocation(job_value: Any, limits_value: Any = None, docker_bin
         "run",
         "--rm",
         "--platform",
-        "linux/amd64",
+        "linux/{}".format(job.worker_arch or "amd64"),
         "--name",
         name,
         "--label",
