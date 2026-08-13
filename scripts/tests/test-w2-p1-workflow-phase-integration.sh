@@ -67,8 +67,9 @@ for required in (
     "display_title",
 ):
     assert required in full, required
-assert 'int(match.group(4))' in full, "declared attempt metadata must be authoritative"
-assert 'run.get("run_attempt")' not in full, "GitHub UI reruns must not consume declared attempt budget"
+assert 'sum(run_attempt for head, run_attempt in relevant if head == current_head)' in full
+assert 'if executions > 2:' in full
+assert 'Every paid execution counts' in full
 
 for name in ("linktrend-development-to-staging.yml", "linktrend-staging-to-main.yml"):
     text = (managed / name).read_text(encoding="utf-8")
@@ -153,4 +154,28 @@ committed_record_head = "d" * 40
 assert record_head != committed_record_head
 assert seal != candidate_id("linktrend/IDE-Development", "phase/demo", committed_record_head, tree)
 print("PASS: dispatch-time seal live-sequence regression")
+PY
+
+python3 - <<'PY'
+"""The cap counts paid executions, independent of declared attempt labels."""
+import re
+
+pattern = re.compile(r"^Full Suite PR #(\d+) @ ([0-9a-f]{40}) r([12]) a([12])$")
+head = "a" * 40
+
+def executions(rows):
+    relevant = []
+    for title, run_attempt in rows:
+        match = pattern.fullmatch(title)
+        if match and match.group(1) == "7":
+            relevant.append((match.group(2), run_attempt))
+    return sum(run_attempt for candidate, run_attempt in relevant if candidate == head)
+
+title1 = f"Full Suite PR #7 @ {head} r1 a1"
+title2 = f"Full Suite PR #7 @ {head} r1 a2"
+assert executions([(title1, 1), (title2, 1)]) == 2  # two fresh dispatches
+assert executions([(title1, 2)]) == 2                 # one run plus one UI rerun
+assert executions([(title1, 1), (title2, 1), (title2, 1)]) == 3
+assert executions([(title1, 3)]) == 3
+print("PASS: paid Full Suite execution cap covers fresh dispatches and UI reruns")
 PY

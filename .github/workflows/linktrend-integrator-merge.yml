@@ -127,12 +127,15 @@ jobs:
           for run in history.get("workflow_runs", []):
               match = pattern.fullmatch(str(run.get("display_title") or ""))
               if match and match.group(1) == pr_number:
-                  relevant.append((match.group(2), int(match.group(4))))
+                  relevant.append((match.group(2), int(run.get("run_attempt") or 1)))
           heads = {head for head, _ in relevant} | {current_head}
-          attempts = {declared_attempt for head, declared_attempt in relevant if head == current_head}
+          executions = sum(run_attempt for head, run_attempt in relevant if head == current_head)
           if len(heads) > 2:
               raise SystemExit("full_suite_sealed_candidate_limit")
-          if len(attempts) > 2:
+          # Every paid execution counts, whether it is a fresh dispatch or a
+          # GitHub UI rerun of an existing run.  The current run is present in
+          # history before candidate tests begin, so a third execution stops.
+          if executions > 2:
               raise SystemExit("full_suite_attempt_limit")
           PY
           printf 'SOURCE_BRANCH=%s\nEXPECTED_HEAD=%s\nCANDIDATE_ID=%s\nSEAL_REVISION=%s\nATTEMPT=%s\n' \
