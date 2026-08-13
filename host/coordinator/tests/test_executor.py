@@ -87,6 +87,12 @@ class ExecutorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_docker_invocation(self.job(writable_workspace=True), ResourceLimits())
 
+    def test_registered_worker_architecture_selects_container_platform(self):
+        argv = build_docker_invocation(self.job(worker_arch="arm64"), ResourceLimits())
+        self.assertIn("linux/arm64", argv)
+        with self.assertRaises(ValueError):
+            build_docker_invocation(self.job(worker_arch="s390x"), ResourceLimits())
+
     def test_shell_string_and_path_escape_are_rejected(self):
         with self.assertRaises(ValueError):
             build_docker_invocation(self.job(command="printf unsafe"), ResourceLimits())
