@@ -47,9 +47,9 @@ assert "timeout-minutes: 5" in fast
 full = (managed / "linktrend-integrator-merge.yml").read_text(encoding="utf-8")
 assert not re.search(r"^\s+push:", full, re.M), "full suite has a checkpoint trigger"
 assert "name: Linktrend Full Suite" in full
-assert "pr_number:" in full
-for field in ("source_branch", "head_sha", "candidate_id", "seal_revision", "attempt"):
-    assert f"      {field}:" in full, field
+assert "types: [labeled]" in full
+assert "github.event.label.name == 'linktrend-full-suite'" in full
+assert "workflow_dispatch:" not in full
 assert "full-suite-receipt.json" in full
 assert "retention-days: 30" in full
 assert "@cursor review" in full
@@ -61,7 +61,7 @@ for required in (
     "full_suite_repository_mismatch",
     "full_suite_fast_check_missing_for_exact_head",
     "exact dispatch-time seal accepted",
-    "refs/pull/${{ inputs.pr_number }}/head",
+    "github.event.pull_request.head.sha",
     "full_suite_sealed_candidate_limit",
     "full_suite_attempt_limit",
     "display_title",
@@ -69,11 +69,13 @@ for required in (
     assert required in full, required
 assert 'sum(run_attempt for head, run_attempt in relevant if head == current_head)' in full
 assert 'history_file="$(mktemp)"' in full
-assert 'gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/linktrend-integrator-merge.yml/runs?event=workflow_dispatch&per_page=100" >"${history_file}"' in full
+assert 'gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/linktrend-integrator-merge.yml/runs?event=pull_request&per_page=100" >"${history_file}"' in full
 assert 'json.load(handle)' in full
 assert 'python3 - "${history}"' not in full
 assert 'if executions > 2:' in full
 assert 'Every paid execution counts' in full
+assert 'pull-requests: write' not in full.split('  bugbot:', 1)[0]
+assert 'candidate/' not in full
 
 for name in ("linktrend-development-to-staging.yml", "linktrend-staging-to-main.yml"):
     text = (managed / name).read_text(encoding="utf-8")
@@ -83,6 +85,8 @@ for name in ("linktrend-development-to-staging.yml", "linktrend-staging-to-main.
     assert "download-artifact" in text
     assert "fullRunId" in text and "steps.receipt.outputs.run_id" in text
     assert "--workflow-run-id" in text
+    assert 'RECEIPT_RUN_ID: ${{ steps.receipt.outputs.run_id }}' in text
+    assert '--workflow-run-id "${RECEIPT_RUN_ID}"' in text
     assert '.path == ".github/workflows/linktrend-integrator-merge.yml"' in text
     assert '.name == "Linktrend Full Suite"' not in text
     assert "test-gitops-phase-delivery.sh" not in text

@@ -124,6 +124,8 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Verify receipt identity and branch policy result
+        env:
+          RECEIPT_RUN_ID: ${{ steps.receipt.outputs.run_id }}
         run: |
           set -euo pipefail
           candidate_dir="$(cat candidate-dir.txt)"
@@ -132,6 +134,6 @@ jobs:
             --repo "${candidate_dir}" \
             --profile full \
             --profile-file .github/linktrend-delivery-mode.json \
-            --workflow-run-id "${{ steps.receipt.outputs.run_id }}" \
+            --workflow-run-id "${RECEIPT_RUN_ID}" \
             --gate full-gate
           echo "Linktrend Receipt Gate passed: exact tree/dependency/profile/workflow identity reused; no full suite rerun."
