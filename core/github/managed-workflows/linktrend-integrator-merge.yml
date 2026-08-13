@@ -9,31 +9,11 @@ on:
         description: Exact Phase PR number
         required: true
         type: string
-      source_branch:
-        description: Exact Phase source branch
-        required: true
-        type: string
-      head_sha:
-        description: Exact sealed Phase head SHA
-        required: true
-        type: string
-      candidate_id:
-        description: Exact derived candidate ID from the seal
-        required: true
-        type: string
-      seal_revision:
-        description: Sealed candidate revision, 1 or 2
-        required: true
-        type: string
-      attempt:
-        description: Infrastructure attempt for this exact candidate, 1 or 2
-        required: true
-        type: string
 
 permissions: {}
 
 concurrency:
-  group: ${{ github.repository }}|${{ github.workflow }}|pr-${{ inputs.pr_number }}|head-${{ inputs.head_sha }}
+  group: ${{ github.repository }}|${{ github.workflow }}|pr-${{ inputs.pr_number }}
   cancel-in-progress: true
 
 jobs:
@@ -47,11 +27,6 @@ jobs:
       actions: read
     env:
       PR_NUMBER: ${{ inputs.pr_number }}
-      SOURCE_BRANCH: ${{ inputs.source_branch }}
-      EXPECTED_HEAD: ${{ inputs.head_sha }}
-      CANDIDATE_ID: ${{ inputs.candidate_id }}
-      SEAL_REVISION: ${{ inputs.seal_revision }}
-      ATTEMPT: ${{ inputs.attempt }}
     steps:
       - name: Capture start time
         id: clock
@@ -67,7 +42,7 @@ jobs:
       - name: Checkout exact sealed Phase head
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.head_sha }}
+          ref: refs/pull/${{ inputs.pr_number }}/head
           path: candidate
           fetch-depth: 0
           persist-credentials: false
@@ -78,41 +53,28 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          printf '%s' "${SEAL_REVISION}" | grep -Eq '^[12]$' || {
-            echo "invalid_seal_revision=${SEAL_REVISION}"; exit 1;
-          }
-          printf '%s' "${ATTEMPT}" | grep -Eq '^[12]$' || {
-            echo "full_suite_attempt_limit: ${ATTEMPT}"; exit 1;
-          }
-          case "${SOURCE_BRANCH}" in
-            phase/*) ;;
-            *) echo "full_suite_requires_phase_branch=${SOURCE_BRANCH}"; exit 1 ;;
-          esac
-          case "${CANDIDATE_ID}" in
-            sha256:????????????????????????????????????????????????????????????????) ;;
-            *) echo "invalid_candidate_id"; exit 1 ;;
-          esac
-          actual="$(git rev-parse HEAD)"
-          test "${actual}" = "${EXPECTED_HEAD}" || {
-            echo "full_suite_head_mismatch: expected=${EXPECTED_HEAD} actual=${actual}"; exit 1;
-          }
           pr="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
           live="$(jq -r .head.sha <<<"${pr}")"
           live_branch="$(jq -r .head.ref <<<"${pr}")"
           live_repo="$(jq -r .head.repo.full_name <<<"${pr}")"
-          test "${live}" = "${EXPECTED_HEAD}" || {
-            echo "full_suite_stale_seal: expected=${EXPECTED_HEAD} live=${live}"; exit 1;
-          }
-          test "${live_branch}" = "${SOURCE_BRANCH}" || {
-            echo "full_suite_source_branch_stale: expected=${SOURCE_BRANCH} live=${live_branch}"; exit 1;
-          }
+          case "${live_branch}" in phase/*) ;; *) echo "full_suite_requires_phase_branch=${live_branch}"; exit 1;; esac
           test "${live_repo}" = "${GITHUB_REPOSITORY}" || {
             echo "full_suite_repository_mismatch: expected=${GITHUB_REPOSITORY} live=${live_repo}"; exit 1;
           }
-          fast="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=pull_request&head_sha=${EXPECTED_HEAD}&per_page=100" --jq '[.workflow_runs[] | select(.name == "Linktrend Fast Checks" and .conclusion == "success")] | length')"
+          actual="$(git rev-parse HEAD)"
+          test "${actual}" = "${live}" || { echo "full_suite_stale_seal: live=${live} actual=${actual}"; exit 1; }
+          fast="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=pull_request&head_sha=${live}&per_page=100" --jq '[.workflow_runs[] | select(.name == "Linktrend Fast Checks" and .conclusion == "success")] | length')"
           test "${fast}" -gt 0 || { echo "full_suite_fast_check_missing_for_exact_head"; exit 1; }
+          history="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${live_branch}&per_page=100")"
+          python3 - "${history}" "${live}" <<'PY'
+          import json, sys
+          runs = [r for r in json.loads(sys.argv[1]).get("workflow_runs", []) if r.get("name") == "Linktrend Full Suite"]
+          heads = {r.get("head_sha") for r in runs if r.get("head_sha")}
+          if len(heads) > 2 or sum(r.get("head_sha") == sys.argv[2] for r in runs) > 2:
+              raise SystemExit("full_suite_candidate_or_attempt_limit")
+          PY
           tree="$(git rev-parse 'HEAD^{tree}')"
-          derived="$(python3 - "${GITHUB_REPOSITORY}" "${SOURCE_BRANCH}" "${EXPECTED_HEAD}" "${tree}" <<'PY'
+          derived="$(python3 - "${GITHUB_REPOSITORY}" "${live_branch}" "${live}" "${tree}" <<'PY'
           import hashlib
           import json
           import sys
@@ -127,9 +89,7 @@ jobs:
           print("sha256:" + hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest())
           PY
           )"
-          test "${derived}" = "${CANDIDATE_ID}" || {
-            echo "full_suite_candidate_id_mismatch: expected=${CANDIDATE_ID} derived=${derived}"; exit 1;
-          }
+          printf 'SOURCE_BRANCH=%s\nEXPECTED_HEAD=%s\nCANDIDATE_ID=%s\nSEAL_REVISION=1\nATTEMPT=%s\n' "${live_branch}" "${live}" "${derived}" "${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
           echo "exact dispatch-time seal accepted"
 
       - name: Run full profile
@@ -209,7 +169,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: linktrend-full-suite-receipt-${{ inputs.pr_number }}-${{ inputs.head_sha }}
+          name: linktrend-full-suite-receipt-${{ inputs.pr_number }}-${{ github.run_id }}
           path: |
             candidate/full-suite-receipt.json
             candidate/full-suite-summary.txt
@@ -227,11 +187,11 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ inputs.pr_number }}
-      HEAD_SHA: ${{ inputs.head_sha }}
     steps:
       - name: Request Bugbot once for the sealed candidate
         run: |
           set -euo pipefail
+          HEAD_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)"
           marker="<!-- linktrend-bugbot-requested: ${HEAD_SHA} -->"
           comments="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --jq '.[].body' || true)"
           if printf '%s\n' "${comments}" | grep -Fq "${marker}"; then

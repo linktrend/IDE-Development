@@ -47,8 +47,9 @@ assert "timeout-minutes: 5" in fast
 full = (managed / "linktrend-integrator-merge.yml").read_text(encoding="utf-8")
 assert not re.search(r"^\s+push:", full, re.M), "full suite has a checkpoint trigger"
 assert "name: Linktrend Full Suite" in full
-for field in ("pr_number", "source_branch", "head_sha", "candidate_id", "seal_revision", "attempt"):
-    assert f"{field}:" in full, field
+assert "pr_number:" in full
+for field in ("source_branch", "head_sha", "candidate_id", "seal_revision", "attempt"):
+    assert f"      {field}:" not in full, field
 assert "full-suite-receipt.json" in full
 assert "retention-days: 30" in full
 assert "@cursor review" in full
@@ -56,11 +57,12 @@ assert "linktrend-bugbot-requested" in full
 assert "phase-delivery-record.json" not in full, "a tracked record cannot seal its own PR head"
 for required in (
     "full_suite_stale_seal",
-    "full_suite_source_branch_stale",
+    "full_suite_requires_phase_branch",
     "full_suite_repository_mismatch",
     "full_suite_fast_check_missing_for_exact_head",
-    "full_suite_candidate_id_mismatch",
     "exact dispatch-time seal accepted",
+    "refs/pull/${{ inputs.pr_number }}/head",
+    "full_suite_candidate_or_attempt_limit",
 ):
     assert required in full, required
 
