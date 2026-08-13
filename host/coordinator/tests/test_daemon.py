@@ -183,6 +183,20 @@ class DaemonTests(unittest.TestCase):
             self.assertEqual(daemon.store.get(queued.job_id)["attempt_count"], 0)
             daemon.close()
 
+    def test_idle_service_refreshes_only_the_local_mac_worker_heartbeat(self):
+        with tempfile.TemporaryDirectory() as directory:
+            daemon = CoordinatorDaemon(Path(directory) / "state.sqlite3", github=FakeGitHub())
+            daemon.register("owner/repo", directory)
+            daemon.workers.mark_offline("mac-mini-primary")
+            before = daemon.workers.get("mac-mini-primary")
+            self.assertTrue(before.offline)
+            result = daemon.service_once()
+            after = daemon.workers.get("mac-mini-primary")
+            self.assertEqual(result["execution"], {"status": "disabled-by-default"})
+            self.assertFalse(after.offline)
+            self.assertGreater(after.last_heartbeat, before.last_heartbeat)
+            daemon.close()
+
     def test_pause_and_resume_survive_cli_style_restart(self):
         with tempfile.TemporaryDirectory() as directory:
             database = Path(directory) / "state.sqlite3"
