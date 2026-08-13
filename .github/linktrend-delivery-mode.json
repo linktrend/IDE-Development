@@ -17,7 +17,13 @@
     },
     "full": {
       "required": false,
-      "commands": [["bash", "scripts/verify-ide-development.sh"]],
+      "image": "linktrend/actions-runner-isolated:2.336.0",
+      "commands": [
+        ["python3", "-m", "unittest", "host.coordinator.tests.test_executor", "host.coordinator.tests.test_daemon", "host.coordinator.tests.test_resources", "host.coordinator.tests.test_multihost"],
+        ["python3", "-m", "unittest", "scripts.tests.test_w4_multihost", "scripts.tests.test_streamlined_delivery_integration", "scripts.tests.test_promotion_receipt_gate"],
+        ["bash", "scripts/tests/test_local_coordinator_workflow_profile.sh"],
+        ["env", "PYTHONPATH=scripts", "python3", "-m", "ide_development.build_manifest", "--verify"]
+      ],
       "timeoutSeconds": 3600
     },
     "release": {

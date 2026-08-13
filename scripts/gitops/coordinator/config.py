@@ -44,6 +44,7 @@ class TestProfile:
     commands: tuple[tuple[str, ...], ...]
     timeout_seconds: int
     required: bool | None = None
+    image: str = "alpine:3.20"
 
     def to_dict(self) -> dict[str, Any]:
         result = {
@@ -52,6 +53,8 @@ class TestProfile:
         }
         if self.required is not None:
             result["required"] = self.required
+        if self.image != "alpine:3.20":
+            result["image"] = self.image
         return result
 
 
@@ -171,7 +174,7 @@ def _command(value: Any, *, path: str) -> tuple[str, ...]:
 
 def _profile(value: Any, *, path: str, full: bool = False) -> TestProfile:
     expected = {"commands", "timeoutSeconds", "required"} if full else {"commands", "timeoutSeconds"}
-    if not isinstance(value, dict) or set(value) != expected:
+    if not isinstance(value, dict) or not expected.issubset(value) or set(value) - (expected | {"image"}):
         _fail("unknown_or_missing_field", "test profile must contain only commands and timeoutSeconds", path)
     commands = value["commands"]
     if not isinstance(commands, list):
@@ -182,7 +185,10 @@ def _profile(value: Any, *, path: str, full: bool = False) -> TestProfile:
     required = value.get("required")
     if full and not isinstance(required, bool):
         _fail("invalid_profile", "full.required must be boolean", f"{path}.required")
-    return TestProfile(tuple(_command(item, path=f"{path}.commands[{i}]") for i, item in enumerate(commands)), timeout, required)
+    image = value.get("image", "alpine:3.20")
+    if not isinstance(image, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9./_:@+-]{0,254}", image):
+        _fail("invalid_image", "image must be one safe container reference", f"{path}.image")
+    return TestProfile(tuple(_command(item, path=f"{path}.commands[{i}]") for i, item in enumerate(commands)), timeout, required, image)
 
 
 def _resource_limits(value: Any) -> ResourceLimits:

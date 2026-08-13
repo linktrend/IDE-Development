@@ -332,7 +332,8 @@ class CoordinatorDaemon:
             # copy.  Some protected reproducibility tests generate files in
             # that copy; no operator checkout or privileged mount is writable.
             writable_workspace=True,
-            image=str(payload.get("image", "alpine:3.20")), command=tuple(command),
+            # Container selection is protected policy, never candidate payload.
+            image=profile.image if profile else "alpine:3.20", command=tuple(command),
             test_profile=row["candidate_identity"]["testProfile"],
             timeout_seconds=int(payload.get("timeoutSeconds", profile.timeout_seconds if profile else 300)),
             repository=row["repository"], worker_id=worker.worker_id,
