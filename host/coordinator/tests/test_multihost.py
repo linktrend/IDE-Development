@@ -107,6 +107,54 @@ class MultiHostTests(unittest.TestCase):
             self.assertEqual(coordinator.registry.get("two", now=1100).status, "offline")
             coordinator.close()
 
+    def test_global_capacity_is_shared_across_workers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            coordinator = MultiHostCoordinator(Path(directory) / "state.sqlite3")
+            coordinator.register_worker(worker("one", capabilities=("fast", "heavy"), heartbeat=1000))
+            coordinator.register_worker(worker("two", capabilities=("fast", "heavy"), heartbeat=1000))
+            for source in ("a", "d", "e"):
+                coordinator.enqueue(QueueRequest("owner/repo", "fast-gate", identity(source=source), priority=2))
+            first = coordinator.claim("one", now=1000)
+            second = coordinator.claim("two", now=1000)
+            self.assertIsNotNone(first)
+            self.assertIsNotNone(second)
+            self.assertIsNone(coordinator.claim("one", now=1000))
+            coordinator.complete(first, "completed")
+            coordinator.complete(second, "completed")
+            third = coordinator.claim("one", now=1000)
+            self.assertIsNotNone(third)
+            coordinator.complete(third, "completed")
+
+            heavy_first = coordinator.enqueue(QueueRequest("owner/repo", "full-gate", identity(source="f", profile="full"), priority=4))
+            heavy_second = coordinator.enqueue(QueueRequest("owner/repo", "full-gate", identity(source="1", profile="full"), priority=4))
+            heavy_lease = coordinator.claim("one", now=1000)
+            self.assertIn(heavy_lease.job_id, {heavy_first.job_id, heavy_second.job_id})
+            self.assertIsNone(coordinator.claim("two", now=1000))
+            remaining_heavy = heavy_second.job_id if heavy_lease.job_id == heavy_first.job_id else heavy_first.job_id
+            self.assertEqual(coordinator.store.get(remaining_heavy)["status"], "queued")
+            coordinator.complete(heavy_lease, "completed")
+            coordinator.close()
+
+    def test_worker_registration_cannot_raise_global_limits_or_bypass_pressure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            coordinator = MultiHostCoordinator(Path(directory) / "state.sqlite3")
+            coordinator.register_worker({
+                "workerId": "oversized", "platform": "linux", "arch": "amd64",
+                "capabilities": ["fast", "heavy"], "maxFastJobs": 99, "maxHeavyJobs": 99,
+                "repositories": ["owner/repo"], "lastHeartbeat": 1000,
+            })
+            for source in ("a", "d", "e"):
+                coordinator.enqueue(QueueRequest("owner/repo", "fast-gate", identity(source=source), priority=2))
+            first = coordinator.claim("oversized", now=1000)
+            second = coordinator.claim("oversized", now=1000)
+            self.assertIsNotNone(first)
+            self.assertIsNotNone(second)
+            self.assertIsNone(coordinator.claim("oversized", now=1000))
+            coordinator.complete(first, "completed")
+            coordinator.complete(second, "completed")
+            self.assertIsNone(coordinator.claim("oversized", snapshot={"cpuPercent": 90}, now=1000))
+            coordinator.close()
+
     def test_executor_rejects_privileged_worker_and_unmatched_capability(self):
         with tempfile.TemporaryDirectory() as directory:
             checkout = Path(directory) / "checkout"

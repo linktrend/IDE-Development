@@ -1,12 +1,15 @@
 import base64
 import json
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from host.coordinator.daemon import CoordinatorDaemon
 from host.coordinator.github_client import GitHubClient
 from host.coordinator.queue import QueueRequest
+from host.coordinator.workers import Worker
 
 
 def identity():
@@ -88,17 +91,21 @@ class DaemonTests(unittest.TestCase):
 
         seen = []
         def fake_runner(job, limits, cancellation):
-            seen.append(job.command)
+            seen.append((job.command, job.worker_id, job.worker_trust, job.worker_capabilities))
             from host.coordinator.executor import ExecutionResult
             return ExecutionResult("passed", job.job_id, 0, "2026-01-01T00:00:00Z", "2026-01-01T00:00:01Z", "container")
 
         with tempfile.TemporaryDirectory() as directory:
             daemon = CoordinatorDaemon(Path(directory) / "state.sqlite3", github=ProtectedGitHub(), runner=fake_runner)
             daemon.register("owner/repo", directory)
+            daemon.register_worker(Worker("test-mac", "macos", "arm64", capabilities=frozenset({"fast"}), max_fast_jobs=1, repositories=("owner/repo",), last_heartbeat=time.time()))
             daemon.load_protected_config("owner/repo", candidate_ref="refs/pull/8/head")
-            daemon.enqueue_request(QueueRequest("owner/repo", "fast-gate", identity(), payload={"command": ["candidate-command", "--unsafe"]}))
-            daemon.run_next()
-            self.assertEqual(seen, [("protected-command", "--safe")])
+            queued = daemon.enqueue_request(QueueRequest("owner/repo", "fast-gate", identity(), payload={"command": ["candidate-command", "--unsafe"]}))
+            with patch.object(daemon.store, "mark_started", side_effect=AssertionError("legacy mark_started path used")):
+                result = daemon.run_next()
+            self.assertEqual(result["workerId"], "test-mac")
+            self.assertEqual(seen, [(('protected-command', '--safe'), 'test-mac', 'isolated-candidate', ('fast',))])
+            self.assertEqual(daemon.store.get(queued.job_id)["status"], "completed")
             daemon.close()
 
     def test_missing_token_fails_closed_before_attempt_start(self):
@@ -108,6 +115,23 @@ class DaemonTests(unittest.TestCase):
             queued = daemon.enqueue_request(QueueRequest("owner/repo", "fast-gate", identity()))
             result = daemon.run_next()
             self.assertEqual(result["status"], "failed-closed")
+            self.assertEqual(daemon.store.get(queued.job_id)["attempt_count"], 0)
+            daemon.close()
+
+    def test_service_execution_remains_opt_in(self):
+        seen = []
+
+        def fake_runner(*args):
+            seen.append(True)
+
+        with tempfile.TemporaryDirectory() as directory:
+            daemon = CoordinatorDaemon(Path(directory) / "state.sqlite3", github=FakeGitHub(), runner=fake_runner)
+            daemon.register("owner/repo", directory)
+            daemon.register_worker(Worker("test-mac", "macos", "arm64", capabilities=frozenset({"fast"}), repositories=("owner/repo",), last_heartbeat=time.time()))
+            queued = daemon.enqueue_request(QueueRequest("owner/repo", "fast-gate", identity()))
+            result = daemon.service_once()
+            self.assertEqual(result["execution"], {"status": "disabled-by-default"})
+            self.assertEqual(seen, [])
             self.assertEqual(daemon.store.get(queued.job_id)["attempt_count"], 0)
             daemon.close()
 

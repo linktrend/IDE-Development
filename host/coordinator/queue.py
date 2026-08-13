@@ -472,13 +472,24 @@ class QueueStore:
             )
             return cursor.rowcount == 1
 
-    def claim_next(self, worker: Mapping[str, Any], *, snapshot: Optional[Mapping[str, Any]] = None, lease_seconds: int = 120, now: Optional[float] = None) -> Optional[dict[str, Any]]:
+    def claim_next(
+        self,
+        worker: Mapping[str, Any],
+        *,
+        snapshot: Optional[Mapping[str, Any]] = None,
+        lease_seconds: int = 120,
+        now: Optional[float] = None,
+        admission_limits: Optional[Mapping[str, Any]] = None,
+        allowed_repositories: Optional[set[str]] = None,
+    ) -> Optional[dict[str, Any]]:
         """Atomically claim one eligible job for one isolated worker.
 
         Selection is global and fair: the highest-priority eligible band is
         selected, then repositories rotate within that band.  Capability,
-        allowlist, per-worker concurrency, and host-pressure checks happen in
-        the same transaction as the lease, preventing duplicate pickup.
+        allowlist, coordinator-wide/per-worker concurrency, and host-pressure
+        checks happen in the same transaction as the lease, preventing
+        duplicate pickup. Admission limits are coordinator-owned; worker
+        payloads cannot increase the global limits or pressure thresholds.
         """
         worker_id = str(worker.get("workerId", worker.get("worker_id", "")))
         capabilities = set(worker.get("capabilities", ()))
@@ -491,14 +502,20 @@ class QueueStore:
             try:
                 rows = self._connection.execute("SELECT * FROM jobs WHERE status='queued' ORDER BY priority, created_at, id").fetchall()
                 active = self._connection.execute("SELECT required_capability, COUNT(*) AS count FROM jobs WHERE status='running' AND worker_id=? GROUP BY required_capability", (worker_id,)).fetchall()
+                global_active = self._connection.execute("SELECT required_capability, COUNT(*) AS count FROM jobs WHERE status='running' GROUP BY required_capability").fetchall()
                 active_counts = {row["required_capability"]: int(row["count"]) for row in active}
+                global_counts = {row["required_capability"]: int(row["count"]) for row in global_active}
                 fast_limit = int(worker.get("maxFastJobs", worker.get("max_fast_jobs", 0)))
                 heavy_limit = int(worker.get("maxHeavyJobs", worker.get("max_heavy_jobs", 0)))
+                limits = dict(admission_limits or {})
+                nested_limits = limits.get("resourceLimits") if isinstance(limits.get("resourceLimits"), Mapping) else limits
+                global_fast_limit = int(limits.get("maxFastJobs", limits.get("max_fast_jobs", 2)))
+                global_heavy_limit = int(limits.get("maxHeavyJobs", limits.get("max_heavy_jobs", 1)))
                 snapshot = snapshot or {}
                 pressure = (
-                    float(snapshot.get("cpuPercent", snapshot.get("cpu_percent", 0))) >= float(worker.get("pauseCpuPercent", 80))
-                    or float(snapshot.get("memoryPercent", snapshot.get("memory_percent", 0))) >= float(worker.get("pauseMemoryPercent", 80))
-                    or float(snapshot.get("freeDiskGiB", snapshot.get("free_disk_gib", 100))) < float(worker.get("minimumFreeDiskGiB", 20))
+                    float(snapshot.get("cpuPercent", snapshot.get("cpu_percent", 0))) >= float(limits.get("pauseCpuPercent", limits.get("pause_cpu_percent", nested_limits.get("pauseCpuPercent", nested_limits.get("pause_cpu_percent", 80)))))
+                    or float(snapshot.get("memoryPercent", snapshot.get("memory_percent", 0))) >= float(limits.get("pauseMemoryPercent", limits.get("pause_memory_percent", nested_limits.get("pauseMemoryPercent", nested_limits.get("pause_memory_percent", 80)))))
+                    or float(snapshot.get("freeDiskGiB", snapshot.get("free_disk_gib", 100))) < float(limits.get("minimumFreeDiskGiB", limits.get("minimum_free_disk_gib", nested_limits.get("minimumFreeDiskGiB", nested_limits.get("minimum_free_disk_gib", 20)))))
                     or snapshot.get("dockerAvailable", snapshot.get("docker_available", True)) is False
                     or bool(snapshot.get("interactiveUse", snapshot.get("interactive_use", False)))
                 )
@@ -507,9 +524,15 @@ class QueueStore:
                     capability = row["required_capability"]
                     if capability not in capabilities or row["repository"] not in repositories:
                         continue
+                    if allowed_repositories is not None and row["repository"] not in allowed_repositories:
+                        continue
                     if capability == "fast" and active_counts.get("fast", 0) >= fast_limit:
                         continue
                     if capability != "fast" and active_counts.get("heavy", 0) >= heavy_limit:
+                        continue
+                    if capability == "fast" and global_counts.get("fast", 0) >= global_fast_limit:
+                        continue
+                    if capability != "fast" and global_counts.get("heavy", 0) >= global_heavy_limit:
                         continue
                     if pressure:
                         continue

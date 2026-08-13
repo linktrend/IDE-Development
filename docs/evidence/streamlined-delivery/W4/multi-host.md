@@ -4,7 +4,7 @@
 
 - Repository: `linktrend/IDE-Development`
 - Worktree: `issue/221-w4-multi-host-coordinator-capacity`
-- Implementation base: `d6ca472e809766304c1e891b1d44cdf7b84eb865`
+- Correction base: `2b25e03e50ace4b3718a1db2c57c948bfe84b51a`
 - Current Mac Mini production posture: the committed fixture contains exactly
   one enabled `mac-mini-primary` worker; no service or live registry was
   installed or changed.
@@ -17,10 +17,15 @@
   isolated trust, explicit fast/heavy/nestedDocker capability, resource and
   concurrency limits, heartbeat and enabled/draining/offline lifecycle,
   allowlist, and safe registry commands.
+- `host/coordinator/daemon.py`: live candidate execution now claims and
+  completes central worker leases; protected policy is loaded before leasing,
+  worker identity/trust/capabilities reach the isolated executor, and service
+  execution remains opt-in.
 - `host/coordinator/queue.py` and `host/coordinator/multihost.py`: one durable
   queue, priority/repository fairness, capability and pressure admission,
-  atomic leases, renewal, expiry recovery, fenced stale results, and global
-  attempt preservation across reassignment.
+  immutable coordinator-owned global limits of at most two fast and one heavy
+  job across all workers, atomic leases, renewal, expiry recovery, fenced stale
+  results, and global attempt preservation across reassignment.
 - `host/coordinator/executor.py`: candidate execution rejects privileged trust,
   requires explicit isolated worker identity/capability metadata, and retains
   disposable Linux-container/socket/mount protections.
@@ -37,7 +42,8 @@
 Passing commands:
 
 ```text
-python3 -m unittest discover -s host/coordinator/tests -v       # 45 tests
+python3 -m unittest discover -s host/coordinator/tests -v       # 48 tests
+PYTHONPATH=. python3 scripts/tests/test_w4_multihost.py          # 2 tests
 env PYTHONPATH=scripts python3 -m unittest discover -s scripts/tests -p 'test_*.py' -v  # 55 tests
 env PYTHONPATH=scripts python3 -m unittest discover -s scripts/ide_development_tests -v  # 73 tests
 env PYTHONPATH=scripts python3 -m ide_development.build_manifest --verify

@@ -19,7 +19,7 @@ from .resources import (
     ResourceLimits,
     admit_job,
 )
-from .multihost import Lease, MultiHostCoordinator
+from .multihost import CoordinatorAdmissionConfig, Lease, MultiHostCoordinator
 from .workers import Worker, WorkerRegistry
 
 __all__ = [
@@ -36,6 +36,7 @@ __all__ = [
     "run_job",
     "sanitize_output",
     "Lease",
+    "CoordinatorAdmissionConfig",
     "MultiHostCoordinator",
     "Worker",
     "WorkerRegistry",

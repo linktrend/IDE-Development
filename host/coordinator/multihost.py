@@ -17,6 +17,65 @@ from .workers import Worker, WorkerRegistry
 
 
 @dataclass(frozen=True)
+class CoordinatorAdmissionConfig:
+    """Immutable coordinator-owned global admission policy.
+
+    The hard ceilings are deliberately part of the coordinator contract:
+    registrations may advertise less capacity, but can never raise these
+    limits or change the pressure gates.
+    """
+
+    max_fast_jobs: int = 2
+    max_heavy_jobs: int = 1
+    pause_cpu_percent: float = 80.0
+    pause_memory_percent: float = 80.0
+    minimum_free_disk_gib: float = 20.0
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.max_fast_jobs <= 2:
+            raise ValueError("coordinator max_fast_jobs must be from 0 through 2")
+        if not 0 <= self.max_heavy_jobs <= 1:
+            raise ValueError("coordinator max_heavy_jobs must be from 0 through 1")
+        if not 0 < self.pause_cpu_percent <= 100 or not 0 < self.pause_memory_percent <= 100:
+            raise ValueError("coordinator pressure thresholds must be in (0, 100]")
+        if self.minimum_free_disk_gib < 0:
+            raise ValueError("coordinator minimum free disk must be non-negative")
+
+    @classmethod
+    def from_mapping(cls, value: Any = None) -> "CoordinatorAdmissionConfig":
+        if value is None:
+            return cls()
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, Mapping):
+            nested = value.get("resourceLimits") if isinstance(value.get("resourceLimits"), Mapping) else value
+            def read(*names: str, default: Any) -> Any:
+                for name in names:
+                    if name in value:
+                        return value[name]
+                    if name in nested:
+                        return nested[name]
+                return default
+            return cls(
+                max_fast_jobs=int(read("maxFastJobs", "max_fast_jobs", default=2)),
+                max_heavy_jobs=int(read("maxHeavyJobs", "max_heavy_jobs", default=1)),
+                pause_cpu_percent=float(read("pauseCpuPercent", "pause_cpu_percent", default=80)),
+                pause_memory_percent=float(read("pauseMemoryPercent", "pause_memory_percent", default=80)),
+                minimum_free_disk_gib=float(read("minimumFreeDiskGiB", "minimum_free_disk_gib", default=20)),
+            )
+        raise TypeError("coordinator admission config must be a mapping")
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "maxFastJobs": self.max_fast_jobs,
+            "maxHeavyJobs": self.max_heavy_jobs,
+            "pauseCpuPercent": self.pause_cpu_percent,
+            "pauseMemoryPercent": self.pause_memory_percent,
+            "minimumFreeDiskGiB": self.minimum_free_disk_gib,
+        }
+
+
+@dataclass(frozen=True)
 class Lease:
     job_id: str
     lease_id: str
@@ -38,11 +97,12 @@ class Lease:
 class MultiHostCoordinator:
     """Coordinate multiple unprivileged candidate workers through one queue."""
 
-    def __init__(self, database: str | Path = ":memory:", *, coordinator_id: str = "local-coordinator", coordinator_version: str = "2.2.0", store: Optional[QueueStore] = None, registry: Optional[WorkerRegistry] = None) -> None:
+    def __init__(self, database: str | Path = ":memory:", *, coordinator_id: str = "local-coordinator", coordinator_version: str = "2.2.0", store: Optional[QueueStore] = None, registry: Optional[WorkerRegistry] = None, admission_config: CoordinatorAdmissionConfig | Mapping[str, Any] | None = None) -> None:
         self.store = store or QueueStore(database)
         self.registry = registry or WorkerRegistry(database)
         self.coordinator_id = coordinator_id
         self.coordinator_version = coordinator_version
+        self.admission_config = CoordinatorAdmissionConfig.from_mapping(admission_config)
 
     def close(self) -> None:
         self.registry.close()
@@ -58,12 +118,32 @@ class MultiHostCoordinator:
     def enqueue(self, request: QueueRequest | Mapping[str, Any]) -> QueueResult:
         return self.store.enqueue(request)
 
-    def claim(self, worker_id: str, *, snapshot: Optional[Mapping[str, Any]] = None, lease_seconds: int = 120, now: Optional[float] = None) -> Optional[Lease]:
+    def claim(
+        self,
+        worker_id: str,
+        *,
+        snapshot: Optional[Mapping[str, Any]] = None,
+        lease_seconds: int = 120,
+        now: Optional[float] = None,
+        admission_limits: Optional[Mapping[str, Any]] = None,
+        allowed_repositories: Optional[set[str]] = None,
+    ) -> Optional[Lease]:
         self.store.recover_expired_leases(now=now)
         worker = self.registry.get(worker_id, now=now)
         if worker is None:
             return None
-        job = self.store.claim_next(worker.to_dict(), snapshot=snapshot, lease_seconds=lease_seconds, now=now)
+        policy = CoordinatorAdmissionConfig.from_mapping(admission_limits) if admission_limits is not None else self.admission_config
+        effective = CoordinatorAdmissionConfig(
+            max_fast_jobs=min(self.admission_config.max_fast_jobs, policy.max_fast_jobs),
+            max_heavy_jobs=min(self.admission_config.max_heavy_jobs, policy.max_heavy_jobs),
+            pause_cpu_percent=min(self.admission_config.pause_cpu_percent, policy.pause_cpu_percent),
+            pause_memory_percent=min(self.admission_config.pause_memory_percent, policy.pause_memory_percent),
+            minimum_free_disk_gib=max(self.admission_config.minimum_free_disk_gib, policy.minimum_free_disk_gib),
+        )
+        job = self.store.claim_next(
+            worker.to_dict(), snapshot=snapshot, lease_seconds=lease_seconds, now=now,
+            admission_limits=effective.to_mapping(), allowed_repositories=allowed_repositories,
+        )
         return Lease.from_job(job) if job else None
 
     def renew(self, lease: Lease | Mapping[str, Any], *, lease_seconds: int = 120, now: Optional[float] = None) -> bool:
@@ -108,4 +188,4 @@ class MultiHostCoordinator:
         }
 
 
-__all__ = ["Lease", "MultiHostCoordinator"]
+__all__ = ["CoordinatorAdmissionConfig", "Lease", "MultiHostCoordinator"]
