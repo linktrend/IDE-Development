@@ -289,11 +289,12 @@ jobs:
           python3 scripts/gitops/require_exact_ci_success.py --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_COMMIT}" --config-key ciWorkflowName
           test -n "${SECURITY_WORKFLOW_NAME}" || { echo reconciled_canary_security_workflow_missing; exit 1; }
           python3 scripts/gitops/require_exact_ci_success.py --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_COMMIT}" --workflow-name "${SECURITY_WORKFLOW_NAME}"
-          printf '{"fast":"success","ci":"success","security":"success"}\n' > checks.json
+          checks_json="${RUNNER_TEMP}/linktrend-reconciled-checks.json"
+          printf '{"fast":"success","ci":"success","security":"success"}\n' > "${checks_json}"
           git fetch origin staging main
           staging_tree="$(git merge-tree --write-tree origin/staging "${EXPECTED_COMMIT}")"
           main_tree="$(git merge-tree --write-tree origin/main "${EXPECTED_COMMIT}")"
           python3 scripts/gitops/verify_reconciled_tree.py \
             --repo . --expected-commit "${EXPECTED_COMMIT}" --expected-tree "${EXPECTED_TREE}" \
             --package-version "${PACKAGE_VERSION}" --installed-state-digest "${INSTALLED_STATE_DIGEST}" \
-            --checks-json checks.json --staging-tree "${staging_tree}" --main-tree "${main_tree}"
+            --checks-json "${checks_json}" --staging-tree "${staging_tree}" --main-tree "${main_tree}"
