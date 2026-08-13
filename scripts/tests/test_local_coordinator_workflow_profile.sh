@@ -63,9 +63,12 @@ for context in (
 PY
 done
 
-grep -q '^  schedule:' "$compat_repo/.github/workflows/linktrend-review-packager.yml"
-grep -q '^  workflow_run:' "$compat_repo/.github/workflows/linktrend-integrator-merge.yml"
-grep -q '^  check_run:' "$compat_repo/.github/workflows/linktrend-staging-to-main.yml"
+# GitHub Actions uses the permanent PR/explicit-dispatch delivery model.  Do
+# not revive the retired schedule/workflow_run/check_run cascade merely for a
+# compatibility fixture.
+grep -q '^  pull_request:' "$compat_repo/.github/workflows/linktrend-review-packager.yml"
+grep -q '^  workflow_dispatch:' "$compat_repo/.github/workflows/linktrend-integrator-merge.yml"
+grep -q '^  pull_request_target:' "$compat_repo/.github/workflows/linktrend-staging-to-main.yml"
 
 if grep -R -n -iE 'create-github-app-token|LINKTREND_(APP|GITHUB_APP)|installation[_-]token' \
   "$local_repo/.github/workflows" "$compat_repo/.github/workflows"; then
