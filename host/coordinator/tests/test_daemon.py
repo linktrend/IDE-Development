@@ -104,7 +104,7 @@ class DaemonTests(unittest.TestCase):
             with patch.object(daemon.store, "mark_started", side_effect=AssertionError("legacy mark_started path used")):
                 result = daemon.run_next()
             self.assertEqual(result["workerId"], "test-mac")
-            self.assertEqual(seen, [(('protected-command', '--safe'), 'test-mac', 'isolated-candidate', ('fast',))])
+            self.assertEqual(seen, [(('/bin/sh', '-ec', 'protected-command --safe'), 'test-mac', 'isolated-candidate', ('fast',))])
             self.assertEqual(daemon.store.get(queued.job_id)["status"], "completed")
             daemon.close()
 

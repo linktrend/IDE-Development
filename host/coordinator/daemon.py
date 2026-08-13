@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import shlex
+import hashlib
+import subprocess
 import threading
 import time
 from dataclasses import dataclass
@@ -141,6 +144,10 @@ class CoordinatorDaemon:
                 jobs.extend(self.store.cancel_obsolete(repository, int(pr["number"]), None))
                 continue
             if identity is None:
+                identity = self._candidate_identity_from_pull(repository, pr)
+            if identity is None:
+                # Do not fabricate a testable identity if the API head cannot
+                # be fetched and content-bound locally.
                 continue
             gate = str(pr.get("gate", "fast-gate"))
             priority = priority_for(gate, active_phase=bool(pr.get("phaseActive", True)))
@@ -153,6 +160,26 @@ class CoordinatorDaemon:
             if job["repository"] == repository and job.get("pr_number") is not None and int(job["pr_number"]) not in observed_prs:
                 jobs.extend(self.store.cancel_obsolete(repository, int(job["pr_number"]), None))
         return {"status": "updated", "jobs": jobs, "observed": len(observed), "etag": etag}
+
+    def _candidate_identity_from_pull(self, repository: str, pull: Mapping[str, Any]) -> Optional[dict[str, Any]]:
+        """Bind normal GitHub pull-list payloads to an exact local tree."""
+        head = pull.get("head") if isinstance(pull.get("head"), Mapping) else {}
+        sha = str(head.get("sha", ""))
+        registration = self.store.repository(repository)
+        config = self._protected_configs.get(repository)
+        if not registration or not config or len(sha) != 40:
+            return None
+        root = str(registration["root"])
+        try:
+            subprocess.run(("git", "-C", root, "fetch", "--no-tags", "origin", sha), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
+            tree = subprocess.check_output(("git", "-C", root, "rev-parse", sha + "^{tree}"), text=True, timeout=15).strip()
+            digests = {}
+            for path in config.dependency_files:
+                data = subprocess.check_output(("git", "-C", root, "show", sha + ":" + path), timeout=15)
+                digests[path] = "sha256:" + hashlib.sha256(data).hexdigest()
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return {"repository": repository, "sourceSha": sha, "gitTreeSha": tree, "dependencyDigests": digests, "testProfile": "fast"}
 
     def cancel_obsolete(self, repository: str, pr_number: Optional[int], live_identity: Any = None) -> list[str]:
         return self.store.cancel_obsolete(repository, pr_number, live_identity)
@@ -210,7 +237,14 @@ class CoordinatorDaemon:
         payload = row["payload"]
         profile = config.test_profiles.get(row["candidate_identity"]["testProfile"]) if config.test_profiles else None
         commands = profile.commands if profile else ()
-        command = commands[0] if commands else ("true",)
+        if not commands:
+            # A protected profile that does not name tests is invalid for an
+            # executable gate; never turn that into a successful no-op.
+            self.scheduler.complete(lease, "rejected", {"error": "protected test profile has no commands", "sanitized": "protected test profile has no commands"})
+            return {"status": "failed-closed", "jobId": row["id"], "reason": "protected test profile has no commands"}
+        # Profiles are protected coordinator policy. Preserve every command in
+        # order instead of silently running only the first one.
+        command = ("/bin/sh", "-ec", " && ".join(shlex.join(tuple(item)) for item in commands))
         limits = self._execution_limits(config)
         job = Job(
             job_id=row["id"], checkout_path=registration["root"],
