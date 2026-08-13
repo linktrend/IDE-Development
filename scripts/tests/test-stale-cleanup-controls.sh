@@ -1896,4 +1896,38 @@ pass "cleanup_stale_records: empty --repo file-backend apply fail-closed (no gh,
 
 # END issue-63
 
+# GitHub remote parsing must validate the complete host, not a substring that
+# can be embedded in an attacker-controlled hostname, userinfo, or path.
+python3 - "$ROOT" <<'PY'
+import importlib.util
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1]) / "scripts/gitops/cleanup_controls.py"
+spec = importlib.util.spec_from_file_location("cleanup_controls", path)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+valid = {
+    "https://github.com/linktrend/IDE-Development.git",
+    "https://git@github.com/linktrend/IDE-Development.git",
+    "ssh://git@github.com/linktrend/IDE-Development.git",
+    "git@github.com:linktrend/IDE-Development.git",
+}
+for url in valid:
+    assert module._owner_repo_from_github_url(url) == "linktrend/IDE-Development", url
+
+invalid = {
+    "https://evilgithub.com/linktrend/IDE-Development.git",
+    "https://github.com.evil.example/linktrend/IDE-Development.git",
+    "https://github.com@evil.example/linktrend/IDE-Development.git",
+    "https://evil.example/github.com/linktrend/IDE-Development.git",
+    "https://github.com/linktrend/IDE-Development.git?github.com/other/repo",
+    "git@github.com.evil.example:linktrend/IDE-Development.git",
+}
+for url in invalid:
+    assert module._owner_repo_from_github_url(url) is None, url
+PY
+pass "GitHub remote parser requires exact trusted host"
+
 echo "OK: $PASS assertions passed"
