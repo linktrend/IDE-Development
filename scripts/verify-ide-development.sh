@@ -343,6 +343,12 @@ else
   fail "Missing scripts/verify-platform-adoption.sh"
 fi
 
+if [ -x "scripts/tests/test-consumer-profile-matrix.sh" ]; then
+  bash scripts/tests/test-consumer-profile-matrix.sh || fail "Nine-consumer profile portability matrix failed"
+else
+  fail "Missing scripts/tests/test-consumer-profile-matrix.sh"
+fi
+
 # --- Feasibility fixture still valid ---
 if [ -x "scripts/feasibility/run-fixed-pipeline-feasibility.sh" ]; then
   bash scripts/feasibility/run-fixed-pipeline-feasibility.sh >/dev/null \
