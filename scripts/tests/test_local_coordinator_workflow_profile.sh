@@ -11,6 +11,7 @@ make_consumer() {
   cat >"$target/.github/linktrend-gitops-consumer.json" <<'JSON'
 {
   "schemaVersion": 1,
+  "fastWorkflowName": "Consumer Fast",
   "ciWorkflowName": "Consumer CI",
   "branchPolicyWorkflowName": "Branch Source Policy",
   "bugbotCheckName": "Cursor Bugbot",

@@ -42,5 +42,6 @@ Templates synced into consumer repos (and IDE Development itself) by:
 ## Runner routing
 
 - `runnerType` is optional in `.github/linktrend-gitops-consumer.json` and defaults to `github-hosted`.
+- `fastWorkflowName` and `ciWorkflowName` are required exact workflow display names. Both must execute successfully on the actual Phase rollout PR head before Full can issue a receipt.
 - Private and public repositories use the same `github-hosted` ARM64 profile; retired self-hosted runner profiles are rejected.
 - Candidate CI is consumer-owned and must use a separately isolated runner; managed sync never overwrites `ci.yml`.
