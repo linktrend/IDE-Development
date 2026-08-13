@@ -112,7 +112,7 @@ class PhaseBatchLifecycleTests(unittest.TestCase):
                 pr={"number": 8, "url": "https://example.invalid/pr/8", "base": "development"},
             )
 
-        identity = CandidateIdentity("owner/name", head, git(root, "rev-parse", "HEAD^{tree}"), {}, "fast")
+        identity = CandidateIdentity("owner/name", head, git(root, "rev-parse", "HEAD^{tree}"), {}, "full")
         record = integrator.seal(head_sha=head, candidate_identity=identity)
         self.assertEqual((record["sealed"], record["sealRevision"]), (True, 1))
         self.assertEqual(phase_bugbot_request_allowed(record, live_head_sha=head), (False, "fast_gate_not_passed_for_current_seal"))
@@ -158,15 +158,21 @@ class PhaseBatchLifecycleTests(unittest.TestCase):
 
         integrator = PhaseIntegrator(root, repository="owner/name", phase_branch="phase/demo", phase_id="P2", immutable_base_sha=base)
         integrator.aggregate([valid(1, tips[0], included=False)], phase_head_sha=head)
-        identity = CandidateIdentity("owner/name", head, git(root, "rev-parse", "HEAD^{tree}"), {}, "fast")
+        identity = CandidateIdentity("owner/name", head, git(root, "rev-parse", "HEAD^{tree}"), {}, "full")
         with self.assertRaisesRegex(PhaseLifecycleError, "unincluded_issue"):
             integrator.seal(head_sha=head, candidate_identity=identity)
+
+        integrator = PhaseIntegrator(root, repository="owner/name", phase_branch="phase/demo", phase_id="P3", immutable_base_sha=base)
+        integrator.aggregate([valid(1, tips[0], included=True)], phase_head_sha=head)
+        fast_identity = CandidateIdentity("owner/name", head, git(root, "rev-parse", "HEAD^{tree}"), {}, "fast")
+        with self.assertRaisesRegex(PhaseLifecycleError, "candidate_profile_mismatch"):
+            integrator.seal(head_sha=head, candidate_identity=fast_identity)
 
     def test_head_change_invalidates_candidate_and_allows_only_revision_two(self) -> None:
         root, base, head, tips = fixture_repo()
         integrator = PhaseIntegrator(root, repository="owner/name", phase_branch="phase/demo", phase_id="P2", immutable_base_sha=base)
         integrator.aggregate([IssueTip("issue/1-part", tips[0], acceptance_sha=tips[0], included=True)], phase_head_sha=head)
-        identity = CandidateIdentity("owner/name", head, git(root, "rev-parse", "HEAD^{tree}"), {}, "fast")
+        identity = CandidateIdentity("owner/name", head, git(root, "rev-parse", "HEAD^{tree}"), {}, "full")
         integrator.seal(head_sha=head, candidate_identity=identity)
         integrator.update_gate("fast", status="passed", sha=head)
         (root / "late.txt").write_text("late\n", encoding="utf-8")
@@ -176,7 +182,7 @@ class PhaseBatchLifecycleTests(unittest.TestCase):
         record = integrator.aggregate([IssueTip("issue/1-part", tips[0], acceptance_sha=tips[0], included=True)], phase_head_sha=changed)
         self.assertFalse(record["sealed"])
         self.assertEqual(record["fast"]["status"], "invalidated")
-        second = CandidateIdentity("owner/name", changed, git(root, "rev-parse", "HEAD^{tree}"), {}, "fast")
+        second = CandidateIdentity("owner/name", changed, git(root, "rev-parse", "HEAD^{tree}"), {}, "full")
         record = integrator.seal(head_sha=changed, candidate_identity=second)
         self.assertEqual(record["sealRevision"], 2)
         with self.assertRaisesRegex(PhaseLifecycleError, "third_seal"):

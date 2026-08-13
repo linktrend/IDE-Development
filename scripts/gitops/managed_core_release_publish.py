@@ -182,19 +182,15 @@ def require_automation_token(
     token: str | None = None,
     token_source: str | None = None,
 ) -> str:
-    """Require the trusted normal GitHub automation identity for release mutations."""
-    source = (token_source or os.environ.get("AUTOMATION_TOKEN_SOURCE") or "").strip()
-    value = (token or os.environ.get("AUTOMATION_TOKEN") or "").strip()
-    if source != "github_token":
-        _reject(
-            "automation_credentials_blocked",
-            "managed-core release publisher requires AUTOMATION_TOKEN_SOURCE=github_token "
-            f"(got {source or 'none'})",
-        )
+    """Require the scoped built-in Actions token for release mutations."""
+    source = (token_source or os.environ.get("AUTOMATION_TOKEN_SOURCE") or "builtin_github_token").strip()
+    value = (token or os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or "").strip()
+    if source != "builtin_github_token":
+        _reject("automation_credentials_blocked", "release publisher requires scoped built-in token")
     if not value:
         _reject(
             "automation_credentials_blocked",
-            "AUTOMATION_TOKEN missing after normal-token resolve",
+            "scoped built-in GitHub token missing",
         )
     return value
 

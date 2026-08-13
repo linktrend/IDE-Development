@@ -1,4 +1,4 @@
-# Linktrend Managed-Core Release Publisher — normal-token immutable publication
+# Linktrend Managed-Core Release Publisher — built-in-token immutable publication
 #
 # System-repository only (IDE Development). Not synced to consumers via
 # scripts/sync-managed-workflows.sh — consumers must not publish managed-core.
@@ -8,9 +8,9 @@
 # The requested source SHA is checked out as data only — never execute untrusted
 # tip code with write credentials.
 #
-# Identity: normal GitHub automation installation token only. No human / PAT / GITHUB_TOKEN
-# fallback. Fail closed when normal-token resolution fails, when source SHA does not
-# equal the default-branch tip, or on tag/release/checksum conflict/replay.
+# Identity: GitHub Actions built-in token with release-scoped contents permission.
+# Fail closed when source SHA does not equal the default-branch tip or on
+# tag/release/checksum conflict/replay.
 #
 # Trigger: workflow_dispatch. dry_run / action=verify-only validate and rebuild
 # without creating a tag or Release.
@@ -59,10 +59,10 @@ concurrency:
 jobs:
   publish:
     name: Rebuild, verify, and publish managed-core release
-    runs-on: [self-hosted, macOS, ARM64, linktrend-privileged]
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
     permissions:
-      contents: read
+      contents: write
     steps:
       - name: Checkout trusted default branch only (scripts)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -118,10 +118,9 @@ jobs:
             exit 1
           fi
 
-      - name: Resolve normal automation token; rebuild/verify; publish or dry-run
+      - name: Rebuild, verify, and publish or dry-run
         env:
-          LINKTREND_AUTOMATION_TOKEN: ${{ secrets.LINKTREND_AUTOMATION_TOKEN }}
-          REQUIRE_AUTOMATION_TOKEN: "1"
+          GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           SOURCE_SHA: ${{ steps.inputs.outputs.source_sha }}
           VERSION: ${{ steps.inputs.outputs.version }}
@@ -131,28 +130,6 @@ jobs:
           DEFAULT_BRANCH: ${{ steps.inputs.outputs.default_branch }}
         run: |
           set -euo pipefail
-          if ! source scripts/gitops/resolve_automation_token.sh; then
-            python3 scripts/gitops/write_outcome.py \
-              --status automation_credentials_blocked \
-              --detail "normal automation token unavailable for managed-core release publisher"
-            echo "### Managed-core release publisher: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE AUTOMATION_CREDENTIALS_STATUS
-          # Privileged identity is normal-token only — refuse GITHUB_TOKEN publish fallback.
-          if [ -z "${AUTOMATION_TOKEN:-}" ]; then
-            echo "FAIL: AUTOMATION_TOKEN missing; refuse GITHUB_TOKEN publish fallback" >&2
-            exit 1
-          fi
-          if [ "${AUTOMATION_TOKEN_SOURCE}" != "github_token" ]; then
-            echo "FAIL: AUTOMATION_TOKEN_SOURCE must be github_token (got ${AUTOMATION_TOKEN_SOURCE})" >&2
-            exit 1
-          fi
-          # Never export github.token as the mutation credential.
-          export GH_TOKEN="${AUTOMATION_TOKEN}"
-          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
-          echo "AUTOMATION_TOKEN_SOURCE=${AUTOMATION_TOKEN_SOURCE}" >> "$GITHUB_STEP_SUMMARY"
-
           DATA_ROOT="$(pwd)/untrusted-source-data"
           TRUSTED_ROOT="$(pwd)"
           if [ "${DATA_ROOT}" = "${TRUSTED_ROOT}" ]; then

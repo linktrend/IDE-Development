@@ -1,247 +1,138 @@
-# Managed by IDE Development — do not edit by hand in consumers.
-# Sync: scripts/sync-managed-workflows.sh
-#
-# TRUST BOUNDARY: privileged jobs check out the default branch only.
-# Resolve (read-only) then promote (normal automation token) only when relevant.
-# Profiles: github-actions preserves the event-driven fallback below; local-coordinator
-# is rendered by sync-managed-workflows.sh with only bounded workflow_dispatch recovery.
-# Frozen coordinator contexts: Linktrend Release Gate, Linktrend Coordinator;
-# external Cursor Bugbot is unchanged.
-name: LiNKtrend Staging To Main
+name: Linktrend Main Receipt Gate
 
+# Main promotion has the same short identity gate as staging.  Principal/Terra
+# performs the actual protected-branch operation outside this workflow.
 on:
-  schedule:
-    - cron: "0 0 * * 1"
+  pull_request_target: # trusted default-branch workflow; candidate is data only
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
-      action:
-        description: "package | approve-merge | automatic | reevaluate"
-        type: choice
-        options:
-          - package
-          - approve-merge
-          - automatic
-          - reevaluate
-        default: package
-      expected_sha:
-        description: "approve-merge: exact staging source SHA"
-        required: false
+      source_branch:
+        required: true
         type: string
-      expected_main_sha:
-        description: "approve-merge: prior main target SHA"
-        required: false
+      head_sha:
+        required: true
         type: string
-      expected_promote_head:
-        description: "approve-merge / reevaluate: exact promote PR head SHA"
-        required: false
+      full_run_id:
+        description: Full-suite workflow run containing the retained receipt
+        required: true
         type: string
-      promote_pr_number:
-        description: "reevaluate / approve-merge: exact promote PR number"
-        required: false
+      artifact_name:
+        description: Exact full-suite receipt artifact name
+        required: true
         type: string
-  pull_request_target: # zizmor: ignore[dangerous-triggers] trusted default-branch release code only; promote head is exact-SHA bound before token use
-    types: [opened, synchronize, reopened, ready_for_review]
-    branches: [main]
-  check_run:
-    types: [completed]
-  workflow_run: # zizmor: ignore[dangerous-triggers] trusted CI metadata only; no untrusted candidate checkout or execution
-    workflows:
-      - __LINKTREND_CI_WORKFLOW_NAME__
-      - __LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__
-    types: [completed]
 
 permissions: {}
 
 concurrency:
-  group: staging-to-main
-  cancel-in-progress: false
+  group: ${{ github.repository }}|${{ github.workflow }}|head-${{ github.event.pull_request.head.sha || inputs.head_sha }}
+  cancel-in-progress: true
 
-env:
-  TIMEZONE_LABEL: "Asia/Taipei"
-  RELEASE_GATE_CHECKS: ${{ vars.LINKTREND_RELEASE_GATE_CHECKS || 'Verify IDE Development,Enforce allowed PR source branches' }}
-
-# Cost note: never use ${{ env.* }} at job-level env (invalid context → zero-job runs).
-# Skip irrelevant wakes: non-promote PR heads, own outcome checks, failed workflow_run.
 jobs:
-  resolve:
-    name: Resolve candidate (read-only)
-    if: >
-      github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'pull_request_target' &&
-        startsWith(github.event.pull_request.head.ref, 'promote/')
-      ) ||
-      (
-        github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        startsWith(github.event.workflow_run.head_branch, 'promote/')
-      ) ||
-      (
-        github.event_name == 'check_run' &&
-        github.event.check_run.app.slug != 'github-actions' &&
-        github.event.check_run.name != 'Linktrend Main Outcome' &&
-        github.event.check_run.name != 'Linktrend Staging Outcome' &&
-        github.event.check_run.name != 'Linktrend Packager Result' &&
-        github.event.check_run.name != 'Linktrend Integrator Result'
-      )
-    runs-on: __LINKTREND_RUNS_ON__
-    timeout-minutes: 5
+  branch-source-policy:
+    name: Linktrend Branch Source Policy
+    uses: ./.github/workflows/branch-source-policy.yml
+    with:
+      source_branch: ${{ github.event.pull_request.head.ref || inputs.source_branch }}
+      target_branch: main
     permissions:
-      contents: read
       pull-requests: read
-    outputs:
-      relevant: ${{ steps.r.outputs.relevant }}
-      pr: ${{ steps.r.outputs.pr }}
-      head_sha: ${{ steps.r.outputs.head_sha }}
-      reason: ${{ steps.r.outputs.reason }}
-      mode: ${{ steps.mode.outputs.mode }}
-    steps:
-      - name: Checkout trusted default branch only
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          persist-credentials: false
 
-      - name: Resolve mode
-        id: mode
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_ACTION: ${{ github.event.inputs.action }}
-        run: |
-          set -euo pipefail
-          MODE="reevaluate"
-          case "${EVENT_NAME}" in
-            schedule) MODE="package" ;;
-            workflow_dispatch)
-              case "${INPUT_ACTION:-package}" in
-                package) MODE="package" ;;
-                approve-merge) MODE="approve-merge" ;;
-                automatic) MODE="automatic" ;;
-                *) MODE="reevaluate" ;;
-              esac
-              ;;
-          esac
-          echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
-
-      - name: Resolve PR/base/head (no normal automation token)
-        id: r
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          GITHUB_EVENT_PATH: ${{ github.event_path }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          RESOLVE_ROLE: main
-        run: python3 scripts/gitops/resolve_event_pr.py
-
-  promote:
-    needs: resolve
-    if: needs.resolve.outputs.relevant == 'true'
-    runs-on: __LINKTREND_RUNS_ON__
-    timeout-minutes: 30
+  receipt-gate:
+    name: Linktrend Receipt Gate
+    needs: branch-source-policy
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
     permissions:
       contents: read
+      actions: read
+      pull-requests: read
     env:
-      OUTCOME_CHECK_NAME: Linktrend Main Outcome
-      # Job-level env cannot reference the env context (GitHub validation → zero-job push failures).
-      # Workflow-level RELEASE_GATE_CHECKS already applies; restate via vars for clarity.
-      RELEASE_GATE_CHECKS: ${{ vars.LINKTREND_RELEASE_GATE_CHECKS || 'Verify IDE Development,Enforce allowed PR source branches' }}
-      REQUIRE_AUTOMATION_TOKEN: "1"
+      HEAD_SHA: ${{ github.event.pull_request.head.sha || inputs.head_sha }}
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Checkout trusted default branch only
+      - name: Checkout trusted default branch
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Check automation token
-        id: creds
+      - name: Resolve exact retained receipt coordinates
+        id: receipt
         env:
-          LINKTREND_AUTOMATION_TOKEN: ${{ secrets.LINKTREND_AUTOMATION_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          INPUT_FULL_RUN_ID: ${{ inputs.full_run_id }}
+          INPUT_ARTIFACT_NAME: ${{ inputs.artifact_name }}
         run: |
           set -euo pipefail
-          if source scripts/gitops/resolve_automation_token.sh; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
+          pr_body=""
+          if [ "${EVENT_NAME}" = "pull_request_target" ]; then
+            test -n "${PR_NUMBER}" || { echo "receipt_gate_pr_number_missing"; exit 1; }
+            pr_body="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .body)"
           fi
+          export PR_BODY="${pr_body}"
+          coordinates="$(python3 - <<'PY'
+          import json, os, re
+          if os.environ["EVENT_NAME"] == "workflow_dispatch":
+              run_id = os.environ.get("INPUT_FULL_RUN_ID", "").strip()
+              artifact = os.environ.get("INPUT_ARTIFACT_NAME", "").strip()
+          else:
+              match = re.search(r"<!-- linktrend-promote:\s*(\{.*?\})\s*-->", os.environ.get("PR_BODY", ""), re.S)
+              if not match:
+                  raise SystemExit("receipt_gate_promotion_marker_missing")
+              marker = json.loads(match.group(1))
+              run_id = str(marker.get("fullRunId") or "").strip()
+              artifact = ""
+          if not run_id.isdigit() or int(run_id) < 1:
+              raise SystemExit("receipt_gate_full_run_invalid")
+          print(json.dumps({"runId": run_id, "artifactName": artifact}))
+          PY
+          )"
+          run_id="$(jq -r .runId <<<"${coordinates}")"
+          requested_name="$(jq -r .artifactName <<<"${coordinates}")"
+          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
+          jq -e '.name == "Linktrend Full Suite" and .event == "workflow_dispatch" and .conclusion == "success"' <<<"${run}" >/dev/null \
+            || { echo "receipt_gate_full_run_not_reusable=${run_id}"; exit 1; }
+          artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")"
+          artifact_name="$(jq -r --arg requested "${requested_name}" --arg suffix "-${run_id}" '
+            [.artifacts[] | select(.expired == false)
+              | select(.name | startswith("linktrend-full-suite-receipt-"))
+              | select(.name | endswith($suffix))
+              | select($requested == "" or .name == $requested)]
+            | if length == 1 then .[0].name else empty end
+          ' <<<"${artifacts}")"
+          test -n "${artifact_name}" || { echo "receipt_gate_artifact_not_unique_or_missing=${run_id}"; exit 1; }
+          printf 'run_id=%s\nartifact_name=%s\n' "${run_id}" "${artifact_name}" >> "$GITHUB_OUTPUT"
 
-      - name: Report credentials blocked
-        if: steps.creds.outputs.ready != 'true'
-        env:
-          HEAD_SHA: ${{ needs.resolve.outputs.head_sha || github.sha }}
+      - name: Fetch exact promotion candidate without executing it
         run: |
           set -euo pipefail
-          # automation token unavailable: local outcome + failed workflow only — no GITHUB_TOKEN mutations.
-          python3 scripts/gitops/write_outcome.py \
-            --status automation_credentials_blocked \
-            --detail "LINKTREND_AUTOMATION_TOKEN required for autonomous main promotion."
-          echo "### Main outcome: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "head_sha=${HEAD_SHA}" >> "$GITHUB_STEP_SUMMARY"
-          exit 1
+          test -n "${HEAD_SHA}" || { echo "receipt_gate_head_missing"; exit 1; }
+          git fetch --no-tags origin "${HEAD_SHA}"
+          candidate_dir="$(mktemp -d "${RUNNER_TEMP}/linktrend-receipt-candidate.XXXXXX")"
+          git worktree add --detach "${candidate_dir}" "${HEAD_SHA}"
+          echo "${candidate_dir}" > candidate-dir.txt
 
-      - name: Configure git remote for automation token pushes
-        if: steps.creds.outputs.ready == 'true'
-        env:
-          LINKTREND_AUTOMATION_TOKEN: ${{ secrets.LINKTREND_AUTOMATION_TOKEN }}
-        run: |
-          set -euo pipefail
-          source scripts/gitops/resolve_automation_token.sh
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin "https://x-access-token:${AUTOMATION_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-
-      - name: Run main promotion
-        if: steps.creds.outputs.ready == 'true'
-        env:
-          MODE: ${{ needs.resolve.outputs.mode }}
-          MAIN_PROMOTION_MODE: ${{ needs.resolve.outputs.mode == 'automatic' && 'automatic' || 'principal-approval' }}
-          PROMOTE_PR_NUMBER: ${{ needs.resolve.outputs.pr || github.event.inputs.promote_pr_number }}
-          EXPECTED_PROMOTE_HEAD: ${{ needs.resolve.outputs.head_sha || github.event.inputs.expected_promote_head }}
-          EXPECTED_STAGING_SHA: ${{ github.event.inputs.expected_sha }}
-          EXPECTED_MAIN_SHA: ${{ github.event.inputs.expected_main_sha }}
-          GH_REPO: ${{ github.repository }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          LINKTREND_AUTOMATION_TOKEN: ${{ secrets.LINKTREND_AUTOMATION_TOKEN }}
-        run: |
-          set -euo pipefail
-          source scripts/gitops/resolve_automation_token.sh
-          export GH_TOKEN="${AUTOMATION_TOKEN}"
-          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
-          if [ "${MODE}" = "approve-merge" ]; then
-            if [ -z "${EXPECTED_STAGING_SHA}" ] || [ -z "${EXPECTED_PROMOTE_HEAD}" ] || [ -z "${EXPECTED_MAIN_SHA}" ]; then
-              python3 scripts/gitops/write_outcome.py \
-                --status failed \
-                --detail "approve-merge requires expected_sha, expected_main_sha, and expected_promote_head"
-              exit 1
-            fi
-          fi
-          bash scripts/gitops/promote_main.sh
-          status="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json"))["status"])')"
-          detail="$(python3 -c 'import json; print(json.load(open("gitops-outcome.json")).get("detail",""))')"
-          sha="${EXPECTED_PROMOTE_HEAD:-$GITHUB_SHA}"
-          python3 scripts/gitops/write_outcome.py \
-            --status "$status" \
-            --detail "$detail" \
-            --check-name "$OUTCOME_CHECK_NAME" \
-            --head-sha "$sha" \
-            --token-env AUTOMATION_TOKEN
-          echo "### Main outcome: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
-          echo "resolve_reason=${{ needs.resolve.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
-          case "${status}" in
-            failed|automation_credentials_blocked) exit 1 ;;
-            *) exit 0 ;;
-          esac
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
+      - name: Download retained full-suite receipt
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: main-promote-report
-          path: |
-            gitops-outcome.json
-            main-promote-report.md
-            release-gate-wait.json
-          if-no-files-found: ignore
-          retention-days: 5
+          name: ${{ steps.receipt.outputs.artifact_name }}
+          path: receipt-artifact
+          run-id: ${{ steps.receipt.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify receipt identity and branch policy result
+        run: |
+          set -euo pipefail
+          candidate_dir="$(cat candidate-dir.txt)"
+          python3 "$GITHUB_WORKSPACE/scripts/gitops/gate_receipt.py" verify \
+            --receipt receipt-artifact/full-suite-receipt.json \
+            --repo "${candidate_dir}" \
+            --profile full \
+            --profile-file .github/linktrend-delivery-mode.json \
+            --workflow-run-id "${{ steps.receipt.outputs.run_id }}" \
+            --gate full-gate
+          echo "Linktrend Receipt Gate passed: exact tree/dependency/profile/workflow identity reused; no full suite rerun."

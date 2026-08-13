@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "scope": "host",
+  "repository": "linktrend/IDE-Development",
+  "capturedAt": "2026-08-13T00:00:00Z",
+  "resources": [
+    {
+      "kind": "launchd-service",
+      "id": "service-ide-owned",
+      "label": "ai.linktrend.ide-development.fixture",
+      "owner": "IDE Development",
+      "ownership": "owned",
+      "ownershipEvidence": "recorded-ide-owned",
+      "fixturePath": "resources/service-ide-owned.json"
+    },
+    {
+      "kind": "docker-container",
+      "id": "container-lookalike",
+      "name": "shared-runner-not-owned",
+      "owner": "another-team",
+      "ownership": "lookalike",
+      "fixturePath": "resources/container-lookalike.json"
+    },
+    {
+      "kind": "docker-image",
+      "id": "image-ambiguous",
+      "name": "runner:latest",
+      "owner": "unknown",
+      "ownership": "ambiguous"
+    }
+  ]
+}

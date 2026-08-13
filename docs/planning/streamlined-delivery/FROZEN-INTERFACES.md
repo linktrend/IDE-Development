@@ -1,4 +1,8 @@
-# Frozen Interfaces for Parallel Execution
+ # Frozen Interfaces for Parallel Execution — Superseded planning archive
+
+> **Historical, non-authoritative.** Current frozen interfaces are in
+> `docs/planning/github-compute-final-fix/FROZEN-INTERFACES.md`. This file is
+> retained only to preserve the earlier planning record.
 
 These interfaces are fixed before Wave 1 dispatch. A Luna executor must implement against them and must not rename, broaden, or redesign them. If an interface is impossible, the executor reports a blocker; Terra decides whether to revise the plan before integration.
 

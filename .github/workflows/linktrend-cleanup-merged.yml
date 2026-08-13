@@ -3,14 +3,17 @@
 #
 # Remote-only cleanup of merged/abandoned work + promote branches.
 # Never deletes local worktrees (Lisa local cleanup is a separate handoff).
-# TRUST BOUNDARY: checkout default branch only; normal automation token fail-closed.
+# TRUST BOUNDARY: checkout default branch only; explicit manual apply and built-in token.
 name: LiNKtrend Cleanup Merged Branches
 
 on:
-  schedule:
-    # Weekly Sunday 03:00 UTC (~11:00 Asia/Taipei)
-    - cron: "0 3 * * 0"
   workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply positively owned remote cleanup after the dry run"
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -21,12 +24,10 @@ concurrency:
 jobs:
   dry-run:
     name: Dry-run remote cleanup
-    runs-on: [self-hosted, macOS, ARM64, linktrend-privileged]
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
     permissions:
       contents: read
-    outputs:
-      ready: ${{ steps.creds.outputs.ready }}
     steps:
       - name: Checkout trusted default branch only
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -35,30 +36,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Check automation token
-        id: creds
-        env:
-          LINKTREND_AUTOMATION_TOKEN: ${{ secrets.LINKTREND_AUTOMATION_TOKEN }}
-          REQUIRE_AUTOMATION_TOKEN: "1"
-        run: |
-          set -euo pipefail
-          if source scripts/gitops/resolve_automation_token.sh; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "automation_credentials_blocked" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-
       - name: Dry-run remote cleanup
-        if: steps.creds.outputs.ready == 'true'
         env:
-          LINKTREND_AUTOMATION_TOKEN: ${{ secrets.LINKTREND_AUTOMATION_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          source scripts/gitops/resolve_automation_token.sh
-          export GH_TOKEN="${AUTOMATION_TOKEN}"
-          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
           bash scripts/cleanup-merged-branches.sh --remote
           echo "### Cleanup dry-run complete" >> "$GITHUB_STEP_SUMMARY"
 
@@ -74,11 +56,11 @@ jobs:
   apply:
     name: Apply remote cleanup
     needs: dry-run
-    if: needs.dry-run.outputs.ready == 'true'
-    runs-on: [self-hosted, macOS, ARM64, linktrend-privileged]
+    if: inputs.apply == true
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     permissions:
-      contents: read
+      contents: write
     steps:
       - name: Checkout trusted default branch only
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -89,13 +71,9 @@ jobs:
 
       - name: Apply remote cleanup
         env:
-          LINKTREND_AUTOMATION_TOKEN: ${{ secrets.LINKTREND_AUTOMATION_TOKEN }}
-          REQUIRE_AUTOMATION_TOKEN: "1"
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          source scripts/gitops/resolve_automation_token.sh
-          export GH_TOKEN="${AUTOMATION_TOKEN}"
-          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
           bash scripts/cleanup-merged-branches.sh --remote --apply
           echo "### Cleanup apply complete (remote only; no local worktree deletion)" >> "$GITHUB_STEP_SUMMARY"
 
