@@ -240,6 +240,10 @@ class QueueStore:
                         ALTER TABLE jobs ADD COLUMN lease_id TEXT;
                         ALTER TABLE jobs ADD COLUMN lease_expires_at REAL;
                         CREATE INDEX IF NOT EXISTS jobs_leases ON jobs(status, lease_expires_at);
+                        UPDATE jobs
+                        SET required_capability=CASE
+                          WHEN json_extract(candidate_json, '$.testProfile') IN ('full','release') THEN 'heavy'
+                          ELSE 'fast' END;
                         INSERT INTO schema_migrations(version, applied_at) VALUES (3, datetime('now'));
                         COMMIT;
                         """
@@ -505,6 +509,8 @@ class QueueStore:
                 global_active = self._connection.execute("SELECT required_capability, COUNT(*) AS count FROM jobs WHERE status='running' GROUP BY required_capability").fetchall()
                 active_counts = {row["required_capability"]: int(row["count"]) for row in active}
                 global_counts = {row["required_capability"]: int(row["count"]) for row in global_active}
+                active_heavy = sum(count for capability, count in active_counts.items() if capability != "fast")
+                global_heavy = sum(count for capability, count in global_counts.items() if capability != "fast")
                 fast_limit = int(worker.get("maxFastJobs", worker.get("max_fast_jobs", 0)))
                 heavy_limit = int(worker.get("maxHeavyJobs", worker.get("max_heavy_jobs", 0)))
                 limits = dict(admission_limits or {})
@@ -528,11 +534,11 @@ class QueueStore:
                         continue
                     if capability == "fast" and active_counts.get("fast", 0) >= fast_limit:
                         continue
-                    if capability != "fast" and active_counts.get("heavy", 0) >= heavy_limit:
+                    if capability != "fast" and active_heavy >= heavy_limit:
                         continue
                     if capability == "fast" and global_counts.get("fast", 0) >= global_fast_limit:
                         continue
-                    if capability != "fast" and global_counts.get("heavy", 0) >= global_heavy_limit:
+                    if capability != "fast" and global_heavy >= global_heavy_limit:
                         continue
                     if pressure:
                         continue
@@ -585,9 +591,10 @@ class QueueStore:
             if not row:
                 raise ValueError("stale or duplicate lease result")
             result_data = dict(result or {})
+            # Fence the lease before a result can make a failed attempt queued.
+            # We keep the same lock and SQLite transaction boundary throughout.
+            self._connection.execute("UPDATE jobs SET worker_id=NULL, lease_id=NULL, lease_expires_at=NULL WHERE id=?", (job_id,))
             final = self.record_result(job_id, status, result_data, failure_category=failure_category, evidence_location=evidence_location, required_action=required_action)
-            with self._connection:
-                self._connection.execute("UPDATE jobs SET worker_id=NULL, lease_id=NULL, lease_expires_at=NULL WHERE id=?", (job_id,))
             return final
 
     def poll_state(self, repository: str) -> dict[str, Any]:

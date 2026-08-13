@@ -180,6 +180,12 @@ class CoordinatorDaemon:
             return {"status": "failed-closed", "jobId": queued["id"], "reason": policy_errors.get(queued["repository"], "no protected policy available")}
 
         lease = None
+        # The coordinator owns the local Mac Mini registration and refreshes
+        # only that identity. Remote workers must present their own heartbeat.
+        try:
+            self.workers.heartbeat("mac-mini-primary")
+        except KeyError:
+            pass
         snapshot = self._snapshot_mapping(host_snapshot or HostSnapshot())
         for worker in self.workers.list():
             lease = self.scheduler.claim(
@@ -217,6 +223,13 @@ class CoordinatorDaemon:
             nested_docker=bool(payload.get("nestedDocker", False)),
             protected_nested_config=payload.get("protectedNestedConfig"),
         )
+        renewal_stop = threading.Event()
+        def renew_lease() -> None:
+            while not renewal_stop.wait(30):
+                if not self.scheduler.renew(lease, lease_seconds=120):
+                    return
+        renewal = threading.Thread(target=renew_lease, daemon=True)
+        renewal.start()
         try:
             result = self.runner(job, limits, lambda: self._lease_cancelled(lease))
             result_status = "completed" if getattr(result, "status", "") == "passed" else "cancelled" if getattr(result, "status", "") == "cancelled" else "failed"
@@ -229,6 +242,9 @@ class CoordinatorDaemon:
             except Exception as completion_error:
                 return {"status": "failed-closed", "jobId": row["id"], "error": str(completion_error)}
             result_status = "failed"
+        finally:
+            renewal_stop.set()
+            renewal.join(timeout=1)
 
         if final.get("alert") and hasattr(self.github, "upsert_alert"):
             alert = final["alert"]
