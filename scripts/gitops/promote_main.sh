@@ -235,8 +235,9 @@ if [ "${MODE}" = "package" ]; then
     exit 0
   fi
   CANDIDATE="$(git -C "${WT}" rev-parse HEAD)"
+  CANDIDATE_TREE="$(git -C "${WT}" rev-parse HEAD^{tree})"
   if [ -z "${RECEIPT_PATH}" ]; then
-    RECEIPT_PATH="${COORDINATOR_RECEIPT_ROOT}/${CANDIDATE}-full-gate.json"
+    RECEIPT_PATH="${COORDINATOR_RECEIPT_ROOT}/${CANDIDATE_TREE}-full-gate.json"
   fi
   receipt_identity_args
   python3 "${SCRIPT_DIR}/gate_receipt.py" identity \
@@ -299,14 +300,6 @@ if [ "${EXPECTED_MAIN_SHA}" != "${MAIN_SHA}" ]; then
   exit 1
 fi
 
-if [ -z "${RECEIPT_PATH}" ]; then
-  RECEIPT_PATH="${COORDINATOR_RECEIPT_ROOT}/${EXPECTED_PROMOTE_HEAD}-full-gate.json"
-fi
-if [ ! -f "${RECEIPT_PATH}" ]; then
-  write_out "blocked" "promotion receipt missing; principal approval cannot mutate main"
-  exit 1
-fi
-
 if [ -z "${PROMOTE_PR_NUMBER}" ]; then
   # locate by marker
   PROMOTE_PR_NUMBER="$(gh pr list --base main --state open --json number,body \
@@ -347,12 +340,33 @@ echo "${marker}" | jq -e --arg s "${STG_SHA}" --arg m "${MAIN_SHA}" --arg c "${E
 if [ -z "${CANDIDATE_IDENTITY_PATH:-}" ] || [ ! -f "${CANDIDATE_IDENTITY_PATH}" ]; then
   IDENTITY_WORKTREE="$(mktemp -d "${TMPDIR:-/tmp}/main-identity.XXXXXX")"
   IDENTITY_FILE="$(mktemp "${TMPDIR:-/tmp}/main-identity.XXXXXX.json")"
+  git fetch origin "refs/heads/${head_branch}:refs/remotes/origin/${head_branch}"
+  if [ "$(git rev-parse "origin/${head_branch}")" != "${EXPECTED_PROMOTE_HEAD}" ]; then
+    rm -rf "${IDENTITY_WORKTREE}"
+    rm -f "${IDENTITY_FILE}"
+    write_out "failed" "fetched promote branch does not match expected head"
+    exit 1
+  fi
   git worktree add --detach "${IDENTITY_WORKTREE}" "origin/${head_branch}" >/dev/null
   receipt_identity_args
   python3 "${SCRIPT_DIR}/gate_receipt.py" identity \
     --repo "${IDENTITY_WORKTREE}" --profile full "${RECEIPT_IDENTITY_ARGS[@]}" >"${IDENTITY_FILE}"
   git worktree remove --force "${IDENTITY_WORKTREE}" >/dev/null 2>&1 || rm -rf "${IDENTITY_WORKTREE}"
   CANDIDATE_IDENTITY_PATH="${IDENTITY_FILE}"
+fi
+if [ -z "${RECEIPT_PATH}" ]; then
+  CANDIDATE_TREE="$(python3 - "${CANDIDATE_IDENTITY_PATH}" <<'PY'
+import json
+import sys
+print(json.load(open(sys.argv[1], encoding="utf-8"))["gitTreeSha"])
+PY
+)"
+  RECEIPT_PATH="${COORDINATOR_RECEIPT_ROOT}/${CANDIDATE_TREE}-full-gate.json"
+fi
+if [ ! -f "${RECEIPT_PATH}" ]; then
+  [ -z "${IDENTITY_FILE:-}" ] || rm -f "${IDENTITY_FILE}"
+  write_out "blocked" "promotion receipt missing; principal approval cannot mutate main"
+  exit 1
 fi
 python3 "${RECEIPT_GATE}" verify \
   --receipt "${RECEIPT_PATH}" \

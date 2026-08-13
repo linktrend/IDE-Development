@@ -228,11 +228,15 @@ class CoordinatorDaemon:
         except OSError:
             pass
 
-    def _write_execution_receipt(self, row: Mapping[str, Any], worker: Worker, job: Job, result: Any) -> str:
+    def _write_execution_receipt(self, row: Mapping[str, Any], lease: Any, result: Any) -> str:
         """Persist one atomic, exact-identity receipt for a passed lease only."""
         identity = row["candidate_identity"]
         source_sha = str(identity["sourceSha"])
         evidence = (str(getattr(result, "stdout", "")) + "\n" + str(getattr(result, "stderr", ""))).encode("utf-8")
+        provenance = self.scheduler.receipt_metadata(
+            lease,
+            execution_environment={"container": str(getattr(result, "container_name", "")), "network": "none"},
+        )
         receipt = GateReceipt(
             schema_version=1, status="passed", repository=str(identity["repository"]),
             gate=str(row["gate"]), source_sha=source_sha, tested_checkout_sha=source_sha,
@@ -241,12 +245,14 @@ class CoordinatorDaemon:
             coordinator_version=COORDINATOR_VERSION, started_at=str(getattr(result, "started_at", "")),
             completed_at=str(getattr(result, "completed_at", "")),
             evidence_digests={"logs/{}.txt".format(row["id"]): "sha256:" + hashlib.sha256(evidence).hexdigest()},
-            github={"pullRequest": row.get("pr_number"), "runUrl": None}, worker_id=worker.worker_id,
-            worker_capabilities=tuple(sorted(worker.capabilities)), worker_trust=worker.trust,
-            coordinator_identity="{}@{}".format(worker.worker_id, COORDINATOR_VERSION),
-            execution_environment={"container": str(getattr(result, "container_name", "")), "network": "none"},
+            github={"pullRequest": row.get("pr_number"), "runUrl": None}, worker_id=str(provenance["workerId"]),
+            worker_capabilities=tuple(provenance["workerCapabilities"]), worker_trust=str(provenance["workerTrust"]),
+            coordinator_identity=str(provenance["coordinatorIdentity"]),
+            execution_environment=dict(provenance["executionEnvironment"]),
         )
-        path = self._receipt_root / (source_sha + "-" + str(row["gate"]) + ".json")
+        # Receipts are reusable for an identical tree and dependency identity,
+        # including a no-ff promotion commit whose SHA necessarily differs.
+        path = self._receipt_root / (str(identity["gitTreeSha"]) + "-" + str(row["gate"]) + ".json")
         write_receipt(receipt, path)
         return str(path)
 
@@ -343,7 +349,7 @@ class CoordinatorDaemon:
             data = {"status": getattr(result, "status", "unknown"), "sanitized": getattr(result, "stdout", "") + "\n" + getattr(result, "stderr", ""), "error": getattr(result, "error", None)}
             if result_status == "completed":
                 try:
-                    data["receiptPath"] = self._write_execution_receipt(row, worker, job, result)
+                    data["receiptPath"] = self._write_execution_receipt(row, lease, result)
                 except Exception as receipt_error:
                     result_status = "failed"
                     data["error"] = "receipt recording failed: {}".format(receipt_error)
