@@ -6,14 +6,12 @@ must|source_sha
 must|dry_run
 must|github.event.repository.default_branch
 must|persist-credentials: false
-must|LINKTREND_AUTOMATION_TOKEN
-must|resolve_automation_token
-must|automation_credentials_blocked
+must|permissions:
+must|contents: write
+must|GH_TOKEN: ${{ github.token }}
 must|managed_core_release_dispatch.py
 must|managed_core_release_publish.py
-must|AUTOMATION_TOKEN
 must|untrusted-source-data
-must|refuse GITHUB_TOKEN publish fallback
 must|Bind data checkout HEAD
 must_not|pull_request.head.sha
 must_not|pull_request.merge_commit_sha
@@ -25,3 +23,6 @@ must_not|ghp_
 must_not|create-github-app-token
 must_not|LINKTREND_GITOPS_APP_ID
 must_not|LINKTREND_GITOPS_APP_PRIVATE_KEY
+must_not|LINKTREND_AUTOMATION_TOKEN
+must_not|resolve_automation_token
+must_not|AUTOMATION_TOKEN
