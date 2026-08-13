@@ -222,12 +222,22 @@ print("PASS: Full receipt binds resolved source or consumer profile and declared
 PY
 
 python3 - <<'PY'
-"""Promotion and receipt CLI must resolve the installed consumer profile."""
+"""Promotion and receipt CLI must bind the resolved source-or-consumer profile."""
 from pathlib import Path
 
 for relative in (
     "scripts/gitops/promote_staging.sh",
     "scripts/gitops/promote_main.sh",
+):
+    text = Path(relative).read_text(encoding="utf-8")
+    assert "receipt_profile_args()" in text, relative
+    assert 'RECEIPT_PROFILE_ARGS=()' in text, relative
+    assert '.github/linktrend-delivery-mode.json' in text, relative
+    assert '.ide-development/config/delivery.json' in text, relative
+    assert 'delivery profile configuration is unavailable in promotion candidate' in text, relative
+    assert '${RECEIPT_PROFILE_ARGS[@]+"${RECEIPT_PROFILE_ARGS[@]}"}' in text, relative
+
+for relative in (
     ".github/workflows/linktrend-development-to-staging.yml",
     ".github/workflows/linktrend-staging-to-main.yml",
     "core/github/managed-workflows/linktrend-development-to-staging.yml",
@@ -239,7 +249,7 @@ for relative in (
 receipt = Path("scripts/gitops/gate_receipt.py").read_text(encoding="utf-8")
 assert ".ide-development/config/delivery.json" in receipt
 assert "resolved_profile_files" in receipt
-print("PASS: receipt and promotion identities resolve source or installed profile")
+print("PASS: receipt and promotion identities bind a resolved source or installed profile")
 PY
 
 python3 - <<'PY'
