@@ -17,7 +17,7 @@
     },
     "full": {
       "required": false,
-      "commands": [["bash", "tests/test-portable-v2-integration.sh", "--full"]],
+      "commands": [["bash", "scripts/verify-ide-development.sh"]],
       "timeoutSeconds": 3600
     },
     "release": {
