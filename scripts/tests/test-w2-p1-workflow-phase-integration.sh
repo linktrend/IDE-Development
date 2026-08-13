@@ -79,6 +79,8 @@ for name in ("linktrend-development-to-staging.yml", "linktrend-staging-to-main.
     assert "download-artifact" in text
     assert "fullRunId" in text and "steps.receipt.outputs.run_id" in text
     assert "--workflow-run-id" in text
+    assert '.path == ".github/workflows/linktrend-integrator-merge.yml"' in text
+    assert '.name == "Linktrend Full Suite"' not in text
     assert "test-gitops-phase-delivery.sh" not in text
     assert not re.search(r"^\s+workflow_run:", text, re.M)
 
