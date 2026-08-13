@@ -52,10 +52,13 @@ class ExactCiSuccessTests(unittest.TestCase):
 
     def test_accepts_explicit_dynamic_security_workflow_at_exact_head(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            with patch.dict(os.environ, {"LINKTREND_ACTIONS_RUNS_JSON": json.dumps({"workflow_runs": [
-                {"name": "CodeQL", "event": "dynamic", "head_sha": self.head, "conclusion": "success"},
-                {"name": "CodeQL", "event": "dynamic", "head_sha": "b" * 40, "conclusion": "success"},
-            ]})}, clear=False):
+            with patch.dict(os.environ, {
+                "LINKTREND_ACTIONS_RUNS_JSON": json.dumps({"workflow_runs": []}),
+                "LINKTREND_CHECK_RUNS_JSON": json.dumps({"check_runs": [
+                    {"name": "CodeQL", "conclusion": "success"},
+                    {"name": "CodeQL", "conclusion": "failure"},
+                ]}),
+            }, clear=False):
                 self.assertEqual(
                     require_success("linktrend/fixture", self.head, self.root(tmp), workflow_name="CodeQL"),
                     "CodeQL",

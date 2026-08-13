@@ -48,6 +48,32 @@ def workflow_runs(repository: str, head: str) -> list[object]:
     return runs
 
 
+def successful_check_run(repository: str, head: str, name: str) -> bool:
+    """Return an exact-head completed check-run match.
+
+    CodeQL PR analyses are represented as ``dynamic`` and may be absent from
+    the Actions runs listing.  GitHub's commit check-runs endpoint is the
+    authoritative exact-SHA record for those checks.
+    """
+    supplied = os.environ.get("LINKTREND_CHECK_RUNS_JSON")
+    if supplied is None:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{repository}/commits/{head}/check-runs?per_page=100"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        supplied = result.stdout
+    try:
+        runs = json.loads(supplied)["check_runs"]
+    except (ValueError, KeyError, TypeError) as exc:
+        raise SystemExit(f"consumer_ci_check_runs_invalid:{exc}") from exc
+    return isinstance(runs, list) and any(
+        isinstance(run, dict) and run.get("name") == name and run.get("conclusion") == "success"
+        for run in runs
+    )
+
+
 def require_success(repository: str, head: str, root: Path, config_key: str = "ciWorkflowName", workflow_name: str | None = None) -> str:
     if not repository or not head:
         raise SystemExit("consumer_ci_identity_invalid")
@@ -57,6 +83,8 @@ def require_success(repository: str, head: str, root: Path, config_key: str = "c
             continue
         if run.get("name") == name and run.get("head_sha") == head and run.get("conclusion") == "success":
             return name
+    if workflow_name and successful_check_run(repository, head, name):
+        return name
     raise SystemExit(f"full_suite_required_ci_missing_for_exact_head={head} workflow={name}")
 
 

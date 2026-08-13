@@ -2829,7 +2829,7 @@
       "id": "gitops-scripts-gitops-require-exact-ci-success-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/require_exact_ci_success.py",
-      "sourceHash": "sha256:d36e78cb7f3fb18556e086838b7c6de08f1990598fa02715bd8ca8ef69949d6e",
+      "sourceHash": "sha256:4681d989b86643cb5de9c8c83b1fc73e7c5fdb84e32f0f175357c36b328887a8",
       "destination": "scripts/gitops/require_exact_ci_success.py",
       "mode": "0755",
       "platform": "github",
