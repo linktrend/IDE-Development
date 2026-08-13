@@ -94,6 +94,7 @@ from pathlib import Path
 path, ci, branch, bugbot, runner_type = sys.argv[1:6]
 Path(path).write_text(json.dumps({
     "schemaVersion": 1,
+    "fastWorkflowName": "Linktrend Fast Checks",
     "ciWorkflowName": ci,
     "branchPolicyWorkflowName": branch,
     "bugbotCheckName": bugbot,
