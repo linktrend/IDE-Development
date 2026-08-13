@@ -14,8 +14,10 @@ from scripts.gitops.coordinator.state import load_state, transition
 
 from .executor import Job, run_job
 from .github_client import GitHubClient, GitHubError, validate_main_approval
+from .multihost import MultiHostCoordinator
 from .queue import QueueRequest, QueueResult, QueueStore, configure_default_store, priority_for
-from .resources import HostSnapshot, ResourceLimits, admit_job
+from .resources import HostSnapshot, ResourceLimits
+from .workers import Worker, WorkerRegistry, current_mac_mini_fixture
 
 
 COORDINATOR_VERSION = "2.0.0"
@@ -39,6 +41,12 @@ class CoordinatorDaemon:
 
     def __init__(self, database: str | Path, *, github: Optional[GitHubClient] = None, runner: Optional[Callable[..., Any]] = None) -> None:
         self.store = QueueStore(database)
+        self.workers = WorkerRegistry(database)
+        self.scheduler = MultiHostCoordinator(store=self.store, registry=self.workers, coordinator_version=COORDINATOR_VERSION)
+        if not self.workers.inspect():
+            # The current Mac Mini is the only enabled default registration.
+            # Additional workers remain an explicit operator action.
+            self.workers.register(current_mac_mini_fixture())
         configure_default_store(self.store)
         self.github = github or GitHubClient()
         self.runner = runner or run_job
@@ -47,7 +55,30 @@ class CoordinatorDaemon:
         self._pause_lock = threading.Lock()
 
     def close(self) -> None:
-        self.store.close()
+        self.scheduler.close()
+
+    def register_worker(self, worker: Worker | Mapping[str, Any]) -> Worker:
+        """Register only an isolated candidate worker; no privileged role."""
+        return self.workers.register(worker)
+
+    def worker_heartbeat(self, worker_id: str) -> Worker:
+        return self.workers.heartbeat(worker_id)
+
+    def worker_command(self, command: str, worker_id: str) -> Worker | bool:
+        commands = {
+            "enable": self.workers.enable,
+            "disable": self.workers.disable,
+            "drain": self.workers.drain,
+            "offline": self.workers.mark_offline,
+        }
+        if command == "remove":
+            return self.workers.remove(worker_id)
+        if command not in commands:
+            raise ValueError("unknown worker lifecycle command")
+        return commands[command](worker_id)
+
+    def inspect_workers(self, worker_id: Optional[str] = None) -> list[dict[str, Any]]:
+        return self.workers.inspect(worker_id)
 
     def register(self, repository: str, root: str, default_branch: str = "development") -> RepositoryRegistration:
         self.store.register_repository(repository, root, default_branch)
@@ -133,41 +164,108 @@ class CoordinatorDaemon:
         queued = self.store.next_job()
         if queued is None:
             return None
-        try:
-            config = self._protected_configs.get(queued["repository"]) or self.load_protected_config(queued["repository"])
-        except GitHubError as exc:
-            # Policy/credential failures happen before mark_started, so they
-            # cannot consume one of the candidate's two execution attempts.
-            return {"status": "failed-closed", "jobId": queued["id"], "reason": str(exc)}
-        limits = ResourceLimits.from_mapping({})
-        verdict = admit_job(queued, host_snapshot or HostSnapshot(), self.store.list_jobs(statuses={"running"}), limits)
-        if not verdict.admitted:
-            return {"status": "deferred", "jobId": queued["id"], "reason": verdict.reason, "pressure": verdict.pressure_reasons}
-        started = self.store.mark_started(queued["id"])
-        if not started.get("started"):
-            return {"status": "not-started", "jobId": queued["id"], "reason": started.get("reason")}
-        row = started["job"]
+        configs: dict[str, DeliveryConfig] = {}
+        policy_errors: dict[str, str] = {}
+        for candidate in self.store.list_jobs(statuses={"queued"}):
+            repository = candidate["repository"]
+            if repository in configs or repository in policy_errors:
+                continue
+            try:
+                configs[repository] = self._protected_configs.get(repository) or self.load_protected_config(repository)
+            except GitHubError as exc:
+                policy_errors[repository] = str(exc)
+        if not configs:
+            # Policy/credential failures happen before any lease, so they
+            # cannot consume one of the candidate's execution attempts.
+            return {"status": "failed-closed", "jobId": queued["id"], "reason": policy_errors.get(queued["repository"], "no protected policy available")}
+
+        lease = None
+        snapshot = self._snapshot_mapping(host_snapshot or HostSnapshot())
+        for worker in self.workers.list():
+            lease = self.scheduler.claim(
+                worker.worker_id, snapshot=snapshot,
+                admission_limits=self._coordinator_admission(configs.values()),
+                allowed_repositories=set(configs),
+            )
+            if lease is not None:
+                break
+        if lease is None:
+            return {"status": "deferred", "jobId": queued["id"], "reason": "no-eligible-worker"}
+
+        row = self.store.get(lease.job_id)
+        if row is None:
+            return {"status": "failed-closed", "jobId": lease.job_id, "reason": "leased job disappeared"}
+        config = configs[row["repository"]]
+        worker = self.workers.get(lease.worker_id)
         registration = self.store.repository(row["repository"])
+        if worker is None or registration is None:
+            self.scheduler.complete(lease, "rejected", {"error": "lease context disappeared", "sanitized": "lease context disappeared"})
+            return {"status": "failed-closed", "jobId": row["id"], "reason": "lease context disappeared"}
         payload = row["payload"]
         profile = config.test_profiles.get(row["candidate_identity"]["testProfile"]) if config.test_profiles else None
         commands = profile.commands if profile else ()
         command = commands[0] if commands else ("true",)
-        job = Job(job_id=row["id"], checkout_path=registration["root"], workspace_root=str(Path(registration["root"]).parent), image=str(payload.get("image", "alpine:3.20")), command=tuple(command), test_profile=row["candidate_identity"]["testProfile"], timeout_seconds=int(payload.get("timeoutSeconds", 300)), repository=row["repository"])
+        limits = self._execution_limits(config)
+        job = Job(
+            job_id=row["id"], checkout_path=registration["root"],
+            workspace_root=str(Path(registration["root"]).parent),
+            image=str(payload.get("image", "alpine:3.20")), command=tuple(command),
+            test_profile=row["candidate_identity"]["testProfile"],
+            timeout_seconds=int(payload.get("timeoutSeconds", profile.timeout_seconds if profile else 300)),
+            repository=row["repository"], worker_id=worker.worker_id,
+            worker_trust=worker.trust, worker_capabilities=tuple(sorted(worker.capabilities)),
+            nested_docker=bool(payload.get("nestedDocker", False)),
+            protected_nested_config=payload.get("protectedNestedConfig"),
+        )
         try:
-            result = self.runner(job, limits, lambda: self.store.get(row["id"])["status"] == "cancelled")
+            result = self.runner(job, limits, lambda: self._lease_cancelled(lease))
             result_status = "completed" if getattr(result, "status", "") == "passed" else "cancelled" if getattr(result, "status", "") == "cancelled" else "failed"
             data = {"status": getattr(result, "status", "unknown"), "sanitized": getattr(result, "stdout", "") + "\n" + getattr(result, "stderr", ""), "error": getattr(result, "error", None)}
-            final = self.store.record_result(row["id"], result_status, data, evidence_location=payload.get("evidence", "") if isinstance(payload, Mapping) else "")
-            if final.get("alert") and hasattr(self.github, "upsert_alert"):
-                alert = final["alert"]
-                self.github.upsert_alert(row["repository"], "Linktrend coordinator stopped after two failures", json.dumps(alert, sort_keys=True), marker=alert["alert_key"])
-            context = STATUS_CONTEXTS.get(row["gate"])
-            if context and row["candidate_identity"].get("sourceSha"):
-                self.github.publish_status(row["repository"], row["candidate_identity"]["sourceSha"], context, "success" if result_status == "completed" else "failure", "coordinator result: " + result_status, "https://github.com/{}/commit/{}/checks".format(row["repository"], row["candidate_identity"]["sourceSha"]))
-            return {"status": result_status, "jobId": row["id"], "attempt": row["attempt_count"], "result": final}
+            final = self.scheduler.complete(lease, result_status, data)
         except Exception as exc:
-            self.store.record_result(row["id"], "failed", {"error": str(exc), "sanitized": str(exc)})
-            return {"status": "failed", "jobId": row["id"], "error": str(exc)}
+            data = {"error": str(exc), "sanitized": str(exc)}
+            try:
+                final = self.scheduler.complete(lease, "failed", data)
+            except Exception as completion_error:
+                return {"status": "failed-closed", "jobId": row["id"], "error": str(completion_error)}
+            result_status = "failed"
+
+        if final.get("alert") and hasattr(self.github, "upsert_alert"):
+            alert = final["alert"]
+            self.github.upsert_alert(row["repository"], "Linktrend coordinator stopped after two failures", json.dumps(alert, sort_keys=True), marker=alert["alert_key"])
+        context = STATUS_CONTEXTS.get(row["gate"])
+        if context and row["candidate_identity"].get("sourceSha"):
+            self.github.publish_status(row["repository"], row["candidate_identity"]["sourceSha"], context, "success" if result_status == "completed" else "failure", "coordinator result: " + result_status, "https://github.com/{}/commit/{}/checks".format(row["repository"], row["candidate_identity"]["sourceSha"]))
+        return {"status": result_status, "jobId": row["id"], "attempt": row["attempt_count"], "result": final, "workerId": lease.worker_id}
+
+    @staticmethod
+    def _snapshot_mapping(snapshot: HostSnapshot) -> dict[str, Any]:
+        return {
+            "cpuPercent": snapshot.cpu_percent, "memoryPercent": snapshot.memory_percent,
+            "freeDiskGiB": snapshot.free_disk_gib, "dockerAvailable": snapshot.docker_available,
+            "interactiveUse": snapshot.interactive_use,
+        }
+
+    @staticmethod
+    def _execution_limits(config: DeliveryConfig) -> ResourceLimits:
+        payload = config.resource_limits.to_dict() if config.resource_limits else {}
+        payload.update({"maxFastJobs": config.max_fast_jobs, "maxHeavyJobs": config.max_heavy_jobs})
+        return ResourceLimits.from_mapping(payload)
+
+    @staticmethod
+    def _coordinator_admission(configs: Any) -> dict[str, Any]:
+        values = list(configs)
+        return {
+            "maxFastJobs": min(config.max_fast_jobs for config in values),
+            "maxHeavyJobs": min(config.max_heavy_jobs for config in values),
+            "pauseCpuPercent": min((config.resource_limits.pause_cpu_percent for config in values if config.resource_limits), default=80),
+            "pauseMemoryPercent": min((config.resource_limits.pause_memory_percent for config in values if config.resource_limits), default=80),
+            "minimumFreeDiskGiB": max((config.resource_limits.minimum_free_disk_gib for config in values if config.resource_limits), default=20),
+        }
+
+    def _lease_cancelled(self, lease: Any) -> bool:
+        current = self.store.get(lease.job_id)
+        return not current or current.get("status") != "running" or current.get("lease_id") != lease.lease_id
 
     def pause(self) -> None:
         with self._pause_lock:
@@ -185,7 +283,7 @@ class CoordinatorDaemon:
             return self._paused
 
     def status(self) -> dict[str, Any]:
-        return {"version": COORDINATOR_VERSION, "paused": self.paused, "repositories": self.registrations(), "jobs": self.store.list_jobs(), "alerts": self.store.alerts()}
+        return {"version": COORDINATOR_VERSION, "paused": self.paused, "repositories": self.registrations(), "workers": self.inspect_workers(), "jobs": self.store.list_jobs(), "alerts": self.store.alerts()}
 
     def service_once(self, *, execute: bool = False) -> dict[str, Any]:
         """Run one safe coordinator service pass.

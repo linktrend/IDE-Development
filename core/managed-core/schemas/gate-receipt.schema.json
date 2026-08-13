@@ -58,7 +58,16 @@
         "pullRequest": {"type": ["integer", "null"], "minimum": 1},
         "runUrl": {"type": ["string", "null"]}
       }
-    }
+    },
+    "workerId": {"type": ["string", "null"], "minLength": 1},
+    "workerCapabilities": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["fast", "heavy", "nestedDocker"]},
+      "uniqueItems": true
+    },
+    "workerTrust": {"type": ["string", "null"], "enum": ["isolated-candidate", null]},
+    "coordinatorIdentity": {"type": ["string", "null"], "minLength": 1},
+    "executionEnvironment": {"type": "object", "additionalProperties": true}
   },
   "$defs": {
     "sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
