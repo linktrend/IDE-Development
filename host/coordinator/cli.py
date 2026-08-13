@@ -1,0 +1,139 @@
+"""Command line interface for the local coordinator."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+from .daemon import CoordinatorDaemon
+from .queue import QueueRequest, priority_for
+
+
+def _json(value: Any) -> str:
+    return json.dumps(value, indent=2, sort_keys=True, default=str)
+
+
+def _daemon(args: argparse.Namespace) -> CoordinatorDaemon:
+    return CoordinatorDaemon(args.db)
+
+
+def run_service(daemon: CoordinatorDaemon, *, interval: float, once: bool = False, max_iterations: int | None = None, execute: bool = False) -> int:
+    """Keep the local coordinator alive while doing bounded service passes."""
+    if interval < 0.01 or interval > 300:
+        raise ValueError("--interval must be between 0.01 and 300 seconds")
+    if max_iterations is not None and max_iterations < 1:
+        raise ValueError("--max-iterations must be positive")
+    if once:
+        max_iterations = 1
+
+    iterations = 0
+    try:
+        while max_iterations is None or iterations < max_iterations:
+            print(_json(daemon.service_once(execute=execute)), flush=True)
+            iterations += 1
+            if max_iterations is not None and iterations >= max_iterations:
+                break
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print(_json({"status": "stopped", "reason": "interrupt", "iterations": iterations}), flush=True)
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="ide-coordinator", description="Bounded LiNKtrend local delivery coordinator")
+    parser.add_argument("--db", default="~/.linktrend/ide-coordinator/coordinator.sqlite3", help="scoped SQLite database path")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    run = sub.add_parser("run", help="run the persistent, safe-by-default local service loop")
+    run.add_argument("--interval", type=float, default=30.0, help="seconds between bounded service passes (default: 30)")
+    run.add_argument("--once", action="store_true", help="perform one service pass and exit")
+    run.add_argument("--max-iterations", type=int, help="stop after this many service passes")
+    run.add_argument("--execute", action="store_true", help="explicitly dispatch queued work; never enabled by launchd")
+    sub.add_parser("status", help="show persisted queue and registry state")
+    sub.add_parser("pause", help="pause new job execution")
+    sub.add_parser("resume", help="resume new job execution")
+    doctor = sub.add_parser("doctor", help="run local fail-closed diagnostics")
+    doctor.add_argument("--register", nargs=3, metavar=("REPOSITORY", "ROOT", "DEFAULT_BRANCH"), help="register one allowlisted repository")
+    enqueue = sub.add_parser("enqueue", help="enqueue an exact candidate gate")
+    enqueue.add_argument("repository")
+    enqueue.add_argument("gate")
+    enqueue.add_argument("identity", help="candidate identity JSON file")
+    enqueue.add_argument("--priority", type=int)
+    enqueue.add_argument("--pr-number", type=int)
+    enqueue.add_argument("--phase-id")
+    enqueue.add_argument("--candidate-command", dest="candidate_command", nargs="+", default=["true"])
+    cancel = sub.add_parser("cancel", help="cancel queued or running obsolete work")
+    cancel.add_argument("repository")
+    cancel.add_argument("--pr-number", type=int)
+    cancel.add_argument("--identity", help="live candidate identity JSON file")
+    approve = sub.add_parser("approve-main", help="record exact-bound principal approval")
+    approve.add_argument("approval", help="approval JSON file")
+    approve.add_argument("--staging-source-sha", required=True)
+    approve.add_argument("--main-base-sha", required=True)
+    approve.add_argument("--pr-head-sha", required=True)
+    approve.add_argument("--receipt-identity", required=True)
+    worker = sub.add_parser("worker", help="manage isolated candidate worker registry entries")
+    worker.add_argument("action", choices=("register", "enable", "disable", "drain", "offline", "heartbeat", "inspect", "remove"))
+    worker.add_argument("worker_id", nargs="?")
+    worker.add_argument("--definition", help="JSON worker definition for register")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    daemon = _daemon(args)
+    try:
+        if args.command == "run":
+            return run_service(daemon, interval=args.interval, once=args.once, max_iterations=args.max_iterations, execute=args.execute)
+        if args.command == "status":
+            print(_json(daemon.status()))
+        elif args.command == "pause":
+            daemon.pause()
+            print(_json({"paused": True}))
+        elif args.command == "resume":
+            daemon.resume()
+            print(_json({"paused": False}))
+        elif args.command == "doctor":
+            if args.register:
+                daemon.register(*args.register)
+            result = daemon.doctor()
+            print(_json(result))
+            return 0 if result.get("ok") else 1
+        elif args.command == "enqueue":
+            identity = json.loads(Path(args.identity).read_text(encoding="utf-8"))
+            priority = args.priority if args.priority is not None else priority_for(args.gate)
+            result = daemon.enqueue_request(QueueRequest(args.repository, args.gate, identity, priority=priority, pr_number=args.pr_number, phase_id=args.phase_id, payload={"command": args.candidate_command}))
+            print(_json(result.__dict__))
+        elif args.command == "cancel":
+            identity = json.loads(Path(args.identity).read_text(encoding="utf-8")) if args.identity else None
+            print(_json({"cancelled": daemon.cancel_obsolete(args.repository, args.pr_number, identity)}))
+        elif args.command == "approve-main":
+            approval = json.loads(Path(args.approval).read_text(encoding="utf-8"))
+            print(_json(daemon.approve_main(approval, current_staging_sha=args.staging_source_sha, current_main_base_sha=args.main_base_sha, current_pr_head_sha=args.pr_head_sha, current_receipt_identity=args.receipt_identity)))
+        elif args.command == "worker":
+            if args.action == "register":
+                if not args.definition:
+                    parser.error("worker register requires --definition")
+                definition = json.loads(Path(args.definition).read_text(encoding="utf-8"))
+                print(_json(daemon.register_worker(definition).to_dict()))
+            elif args.action == "inspect":
+                print(_json(daemon.inspect_workers(args.worker_id)))
+            else:
+                if not args.worker_id:
+                    parser.error("worker lifecycle action requires WORKER_ID")
+                result = daemon.worker_heartbeat(args.worker_id) if args.action == "heartbeat" else daemon.worker_command(args.action, args.worker_id)
+                print(_json(result.to_dict() if hasattr(result, "to_dict") else {"removed": bool(result)}))
+        return 0
+    except Exception as exc:
+        print(_json({"error": str(exc)}), file=sys.stderr)
+        return 1
+    finally:
+        daemon.close()
+
+
+__all__ = ["build_parser", "main", "run_service"]

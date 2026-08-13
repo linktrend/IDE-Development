@@ -1,0 +1,28 @@
+{
+  "packet": "W2-P1",
+  "baseCheckoutSha": "9e9abf4da7361e765f8c276d708035be261f8359",
+  "requestedBaseSha": "9e9abf4da7361e765f8c276d708035be261f835a",
+  "liveMutations": false,
+  "tests": {
+    "unittest": {"status": "passed", "count": 39},
+    "py_compile": "passed",
+    "cli_help": "passed",
+    "installer_help": "passed",
+    "diff_check": "passed"
+  },
+  "negativeProbes": {
+    "duplicateQueueEvent": "passed",
+    "etagNotModified": "passed",
+    "rateLimitAndMissingTokenFailClosed": "passed",
+    "restartRecovery": "passed",
+    "staleClosedPrCancellation": "passed",
+    "twoAttemptAlertAndThirdRefusal": "passed",
+    "protectedPolicyCannotBeReplacedByCandidate": "passed",
+    "mainApprovalBinding": "passed",
+    "installerScopeAndRollback": "passed",
+    "bugbotObservationOnly": "passed",
+    "secretFreeOutput": "passed",
+    "launchdServiceCommand": "passed: rendered ProgramArguments include run; --once is healthy without credentials; interrupt stops persistent loop"
+  },
+  "evidenceDigestPolicy": "sanitized local evidence only"
+}

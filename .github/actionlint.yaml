@@ -1,0 +1,8 @@
+self-hosted-runner:
+  labels:
+    - linktrend-ci-isolated
+    - linktrend-privileged
+paths:
+  "**/.github/workflows/*.yml":
+    ignore:
+      - "shellcheck reported issue in this script: SC2129"
