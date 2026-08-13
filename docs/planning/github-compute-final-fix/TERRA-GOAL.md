@@ -81,4 +81,3 @@ steps already authorized; stop only for a genuinely destructive ambiguity,
 unavailable paid compute after two confirmed attempts, possible loss of unique
 work, credential authority not present, or a scope decision that Carlos has not
 already approved.
-

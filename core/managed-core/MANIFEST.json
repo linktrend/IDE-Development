@@ -2453,6 +2453,18 @@
       "notes": "Hosted W2-P1 workflow template; materialized by workflow sync."
     },
     {
+      "id": "workflow-linktrend-cleanup-merged-yml",
+      "ownershipClass": "managed-core",
+      "source": "core/github/managed-workflows/linktrend-cleanup-merged.yml",
+      "sourceHash": "sha256:6f75f6720428a946070186f8f1b6e276b1d7d98554752d62a29339281bc2ce7c",
+      "destination": ".ide-development/workflows/linktrend-cleanup-merged.yml",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Hosted W2-P1 workflow template; materialized by workflow sync."
+    },
+    {
       "id": "workflow-linktrend-development-to-staging-yml",
       "ownershipClass": "managed-core",
       "source": "core/github/managed-workflows/linktrend-development-to-staging.yml",
@@ -2468,7 +2480,7 @@
       "id": "workflow-linktrend-integrator-merge-yml",
       "ownershipClass": "managed-core",
       "source": "core/github/managed-workflows/linktrend-integrator-merge.yml",
-      "sourceHash": "sha256:6509cff2fc6774b6421c91a2f3e3c7babb6e29e6280ddc2205f8a79f4c397c5c",
+      "sourceHash": "sha256:4a9cc0a7f533e98cf65f83def9f0f0f8b86334d9ba36830b248630d8b47cb9ff",
       "destination": ".ide-development/workflows/linktrend-integrator-merge.yml",
       "mode": "0644",
       "platform": "github",
@@ -2482,6 +2494,18 @@
       "source": "core/github/managed-workflows/linktrend-review-packager.yml",
       "sourceHash": "sha256:2678982e8bf1757d6107619b80cad8a31244af204180c8cc7a37cbac324dce2f",
       "destination": ".ide-development/workflows/linktrend-review-packager.yml",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Hosted W2-P1 workflow template; materialized by workflow sync."
+    },
+    {
+      "id": "workflow-linktrend-review-ready-publisher-yml",
+      "ownershipClass": "managed-core",
+      "source": "core/github/managed-workflows/linktrend-review-ready-publisher.yml",
+      "sourceHash": "sha256:3fa093d4ebddc78f6c80a392a8b47f0819fdd24960198be4a2f39e4851814943",
+      "destination": ".ide-development/workflows/linktrend-review-ready-publisher.yml",
       "mode": "0644",
       "platform": "github",
       "os": "all",
@@ -2513,6 +2537,42 @@
       "markerBegin": "<!-- BEGIN LINKTREND-IDE-MANAGED -->",
       "markerEnd": "<!-- END LINKTREND-IDE-MANAGED -->",
       "notes": "Upserts managed lifecycle block; preserves consumer text outside markers."
+    },
+    {
+      "id": "gitops-scripts-cleanup-merged-branches-sh",
+      "ownershipClass": "managed",
+      "source": "scripts/cleanup-merged-branches.sh",
+      "sourceHash": "sha256:cee3ffb385b42c4b681b28d43ef61815689a71acf1e1540f5a8c8ae75e143a4d",
+      "destination": "scripts/cleanup-merged-branches.sh",
+      "mode": "0755",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
+      "id": "gitops-scripts-gitops-bugbot-user-credentials-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/bugbot_user_credentials.py",
+      "sourceHash": "sha256:d79d08f5e03fa5b0a0fa9580890c5bd39c5aa3c7219fb81ad2df4b9f531947e2",
+      "destination": "scripts/gitops/bugbot_user_credentials.py",
+      "mode": "0755",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
+      "id": "gitops-scripts-gitops-cleanup-controls-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/cleanup_controls.py",
+      "sourceHash": "sha256:9bb688d397bc415067b38123db44266506a84dfb6c41c016f3720d7fea5dfdce",
+      "destination": "scripts/gitops/cleanup_controls.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
     },
     {
       "id": "gitops-scripts-gitops-completion-gate-py",
@@ -2635,6 +2695,42 @@
       "notes": "Managed GitOps script; never overwrites consumer ci.yml."
     },
     {
+      "id": "gitops-scripts-gitops-main-approve-package-discover-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/main_approve_package_discover.py",
+      "sourceHash": "sha256:f6c5f1caf5541d260cb1f3f52157080c9d0e5241e79a2c30342a820026f6d155",
+      "destination": "scripts/gitops/main_approve_package_discover.py",
+      "mode": "0755",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
+      "id": "gitops-scripts-gitops-main-approve-package-reuse-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/main_approve_package_reuse.py",
+      "sourceHash": "sha256:ef21cc91858a30793ab8c77ca39fe0cc2d18646a9b04b5c604d08f33b4f04dc3",
+      "destination": "scripts/gitops/main_approve_package_reuse.py",
+      "mode": "0755",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
+      "id": "gitops-scripts-gitops-packager-logic-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/packager_logic.py",
+      "sourceHash": "sha256:c6b95e0026cbda5e0655720e1fc99723fa106acc304b3a4762effb10a9b0034e",
+      "destination": "scripts/gitops/packager_logic.py",
+      "mode": "0755",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
       "id": "gitops-scripts-gitops-phase-integrator-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/phase_integrator.py",
@@ -2659,6 +2755,42 @@
       "notes": "Managed GitOps script; never overwrites consumer ci.yml."
     },
     {
+      "id": "gitops-scripts-gitops-readiness-status-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/readiness_status.py",
+      "sourceHash": "sha256:4d0818e43e3f5d3eca0d215724b8240056d078ea207f611600e4bd4aded5c836",
+      "destination": "scripts/gitops/readiness_status.py",
+      "mode": "0755",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
+      "id": "gitops-scripts-gitops-repair-observer-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/repair_observer.py",
+      "sourceHash": "sha256:04c69c4440dcad12c3ebefaaa72b96fd53f8d9b39b1acd894f1d1f6b7530c0ee",
+      "destination": "scripts/gitops/repair_observer.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
+      "id": "gitops-scripts-gitops-repair-task-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/repair_task.py",
+      "sourceHash": "sha256:bc488140766e2d810e1ddb0751c432c8c171e6fd465bb9d9981aca18601a5b67",
+      "destination": "scripts/gitops/repair_task.py",
+      "mode": "0755",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
       "id": "tooling-scripts-gitops-repository-protection-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/repository_protection.py",
@@ -2670,11 +2802,35 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "gitops-scripts-gitops-resolve-bugbot-user-token-sh",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/resolve_bugbot_user_token.sh",
+      "sourceHash": "sha256:dfb3497e63359a2fa404ab0c8de23f79022b4259d63c586800eec630c6aa9456",
+      "destination": "scripts/gitops/resolve_bugbot_user_token.sh",
+      "mode": "0755",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
       "id": "gitops-scripts-gitops-resolve-event-pr-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/resolve_event_pr.py",
       "sourceHash": "sha256:0a2f7044ade0ac0b257e6436419d1e3d2568b764f0f29b67b1585f38c2cc1af4",
       "destination": "scripts/gitops/resolve_event_pr.py",
+      "mode": "0755",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
+      "id": "gitops-scripts-gitops-review-ready-dispatch-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/review_ready_dispatch.py",
+      "sourceHash": "sha256:6c6168773ef10a5de7ad9840acd09da7412d6e6d53bd9a52addf5740eb207229",
+      "destination": "scripts/gitops/review_ready_dispatch.py",
       "mode": "0755",
       "platform": "github",
       "os": "all",
@@ -2711,6 +2867,18 @@
       "source": "scripts/gitops/work-branch-allowlist.sh",
       "sourceHash": "sha256:1a5f4e93089aca137b6127b83641f6bc1ce0db3fcda24a8e31baa0cf0b0cbbc9",
       "destination": "scripts/gitops/work-branch-allowlist.sh",
+      "mode": "0755",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
+      "id": "gitops-scripts-gitops-write-outcome-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/write_outcome.py",
+      "sourceHash": "sha256:ba088c7a0dc9c22224adfef3bc382c4032c65caa181be3876d27b4fc105ed2b7",
+      "destination": "scripts/gitops/write_outcome.py",
       "mode": "0755",
       "platform": "github",
       "os": "all",
@@ -2936,6 +3104,18 @@
       "platform": "all",
       "os": "all",
       "mergeStrategy": "replace"
+    },
+    {
+      "id": "gitops-scripts-tests-test-gitops-phase-delivery-sh",
+      "ownershipClass": "managed",
+      "source": "scripts/tests/test-gitops-phase-delivery.sh",
+      "sourceHash": "sha256:0f2fac579e31985cf1a369ea3c057fc4de26767db22cb0655843dff3abd5fa6e",
+      "destination": "scripts/tests/test-gitops-phase-delivery.sh",
+      "mode": "0755",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
     }
   ]
 }

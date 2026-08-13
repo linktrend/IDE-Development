@@ -39,4 +39,3 @@ deletion, unrelated cleanup, or spending limit.
 Return one structured evidence record per repository and a packet PASS/HOLD. Terra
 may delete the global former custom App only after combining PASS evidence from all
 three Wave 3 consumer packets and independently verifying zero remaining access.
-

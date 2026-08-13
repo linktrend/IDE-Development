@@ -80,4 +80,3 @@ Use temporary directories created safely; never install into IDE Development.
 
 Return one exact commit, manifest digest, fresh/upgrade/idempotence/rollback logs,
 list of package files removed/replaced, and redacted external cleanup plan.
-

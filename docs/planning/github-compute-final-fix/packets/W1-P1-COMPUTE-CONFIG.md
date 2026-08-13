@@ -77,4 +77,3 @@ If module discovery differs, record and run the repository-equivalent command.
 Commit one coherent change. Return the evidence record required by
 `FROZEN-INTERFACES.md`, normalized config example, digest determinism proof, and
 negative-test results.
-

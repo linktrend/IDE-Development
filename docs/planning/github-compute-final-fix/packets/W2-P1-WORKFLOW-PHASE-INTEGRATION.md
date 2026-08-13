@@ -82,4 +82,3 @@ preflight. Rename/replace the obsolete local-coordinator test only in W2-P3.
 
 Return one exact commit, workflow event/permission/concurrency matrix, validation
 logs, and any installer/legacy references W2-P2/P3 must remove.
-

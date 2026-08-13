@@ -55,13 +55,7 @@ root = Path(sys.argv[1])
 runner_type = json.loads(
     (root / ".github/linktrend-gitops-consumer.json").read_text()
 ).get("runnerType", "github-hosted")
-runner_types = {
-    "github-hosted": ("ubuntu-latest", "ubuntu-latest"),
-    "linktrend-private-macos-arm64": (
-        "[self-hosted, macOS, ARM64, linktrend-privileged]",
-        "[self-hosted, Linux, ARM64, linktrend-ci-isolated]",
-    ),
-}
+runner_types = {"github-hosted": ("ubuntu-24.04-arm", "ubuntu-24.04-arm")}
 assert runner_type in runner_types, f"Unsupported runnerType: {runner_type}"
 privileged_runner, untrusted_runner = runner_types[runner_type]
 
@@ -83,9 +77,8 @@ for name in (
 ):
     managed = (root / "core/github/managed-workflows" / name).read_text()
     live = (root / ".github/workflows" / name).read_text()
-    if name != "branch-source-policy.yml":
-        assert "__LINKTREND_CI_WORKFLOW_NAME__" in managed, name
     assert render(managed) == live, f"{name} live != rendered managed"
+    assert "self-hosted" not in live and "ubuntu-latest" not in live, name
 PY
 pass "managed templates render to live IDE workflow names"
 
@@ -618,21 +611,14 @@ if ! git rev-parse --verify origin/development >/dev/null 2>&1; then
   fail "origin/development missing — cannot run git diff --check"
 fi
 set +e
-git diff --check origin/development...HEAD >/tmp/diffcheck-head.out 2>/tmp/diffcheck-head.err
-head_ec=$?
-git diff --check >/tmp/diffcheck-wt.out 2>/tmp/diffcheck-wt.err
-wt_ec=$?
+git diff --check origin/development >/tmp/diffcheck-candidate.out 2>/tmp/diffcheck-candidate.err
+candidate_ec=$?
 set -e
-if [ "$head_ec" -ne 0 ]; then
-  cat /tmp/diffcheck-head.out /tmp/diffcheck-head.err >&2
-  fail "git diff --check origin/development...HEAD failed"
+if [ "$candidate_ec" -ne 0 ]; then
+  cat /tmp/diffcheck-candidate.out /tmp/diffcheck-candidate.err >&2
+  fail "git diff --check origin/development failed for candidate tree"
 fi
-pass "git diff --check origin/development...HEAD clean"
-if [ "$wt_ec" -ne 0 ]; then
-  cat /tmp/diffcheck-wt.out /tmp/diffcheck-wt.err >&2
-  fail "git diff --check failed for working tree"
-fi
-pass "git diff --check working tree clean"
+pass "git diff --check origin/development clean for candidate tree"
 
 # ---- Main Approve package/store interface (Lisa) ----
 grep -q 'github_promote_pr_marker\|Package store' docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md \

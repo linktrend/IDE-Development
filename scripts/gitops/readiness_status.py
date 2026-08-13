@@ -32,7 +32,7 @@ DEFAULT_BACKEND = "github"  # or "file" for tests (LINKTREND_STATUS_DIR)
 # Exact safe normal-token publication route (trusted workflow on default branch).
 REVIEW_READY_PUBLISHER_WORKFLOW = "linktrend-review-ready-publisher.yml"
 REVIEW_READY_PUBLISHER_WORKFLOW_NAME = "Linktrend Review Ready Publisher"
-APP_PUBLISH_TOKEN_ENVS = ("AUTOMATION_TOKEN",)
+APP_PUBLISH_TOKEN_ENVS = ("GH_TOKEN", "GITHUB_TOKEN")
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -92,10 +92,7 @@ class ReadyStatus:
 
 
 def resolve_app_publish_token() -> str:
-    """Return the normal automation token for privileged status publish only.
-
-    Never falls back to GH_TOKEN, GITHUB_TOKEN, or other ambient credentials.
-    """
+    """Return the explicit job-scoped token for status publication."""
     for key in APP_PUBLISH_TOKEN_ENVS:
         raw = os.environ.get(key)
         if raw is None:
@@ -200,20 +197,12 @@ def missing_app_publish_token_error(
 
 
 def _read_status_token() -> str:
-    """Token for status reads only. Prefer automation; ambient tokens allowed for get."""
-    return (
-        resolve_app_publish_token()
-        or (os.environ.get("GH_TOKEN") or "").strip()
-        or (os.environ.get("GITHUB_TOKEN") or "").strip()
-    )
+    """Return the explicit job-scoped token used for status reads."""
+    return resolve_app_publish_token()
 
 
 def _gh_token() -> str:
-    """Backward-compatible alias: prefer normal automation token, then ambient read tokens.
-
-    Privileged publish must call resolve_app_publish_token() — never this helper
-    alone — so GH_TOKEN/GITHUB_TOKEN cannot authorize mark/withdraw.
-    """
+    """Backward-compatible alias for the explicit job-scoped token."""
     return _read_status_token()
 
 

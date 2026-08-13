@@ -74,4 +74,3 @@ Add a focused lifecycle suite if the existing integration suite is not isolated.
 
 Return one exact commit, transition table, test evidence for every required edge,
 and the stable outcome codes expected by W2-P1.
-

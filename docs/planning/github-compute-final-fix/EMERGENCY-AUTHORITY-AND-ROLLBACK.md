@@ -86,4 +86,3 @@ repositories whose safety is unaffected.
 - Do not delete arbitrary Docker resources; match recorded labels/names/ownership.
 - Do not delete branches/worktrees with uncommitted or unique commits.
 - Report every deleted external resource and whether recovery is possible.
-

@@ -44,4 +44,3 @@ global App deletion, unrelated cleanup, or spending limit.
 ## Handoff
 
 Return one structured evidence record per repository and a packet PASS/HOLD.
-

@@ -93,4 +93,3 @@ profile declaration reviewed by Terra.
 - Staging to main: short receipt/identity/policy gate.
 - Different tree or dependency identity: stop and require a new final candidate;
   do not reuse the old receipt.
-

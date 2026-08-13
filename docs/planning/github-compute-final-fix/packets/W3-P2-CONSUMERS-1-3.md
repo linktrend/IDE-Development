@@ -37,4 +37,3 @@ unrelated branches/worktrees, or spending limits.
 ## Handoff
 
 Return one structured evidence record per repository and a packet PASS/HOLD.
-

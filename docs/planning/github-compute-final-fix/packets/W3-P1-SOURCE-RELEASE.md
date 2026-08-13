@@ -69,4 +69,3 @@ admin authority, merge, promotion, external cleanup, and final acceptance.
 
 Return complete source release evidence, immutable release identity, external
 cleanup evidence, Actions usage/alerts, and explicit GO authorization for W3-P2–P4.
-

@@ -76,4 +76,3 @@ Run shellcheck/actionlint/document-link checks available in the repository.
 
 Return one exact commit, test matrix/results, dry-run/apply fixture evidence, active
 documentation scan, and explicit external operations Terra must perform in W3.
-

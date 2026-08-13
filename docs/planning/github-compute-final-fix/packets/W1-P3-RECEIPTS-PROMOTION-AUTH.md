@@ -71,4 +71,3 @@ python3 -m compileall -q scripts/gitops
 
 Return one exact commit, schema example, receipt digest example, positive and
 negative matrix, and a list of remaining legacy App callers for W2-P2/W2-P3.
-

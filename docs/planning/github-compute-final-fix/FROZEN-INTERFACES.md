@@ -153,4 +153,3 @@ commandsRun, passFail, failures, artifacts, prohibitedActionsConfirmed
 
 Terra accepts an exact commit only after checking the diff, running packet
 validation, and confirming prohibited paths/actions were not touched.
-

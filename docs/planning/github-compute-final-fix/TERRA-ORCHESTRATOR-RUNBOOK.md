@@ -97,4 +97,3 @@ The final report must begin with PASS or HOLD. PASS requires:
 
 HOLD must name the exact unfinished repository/packet, evidence already valid, and
 smallest next action. It must never represent partial work as complete.
-

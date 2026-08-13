@@ -1,8 +1,8 @@
 # IDE Development GitHub Compute Final Fix
 
-Status: approved implementation authority package  
-Principal approval: 2026-08-13 (Asia/Taipei)  
-Repository: `linktrend/IDE-Development`  
+Status: approved implementation authority package
+Principal approval: 2026-08-13 (Asia/Taipei)
+Repository: `linktrend/IDE-Development`
 Planning issue: #246
 
 ## Outcome
