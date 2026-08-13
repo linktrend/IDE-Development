@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shlex
 import hashlib
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -203,9 +204,27 @@ class CoordinatorDaemon:
                 raise subprocess.CalledProcessError(1, ("git", "rev-parse", "HEAD"))
             return checkout
         except (OSError, subprocess.SubprocessError):
-            import shutil
             shutil.rmtree(parent, ignore_errors=True)
             return None
+
+    @staticmethod
+    def _reclaim_unregistered_checkout(checkout_path: str) -> None:
+        """Best-effort fallback for a checkout whose executor never registered.
+
+        The executor normally owns removal after registering the job.  This
+        path is deliberately narrower: it recognizes only the exact private
+        `mkdtemp` layout created above, and never recurses through an operator
+        repository or a mocked/foreign workspace.
+        """
+        checkout = Path(checkout_path)
+        parent = checkout.parent
+        if checkout.name != "candidate" or not parent.name.startswith("linktrend-coordinator-"):
+            return
+        shutil.rmtree(checkout, ignore_errors=True)
+        try:
+            parent.rmdir()
+        except OSError:
+            pass
 
     def cancel_obsolete(self, repository: str, pr_number: Optional[int], live_identity: Any = None) -> list[str]:
         return self.store.cancel_obsolete(repository, pr_number, live_identity)
@@ -309,6 +328,7 @@ class CoordinatorDaemon:
         finally:
             renewal_stop.set()
             renewal.join(timeout=1)
+            self._reclaim_unregistered_checkout(checkout)
 
         if final.get("alert") and hasattr(self.github, "upsert_alert"):
             alert = final["alert"]

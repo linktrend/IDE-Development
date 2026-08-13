@@ -58,6 +58,20 @@ class DaemonTests(unittest.TestCase):
             self.assertNotEqual(Path(checkout).resolve(), root.resolve())
             shutil.rmtree(Path(checkout).parent)
 
+    def test_reclaims_only_private_checkout_when_executor_never_registers(self):
+        parent = Path(tempfile.mkdtemp(prefix="linktrend-coordinator-"))
+        checkout = parent / "candidate"
+        checkout.mkdir()
+        (checkout / "candidate.txt").write_text("candidate", encoding="utf-8")
+        CoordinatorDaemon._reclaim_unregistered_checkout(str(checkout))
+        self.assertFalse(parent.exists())
+
+        with tempfile.TemporaryDirectory() as directory:
+            protected = Path(directory) / "candidate"
+            protected.mkdir()
+            CoordinatorDaemon._reclaim_unregistered_checkout(str(protected))
+            self.assertTrue(protected.exists())
+
     def test_allowlist_and_protected_config(self):
         with tempfile.TemporaryDirectory() as directory:
             daemon = CoordinatorDaemon(Path(directory) / "state.sqlite3", github=FakeGitHub())
