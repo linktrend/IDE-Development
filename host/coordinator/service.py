@@ -20,6 +20,7 @@ VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 PACKAGE_FILES = (
     "host/coordinator/__init__.py",
     "host/coordinator/__main__.py",
+    "host/coordinator/cleanup.py",
     "host/coordinator/cli.py",
     "host/coordinator/daemon.py",
     "host/coordinator/executor.py",
