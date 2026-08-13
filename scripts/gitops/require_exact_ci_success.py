@@ -61,7 +61,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
     parser.add_argument("--head", required=True)
-    parser.add_argument("--config-key", choices=("fastWorkflowName", "ciWorkflowName"), default="ciWorkflowName")
+    parser.add_argument(
+        "--config-key",
+        choices=("fastWorkflowName", "ciWorkflowName", "branchPolicyWorkflowName"),
+        default="ciWorkflowName",
+    )
     args = parser.parse_args()
     print(require_success(args.repository, args.head, Path.cwd(), args.config_key))
     return 0

@@ -51,7 +51,9 @@ assert not re.search(r"^\s+push:", full, re.M), "full suite has a checkpoint tri
 assert "name: Linktrend Full Suite" in full
 assert "types: [labeled]" in full
 assert "github.event.label.name == 'linktrend-full-suite'" in full
-assert "workflow_dispatch:" not in full
+assert "workflow_dispatch:" in full
+assert 'mode == \'reconciled\'' in full
+assert 'promotable": False' in Path("scripts/gitops/verify_reconciled_tree.py").read_text(encoding="utf-8")
 assert "full-suite-receipt.json" in full
 assert "retention-days: 30" in full
 assert "@cursor review" in full

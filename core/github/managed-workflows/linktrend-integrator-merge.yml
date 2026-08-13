@@ -10,13 +10,34 @@ on:
     types: [labeled]
   workflow_dispatch:
     inputs:
+      mode:
+        description: "phase for a normal sealed candidate; reconciled for a non-promotable no-change canary"
+        required: false
+        default: "phase"
+        type: string
+      expected_commit:
+        description: "Exact reconciled commit for non-promotable canary mode"
+        required: false
+        type: string
+      expected_tree:
+        description: "Exact reconciled Git tree for non-promotable canary mode"
+        required: false
+        type: string
+      package_version:
+        description: "Installed managed package version for non-promotable canary mode"
+        required: false
+        type: string
+      installed_state_digest:
+        description: "Canonical installed-state identity digest for non-promotable canary mode"
+        required: false
+        type: string
       pr_number:
         description: "Existing same-repository Phase PR number for canary-only Full"
-        required: true
+        required: false
         type: string
       expected_head:
         description: "Exact 40-character Phase PR head for canary-only Full"
-        required: true
+        required: false
         type: string
 
 permissions: {}
@@ -29,7 +50,7 @@ jobs:
   full:
     name: Linktrend Full Suite
     if: >-
-      (github.event_name == 'workflow_dispatch' || github.event.label.name == 'linktrend-full-suite') &&
+      (github.event_name == 'workflow_dispatch' && inputs.mode != 'reconciled' || github.event.label.name == 'linktrend-full-suite') &&
       (github.event_name == 'workflow_dispatch' || (startsWith(github.event.pull_request.head.ref, 'phase/') && github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
@@ -232,3 +253,41 @@ jobs:
           fi
           gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
             -f body="@cursor review\n${marker}"
+
+  reconciled-canary:
+    name: Linktrend Reconciled Tree Canary
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'reconciled'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify an exact already-installed reconciled tree
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          EXPECTED_TREE: ${{ inputs.expected_tree }}
+          PACKAGE_VERSION: ${{ inputs.package_version }}
+          INSTALLED_STATE_DIGEST: ${{ inputs.installed_state_digest }}
+        run: |
+          set -euo pipefail
+          [[ "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || { echo reconciled_canary_commit_invalid; exit 1; }
+          [[ "${EXPECTED_TREE}" =~ ^[0-9a-f]{40}$ ]] || { echo reconciled_canary_tree_invalid; exit 1; }
+          python3 scripts/gitops/require_exact_ci_success.py --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_COMMIT}" --config-key fastWorkflowName
+          python3 scripts/gitops/require_exact_ci_success.py --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_COMMIT}" --config-key ciWorkflowName
+          python3 scripts/gitops/require_exact_ci_success.py --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_COMMIT}" --config-key branchPolicyWorkflowName
+          printf '{"fast":"success","ci":"success","security":"success"}\n' > checks.json
+          git fetch origin staging main
+          staging_tree="$(git merge-tree --write-tree origin/staging "${EXPECTED_COMMIT}")"
+          main_tree="$(git merge-tree --write-tree origin/main "${EXPECTED_COMMIT}")"
+          python3 scripts/gitops/verify_reconciled_tree.py \
+            --repo . --expected-commit "${EXPECTED_COMMIT}" --expected-tree "${EXPECTED_TREE}" \
+            --package-version "${PACKAGE_VERSION}" --installed-state-digest "${INSTALLED_STATE_DIGEST}" \
+            --checks-json checks.json --staging-tree "${staging_tree}" --main-tree "${main_tree}"
