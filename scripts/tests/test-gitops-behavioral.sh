@@ -554,7 +554,7 @@ fast = Path(sys.argv[1], "core/github/managed-workflows/linktrend-review-package
 full = Path(sys.argv[1], "core/github/managed-workflows/linktrend-integrator-merge.yml").read_text()
 assert "pull_request:" in fast and "cancel-in-progress: true" in fast
 assert "types: [labeled]" in full and "linktrend-full-suite" in full and "Linktrend Final Candidate Bugbot Request" in full
-assert "workflow_dispatch:" not in full
+assert "workflow_dispatch:" in full and "pr_number:" in full and "expected_head:" in full
 assert "workflow_run:" not in fast
 assert "vars.LINKTREND_WORKFLOW_RUN" not in fast + full
 print("explicit-wake+final-bugbot scenarios ok")
@@ -1022,7 +1022,7 @@ for marker in (
 assert "pull_request:" in fast
 assert "cancel-in-progress: true" in fast
 assert "contents: read" in fast
-assert "types: [labeled]" in full and "workflow_dispatch:" not in full
+assert "types: [labeled]" in full and "workflow_dispatch:" in full
 assert "contents: read" in full and "pull-requests: write" in full
 assert "github.token" in full
 assert "@cursor review" in full
