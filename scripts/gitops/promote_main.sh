@@ -126,6 +126,7 @@ verify_receipt_before_mutation() {
     --receipt "${RECEIPT_PATH}" \
     --repo "${candidate_repo}" \
     --profile "${profile}" \
+    --profile-file .github/linktrend-delivery-mode.json \
     --gate full-gate \
     "${RECEIPT_IDENTITY_ARGS[@]}"
 }
@@ -243,6 +244,7 @@ if [ "${MODE}" = "package" ]; then
   receipt_identity_args
   python3 "${SCRIPT_DIR}/gate_receipt.py" identity \
     --repo "${WT}" --profile full \
+    --profile-file .github/linktrend-delivery-mode.json \
     "${RECEIPT_IDENTITY_ARGS[@]}" >"${RECEIPT_IDENTITY_FILE}"
   verify_receipt_before_mutation "${WT}" full || exit 0
   git -C "${WT}" push -u origin "HEAD:refs/heads/${PROMOTE_BRANCH}"
@@ -352,7 +354,9 @@ if [ -z "${CANDIDATE_IDENTITY_PATH:-}" ] || [ ! -f "${CANDIDATE_IDENTITY_PATH}" 
   git worktree add --detach "${IDENTITY_WORKTREE}" "origin/${head_branch}" >/dev/null
   receipt_identity_args
   python3 "${SCRIPT_DIR}/gate_receipt.py" identity \
-    --repo "${IDENTITY_WORKTREE}" --profile full "${RECEIPT_IDENTITY_ARGS[@]}" >"${IDENTITY_FILE}"
+    --repo "${IDENTITY_WORKTREE}" --profile full \
+    --profile-file .github/linktrend-delivery-mode.json \
+    "${RECEIPT_IDENTITY_ARGS[@]}" >"${IDENTITY_FILE}"
   git worktree remove --force "${IDENTITY_WORKTREE}" >/dev/null 2>&1 || rm -rf "${IDENTITY_WORKTREE}"
   CANDIDATE_IDENTITY_PATH="${IDENTITY_FILE}"
 fi
