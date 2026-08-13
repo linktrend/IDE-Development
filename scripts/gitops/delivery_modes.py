@@ -110,32 +110,10 @@ def load_delivery_config(
     *,
     env: dict[str, str] | None = None,
 ) -> DeliveryConfig:
-    """Resolve delivery mode: env override, then config file, else issue-pr."""
-    environ = env if env is not None else os.environ
-    raw_mode = (environ.get("LINKTREND_DELIVERY_MODE") or "").strip()
-    prefix = DEFAULT_PHASE_PREFIX
-    mode = DEFAULT_DELIVERY_MODE
+    """Resolve and strictly validate v1/v2 delivery configuration."""
+    from coordinator.config import load_delivery_config as load_runtime_config
 
-    cfg_path = None
-    if repo_root is not None:
-        cfg_path = Path(repo_root) / CONFIG_REL
-    if cfg_path is not None and cfg_path.is_file():
-        try:
-            data = json.loads(cfg_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            data = None
-        if isinstance(data, dict):
-            file_mode = str(data.get("deliveryMode") or "").strip()
-            if file_mode in {MODE_ISSUE_PR, MODE_PHASE_INTEGRATION}:
-                mode = file_mode
-            file_prefix = str(data.get("phaseBranchPrefix") or "").strip()
-            if file_prefix:
-                prefix = file_prefix if file_prefix.endswith("/") else f"{file_prefix}/"
-
-    if raw_mode in {MODE_ISSUE_PR, MODE_PHASE_INTEGRATION}:
-        mode = raw_mode
-
-    return DeliveryConfig(delivery_mode=mode, phase_branch_prefix=prefix)
+    return load_runtime_config(repo_root, env=env)  # type: ignore[return-value]
 
 
 def should_open_pr_for_branch(
