@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>{{SERVICE_LABEL}}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{{PYTHON}}</string>
+    <string>-m</string>
+    <string>host.coordinator</string>
+    <string>--db</string>
+    <string>{{DATABASE}}</string>
+    <string>run</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>{{INSTALL_ROOT}}</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/ai.linktrend.ide-coordinator.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/ai.linktrend.ide-coordinator.error.log</string>
+</dict>
+</plist>

@@ -11,7 +11,7 @@ ABSOLUTE_PATH_RE = re.compile(
     r"(?:"
     r"/Users/[A-Za-z0-9._-]+/"
     r"|/home/[A-Za-z0-9._-]+/"
-    r"|[A-Za-z]:\\\\"
+    r"|[A-Za-z]:\\\\(?:Users|home)\\"
     r"|\\\\[A-Za-z0-9._$-]+\\"
     r")"
 )

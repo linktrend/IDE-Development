@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "packet": "W2-P2",
+  "probes": [
+    {"name": "duplicate_issue_number", "result": "rejected"},
+    {"name": "stale_issue_tip", "result": "rejected"},
+    {"name": "missing_acceptance_sha", "result": "rejected"},
+    {"name": "unproven_inclusion", "result": "rejected"},
+    {"name": "wrong_immutable_base", "result": "rejected"},
+    {"name": "non_integrator_phase_mutation", "result": "rejected"},
+    {"name": "unsealed_bugbot_request", "result": "rejected"},
+    {"name": "head_changed_prior_gate_reuse", "result": "rejected"},
+    {"name": "third_sealed_revision", "result": "rejected"},
+    {"name": "concurrent_merge_conflict", "result": "blocked_without_side_preference"}
+  ],
+  "sanitization": "No tokens, private URLs, host paths, or live repository mutations are recorded."
+}

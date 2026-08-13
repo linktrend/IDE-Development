@@ -3,6 +3,10 @@
 #
 # TRUST BOUNDARY: privileged jobs check out the default branch only.
 # Resolve (read-only) then promote (normal automation token) only when relevant.
+# Profiles: github-actions preserves the event-driven fallback below; local-coordinator
+# is rendered by sync-managed-workflows.sh with only bounded workflow_dispatch recovery.
+# Frozen coordinator contexts: Linktrend Release Gate, Linktrend Coordinator;
+# external Cursor Bugbot is unchanged.
 name: LiNKtrend Staging To Main
 
 on:
@@ -11,11 +15,12 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "package | approve-merge | reevaluate"
+        description: "package | approve-merge | automatic | reevaluate"
         type: choice
         options:
           - package
           - approve-merge
+          - automatic
           - reevaluate
         default: package
       expected_sha:
@@ -112,6 +117,7 @@ jobs:
               case "${INPUT_ACTION:-package}" in
                 package) MODE="package" ;;
                 approve-merge) MODE="approve-merge" ;;
+                automatic) MODE="automatic" ;;
                 *) MODE="reevaluate" ;;
               esac
               ;;
@@ -190,6 +196,7 @@ jobs:
         if: steps.creds.outputs.ready == 'true'
         env:
           MODE: ${{ needs.resolve.outputs.mode }}
+          MAIN_PROMOTION_MODE: ${{ needs.resolve.outputs.mode == 'automatic' && 'automatic' || 'principal-approval' }}
           PROMOTE_PR_NUMBER: ${{ needs.resolve.outputs.pr || github.event.inputs.promote_pr_number }}
           EXPECTED_PROMOTE_HEAD: ${{ needs.resolve.outputs.head_sha || github.event.inputs.expected_promote_head }}
           EXPECTED_STAGING_SHA: ${{ github.event.inputs.expected_sha }}
