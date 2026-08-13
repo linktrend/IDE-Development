@@ -68,6 +68,10 @@ for required in (
 ):
     assert required in full, required
 assert 'sum(run_attempt for head, run_attempt in relevant if head == current_head)' in full
+assert 'history_file="$(mktemp)"' in full
+assert 'gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/linktrend-integrator-merge.yml/runs?event=workflow_dispatch&per_page=100" >"${history_file}"' in full
+assert 'json.load(handle)' in full
+assert 'python3 - "${history}"' not in full
 assert 'if executions > 2:' in full
 assert 'Every paid execution counts' in full
 
