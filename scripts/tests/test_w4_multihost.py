@@ -17,6 +17,8 @@ class W4PolicyAndReceiptTests(unittest.TestCase):
         self.assertEqual(config.orchestration_mode, "local-coordinator")
         self.assertEqual(config.main_promotion, "principal-approval")
         self.assertEqual(config.test_profiles["fast"].commands[0], ("bash", "scripts/tests/test_local_coordinator_workflow_profile.sh"))
+        self.assertEqual(config.test_profiles["full"].image, "linktrend/actions-runner-isolated:2.336.0")
+        self.assertEqual(config.test_profiles["full"].commands[0][0:3], ("python3", "-m", "unittest"))
 
     def test_receipt_metadata_does_not_change_exact_content_reuse(self):
         with tempfile.TemporaryDirectory() as directory:
