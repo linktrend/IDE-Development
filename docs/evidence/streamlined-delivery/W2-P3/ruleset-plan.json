@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "operation": "plan",
+  "dryRun": true,
+  "reversible": true,
+  "applied": false,
+  "rules": [
+    {
+      "branch": "development",
+      "requiredStatusChecks": [
+        "Linktrend Phase Ready",
+        "Linktrend Fast Gate",
+        "Cursor Bugbot",
+        "Linktrend Full Suite"
+      ]
+    },
+    {
+      "branch": "staging",
+      "requiredStatusChecks": ["Linktrend Staging Gate"]
+    },
+    {
+      "branch": "main",
+      "requiredStatusChecks": ["Linktrend Release Gate"]
+    }
+  ],
+  "rollback": {
+    "dryRun": true,
+    "applied": false,
+    "action": "restore prior captured ruleset snapshot",
+    "requiresPrincipalApproval": true
+  }
+}
