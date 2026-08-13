@@ -205,12 +205,8 @@ for key, typ in required.items():
 runner_type = str(cfg.get("runnerType", "github-hosted")).strip()
 runner_types = {
     "github-hosted": {
-        "privileged": "ubuntu-latest",
-        "untrusted": "ubuntu-latest",
-    },
-    "linktrend-private-macos-arm64": {
-        "privileged": "[self-hosted, macOS, ARM64, linktrend-privileged]",
-        "untrusted": "[self-hosted, Linux, ARM64, linktrend-ci-isolated]",
+        "privileged": "ubuntu-24.04-arm",
+        "untrusted": "ubuntu-24.04-arm",
     },
 }
 if runner_type not in runner_types:

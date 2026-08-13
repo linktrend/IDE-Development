@@ -16,17 +16,16 @@ Templates synced into consumer repos (and IDE Development itself) by:
 | `linktrend-development-to-staging.yml` | Build (Tue/Fri 10:00) + exact-candidate reevaluate |
 | `linktrend-staging-to-main.yml` | Package / approve-merge (bound SHAs) / observe |
 | `linktrend-integrator-merge.yml` | Merge to development when fast-gate + Bugbot + reviewed SHA |
-| `linktrend-cleanup-merged.yml` | Weekly remote cleanup of merged/abandoned branches (no local worktrees) |
-| `linktrend-repair-observer.yml` | Upsert/resolve repair tasks on CI/Bugbot lifecycle (normal `AUTOMATION_TOKEN` only) |
+| `linktrend-cleanup-merged.yml` | Explicit manual remote cleanup of merged/abandoned branches (no local worktrees) |
+| `linktrend-repair-observer.yml` | Bounded repair evidence observer using the scoped built-in workflow token |
 
 ## Trust boundary (all privileged workflows)
 
 - Checkout **default branch only** (`persist-credentials: false`)
 - Never run PR head/merge scripts with write credentials
 - Read-only event/candidate resolution may use the ordinary workflow token (`github.token`) with read scopes only
-- Durable repair and all other autonomous mutations require `LINKTREND_AUTOMATION_TOKEN` (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`)
-- Automation token unavailable → local `automation_credentials_blocked` outcome / step summary and failed workflow only
-- Mutation jobs must not grant write permissions to the ordinary workflow token (`issues`/`checks`/`pull-requests`/`contents`/`statuses` write)
+- Approved explicit mutation jobs use scoped built-in `github.token` permissions only; custom App/PAT automation is retired.
+- Write permissions are granted only to the exact job that needs them, with immutable SHA/receipt guards before mutation.
 - Honest outcomes via `gitops-outcome.json` / result checks (green job ≠ packaged)
 
 ## Contracts
@@ -43,5 +42,5 @@ Templates synced into consumer repos (and IDE Development itself) by:
 ## Runner routing
 
 - `runnerType` is optional in `.github/linktrend-gitops-consumer.json` and defaults to `github-hosted`.
-- Approved private repositories use `linktrend-private-macos-arm64`, which renders trusted managed jobs onto `[self-hosted, macOS, ARM64, linktrend-privileged]`.
+- Private and public repositories use the same `github-hosted` ARM64 profile; retired self-hosted runner profiles are rejected.
 - Candidate CI is consumer-owned and must use a separately isolated runner; managed sync never overwrites `ci.yml`.

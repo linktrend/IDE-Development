@@ -202,7 +202,7 @@ Managed workflows contain `__LINKTREND_*` placeholders. Install/sync paths rende
 }
 ```
 
-Public repositories keep `github-hosted`. Approved private repositories use `linktrend-private-macos-arm64` for trusted managed jobs. This does not route consumer `ci.yml` onto the privileged runner; private candidate CI requires a separately isolated worker.
+All repositories use the approved GitHub-hosted delivery profile and scalar `ubuntu-24.04-arm` for managed checks. Consumer-owned CI remains consumer-owned and is not overwritten by managed sync.
 
 Repository variables cannot change `workflow_run.workflows` — names must be rendered into static YAML.
 

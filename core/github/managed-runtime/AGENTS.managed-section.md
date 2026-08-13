@@ -21,7 +21,7 @@ Consumer-specific guidance may live **outside** these markers.
 - Ship = checkpoint (commit+push). Packager opens PRs. Max 3 ordinary repairs.
 - Completion: `python3 scripts/gitops/completion_gate.py` (checkpoint | review-ready | blocked | status | write-evidence).
 - Finished work runs appropriate tests/checks, auto-repairs ordinary failures with at most 3 bounded repair cycles, writes machine-readable evidence with `completion_gate.py write-evidence`, then calls `completion_gate.py review-ready`.
-- `review-ready` is the authoritative fail-closed gate. Production publish **and withdraw** of **Linktrend Review Ready** is normal GitHub automation token only (trusted `linktrend-review-ready-publisher` workflow with `action=publish` or `action=withdraw` when local privileged credentials are unavailable). Do not publish or withdraw with a user PAT / Carlos restricted identity / `GITHUB_TOKEN` fallback. Do not call `mark-review-ready.sh` as a pre-gate publisher; it is only a compatibility wrapper that requires evidence and delegates to the gate. `clear-review-ready.sh` fails closed without normal automation credentials and prints the normal-token withdraw route.
+- `review-ready` is the authoritative fail-closed gate. Production publish and withdraw use the trusted `linktrend-review-ready-publisher` workflow with scoped built-in `GITHUB_TOKEN` permissions and immutable branch/SHA validation; custom App/PAT automation is retired. Do not call `mark-review-ready.sh` as a pre-gate publisher; it is only a compatibility wrapper that requires evidence and delegates to the gate.
 - Do **not** create or use `.linktrend/review-ready.json` (commit status only — see `core/github/REVIEW-READY.md`).
 - If completion cannot pass, call `completion_gate.py blocked`. `.linktrend/completion-blocker.json` is only a **local cache**. The durable cross-machine record is the GitHub repair issue created/updated by the gate (when authenticated repo resolution succeeds). Do not claim durable registration if the command reports `durableRecord=false`.
 - Repair tasks: `python3 scripts/gitops/repair_task.py` (upsert | dispatch-attempt | resolve | list).
@@ -33,7 +33,7 @@ Static `workflow_run.workflows` names are rendered at install time from the comm
 
 `.github/linktrend-gitops-consumer.json`
 
-Fields: `ciWorkflowName`, `branchPolicyWorkflowName`, `bugbotCheckName`, and optional `runnerType` (`github-hosted` by default or `linktrend-private-macos-arm64` for trusted managed jobs in approved private repositories).
+Fields: `ciWorkflowName`, `branchPolicyWorkflowName`, `bugbotCheckName`, and optional `runnerType` (`github-hosted`; retired self-hosted profiles are rejected).
 
 Repository Actions **variables** still configure required **check/job display names** for gates:
 

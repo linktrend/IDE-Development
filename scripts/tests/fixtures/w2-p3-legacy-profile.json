@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 2,
+  "deliveryMode": "phase-integration",
+  "orchestrationMode": "local-coordinator",
+  "compute": {"provider": "self-hosted", "runner": "linktrend-private-macos-arm64"},
+  "profiles": {"fast": {"commands": [["bash", "scripts/tests/test_local_coordinator_workflow_profile.sh"]]}}
+}
