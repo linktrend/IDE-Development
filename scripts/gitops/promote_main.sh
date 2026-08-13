@@ -30,6 +30,7 @@ OUTCOME="${OUTCOME_FILE:-gitops-outcome.json}"
 RECEIPT_GATE="${SCRIPT_DIR}/promotion_receipt_gate.py"
 RECEIPT_PATH="${RECEIPT_PATH:-${LINKTREND_RECEIPT_PATH:-}}"
 RECEIPT_DEPENDENCY_FILES="${RECEIPT_DEPENDENCY_FILES:-}"
+COORDINATOR_RECEIPT_ROOT="${LINKTREND_COORDINATOR_RECEIPT_ROOT:-${HOME}/.linktrend/ide-coordinator/receipts}"
 
 case "${MAIN_PROMOTION_MODE}" in
   principal-approval|automatic) ;;
@@ -234,6 +235,9 @@ if [ "${MODE}" = "package" ]; then
     exit 0
   fi
   CANDIDATE="$(git -C "${WT}" rev-parse HEAD)"
+  if [ -z "${RECEIPT_PATH}" ]; then
+    RECEIPT_PATH="${COORDINATOR_RECEIPT_ROOT}/${CANDIDATE}-full-gate.json"
+  fi
   receipt_identity_args
   python3 "${SCRIPT_DIR}/gate_receipt.py" identity \
     --repo "${WT}" --profile full \
@@ -295,21 +299,13 @@ if [ "${EXPECTED_MAIN_SHA}" != "${MAIN_SHA}" ]; then
   exit 1
 fi
 
-if [ -z "${RECEIPT_PATH}" ] || [ ! -f "${RECEIPT_PATH}" ]; then
+if [ -z "${RECEIPT_PATH}" ]; then
+  RECEIPT_PATH="${COORDINATOR_RECEIPT_ROOT}/${EXPECTED_PROMOTE_HEAD}-full-gate.json"
+fi
+if [ ! -f "${RECEIPT_PATH}" ]; then
   write_out "blocked" "promotion receipt missing; principal approval cannot mutate main"
   exit 1
 fi
-if [ -z "${CANDIDATE_IDENTITY_PATH:-}" ] || [ ! -f "${CANDIDATE_IDENTITY_PATH}" ]; then
-  write_out "blocked" "candidate identity missing; principal approval cannot bind receipt"
-  exit 1
-fi
-python3 "${RECEIPT_GATE}" verify \
-  --receipt "${RECEIPT_PATH}" \
-  --identity "${CANDIDATE_IDENTITY_PATH}" \
-  --profile full --gate full-gate || {
-    write_out "blocked" "promotion receipt identity does not match main candidate"
-    exit 1
-  }
 
 if [ -z "${PROMOTE_PR_NUMBER}" ]; then
   # locate by marker
@@ -347,6 +343,26 @@ marker="$(extract_marker "${body}")" || { write_out "failed" "missing promote ma
 echo "${marker}" | jq -e --arg s "${STG_SHA}" --arg m "${MAIN_SHA}" --arg c "${EXPECTED_PROMOTE_HEAD}" \
   '.sourceSha==$s and .targetSha==$m and .candidateHead==$c' >/dev/null \
   || { write_out "failed" "marker SHA binding mismatch"; exit 1; }
+
+if [ -z "${CANDIDATE_IDENTITY_PATH:-}" ] || [ ! -f "${CANDIDATE_IDENTITY_PATH}" ]; then
+  IDENTITY_WORKTREE="$(mktemp -d "${TMPDIR:-/tmp}/main-identity.XXXXXX")"
+  IDENTITY_FILE="$(mktemp "${TMPDIR:-/tmp}/main-identity.XXXXXX.json")"
+  git worktree add --detach "${IDENTITY_WORKTREE}" "origin/${head_branch}" >/dev/null
+  receipt_identity_args
+  python3 "${SCRIPT_DIR}/gate_receipt.py" identity \
+    --repo "${IDENTITY_WORKTREE}" --profile full "${RECEIPT_IDENTITY_ARGS[@]}" >"${IDENTITY_FILE}"
+  git worktree remove --force "${IDENTITY_WORKTREE}" >/dev/null 2>&1 || rm -rf "${IDENTITY_WORKTREE}"
+  CANDIDATE_IDENTITY_PATH="${IDENTITY_FILE}"
+fi
+python3 "${RECEIPT_GATE}" verify \
+  --receipt "${RECEIPT_PATH}" \
+  --identity "${CANDIDATE_IDENTITY_PATH}" \
+  --profile full --gate full-gate || {
+    [ -z "${IDENTITY_FILE:-}" ] || rm -f "${IDENTITY_FILE}"
+    write_out "blocked" "promotion receipt identity does not match main candidate"
+    exit 1
+  }
+[ -z "${IDENTITY_FILE:-}" ] || rm -f "${IDENTITY_FILE}"
 
 marker_receipt="$(echo "${marker}" | jq -r '.receiptDigest // empty')"
 marker_mode="$(echo "${marker}" | jq -r '.approvalMode // "principal-approval"')"

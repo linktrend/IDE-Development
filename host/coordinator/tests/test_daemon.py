@@ -147,6 +147,11 @@ class DaemonTests(unittest.TestCase):
             self.assertEqual(result["workerId"], "test-mac")
             self.assertEqual(seen, [(('/bin/sh', '-ec', 'protected-command --safe'), 'test-mac', 'isolated-candidate', ('fast',))])
             self.assertEqual(daemon.store.get(queued.job_id)["status"], "completed")
+            receipt = Path(directory) / "receipts" / ("a" * 40 + "-fast-gate.json")
+            self.assertTrue(receipt.is_file())
+            payload = json.loads(receipt.read_text(encoding="utf-8"))
+            self.assertEqual(payload["workerId"], "test-mac")
+            self.assertEqual(payload["workerTrust"], "isolated-candidate")
             daemon.close()
 
     def test_missing_token_fails_closed_before_attempt_start(self):
