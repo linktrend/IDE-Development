@@ -45,6 +45,16 @@ assert "cancel-in-progress: true" in fast
 assert "timeout-minutes: 5" in fast
 assert "run_delivery_profile.py fast" in fast
 assert "scripts.tests.test_candidate_lifecycle" not in fast
+assert "workflow_dispatch:" in fast
+assert "options: [reconciled]" in fast or "options: [reconciled]".replace(" ", "") in fast.replace(" ", "")
+assert "reconciled-fast:" in fast
+assert "ref: development" in fast
+assert "persist-credentials: false" in fast
+assert "contents: read" in fast
+assert "verify_reconciled_fast_dispatch.py" in fast
+assert "run_delivery_profile.py fast" in fast
+assert "actions/cache" not in fast.lower()
+assert "pull-requests: write" not in fast
 
 full = (managed / "linktrend-integrator-merge.yml").read_text(encoding="utf-8")
 assert not re.search(r"^\s+push:", full, re.M), "full suite has a checkpoint trigger"
