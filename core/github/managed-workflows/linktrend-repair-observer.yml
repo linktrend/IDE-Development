@@ -10,6 +10,10 @@ name: LiNKtrend Repair Observer
 #   - automation token unavailable → local automation_credentials_blocked outcome + failed workflow
 #   - ordinary github.token is never used for Issue/check/comment/PR mutations
 #   - repair_observer.py proves current PR/branch head before resolving
+# Profiles: github-actions preserves the event-driven fallback below; local-coordinator
+# is rendered with bounded manual recovery only.
+# Frozen coordinator contexts: Linktrend Coordinator and the named gate contexts;
+# external Cursor Bugbot is unchanged.
 
 on:
   workflow_run: # zizmor: ignore[dangerous-triggers] trusted default-branch observer; consumes status metadata and never executes candidate code
