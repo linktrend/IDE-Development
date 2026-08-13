@@ -1,4 +1,5 @@
 name: Linktrend Full Suite
+run-name: Full Suite PR #${{ inputs.pr_number }} @ ${{ inputs.head_sha }} r${{ inputs.seal_revision }} a${{ inputs.attempt }}
 
 # Full validation is an explicit seal-bound dispatch.  It never wakes from a
 # checkpoint push or from opening a draft PR.
@@ -7,6 +8,26 @@ on:
     inputs:
       pr_number:
         description: Exact Phase PR number
+        required: true
+        type: string
+      source_branch:
+        description: Exact sealed Phase branch
+        required: true
+        type: string
+      head_sha:
+        description: Exact sealed Phase head
+        required: true
+        type: string
+      candidate_id:
+        description: Exact sealed candidate identity digest
+        required: true
+        type: string
+      seal_revision:
+        description: Sealed candidate revision (1 or 2)
+        required: true
+        type: string
+      attempt:
+        description: Infrastructure attempt for this exact candidate (1 or 2)
         required: true
         type: string
 
@@ -27,6 +48,11 @@ jobs:
       actions: read
     env:
       PR_NUMBER: ${{ inputs.pr_number }}
+      DISPATCH_SOURCE_BRANCH: ${{ inputs.source_branch }}
+      DISPATCH_HEAD: ${{ inputs.head_sha }}
+      DISPATCH_CANDIDATE_ID: ${{ inputs.candidate_id }}
+      DISPATCH_SEAL_REVISION: ${{ inputs.seal_revision }}
+      DISPATCH_ATTEMPT: ${{ inputs.attempt }}
     steps:
       - name: Capture start time
         id: clock
@@ -58,21 +84,19 @@ jobs:
           live_branch="$(jq -r .head.ref <<<"${pr}")"
           live_repo="$(jq -r .head.repo.full_name <<<"${pr}")"
           case "${live_branch}" in phase/*) ;; *) echo "full_suite_requires_phase_branch=${live_branch}"; exit 1;; esac
+          test "${DISPATCH_SOURCE_BRANCH}" = "${live_branch}" || {
+            echo "full_suite_source_branch_mismatch: input=${DISPATCH_SOURCE_BRANCH} live=${live_branch}"; exit 1;
+          }
           test "${live_repo}" = "${GITHUB_REPOSITORY}" || {
             echo "full_suite_repository_mismatch: expected=${GITHUB_REPOSITORY} live=${live_repo}"; exit 1;
+          }
+          test "${DISPATCH_HEAD}" = "${live}" || {
+            echo "full_suite_dispatch_head_stale: input=${DISPATCH_HEAD} live=${live}"; exit 1;
           }
           actual="$(git rev-parse HEAD)"
           test "${actual}" = "${live}" || { echo "full_suite_stale_seal: live=${live} actual=${actual}"; exit 1; }
           fast="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=pull_request&head_sha=${live}&per_page=100" --jq '[.workflow_runs[] | select(.name == "Linktrend Fast Checks" and .conclusion == "success")] | length')"
           test "${fast}" -gt 0 || { echo "full_suite_fast_check_missing_for_exact_head"; exit 1; }
-          history="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${live_branch}&per_page=100")"
-          python3 - "${history}" "${live}" <<'PY'
-          import json, sys
-          runs = [r for r in json.loads(sys.argv[1]).get("workflow_runs", []) if r.get("name") == "Linktrend Full Suite"]
-          heads = {r.get("head_sha") for r in runs if r.get("head_sha")}
-          if len(heads) > 2 or sum(r.get("head_sha") == sys.argv[2] for r in runs) > 2:
-              raise SystemExit("full_suite_candidate_or_attempt_limit")
-          PY
           tree="$(git rev-parse 'HEAD^{tree}')"
           derived="$(python3 - "${GITHUB_REPOSITORY}" "${live_branch}" "${live}" "${tree}" <<'PY'
           import hashlib
@@ -89,7 +113,30 @@ jobs:
           print("sha256:" + hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest())
           PY
           )"
-          printf 'SOURCE_BRANCH=%s\nEXPECTED_HEAD=%s\nCANDIDATE_ID=%s\nSEAL_REVISION=1\nATTEMPT=%s\n' "${live_branch}" "${live}" "${derived}" "${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          test "${derived}" = "${DISPATCH_CANDIDATE_ID}" || {
+            echo "full_suite_candidate_identity_mismatch: input=${DISPATCH_CANDIDATE_ID} derived=${derived}"; exit 1;
+          }
+          case "${DISPATCH_SEAL_REVISION}" in 1|2) ;; *) echo "full_suite_invalid_seal_revision"; exit 1;; esac
+          case "${DISPATCH_ATTEMPT}" in 1|2) ;; *) echo "full_suite_invalid_attempt"; exit 1;; esac
+          history="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/linktrend-integrator-merge.yml/runs?event=workflow_dispatch&per_page=100")"
+          python3 - "${history}" "${PR_NUMBER}" "${live}" <<'PY'
+          import json, re, sys
+          history, pr_number, current_head = json.loads(sys.argv[1]), sys.argv[2], sys.argv[3]
+          pattern = re.compile(r"^Full Suite PR #(\d+) @ ([0-9a-f]{40}) r([12]) a([12])$")
+          relevant = []
+          for run in history.get("workflow_runs", []):
+              match = pattern.fullmatch(str(run.get("display_title") or ""))
+              if match and match.group(1) == pr_number:
+                  relevant.append((match.group(2), int(run.get("run_attempt") or 1)))
+          heads = {head for head, _ in relevant} | {current_head}
+          attempts = sum(run_attempt for head, run_attempt in relevant if head == current_head)
+          if len(heads) > 2:
+              raise SystemExit("full_suite_sealed_candidate_limit")
+          if attempts > 2:
+              raise SystemExit("full_suite_attempt_limit")
+          PY
+          printf 'SOURCE_BRANCH=%s\nEXPECTED_HEAD=%s\nCANDIDATE_ID=%s\nSEAL_REVISION=%s\nATTEMPT=%s\n' \
+            "${live_branch}" "${live}" "${derived}" "${DISPATCH_SEAL_REVISION}" "${DISPATCH_ATTEMPT}" >> "$GITHUB_ENV"
           echo "exact dispatch-time seal accepted"
 
       - name: Run full profile

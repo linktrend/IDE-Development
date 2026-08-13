@@ -85,6 +85,7 @@ jobs:
         id: inputs
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
+          LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER: "1"
           INPUT_BRANCH: ${{ inputs.branch }}
           INPUT_SHA: ${{ inputs.sha }}
           INPUT_ACTION: ${{ inputs.action }}

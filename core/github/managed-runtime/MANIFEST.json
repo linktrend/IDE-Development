@@ -19,6 +19,8 @@
     "scripts/gitops/packager_logic.py",
     "scripts/gitops/phase_integrator.py",
     "scripts/gitops/promotion_receipt_gate.py",
+    "scripts/gitops/promote_staging.sh",
+    "scripts/gitops/promote_main.sh",
     "scripts/gitops/ruleset_plan.py",
     "scripts/gitops/external_state_audit.py",
     "scripts/gitops/resolve_event_pr.py",

@@ -49,7 +49,7 @@ assert not re.search(r"^\s+push:", full, re.M), "full suite has a checkpoint tri
 assert "name: Linktrend Full Suite" in full
 assert "pr_number:" in full
 for field in ("source_branch", "head_sha", "candidate_id", "seal_revision", "attempt"):
-    assert f"      {field}:" not in full, field
+    assert f"      {field}:" in full, field
 assert "full-suite-receipt.json" in full
 assert "retention-days: 30" in full
 assert "@cursor review" in full
@@ -62,7 +62,9 @@ for required in (
     "full_suite_fast_check_missing_for_exact_head",
     "exact dispatch-time seal accepted",
     "refs/pull/${{ inputs.pr_number }}/head",
-    "full_suite_candidate_or_attempt_limit",
+    "full_suite_sealed_candidate_limit",
+    "full_suite_attempt_limit",
+    "display_title",
 ):
     assert required in full, required
 
@@ -72,6 +74,8 @@ for name in ("linktrend-development-to-staging.yml", "linktrend-staging-to-main.
     assert "Linktrend Branch Source Policy" in text
     assert "gate_receipt.py" in text and "--gate full-gate" in text
     assert "download-artifact" in text
+    assert "fullRunId" in text and "steps.receipt.outputs.run_id" in text
+    assert "--workflow-run-id" in text
     assert "test-gitops-phase-delivery.sh" not in text
     assert not re.search(r"^\s+workflow_run:", text, re.M)
 

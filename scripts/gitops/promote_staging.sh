@@ -152,7 +152,8 @@ marker_json() {
     "targetSha": sys.argv[2],
     "candidateHead": sys.argv[3],
     "promoteBranch": sys.argv[4],
-  }, separators=(",", ":")))' "$1" "$2" "$3" "$4"
+    "fullRunId": int(sys.argv[5]),
+  }, separators=(",", ":")))' "$1" "$2" "$3" "$4" "$5"
 }
 
 extract_marker() {
@@ -356,7 +357,8 @@ python3 "${SCRIPT_DIR}/gate_receipt.py" identity \
 verify_receipt_before_mutation "${WT}" full || exit 0
 git -C "${WT}" push -u origin "HEAD:refs/heads/${PROMOTE_BRANCH}"
 
-MARKER="$(marker_json "${DEV_SHA}" "${STG_SHA}" "${CANDIDATE}" "${PROMOTE_BRANCH}")"
+FULL_RUN_ID="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["workflowRunId"])' "${RECEIPT_PATH}")"
+MARKER="$(marker_json "${DEV_SHA}" "${STG_SHA}" "${CANDIDATE}" "${PROMOTE_BRANCH}" "${FULL_RUN_ID}")"
 BODY="$(cat <<EOF
 ## Staging promote candidate
 

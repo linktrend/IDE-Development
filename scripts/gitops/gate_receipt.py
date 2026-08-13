@@ -68,6 +68,8 @@ def _parser() -> argparse.ArgumentParser:
     verify.add_argument("--profile", choices=("fast", "full", "release"), default="full")
     verify.add_argument("--profile-file", action="append", default=[])
     verify.add_argument("--workflow-file", action="append", default=[])
+    verify.add_argument("--workflow-run-id", type=int)
+    verify.add_argument("--workflow-run-attempt", type=int)
     verify.add_argument("--gate", required=True, help="required gate id")
     return parser
 
@@ -104,7 +106,13 @@ def main(argv: list[str] | None = None) -> int:
                     profile_files=args.profile_file,
                     workflow_files=args.workflow_file or None,
                 )
-            verdict = verify_receipt(receipt, identity, args.gate)
+            verdict = verify_receipt(
+                receipt,
+                identity,
+                args.gate,
+                workflow_run_id=args.workflow_run_id,
+                workflow_run_attempt=args.workflow_run_attempt,
+            )
             _json_output(
                 {
                     "accepted": verdict.accepted,

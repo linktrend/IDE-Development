@@ -93,6 +93,8 @@ class ReadyStatus:
 
 def resolve_app_publish_token() -> str:
     """Return the explicit job-scoped token for status publication."""
+    if os.environ.get("LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER") != "1":
+        return ""
     for key in APP_PUBLISH_TOKEN_ENVS:
         raw = os.environ.get(key)
         if raw is None:
@@ -336,7 +338,7 @@ class GitHubStatusBackend:
         action: str = "publish",
         reason: str = "",
     ) -> ReadyStatus:
-        # Privileged publish/withdraw: normal automation env only — never constructor/ambient human tokens.
+        # Privileged publish/withdraw is available only inside the trusted workflow.
         pub = resolve_app_publish_token()
         if not pub:
             raise RuntimeError(
