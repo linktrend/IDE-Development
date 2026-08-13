@@ -29,7 +29,10 @@ def workflow_runs(repository: str, head: str) -> list[object]:
     supplied = os.environ.get("LINKTREND_ACTIONS_RUNS_JSON")
     if supplied is None:
         result = subprocess.run(
-            ["gh", "api", f"repos/{repository}/actions/runs?event=pull_request&head_sha={head}&per_page=100"],
+            # Fast/CI normally arrive as pull_request runs, but CodeQL records
+            # PR analysis as ``dynamic``. Bind the exact head and declared
+            # workflow name below instead of assuming one event type.
+            ["gh", "api", f"repos/{repository}/actions/runs?head_sha={head}&per_page=100"],
             check=True,
             capture_output=True,
             text=True,
