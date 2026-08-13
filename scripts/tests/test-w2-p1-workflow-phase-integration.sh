@@ -54,6 +54,8 @@ assert "github.event.label.name == 'linktrend-full-suite'" in full
 assert "workflow_dispatch:" in full
 assert 'mode == \'reconciled\'' in full
 assert 'promotable": False' in Path("scripts/gitops/verify_reconciled_tree.py").read_text(encoding="utf-8")
+assert 'checks_json="${RUNNER_TEMP}/linktrend-reconciled-checks.json"' in full
+assert '--checks-json "${checks_json}"' in full
 assert "full-suite-receipt.json" in full
 assert "retention-days: 30" in full
 assert "@cursor review" in full
