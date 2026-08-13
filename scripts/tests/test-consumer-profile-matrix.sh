@@ -23,6 +23,9 @@ JSON
   python3 "$ROOT/scripts/ide-development.py" install --package "$ROOT" --target "$repo" --json >/dev/null
   python3 "$ROOT/scripts/ide-development.py" verify --package "$ROOT" --target "$repo" --json >/dev/null
 
+  # Every installed consumer contract must retain both declared workflow
+  # names.  This prevents a Full-only rollout discovery after publication.
+
   python3 - "$repo" "${name} CI" <<'PY'
 import json, sys
 from pathlib import Path
@@ -47,6 +50,18 @@ PY
     LINKTREND_ACTIONS_RUNS_JSON="$runs" python3 scripts/gitops/require_exact_ci_success.py \
       --repository "linktrend/${name}" --head "$head")
 done
+
+# The installer/sync upgrade path fills the sole historic omission only; blank
+# or wrong explicit names remain fail-closed when exact workflow discovery runs.
+legacy="$TMP/legacy-fast-omitted"; mkdir -p "$legacy/.github"
+printf '%s\n' '{"schemaVersion":1,"ciWorkflowName":"Legacy CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Cursor Bugbot","runnerType":"github-hosted"}' >"$legacy/.github/linktrend-gitops-consumer.json"
+bash "$ROOT/scripts/sync-managed-workflows.sh" "$legacy" >/dev/null
+python3 - "$legacy/.github/linktrend-gitops-consumer.json" <<'PY'
+import json, sys
+cfg = json.load(open(sys.argv[1], encoding="utf-8"))
+assert cfg["fastWorkflowName"] == "Linktrend Fast Checks"
+assert cfg["ciWorkflowName"] == "Legacy CI"
+PY
 
 # Missing delivery mode, malformed consumer CI configuration, and a stale CI
 # run each fail closed before a promotion can use the profile.

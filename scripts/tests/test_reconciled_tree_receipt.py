@@ -18,7 +18,7 @@ class ReconciledTreeReceiptTests(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.root), "init", "-q"], check=True)
         subprocess.run(["git", "-C", str(self.root), "config", "user.email", "test@example.com"], check=True)
         subprocess.run(["git", "-C", str(self.root), "config", "user.name", "test"], check=True)
-        state = {"packageVersion": "2.3.7", "installedAt": "now", "files": {"x": {"contentHash": "sha256:a"}}}
+        state = {"packageVersion": "2.3.8", "installedAt": "now", "files": {"x": {"contentHash": "sha256:a"}}}
         (self.root / ".ide-development").mkdir()
         (self.root / ".ide-development" / "installed-state.json").write_text(json.dumps(state))
         (self.root / "managed.txt").write_text("exact")
@@ -36,14 +36,14 @@ class ReconciledTreeReceiptTests(unittest.TestCase):
 
     def args(self) -> list[str]:
         return ["--repo", str(self.root), "--expected-commit", self.commit, "--expected-tree", self.tree,
-                "--package-version", "2.3.7", "--installed-state-digest", state_digest(self.state),
+                "--package-version", "2.3.8", "--installed-state-digest", state_digest(self.state),
                 "--checks-json", str(self.checks), "--staging-tree", self.tree, "--main-tree", self.tree]
 
     def test_exact_tree_is_non_promotable_canary(self) -> None:
         self.assertEqual(main(self.args()), 0)
 
     def test_rejects_wrong_identity_and_stale_checks(self) -> None:
-        for index, replacement in ((3, "f" * 40), (5, "e" * 40), (7, "2.3.8"), (9, "sha256:" + "0" * 64), (13, "0" * 40)):
+        for index, replacement in ((3, "f" * 40), (5, "e" * 40), (7, "2.3.9"), (9, "sha256:" + "0" * 64), (13, "0" * 40)):
             args = self.args(); args[index] = replacement
             with self.assertRaises(SystemExit): main(args)
         self.checks.write_text(json.dumps({"fast": "success", "ci": "failure", "security": "success"}))
@@ -60,10 +60,10 @@ class ReconciledTreeReceiptTests(unittest.TestCase):
             "--repo", str(self.root), "--expected-repository", "linktrend/example",
             "--actual-repository", "linktrend/example", "--ref", "development",
             "--expected-commit", self.commit, "--expected-tree", self.tree,
-            "--package-version", "2.3.7", "--installed-state-digest", state_digest(self.state),
+            "--package-version", "2.3.8", "--installed-state-digest", state_digest(self.state),
         ]
         self.assertEqual(fast_dispatch_main(args), 0)
-        for index, replacement in ((5, "main"), (7, "f" * 40), (9, "e" * 40), (11, "2.3.8"), (13, "sha256:" + "0" * 64)):
+        for index, replacement in ((5, "main"), (7, "f" * 40), (9, "e" * 40), (11, "2.3.9"), (13, "sha256:" + "0" * 64)):
             bad = list(args); bad[index] = replacement
             with self.assertRaises(SystemExit):
                 fast_dispatch_main(bad)
