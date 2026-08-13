@@ -4,7 +4,7 @@
   "requestedBaseSha": "9e9abf4da7361e765f8c276d708035be261f835a",
   "liveMutations": false,
   "tests": {
-    "unittest": {"status": "passed", "count": 37},
+    "unittest": {"status": "passed", "count": 39},
     "py_compile": "passed",
     "cli_help": "passed",
     "installer_help": "passed",
@@ -21,7 +21,8 @@
     "mainApprovalBinding": "passed",
     "installerScopeAndRollback": "passed",
     "bugbotObservationOnly": "passed",
-    "secretFreeOutput": "passed"
+    "secretFreeOutput": "passed",
+    "launchdServiceCommand": "passed: rendered ProgramArguments include run; --once is healthy without credentials; interrupt stops persistent loop"
   },
   "evidenceDigestPolicy": "sanitized local evidence only"
 }

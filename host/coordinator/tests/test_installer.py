@@ -1,7 +1,15 @@
+import json
+import os
+import plistlib
+import signal
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
+from host.coordinator.daemon import CoordinatorDaemon
 from host.coordinator.service import SERVICE_LABEL, install_version, render_plist, rollback, uninstall
 
 
@@ -15,6 +23,54 @@ class InstallerTests(unittest.TestCase):
             text = render_plist(install_root=root, database=Path(directory) / "state.sqlite3")
             self.assertNotIn("TOKEN", text.upper())
             self.assertNotIn("SECRET", text.upper())
+
+    def test_rendered_launchd_arguments_start_safe_service_command(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "install"
+            database = Path(directory) / "state.sqlite3"
+            rendered = render_plist(install_root=root, database=database)
+            plist = plistlib.loads(rendered.encode("utf-8"))
+            self.assertEqual(
+                plist["ProgramArguments"],
+                ["/usr/bin/python3", "-m", "host.coordinator", "--db", str(database), "run"],
+            )
+            self.assertNotIn("--execute", plist["ProgramArguments"])
+
+    def test_run_once_is_healthy_without_credentials_and_interrupt_stops_loop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "state.sqlite3"
+            environment = dict(os.environ)
+            environment.pop("LINKTREND_AUTOMATION_TOKEN", None)
+            daemon = CoordinatorDaemon(database)
+            daemon.register("owner/repo", directory)
+            daemon.close()
+            command = [sys.executable, "-m", "host.coordinator", "--db", str(database), "run", "--once"]
+            one_shot = subprocess.run(command, capture_output=True, text=True, env=environment, check=False)
+            self.assertEqual(one_shot.returncode, 0, one_shot.stderr)
+            one_shot_payload = json.loads(one_shot.stdout)
+            self.assertEqual(one_shot_payload["status"], "healthy")
+            self.assertEqual(one_shot_payload["polls"][0]["status"], "failed-closed")
+
+            persistent = subprocess.Popen(
+                [sys.executable, "-m", "host.coordinator", "--db", str(database), "run", "--interval", "0.1"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=environment,
+            )
+            try:
+                deadline = time.time() + 5
+                while persistent.poll() is None and time.time() < deadline:
+                    time.sleep(0.01)
+                self.assertIsNone(persistent.poll(), "persistent service exited before interrupt")
+                persistent.send_signal(signal.SIGINT)
+                stdout, stderr = persistent.communicate(timeout=5)
+                self.assertEqual(persistent.returncode, 0, stderr)
+                self.assertIn('"reason": "interrupt"', stdout)
+            finally:
+                if persistent.poll() is None:
+                    persistent.kill()
+                    persistent.communicate(timeout=5)
 
     def test_atomic_activation_retains_previous_and_rolls_back(self):
         with tempfile.TemporaryDirectory() as directory:

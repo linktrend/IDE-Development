@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -20,11 +21,38 @@ def _daemon(args: argparse.Namespace) -> CoordinatorDaemon:
     return CoordinatorDaemon(args.db)
 
 
+def run_service(daemon: CoordinatorDaemon, *, interval: float, once: bool = False, max_iterations: int | None = None, execute: bool = False) -> int:
+    """Keep the local coordinator alive while doing bounded service passes."""
+    if interval < 0.01 or interval > 300:
+        raise ValueError("--interval must be between 0.01 and 300 seconds")
+    if max_iterations is not None and max_iterations < 1:
+        raise ValueError("--max-iterations must be positive")
+    if once:
+        max_iterations = 1
+
+    iterations = 0
+    try:
+        while max_iterations is None or iterations < max_iterations:
+            print(_json(daemon.service_once(execute=execute)), flush=True)
+            iterations += 1
+            if max_iterations is not None and iterations >= max_iterations:
+                break
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print(_json({"status": "stopped", "reason": "interrupt", "iterations": iterations}), flush=True)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ide-coordinator", description="Bounded LiNKtrend local delivery coordinator")
     parser.add_argument("--db", default="~/.linktrend/ide-coordinator/coordinator.sqlite3", help="scoped SQLite database path")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    run = sub.add_parser("run", help="run the persistent, safe-by-default local service loop")
+    run.add_argument("--interval", type=float, default=30.0, help="seconds between bounded service passes (default: 30)")
+    run.add_argument("--once", action="store_true", help="perform one service pass and exit")
+    run.add_argument("--max-iterations", type=int, help="stop after this many service passes")
+    run.add_argument("--execute", action="store_true", help="explicitly dispatch queued work; never enabled by launchd")
     sub.add_parser("status", help="show persisted queue and registry state")
     sub.add_parser("pause", help="pause new job execution")
     sub.add_parser("resume", help="resume new job execution")
@@ -56,6 +84,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     daemon = _daemon(args)
     try:
+        if args.command == "run":
+            return run_service(daemon, interval=args.interval, once=args.once, max_iterations=args.max_iterations, execute=args.execute)
         if args.command == "status":
             print(_json(daemon.status()))
         elif args.command == "pause":
@@ -89,4 +119,4 @@ def main(argv: list[str] | None = None) -> int:
         daemon.close()
 
 
-__all__ = ["build_parser", "main"]
+__all__ = ["build_parser", "main", "run_service"]
