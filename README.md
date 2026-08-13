@@ -1,6 +1,6 @@
 # IDE Development
 
-IDE Development is LiNKtrend’s shared, human-assisted Application Factory operating system — version **v2.1.9**. It installs a portable managed core into product repositories as committed physical files (`.ide-development/` plus Cursor/Codex discovery adapters) so agents follow one doctrine, one six-Module pipeline, one hybrid skill surface, and fail-closed gates — with the Principal approving Intent and release, not day-to-day coding.
+IDE Development is LiNKtrend’s shared, human-assisted Application Factory operating system — version **v2.2.0**. It installs a portable managed core into product repositories as committed physical files (`.ide-development/` plus Cursor/Codex discovery adapters) so agents follow one doctrine, one six-Module pipeline, one hybrid skill surface, and fail-closed gates — with the Principal approving Intent and release, not day-to-day coding.
 
 It is distinct from **LiNKdeveloper**, the separate VPS-hosted autonomous application-factory Program. LiNKdeveloper may be *authored* using this system’s guidance, but it does not depend on this repo at runtime.
 
@@ -8,7 +8,7 @@ It is distinct from **LiNKdeveloper**, the separate VPS-hosted autonomous applic
 
 **Claude Code is excluded** from current v2 support and roadmap. Do not add Claude entrypoints or treat archived Claude packaging (`docs/archive/platform-entrypoints/claude/`) as an install path.
 
-**Pre-rollout:** WP1 proved the RC on disposable targets; WP2 built canonical lineage + live readiness; WP03 integrated and promoted the v2.0 line; Issue #72 completed the pre-launch cleanup; and Issue #81 delivered the v2.1 phase-delivery release through PR #82 / #85 / #86. **Consumer rollout (WP04) is prepared and not executed** — Principal approval is still required. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md) and [`docs/GITOPS-CONSUMER-ROLLOUT.md`](docs/GITOPS-CONSUMER-ROLLOUT.md).
+**Pre-rollout:** WP1 proved the RC on disposable targets; WP2 built canonical lineage + live readiness; WP03 integrated and promoted the v2.0 line; Issue #72 completed the pre-launch cleanup; Issue #81 delivered phase delivery; W3-P1 adds the bounded local coordinator, exact receipts, Phase release evidence, and compatibility profiles; and W4 adds multi-host-capable isolated workers while the current Mac Mini remains the sole enabled production worker. **Consumer rollout remains prepared and not executed** — Principal approval is still required. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md), [`docs/contracts/STREAMLINED-DELIVERY.md`](docs/contracts/STREAMLINED-DELIVERY.md), and [`docs/contracts/MULTI-HOST-COORDINATOR.md`](docs/contracts/MULTI-HOST-COORDINATOR.md).
 
 ## Start here (source of truth)
 
@@ -109,7 +109,7 @@ WP1 production-readiness proof required **macOS, Ubuntu Linux, and Windows** mat
 
 ## Status
 
-**Version `v2.1.9`.** Identified in `VERSION`. This patch release resolves real filesystem paths before managed Library containment checks, closing both intermediate-symlink and Windows cross-drive escapes. Version identity still does **not** by itself create a Git tag or GitHub Release. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
+**Version `v2.2.0`.** Identified in `VERSION`. This feature release packages streamlined Phase delivery and bounded local coordination. Version identity still does **not** by itself create a Git tag or GitHub Release; Terra owns live publication. See [`docs/contracts/STREAMLINED-DELIVERY.md`](docs/contracts/STREAMLINED-DELIVERY.md) and [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
 
 Automated Stage 1 / system verification: `scripts/verify-ide-development.sh`. Portable v2 integration harness: `tests/test-portable-v2-integration.sh`.
 
