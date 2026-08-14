@@ -17,7 +17,7 @@ from pathlib import Path
 
 Path(sys.argv[1]).write_text(json.dumps({
     "schemaVersion": 1,
-    "fastWorkflowName": "Consumer Fast",
+    "fastWorkflowName": "Linktrend Fast Checks",
     "ciWorkflowName": "Consumer CI",
     "branchPolicyWorkflowName": "Branch Source Policy",
     "bugbotCheckName": "Cursor Bugbot",

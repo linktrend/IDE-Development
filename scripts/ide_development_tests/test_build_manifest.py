@@ -41,9 +41,9 @@ class BuildManifestPackagingTests(unittest.TestCase):
         path = bm.MANIFEST_PATH
         self.assertTrue(path.is_file())
         data = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(data.get("packageVersion"), "2.3.7")
+        self.assertEqual(data.get("packageVersion"), "2.3.8")
         managed = bm.VERSION_PATH.read_text(encoding="utf-8").strip().lstrip("v")
-        self.assertEqual(managed, "2.3.7")
+        self.assertEqual(managed, "2.3.8")
 
     def test_required_cursor_materialization_sources_are_packaged(self) -> None:
         manifest = bm.build_manifest_object()
