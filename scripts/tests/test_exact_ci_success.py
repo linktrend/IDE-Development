@@ -50,6 +50,20 @@ class ExactCiSuccessTests(unittest.TestCase):
                     "Consumer Fast",
                 )
 
+    def test_rejects_blank_or_wrong_explicit_fast_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self.root(tmp)
+            config = root / ".github" / "linktrend-gitops-consumer.json"
+            with patch.dict(os.environ, {"LINKTREND_ACTIONS_RUNS_JSON": json.dumps({"workflow_runs": [
+                {"name": "Consumer Fast", "head_sha": self.head, "conclusion": "success"},
+            ]})}, clear=False):
+                config.write_text(json.dumps({"fastWorkflowName": "", "ciWorkflowName": "Consumer CI"}), encoding="utf-8")
+                with self.assertRaisesRegex(SystemExit, "consumer_ci_config_invalid"):
+                    require_success("linktrend/fixture", self.head, root, "fastWorkflowName")
+                config.write_text(json.dumps({"fastWorkflowName": "Wrong Fast", "ciWorkflowName": "Consumer CI"}), encoding="utf-8")
+                with self.assertRaisesRegex(SystemExit, "full_suite_required_ci_missing_for_exact_head"):
+                    require_success("linktrend/fixture", self.head, root, "fastWorkflowName")
+
     def test_accepts_explicit_dynamic_security_workflow_at_exact_head(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             with patch.dict(os.environ, {

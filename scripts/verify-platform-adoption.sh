@@ -103,6 +103,8 @@ bash "$ROOT/scripts/wire-repo.sh" "$CONSUMER" \
 [ -f "${CONSUMER}/.github/linktrend-gitops-consumer.json" ] || fail "missing consumer gitops config"
 grep -q '"ciWorkflowName": "Consumer CI"' "${CONSUMER}/.github/linktrend-gitops-consumer.json" \
   || fail "consumer config missing Consumer CI"
+grep -q '"fastWorkflowName": "Linktrend Fast Checks"' "${CONSUMER}/.github/linktrend-gitops-consumer.json" \
+  || fail "consumer config missing managed Fast workflow name"
 
 # Rendered observer must contain Consumer CI literally; no placeholders
 OBS="${CONSUMER}/.github/workflows/linktrend-repair-observer.yml"
@@ -118,6 +120,24 @@ assert "- Consumer CI" in text
 print("ok")
 PY
 pass "Non-default Consumer CI rendered into installed workflows"
+
+# Upgrade an older schema-1 consumer config that predates the receipt-bound
+# Fast key.  The installer/sync boundary may add only the fixed managed Fast
+# name; its repository-specific CI name must survive unchanged.
+UPGRADE="${TMP}/upgrade-consumer"
+mkdir -p "${UPGRADE}/.github"
+cat >"${UPGRADE}/.github/linktrend-gitops-consumer.json" <<'JSON'
+{"schemaVersion":1,"ciWorkflowName":"Upgrade CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Cursor Bugbot","runnerType":"github-hosted"}
+JSON
+bash "$ROOT/scripts/sync-managed-workflows.sh" "$UPGRADE"
+python3 - "${UPGRADE}/.github/linktrend-gitops-consumer.json" <<'PY'
+import json, sys
+cfg = json.load(open(sys.argv[1], encoding="utf-8"))
+assert cfg["fastWorkflowName"] == "Linktrend Fast Checks"
+assert cfg["ciWorkflowName"] == "Upgrade CI"
+print("ok")
+PY
+pass "Upgrade normalizes missing Fast name while preserving declared CI"
 
 # Unsafe workflow names must be rejected (quotes, expressions, newlines, placeholders)
 BAD="${TMP}/bad-consumer"
