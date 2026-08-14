@@ -142,6 +142,30 @@ info "Orchestration profile: $ORCHESTRATION_MODE"
 
 [ -f "$CONFIG_PATH" ] || fail "Consumer config missing: $CONFIG_PATH (create .github/linktrend-gitops-consumer.json or pass --config)"
 
+# ``fastWorkflowName`` became a receipt-bound contract after early consumers
+# had already received the config file.  Normalize only a missing key to the
+# fixed managed Fast workflow name; never infer or overwrite a repository's
+# declared CI name.  An explicit blank/unsafe/wrong value is rejected below.
+if [ "$DRY_RUN" -eq 0 ]; then
+  python3 - "$CONFIG_PATH" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    value = json.loads(path.read_text(encoding="utf-8"))
+except Exception as exc:
+    raise SystemExit(f"invalid consumer config {path}: {exc}") from exc
+if not isinstance(value, dict):
+    raise SystemExit(f"invalid consumer config {path}: expected object")
+if "fastWorkflowName" not in value:
+    value["fastWorkflowName"] = "Linktrend Fast Checks"
+    path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+    print(f"PASS: normalized required fastWorkflowName in {path}")
+PY
+fi
+
 if [ "$DRY_RUN" -eq 0 ]; then
   mkdir -p "$DEST_DIR"
 fi
@@ -195,13 +219,18 @@ for key, typ in required.items():
     if "__LINKTREND_" in value:
         raise SystemExit(f"consumer config field still contains placeholder: {key}")
     # Fail closed on names that would corrupt YAML or GitHub Expressions
-    forbidden = set('\'"`${}\\\n\r\t<>|&;()[]{}!*?#')
+    forbidden = {
+        "'", '"', "`", "$", "{", "}", "\\", "\n", "\r", "\t",
+        "<", ">", "|", "&", ";", "(", ")", "[", "]", "*", "!", "?", "#",
+    }
     if any(ch in forbidden for ch in value) or value != value.strip():
         raise SystemExit(
             f"consumer config field contains unsafe characters for workflow YAML/expressions: {key}"
         )
     if len(value) > 100:
         raise SystemExit(f"consumer config field too long: {key}")
+if cfg["fastWorkflowName"] != "Linktrend Fast Checks":
+    raise SystemExit("consumer config fastWorkflowName must equal Linktrend Fast Checks")
 
 runner_type = str(cfg.get("runnerType", "github-hosted")).strip()
 runner_types = {
