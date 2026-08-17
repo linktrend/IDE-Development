@@ -27,13 +27,20 @@ CI_CONTRACT_MODULE_REL = Path("scripts/gitops/repository_ci_contract.py")
 
 def _load_repository_ci_contract_module(package_root: Path):
     """Load WP-U07 audit helpers from the package tree without package coupling."""
+    import sys
+
     module_path = package_root / CI_CONTRACT_MODULE_REL
     if not module_path.is_file():
         raise InvalidPackageError(f"repository CI contract module missing: {module_path}")
-    spec = importlib.util.spec_from_file_location("linktrend_repository_ci_contract", module_path)
+    module_name = "linktrend_repository_ci_contract"
+    existing = sys.modules.get(module_name)
+    if existing is not None and getattr(existing, "__file__", None) == str(module_path):
+        return existing
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
     if spec is None or spec.loader is None:
         raise InvalidPackageError(f"repository CI contract module unloadable: {module_path}")
     module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -134,6 +141,11 @@ def _plan_payload(plan: Plan, **extra: Any) -> dict[str, Any]:
     return payload
 
 
+def _repository_ci_trigger_audit(package_root: Path, target_root: Path) -> dict[str, Any]:
+    ci_module = _load_repository_ci_contract_module(package_root)
+    return ci_module.installer_audit_repository_ci_triggers(target_root)
+
+
 def run_plan(
     *,
     target: Path,
@@ -159,8 +171,7 @@ def run_plan(
         prior=prior,
         dry_run=True,
     )
-    ci_module = _load_repository_ci_contract_module(package_root)
-    ci_trigger_audit = ci_module.installer_audit_repository_ci_triggers(target_root)
+    ci_trigger_audit = _repository_ci_trigger_audit(package_root, target_root)
     exit_code = EXIT_CONFLICT if plan.has_conflicts else EXIT_OK
     payload = _plan_payload(
         plan,
@@ -204,11 +215,13 @@ def run_install_or_update(
         prior=prior,
         dry_run=dry_run,
     )
+    ci_trigger_audit = _repository_ci_trigger_audit(package_root, target_root)
     payload = _plan_payload(
         plan,
         recovery=recovery,
         installerVersion=installer_version,
         normalizedFastWorkflowName=normalized_fast,
+        repositoryCiTriggerAudit=ci_trigger_audit,
     )
 
     if plan.has_conflicts:
@@ -290,6 +303,7 @@ def run_verify(
     )
     meaningful = meaningful_drift(items)
     needs_work = [a for a in plan.actions if a.op.value != "noop"]
+    ci_trigger_audit = _repository_ci_trigger_audit(package_root, target_root)
     payload = _plan_payload(
         plan,
         recovery=recovery,
@@ -299,6 +313,7 @@ def run_verify(
             "ok": not plan.has_conflicts and not meaningful and not needs_work,
             "needsWorkCount": len(needs_work),
         },
+        repositoryCiTriggerAudit=ci_trigger_audit,
     )
     if plan.has_conflicts:
         return EngineResult(exit_code=EXIT_CONFLICT, payload=payload)

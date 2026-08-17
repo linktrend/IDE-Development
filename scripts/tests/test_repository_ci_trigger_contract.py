@@ -31,15 +31,18 @@ from scripts.gitops.repository_ci_contract import (
     digest_text,
     evaluate_aggregate_gate,
     evaluate_cache_advisory,
+    evaluate_promotion_with_receipt,
     expand_reverse_dependencies,
     innermost_diagnostic,
     installer_audit_repository_ci_triggers,
     load_contract,
     run_component_preflight,
     select_profile,
+    validate_affected_surface_evidence,
     validate_artifact_file,
     validate_contract,
     validate_coverage_manifest,
+    verify_promotion_exact_receipt,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -233,7 +236,7 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
         )
         self.assertEqual(stale.code, "application_receipt_stale")
 
-    def test_preflight_bindings_and_retention(self) -> None:
+    def test_preflight_bindings_bootstrap_and_resume(self) -> None:
         component = {
             "id": "browser-e2e",
             "runtime": [
@@ -241,6 +244,7 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
                     "id": "chromium",
                     "kind": "browser",
                     "allowedVersions": ["120.0"],
+                    "bootstrapCommand": ["install-browser", "chromium"],
                     "binding": {
                         "variable": "PLAYWRIGHT_BROWSER",
                         "executablePath": "/opt/browsers/chromium",
@@ -253,10 +257,15 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
             environ={},
             present_executables={},
             successful_component_ids=["unit-tests"],
+            bootstrap_runner=lambda command, env: {
+                "ok": False,
+                "detail": "not installed",
+            },
         )
         self.assertFalse(missing["ok"])
         self.assertEqual(missing["classification"], "infrastructure")
         self.assertEqual(missing["retainedComponentIds"], ["unit-tests"])
+        self.assertTrue(missing["bootstrap"]["ran"])
 
         sibling_only = run_component_preflight(
             component=component,
@@ -268,6 +277,34 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
         self.assertEqual(sibling_only["detail"], "binding_mismatch")
         self.assertFalse(sibling_only["bindings"][0]["matched"])
 
+        bootstrapped = run_component_preflight(
+            component=component,
+            environ={},
+            present_executables={},
+            successful_component_ids=["unit-tests"],
+            invalidated_component_ids=["browser-e2e"],
+            bootstrap_runner=lambda command, env: {
+                "ok": True,
+                "verifiedVersion": "120.0",
+                "resolvedPath": "/opt/browsers/chromium",
+                "evidencePath": "build/browser-bootstrap.json",
+            },
+        )
+        self.assertTrue(bootstrapped["ok"])
+        self.assertTrue(bootstrapped["bootstrap"]["ran"])
+        self.assertEqual(bootstrapped["bootstrap"]["evidencePath"], "build/browser-bootstrap.json")
+        self.assertTrue(bootstrapped["bindings"][0]["matched"])
+        self.assertTrue(bootstrapped["resumedOnlyInvalidated"])
+
+        skipped = run_component_preflight(
+            component={"id": "unit-tests", "runtime": []},
+            successful_component_ids=["unit-tests"],
+            invalidated_component_ids=["browser-e2e"],
+        )
+        self.assertTrue(skipped["ok"])
+        self.assertEqual(skipped["detail"], "skipped_not_invalidated")
+        self.assertEqual(skipped["retainedComponentIds"], ["unit-tests"])
+
         ok = run_component_preflight(
             component=component,
             environ={"PLAYWRIGHT_BROWSER": "/opt/browsers/chromium"},
@@ -276,7 +313,7 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
         )
         self.assertTrue(ok["ok"])
 
-    def test_artifact_stdout_and_wrong_schema_head_fail(self) -> None:
+    def test_artifact_stdout_wrong_schema_missing_and_wrong_head_fail(self) -> None:
         artifact = {
             "id": "coverage-json",
             "producer": "tests",
@@ -316,6 +353,28 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
                 candidate_head=_head(1),
             )
             self.assertEqual(wrong_head["code"], "artifact_wrong_head")
+            path.write_text(
+                json.dumps({"schemaVersion": 1, "ok": True}),
+                encoding="utf-8",
+            )
+            missing_head = validate_artifact_file(
+                artifact=artifact,
+                file_path=path,
+                candidate_head=_head(1),
+            )
+            self.assertEqual(missing_head["code"], "artifact_missing_head")
+            self.assertNotEqual(missing_head.get("candidateHead"), _head(1))
+            path.write_text(
+                json.dumps({"schemaVersion": 1, "candidateHead": _head(1)}),
+                encoding="utf-8",
+            )
+            good = validate_artifact_file(
+                artifact=artifact,
+                file_path=path,
+                candidate_head=_head(1),
+            )
+            self.assertTrue(good["ok"])
+            self.assertEqual(good["candidateHead"], _head(1))
 
     def test_innermost_diagnostic_retained(self) -> None:
         diag = innermost_diagnostic(
@@ -388,12 +447,21 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
             changed_paths=["packages/ui/src/index.ts", "packages/ui/package.json"],
             dependency_graph={"packages/ui": ["apps/web", "apps/admin"]},
             package_export_paths=["packages/ui/src/index.ts"],
+            selected_profile=PROFILE_FULL,
         )
         self.assertEqual(result["reverseDependencies"], ["apps/admin", "apps/web"])
         self.assertIn("production-resolution", result["requiredProbes"])
         self.assertIn("docker-import-build", result["requiredProbes"])
         self.assertTrue(result["typecheckInsufficient"])
         self.assertNotIn("typecheck", result["requiredProbes"])
+        self.assertEqual(result["selectedProfile"], PROFILE_FULL)
+        self.assertTrue(str(result["classifierDigest"]).startswith("sha256:"))
+        self.assertTrue(str(result["inputsDigest"]).startswith("sha256:"))
+        self.assertEqual(validate_affected_surface_evidence(result)["ok"], True)
+        with self.assertRaises(ContractError):
+            validate_affected_surface_evidence(
+                {k: v for k, v in result.items() if k != "classifierDigest"}
+            )
 
     def test_cache_key_fixed_before_mutation_and_advisory(self) -> None:
         key = compute_cache_key(
@@ -499,6 +567,153 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
         self.assertIn("scanned", result)
         self.assertGreaterEqual(result["scanned"], 1)
         self.assertFalse(result.get("mayModify", True))
+
+    def test_install_and_verify_surfaces_attach_ci_trigger_audit(self) -> None:
+        from scripts.ide_development import engine as engine_mod
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            wf = root / ".github" / "workflows"
+            wf.mkdir(parents=True)
+            (wf / "expensive.yml").write_text(
+                "\n".join(
+                    [
+                        "name: Full matrix",
+                        "on:",
+                        "  pull_request:",
+                        "  push:",
+                        "jobs:",
+                        "  build-and-test:",
+                        "    runs-on: ubuntu-latest",
+                        "    steps:",
+                        "      - run: echo e2e browser matrix",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / ".github" / "linktrend-repository-ci-contract.json").write_text(
+                json.dumps(default_contract()),
+                encoding="utf-8",
+            )
+            audit = engine_mod._repository_ci_trigger_audit(ROOT, root)
+            self.assertIn("repositoryCiTriggerAudit", {"repositoryCiTriggerAudit": audit})
+            self.assertFalse(audit["ok"])
+            self.assertEqual(audit["conflicts"][0]["code"], "promotion_expensive_retrigger")
+
+            # Mutating install/verify payload helper must carry the same key.
+            class _FakePlan:
+                has_conflicts = False
+
+                def to_dict(self) -> dict:
+                    return {"schemaVersion": 1, "command": "install", "actions": []}
+
+            payload = engine_mod._plan_payload(
+                _FakePlan(),
+                repositoryCiTriggerAudit=audit,
+            )
+            self.assertEqual(
+                payload["repositoryCiTriggerAudit"]["conflicts"][0]["code"],
+                "promotion_expensive_retrigger",
+            )
+            source = (ROOT / "scripts" / "ide_development" / "engine.py").read_text(encoding="utf-8")
+            self.assertGreaterEqual(source.count("repositoryCiTriggerAudit=ci_trigger_audit"), 3)
+            self.assertIn("def run_install_or_update", source)
+            self.assertIn("def run_verify", source)
+            install_idx = source.index("def run_install_or_update")
+            verify_idx = source.index("def run_verify")
+            self.assertIn("repositoryCiTriggerAudit=ci_trigger_audit", source[install_idx:verify_idx])
+            self.assertIn("repositoryCiTriggerAudit=ci_trigger_audit", source[verify_idx:])
+
+    def test_promotion_exact_receipt_obeys_promotion_receipt_gate(self) -> None:
+        import subprocess
+
+        from scripts.gitops.coordinator import receipts
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = root / "repo"
+            repo.mkdir()
+
+            def git(*args: str) -> str:
+                result = subprocess.run(
+                    ["git", *args],
+                    cwd=repo,
+                    text=True,
+                    capture_output=True,
+                    check=True,
+                )
+                return result.stdout.strip()
+
+            git("init", "-q")
+            git("config", "user.email", "u07@example.invalid")
+            git("config", "user.name", "WP-U07")
+            git("remote", "add", "origin", "https://github.com/acme/promotion.git")
+            (repo / "app.txt").write_text("one\n", encoding="utf-8")
+            (repo / "deps.lock").write_text("dep-one\n", encoding="utf-8")
+            git("add", ".")
+            git("commit", "-qm", "initial")
+            identity = receipts.compute_candidate_identity(repo, ["deps.lock"], "full")
+            receipt_payload = {
+                "schemaVersion": 2,
+                "candidateIdentity": identity.to_dict(),
+                "workflowRunId": 401,
+                "workflowRunAttempt": 1,
+                "runnerLabel": "ubuntu-24.04-arm",
+                "startedAt": "2026-08-17T01:00:00Z",
+                "completedAt": "2026-08-17T01:01:00Z",
+                "conclusion": "success",
+                "commandDigest": "sha256:" + ("c" * 64),
+                "evidenceDigests": {"evidence/full.log": "sha256:" + ("b" * 64)},
+            }
+            receipt_path = root / "full-receipt.json"
+            receipts.write_receipt(receipt_payload, receipt_path)
+
+            missing = verify_promotion_exact_receipt(
+                receipt_path=root / "missing.json",
+                repo_path=repo,
+                dependencies=["deps.lock"],
+                expected_head=identity.head_commit,
+            )
+            self.assertFalse(missing["ok"])
+            self.assertEqual(missing["code"], "promotion_receipt_missing")
+            self.assertEqual(missing["gate"], "promotion_receipt_gate")
+
+            stale = verify_promotion_exact_receipt(
+                receipt_path=receipt_path,
+                repo_path=repo,
+                dependencies=["deps.lock"],
+                expected_head=_head(9),
+            )
+            self.assertFalse(stale["ok"])
+            self.assertIn(stale["code"], {"promotion_receipt_stale", "promotion_receipt_wrong_head"})
+            self.assertEqual(stale["gate"], "promotion_receipt_gate")
+
+            wrong = evaluate_promotion_with_receipt(
+                contract=self.contract,
+                branch="promote/staging/demo",
+                promotion_tree_unchanged=True,
+                receipt=receipt_payload,
+                identity=identity.to_dict(),
+                expected_head=_head(8),
+            )
+            self.assertFalse(wrong["ok"])
+            self.assertEqual(wrong["gate"], "promotion_receipt_gate")
+            self.assertFalse(wrong["receipt"]["ok"])
+
+            accepted = evaluate_promotion_with_receipt(
+                contract=self.contract,
+                branch="promote/staging/demo",
+                promotion_tree_unchanged=True,
+                receipt_path=receipt_path,
+                repo_path=repo,
+                dependencies=["deps.lock"],
+                expected_head=identity.head_commit,
+            )
+            self.assertTrue(accepted["ok"])
+            self.assertEqual(accepted["profile"]["profile"], PROFILE_PROMOTION)
+            self.assertEqual(accepted["receipt"]["gate"], "promotion_receipt_gate")
+            self.assertTrue(accepted["receipt"]["ok"])
 
 
 if __name__ == "__main__":

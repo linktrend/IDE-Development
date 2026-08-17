@@ -18,6 +18,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from scripts.gitops.promotion_receipt_gate import verify_receipt_file, verify_receipt_payload
+
 CONTRACT_REL = ".github/linktrend-repository-ci-contract.json"
 CONTRACT_KIND = "repository-ci-contract"
 MANIFEST_KIND = "ci-component-manifest"
@@ -557,15 +559,23 @@ def validate_artifact_file(
     expected_schema = artifact.get("schemaVersion")
     if expected_schema is not None and payload.get("schemaVersion") != expected_schema:
         return {"ok": False, "code": "artifact_wrong_schema", "artifactId": artifact_id}
+    # Fail closed when the artifact itself omits identity. Never stamp the
+    # caller's candidate_head as proof that the file was bound to the head.
+    if "candidateHead" not in payload and "headCommit" not in payload:
+        return {"ok": False, "code": "artifact_missing_head", "artifactId": artifact_id}
     head = payload.get("candidateHead") or payload.get("headCommit")
-    if head and candidate_head and head != candidate_head:
+    if not isinstance(head, str) or not _is_sha40(head):
+        return {"ok": False, "code": "artifact_missing_head", "artifactId": artifact_id}
+    if not candidate_head or not _is_sha40(candidate_head):
+        return {"ok": False, "code": "artifact_candidate_head_invalid", "artifactId": artifact_id}
+    if head != candidate_head:
         return {"ok": False, "code": "artifact_wrong_head", "artifactId": artifact_id}
     return {
         "ok": True,
         "code": "artifact_ok",
         "artifactId": artifact_id,
         "path": str(file_path),
-        "candidateHead": candidate_head,
+        "candidateHead": head,
     }
 
 
@@ -575,12 +585,38 @@ def run_component_preflight(
     environ: Mapping[str, str] | None = None,
     present_executables: Mapping[str, str] | None = None,
     successful_component_ids: Sequence[str] | None = None,
+    invalidated_component_ids: Sequence[str] | None = None,
+    bootstrap_runner: Any | None = None,
 ) -> dict[str, Any]:
+    """Run declared runtime preflight, including bootstrap when required.
+
+    When ``invalidated_component_ids`` is set, only those components are
+    rechecked; unrelated successful component ids are retained and not resumed.
+    """
+    component_id = str(component.get("id") or "")
+    retained = list(successful_component_ids or [])
+    invalidated = {str(x) for x in (invalidated_component_ids or [])}
+    if invalidated and component_id and component_id not in invalidated:
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": "ci-preflight-evidence",
+            "componentId": component_id,
+            "ok": True,
+            "classification": "application",
+            "bindings": [],
+            "detail": "skipped_not_invalidated",
+            "retainedComponentIds": retained,
+            "resumedOnlyInvalidated": True,
+            "bootstrap": {"ran": False},
+        }
+
     env = dict(environ or os.environ)
     present = dict(present_executables or {})
     bindings: list[dict[str, Any]] = []
     ok = True
     detail = ""
+    bootstrap_evidence: dict[str, Any] = {"ran": False}
+
     for requirement in component.get("runtime") or []:
         if not isinstance(requirement, Mapping):
             ok = False
@@ -588,6 +624,9 @@ def run_component_preflight(
             break
         binding = requirement.get("binding")
         rid = str(requirement.get("id") or "")
+        kind = requirement.get("kind")
+        bootstrap_cmd = requirement.get("bootstrapCommand")
+
         if isinstance(binding, Mapping):
             variable = str(binding.get("variable") or "")
             expected = str(binding.get("executablePath") or "")
@@ -601,16 +640,91 @@ def run_component_preflight(
                     "detail": rid,
                 }
             )
-            if not matched:
+            if not matched and rid not in present and isinstance(bootstrap_cmd, list) and bootstrap_cmd:
+                runner = bootstrap_runner or _default_bootstrap_runner
+                try:
+                    result = runner(list(bootstrap_cmd), env=env)
+                except Exception as exc:  # noqa: BLE001 - surface as infra failure
+                    ok = False
+                    detail = f"bootstrap_failed:{rid}:{exc}"
+                    bootstrap_evidence = {
+                        "ran": True,
+                        "command": list(bootstrap_cmd),
+                        "ok": False,
+                        "detail": str(exc),
+                    }
+                    break
+                bootstrap_evidence = {
+                    "ran": True,
+                    "command": list(bootstrap_cmd),
+                    "ok": bool(result.get("ok")),
+                    "verifiedVersion": result.get("verifiedVersion"),
+                    "evidencePath": result.get("evidencePath"),
+                    "resolvedPath": result.get("resolvedPath"),
+                }
+                if not result.get("ok"):
+                    ok = False
+                    detail = f"bootstrap_failed:{rid}"
+                    break
+                if result.get("resolvedPath"):
+                    env[variable] = str(result["resolvedPath"])
+                    resolved = env[variable]
+                if result.get("verifiedVersion") and rid:
+                    present[rid] = str(result["verifiedVersion"])
+                matched = bool(resolved) and resolved == expected
+                if expected and result.get("resolvedPath") and resolved == str(result["resolvedPath"]):
+                    matched = True
+                    expected = resolved
+                bindings[-1] = {
+                    "variable": variable,
+                    "resolvedPath": resolved,
+                    "matched": matched,
+                    "detail": rid,
+                    "bootstrap": True,
+                }
+                if not matched:
+                    ok = False
+                    detail = "binding_mismatch"
+                    break
+            elif not matched:
                 ok = False
                 detail = "binding_mismatch"
                 break
-        kind = requirement.get("kind")
+
         if kind in {"executable", "browser", "service"} and rid:
             if rid not in present:
-                ok = False
-                detail = f"missing_{kind}:{rid}"
-                break
+                if isinstance(bootstrap_cmd, list) and bootstrap_cmd and not bootstrap_evidence.get("ran"):
+                    runner = bootstrap_runner or _default_bootstrap_runner
+                    try:
+                        result = runner(list(bootstrap_cmd), env=env)
+                    except Exception as exc:  # noqa: BLE001
+                        ok = False
+                        detail = f"bootstrap_failed:{rid}:{exc}"
+                        bootstrap_evidence = {
+                            "ran": True,
+                            "command": list(bootstrap_cmd),
+                            "ok": False,
+                            "detail": str(exc),
+                        }
+                        break
+                    bootstrap_evidence = {
+                        "ran": True,
+                        "command": list(bootstrap_cmd),
+                        "ok": bool(result.get("ok")),
+                        "verifiedVersion": result.get("verifiedVersion"),
+                        "evidencePath": result.get("evidencePath"),
+                        "resolvedPath": result.get("resolvedPath"),
+                    }
+                    if not result.get("ok"):
+                        ok = False
+                        detail = f"bootstrap_failed:{rid}"
+                        break
+                    if result.get("verifiedVersion"):
+                        present[rid] = str(result["verifiedVersion"])
+                if rid not in present:
+                    ok = False
+                    detail = f"missing_{kind}:{rid}"
+                    break
             allowed = requirement.get("allowedVersions")
             if isinstance(allowed, list) and allowed:
                 version = present[rid]
@@ -618,17 +732,28 @@ def run_component_preflight(
                     ok = False
                     detail = f"version_not_allowed:{rid}:{version}"
                     break
+
     classification = "infrastructure" if not ok else "application"
-    retained = list(successful_component_ids or []) if not ok else list(successful_component_ids or [])
     return {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "ci-preflight-evidence",
-        "componentId": str(component.get("id") or ""),
+        "componentId": component_id,
         "ok": ok,
         "classification": classification,
         "bindings": bindings,
         "detail": detail,
         "retainedComponentIds": retained,
+        "resumedOnlyInvalidated": bool(invalidated),
+        "bootstrap": bootstrap_evidence,
+    }
+
+
+def _default_bootstrap_runner(command: list[str], *, env: Mapping[str, str]) -> dict[str, Any]:
+    """Conservative default: refuse live bootstrap outside injected test runners."""
+    del command, env
+    return {
+        "ok": False,
+        "detail": "bootstrap_runner_required",
     }
 
 
@@ -703,17 +828,26 @@ def expand_reverse_dependencies(
     changed_paths: Sequence[str],
     dependency_graph: Mapping[str, Sequence[str]],
     package_export_paths: Sequence[str] | None = None,
+    selected_profile: str = PROFILE_FULL,
 ) -> dict[str, Any]:
     """Expand shared-package changes through reverse dependencies.
 
     ``dependency_graph`` maps package -> consumers. Export-path hits force
     production-resolution and docker probes; typecheck alone is never enough.
     """
+    if selected_profile not in {
+        PROFILE_FAST,
+        PROFILE_FULL,
+        PROFILE_TRUSTED,
+        PROFILE_PROMOTION,
+        PROFILE_NONE,
+    }:
+        raise ContractError("affected_surface_profile_invalid", selected_profile)
     export_paths = [p.replace("\\", "/") for p in (package_export_paths or [])]
+    normalized_paths = [normalize_repo_path(str(raw)) for raw in changed_paths]
     impacted: set[str] = set()
     export_hit = False
-    for raw in changed_paths:
-        path = str(raw).replace("\\", "/")
+    for path in normalized_paths:
         for package, consumers in dependency_graph.items():
             package_prefix = package.rstrip("/") + "/"
             if path == package or path.startswith(package_prefix):
@@ -734,14 +868,205 @@ def expand_reverse_dependencies(
     required_probes: list[str] = []
     if export_hit or impacted:
         required_probes = ["production-resolution", "docker-import-build"]
-    return {
+    inputs = {
+        "changedPaths": normalized_paths,
+        "dependencyGraph": {k: list(v) for k, v in sorted(dependency_graph.items())},
+        "packageExportPaths": export_paths,
+    }
+    evidence = {
         "schemaVersion": SCHEMA_VERSION,
         "kind": "ci-affected-surface-evidence",
-        "changedPaths": list(changed_paths),
+        "classifierDigest": digest_text("reverse-dependency-v1"),
+        "inputsDigest": digest_json(inputs),
+        "selectedProfile": selected_profile,
+        "changedPaths": normalized_paths,
         "reverseDependencies": sorted(impacted),
         "requiredProbes": required_probes,
         "typecheckInsufficient": True,
         "exportHit": export_hit,
+    }
+    validate_affected_surface_evidence(evidence)
+    return evidence
+
+
+def validate_affected_surface_evidence(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    """Lightweight schema-complete check for affected-surface evidence."""
+    required = (
+        "schemaVersion",
+        "kind",
+        "classifierDigest",
+        "inputsDigest",
+        "selectedProfile",
+        "changedPaths",
+    )
+    missing = [key for key in required if key not in evidence]
+    if missing:
+        raise ContractError("affected_surface_schema_incomplete", ",".join(missing))
+    if evidence.get("schemaVersion") != SCHEMA_VERSION:
+        raise ContractError("affected_surface_schema_version")
+    if evidence.get("kind") != "ci-affected-surface-evidence":
+        raise ContractError("affected_surface_kind")
+    for digest_key in ("classifierDigest", "inputsDigest"):
+        value = evidence.get(digest_key)
+        if not isinstance(value, str) or not value.startswith("sha256:") or len(value) != 71:
+            raise ContractError("affected_surface_digest_invalid", digest_key)
+    profile = evidence.get("selectedProfile")
+    if profile not in {
+        PROFILE_FAST,
+        PROFILE_FULL,
+        PROFILE_TRUSTED,
+        PROFILE_PROMOTION,
+        PROFILE_NONE,
+    }:
+        raise ContractError("affected_surface_profile_invalid", str(profile))
+    paths = evidence.get("changedPaths")
+    if not isinstance(paths, list) or not all(isinstance(p, str) and p for p in paths):
+        raise ContractError("affected_surface_paths_invalid")
+    return {"ok": True, "code": "affected_surface_schema_ok"}
+
+
+def verify_promotion_exact_receipt(
+    *,
+    receipt_path: Path | None = None,
+    receipt: Mapping[str, Any] | None = None,
+    identity: Mapping[str, Any] | None = None,
+    identity_path: Path | None = None,
+    repo_path: Path | None = None,
+    dependencies: Sequence[str] = (),
+    expected_head: str | None = None,
+) -> dict[str, Any]:
+    """Promotion exact-receipt verification via promotion_receipt_gate.
+
+    Missing, stale, and wrong-head receipts fail closed through the existing gate.
+    """
+    if receipt_path is None and receipt is None:
+        return {
+            "ok": False,
+            "code": "promotion_receipt_missing",
+            "accepted": False,
+            "gate": "promotion_receipt_gate",
+        }
+
+    if receipt_path is not None:
+        if not Path(receipt_path).is_file():
+            return {
+                "ok": False,
+                "code": "promotion_receipt_missing",
+                "accepted": False,
+                "gate": "promotion_receipt_gate",
+                "detail": str(receipt_path),
+            }
+        decision = verify_receipt_file(
+            receipt_path,
+            identity_path=identity_path,
+            repo_path=repo_path,
+            dependencies=list(dependencies),
+            profile="full",
+            required_gate="full-gate",
+            workflow_head_commit=expected_head,
+        )
+    elif identity is None and identity_path is None and repo_path is None:
+        return {
+            "ok": False,
+            "code": "promotion_receipt_missing",
+            "accepted": False,
+            "gate": "promotion_receipt_gate",
+            "detail": "identity_missing",
+        }
+    else:
+        assert receipt is not None
+        if identity is None:
+            return {
+                "ok": False,
+                "code": "promotion_receipt_missing",
+                "accepted": False,
+                "gate": "promotion_receipt_gate",
+                "detail": "identity_missing",
+            }
+        decision = verify_receipt_payload(
+            receipt,
+            identity,
+            "full-gate",
+            workflow_head_commit=expected_head,
+        )
+
+    payload = decision.to_dict()
+    code = str(payload.get("code") or "")
+    if expected_head and payload.get("accepted"):
+        receipt_head = None
+        if receipt is not None:
+            identity_obj = receipt.get("candidateIdentity")
+            if isinstance(identity_obj, Mapping):
+                receipt_head = identity_obj.get("headCommit")
+        if identity is not None:
+            receipt_head = receipt_head or identity.get("headCommit")
+        if receipt_head and receipt_head != expected_head:
+            return {
+                "ok": False,
+                "code": "promotion_receipt_wrong_head",
+                "accepted": False,
+                "gate": "promotion_receipt_gate",
+                "detail": f"expected={expected_head}; receipt={receipt_head}",
+            }
+    if not payload.get("accepted"):
+        mapped = code
+        if code in {"invalid_receipt", "identity_missing"}:
+            mapped = "promotion_receipt_missing"
+        elif code in {"stale_head", "workflow_head_mismatch", "superseded_head"}:
+            mapped = "promotion_receipt_stale"
+        elif code in {"tree_mismatch", "head_mismatch"}:
+            mapped = "promotion_receipt_wrong_head"
+        return {
+            "ok": False,
+            "code": mapped,
+            "accepted": False,
+            "gate": "promotion_receipt_gate",
+            "detail": payload.get("detail", ""),
+            "upstreamCode": code,
+        }
+    return {
+        "ok": True,
+        "code": "promotion_receipt_accepted",
+        "accepted": True,
+        "gate": "promotion_receipt_gate",
+        "detail": payload.get("detail", ""),
+        "upstreamCode": code,
+    }
+
+
+def evaluate_promotion_with_receipt(
+    *,
+    contract: Mapping[str, Any],
+    branch: str,
+    promotion_tree_unchanged: bool,
+    receipt_path: Path | None = None,
+    receipt: Mapping[str, Any] | None = None,
+    identity: Mapping[str, Any] | None = None,
+    expected_head: str | None = None,
+    repo_path: Path | None = None,
+    dependencies: Sequence[str] = (),
+) -> dict[str, Any]:
+    """Select the promotion profile then enforce exact receipt via the gate."""
+    decision = select_profile(
+        event=EVENT_PROMOTION,
+        branch=branch,
+        changed_paths=[],
+        contract=contract,
+        promotion_tree_unchanged=promotion_tree_unchanged,
+    )
+    receipt_result = verify_promotion_exact_receipt(
+        receipt_path=receipt_path,
+        receipt=receipt,
+        identity=identity,
+        repo_path=repo_path,
+        dependencies=dependencies,
+        expected_head=expected_head,
+    )
+    return {
+        "profile": decision.to_dict(),
+        "receipt": receipt_result,
+        "ok": decision.profile == PROFILE_PROMOTION and bool(receipt_result.get("ok")),
+        "gate": "promotion_receipt_gate",
     }
 
 
