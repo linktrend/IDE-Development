@@ -1,0 +1,12 @@
+{
+  "claim": null,
+  "context": {
+    "expectedAudience": "ide-development",
+    "requiredService": "linkplatform",
+    "requiredCapability": "read",
+    "expectedOrgId": "org-synthetic-s1",
+    "expectedRuntimeBindingId": "bind-ide-dev-s1",
+    "now": "2026-08-17T08:00:00.000Z",
+    "identityServiceStatus": "available"
+  }
+}
