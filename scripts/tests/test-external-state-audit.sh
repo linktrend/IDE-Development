@@ -168,7 +168,7 @@ p = json.loads(Path("${TMP}/drift-out.json").read_text())
 by = {c["id"]: c for c in p["checks"]}
 assert by["bugbot.check_name"]["status"] == "drift"
 assert by["protection.development_ruleset"]["status"] == "drift"
-assert "Cursor Bugbot" in by["protection.development_ruleset"]["detail"]
+assert "Linktrend Review Gate" in by["protection.development_ruleset"]["detail"]
 assert p["mutations"] == []
 print("drift ok")
 PY

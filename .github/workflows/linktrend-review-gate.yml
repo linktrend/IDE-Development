@@ -2,17 +2,13 @@ name: Linktrend Review Gate
 
 # Classifies exact-head Cursor Bugbot provider results into the managed
 # Linktrend Review Gate commit status (WP-U01). Never labels advisory
-# unavailability as a Bugbot pass.
+# unavailability as a Bugbot pass. Free-text provider heuristics are forbidden.
 
 on:
   check_run:
     types: [completed]
 
-permissions:
-  contents: read
-  statuses: write
-  pull-requests: read
-  checks: read
+permissions: {}
 
 jobs:
   classify:
@@ -20,35 +16,55 @@ jobs:
     if: github.event.check_run.name == 'Cursor Bugbot'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
+    permissions:
+      contents: read
+      statuses: write
+      pull-requests: write
+      issues: write
+      checks: read
+      actions: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.check_run.head_sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Classify and publish managed gate
+      - name: Classify, alert, fallback, and publish managed gate
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.check_run.head_sha }}
           CHECK_CONCLUSION: ${{ github.event.check_run.conclusion }}
           CHECK_STATUS: ${{ github.event.check_run.status }}
           CHECK_DETAILS: ${{ github.event.check_run.output.summary }}
+          FALLBACK_REVIEWER: ${{ vars.LINKTREND_REVIEW_GATE_FALLBACK_REVIEWER }}
+          FALLBACK_IMPLEMENTER: ${{ vars.LINKTREND_REVIEW_GATE_IMPLEMENTER }}
+          INDEPENDENT_REVIEW_CONFIGURED: ${{ vars.LINKTREND_INDEPENDENT_REVIEW_CONFIGURED }}
         run: |
           set -euo pipefail
           TREE="$(git rev-parse "${HEAD_SHA}^{tree}")"
-          ATTEMPTS="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/status" \
-            --jq '[.statuses[] | select(.context=="Linktrend Review Gate")] | length' || echo 0)"
-          ATTEMPTS=$((ATTEMPTS + 1))
+          PR_NUMBER="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/pulls" \
+            --jq '.[0].number // empty' || true)"
+
+          # Trusted verified unavailability only — never free-text heuristics.
           PROVIDER_JSON=""
-          DETAILS_LC="$(printf '%s' "${CHECK_DETAILS}" | tr '[:upper:]' '[:lower:]')"
-          if printf '%s' "${DETAILS_LC}" | grep -Eq 'quota|rate limit|spending|billing|outage|unavailable|provider error'; then
-            if printf '%s' "${DETAILS_LC}" | grep -Eq 'quota|rate limit'; then CLASS=quota
-            elif printf '%s' "${DETAILS_LC}" | grep -Eq 'spending|billing'; then CLASS=spending_limit
-            elif printf '%s' "${DETAILS_LC}" | grep -Eq 'outage|unavailable'; then CLASS=service_outage
-            else CLASS=provider_error
-            fi
-            PROVIDER_JSON="$(printf '{"class":"%s"}' "${CLASS}")"
+          if [ -f .linktrend/review-gate-provider-error.json ]; then
+            PROVIDER_JSON="$(cat .linktrend/review-gate-provider-error.json)"
+            echo "${PROVIDER_JSON}" | jq -e '.verified == true and (.source|type=="string")' >/dev/null \
+              || { echo "untrusted_provider_error_file"; PROVIDER_JSON=""; }
           fi
+
+          MARKERS_JSON="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/comments" \
+            --jq '[.[].body]' 2>/dev/null || echo '[]')"
+          if [ -n "${PR_NUMBER}" ]; then
+            MARKERS_JSON="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              --jq '[.[].body]' 2>/dev/null || echo '[]')"
+          fi
+          ATTEMPTS="$(python3 scripts/gitops/linktrend_review_gate.py count-infra-attempts \
+            --head-sha "${HEAD_SHA}" --markers-json "${MARKERS_JSON}" | jq -r .attempts)"
+          if [ -n "${PROVIDER_JSON}" ]; then
+            ATTEMPTS=$((ATTEMPTS + 1))
+          fi
+
           ARGS=(
             python3 scripts/gitops/linktrend_review_gate.py classify
             --repository "${GITHUB_REPOSITORY}"
@@ -59,11 +75,11 @@ jobs:
             --infrastructure-attempts "${ATTEMPTS}"
             --result-head-sha "${HEAD_SHA}"
           )
+          if [ -n "${PR_NUMBER}" ]; then
+            ARGS+=(--pull-request "${PR_NUMBER}")
+          fi
           if [ -n "${PROVIDER_JSON}" ]; then
             ARGS+=(--provider-error-json "${PROVIDER_JSON}")
-          fi
-          if printf '%s' "${DETAILS_LC}" | grep -Eq 'finding|findings|bugbot found'; then
-            ARGS+=(--findings-present)
           fi
           OUT="$("${ARGS[@]}")"
           echo "${OUT}"
@@ -72,9 +88,83 @@ jobs:
           CONTEXT="$(jq -r .commitStatus.context <<<"${OUT}")"
           CLAIM="$(jq -r .classification.bugbotPassedClaim <<<"${OUT}")"
           OUTCOME="$(jq -r .classification.outcome <<<"${OUT}")"
+          GATE_SUCCESS="$(jq -r .classification.gateSuccess <<<"${OUT}")"
+          ALERT="$(jq -r .classification.alertFounder <<<"${OUT}")"
           if [ "${OUTCOME}" = "advisory-unavailable" ] && [ "${CLAIM}" = "true" ]; then
             echo "advisory_must_not_claim_bugbot_pass"; exit 1
           fi
+
+          # Exact Full receipt/check required before publishing a successful gate.
+          if [ "${GATE_SUCCESS}" = "true" ]; then
+            FULL_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs" \
+              --jq --arg head "${HEAD_SHA}" '
+                [.check_runs[]
+                  | select(.name=="Linktrend Full Suite")
+                  | {name:.name, headSha:.head_sha, gitTree:"", status:(.conclusion // .status)}
+                ] | .[0] // empty' || true)"
+            if [ -z "${FULL_JSON}" ] || [ "${FULL_JSON}" = "null" ]; then
+              FULL_JSON="$(jq -n --arg h "${HEAD_SHA}" --arg t "${TREE}" \
+                '{name:"Linktrend Full Suite",headSha:$h,gitTree:$t,status:"missing"}')"
+            else
+              FULL_JSON="$(jq --arg t "${TREE}" '.gitTree=$t' <<<"${FULL_JSON}")"
+            fi
+            python3 scripts/gitops/linktrend_review_gate.py require-full-receipt \
+              --gate-success \
+              --full-receipt-json "${FULL_JSON}" \
+              --head-sha "${HEAD_SHA}" \
+              --git-tree "${TREE}"
+          fi
+
+          # Durable founder alert (deduped) — fail closed when required.
+          if [ "${ALERT}" = "true" ]; then
+            CLASS_JSON="$(jq -c .classification <<<"${OUT}")"
+            ALERT_JSON="$(python3 scripts/gitops/linktrend_review_gate.py founder-alert \
+              --classification-json "${CLASS_JSON}")"
+            MARKER="$(jq -r .marker <<<"${ALERT_JSON}")"
+            if ! printf '%s\n' "${MARKERS_JSON}" | grep -Fq "${MARKER}"; then
+              TITLE="$(jq -r .title <<<"${ALERT_JSON}")"
+              BODY="$(jq -r .body <<<"${ALERT_JSON}")"
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/issues" \
+                -f title="${TITLE}" \
+                -f body="${BODY}" >/tmp/review-gate-alert.json \
+                || { echo "founder_alert_publish_failed"; exit 1; }
+            fi
+            # Record infrastructure attempt marker on the PR when present.
+            if [ -n "${PR_NUMBER}" ]; then
+              INFRA_MARKER="$(jq -r '.infraAttemptMarker // empty' <<<"${OUT}")"
+              if [ -n "${INFRA_MARKER}" ]; then
+                gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+                  -f body="${INFRA_MARKER}" >/dev/null || true
+              fi
+            fi
+          fi
+
+          # Wire fallback review for advisory-unavailable when configured.
+          if [ "${OUTCOME}" = "advisory-unavailable" ] && [ "${INDEPENDENT_REVIEW_CONFIGURED}" = "true" ]; then
+            [ -n "${FALLBACK_REVIEWER}" ] || { echo "fallback_reviewer_missing"; exit 1; }
+            [ -n "${FALLBACK_IMPLEMENTER}" ] || { echo "fallback_implementer_missing"; exit 1; }
+            FALLBACK="$(python3 scripts/gitops/linktrend_review_gate.py fallback \
+              --outcome "${OUTCOME}" \
+              --independent-review-configured \
+              --reviewer-actor "${FALLBACK_REVIEWER}" \
+              --implementer-actor "${FALLBACK_IMPLEMENTER}" \
+              --evidence-head "${HEAD_SHA}" \
+              --live-head "${HEAD_SHA}")"
+            COMMENT="$(python3 scripts/gitops/linktrend_review_gate.py fallback-comment \
+              --fallback-json "${FALLBACK}" --head-sha "${HEAD_SHA}")"
+            if [ "$(jq -r .posted <<<"${COMMENT}")" = "true" ]; then
+              [ -n "${PR_NUMBER}" ] || { echo "fallback_requires_pr"; exit 1; }
+              BODY="$(jq -r .body <<<"${COMMENT}")"
+              EXISTING="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+                --jq '.[].body' || true)"
+              MARKER="$(jq -r .marker <<<"${COMMENT}")"
+              if ! printf '%s\n' "${EXISTING}" | grep -Fq "${MARKER}"; then
+                gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+                  -f body="${BODY}" >/dev/null
+              fi
+            fi
+          fi
+
           gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
             -f state="${STATE}" \
             -f context="${CONTEXT}" \

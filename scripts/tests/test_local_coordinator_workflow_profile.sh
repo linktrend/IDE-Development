@@ -14,7 +14,7 @@ make_consumer() {
   "fastWorkflowName": "Linktrend Fast Checks",
   "ciWorkflowName": "Consumer CI",
   "branchPolicyWorkflowName": "Branch Source Policy",
-  "bugbotCheckName": "Cursor Bugbot",
+  "bugbotCheckName": "Linktrend Review Gate", "reviewGateCheckName": "Linktrend Review Gate", "bugbotProviderCheckName": "Linktrend Review Gate",
   "runnerType": "github-hosted"
 }
 JSON
@@ -57,7 +57,7 @@ assert "Orchestration profile: local-coordinator" in text
 for context in (
     "Linktrend Fast Gate", "Linktrend Full Suite", "Linktrend Phase Ready",
     "Linktrend Staging Gate", "Linktrend Release Gate", "Linktrend Coordinator",
-    "Cursor Bugbot",
+    "Linktrend Review Gate",
 ):
     assert context in text, f"{path.name}: missing frozen context {context}"
 PY

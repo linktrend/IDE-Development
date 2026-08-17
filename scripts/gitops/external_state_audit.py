@@ -869,7 +869,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                 "bugbot",
                 "Bugbot manualTriggerOnly=true (mention-only)",
                 detail=(
-                    "dry-run default / live GitHub path cannot read Cursor Bugbot "
+                    "dry-run default / live GitHub path cannot read Linktrend Review Gate "
                     "dashboard; supply fixture bugbot.manualTriggerOnly or confirm "
                     "manually per docs/contracts/BUGBOT-MENTION-ONLY.md"
                 ),

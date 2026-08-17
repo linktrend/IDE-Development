@@ -17,7 +17,7 @@ Installed managed core: `.ide-development/`.
 ## Packager opens PR
 
 - Draft PRs into `development` are opened by the **Phase Packager/Coordinator** (`scripts/gitops/packager_coordinator.py`), not by implementers. Retained `packager_discover.py` is not that component.
-- Integrator merges only when named gates + Cursor Bugbot succeed on the exact reviewed SHA.
+- Integrator merges only when named gates + Linktrend Review Gate succeed on the exact reviewed SHA.
 
 ## Completion gate
 

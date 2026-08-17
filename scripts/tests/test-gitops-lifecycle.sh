@@ -63,7 +63,9 @@ def render(text: str) -> str:
     return (
         text.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
         .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
-        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+        .replace("__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__", "Cursor Bugbot")
+        .replace("__LINKTREND_REVIEW_GATE_CHECK_NAME__", "Linktrend Review Gate")
+        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Linktrend Review Gate")
         .replace("__LINKTREND_UNTRUSTED_RUNS_ON__", untrusted_runner)
         .replace("__LINKTREND_RUNS_ON__", privileged_runner)
     )

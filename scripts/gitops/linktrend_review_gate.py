@@ -48,6 +48,18 @@ PROVIDER_UNAVAILABLE_CLASSES = frozenset(
     }
 )
 
+FULL_SUITE_CONTEXT = "Linktrend Full Suite"
+FOUNDER_ALERT_MARKER_PREFIX = "<!-- linktrend-review-gate-alert:"
+INFRA_ATTEMPT_MARKER_PREFIX = "<!-- linktrend-review-gate-infra-attempt:"
+FALLBACK_REQUEST_MARKER_PREFIX = "<!-- linktrend-review-gate-fallback:"
+TRUSTED_PROVIDER_SOURCES = frozenset(
+    {
+        "repair_observer.usage_limit",
+        "operator_verified_provider_error",
+        "provider_status_api",
+    }
+)
+
 _SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -244,6 +256,128 @@ def _provider_class(raw: Mapping[str, Any] | None) -> str | None:
     return None
 
 
+def verified_provider_unavailability(raw: Mapping[str, Any] | None) -> str | None:
+    """Return an approved unavailable class only for trusted verified evidence.
+
+    Free-text heuristics and unverified payloads must not produce
+    ``advisory-unavailable`` or gate success.
+    """
+    if not raw:
+        return None
+    if raw.get("verified") is not True:
+        return None
+    source = _norm(raw.get("source") or raw.get("evidenceSource"))
+    if source and source not in TRUSTED_PROVIDER_SOURCES:
+        return None
+    if not source:
+        # verified:true without an explicit trusted source is not enough.
+        return None
+    return _provider_class(raw)
+
+
+def count_infrastructure_attempts(markers: Sequence[str] | None, *, head_sha: str) -> int:
+    """Count only infrastructure-retry markers for the exact candidate head."""
+    head = require_sha40(head_sha, "head_sha")
+    needle = f"{INFRA_ATTEMPT_MARKER_PREFIX} {head}"
+    count = 0
+    for raw in markers or []:
+        text = _norm(raw)
+        if needle in text:
+            count += 1
+    return count
+
+
+def founder_alert_marker(head_sha: str) -> str:
+    return f"{FOUNDER_ALERT_MARKER_PREFIX} {require_sha40(head_sha)} -->"
+
+
+def infrastructure_attempt_marker(head_sha: str, attempt: int) -> str:
+    return f"{INFRA_ATTEMPT_MARKER_PREFIX} {require_sha40(head_sha)}:{int(attempt)} -->"
+
+
+def fallback_request_marker(head_sha: str) -> str:
+    return f"{FALLBACK_REQUEST_MARKER_PREFIX} {require_sha40(head_sha)} -->"
+
+
+def build_durable_founder_alert(classification: Classification) -> dict[str, Any]:
+    """Build a durable, sanitized founder-alert payload with dedupe marker."""
+    if not classification.alertFounder or not classification.sanitizedAlert:
+        raise ReviewGateError("founder_alert_not_required", classification.outcome)
+    marker = founder_alert_marker(classification.headSha)
+    title = (
+        f"[Linktrend Review Gate] Bugbot unavailable "
+        f"{classification.repository}@{classification.headSha[:12]}"
+    )
+    body = (
+        f"{marker}\n"
+        f"{classification.sanitizedAlert}\n\n"
+        f"outcome={classification.outcome}\n"
+        f"providerClass={classification.providerClass or 'none'}\n"
+        f"headSha={classification.headSha}\n"
+        f"gitTree={classification.gitTree}\n"
+        "This is not a Bugbot pass.\n"
+    )
+    return {
+        "required": True,
+        "marker": marker,
+        "title": title,
+        "body": body,
+        "headSha": classification.headSha,
+        "dedupeKey": marker,
+    }
+
+
+def founder_alert_already_recorded(existing_bodies: Sequence[str], *, head_sha: str) -> bool:
+    marker = founder_alert_marker(head_sha)
+    return any(marker in _norm(body) for body in existing_bodies or [])
+
+
+def require_full_receipt_for_gate_success(
+    *,
+    gate_success: bool,
+    full_receipt: Mapping[str, Any] | None,
+    head_sha: str,
+    git_tree: str,
+) -> None:
+    """Successful managed gate publish requires an exact-head Full receipt/check."""
+    if not gate_success:
+        return
+    head = require_sha40(head_sha, "head_sha")
+    tree = require_sha40(git_tree, "git_tree")
+    if not full_receipt:
+        raise ReviewGateError("full_receipt_missing", "successful gate requires Full receipt")
+    receipt_head = require_sha40(str(full_receipt.get("headSha") or ""), "full_receipt.headSha")
+    receipt_tree = require_sha40(str(full_receipt.get("gitTree") or full_receipt.get("tree") or ""), "full_receipt.gitTree")
+    status = _lower(full_receipt.get("status") or full_receipt.get("conclusion") or "")
+    context = _norm(full_receipt.get("context") or full_receipt.get("name") or FULL_SUITE_CONTEXT)
+    if context not in {FULL_SUITE_CONTEXT, "full", "full-gate", "Linktrend Full Suite"}:
+        raise ReviewGateError("full_receipt_wrong_context", context)
+    if receipt_head != head:
+        raise ReviewGateError("full_receipt_wrong_head", f"receipt={receipt_head} live={head}")
+    if receipt_tree != tree:
+        raise ReviewGateError("full_receipt_wrong_tree", f"receipt={receipt_tree} live={tree}")
+    if status not in {"success", "passed"}:
+        raise ReviewGateError("full_receipt_not_success", status or "missing")
+
+
+def build_fallback_request_comment(
+    *,
+    fallback: Mapping[str, Any],
+    head_sha: str,
+) -> dict[str, Any]:
+    if not fallback.get("requested"):
+        return {"posted": False, "reason": fallback.get("reason") or "not_requested"}
+    marker = fallback_request_marker(head_sha)
+    reviewer = _norm(fallback.get("reviewerActor"))
+    body = (
+        f"{marker}\n"
+        f"Linktrend Review Gate advisory-unavailable: requesting independent fallback review "
+        f"from `{reviewer}` for exact head `{require_sha40(head_sha)}`.\n"
+        "Implementer self-review is rejected.\n"
+    )
+    return {"posted": True, "marker": marker, "body": body, "reviewerActor": reviewer}
+
+
 def classify_bugbot_result(
     *,
     repository: str,
@@ -266,7 +400,8 @@ def classify_bugbot_result(
         raise ReviewGateError("invalid_repository", repository)
     head = require_sha40(head_sha, "head_sha")
     tree = require_sha40(git_tree, "git_tree")
-    reject_third_infrastructure_attempt(infrastructure_attempts)
+    if infrastructure_attempts < 0:
+        raise ReviewGateError("invalid_attempts", "attempts must be >= 0")
 
     if missing or malformed or forged:
         return Classification(
@@ -304,7 +439,27 @@ def classify_bugbot_result(
 
     state = _lower(bugbot_state)
     conclusion = _lower(bugbot_conclusion) if bugbot_conclusion is not None else ""
-    provider = _provider_class(provider_error)
+    # Unverified / heuristic provider payloads never authorize advisory success.
+    provider = verified_provider_unavailability(provider_error)
+    if provider_error and provider is None and provider_error.get("verified") is not True:
+        # Explicitly ignore free-text/untrusted hints; continue fail-closed on conclusion.
+        provider = None
+    elif provider_error and provider is None:
+        # verified claimed but source/class untrusted → fail closed as unknown.
+        return Classification(
+            outcome=OUTCOME_UNKNOWN,
+            gateSuccess=False,
+            bugbotPassedClaim=False,
+            alertFounder=False,
+            detail="untrusted_or_incomplete_provider_unavailability_evidence",
+            headSha=head,
+            gitTree=tree,
+            repository=repo,
+            pullRequest=pull_request,
+            infrastructureAttempts=infrastructure_attempts,
+            providerClass=None,
+            sanitizedAlert=None,
+        )
 
     if state in {"pending", "queued", "in_progress"}:
         return Classification(
@@ -339,8 +494,8 @@ def classify_bugbot_result(
         )
 
     if provider is not None:
-        if infrastructure_attempts > MAX_INFRASTRUCTURE_ATTEMPTS:
-            raise ReviewGateError("infrastructure_attempt_limit")
+        # Infrastructure retries are counted only on verified-unavailability attempts.
+        reject_third_infrastructure_attempt(infrastructure_attempts)
         alert = (
             f"Bugbot provider unavailable ({provider}) for {repo}"
             f"@{head[:12]}; Linktrend Review Gate advisory-unavailable"
@@ -399,6 +554,7 @@ def classify_bugbot_result(
         "timed_out",
         "action_required",
     }:
+        # conclusion=failure never becomes gate success without verified unavailability above.
         return Classification(
             outcome=OUTCOME_FAILED,
             gateSuccess=False,
@@ -510,6 +666,23 @@ def main(argv: list[str] | None = None) -> int:
     t = sub.add_parser("assert-attempts", help="Reject a third infrastructure attempt")
     t.add_argument("--attempts", type=int, required=True)
 
+    fr = sub.add_parser("require-full-receipt", help="Require exact Full receipt before gate success")
+    fr.add_argument("--gate-success", action="store_true")
+    fr.add_argument("--full-receipt-json", required=True)
+    fr.add_argument("--head-sha", required=True)
+    fr.add_argument("--git-tree", required=True)
+
+    fa = sub.add_parser("founder-alert", help="Build durable founder-alert payload")
+    fa.add_argument("--classification-json", required=True)
+
+    ci = sub.add_parser("count-infra-attempts", help="Count infrastructure retry markers")
+    ci.add_argument("--head-sha", required=True)
+    ci.add_argument("--markers-json", required=True)
+
+    fb = sub.add_parser("fallback-comment", help="Build fallback request comment body")
+    fb.add_argument("--fallback-json", required=True)
+    fb.add_argument("--head-sha", required=True)
+
     args = parser.parse_args(argv)
     try:
         if args.command == "classify":
@@ -532,6 +705,11 @@ def main(argv: list[str] | None = None) -> int:
             payload = {
                 "classification": result.to_dict(),
                 "commitStatus": gate_commit_status(result),
+                "infraAttemptMarker": (
+                    infrastructure_attempt_marker(result.headSha, result.infrastructureAttempts)
+                    if result.outcome == OUTCOME_ADVISORY
+                    else None
+                ),
             }
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
@@ -576,6 +754,49 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "assert-attempts":
             reject_third_infrastructure_attempt(args.attempts)
             print(json.dumps({"ok": True, "attempts": args.attempts}, indent=2))
+            return 0
+        if args.command == "require-full-receipt":
+            receipt = _load_json_arg(args.full_receipt_json)
+            if receipt is not None and not isinstance(receipt, dict):
+                raise ReviewGateError("invalid_full_receipt", "full-receipt-json must be object or null")
+            require_full_receipt_for_gate_success(
+                gate_success=args.gate_success,
+                full_receipt=receipt,
+                head_sha=args.head_sha,
+                git_tree=args.git_tree,
+            )
+            print(json.dumps({"ok": True}, indent=2, sort_keys=True))
+            return 0
+        if args.command == "founder-alert":
+            raw = _load_json_arg(args.classification_json)
+            classification = Classification(
+                outcome=str(raw["outcome"]),
+                gateSuccess=bool(raw["gateSuccess"]),
+                bugbotPassedClaim=bool(raw["bugbotPassedClaim"]),
+                alertFounder=bool(raw["alertFounder"]),
+                detail=str(raw["detail"]),
+                headSha=str(raw["headSha"]),
+                gitTree=str(raw["gitTree"]),
+                repository=str(raw["repository"]),
+                pullRequest=raw.get("pullRequest"),
+                infrastructureAttempts=int(raw.get("infrastructureAttempts") or 0),
+                providerClass=raw.get("providerClass"),
+                sanitizedAlert=raw.get("sanitizedAlert"),
+            )
+            print(json.dumps(build_durable_founder_alert(classification), indent=2, sort_keys=True))
+            return 0
+        if args.command == "count-infra-attempts":
+            markers = _load_json_arg(args.markers_json)
+            if not isinstance(markers, list):
+                raise ReviewGateError("invalid_markers", "markers-json must be a list")
+            count = count_infrastructure_attempts([str(x) for x in markers], head_sha=args.head_sha)
+            print(json.dumps({"attempts": count}, indent=2, sort_keys=True))
+            return 0
+        if args.command == "fallback-comment":
+            fallback = _load_json_arg(args.fallback_json)
+            if not isinstance(fallback, dict):
+                raise ReviewGateError("invalid_fallback", "fallback-json must be object")
+            print(json.dumps(build_fallback_request_comment(fallback=fallback, head_sha=args.head_sha), indent=2, sort_keys=True))
             return 0
         raise ReviewGateError("unknown_command", args.command)
     except ReviewGateError as exc:

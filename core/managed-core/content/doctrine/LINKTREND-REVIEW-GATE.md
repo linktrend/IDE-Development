@@ -1,7 +1,7 @@
 # Linktrend Review Gate
 
-**Status:** Active contract for IDE Development Update 1 / WP-U01  
-**Managed check context:** `Linktrend Review Gate`  
+**Status:** Active contract for IDE Development Update 1 / WP-U01
+**Managed check context:** `Linktrend Review Gate`
 **Observed provider check:** `Cursor Bugbot` (never required after migration)
 
 ## Rule
@@ -36,3 +36,22 @@ required context named **`Linktrend Review Gate`**.
 
 Genuine findings and `review-unknown` remain blocking. Do not prefer-incoming.
 Do not claim Bugbot passed under `advisory-unavailable`.
+
+## Durable founder alert
+
+When classification sets `alertFounder`, the managed workflow must publish a
+deduplicated GitHub issue (marker `<!-- linktrend-review-gate-alert: <sha> -->`)
+with the sanitized alert body. In-memory fields alone are not sufficient.
+Alert publish failure is fail-closed.
+
+## Trusted unavailability evidence
+
+`advisory-unavailable` requires structured verified provider evidence
+(`verified: true` plus a trusted `source`). Free-text heuristics must not
+convert `conclusion=failure` into gate success.
+
+## Full receipt before success
+
+Publishing a successful `Linktrend Review Gate` status requires an exact-head
+Full Suite success receipt/check. Missing, wrong-head, wrong-tree, or non-success
+Full evidence fails closed.

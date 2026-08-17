@@ -50,8 +50,8 @@ Git working-tree files are **not** external state. Workflow YAML and local scrip
 | `github_auth.automation_token_secret` | github_auth | `LINKTREND_AUTOMATION_TOKEN` secret **name** listed |
 | `bugbot.user_token_secret` | bugbot | `LINKTREND_BUGBOT_USER_TOKEN` secret **name** listed |
 | `bugbot.manual_trigger_only` | bugbot | `manualTriggerOnly=true` (mention-only) |
-| `bugbot.check_name` | bugbot | Check name is `Cursor Bugbot` (default or matching variable) |
-| `protection.development_ruleset` | protection | Active `development-autonomous-merge` requires `Cursor Bugbot` and `Enforce allowed PR source branches` |
+| `bugbot.check_name` | bugbot | Check name is `Linktrend Review Gate` (default or matching variable) |
+| `protection.development_ruleset` | protection | Active `development-autonomous-merge` requires `Linktrend Review Gate` and `Enforce allowed PR source branches` |
 | `protection.allow_auto_merge` | protection | `allow_auto_merge=true` |
 | `completion.status_context` | completion | Privileged context remains `Linktrend Review Ready` (normal-token publisher from trusted workflow context only) |
 
@@ -116,7 +116,7 @@ python3 scripts/gitops/external_state_audit.py verify --repo linktrend/IDE-Devel
           "type": "required_status_checks",
           "parameters": {
             "required_status_checks": [
-              { "context": "Cursor Bugbot" },
+              { "context": "Linktrend Review Gate" },
               { "context": "Verify IDE Development" },
               { "context": "Enforce allowed PR source branches" }
             ]
