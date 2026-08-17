@@ -11,6 +11,8 @@
 | Start tree | cc1f666dccce26545884f87dc065f7cfcd86a235 |
 | Prior accepted tip (A–D) | 7e9a4bbf7c374d7b395812cd638386206f1ef21c / 9e0d324a144349022c862ca470dc9482640789e5 |
 | Content head/tree (includes E) | f7a6b3e132a0a3edbee5e17a9ba9c3b36f7a7253 / e79080297e906135190b9e3a17bbdc7afb41e262 |
+| Evidence head/tree (includes E) | 7851f706ff921d0bcb4116e44aa0130d34e26306 / 7667748a9ae16f25880983528f87cb617837496c |
+| Final tip binding | branch HEAD after bind-metadata commit; tip SHA not self-embedded |
 | Scope | Repair only PR #326 combined-phase Verify IDE / Fast / matrix failures and residual Verify IDE defects |
 
 ## Failures repaired

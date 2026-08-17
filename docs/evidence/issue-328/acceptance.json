@@ -15,7 +15,7 @@
   "implementationTree": "e79080297e906135190b9e3a17bbdc7afb41e262",
   "headSha": "f7a6b3e132a0a3edbee5e17a9ba9c3b36f7a7253",
   "tree": "e79080297e906135190b9e3a17bbdc7afb41e262",
-  "acceptance": "Preserved A–D; closed Verify IDE IndentationError in test-gitops-behavioral.sh resolver render chain while retaining Review Gate substitutions; narrow local behavioral/bounded-verify/manifest/diff/secret-scan OK. Does not claim hosted CI pass after E.",
+  "acceptance": "Preserved A\u2013D; closed Verify IDE IndentationError in test-gitops-behavioral.sh resolver render chain while retaining Review Gate substitutions; narrow local behavioral/bounded-verify/manifest/diff/secret-scan OK. Does not claim hosted CI pass after E.",
   "covered": [
     "A-secret-scan-fixture-binding-and-publisher-literal",
     "B-vendored-skills-hash-inventory",
@@ -97,5 +97,7 @@
       "exitCode": 0,
       "notes": "candidateTree refreshed with content commit"
     }
-  ]
+  ],
+  "evidenceHeadSha": "7851f706ff921d0bcb4116e44aa0130d34e26306",
+  "evidenceTree": "7667748a9ae16f25880983528f87cb617837496c"
 }
