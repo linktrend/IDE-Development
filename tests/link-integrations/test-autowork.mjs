@@ -355,3 +355,175 @@ test('S0 pins remain frozen and MANIFEST is not a pre-rollout write', () => {
   assert.equal(MANIFEST_SOURCE.includes('.ide-development/providers/'), false)
   assert.equal(existsSync(join(ROOT, '.ide-development')), false)
 })
+
+test('AC-I6-ADV-autowork: denied-kind getter TOCTOU and nested accessors/prototypes fail closed', () => {
+  const trap = clone(requestFixture())
+  let reads = 0
+  Object.defineProperty(trap, 'operation_kind', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      reads += 1
+      return reads === 1 ? 'precheck' : 'order_placement'
+    },
+  })
+  classify(() => validateAutoworkRequest(trap, { now: NOW }), 'accessor_property', 'fail_closed')
+  classify(() => autoworkRequestFingerprint(trap), 'accessor_property', 'fail_closed')
+
+  const executeTrap = clone(requestFixture())
+  let executeReads = 0
+  Object.defineProperty(executeTrap, 'operation_kind', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      executeReads += 1
+      return executeReads === 1 ? 'precheck' : 'execute'
+    },
+  })
+  classify(() => validateAutoworkRequest(executeTrap, { now: NOW }), 'accessor_property', 'fail_closed')
+
+  const nested = clone(requestFixture())
+  Object.defineProperty(nested.policy, 'side_effect_class', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      return 'read_only'
+    },
+  })
+  classify(() => validateAutoworkRequest(nested, { now: NOW }), 'accessor_property', 'fail_closed')
+
+  const proto = Object.create({ leaked: true })
+  Object.assign(proto, requestFixture())
+  classify(() => validateAutoworkRequest(proto, { now: NOW }), 'inherited_property', 'fail_closed')
+
+  const statusTrap = clone(load('positive-accepted-status.json'))
+  Object.defineProperty(statusTrap, 'state', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      return 'accepted'
+    },
+  })
+  classify(() => validateAutoworkStatus(statusTrap), 'accessor_property', 'fail_closed')
+
+  const handoffTrap = clone(load('valid-handoff.json'))
+  Object.defineProperty(handoffTrap, 'ref', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      return 'brain://handoff/exact-precheck'
+    },
+  })
+  classify(() => validateAutoworkHandoff(handoffTrap), 'accessor_property', 'fail_closed')
+})
+
+test('AC-I6-ADV-autowork: mutated request cannot ride an original fingerprint option', () => {
+  const original = requestFixture()
+  const originalFp = autoworkRequestFingerprint(original)
+  const mutated = clone(original)
+  mutated.operation_kind = 'order_placement'
+  mutated.policy = {
+    ...mutated.policy,
+    side_effect_class: 'irreversible_external_write',
+  }
+  classify(() => validateAutoworkReceipt(boundReceipt('positive-succeeded-receipt.json', original), {
+    request: mutated,
+    fingerprint: originalFp,
+    now: NOW,
+  }), 'autowork_fingerprint_conflict', 'fail_closed')
+  classify(() => validateAutoworkCallback(boundCallback(original), {
+    request: mutated,
+    fingerprint: originalFp,
+    now: NOW,
+  }), 'autowork_fingerprint_conflict', 'fail_closed')
+})
+
+test('AC-I6-ADV-autowork: cross-org callback fails closed when request is supplied', () => {
+  const request = requestFixture()
+  const callback = boundCallback(request)
+  callback.org_id = '00000000-0000-4000-8000-000000000099'
+  classify(() => validateAutoworkCallback(callback, {
+    request,
+    fingerprint: autoworkRequestFingerprint(request),
+    now: NOW,
+  }), 'autowork_receipt_unbound', 'fail_closed')
+})
+
+test('AC-I6-ADV-autowork: unbound terminal succeeded fails; trusted fingerprint binding is required', () => {
+  const receipt = boundReceipt('positive-succeeded-receipt.json')
+  classify(() => validateAutoworkReceipt(receipt, { now: NOW }), 'autowork_receipt_unbound', 'fail_closed')
+  const trusted = validateAutoworkReceipt(receipt, {
+    fingerprint: receipt.request_fingerprint,
+    now: NOW,
+  })
+  assert.equal(trusted.status, 'succeeded')
+  assert.equal(trusted.fingerprint, receipt.request_fingerprint)
+
+  const failed = boundReceipt('denied-failed-policy-receipt.json')
+  const unboundFailed = validateAutoworkReceipt(failed, { now: NOW })
+  assert.equal(unboundFailed.status, 'failed')
+  assert.notEqual(unboundFailed.status, 'succeeded')
+})
+
+test('AC-I6-ADV-autowork: expired explicit and dual_human approvals fail closed', () => {
+  const explicit = clone(requestFixture())
+  explicit.policy = {
+    ...explicit.policy,
+    approval_requirement: 'explicit',
+    side_effect_class: 'reversible_external_write',
+  }
+  explicit.approval_refs = [{
+    approval_ref: 'approval://explicit/one',
+    approver_id: 'approver-1',
+    credential_id: 'credential-1',
+    binding_id: 'binding-1',
+    expires_at: '2026-08-01T00:00:00.000Z',
+  }]
+  classify(() => validateAutoworkRequest(explicit, { now: NOW }), 'expired', 'fail_closed')
+
+  const dual = clone(requestFixture())
+  dual.policy = {
+    ...dual.policy,
+    approval_requirement: 'dual_human',
+    side_effect_class: 'irreversible_external_write',
+  }
+  dual.sanitized_brain_candidate_ref = 'brain://sanitized/candidate-1'
+  dual.approval_refs = [
+    {
+      approval_ref: 'approval://dual/lawyer',
+      approver_id: 'lawyer-1',
+      credential_id: 'credential-lawyer',
+      binding_id: 'binding-lawyer',
+      role: 'matter_lawyer',
+      expires_at: '2026-08-01T00:00:00.000Z',
+    },
+    {
+      approval_ref: 'approval://dual/admin',
+      approver_id: 'admin-1',
+      credential_id: 'credential-admin',
+      binding_id: 'binding-admin',
+      role: 'tenant_administrator',
+      expires_at: '2027-01-01T00:00:00.000Z',
+    },
+  ]
+  classify(() => validateAutoworkRequest(dual, { now: NOW }), 'expired', 'fail_closed')
+})
+
+test('AC-I6-ADV-autowork: post-call mutation cannot alter frozen projections or fingerprints', () => {
+  const live = requestFixture()
+  const accepted = validateAutoworkRequest(live, { now: NOW })
+  const frozenFingerprint = accepted.fingerprint
+  live.operation_kind = 'execute'
+  live.policy.side_effect_class = 'irreversible_external_write'
+  assert.equal(accepted.operationKind, 'precheck')
+  assert.equal(accepted.fingerprint, frozenFingerprint)
+  assert.ok(Object.isFrozen(accepted))
+  classify(() => validateAutoworkRequest(live, { now: NOW }), 'autowork_work_kind_denied', 'denied')
+  assert.notEqual(autoworkRequestFingerprint(requestFixture()), autoworkRequestFingerprint(live))
+
+  const statusLive = load('positive-accepted-status.json')
+  const status = validateAutoworkStatus(statusLive)
+  statusLive.state = 'succeeded'
+  assert.equal(status.status, 'accepted')
+  assert.ok(Object.isFrozen(status))
+})

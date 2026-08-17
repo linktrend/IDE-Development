@@ -128,6 +128,84 @@ function bounded(value, code) {
   return value
 }
 
+function rejectInheritedEnumerable(proto, label) {
+  const protoDescriptors = Object.getOwnPropertyDescriptors(proto)
+  for (const key of Object.keys(protoDescriptors)) {
+    if (protoDescriptors[key].enumerable) {
+      closed('inherited_property', `${label} inherits a property: ${key}`)
+    }
+  }
+}
+
+function snapshotChild(item, code, label, depth) {
+  if (item === null || typeof item !== 'object') return item
+  if (Array.isArray(item)) return snapshotArray(item, code, label, depth + 1)
+  return snapshotOwnEnumerablePlainData(item, code, label, depth + 1)
+}
+
+function snapshotArray(value, code, label, depth) {
+  if (depth > 5) closed('payload_too_deep')
+  const list = value
+  const descriptors = Object.getOwnPropertyDescriptors(list)
+  const proto = Object.getPrototypeOf(list)
+  if (proto !== Array.prototype && proto !== null) {
+    closed('inherited_property', `${label} array must be a plain array`)
+  }
+  if (proto === Array.prototype) rejectInheritedEnumerable(proto, label)
+  for (const key of Reflect.ownKeys(descriptors)) {
+    if (key === 'length') continue
+    const desc = descriptors[key]
+    if (typeof key !== 'string') {
+      if (desc.enumerable) closed('unknown_field', `${label} array has a non-string property key`)
+      continue
+    }
+    if (desc.get !== undefined || desc.set !== undefined) {
+      closed('accessor_property', `${label} array has an accessor: ${key}`)
+    }
+    if (desc.enumerable && !/^(0|[1-9]\d*)$/.test(key)) {
+      closed('unknown_field', `${label} array has a non-index field: ${key}`)
+    }
+  }
+  const length = descriptors.length && typeof descriptors.length.value === 'number'
+    ? descriptors.length.value
+    : 0
+  const copy = []
+  for (let index = 0; index < length; index += 1) {
+    const desc = descriptors[String(index)]
+    copy[index] = desc ? snapshotChild(desc.value, code, label, depth) : undefined
+  }
+  return Object.freeze(copy)
+}
+
+/** Copy own enumerable plain data before any semantic read; reject prototypes/accessors/TOCTOU. */
+function snapshotOwnEnumerablePlainData(value, code = 'invalid_object', label = 'autowork input', depth = 0) {
+  if (depth > 5) closed('payload_too_deep')
+  const record = object(value, code)
+  const proto = Object.getPrototypeOf(record)
+  const descriptors = Object.getOwnPropertyDescriptors(record)
+  if (proto !== Object.prototype && proto !== null) {
+    closed('inherited_property', `${label} must be a plain object`)
+  }
+  if (proto === Object.prototype) rejectInheritedEnumerable(proto, label)
+  const snapshot = Object.create(null)
+  for (const key of Reflect.ownKeys(descriptors)) {
+    const desc = descriptors[key]
+    if (typeof key !== 'string') {
+      if (desc.get !== undefined || desc.set !== undefined) {
+        closed('accessor_property', `${label} has an accessor`)
+      }
+      if (desc.enumerable) closed('unknown_field', `${label} has a non-string property key`)
+      continue
+    }
+    if (desc.get !== undefined || desc.set !== undefined) {
+      closed('accessor_property', `${label} has an accessor: ${key}`)
+    }
+    if (!desc.enumerable) continue
+    snapshot[key] = snapshotChild(desc.value, code, label, depth)
+  }
+  return Object.freeze(snapshot)
+}
+
 function denyKey(key, { accessors }) {
   if (key === 'internal' || AUTHORITY.test(key)) {
     denied(key === 'internal' ? 'autowork_internal_mutation' : 'autowork_authority_denied')
@@ -209,7 +287,7 @@ function artifactRef(value) {
   opaque(artifact.retrieval_authorization_ref, 'autowork_request_invalid')
 }
 
-function approvalRef(value) {
+function approvalRef(value, { now, enforceExpiry } = {}) {
   const approval = object(value, 'autowork_request_invalid')
   exactKeys(approval, APPROVAL_KEYS)
   opaque(approval.approval_ref, 'autowork_request_invalid')
@@ -217,6 +295,7 @@ function approvalRef(value) {
   bounded(approval.credential_id, 'autowork_request_invalid')
   bounded(approval.binding_id, 'autowork_request_invalid')
   iso(approval.expires_at, 'autowork_request_invalid')
+  if (enforceExpiry && Date.parse(approval.expires_at) <= now) closed('expired')
   if (approval.role !== undefined && !['matter_lawyer', 'tenant_administrator'].includes(approval.role)) {
     closed('autowork_request_invalid')
   }
@@ -235,11 +314,16 @@ function canonicalize(value) {
   return value
 }
 
+function snapshotPreviousStatus(previousStatus) {
+  if (previousStatus === undefined) return undefined
+  if (typeof previousStatus === 'string') return previousStatus
+  return snapshotOwnEnumerablePlainData(previousStatus, 'autowork_status_invalid', 'autowork previous status')
+}
+
 function previousState(previousStatus) {
   if (previousStatus === undefined) return undefined
   if (typeof previousStatus === 'string') return previousStatus
-  const previous = object(previousStatus, 'autowork_status_invalid')
-  return previous.state
+  return previousStatus.state
 }
 
 function previousAttempt(previousStatus) {
@@ -257,12 +341,13 @@ function assertMonotonic(previous, current, { previousTime, currentTime } = {}) 
 
 /** Stable canonical fingerprint used to bind receipts and idempotent replays. */
 export function autoworkRequestFingerprint(value) {
-  return `sha256:${createHash('sha256').update(JSON.stringify(canonicalize(object(value)))).digest('hex')}`
+  const request = snapshotOwnEnumerablePlainData(value, 'invalid_object', 'autowork request')
+  return `sha256:${createHash('sha256').update(JSON.stringify(canonicalize(request))).digest('hex')}`
 }
 
 export function validateAutoworkRequest(value, { now = Date.now(), priorFingerprint, providerPin } = {}) {
   const pin = exactPin(providerPin)
-  const request = object(value)
+  const request = snapshotOwnEnumerablePlainData(value, 'invalid_object', 'autowork request')
   walkKeys(request, { accessors: false })
   exactKeys(request, REQUEST_KEYS)
   if (request.contract_version !== AUTOWORK_CONTRACT_VERSION) closed('autowork_contract_incompatible')
@@ -318,7 +403,8 @@ export function validateAutoworkRequest(value, { now = Date.now(), priorFingerpr
     closed('autowork_request_invalid')
   }
   if (!Array.isArray(request.approval_refs) || request.approval_refs.length > 2) closed('autowork_request_invalid')
-  const approvals = request.approval_refs.map(approvalRef)
+  const enforceExpiry = policy.approval_requirement === 'explicit' || policy.approval_requirement === 'dual_human'
+  const approvals = request.approval_refs.map((item) => approvalRef(item, { now, enforceExpiry }))
   if (policy.approval_requirement === 'explicit' && approvals.length !== 1) closed('autowork_request_invalid')
   if (policy.approval_requirement === 'dual_human') {
     const approvers = new Set(approvals.map((item) => item.approver_id))
@@ -330,7 +416,7 @@ export function validateAutoworkRequest(value, { now = Date.now(), priorFingerpr
   if (request.sanitized_brain_candidate_ref !== undefined) {
     opaque(request.sanitized_brain_candidate_ref, 'autowork_request_invalid')
   }
-  const fingerprint = autoworkRequestFingerprint(request)
+  const fingerprint = `sha256:${createHash('sha256').update(JSON.stringify(canonicalize(request))).digest('hex')}`
   if (priorFingerprint && priorFingerprint !== fingerprint) closed('autowork_fingerprint_conflict')
   return Object.freeze({
     requestId,
@@ -347,14 +433,15 @@ export function validateAutoworkRequest(value, { now = Date.now(), priorFingerpr
 
 export function validateAutoworkStatus(value, { previousStatus, providerPin } = {}) {
   const pin = exactPin(providerPin)
-  const status = object(value)
+  const status = snapshotOwnEnumerablePlainData(value, 'invalid_object', 'autowork status')
+  const prior = snapshotPreviousStatus(previousStatus)
   walkKeys(status, { accessors: true })
   exactKeys(status, STATUS_KEYS)
   const requestId = uuid(status.request_id)
   if (!RUN_STATES.includes(status.state)) closed('autowork_status_invalid')
-  assertMonotonic(previousState(previousStatus), status.state)
+  assertMonotonic(previousState(prior), status.state)
   if (!Number.isInteger(status.attempt_count) || status.attempt_count < 0) closed('autowork_status_invalid')
-  const priorAttempt = previousAttempt(previousStatus)
+  const priorAttempt = previousAttempt(prior)
   if (priorAttempt !== undefined && status.attempt_count < priorAttempt) closed('autowork_terminal_regression')
   const automation = object(status.automation, 'autowork_status_invalid')
   exactKeys(automation, STATUS_AUTOMATION_KEYS)
@@ -375,7 +462,7 @@ export function validateAutoworkStatus(value, { previousStatus, providerPin } = 
 
 export function validateAutoworkHandoff(value, { providerPin } = {}) {
   const pin = exactPin(providerPin)
-  const handoff = object(value, 'autowork_handoff_invalid')
+  const handoff = snapshotOwnEnumerablePlainData(value, 'autowork_handoff_invalid', 'autowork handoff')
   walkKeys(handoff, { accessors: true })
   exactKeys(handoff, REF_KEYS)
   return Object.freeze({
@@ -389,7 +476,7 @@ export function validateAutoworkHandoff(value, { providerPin } = {}) {
 
 export function validateAutoworkReceipt(value, { request, fingerprint, now = Date.now(), providerPin } = {}) {
   const pin = exactPin(providerPin)
-  const receipt = object(value)
+  const receipt = snapshotOwnEnumerablePlainData(value, 'invalid_object', 'autowork receipt')
   walkKeys(receipt, { accessors: true })
   exactKeys(receipt, RECEIPT_KEYS)
   if (receipt.contract_version !== AUTOWORK_CONTRACT_VERSION) closed('autowork_contract_incompatible')
@@ -425,18 +512,23 @@ export function validateAutoworkReceipt(value, { request, fingerprint, now = Dat
   if (receipt.uncertain_outcome !== undefined && typeof receipt.uncertain_outcome !== 'boolean') {
     closed('autowork_receipt_invalid')
   }
-  if (fingerprint && fingerprint !== requestFingerprint) closed('autowork_fingerprint_conflict')
-  if (request) {
-    const expected = object(request, 'autowork_receipt_unbound')
+  let trustedBinding = false
+  if (request !== undefined) {
+    const expected = snapshotOwnEnumerablePlainData(request, 'autowork_receipt_unbound', 'autowork request binding')
     if (expected.request_id !== requestId) closed('autowork_receipt_unbound')
     if (expected.automation?.automation_id !== automation.automation_id || expected.automation?.version !== automation.version) {
       closed('autowork_receipt_unbound')
     }
     if (expected.expires_at && Date.parse(receipt.accepted_at) >= Date.parse(expected.expires_at)) closed('expired')
-    if (fingerprint === undefined && autoworkRequestFingerprint(expected) !== requestFingerprint) {
-      closed('autowork_fingerprint_conflict')
-    }
+    const computed = autoworkRequestFingerprint(expected)
+    if (computed !== requestFingerprint) closed('autowork_fingerprint_conflict')
+    if (fingerprint !== undefined && fingerprint !== computed) closed('autowork_fingerprint_conflict')
+    trustedBinding = true
+  } else if (fingerprint !== undefined) {
+    if (fingerprint !== requestFingerprint) closed('autowork_fingerprint_conflict')
+    trustedBinding = true
   }
+  if (receipt.state === 'succeeded' && !trustedBinding) closed('autowork_receipt_unbound')
   return Object.freeze({
     requestId,
     receiptId,
@@ -449,18 +541,30 @@ export function validateAutoworkReceipt(value, { request, fingerprint, now = Dat
 
 export function validateAutoworkCallback(value, { previous, request, fingerprint, now = Date.now(), providerPin } = {}) {
   const pin = exactPin(providerPin)
-  const callback = object(value)
+  const callback = snapshotOwnEnumerablePlainData(value, 'invalid_object', 'autowork callback')
+  const boundRequest = request === undefined
+    ? undefined
+    : snapshotOwnEnumerablePlainData(request, 'autowork_receipt_unbound', 'autowork request binding')
   walkKeys(callback, { accessors: true })
   exactKeys(callback, CALLBACK_KEYS)
   const requestId = uuid(callback.request_id)
   const receiptId = uuid(callback.receipt_id)
-  uuid(callback.org_id, 'autowork_id_malformed')
+  const orgId = uuid(callback.org_id, 'autowork_id_malformed')
+  if (boundRequest !== undefined) {
+    const platform = object(boundRequest.platform, 'autowork_receipt_unbound')
+    if (platform.org_id !== orgId) closed('autowork_receipt_unbound')
+  }
   opaque(callback.callback_binding_ref, 'autowork_receipt_invalid')
   iso(callback.source_timestamp, 'autowork_receipt_invalid')
-  const receipt = validateAutoworkReceipt(callback.receipt, { request, fingerprint, now, providerPin: pin })
+  const receipt = validateAutoworkReceipt(callback.receipt, {
+    request: boundRequest,
+    fingerprint,
+    now,
+    providerPin: pin,
+  })
   if (receipt.requestId !== requestId || receipt.receiptId !== receiptId) closed('autowork_receipt_unbound')
-  if (previous) {
-    const prior = object(previous, 'autowork_receipt_invalid')
+  if (previous !== undefined) {
+    const prior = snapshotOwnEnumerablePlainData(previous, 'autowork_receipt_invalid', 'autowork previous callback')
     if (prior.request_id && prior.request_id !== requestId) closed('autowork_receipt_unbound')
     if (prior.receipt_id && prior.receipt_id !== receiptId) closed('autowork_receipt_unbound')
     assertMonotonic(prior.receipt?.state, callback.receipt.state, {
