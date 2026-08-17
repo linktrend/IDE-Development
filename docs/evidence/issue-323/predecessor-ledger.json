@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "issue": 323,
+  "workPackage": "WP-U06",
+  "branch": "issue/323-wp-u06-from-integrated-core",
+  "holdBranchPreserved": "issue/323-implement-ide-development-v2-4-0-wp-u06",
+  "holdBranchTip": "867009f0f33a9a6426c6680a8e95fbec66dc9b02",
+  "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
+  "docsAuthorityTree": "6b9f73f1e78ae4abda3b78b939adc190b6d0842a",
+  "predecessorPhase": "phase/v240-core-through-u01",
+  "startSha": "194078a4186da110e42f514aed860683b0bdbe23",
+  "startTree": "9fb4583be84b1fe2bd9bf70fd5e15e65cf674117",
+  "predecessorVerifiedClean": true,
+  "dependencies": {
+    "WP-U03": {
+      "acceptedTip": "3147d10a96805c1169f737fd350fc6f9a58d5f6f",
+      "acceptedTree": "21463af488c3ff6aa256b16adaf97eab9d412eba",
+      "integration": "serially integrated into phase/v240-core-through-u01 (patch-id; not merge-ancestor)"
+    },
+    "WP-U07": {
+      "acceptedTip": "a926794d7e549a97579f2e1816aca7a893993ccd",
+      "acceptedTree": "53af75c63ad2dc48403ba0c2f3be5adb71d79bd2",
+      "integration": "serially integrated; blob match on repository_ci_contract.py"
+    },
+    "WP-U01": {
+      "acceptedTip": "b9f1ac4b73030e4ea8417fd34fa4987a5f890136",
+      "acceptedTree": "ecc7b856ae504e879a5c875fa2fa076d789125cd",
+      "integration": "serially integrated; blob match on linktrend_review_gate.py; phase content head tree equals U01 tip tree"
+    }
+  },
+  "matrixOrderNote": "WP-U02 remains after WP-U06; Spec Update-6 Update-2 narrative is forward-reference only for this packet",
+  "exclusions": [
+    "WP-U02",
+    "WP-U05",
+    "Full",
+    "PR",
+    "merge",
+    "promotion",
+    "publication",
+    "rollout",
+    "consumer install"
+  ],
+  "holdBranchTree": "8359f3121066af58cec7196c4f9c5d40e860e295"
+}
