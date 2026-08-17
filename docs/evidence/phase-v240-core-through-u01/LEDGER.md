@@ -90,10 +90,10 @@
   - `b9f1ac4b7303` patch `3ad6349d5bd5` — docs(evidence): bind stdin-slurp content/evidence heads
 
 ## Conflicts reconciled
-- WP-U03 `7563504cb0b1`: ['core/managed-core/MANIFEST.json'] → conflict
-- WP-U09 `e6295a79e108`: ['core/managed-core/MANIFEST.json'] → regenerated-manifest-via-build_manifest
-- WP-U10 `0142b2f0e19c`: ['scripts/tests/test-completion-gate-app-route.sh'] → HOLD-conflict
-- WP-U10 `0142b2f0e19c`: ['scripts/tests/test-completion-gate-app-route.sh'] → keep-U04-phase-prefix-and-trusted-publisher-contract; apply-U10-secret-scan-string-split-on-error-literals
+
+- WP-U03 `7563504` → phase `d12b3a6`: `core/managed-core/MANIFEST.json` → `applied-after-narrow-reconcile` via `build_manifest --write`. sourcePatchId `f2f91ba0abdc…`; phasePatchId `aa959241f1bc…`.
+- WP-U09 `e6295a7` → phase `8cc7405`: `core/managed-core/MANIFEST.json` regenerated via `build_manifest --write`; retained WP-U04 trusted-publisher doctrine in `docs/contracts/AGENT-COMPLETION.md` and `core/managed-core/content/doctrine/AGENT-COMPLETION.md` (phase blobs `f431e7f4d0d9…` keep `LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER=1` / AUTOMATION_TOKEN alias text absent from U09 source blob `ad13e2f608ea…`; parent→phase diff is only the independent-review repair-cycles sentence).
+- WP-U10 `0142b2f`: `scripts/tests/test-completion-gate-app-route.sh` → keep-U04-phase-prefix-and-trusted-publisher-contract; apply-U10-secret-scan-string-split-on-error-literals
 
 ## Validation
 

@@ -516,15 +516,21 @@
       "packet": "WP-U03",
       "sourceCommit": "7563504cb0b16979801d27385e2bca97373c0e07",
       "subject": "feat(gitops): add agent-agnostic Phase Packager and Coordinator",
+      "sourcePatchId": "f2f91ba0abdc7c5d130b24e824277c46bd38cfb6",
       "patchId": "f2f91ba0abdc7c5d130b24e824277c46bd38cfb6",
-      "applyStatus": "conflict",
+      "applyStatus": "applied-after-narrow-reconcile",
       "beforeSha": "64658aa4b7888546f5a18ed84ee4460438c26527",
       "beforeTree": "accf5727d0c9901cac8ae60e8360f0058201e8ea",
-      "afterSha": "64658aa4b7888546f5a18ed84ee4460438c26527",
-      "afterTree": "accf5727d0c9901cac8ae60e8360f0058201e8ea",
+      "afterSha": "d12b3a6ec3f2affcdec1c9d55d603eb200431a8f",
+      "afterTree": "0d1eeeb546a9f0a12abceb140304de2b843d663e",
+      "phaseCommit": "d12b3a6ec3f2affcdec1c9d55d603eb200431a8f",
+      "phaseTree": "0d1eeeb546a9f0a12abceb140304de2b843d663e",
+      "phasePatchId": "aa959241f1bc594f2d4c482f24ee105ff7b74917",
       "conflictFiles": [
         "core/managed-core/MANIFEST.json"
-      ]
+      ],
+      "resolution": "regenerated-manifest-via-build_manifest",
+      "resolutionDetail": "Cherry-pick of source 7563504 conflicted only on core/managed-core/MANIFEST.json (sourceHash collisions with already-integrated WP-U04). Non-manifest U03 content auto-merged onto U04 tip 64658aa. Regenerated MANIFEST via python3 -m scripts.ide_development.build_manifest --write, then completed the cherry-pick as phase commit d12b3a6. sourcePatchId records the accepted U03 tip patch; phasePatchId records the post-reconcile phase commit patch (differs because MANIFEST hashes and U04-layered doctrine/rule hashes are included)."
     },
     {
       "packet": "WP-U03",
@@ -575,7 +581,44 @@
       "conflictFiles": [
         "core/managed-core/MANIFEST.json"
       ],
-      "resolution": "regenerated-manifest-via-build_manifest"
+      "resolution": "regenerated-manifest-via-build_manifest; retained WP-U04 trusted-publisher doctrine in docs/contracts/AGENT-COMPLETION.md and core/managed-core/content/doctrine/AGENT-COMPLETION.md",
+      "resolutionDetail": {
+        "summary": "regenerated-manifest-via-build_manifest; retained WP-U04 trusted-publisher doctrine in docs/contracts/AGENT-COMPLETION.md and core/managed-core/content/doctrine/AGENT-COMPLETION.md",
+        "manifest": {
+          "conflictFile": "core/managed-core/MANIFEST.json",
+          "action": "python3 -m scripts.ide_development.build_manifest --write then cherry-pick --continue"
+        },
+        "retainedU04PublisherDoctrine": {
+          "note": "U09 source tip e6295a7 was authored without WP-U04 and carries a shortened Production publisher paragraph. On the phase branch, U04 was already integrated; auto-merge retained the U04 trusted-publisher doctrine text while applying only the U09 independent-review sentence on the repair-cycles bullet. Marker phrases present on phase/parent and absent from U09 source tip prove retention.",
+          "markersRetained": [
+            "LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER=1",
+            "forwards it onto those aliases",
+            "AUTOMATION_TOKEN` then `GH_TOKEN` then `GITHUB_TOKEN"
+          ],
+          "paths": [
+            {
+              "path": "docs/contracts/AGENT-COMPLETION.md",
+              "u04TipBlob": "a30bd48f01de4d58dd43254fd15c706ef6d68298",
+              "u09SourceBlob": "ad13e2f608ea7cb35354a99a0e5c36d40eed0d79",
+              "phaseParentBlob": "b7fde129d9c08a05d545fd286baabab577e215df",
+              "phaseAfterBlob": "f431e7f4d0d9b4876c2742107a8e0e4febc1da40",
+              "u04MarkersOnPhaseAfter": true,
+              "u04MarkersOnU09Source": false,
+              "parentToPhaseDiff": "single bullet at repair-cycles line: append independent-review convergence clarification only; Production publisher / AUTOMATION_TOKEN alias / trusted-flag paragraphs unchanged from parent (U04-bearing)"
+            },
+            {
+              "path": "core/managed-core/content/doctrine/AGENT-COMPLETION.md",
+              "u04TipBlob": "a30bd48f01de4d58dd43254fd15c706ef6d68298",
+              "u09SourceBlob": "ad13e2f608ea7cb35354a99a0e5c36d40eed0d79",
+              "phaseParentBlob": "b7fde129d9c08a05d545fd286baabab577e215df",
+              "phaseAfterBlob": "f431e7f4d0d9b4876c2742107a8e0e4febc1da40",
+              "u04MarkersOnPhaseAfter": true,
+              "u04MarkersOnU09Source": false,
+              "parentToPhaseDiff": "identical one-line independent-review clarification as docs/contracts copy; U04 publisher doctrine retained"
+            }
+          ]
+        }
+      }
     },
     {
       "packet": "WP-U09",
@@ -1075,15 +1118,21 @@
       "packet": "WP-U03",
       "sourceCommit": "7563504cb0b16979801d27385e2bca97373c0e07",
       "subject": "feat(gitops): add agent-agnostic Phase Packager and Coordinator",
+      "sourcePatchId": "f2f91ba0abdc7c5d130b24e824277c46bd38cfb6",
       "patchId": "f2f91ba0abdc7c5d130b24e824277c46bd38cfb6",
-      "applyStatus": "conflict",
+      "applyStatus": "applied-after-narrow-reconcile",
       "beforeSha": "64658aa4b7888546f5a18ed84ee4460438c26527",
       "beforeTree": "accf5727d0c9901cac8ae60e8360f0058201e8ea",
-      "afterSha": "64658aa4b7888546f5a18ed84ee4460438c26527",
-      "afterTree": "accf5727d0c9901cac8ae60e8360f0058201e8ea",
+      "afterSha": "d12b3a6ec3f2affcdec1c9d55d603eb200431a8f",
+      "afterTree": "0d1eeeb546a9f0a12abceb140304de2b843d663e",
+      "phaseCommit": "d12b3a6ec3f2affcdec1c9d55d603eb200431a8f",
+      "phaseTree": "0d1eeeb546a9f0a12abceb140304de2b843d663e",
+      "phasePatchId": "aa959241f1bc594f2d4c482f24ee105ff7b74917",
       "conflictFiles": [
         "core/managed-core/MANIFEST.json"
-      ]
+      ],
+      "resolution": "regenerated-manifest-via-build_manifest",
+      "resolutionDetail": "Cherry-pick of source 7563504 conflicted only on core/managed-core/MANIFEST.json (sourceHash collisions with already-integrated WP-U04). Non-manifest U03 content auto-merged onto U04 tip 64658aa. Regenerated MANIFEST via python3 -m scripts.ide_development.build_manifest --write, then completed the cherry-pick as phase commit d12b3a6. sourcePatchId records the accepted U03 tip patch; phasePatchId records the post-reconcile phase commit patch (differs because MANIFEST hashes and U04-layered doctrine/rule hashes are included)."
     },
     {
       "packet": "WP-U09",
@@ -1098,7 +1147,44 @@
       "conflictFiles": [
         "core/managed-core/MANIFEST.json"
       ],
-      "resolution": "regenerated-manifest-via-build_manifest"
+      "resolution": "regenerated-manifest-via-build_manifest; retained WP-U04 trusted-publisher doctrine in docs/contracts/AGENT-COMPLETION.md and core/managed-core/content/doctrine/AGENT-COMPLETION.md",
+      "resolutionDetail": {
+        "summary": "regenerated-manifest-via-build_manifest; retained WP-U04 trusted-publisher doctrine in docs/contracts/AGENT-COMPLETION.md and core/managed-core/content/doctrine/AGENT-COMPLETION.md",
+        "manifest": {
+          "conflictFile": "core/managed-core/MANIFEST.json",
+          "action": "python3 -m scripts.ide_development.build_manifest --write then cherry-pick --continue"
+        },
+        "retainedU04PublisherDoctrine": {
+          "note": "U09 source tip e6295a7 was authored without WP-U04 and carries a shortened Production publisher paragraph. On the phase branch, U04 was already integrated; auto-merge retained the U04 trusted-publisher doctrine text while applying only the U09 independent-review sentence on the repair-cycles bullet. Marker phrases present on phase/parent and absent from U09 source tip prove retention.",
+          "markersRetained": [
+            "LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER=1",
+            "forwards it onto those aliases",
+            "AUTOMATION_TOKEN` then `GH_TOKEN` then `GITHUB_TOKEN"
+          ],
+          "paths": [
+            {
+              "path": "docs/contracts/AGENT-COMPLETION.md",
+              "u04TipBlob": "a30bd48f01de4d58dd43254fd15c706ef6d68298",
+              "u09SourceBlob": "ad13e2f608ea7cb35354a99a0e5c36d40eed0d79",
+              "phaseParentBlob": "b7fde129d9c08a05d545fd286baabab577e215df",
+              "phaseAfterBlob": "f431e7f4d0d9b4876c2742107a8e0e4febc1da40",
+              "u04MarkersOnPhaseAfter": true,
+              "u04MarkersOnU09Source": false,
+              "parentToPhaseDiff": "single bullet at repair-cycles line: append independent-review convergence clarification only; Production publisher / AUTOMATION_TOKEN alias / trusted-flag paragraphs unchanged from parent (U04-bearing)"
+            },
+            {
+              "path": "core/managed-core/content/doctrine/AGENT-COMPLETION.md",
+              "u04TipBlob": "a30bd48f01de4d58dd43254fd15c706ef6d68298",
+              "u09SourceBlob": "ad13e2f608ea7cb35354a99a0e5c36d40eed0d79",
+              "phaseParentBlob": "b7fde129d9c08a05d545fd286baabab577e215df",
+              "phaseAfterBlob": "f431e7f4d0d9b4876c2742107a8e0e4febc1da40",
+              "u04MarkersOnPhaseAfter": true,
+              "u04MarkersOnU09Source": false,
+              "parentToPhaseDiff": "identical one-line independent-review clarification as docs/contracts copy; U04 publisher doctrine retained"
+            }
+          ]
+        }
+      }
     },
     {
       "packet": "WP-U10",
@@ -1151,5 +1237,14 @@
     "result": "all listed commands exit 0 on integration content head",
     "transcriptPath": "docs/evidence/phase-v240-core-through-u01/focused-tests.out"
   },
-  "completedAt": "2026-08-17T15:11:54.572374+00:00"
+  "completedAt": "2026-08-17T15:11:54.572374+00:00",
+  "evidenceRepairs": {
+    "atPredecessorTip": "3f3dd56919b76bb4d9beda5d88c2dd0ea622de9f",
+    "scope": "evidence-only P2 ledger repairs; no integrated code/content change",
+    "items": [
+      "WP-U03 applyLog: record phase commit d12b3a6 as applied-after-narrow-reconcile with source/phase patch identities",
+      "WP-U09 resolution: document MANIFEST regen plus retained U04 publisher doctrine in AGENT-COMPLETION paths with blob evidence"
+    ],
+    "repairedAt": "2026-08-17T15:24:44.031039+00:00"
+  }
 }
