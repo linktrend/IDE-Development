@@ -17,9 +17,9 @@
 | Start tree | `014563e36ad8547276df82a34ad0688936b58533` |
 | Dependency tips integrated | U03/U07/U01/U06 already present at start tip (U06 tip = start) |
 | Content head/tree | `b33494d12ced96cb5350ea72725664362afe462d` / `0fb6369d7beb002ae5054ab31f6e52ead037b09a` |
-| Evidence head/tree | pending evidence commit |
-| Final tip binding | branch HEAD after bind-metadata commit; tip SHA not self-embedded (non-self-reference boundary) |
-| Novel packet commit range | pending through evidence head |
+| Evidence head/tree | `7d1e1e14ea012f09fcf4fe6b48bcbd096cbd9386` / `6a977c32c4cee0970761ae127b16264c8d7685db` |
+| Final tip binding | branch HEAD after this bind-metadata commit; tip SHA not self-embedded (non-self-reference boundary) |
+| Novel packet commit range | `b33494d12ced96cb5350ea72725664362afe462d..7d1e1e14ea012f09fcf4fe6b48bcbd096cbd9386` (through evidence head; bind-metadata tip follows without self-SHA) |
 | Phase base at handoff | not used |
 
 ## Topology notes

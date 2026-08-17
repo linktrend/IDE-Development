@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "issue": 324,
+  "workPackage": "WP-U02",
+  "branch": "issue/324-implement-ide-development-v2-4-0-wp-u02",
+  "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
+  "docsAuthorityTree": "6b9f73f1e78ae4abda3b78b939adc190b6d0842a",
+  "identityModel": "content-head/evidence-head/final-bind-tip",
+  "startSha": "0b1b741588679bb1b13543cfc64d6fd22d54a150",
+  "startTree": "014563e36ad8547276df82a34ad0688936b58533",
+  "dependencyTips": {
+    "WP-U06": {
+      "sha": "0b1b741588679bb1b13543cfc64d6fd22d54a150",
+      "tree": "014563e36ad8547276df82a34ad0688936b58533",
+      "note": "exact starting dependency head"
+    },
+    "WP-U03": "integrated in predecessor phase through U06 tip",
+    "WP-U07": "integrated in predecessor phase through U06 tip",
+    "WP-U01": "integrated in predecessor phase through U06 tip"
+  },
+  "contentHeadSha": "b33494d12ced96cb5350ea72725664362afe462d",
+  "contentTree": "0fb6369d7beb002ae5054ab31f6e52ead037b09a",
+  "implementationHeadSha": "b33494d12ced96cb5350ea72725664362afe462d",
+  "implementationTree": "0fb6369d7beb002ae5054ab31f6e52ead037b09a",
+  "headSha": "b33494d12ced96cb5350ea72725664362afe462d",
+  "tree": "0fb6369d7beb002ae5054ab31f6e52ead037b09a",
+  "acceptance": "AC-U02-01..18 except AC-U02-07; delivery controller + focused tests OK; manifest verify OK; diff --check OK",
+  "covered": [
+    "AC-U02-01",
+    "AC-U02-02",
+    "AC-U02-03",
+    "AC-U02-04",
+    "AC-U02-05",
+    "AC-U02-06",
+    "AC-U02-08",
+    "AC-U02-09",
+    "AC-U02-10",
+    "AC-U02-11",
+    "AC-U02-12",
+    "AC-U02-13",
+    "AC-U02-14",
+    "AC-U02-15",
+    "AC-U02-16",
+    "AC-U02-17",
+    "AC-U02-18"
+  ],
+  "exclusions": [
+    "AC-U02-07 nine-consumer install",
+    "Full suite",
+    "PR",
+    "merge",
+    "promotion",
+    "publication",
+    "rollout",
+    "consumer install",
+    "review-ready publish",
+    "WP-U05"
+  ],
+  "rollback": [
+    "Leave issue branch unmerged; no prefer-incoming",
+    "Never bypass branch protection or push directly to protected branches",
+    "Never infer founder approval from green CI or elapsed time",
+    "Do not delete non-controller-owned branches"
+  ],
+  "commands": [
+    {
+      "command": "python3 -m unittest scripts.tests.test_delivery_controller scripts.tests.test_phase_packager_coordinator scripts.tests.test_promotion_receipt_gate scripts.tests.test_receipt_seal_and_recovery scripts.ide_development_tests.test_build_manifest",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-324/wp-u02-focused-tests.out",
+      "testsRan": 65,
+      "againstHead": "b33494d12ced96cb5350ea72725664362afe462d",
+      "againstTree": "0fb6369d7beb002ae5054ab31f6e52ead037b09a"
+    },
+    {
+      "command": "python3 -m scripts.ide_development.build_manifest --verify",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "hold": [
+    "AC-U02-07 deferred to WP-CONSUMERS",
+    "No Full / PR / review-ready / promotion / rollout / consumer install in this packet"
+  ],
+  "finalTipBinding": {
+    "mode": "non-self-reference-boundary",
+    "note": "Bind-metadata commit becomes the branch tip. It records content and evidence heads/trees only. It does not embed its own commit SHA."
+  },
+  "sanitized": true,
+  "at": "2026-08-17T17:05:00Z",
+  "evidenceHeadSha": "7d1e1e14ea012f09fcf4fe6b48bcbd096cbd9386",
+  "evidenceTree": "6a977c32c4cee0970761ae127b16264c8d7685db"
+}
