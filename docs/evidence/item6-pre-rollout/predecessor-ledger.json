@@ -1,0 +1,335 @@
+{
+  "schemaVersion": 1,
+  "lane": "item6-consumer-integration-pre-rollout",
+  "workPackage": "WP-I6-PHASE-PREP",
+  "branch": "phase/item6-consumer-integration-pre-rollout",
+  "repository": "linktrend/IDE-Development",
+  "docsAuthority": "128f5f2abd004f71a09f2ff630369326cb370150",
+  "docsAuthorityTree": "e45fae62967b10bd212d909f4bf442f5f8996f6c",
+  "startSha": "741e58922e7413c1097f4a58ea25e94a934af903",
+  "startTree": "1affbab9035df799fdb7d723d8518e54fa6a1c00",
+  "acceptedItem6IntegrationTip": {
+    "branch": "issue/321-item-6-s6-cross-cutting-integration",
+    "issue": 321,
+    "tipSha": "b07f8eb23220915093d7cff873e9837db6b9f504",
+    "tree": "982831f544bb65d25e883c04d2bbdbe47b9468a1",
+    "verifiedTipSha": "b07f8eb23220915093d7cff873e9837db6b9f504",
+    "verifiedTree": "982831f544bb65d25e883c04d2bbdbe47b9468a1",
+    "ownedPathTrees": {
+      "core/link-integrations": "96b0eb492d6849b7210db82d69d5faec6c0153f8",
+      "tests/link-integrations": "d60216ae716f2424d63ceac0d3e55fab26d62ba1"
+    }
+  },
+  "acceptedPredecessors": [
+    {
+      "packet": "WP-I6-DOCS",
+      "role": "docs_authority_cherry_picked_onto_phase",
+      "tipRef": "issue/311-item-6-connect-ide-development-five-provider-con",
+      "tipSha": "128f5f2abd004f71a09f2ff630369326cb370150",
+      "tree": "e45fae62967b10bd212d909f4bf442f5f8996f6c",
+      "verifiedTree": "e45fae62967b10bd212d909f4bf442f5f8996f6c",
+      "commits": [
+        {
+          "subject": "docs(item-6): author five-provider consumer PRD and implementation plan",
+          "tipSha": "65be0aa9a952332df7292c96022aaeaeef379289",
+          "layeredSha": "0b2d1e9db344cc13eb2ecb27901c795d6a9c7d0b",
+          "tipPatchId": "958e36b27d77caff77d85d7194c1754b3d847e67",
+          "layeredPatchId": "958e36b27d77caff77d85d7194c1754b3d847e67",
+          "patchIdEqual": true
+        },
+        {
+          "subject": "docs: align Item 6 execution gates",
+          "tipSha": "128f5f2abd004f71a09f2ff630369326cb370150",
+          "layeredSha": "b27ea21cd2b84fed3b31828f9cbb04f2a2c1be90",
+          "tipPatchId": "131b4b91b8c40fa4bf189fce47fd3f930cdf05f9",
+          "layeredPatchId": "131b4b91b8c40fa4bf189fce47fd3f930cdf05f9",
+          "patchIdEqual": true
+        }
+      ],
+      "patchIdsPreserved": true
+    },
+    {
+      "packet": "WP-I6-S0",
+      "role": "accepted_predecessor_patch_preserved_in_issue_321",
+      "tipRef": "issue/312-wp-i6-s0-freeze-current-five-provider-consumer-p",
+      "tipSha": "42e4a6c351afe5f6b973ab39ef3416cf28c17e90",
+      "tree": "2b475b48008c5736d021b2f2a5d5fa42dfebe655",
+      "verifiedTree": "2b475b48008c5736d021b2f2a5d5fa42dfebe655",
+      "commits": [
+        {
+          "subject": "feat(link-integrations): freeze current five-provider consumer pins",
+          "tipSha": "42e4a6c351afe5f6b973ab39ef3416cf28c17e90",
+          "layeredSha": "c1c6ae3cf0daaa779add1176290fbe0cf21050a5",
+          "tipPatchId": "6a9cfb05ac6b1240815394dc9bd1ef4884846cea",
+          "layeredPatchId": "6a9cfb05ac6b1240815394dc9bd1ef4884846cea",
+          "patchIdEqual": true
+        }
+      ],
+      "patchIdsPreserved": true
+    },
+    {
+      "packet": "WP-I6-S1",
+      "role": "accepted_predecessor_patch_preserved_in_issue_321",
+      "tipRef": "issue/313-implement-ide-item-6-platform-consumer-validator",
+      "tipSha": "a8276a19a4196a13a8bb5aa29d86a5fb195b97c6",
+      "tree": "b7c8557a3728babbba4f7ea3529e501d809fb580",
+      "verifiedTree": "b7c8557a3728babbba4f7ea3529e501d809fb580",
+      "commits": [
+        {
+          "subject": "feat(link-integrations): add Platform identity consumer validator",
+          "tipSha": "fbd3be9d91fa7b7fe14ff20809e363e8afc386d4",
+          "layeredSha": "a55db83a7453aa4307b86379e33cd919d499009f",
+          "tipPatchId": "6c131a130ca367503eeacddd92d1266bbcc2e340",
+          "layeredPatchId": "6c131a130ca367503eeacddd92d1266bbcc2e340",
+          "patchIdEqual": true
+        },
+        {
+          "subject": "fix(link-integrations): snapshot Platform identity before validation",
+          "tipSha": "8beb94707ebcdc6f89d12469adbe772449eed794",
+          "layeredSha": "978af881ec3cbced72dd5e6afaca189ef1e939bc",
+          "tipPatchId": "023abea2ad937d327f4716d99849c0bbbe829106",
+          "layeredPatchId": "023abea2ad937d327f4716d99849c0bbbe829106",
+          "patchIdEqual": true
+        },
+        {
+          "subject": "fix(link-integrations): classify poisoned Platform claims fail-closed",
+          "tipSha": "a8276a19a4196a13a8bb5aa29d86a5fb195b97c6",
+          "layeredSha": "b600bfc36717149e8cceadaf1fc869e4b2de287b",
+          "tipPatchId": "b7b357bd093a6102c231357b18c228fabb52ba85",
+          "layeredPatchId": "b7b357bd093a6102c231357b18c228fabb52ba85",
+          "patchIdEqual": true
+        }
+      ],
+      "patchIdsPreserved": true
+    },
+    {
+      "packet": "WP-I6-S2",
+      "role": "accepted_predecessor_patch_preserved_in_issue_321",
+      "tipRef": "issue/314-implement-ide-item-6-libraries-consumer-validato",
+      "tipSha": "084e55e08f6d0d1ad817ed3f66acbec2de895ea1",
+      "tree": "984c50867a4c62970f4b65a5095da830db671512",
+      "verifiedTree": "984c50867a4c62970f4b65a5095da830db671512",
+      "commits": [
+        {
+          "subject": "feat(link-integrations): validate Libraries revision-2 consumer references",
+          "tipSha": "2beaa65eb811659829f907fb7f6d8c55d8b14b54",
+          "layeredSha": "667ff667a0ba4882ce4b8abcb5d186e3b87280b5",
+          "tipPatchId": "78a55cdfa1120c41f8a10bab220cd699efcef021",
+          "layeredPatchId": "78a55cdfa1120c41f8a10bab220cd699efcef021",
+          "patchIdEqual": true
+        },
+        {
+          "subject": "fix(link-integrations): snapshot and freeze Libraries consumer references",
+          "tipSha": "084e55e08f6d0d1ad817ed3f66acbec2de895ea1",
+          "layeredSha": "193b73e3499ae841ced13a220a442a659d3d8f30",
+          "tipPatchId": "407e28e27b316901fdd6010b1806003cc983e484",
+          "layeredPatchId": "407e28e27b316901fdd6010b1806003cc983e484",
+          "patchIdEqual": true
+        }
+      ],
+      "patchIdsPreserved": true
+    },
+    {
+      "packet": "WP-I6-S3",
+      "role": "accepted_predecessor_patch_preserved_in_issue_321",
+      "tipRef": "issue/315-implement-ide-item-6-brain-consumer-validator-wp",
+      "tipSha": "2c8bd4a30bc1a06b40af82d5c42330ba120bb259",
+      "tree": "6635d1d2dcadd72c8aec34a31ba8d43e7df27b02",
+      "verifiedTree": "6635d1d2dcadd72c8aec34a31ba8d43e7df27b02",
+      "commits": [
+        {
+          "subject": "feat(link-integrations): add Brain advisory projection validator",
+          "tipSha": "629786ecb0b1e944a1f92e2e3286c630f08916fa",
+          "layeredSha": "cdb6ec40138152e38e11a71227377207c4b584e5",
+          "tipPatchId": "c6dbf7e9e83708ed8a28ec3df7121527daad3b55",
+          "layeredPatchId": "c6dbf7e9e83708ed8a28ec3df7121527daad3b55",
+          "patchIdEqual": true
+        },
+        {
+          "subject": "fix(link-integrations): snapshot Brain inputs and accept official S0 pin",
+          "tipSha": "2c8bd4a30bc1a06b40af82d5c42330ba120bb259",
+          "layeredSha": "e730fa9c2cb522f6ec0171ad217a7e5ed7557585",
+          "tipPatchId": "c6676f5bd5f46a2fa7de16af952b80e7cf6c5be6",
+          "layeredPatchId": "c6676f5bd5f46a2fa7de16af952b80e7cf6c5be6",
+          "patchIdEqual": true
+        }
+      ],
+      "patchIdsPreserved": true
+    },
+    {
+      "packet": "WP-I6-S4",
+      "role": "accepted_predecessor_patch_preserved_in_issue_321",
+      "tipRef": "issue/316-implement-ide-item-6-skills-consumer-validator-w",
+      "tipSha": "966b537cd67f7b6275f495197bcc3697b0fc745b",
+      "tree": "8119e8b18c9329767c830e21ea7f360cc548d930",
+      "verifiedTree": "8119e8b18c9329767c830e21ea7f360cc548d930",
+      "commits": [
+        {
+          "subject": "feat(link-integrations): add Skills release and telemetry consumer validator",
+          "tipSha": "b7eb229f20214601bfa5d8129287c56bd299f3ae",
+          "layeredSha": "13b635f721646e6a3379a36cca76fcdc66bf8cef",
+          "tipPatchId": "8ecd16d43cc47d45f7bc23c5b8fa579fe93c7586",
+          "layeredPatchId": "8ecd16d43cc47d45f7bc23c5b8fa579fe93c7586",
+          "patchIdEqual": true
+        },
+        {
+          "subject": "fix(link-integrations): close Skills snapshot, policy, and pin-time telemetry holes",
+          "tipSha": "54a9d894d62ad23d9f4c1c3a24c27dbf1fa907e6",
+          "layeredSha": "9c47606d9a876f0b21e4a32c4caee30d81a4b5b5",
+          "tipPatchId": "969cac457d1c3477bfefe4847ab874bf99e2992e",
+          "layeredPatchId": "969cac457d1c3477bfefe4847ab874bf99e2992e",
+          "patchIdEqual": true
+        },
+        {
+          "subject": "fix(link-integrations): close Skills latest-segment and classification holes",
+          "tipSha": "5bc8f71382f00d02cb69a289112ce33fcd6f4698",
+          "layeredSha": "755cbb2425d3a6473db8c5e02aee5a227015896f",
+          "tipPatchId": "97f537b7cffedec9d833f929542d644c30891c52",
+          "layeredPatchId": "97f537b7cffedec9d833f929542d644c30891c52",
+          "patchIdEqual": true
+        },
+        {
+          "subject": "fix(link-integrations): reject case-insensitive latest segments in Skills refs",
+          "tipSha": "966b537cd67f7b6275f495197bcc3697b0fc745b",
+          "layeredSha": "d15b6e38a03fdb5c00a618e4e580946f3ffbb136",
+          "tipPatchId": "3b4e50c47608b06a3fa74e137b7b75877f2fcf9b",
+          "layeredPatchId": "3b4e50c47608b06a3fa74e137b7b75877f2fcf9b",
+          "patchIdEqual": true
+        }
+      ],
+      "patchIdsPreserved": true
+    },
+    {
+      "packet": "WP-I6-S5",
+      "role": "accepted_predecessor_patch_preserved_in_issue_321",
+      "tipRef": "issue/317-implement-ide-item-6-autowork-consumer-validator",
+      "tipSha": "aa2de2a09c613b94c99210342ce057a57156b2b0",
+      "tree": "9fccfac9154f2a9c994abe84eb6220297781c6ad",
+      "verifiedTree": "9fccfac9154f2a9c994abe84eb6220297781c6ad",
+      "commits": [
+        {
+          "subject": "feat(link-integrations): add Autowork request status handoff receipt validators",
+          "tipSha": "5c5636aaee161a54cbff6ab35b141879f7b4e95f",
+          "layeredSha": "b30477426fec44ca85129747f18d3714836088f6",
+          "tipPatchId": "2a7e34f37041775884b4d4f85609f2c99fd42718",
+          "layeredPatchId": "2a7e34f37041775884b4d4f85609f2c99fd42718",
+          "patchIdEqual": true
+        },
+        {
+          "subject": "fix(link-integrations): close Autowork S5 snapshot and binding gaps",
+          "tipSha": "6965a4614d5f35efc99b81d7f9a71c56494404f0",
+          "layeredSha": "c865c4dead31adc29fbe30e81a4c71e275f1e15d",
+          "tipPatchId": "860a53b34ee5f71d6fecc1103ef89f6a2b9934f0",
+          "layeredPatchId": "860a53b34ee5f71d6fecc1103ef89f6a2b9934f0",
+          "patchIdEqual": true
+        },
+        {
+          "subject": "fix(link-integrations): treat blocked as Autowork terminal state",
+          "tipSha": "aa2de2a09c613b94c99210342ce057a57156b2b0",
+          "layeredSha": "6fd67896a8cb45b2c7c2d2fcb53801ce530be74e",
+          "tipPatchId": "36eab63e57ebf8e63e9d8fd4488302fea7da6a03",
+          "layeredPatchId": "36eab63e57ebf8e63e9d8fd4488302fea7da6a03",
+          "patchIdEqual": true
+        }
+      ],
+      "patchIdsPreserved": true
+    },
+    {
+      "packet": "WP-I6-S6",
+      "role": "required_independent_clean_integration_tip",
+      "tipRef": "issue/321-item-6-s6-cross-cutting-integration",
+      "tipSha": "b07f8eb23220915093d7cff873e9837db6b9f504",
+      "tree": "982831f544bb65d25e883c04d2bbdbe47b9468a1",
+      "verifiedTree": "982831f544bb65d25e883c04d2bbdbe47b9468a1",
+      "commits": [
+        {
+          "subject": "feat(link-integrations): add MCP/OKF barrel and self-install guard",
+          "tipSha": "1ad7ac7b8444d1c28b21d07aa2ee11753822876d",
+          "layeredSha": "1ad7ac7b8444d1c28b21d07aa2ee11753822876d",
+          "tipPatchId": "d0af067131ef19543279b145b28c7cb6b0aa1ec1",
+          "layeredPatchId": "d0af067131ef19543279b145b28c7cb6b0aa1ec1",
+          "patchIdEqual": true
+        },
+        {
+          "subject": "docs(link-integrations): note OKF gate order on Brain validator",
+          "tipSha": "1f9adf258b8761ed7ff2d9589321edb4c9b966cb",
+          "layeredSha": "1f9adf258b8761ed7ff2d9589321edb4c9b966cb",
+          "tipPatchId": "bae518318ddb1cca8c4afbcfac5943f187c228b2",
+          "layeredPatchId": "bae518318ddb1cca8c4afbcfac5943f187c228b2",
+          "patchIdEqual": true
+        },
+        {
+          "subject": "fix(link-integrations): harden MCP options and OKF authority vocabulary",
+          "tipSha": "f5ea6dbe36788d33e59413a086d008a6e0bf91c7",
+          "layeredSha": "f5ea6dbe36788d33e59413a086d008a6e0bf91c7",
+          "tipPatchId": "38485dce7c70301aef77bcda0c06b6df6d1a0351",
+          "layeredPatchId": "38485dce7c70301aef77bcda0c06b6df6d1a0351",
+          "patchIdEqual": true
+        },
+        {
+          "subject": "fix(link-integrations): canonicalize OKF authority tokens and snapshot MCP/OKF inputs",
+          "tipSha": "b07f8eb23220915093d7cff873e9837db6b9f504",
+          "layeredSha": "b07f8eb23220915093d7cff873e9837db6b9f504",
+          "tipPatchId": "6f7b03041790b6847f6d586676071d376ff7ee4e",
+          "layeredPatchId": "6f7b03041790b6847f6d586676071d376ff7ee4e",
+          "patchIdEqual": true
+        }
+      ],
+      "patchIdsPreserved": true,
+      "integratedAs": "phase_ff_from_origin_development_to_exact_issue_321_tip"
+    }
+  ],
+  "intentionalS6OverlaysOnPredecessorOwnedPaths": [
+    {
+      "path": "core/link-integrations/README.md",
+      "fromPacket": "WP-I6-S0",
+      "reason": "S6 reference sweep + MCP/OKF/barrel documentation"
+    },
+    {
+      "path": "core/link-integrations/brain.mjs",
+      "fromPacket": "WP-I6-S3",
+      "reason": "S6 optional OKF mapping after advisory/executionAuthority gates"
+    }
+  ],
+  "postV24Gates": [
+    {
+      "packet": "WP-I6-MANIFEST",
+      "when": "after_v2.4.0_on_protected_lines",
+      "purpose": "managed-core materialization for nine consumers",
+      "status": "blocked_until_v2.4.0"
+    },
+    {
+      "packet": "WP-I6-INTEGRATE",
+      "when": "after_v2.4.0_and_WP-I6-S6",
+      "purpose": "Packager/Phase PR of Item 6 novel commits into development",
+      "status": "blocked_until_v2.4.0"
+    },
+    {
+      "packet": "WP-I6-HOSTED",
+      "when": "after_WP-I6-INTEGRATE_phase_pr",
+      "purpose": "Fast on Phase PR; reuse single final-combined exact-tree Full; no standalone Item 6 Full",
+      "status": "blocked_until_v2.4.0"
+    }
+  ],
+  "integrationMethod": "phase branch created from origin/development; fast-forward exact issue/321 tip b07f8eb/tree 982831f; cherry-pick WP-I6-DOCS commits from issue/311 with patch-id preservation; evidence/handoff docs commit follows; do not touch active v2.4.0 core implementation branches",
+  "exclusions": [
+    "Full",
+    "PR open/update",
+    "merge",
+    "promotion",
+    "managed-core materialization",
+    "publication",
+    "rollout",
+    "WP-I6-MANIFEST",
+    "WP-I6-INTEGRATE",
+    "WP-I6-HOSTED",
+    "phase/next-ide-development-v2.4.0"
+  ],
+  "focusedVerification": {
+    "commands": [
+      "node tests/link-integrations/test-*.mjs",
+      "git diff --check origin/development...HEAD -- core/link-integrations tests/link-integrations docs/ITEM-6-CONNECT-IDE-DEVELOPMENT-*.md docs/evidence/item6-pre-rollout"
+    ],
+    "fullSuite": "forbidden"
+  }
+}
