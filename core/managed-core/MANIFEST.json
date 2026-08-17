@@ -2693,6 +2693,18 @@
       "notes": "Managed GitOps script; never overwrites consumer ci.yml."
     },
     {
+      "id": "gitops-scripts-gitops-delivery-artifact-reconciliation-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/delivery_artifact_reconciliation.py",
+      "sourceHash": "sha256:ba6f03d6546072aa3ee5a83ee9d2cf067c0534998803091f44657676cda3546b",
+      "destination": "scripts/gitops/delivery_artifact_reconciliation.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
       "id": "gitops-scripts-gitops-delivery-modes-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/delivery_modes.py",

@@ -8,6 +8,7 @@
     "scripts/gitops/cleanup_controls.py",
     "scripts/gitops/conflict_task.py",
     "scripts/gitops/create_issue_branch.py",
+    "scripts/gitops/delivery_artifact_reconciliation.py",
     "scripts/gitops/delivery_modes.py",
     "scripts/gitops/coordinator/__init__.py",
     "scripts/gitops/coordinator/config.py",
