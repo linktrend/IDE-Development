@@ -26,7 +26,12 @@ CI_CONTRACT_MODULE_REL = Path("scripts/gitops/repository_ci_contract.py")
 
 
 def _load_repository_ci_contract_module(package_root: Path):
-    """Load WP-U07 audit helpers from the package tree without package coupling."""
+    """Load WP-U07 audit helpers from the package tree without package coupling.
+
+    The packaged module imports sibling gitops helpers as ``scripts.gitops.*``,
+    so the package root (not the installer ``scripts/`` directory) must be on
+    ``sys.path`` while it loads. Incomplete loads are discarded fail-closed.
+    """
     import sys
 
     module_path = package_root / CI_CONTRACT_MODULE_REL
@@ -34,14 +39,28 @@ def _load_repository_ci_contract_module(package_root: Path):
         raise InvalidPackageError(f"repository CI contract module missing: {module_path}")
     module_name = "linktrend_repository_ci_contract"
     existing = sys.modules.get(module_name)
-    if existing is not None and getattr(existing, "__file__", None) == str(module_path):
+    if (
+        existing is not None
+        and getattr(existing, "__file__", None) == str(module_path)
+        and hasattr(existing, "installer_audit_repository_ci_triggers")
+    ):
         return existing
+    package_root_str = str(package_root.resolve())
+    if package_root_str not in sys.path:
+        sys.path.insert(0, package_root_str)
     spec = importlib.util.spec_from_file_location(module_name, module_path)
     if spec is None or spec.loader is None:
         raise InvalidPackageError(f"repository CI contract module unloadable: {module_path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
+    if not hasattr(module, "installer_audit_repository_ci_triggers"):
+        sys.modules.pop(module_name, None)
+        raise InvalidPackageError(f"repository CI contract module missing installer audit: {module_path}")
     return module
 
 
