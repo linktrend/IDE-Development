@@ -761,11 +761,15 @@ def _classify_into_ledger(
     seen_ids = {id(entry) for entry in seen}
     if session.status in {STATUS_HOLD, STATUS_REVIEW_STALLED}:
         return
+    pending = session.pending_batch
+    # Absences become corrected only after apply_repair consumed the batch.
+    consumable = pending is not None and pending.cycle_consumed
+    pending_fps = set(pending.fingerprints) if consumable else set()
     for entry in entries:
         if id(entry) in seen_ids:
             continue
         if entry.classification in {CLASS_UNRESOLVED, CLASS_REPEATED, CLASS_NEWLY_DISCOVERED, CLASS_INTRODUCED_BY_REPAIR}:
-            if session.pending_batch and entry.finding.fingerprint in set(session.pending_batch.fingerprints):
+            if consumable and entry.finding.fingerprint in pending_fps:
                 entry.classification = CLASS_CORRECTED
                 entry.history.append({"headSha": session.candidate_sha, "classification": CLASS_CORRECTED})
 

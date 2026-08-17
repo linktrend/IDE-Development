@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from scripts.gitops.independent_review_convergence import (
+    CLASS_CORRECTED,
     CLASS_INTRODUCED_BY_REPAIR,
     CLASS_NEWLY_DISCOVERED,
     CLASS_REPEATED,
@@ -17,6 +18,7 @@ from scripts.gitops.independent_review_convergence import (
     HOLD_REVIEWER_TIMEOUT,
     MAX_INFRASTRUCTURE_ATTEMPTS,
     STATUS_HOLD,
+    STATUS_IN_PROGRESS,
     STATUS_REVIEW_CLEAN,
     STATUS_REVIEW_STALLED,
     STATUS_UNATTENDED_CHECKPOINT,
@@ -927,6 +929,108 @@ class IndependentReviewRepairProbeTests(unittest.TestCase):
         self.assertEqual(decision.status, STATUS_REVIEW_STALLED)
         self.assertEqual(decision.reason, STALL_REINTRODUCTION)
         self.assertTrue(any(entry.classification == CLASS_INTRODUCED_BY_REPAIR for entry in entries))
+
+    def test_p1_06_empty_ingest_after_consolidate_only_cannot_use_stale_pending_batch(self) -> None:
+        """AC-U09-13 / AC-U09-06: consolidate-only empty ingest must not fabricate clean."""
+        session, entries, _clock = open_default()
+        review(session, entries, [finding("authz"), finding("hash")])
+        self.assertEqual(session.status, STATUS_IN_PROGRESS)
+        batch = consolidate_repair_batch(session, entries)
+        self.assertFalse(batch.cycle_consumed)
+        self.assertFalse(session.pending_batch.cycle_consumed)
+        self.assertEqual(session.repair_cycle_count, 0)
+        frozen_classifications = [entry.classification for entry in entries]
+        frozen_fingerprints = [entry.finding.fingerprint for entry in entries]
+        review(session, entries, [])
+        self.assertNotEqual(session.status, STATUS_REVIEW_CLEAN)
+        self.assertEqual(session.status, STATUS_IN_PROGRESS)
+        self.assertEqual([entry.classification for entry in entries], frozen_classifications)
+        self.assertEqual([entry.finding.fingerprint for entry in entries], frozen_fingerprints)
+        self.assertTrue(all(entry.classification == CLASS_UNRESOLVED for entry in entries))
+        self.assertFalse(any(entry.classification == CLASS_CORRECTED for entry in entries))
+        self.assertEqual(session.candidate_sha, HEAD_A)
+        self.assertEqual(session.git_tree, TREE_A)
+        self.assertEqual(session.repair_cycle_count, 0)
+        self.assertFalse(session.pending_batch.cycle_consumed)
+        decision = evaluate_progress(session, entries)
+        self.assertNotEqual(decision.status, STATUS_REVIEW_CLEAN)
+        self.assertNotEqual(session.status, STATUS_REVIEW_CLEAN)
+
+    def test_p1_06_repair_review_empty_ingest_still_marks_consumed_batch_corrected(self) -> None:
+        """Legitimate apply_repair + empty review must still correct and clean."""
+        session, entries, _clock = open_default()
+        review(session, entries, [finding("authz"), finding("hash")])
+        batch = consolidate_repair_batch(session, entries)
+        apply_repair(
+            session,
+            entries,
+            new_head=HEAD_B,
+            new_tree=TREE_B,
+            touched_paths=["src/authz.py", "src/hash.py"],
+        )
+        self.assertTrue(batch.cycle_consumed)
+        self.assertEqual(session.repair_cycle_count, 1)
+        review(session, entries, [])
+        self.assertEqual(session.status, STATUS_REVIEW_CLEAN)
+        self.assertTrue(all(entry.classification == CLASS_CORRECTED for entry in entries))
+        decision = evaluate_progress(session, entries)
+        self.assertEqual(decision.status, STATUS_REVIEW_CLEAN)
+        self.assertEqual(session.candidate_sha, HEAD_B)
+        self.assertEqual(session.git_tree, TREE_B)
+
+    def test_p1_06_in_progress_empty_ingest_preserves_repeated_pending_batch(self) -> None:
+        """in_progress + unconsumed pending_batch empty ingest must not erase repeated rows."""
+        session, entries, _clock = open_default()
+        review(session, entries, [finding("authz")])
+        cycle(session, entries, new_head=HEAD_B, new_tree=TREE_B, remaining=[finding("authz")])
+        self.assertEqual(entries[0].classification, CLASS_REPEATED)
+        self.assertEqual(session.status, STATUS_IN_PROGRESS)
+        batch = consolidate_repair_batch(session, entries)
+        self.assertFalse(batch.cycle_consumed)
+        self.assertIn("authz", batch.fingerprints)
+        frozen_attempts = entries[0].repair_attempts
+        review(session, entries, [])
+        self.assertNotEqual(session.status, STATUS_REVIEW_CLEAN)
+        self.assertEqual(session.status, STATUS_IN_PROGRESS)
+        self.assertEqual(entries[0].classification, CLASS_REPEATED)
+        self.assertEqual(entries[0].repair_attempts, frozen_attempts)
+        self.assertEqual(session.candidate_sha, HEAD_B)
+        self.assertEqual(session.git_tree, TREE_B)
+        self.assertFalse(session.pending_batch.cycle_consumed)
+        decision = evaluate_progress(session, entries)
+        self.assertNotEqual(decision.status, STATUS_REVIEW_CLEAN)
+
+    def test_p1_06_integration_empty_ingest_cannot_fabricate_clean_via_stale_batch(self) -> None:
+        """Integration empty ingest must not erase ledger via stale pending_batch."""
+        session, entries, _clock = open_default()
+        review(session, entries, [finding("left"), finding("right")])
+        authorize_split(
+            session,
+            entries,
+            owner="founder",
+            units=[{"unitId": "u1", "scope": ["src/left.py"]}, {"unitId": "u2", "scope": ["src/right.py"]}],
+        )
+        batch = consolidate_repair_batch(session, entries)
+        self.assertFalse(batch.cycle_consumed)
+        prior_count = len(entries)
+        frozen_classifications = [entry.classification for entry in entries]
+        ingest_integration_review(
+            session,
+            entries,
+            {"headSha": HEAD_A, "gitTree": TREE_A, "findings": []},
+            actor=session.reviewer_actor,
+            role="reviewer",
+        )
+        self.assertEqual(len(entries), prior_count)
+        self.assertEqual([entry.classification for entry in entries], frozen_classifications)
+        self.assertTrue(all(entry.classification == CLASS_UNRESOLVED for entry in entries))
+        self.assertNotEqual(session.status, STATUS_REVIEW_CLEAN)
+        self.assertEqual(session.status, STATUS_IN_PROGRESS)
+        self.assertEqual(session.repair_cycle_count, 0)
+        self.assertFalse(session.pending_batch.cycle_consumed)
+        packet = founder_decision_packet(session, entries)
+        self.assertNotEqual(packet["status"], STATUS_REVIEW_CLEAN)
+        self.assertEqual(len(packet["ledger"]["entries"]), len(entries))
 
 
 if __name__ == "__main__":
