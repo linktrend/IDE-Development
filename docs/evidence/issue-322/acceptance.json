@@ -25,7 +25,7 @@
     }
   },
   "predecessorLedgerPath": "docs/evidence/issue-322/predecessor-ledger.json",
-  "acceptance": "AC-U01-01..18 except AC-U01-07; evidence tip binds focused transcript and shell proofs",
+  "acceptance": "AC-U01-01..18 except AC-U01-07; tip bind documents headSha/tree of prior tip 4aabf52bd36c876424ad81a4855b008d9be47bb7; evidenceHeadSha is transcript commit; implementationHeadSha is feat tip",
   "exclusions": [
     "AC-U01-07 nine-consumer install",
     "Full suite",
@@ -72,8 +72,8 @@
   ],
   "at": "2026-08-17T12:56:18Z",
   "sanitized": true,
-  "headSha": "ff83fe7e0149c16a77cdeb48bd06c5378422b661",
-  "tree": "e7e018eb337c22d188b4feb91ceb90736bba59a3",
+  "headSha": "4aabf52bd36c876424ad81a4855b008d9be47bb7",
+  "tree": "92bcdafe81b80fff9164a4f74d42479a61728df8",
   "evidenceHeadSha": "d4ed665ab5821ccc9497019c84d932b02e6e09fe",
   "evidenceTree": "2d5e38de0fc095db71730ad55d2738fcb0ee4341"
 }
