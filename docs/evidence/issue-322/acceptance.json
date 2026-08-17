@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "issue": 322,
+  "workPackage": "WP-U01",
+  "branch": "issue/322-implement-ide-development-v2-4-0-wp-u01",
+  "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
+  "startSha": "741e58922e7413c1097f4a58ea25e94a934af903",
+  "startTree": "1affbab9035df799fdb7d723d8518e54fa6a1c00",
+  "dependencyContextSha": "a926794d7e549a97579f2e1816aca7a893993ccd",
+  "dependencyContextTree": "53af75c63ad2dc48403ba0c2f3be5adb71d79bd2",
+  "implementationHeadSha": "185e58bb4123772f7cbf108b190a007806e3430e",
+  "implementationTree": "97c1fd86bcf1d3b0b77298abb0f2aa8b874706da",
+  "acceptedPredecessors": {
+    "WP-U07": {
+      "tipSha": "a926794d7e549a97579f2e1816aca7a893993ccd",
+      "tree": "53af75c63ad2dc48403ba0c2f3be5adb71d79bd2"
+    },
+    "WP-U09": {
+      "tipSha": "36231634601e5580c83d4339acaeef651769ea93",
+      "tree": "259bc414e753e3d8f9a5b193f8e5bee7c9fa1a75"
+    },
+    "WP-U10": {
+      "tipSha": "f738a94f3db6888968692d617b0b2bcd85024684",
+      "tree": "1c73c8747ab73ff0c9cc5671740aa1c7c9ec061f"
+    }
+  },
+  "predecessorLedgerPath": "docs/evidence/issue-322/predecessor-ledger.json",
+  "acceptance": "AC-U01-01..18 except AC-U01-07 nine-consumer install; focused 19 OK plus protection/integrator shell gates",
+  "exclusions": [
+    "AC-U01-07 nine-consumer install",
+    "Full suite",
+    "PR",
+    "merge",
+    "promotion",
+    "publication",
+    "rollout",
+    "review-ready publish",
+    "later packets"
+  ],
+  "rollback": [
+    "Genuine findings and review-unknown remain blocking",
+    "advisory-unavailable must never be labeled Bugbot pass",
+    "Leave issue branch unmerged; no prefer-incoming"
+  ],
+  "commands": [
+    {
+      "command": "python3 -m unittest scripts.tests.test_linktrend_review_gate scripts.ide_development_tests.test_build_manifest",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-322/wp-u01-focused-tests.out",
+      "testsRan": 19
+    },
+    {
+      "command": "bash scripts/tests/test-repository-protection.sh",
+      "exitCode": 0
+    },
+    {
+      "command": "bash scripts/tests/test-integrator-bugbot-gate.sh",
+      "exitCode": 0
+    },
+    {
+      "command": "python3 -m scripts.ide_development.build_manifest --verify",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "hold": [
+    "AC-U01-07 deferred to WP-CONSUMERS",
+    "No Full / PR / review-ready / promotion / rollout in this packet"
+  ],
+  "at": "2026-08-17T12:56:18Z",
+  "sanitized": true,
+  "headSha": "185e58bb4123772f7cbf108b190a007806e3430e",
+  "tree": "97c1fd86bcf1d3b0b77298abb0f2aa8b874706da",
+  "evidenceHeadSha": "185e58bb4123772f7cbf108b190a007806e3430e",
+  "evidenceTree": "97c1fd86bcf1d3b0b77298abb0f2aa8b874706da"
+}

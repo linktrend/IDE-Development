@@ -17,10 +17,10 @@
 | Start tree | `1affbab9035df799fdb7d723d8518e54fa6a1c00` |
 | Accepted prerequisite commits | WP-U07 `a926794d7e549a97579f2e1816aca7a893993ccd` / tree `53af75c63ad2dc48403ba0c2f3be5adb71d79bd2`; WP-U09 `36231634601e5580c83d4339acaeef651769ea93` / tree `259bc414e753e3d8f9a5b193f8e5bee7c9fa1a75`; WP-U10 `f738a94f3db6888968692d617b0b2bcd85024684` / tree `1c73c8747ab73ff0c9cc5671740aa1c7c9ec061f` |
 | Dependency-context HEAD/tree | `a926794d7e549a97579f2e1816aca7a893993ccd` / `53af75c63ad2dc48403ba0c2f3be5adb71d79bd2` |
-| Novel packet commit range | `<FILL AT HANDOFF>` |
+| Novel packet commit range | `2c1448647d96f3b447bf84a3b0723bbeaf6fc63a^..HEAD` (ledger + implementation + evidence) |
 | Phase base at handoff | not used (no Phase integration in this packet) |
-| Exact HEAD after packet | `<FILL AT HANDOFF>` |
-| Exact tree after packet | `<FILL AT HANDOFF>` |
+| Exact HEAD after packet | `185e58bb4123772f7cbf108b190a007806e3430e` (rebind after evidence commit) |
+| Exact tree after packet | `97c1fd86bcf1d3b0b77298abb0f2aa8b874706da` (rebind after evidence commit) |
 
 ## Topology notes
 
