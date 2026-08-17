@@ -1,5 +1,30 @@
-.........................
+test_all_classified_outcomes (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_all_classified_outcomes) ... ok
+test_durable_founder_alert_dedupe_and_fail_closed (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_durable_founder_alert_dedupe_and_fail_closed) ... ok
+test_fail_closed_missing_malformed_forged_wrong_head (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_fail_closed_missing_malformed_forged_wrong_head) ... ok
+test_failure_never_becomes_advisory_via_heuristic (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_failure_never_becomes_advisory_via_heuristic) ... ok
+test_fallback_reviewer_rules_and_comment (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_fallback_reviewer_rules_and_comment) ... ok
+test_full_failure_blocks_bugbot_request (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_full_failure_blocks_bugbot_request) ... ok
+test_full_receipt_required_before_successful_gate_publish (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_full_receipt_required_before_successful_gate_publish) ... ok
+test_infrastructure_attempts_count_only_infra_markers (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_infrastructure_attempts_count_only_infra_markers) ... ok
+test_managed_surfaces_reject_raw_bugbot_required_defaults (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_managed_surfaces_reject_raw_bugbot_required_defaults) ... ok
+test_new_commit_invalidates_prior_outcome (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_new_commit_invalidates_prior_outcome) ... ok
+test_observer_rejects_raw_bugbot_as_managed_gate (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_observer_rejects_raw_bugbot_as_managed_gate) ... ok
+test_packaged_surfaces_exist (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_packaged_surfaces_exist) ... ok
+test_protection_and_consumer_defaults_migrated (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_protection_and_consumer_defaults_migrated) ... ok
+test_raw_bugbot_required_contexts_rejected (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_raw_bugbot_required_contexts_rejected) ... ok
+test_same_account_comment_not_github_approval (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_same_account_comment_not_github_approval) ... ok
+test_undocumented_task_hold_rejected (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_undocumented_task_hold_rejected) ... ok
+test_workflow_forbids_heuristic_and_wires_alert_fallback_full (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_workflow_forbids_heuristic_and_wires_alert_fallback_full) ... ok
+test_workflow_static_no_trailing_whitespace (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_workflow_static_no_trailing_whitespace) ... ok
+test_content_doctrine_covers_required_contracts (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests.test_content_doctrine_covers_required_contracts) ... ok
+test_content_doctrine_sources_exist (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests.test_content_doctrine_sources_exist) ... ok
+test_hosted_defaults_and_redacted_cleanup_inventory_are_packaged (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests.test_hosted_defaults_and_redacted_cleanup_inventory_are_packaged) ... ok
+test_library_vendor_rename_has_exact_removal_migrations (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests.test_library_vendor_rename_has_exact_removal_migrations) ... ok
+test_manifest_package_version_identity (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests.test_manifest_package_version_identity) ... ok
+test_required_cursor_materialization_sources_are_packaged (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests.test_required_cursor_materialization_sources_are_packaged) ... ok
+test_version_alignment_helpers (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests.test_version_alignment_helpers) ... ok
+
 ----------------------------------------------------------------------
-Ran 25 tests in 0.287s
+Ran 25 tests in 0.283s
 
 OK
