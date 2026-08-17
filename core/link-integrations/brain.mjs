@@ -3,7 +3,9 @@
  *
  * Consumes `FROZEN_PROVIDERS.brain` and `ConsumerContractError`. Accepts only
  * advisory, metadata-first projections (`contractVersion` `2.0.0`) and returns
- * opaque `projectionRef` plus optional `handoffRef`. Snapshots own enumerable
+ * opaque `projectionRef` plus optional `handoffRef`. Optional OKF `0.2`
+ * mapping is validated only after advisory / `executionAuthority=none` gates.
+ * Snapshots own enumerable
  * plain data properties before any read; inherited, prototype, accessor,
  * getter, setter, and TOCTOU inputs are rejected. Validation and the returned
  * projection use only that immutable snapshot. Brain remains advisory
