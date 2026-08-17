@@ -127,3 +127,10 @@ Privileged jobs always check out `github.event.repository.default_branch` with `
 ## Change control
 
 Changing required check names is a **contract change**: update this file, tests that assert the names, and any workflow `env` lists **and** static `workflow_run.workflows` lists in the same PR.
+
+## Aggregate repository CI gate (Update 7)
+
+Branch protection must require the stable managed aggregate context
+`Linktrend Repository CI Gate` rather than an unconditional raw application-Full
+context. See `docs/contracts/REPOSITORY-CI-TRIGGER.md` and
+`scripts/gitops/repository_ci_contract.py`.
