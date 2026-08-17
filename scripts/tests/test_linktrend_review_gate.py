@@ -273,9 +273,28 @@ class LinktrendReviewGateTests(unittest.TestCase):
         )
         bootstrap = (ROOT / "core/github/managed-runtime/cursor-gitops-bootstrap.mdc").read_text()
         self.assertIn("Linktrend Review Gate", bootstrap)
+        self.assertNotIn("named gates + Cursor Bugbot", bootstrap)
+        cursor_bootstrap = (ROOT / ".cursor/rules/cursor-gitops-bootstrap.mdc").read_text()
+        self.assertIn("named gates + Linktrend Review Gate", cursor_bootstrap)
+        self.assertNotIn("named gates + Cursor Bugbot", cursor_bootstrap)
         external = (ROOT / "docs/contracts/EXTERNAL-STATE-AUDIT.md").read_text()
         self.assertIn("Linktrend Review Gate", external)
         self.assertNotIn("`Cursor Bugbot`", external)
+        for rel in (
+            "scripts/tests/test-consumer-profile-matrix.sh",
+            "scripts/tests/test_local_coordinator_workflow_profile.sh",
+            "scripts/tests/test-managed-runner-routing.sh",
+        ):
+            text = (ROOT / rel).read_text()
+            self.assertIn("bugbotProviderCheckName", text)
+            self.assertRegex(
+                text,
+                r'"bugbotProviderCheckName"\s*:\s*"Cursor Bugbot"',
+            )
+            self.assertNotRegex(
+                text,
+                r'"bugbotProviderCheckName"\s*:\s*"Linktrend Review Gate"',
+            )
 
     def test_workflow_forbids_heuristic_and_wires_alert_fallback_full(self) -> None:
         text = WORKFLOW.read_text()

@@ -14,7 +14,7 @@ make_consumer() {
   "fastWorkflowName": "Linktrend Fast Checks",
   "ciWorkflowName": "Consumer CI",
   "branchPolicyWorkflowName": "Branch Source Policy",
-  "bugbotCheckName": "Linktrend Review Gate", "reviewGateCheckName": "Linktrend Review Gate", "bugbotProviderCheckName": "Linktrend Review Gate",
+  "bugbotCheckName": "Linktrend Review Gate", "reviewGateCheckName": "Linktrend Review Gate", "bugbotProviderCheckName": "Cursor Bugbot",
   "runnerType": "github-hosted"
 }
 JSON
