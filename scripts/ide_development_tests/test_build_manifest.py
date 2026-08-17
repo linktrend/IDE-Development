@@ -99,7 +99,7 @@ class BuildManifestPackagingTests(unittest.TestCase):
         self.assertEqual(config["compute"]["runner"], "ubuntu-24.04-arm")
         self.assertFalse(config["compute"]["checkpointCI"])
         expected = [
-            ["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py"],
+            ["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"],
             ["python3", "scripts/gitops/secret_scan.py"],
             ["python3", "-m", "unittest", "scripts.tests.test_repository_ci_trigger_contract"],
         ]

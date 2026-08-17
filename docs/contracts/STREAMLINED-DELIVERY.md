@@ -23,10 +23,14 @@ pull requests, branch protection, and promotion records.
    clean on that exact head before `Linktrend Full Suite`, unless repository
    policy explicitly requires Full first. A later repair invalidates prior
    review and Full evidence. Only the final sealed candidate may run Full and
-   the existing Bugbot final-candidate check.
+   the existing Bugbot final-candidate check. Full always binds the canonical
+   PR head (never merge-ref identity). Ordinary Phase merge requires the exact
+   retained Full receipt for that head/tree.
 5. A successful full-suite receipt is reusable only when repository, Git tree,
    dependency, profile, and workflow identities match exactly. A changed tree
-   or dependency invalidates reuse.
+   or dependency invalidates reuse. Exceptional recovery may mint the same
+   receipt schema for an unchanged integrated `development` tree without an
+   empty commit or fake PR (`mode=recovery`).
 6. Development, staging, and main promotion use the receipt and source-policy
    gates. Promotion does not rerun the full suite when the exact receipt is
    valid. Main still requires Carlos's explicit approval.

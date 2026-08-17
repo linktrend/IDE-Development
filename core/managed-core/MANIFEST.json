@@ -1229,7 +1229,7 @@
       "id": "core-config-delivery-json",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/config/delivery.json",
-      "sourceHash": "sha256:db1990f409ac4a1a26fda4bc14a8ae10502068619a5049ff474c21902aca1ac2",
+      "sourceHash": "sha256:036a00694873cd2d824cfd6e0363ac138d29382139bae7bce218697718f77d46",
       "destination": ".ide-development/config/delivery.json",
       "mode": "0644",
       "platform": "all",
@@ -1336,6 +1336,17 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "doctrine-receipt-seal-and-recovery-md",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/doctrine/RECEIPT-SEAL-AND-RECOVERY.md",
+      "sourceHash": "sha256:69fe58944e0ef8daf7e6cab462de87a86e83795ef562d2fabba1b53bd2f08ee8",
+      "destination": ".ide-development/content/doctrine/RECEIPT-SEAL-AND-RECOVERY.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "doctrine-repository-ci-trigger-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/REPOSITORY-CI-TRIGGER.md",
@@ -1372,7 +1383,7 @@
       "id": "doctrine-streamlined-delivery-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/STREAMLINED-DELIVERY.md",
-      "sourceHash": "sha256:79c73a775db472ae8ceff600a08ace4cc2238a9ee740bb022af13669d8aa5565",
+      "sourceHash": "sha256:94d31d7d0f58634c4410948bedbf9be4ce6964a04e20c94f7435f32e672b217f",
       "destination": ".ide-development/content/doctrine/STREAMLINED-DELIVERY.md",
       "mode": "0644",
       "platform": "all",
@@ -2632,6 +2643,18 @@
       "notes": "Hosted lifecycle/receipt validation input."
     },
     {
+      "id": "test-test-receipt-seal-and-recovery-py",
+      "ownershipClass": "managed-core",
+      "source": "scripts/tests/test_receipt_seal_and_recovery.py",
+      "sourceHash": "sha256:cc8e6d56e903e41c0b2c1ba8394dc5ba574ed0cadae24320e48f6f7cb46d3bdf",
+      "destination": ".ide-development/tests/test_receipt_seal_and_recovery.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Hosted lifecycle/receipt validation input."
+    },
+    {
       "id": "test-test-repository-ci-trigger-contract-py",
       "ownershipClass": "managed-core",
       "source": "scripts/tests/test_repository_ci_trigger_contract.py",
@@ -2683,7 +2706,7 @@
       "id": "workflow-linktrend-integrator-merge-yml",
       "ownershipClass": "managed-core",
       "source": "core/github/managed-workflows/linktrend-integrator-merge.yml",
-      "sourceHash": "sha256:634a92348345f3b568f70ad930d60881d25483e8b6e288954840fedb0b569f29",
+      "sourceHash": "sha256:0ee9fd5a3db56186cc6edbf2b88f0d941ac1775ef45a3e49c9fee3d50d92f49a",
       "destination": ".ide-development/workflows/linktrend-integrator-merge.yml",
       "mode": "0644",
       "platform": "github",
@@ -3054,6 +3077,18 @@
       "notes": "Managed GitOps script; never overwrites consumer ci.yml."
     },
     {
+      "id": "gitops-scripts-gitops-receipt-seal-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/receipt_seal.py",
+      "sourceHash": "sha256:b9fa5195fbbc1298d68c135fd7a7ee986a19443236353b0bde82ace8df3a96a4",
+      "destination": "scripts/gitops/receipt_seal.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
       "id": "gitops-scripts-gitops-repair-observer-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/repair_observer.py",
@@ -3305,7 +3340,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:c158078cf022d9245780a39faaa0e537b13f88248cb9495c4c1c29221fb001a5",
+      "sourceHash": "sha256:3d74f40b5de3dfccec480018d2aeea4c4053c5e95b492c4abb9dde12d8d78c77",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",
