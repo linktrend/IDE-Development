@@ -41,8 +41,8 @@ One run reports every finding and fixture error together:
 - `stale_fixture_declaration`
 - `fixture_scope_violation`
 
-One-byte changes, stale digests, renamed files, duplicated values, unknown
-rules, undeclared fixtures, and candidate-tree or scanner-policy drift fail
+One-byte changes, stale digests, renamed files, duplicated values, duplicate fixture ids,
+unknown rules, undeclared fixtures, and candidate-tree or scanner-policy drift fail
 closed until the declaration is intentionally refreshed and reviewed.
 
 ## Repository-owned scanners

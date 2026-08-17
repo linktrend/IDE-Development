@@ -161,6 +161,9 @@ class PackagingContractTests(unittest.TestCase):
         result = json.loads(RESULT_SCHEMA.read_text(encoding="utf-8"))
         self.assertEqual(fixtures["properties"]["kind"]["const"], "secret-scan-fixtures")
         self.assertEqual(result["properties"]["kind"]["const"], "secret-scan-result")
+        fixtures_array = fixtures["properties"]["fixtures"]
+        self.assertEqual(fixtures_array.get("x-uniqueItemFields"), ["id"])
+        self.assertIn("unique", fixtures_array["items"]["properties"]["id"]["description"].lower())
         for required in (
             "schemaVersion",
             "kind",
@@ -203,6 +206,7 @@ class PackagingContractTests(unittest.TestCase):
         streamlined = (ROOT / "docs/contracts/STREAMLINED-DELIVERY.md").read_text(encoding="utf-8")
         self.assertIn("approved_synthetic_fixture", contract)
         self.assertIn("never auto-approve", contract)
+        self.assertIn("duplicate fixture ids", contract)
         self.assertIn("secret_scan.py", delivery)
         self.assertIn("fixture-aware secret scanning", streamlined.lower())
 
@@ -362,6 +366,49 @@ class AcU1005FailClosedTests(unittest.TestCase):
         result = scan_repository(root)
         self.assertFalse(result["ok"])
         self.assertTrue(any(row["path"] == "tests/security/copy.py" for row in result["findings"]))
+
+    def test_duplicate_fixture_ids_cannot_hide_stale_declaration(self) -> None:
+        """Duplicate ids must not suppress unused_or_stale_declaration via used-by-id."""
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        good = synthetic_value("good")
+        stale = synthetic_value("stale")
+        write_tracked(root, "tests/security/good.py", f'secret = "{good}"\n')
+        write_tracked(root, "tests/security/stale.py", "print('no secret')\n")
+        commit(root, "used fixture plus unused stale path")
+        write_declaration(
+            root,
+            declaration(
+                candidate_tree=candidate_content_tree(root),
+                fixtures=[
+                    fixture(
+                        fixture_id="shared-id",
+                        path="tests/security/good.py",
+                        line=1,
+                        field="secret",
+                        rule="assignment.secret",
+                        value=good,
+                    ),
+                    fixture(
+                        fixture_id="shared-id",
+                        path="tests/security/stale.py",
+                        line=1,
+                        field="secret",
+                        rule="assignment.secret",
+                        value=stale,
+                    ),
+                ],
+            ),
+        )
+        commit(root, "duplicate fixture ids")
+        result = scan_repository(root)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any(row["rule"] == RULE_MALFORMED for row in result["findings"]))
+        self.assertNotEqual(kinds(result), [KIND_APPROVED])
+        self.assertFalse(
+            any(row["kind"] == KIND_APPROVED for row in result["findings"]),
+            "duplicate ids must fail closed before approval tracking can mask stale rows",
+        )
 
     def test_unknown_rule_fails_closed(self) -> None:
         tmp, root, value = self._declared_repo()

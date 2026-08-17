@@ -565,6 +565,7 @@ def _validate_declaration(payload: Any) -> dict[str, Any]:
     fixtures = payload.get("fixtures")
     if not isinstance(fixtures, list):
         raise SecretScanError("declaration_malformed", "fixtures")
+    seen_ids: set[str] = set()
     for row in fixtures:
         if not isinstance(row, dict):
             raise SecretScanError("declaration_malformed", "fixture")
@@ -580,6 +581,10 @@ def _validate_declaration(payload: Any) -> dict[str, Any]:
             raise SecretScanError("declaration_malformed", "purpose")
         if not isinstance(row.get("id"), str) or not row["id"].strip():
             raise SecretScanError("declaration_malformed", "id")
+        fixture_id = row["id"]
+        if fixture_id in seen_ids:
+            raise SecretScanError("declaration_malformed", "duplicate id")
+        seen_ids.add(fixture_id)
         if not isinstance(row.get("field"), str) or not row["field"].strip():
             raise SecretScanError("declaration_malformed", "field")
         if not isinstance(row.get("rule"), str) or not row["rule"].strip():
