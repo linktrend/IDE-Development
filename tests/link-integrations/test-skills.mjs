@@ -424,6 +424,21 @@ test('AC-I6-FC-skills: any exact latest segment in refs, skillId, or version fai
     'fail_closed',
   )
   classify(
+    () => validateSkillsTelemetry(load('failclosed-telemetry-skill-release-ref-Latest.json')),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsTelemetry(load('failclosed-telemetry-actor-ref-LATEST.json')),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsTelemetry(load('failclosed-telemetry-issue-ref-Latest.json')),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
     () => validateSkillsTelemetry({ ...positive, skill_release_ref: 'opaque:release/latest' }),
     'skills_latest_alias',
     'fail_closed',
@@ -444,6 +459,11 @@ test('AC-I6-FC-skills: any exact latest segment in refs, skillId, or version fai
     'fail_closed',
   )
   classify(
+    () => validateSkillsTelemetry({ ...positive, skill_release_ref: 'opaque:LATEST' }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
     () => validateSkillsTelemetry({ ...positive, skill_release_ref: 'opaque:latest/foo' }),
     'skills_latest_alias',
     'fail_closed',
@@ -455,6 +475,11 @@ test('AC-I6-FC-skills: any exact latest segment in refs, skillId, or version fai
   )
   classify(
     () => validateSkillsTelemetry({ ...positive, actor_ref: 'opaque:actor@latest:session' }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsTelemetry({ ...positive, actor_ref: 'opaque:actor@Latest:session' }),
     'skills_latest_alias',
     'fail_closed',
   )
@@ -495,6 +520,18 @@ test('AC-I6-FC-skills: any exact latest segment in refs, skillId, or version fai
     'fail_closed',
   )
   classify(
+    () => validateSkillsTelemetry({
+      ...load('positive-telemetry-score-9.json'),
+      issue: {
+        type: 'incomplete',
+        severity: 'low',
+        issue_ref: 'opaque:LATEST',
+      },
+    }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
     () => validateSkillsRelease({ ...release, skillId: 'release/latest/skill' }),
     'skills_latest_alias',
     'fail_closed',
@@ -503,6 +540,15 @@ test('AC-I6-FC-skills: any exact latest segment in refs, skillId, or version fai
     () => validateSkillsRelease({ ...release, version: '1.0.0:latest:rc' }),
     'skills_latest_alias',
     'fail_closed',
+  )
+  // Immutable refs without a latest segment remain accepted.
+  assert.equal(
+    validateSkillsTelemetry(load('positive-telemetry-score-10.json')).skill_release_ref,
+    'opaque:release-synthetic-skill-1.0.0',
+  )
+  assert.equal(
+    validateSkillsTelemetry(load('positive-telemetry-score-9.json')).issue.issue_ref,
+    'opaque:issue-telemetry-s4',
   )
 })
 

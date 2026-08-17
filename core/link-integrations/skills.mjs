@@ -362,8 +362,9 @@ function isLegacyOperation(value) {
 }
 
 /**
- * Reject any exact `latest` segment separated by `/`, `:`, or `@` — not only
- * suffix forms. Applies to skillId, version, and opaque telemetry refs.
+ * Reject any path segment equal to `latest` case-insensitively when separated
+ * by `/`, `:`, or `@` — not only suffix forms. Applies to skillId, version,
+ * and opaque telemetry refs (`Latest`, `LATEST`, `release:Latest`, etc.).
  *
  * @param {unknown} value
  * @param {string} field
@@ -371,7 +372,7 @@ function isLegacyOperation(value) {
 function rejectLatestAlias(value, field) {
   if (typeof value !== 'string' || value === '') return
   for (const segment of value.split(/[/:@]/)) {
-    if (segment === 'latest') {
+    if (segment.toLowerCase() === 'latest') {
       closed('skills_latest_alias', `skills ${field} must be an immutable identity, not latest`, {
         classification: 'fail_closed',
         field,

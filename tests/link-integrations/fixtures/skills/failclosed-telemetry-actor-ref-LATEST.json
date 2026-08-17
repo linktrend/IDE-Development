@@ -1,0 +1,6 @@
+{
+  "report_kind": "completed_use",
+  "score": 10,
+  "skill_release_ref": "opaque:release-synthetic-skill-1.0.0",
+  "actor_ref": "opaque:rel@LATEST"
+}
