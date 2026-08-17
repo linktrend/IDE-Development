@@ -1328,13 +1328,15 @@ for name in (
 ):
     managed = (Path(sys.argv[1]) / "core/github/managed-workflows" / name).read_text()
     live = (Path(sys.argv[1]) / ".github/workflows" / name).read_text()
-    rendered = managed.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
-    rendered = rendered.replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
-    rendered = rendered.replace("__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__", "Cursor Bugbot")
+    rendered = (
+        managed.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
+        .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
+        .replace("__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__", "Cursor Bugbot")
         .replace("__LINKTREND_REVIEW_GATE_CHECK_NAME__", "Linktrend Review Gate")
         .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Linktrend Review Gate")
-    rendered = rendered.replace("__LINKTREND_UNTRUSTED_RUNS_ON__", untrusted_runner)
-    rendered = rendered.replace("__LINKTREND_RUNS_ON__", privileged_runner)
+        .replace("__LINKTREND_UNTRUSTED_RUNS_ON__", untrusted_runner)
+        .replace("__LINKTREND_RUNS_ON__", privileged_runner)
+    )
     assert rendered == live, name
 
 print("resolver matrix rows", len(rows))
