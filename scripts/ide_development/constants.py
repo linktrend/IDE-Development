@@ -33,6 +33,8 @@ RC_REQUIRED_SCHEMA_RELS = (
     "core/managed-core/schemas/release-candidate.schema.json",
     "core/managed-core/schemas/release-candidate-checksums.schema.json",
     "core/managed-core/schemas/delivery-modes.schema.json",
+    "core/managed-core/schemas/phase-record.schema.json",
+    "core/managed-core/schemas/phase-handoff.schema.json",
     "core/managed-core/schemas/managed-core-release.schema.json",
 )
 RC_REQUIRED_TEST_RELS = (

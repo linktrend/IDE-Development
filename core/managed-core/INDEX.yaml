@@ -15,6 +15,8 @@ schemas:
   - schemas/release-candidate-checksums.schema.json
   - schemas/managed-core-release.schema.json
   - schemas/candidate-lifecycle.schema.json
+  - schemas/phase-record.schema.json
+  - schemas/phase-handoff.schema.json
   - schemas/external-state-fixture.schema.json
   - schemas/external-state-plan.schema.json
   - schemas/external-state-verify.schema.json

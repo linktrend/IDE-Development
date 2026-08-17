@@ -2,14 +2,20 @@
 """Agent-agnostic Phase Packager/Coordinator (Update 3 / WP-U03).
 
 Assembles one or more accepted remote issue commits into exactly one ordered
-``phase/*`` branch and one draft Phase PR representation. Retained
-``packager_discover.py`` is not this component: it still discovers Review-Ready
-tips into ordinary draft PRs and must not be treated as the Phase Packager.
+``phase/*`` branch and one draft Phase PR. Retained ``packager_discover.py`` is
+not this component: it still discovers Review-Ready tips into ordinary draft
+PRs and must not be treated as the Phase Packager.
 
-GitHub mutations are injected through ``GitHubPort``. Production callers supply
-a live adapter; tests use ``MemoryGitHub``. This module never opens a live PR,
-never pushes ``development``/``staging``/``main``, never seals a candidate, and
-never starts Full.
+Production ``assemble`` uses a bounded live GitHub adapter and a bounded push
+adapter, or refuses without credentials and configuration. Success requires a
+verified remote ``phase/*`` ref at the exact assembled head plus one real draft
+Phase PR identity. Tests inject ``MemoryGitHub``; the production CLI never
+does. Existing Phase state is preserved: unique or drifted Phase work is
+rejected instead of reset. Assembly runs in an isolated worktree and writes
+coordinator state under the git common directory, outside the caller
+checkout. This module never pushes
+``development``/``staging``/``main``, never seals a candidate, and never
+starts Full.
 """
 
 from __future__ import annotations
@@ -22,9 +28,12 @@ import re
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Protocol
+from typing import Any, Callable, Mapping, Protocol
 
 try:
     from scripts.gitops.delivery_modes import (
@@ -59,12 +68,25 @@ except ModuleNotFoundError:  # pragma: no cover - script-style execution
         phase_full_suite_dispatch_allowed,
     )
 
+try:
+    from scripts.gitops.bugbot_user_credentials import (
+        BugbotUserCredentialsError,
+        require_bugbot_user_token,
+    )
+except ModuleNotFoundError:  # pragma: no cover - script-style execution
+    from bugbot_user_credentials import (  # type: ignore
+        BugbotUserCredentialsError,
+        require_bugbot_user_token,
+    )
+
 COMPONENT_KIND = "phase_packager_coordinator"
 IS_PHASE_PACKAGER = True
 HANDOFF_REL = Path(".linktrend/phase-handoff.json")
+COORDINATOR_STATE_REL = Path("ide-development/phase-packager")
 PROTECTED_BRANCHES = frozenset({"development", "staging", "main"})
 ISSUE_BRANCH_RE = re.compile(r"^issue/([1-9][0-9]{0,8})-[a-z0-9]+(?:-[a-z0-9]+)*$")
 ACCEPT_RE = re.compile(r"^([^@=]+)[@=]([0-9a-fA-F]{40})$")
+LIVE_PR_URL_RE = re.compile(r"^https://github\.com/[^/]+/[^/]+/pull/[1-9][0-9]*$")
 AGENT_ENV_KEYS = (
     "CURSOR_AGENT",
     "CODEX_HOME",
@@ -115,6 +137,13 @@ class GitHubPort(Protocol):
         ...
 
     def dispatch_workflow(self, name: str, inputs: Mapping[str, Any]) -> None:
+        ...
+
+
+class PushPort(Protocol):
+    """Bounded phase-ref push. Production uses ``GitPushAdapter``."""
+
+    def push_phase_ref(self, repo: Path, remote: str, branch: str, sha: str) -> str:
         ...
 
 
@@ -191,6 +220,230 @@ class MemoryGitHub:
 
     def dispatch_workflow(self, name: str, inputs: Mapping[str, Any]) -> None:
         self.workflow_dispatches.append({"name": name, "inputs": dict(inputs)})
+
+
+class GitPushAdapter:
+    """Push exactly one ``phase/*`` ref and verify the remote SHA. Never force."""
+
+    def push_phase_ref(self, repo: Path, remote: str, branch: str, sha: str) -> str:
+        if branch in PROTECTED_BRANCHES or not is_phase_branch(branch, DEFAULT_PHASE_PREFIX):
+            raise CoordinatorError("protected_push", branch)
+        subject = normalize_sha(sha)
+        if not is_valid_sha(subject):
+            raise CoordinatorError("invalid_sha", sha)
+        _git(repo, "push", "--", remote, f"{subject}:refs/heads/{branch}")
+        verified = _remote_sha(repo, remote, branch)
+        if verified != subject:
+            raise CoordinatorError("unverified_phase_ref", f"{branch}:remote={verified}:expected={subject}")
+        _git(repo, "update-ref", f"refs/remotes/{remote}/{branch}", verified, check=False)
+        return verified
+
+
+def _github_api(
+    method: str,
+    url: str,
+    token: str,
+    body: Mapping[str, Any] | None = None,
+) -> Any:
+    data = None if body is None else json.dumps(body).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=data,
+        method=method,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "linktrend-phase-packager-coordinator",
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request) as response:
+            raw = response.read().decode("utf-8")
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise CoordinatorError("github_api_failed", f"{method} {url} -> {exc.code}: {detail[:300]}") from exc
+
+
+@dataclass
+class LiveGitHub:
+    """Bounded live GitHub adapter. Opens or updates one draft Phase PR only."""
+
+    repository: str
+    automation_token: str
+    user_token: str
+    transport: Callable[[str, str, str, Mapping[str, Any] | None], Any] | None = None
+    ensure_calls: int = 0
+    labels: list[tuple[int, str]] = field(default_factory=list)
+    workflow_dispatches: list[dict[str, Any]] = field(default_factory=list)
+
+    def _request(self, method: str, url: str, token: str, body: Mapping[str, Any] | None = None) -> Any:
+        if self.transport is not None:
+            return self.transport(method, url, token, body)
+        return _github_api(method, url, token, body)
+
+    def _pr_identity(self, payload: Mapping[str, Any], *, created: bool) -> dict[str, Any]:
+        html_url = str(payload.get("html_url") or payload.get("url") or "")
+        number = payload.get("number")
+        if not isinstance(number, int) or isinstance(number, bool) or number < 1:
+            raise CoordinatorError("invalid_phase_pr", "missing live pull number")
+        draft = payload.get("draft", payload.get("isDraft"))
+        return {
+            "number": number,
+            "url": html_url,
+            "isDraft": bool(draft),
+            "head": (payload.get("head") or {}).get("ref") if isinstance(payload.get("head"), Mapping) else payload.get("head"),
+            "base": (payload.get("base") or {}).get("ref") if isinstance(payload.get("base"), Mapping) else payload.get("base"),
+            "headSha": normalize_sha(str((payload.get("head") or {}).get("sha") or payload.get("headSha") or "")),
+            "created": created,
+        }
+
+    def ensure_draft_phase_pr(
+        self,
+        *,
+        repository: str,
+        head: str,
+        base: str,
+        head_sha: str,
+        title: str,
+        body: str,
+        record: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        if repository != self.repository:
+            raise CoordinatorError("wrong_repository", repository)
+        if not self.automation_token or not self.user_token:
+            raise CoordinatorError("missing_github_credentials", "live GitHub adapter requires automation and PR-create tokens")
+        self.ensure_calls += 1
+        owner = repository.split("/", 1)[0]
+        listed = self._request(
+            "GET",
+            (
+                f"https://api.github.com/repos/{repository}/pulls?"
+                + urllib.parse.urlencode({"head": f"{owner}:{head}", "base": base, "state": "open"})
+            ),
+            self.automation_token,
+        )
+        if not isinstance(listed, list):
+            raise CoordinatorError("github_api_failed", "pull list was not an array")
+        if len(listed) > 1:
+            raise CoordinatorError("duplicate_phase_pr", json.dumps([row.get("number") for row in listed]))
+        if listed:
+            existing = listed[0]
+            if not isinstance(existing, Mapping):
+                raise CoordinatorError("invalid_phase_pr", "existing pull was not an object")
+            number = existing.get("number")
+            if not existing.get("draft", existing.get("isDraft")):
+                raise CoordinatorError("phase_pr_not_draft", str(number))
+            updated = self._request(
+                "PATCH",
+                f"https://api.github.com/repos/{repository}/pulls/{number}",
+                self.automation_token,
+                {"title": title, "body": body},
+            )
+            if not isinstance(updated, Mapping):
+                updated = existing
+            identity = self._pr_identity(updated if isinstance(updated, Mapping) else existing, created=False)
+            return self._bound_live_pr(identity, head_sha)
+        created = self._request(
+            "POST",
+            f"https://api.github.com/repos/{repository}/pulls",
+            self.user_token,
+            {
+                "title": title,
+                "body": body,
+                "head": head,
+                "base": base,
+                "draft": True,
+            },
+        )
+        if not isinstance(created, Mapping):
+            raise CoordinatorError("invalid_phase_pr", "create response was not an object")
+        identity = self._pr_identity(created, created=True)
+        return self._bound_live_pr(identity, head_sha)
+
+    def _bound_live_pr(self, identity: dict[str, Any], head_sha: str) -> dict[str, Any]:
+        """Keep GitHub's draft/URL identity; never forge a successful draft PR."""
+
+        expected = normalize_sha(head_sha)
+        reported = normalize_sha(str(identity.get("headSha") or ""))
+        if is_valid_sha(reported) and reported != expected:
+            raise CoordinatorError("unverified_phase_ref", f"pr_head={reported}:expected={expected}")
+        if not identity.get("isDraft"):
+            raise CoordinatorError("phase_pr_not_draft", str(identity.get("number")))
+        identity["headSha"] = expected
+        assert_live_phase_pr(identity)
+        return identity
+
+    def list_open_phase_prs(self, *, repository: str, head: str, base: str) -> list[dict[str, Any]]:
+        if repository != self.repository:
+            raise CoordinatorError("wrong_repository", repository)
+        owner = repository.split("/", 1)[0]
+        listed = self._request(
+            "GET",
+            (
+                f"https://api.github.com/repos/{repository}/pulls?"
+                + urllib.parse.urlencode({"head": f"{owner}:{head}", "base": base, "state": "open"})
+            ),
+            self.automation_token,
+        )
+        if not isinstance(listed, list):
+            raise CoordinatorError("github_api_failed", "pull list was not an array")
+        return [self._pr_identity(row, created=False) for row in listed if isinstance(row, Mapping)]
+
+    def completion_bound(self, sha: str) -> tuple[bool, str]:
+        subject = normalize_sha(sha)
+        payload = self._request(
+            "GET",
+            f"https://api.github.com/repos/{self.repository}/commits/{subject}/status",
+            self.automation_token,
+        )
+        if not isinstance(payload, Mapping):
+            return False, "evidence_missing"
+        statuses = payload.get("statuses") if isinstance(payload.get("statuses"), list) else []
+        for row in statuses:
+            if not isinstance(row, Mapping):
+                continue
+            if row.get("context") == "Linktrend Review Ready" and str(row.get("state") or "").lower() == "success":
+                return True, "review_ready_status"
+        return False, "evidence_missing"
+
+    def add_label(self, pr_number: int, label: str) -> None:
+        raise CoordinatorError("label_not_permitted", f"{pr_number}:{label}")
+
+    def dispatch_workflow(self, name: str, inputs: Mapping[str, Any]) -> None:
+        raise CoordinatorError("workflow_dispatch_not_permitted", name)
+
+
+def resolve_production_adapters(repository: str) -> tuple[LiveGitHub, GitPushAdapter]:
+    """Fail closed unless live GitHub and push configuration are present."""
+
+    if not repository or "/" not in repository or repository.count("/") != 1:
+        raise CoordinatorError("missing_repository", "assemble requires --repository owner/name")
+    token = (os.environ.get("AUTOMATION_TOKEN") or "").strip()
+    source = (os.environ.get("AUTOMATION_TOKEN_SOURCE") or "").strip()
+    if not token or source != "github_token":
+        raise CoordinatorError(
+            "missing_github_credentials",
+            "assemble requires AUTOMATION_TOKEN with AUTOMATION_TOKEN_SOURCE=github_token",
+        )
+    try:
+        user_token = require_bugbot_user_token("pr_create")
+    except BugbotUserCredentialsError as exc:
+        raise CoordinatorError("missing_github_credentials", str(exc)) from exc
+    return LiveGitHub(repository=repository, automation_token=token, user_token=user_token), GitPushAdapter()
+
+
+def assert_live_phase_pr(pr: Mapping[str, Any]) -> None:
+    url = str(pr.get("url") or "")
+    number = pr.get("number")
+    if "example.invalid" in url or not LIVE_PR_URL_RE.fullmatch(url):
+        raise CoordinatorError("invalid_phase_pr", url or "missing live pull URL")
+    if not isinstance(number, int) or isinstance(number, bool) or number < 1:
+        raise CoordinatorError("invalid_phase_pr", "live pull number is required")
+    if not bool(pr.get("isDraft", False)):
+        raise CoordinatorError("phase_pr_not_draft", str(number))
 
 
 @dataclass(frozen=True)
@@ -421,6 +674,134 @@ def _validate_source(
             raise CoordinatorError("evidence_missing", f"{source.branch}:{detail}")
 
 
+def _git_common_dir(repo: Path) -> Path:
+    value = _git(repo, "rev-parse", "--git-common-dir")
+    path = Path(value)
+    if not path.is_absolute():
+        path = (repo / path).resolve()
+    return path
+
+
+def _coordinator_state_dir(repo: Path, phase_branch: str) -> Path:
+    phase_id = phase_branch.split("/", 1)[-1]
+    return _git_common_dir(repo) / COORDINATOR_STATE_REL / phase_id
+
+
+def _local_sha(repo: Path, branch: str) -> str:
+    value = _git(repo, "rev-parse", "--verify", f"refs/heads/{branch}", check=False)
+    return normalize_sha(value) if is_valid_sha(value) else ""
+
+
+def _assert_live_phase_pr_optional(pr: Mapping[str, Any], *, require_live_pr: bool) -> None:
+    if require_live_pr:
+        assert_live_phase_pr(pr)
+
+
+def _unique_phase_commits(
+    repo: Path,
+    *,
+    development_sha: str,
+    phase_sha: str,
+    accepted_shas: set[str],
+) -> list[str]:
+    output = _git(repo, "rev-list", "--parents", f"{development_sha}..{phase_sha}", check=False)
+    unique: list[str] = []
+    for line in output.splitlines():
+        parts = line.split()
+        if not parts:
+            continue
+        commit = normalize_sha(parts[0])
+        parents = [normalize_sha(item) for item in parts[1:]]
+        if commit in accepted_shas:
+            continue
+        if len(parents) == 2 and parents[1] in accepted_shas:
+            continue
+        unique.append(commit)
+    return unique
+
+
+def _existing_phase_shas(repo: Path, remote: str, phase_branch: str) -> tuple[str, str]:
+    local = _local_sha(repo, phase_branch)
+    remote_sha = _remote_sha(repo, remote, phase_branch)
+    if local and remote_sha and local != remote_sha:
+        raise CoordinatorError("phase_ref_drift", f"{phase_branch}:local={local}:remote={remote_sha}")
+    return local, remote_sha
+
+
+def _remaining_sources(repo: Path, start_sha: str, sources: list[AcceptedSource]) -> list[AcceptedSource]:
+    remaining: list[AcceptedSource] = []
+    for source in sources:
+        if _is_ancestor(repo, source.sha, start_sha):
+            continue
+        remaining.append(source)
+    return remaining
+
+
+def _assemble_in_worktree(
+    repo: Path,
+    *,
+    start_sha: str,
+    sources: list[AcceptedSource],
+) -> str:
+    remaining = _remaining_sources(repo, start_sha, sources)
+    if not remaining:
+        return normalize_sha(start_sha)
+    with tempfile.TemporaryDirectory(prefix="phase-assemble-") as tmp:
+        probe = Path(tmp) / "work"
+        _git(repo, "worktree", "add", "--detach", str(probe), start_sha)
+        try:
+            for source in remaining:
+                merge = subprocess.run(
+                    [
+                        "git",
+                        "merge",
+                        "--no-ff",
+                        "--no-edit",
+                        "-m",
+                        f"phase: include {source.branch}",
+                        source.sha,
+                    ],
+                    cwd=probe,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                if merge.returncode:
+                    subprocess.run(
+                        ["git", "merge", "--abort"],
+                        cwd=probe,
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+                    raise CoordinatorError("conflicting_commits", source.branch)
+            head = normalize_sha(_git(probe, "rev-parse", "HEAD"))
+            _git(repo, "update-ref", "refs/phase-packager/assemble", head)
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(probe)],
+                cwd=repo,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+    return head
+
+
+def _write_isolated_state(repo: Path, phase_branch: str, record: Mapping[str, Any], handoff: Mapping[str, Any]) -> Path:
+    state_dir = _coordinator_state_dir(repo, phase_branch)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "phase-delivery-record.json").write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (state_dir / "phase-handoff.json").write_text(
+        json.dumps(handoff, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return state_dir
+
+
 def _stable_title(phase_branch: str) -> str:
     return f"Phase: {phase_branch}"
 
@@ -538,6 +919,8 @@ def assemble_phase(
     remote: str = "origin",
     require_evidence: bool = True,
     expected_repository: str | None = None,
+    pusher: PushPort | None = None,
+    require_live_pr: bool = False,
 ) -> dict[str, Any]:
     """Create or update exactly one Phase branch and draft PR representation."""
 
@@ -545,6 +928,10 @@ def assemble_phase(
         raise CoordinatorError("wrong_repository", f"expected={expected_repository}:got={repository}")
     if repository != getattr(github, "repository", repository):
         raise CoordinatorError("wrong_repository", repository)
+    if pusher is None:
+        raise CoordinatorError("missing_push_adapter", "assemble requires a bounded push adapter")
+    if require_live_pr and not isinstance(github, LiveGitHub):
+        raise CoordinatorError("invalid_phase_pr", "production assemble requires a live GitHub adapter")
     if not sources:
         raise CoordinatorError("no_accepted_issues", "at least one accepted issue commit is required")
     if phase_branch in PROTECTED_BRANCHES or not is_phase_branch(phase_branch, DEFAULT_PHASE_PREFIX):
@@ -578,46 +965,60 @@ def assemble_phase(
 
     _probe_conflicts(repo, development_sha, ordered)
 
-    record_path = repo / PHASE_RECORD_REL
+    state_dir = _coordinator_state_dir(repo, phase_branch)
+    record_path = state_dir / "phase-delivery-record.json"
     previous = None
     if record_path.is_file():
         previous = json.loads(record_path.read_text(encoding="utf-8"))
         if previous.get("phaseBranch") not in {None, phase_branch} and previous.get("phaseBranch") != phase_branch:
             raise CoordinatorError("duplicate_active_phase", str(previous.get("phaseBranch")))
 
-    revision = _candidate_revision(repository, phase_branch, development_sha, ordered)
-    existing_phase = _git(repo, "rev-parse", "--verify", phase_branch, check=False)
-    identical = (
-        previous is not None
-        and previous.get("candidateRevision") == revision
-        and is_valid_sha(str(previous.get("headSha") or ""))
-        and existing_phase == normalize_sha(str(previous.get("headSha") or ""))
-        and normalize_sha(str(previous.get("baseSha") or "")) == normalize_sha(development_sha)
-    )
-    if identical:
-        head = existing_phase
-        tree = _git(repo, "rev-parse", f"{head}^{{tree}}")
-        _git(repo, "checkout", phase_branch)
-    else:
-        _git(repo, "checkout", "-B", phase_branch, development_sha)
-        included: list[str] = []
-        for source in ordered:
-            merge = subprocess.run(
-                ["git", "merge", "--no-ff", "--no-edit", "-m", f"phase: include {source.branch}", source.sha],
-                cwd=repo,
-                text=True,
-                capture_output=True,
-                check=False,
+    local_phase, remote_phase = _existing_phase_shas(repo, remote, phase_branch)
+    existing_phase = remote_phase or local_phase
+    accepted_shas = {source.sha for source in ordered}
+    if existing_phase:
+        unique = _unique_phase_commits(
+            repo,
+            development_sha=development_sha,
+            phase_sha=existing_phase,
+            accepted_shas=accepted_shas,
+        )
+        remaining = _remaining_sources(repo, existing_phase, ordered)
+        if unique:
+            raise CoordinatorError(
+                "unique_phase_divergence",
+                f"{phase_branch}:{existing_phase}:{','.join(unique)}",
             )
-            if merge.returncode:
-                subprocess.run(["git", "merge", "--abort"], cwd=repo, text=True, capture_output=True, check=False)
-                raise CoordinatorError("conflicting_commits", source.branch)
-            included.append(source.sha)
-        head = _git(repo, "rev-parse", "HEAD")
-        tree = _git(repo, "rev-parse", "HEAD^{tree}")
-        for source in ordered:
-            if not _is_ancestor(repo, source.sha, head):
-                raise CoordinatorError("unrelated_commits", source.branch)
+        start_sha = existing_phase
+    else:
+        remaining = list(ordered)
+        start_sha = development_sha
+
+    revision = _candidate_revision(repository, phase_branch, development_sha, ordered)
+    identical = not remaining
+    if identical:
+        head = existing_phase or development_sha
+    else:
+        head = _assemble_in_worktree(repo, start_sha=start_sha, sources=ordered)
+    tree = _git(repo, "rev-parse", f"{head}^{{tree}}")
+    for source in ordered:
+        if not _is_ancestor(repo, source.sha, head):
+            raise CoordinatorError("unrelated_commits", source.branch)
+
+    if remote_phase == head:
+        verified = remote_phase
+    else:
+        verified = pusher.push_phase_ref(repo, remote, phase_branch, head)
+    if verified != normalize_sha(head):
+        raise CoordinatorError("unverified_phase_ref", f"{phase_branch}:remote={verified}:expected={head}")
+
+    current = _git(repo, "rev-parse", "--abbrev-ref", "HEAD", check=False)
+    if current != phase_branch:
+        if local_phase:
+            _git(repo, "update-ref", f"refs/heads/{phase_branch}", head, local_phase)
+        elif not _local_sha(repo, phase_branch):
+            _git(repo, "update-ref", f"refs/heads/{phase_branch}", head)
+
     record = _phase_record(
         repository=repository,
         phase_branch=phase_branch,
@@ -644,6 +1045,7 @@ def assemble_phase(
         body=body,
         record=record,
     )
+    _assert_live_phase_pr_optional(pr, require_live_pr=require_live_pr)
     open_prs = github.list_open_phase_prs(repository=repository, head=phase_branch, base=development)
     if len(open_prs) != 1:
         raise CoordinatorError("duplicate_phase_pr", json.dumps([row.get("number") for row in open_prs]))
@@ -670,19 +1072,17 @@ def assemble_phase(
     )
     record["fullMayStart"] = {"allowed": allowed, "detail": detail}
     handoff = _handoff_from(record, valid=True)
-    record_path.parent.mkdir(parents=True, exist_ok=True)
-    record_path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    handoff_path = repo / HANDOFF_REL
-    handoff_path.write_text(json.dumps(handoff, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    written = _write_isolated_state(repo, phase_branch, record, handoff)
     return {
         "component": COMPONENT_KIND,
-        "action": "reused" if identical else ("updated" if previous else "created"),
+        "action": "reused" if identical else ("updated" if existing_phase else "created"),
         "repository": repository,
         "phaseBranch": phase_branch,
         "phasePr": record["phasePr"],
         "headSha": head,
         "gitTree": tree,
         "baseSha": normalize_sha(development_sha),
+        "remoteSha": verified,
         "candidateRevision": revision,
         "acceptedCommits": [source.to_dict() for source in ordered],
         "idempotent": identical,
@@ -694,6 +1094,7 @@ def assemble_phase(
         "fullDispatchAllowed": False,
         "handoff": handoff,
         "record": record,
+        "stateDir": str(written),
         "agentEnvIgnored": [key for key in AGENT_ENV_KEYS if os.environ.get(key)],
     }
 
@@ -754,18 +1155,20 @@ def main(argv: list[str] | None = None) -> int:
         print("assemble requires --repository and one or more --accept branch@sha", file=sys.stderr)
         return 2
     sources = [parse_accept(raw, order) for order, raw in enumerate(args.accept, start=1)]
-    github = MemoryGitHub(repository=args.repository)
     try:
+        github, pusher = resolve_production_adapters(args.repository)
         result = assemble_phase(
             repo=Path(args.repo_path).resolve(),
             repository=args.repository,
             sources=sources,
             github=github,
+            pusher=pusher,
             phase_branch=args.phase_branch,
             development=args.development,
             remote=args.remote,
             require_evidence=not args.no_evidence,
             expected_repository=args.repository,
+            require_live_pr=True,
         )
     except (CoordinatorError, PhaseLifecycleError) as exc:
         payload = exc.to_dict() if hasattr(exc, "to_dict") else {"code": "failed", "detail": str(exc)}
