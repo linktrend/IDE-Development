@@ -78,7 +78,5 @@
   "headSha": "7eb1c8f55d0253d9e2537f56bccee6c767891678",
   "tree": "824e8f8297331a9ad6866f3504804757acc99a84",
   "evidenceHeadSha": "c84abbbe98f5c82bc382812f07131d2c43a41cfd",
-  "evidenceTree": "73c453a79c9f39cfadec877e114fd85dc5315f31",
-  "bindTipSha": "866965f89b87d1ee280e5d8cbaed6fb3c5d0075d",
-  "bindTipTree": "4910fb8beb7bcc57f27ca776db7a3087a69e925a"
+  "evidenceTree": "73c453a79c9f39cfadec877e114fd85dc5315f31"
 }
