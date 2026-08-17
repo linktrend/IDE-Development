@@ -331,5 +331,6 @@
       "git diff --check origin/development...HEAD -- core/link-integrations tests/link-integrations docs/ITEM-6-CONNECT-IDE-DEVELOPMENT-*.md docs/evidence/item6-pre-rollout"
     ],
     "fullSuite": "forbidden"
-  }
+  },
+  "phaseTipResolution": "git rev-parse on phase/item6-consumer-integration-pre-rollout after push"
 }
