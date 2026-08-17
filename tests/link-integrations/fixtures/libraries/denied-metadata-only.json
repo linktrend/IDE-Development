@@ -1,0 +1,21 @@
+{
+  "sourceCommitSha": "5901d111309543ed0839938d7217475e5d4b8ac4",
+  "sourceTreeSha": "185d7cf714777d60a2d01a4881bf1a11bc5018d9",
+  "releaseSourceCommitSha": "96d6972b836e8ccb51ea6fe1377ed6440ab7e1d9",
+  "releaseSourceTreeSha": "f8f20316b62492b9b1d0363f1c7983fc64de58ec",
+  "artifactTreeSha1": "2107a410b1308048a138f2dcb80c9cc7d8b7867a",
+  "entryId": "synthetic-component",
+  "version": "1.0.0",
+  "releaseManifestSha256": "6b9979777561d1771294ff4ddd10159b543c3b3cdd699c82ad759ab04ea67212",
+  "inventorySha256": "deea48fd4fd547513f12216cd71191128eb8c3a78820d08862617d14498247a0",
+  "payloadSha256": "8cad275e50f5c468ee7bb53e0594dd4c4c53b49a78aa1da6e8cb1ab737fd7e37",
+  "dependencyLockSha256": "59f4db72af5de4731c68ee44b525f494c6cd067b42f8da310c345829f1b09c23",
+  "catalogueSha256": "23fb0cc8389787912df764b208fe4b3ec148d696227ee2a379f78f351fe1a1d5",
+  "catalogueRecordsSha256": "dcabdfa363fe419d5b1ec04266efb65bd835ea5bc916c770d587404a2abe97a5",
+  "receiptType": "verified_cache",
+  "receiptId": "external-synthetic-component-1.0.0",
+  "lifecycle": "admitted",
+  "selectability": "non_selectable",
+  "compatibility": "compatible",
+  "contentMode": "metadata_only"
+}
