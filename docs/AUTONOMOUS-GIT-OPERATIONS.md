@@ -30,18 +30,28 @@ never repair by choosing one side automatically.
 Pre-land independent review is governed by
 `scripts/gitops/independent_review_convergence.py`. One session tracks one
 exact repository, base, candidate, tree, scope, and reviewer policy. Findings
-keep a durable ledger and stable identity. One review produces one
+keep a durable ledger and stable identity: different nonempty fingerprints
+never fuzzy-merge, and only wording variants of the same identity may match.
+Ingest requires exact `headSha` and `gitTree` and a nonempty list of nonempty
+`paths`. Malformed or non-object findings are `malformed_reviewer_output`
+with truthful HOLD and no cycle consumption. One review produces one
 consolidated repair batch and one observational repair cycle. There is no
 arbitrary terminal cycle cap. Unattended work pauses after three cycles. A
 recorded founder `continue until clean` instruction authorizes further
-progressing cycles without repeated approval. Stop only for repeated
-unresolved findings, two no-progress cycles, repair reintroduction,
-redesign/new authority, infrastructure retry exhaustion, or an explicit
-resource limit. Those stops publish a truthful HOLD / `review_stalled`
-founder packet. Implementers never review their own work. Reviewer silence
-or timeout is never clean. A later source change invalidates prior review
-and Full evidence. Full does not run until required independent review is
-clean unless repository policy explicitly requires Full first.
+progressing cycles without repeated approval. `apply_repair` fails closed
+after that pause without that authority, and after `review_stalled` / HOLD,
+preserving the exact stalled identity. Repair cancels or invalidates any live
+reviewer. First-seen findings on touched paths are `introduced_by_repair`;
+only untouched paths are `newly_discovered_in_unchanged_scope`. Same-identity
+severity reductions count as measurable progress. Compute units use an
+explicit accounting path so `maxComputeUnits` can stall truthfully. Stop only
+for repeated unresolved findings, two no-progress cycles, repair
+reintroduction, redesign/new authority, infrastructure retry exhaustion, or
+an explicit resource limit. Those stops publish a truthful HOLD /
+`review_stalled` founder packet. Implementers never review their own work.
+Reviewer silence or timeout is never clean. A later source change invalidates
+prior review and Full evidence. Full does not run until required independent
+review is clean unless repository policy explicitly requires Full first.
 
 ## External boundary
 

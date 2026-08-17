@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://linktrend.local/managed-core/finding-ledger.schema.json",
   "title": "Independent-review finding ledger",
-  "description": "Durable finding identity across heads. Findings are never silently discarded, renumbered, or erased by a split or wording change.",
+  "description": "Durable finding identity across heads. Different nonempty fingerprints never fuzzy-merge; only wording variants of the same identity may match. First-seen findings on repair-touched paths are introduced_by_repair; first-seen findings on untouched paths are newly_discovered_in_unchanged_scope. Findings are never silently discarded, renumbered, or erased by a split or wording change.",
   "type": "object",
   "additionalProperties": false,
   "required": [

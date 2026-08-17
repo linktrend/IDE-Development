@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://linktrend.local/managed-core/review-session.schema.json",
   "title": "Independent-review convergence session",
-  "description": "One review session for one exact repository, base, candidate, tree, scope, and reviewer policy. Repair-cycle count is observational; it is never a terminal development gate.",
+  "description": "One review session for one exact repository, base, candidate, tree, scope, and reviewer policy. Review ingest binds that exact headSha and gitTree. Compute units are recorded through an explicit accounting path so maxComputeUnits can stall truthfully. Repair-cycle count is observational; it is never a terminal development gate.",
   "type": "object",
   "additionalProperties": false,
   "required": [

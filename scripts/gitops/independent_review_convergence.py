@@ -38,6 +38,7 @@ ROLE_IMPLEMENTER = "implementer"
 ROLE_REVIEWER = "reviewer"
 ROLE_FOUNDER = "founder"
 SEVERITIES = ("P1", "P2", "P3")
+SEVERITY_RANK = {"P1": 0, "P2": 1, "P3": 2}
 BLOCKING_SEVERITIES = frozenset({"P1", "P2"})
 
 CLASS_UNRESOLVED = "unresolved"
@@ -132,6 +133,7 @@ class LedgerEntry:
     last_seen_head: str
     repair_attempts: int = 0
     history: list[dict[str, Any]] = field(default_factory=list)
+    severity_reduced_this_cycle: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         row = self.finding.to_dict()
@@ -297,6 +299,8 @@ def token_jaccard(left: str, right: str) -> float:
 
 
 def normalize_paths(paths: Sequence[str]) -> list[str]:
+    if not isinstance(paths, (list, tuple)):
+        return []
     out = []
     for path in paths:
         item = str(path or "").strip().replace("\\", "/")
@@ -305,11 +309,28 @@ def normalize_paths(paths: Sequence[str]) -> list[str]:
     return sorted(set(out))
 
 
+def require_finding_paths(paths: Any) -> list[str]:
+    if not isinstance(paths, list) or not paths:
+        raise ConvergenceError(
+            HOLD_MALFORMED_OUTPUT,
+            "paths must be a nonempty list of nonempty strings",
+        )
+    out: list[str] = []
+    for path in paths:
+        if not isinstance(path, str) or not path.strip():
+            raise ConvergenceError(
+                HOLD_MALFORMED_OUTPUT,
+                "paths must be a nonempty list of nonempty strings",
+            )
+        out.append(path.strip().replace("\\", "/"))
+    return sorted(set(out))
+
+
 def same_finding(left: Finding, right: Finding) -> bool:
-    if left.fingerprint and right.fingerprint and left.fingerprint == right.fingerprint:
-        return True
-    if left.severity != right.severity:
-        return False
+    left_fp = (left.fingerprint or "").strip()
+    right_fp = (right.fingerprint or "").strip()
+    if left_fp and right_fp:
+        return left_fp == right_fp
     if set(normalize_paths(left.paths)) != set(normalize_paths(right.paths)):
         return False
     left_norm = " ".join(normalize_words(left.statement))
@@ -327,17 +348,23 @@ def same_finding(left: Finding, right: Finding) -> bool:
     return False
 
 
+def severity_is_reduced(previous: str, current: str) -> bool:
+    return SEVERITY_RANK.get(current, -1) > SEVERITY_RANK.get(previous, -1)
+
+
 def parse_finding(raw: Mapping[str, Any]) -> Finding:
+    if not isinstance(raw, Mapping):
+        raise ConvergenceError(HOLD_MALFORMED_OUTPUT, "finding items must be objects")
     fingerprint = str(raw.get("fingerprint") or "").strip()
     severity = str(raw.get("severity") or "").strip().upper()
-    paths = normalize_paths(raw.get("paths") or [])
+    paths = require_finding_paths(raw.get("paths"))
     statement = str(raw.get("statement") or raw.get("defect") or "").strip()
     evidence = str(raw.get("evidence") or "").strip()
     acceptance = str(raw.get("acceptanceTest") or raw.get("acceptance_test") or "").strip()
     if not fingerprint or severity not in SEVERITIES or not paths or not statement:
-        raise ConvergenceError("malformed_finding", "finding is missing fingerprint, severity, paths, or statement")
+        raise ConvergenceError(HOLD_MALFORMED_OUTPUT, "finding is missing fingerprint, severity, paths, or statement")
     if not evidence or not acceptance:
-        raise ConvergenceError("malformed_finding", "finding is missing evidence or acceptanceTest")
+        raise ConvergenceError(HOLD_MALFORMED_OUTPUT, "finding is missing evidence or acceptanceTest")
     return Finding(
         fingerprint=fingerprint,
         severity=severity,
@@ -593,6 +620,23 @@ def _require_reviewer_actor(session: ReviewSession, actor: str, role: str) -> No
         raise ConvergenceError("role_separation", "implementer cannot act as reviewer")
 
 
+def _hold_malformed(session: ReviewSession, detail: str) -> None:
+    session.status = STATUS_HOLD
+    session.hold_reason = HOLD_MALFORMED_OUTPUT
+    raise ConvergenceError(HOLD_MALFORMED_OUTPUT, detail)
+
+
+def _require_bound_identity(session: ReviewSession, payload: Mapping[str, Any]) -> None:
+    raw_head = payload.get("headSha")
+    raw_tree = payload.get("gitTree")
+    if not raw_head or not raw_tree:
+        raise ConvergenceError("stale_review", "reviewer output must bind exact headSha and gitTree")
+    head = require_sha(str(raw_head), "headSha")
+    tree = require_sha(str(raw_tree), "gitTree")
+    if head != session.candidate_sha or tree != session.git_tree:
+        raise ConvergenceError("stale_review", "reviewer output headSha/gitTree do not match the current candidate")
+
+
 def ingest_review(
     session: ReviewSession,
     entries: list[LedgerEntry],
@@ -604,21 +648,31 @@ def ingest_review(
 ) -> list[Finding]:
     clock = clock or SystemClock()
     _require_reviewer_actor(session, actor, role)
-    session.live_reviewer = None
     if payload is None or payload == {}:
+        session.live_reviewer = None
         session.status = STATUS_HOLD
         session.hold_reason = HOLD_REVIEWER_SILENCE
         raise ConvergenceError(HOLD_REVIEWER_SILENCE, "reviewer produced no output; HOLD, not clean")
-    if payload.get("headSha") and require_sha(str(payload["headSha"]), "headSha") != session.candidate_sha:
-        raise ConvergenceError("stale_review", "reviewer output head does not match the current candidate")
+    _require_bound_identity(session, payload)
     raw_findings = payload.get("findings")
     if raw_findings is None:
-        session.status = STATUS_HOLD
-        session.hold_reason = HOLD_MALFORMED_OUTPUT
-        raise ConvergenceError(HOLD_MALFORMED_OUTPUT, "reviewer output is missing findings and does not consume a repair cycle")
+        session.live_reviewer = None
+        _hold_malformed(session, "reviewer output is missing findings and does not consume a repair cycle")
     if not isinstance(raw_findings, list):
-        raise ConvergenceError(HOLD_MALFORMED_OUTPUT, "findings must be a list")
-    findings = [parse_finding(item) for item in raw_findings]
+        session.live_reviewer = None
+        _hold_malformed(session, "findings must be a list")
+    findings: list[Finding] = []
+    try:
+        for item in raw_findings:
+            if not isinstance(item, Mapping):
+                raise ConvergenceError(HOLD_MALFORMED_OUTPUT, "finding items must be objects")
+            findings.append(parse_finding(item))
+    except ConvergenceError as exc:
+        if exc.code == HOLD_MALFORMED_OUTPUT:
+            session.live_reviewer = None
+            _hold_malformed(session, exc.detail)
+        raise
+    session.live_reviewer = None
     session.reviewer_outputs.append(
         {"at": clock.now(), "headSha": session.candidate_sha, "findingCount": len(findings)}
     )
@@ -638,12 +692,17 @@ def _classify_into_ledger(
     entries: list[LedgerEntry],
     findings: Sequence[Finding],
 ) -> None:
+    for entry in entries:
+        entry.severity_reduced_this_cycle = False
     seen: list[LedgerEntry] = []
     for finding in findings:
         existing = find_entry(entries, finding)
         if existing is None:
+            touched = set(session.last_touched_paths)
             if session.repair_cycle_count == 0:
                 classification = CLASS_UNRESOLVED
+            elif touched and set(finding.paths) & touched:
+                classification = CLASS_INTRODUCED_BY_REPAIR
             else:
                 classification = CLASS_NEWLY_DISCOVERED
             entry = LedgerEntry(
@@ -655,6 +714,8 @@ def _classify_into_ledger(
             entries.append(entry)
             seen.append(entry)
             continue
+        previous_severity = existing.finding.severity
+        existing.severity_reduced_this_cycle = severity_is_reduced(previous_severity, finding.severity)
         if existing.classification == CLASS_CORRECTED:
             existing.classification = CLASS_INTRODUCED_BY_REPAIR
         elif existing.repair_attempts > 0:
@@ -664,7 +725,13 @@ def _classify_into_ledger(
         existing.finding = finding
         existing.last_seen_head = session.candidate_sha
         existing.history.append(
-            {"headSha": session.candidate_sha, "statement": finding.statement, "classification": existing.classification}
+            {
+                "headSha": session.candidate_sha,
+                "statement": finding.statement,
+                "classification": existing.classification,
+                "severity": finding.severity,
+                "previousSeverity": previous_severity,
+            }
         )
         seen.append(existing)
     seen_ids = {id(entry) for entry in seen}
@@ -695,6 +762,25 @@ def consolidate_repair_batch(session: ReviewSession, entries: Sequence[LedgerEnt
     return batch
 
 
+def cancel_live_reviewer(
+    session: ReviewSession,
+    adapter: ReviewerAdapter | None = None,
+) -> None:
+    live = session.live_reviewer
+    if not live:
+        return
+    if adapter is not None:
+        lease = ReviewerLease(
+            lease_id=str(live.get("leaseId") or ""),
+            session_id=session.session_id,
+            head_sha=str(live.get("headSha") or session.candidate_sha),
+            started_at=float(live.get("startedAt") or 0.0),
+            status=str(live.get("status") or "running"),
+        )
+        adapter.cancel(lease)
+    session.live_reviewer = None
+
+
 def apply_repair(
     session: ReviewSession,
     entries: Sequence[LedgerEntry],
@@ -703,7 +789,19 @@ def apply_repair(
     new_tree: str,
     touched_paths: Sequence[str],
     tests: Sequence[Mapping[str, Any]] | None = None,
+    reviewer_adapter: ReviewerAdapter | None = None,
 ) -> None:
+    if session.status in {STATUS_REVIEW_STALLED, STATUS_HOLD}:
+        raise ConvergenceError(
+            session.status,
+            "apply_repair cannot change a stalled or held exact-head identity",
+        )
+    if session.repair_cycle_count >= UNATTENDED_CHECKPOINT_CYCLES and not _has_continue_until_clean(session):
+        session.status = STATUS_UNATTENDED_CHECKPOINT
+        raise ConvergenceError(
+            "unattended_checkpoint",
+            "apply_repair after the unattended checkpoint requires recorded continue until clean",
+        )
     if session.pending_batch is None:
         raise ConvergenceError("no_repair_batch", "repairs must come from one consolidated batch")
     if session.pending_batch.cycle_consumed:
@@ -712,6 +810,7 @@ def apply_repair(
     new_tree = require_sha(new_tree, "new_tree")
     if new_head == session.candidate_sha:
         raise ConvergenceError("unchanged_head", "a repair cycle requires a new reviewed head")
+    cancel_live_reviewer(session, reviewer_adapter)
     session.candidate_sha = new_head
     session.git_tree = new_tree
     session.repair_cycle_count += 1
@@ -722,8 +821,7 @@ def apply_repair(
         if entry.finding.fingerprint in set(session.pending_batch.fingerprints):
             entry.repair_attempts += 1
     invalidate_evidence(session)
-    if session.status not in {STATUS_REVIEW_STALLED, STATUS_HOLD}:
-        session.status = STATUS_IN_PROGRESS
+    session.status = STATUS_IN_PROGRESS
 
 
 def invalidate_evidence(session: ReviewSession) -> None:
@@ -758,6 +856,30 @@ def _resource_exhausted(session: ReviewSession, clock: Clock) -> bool:
     if max_compute is not None and session.compute_units >= float(max_compute):
         return True
     return False
+
+
+def record_compute_units(
+    session: ReviewSession,
+    units: float,
+    *,
+    clock: Clock | None = None,
+) -> dict[str, Any]:
+    clock = clock or SystemClock()
+    if units < 0:
+        raise ConvergenceError("invalid_compute", "compute units must be non-negative")
+    session.compute_units += float(units)
+    if _resource_exhausted(session, clock):
+        _stall(session, STALL_RESOURCE_LIMIT)
+        return {
+            "status": STATUS_REVIEW_STALLED,
+            "reason": STALL_RESOURCE_LIMIT,
+            "computeUnits": session.compute_units,
+        }
+    return {
+        "status": session.status,
+        "reason": session.stall_reason or session.hold_reason,
+        "computeUnits": session.compute_units,
+    }
 
 
 def _stall(session: ReviewSession, reason: str) -> None:
@@ -818,7 +940,8 @@ def evaluate_progress(
         if entry.classification == CLASS_NEWLY_DISCOVERED
         and set(entry.finding.paths) & set(session.last_touched_paths)
     )
-    progress = corrected > 0 or newly_after_repair > 0
+    severity_progress = any(entry.severity_reduced_this_cycle for entry in entries)
+    progress = corrected > 0 or newly_after_repair > 0 or severity_progress
     if session.repair_cycle_count > 0 and session.repair_cycle_count != session.last_evaluated_cycle:
         if progress:
             session.no_progress_streak = 0
