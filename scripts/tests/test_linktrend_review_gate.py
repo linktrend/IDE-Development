@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -495,8 +496,6 @@ class LinktrendReviewGateTests(unittest.TestCase):
 
     def test_slurp_json_stdin_handles_arg_max_and_pipefail_hold(self) -> None:
         """Workflow path: stdin --slurp-json - survives ARG_MAX; upstream fail stays HOLD."""
-        import os
-
         marker = founder_alert_marker(HEAD)
         infra1 = infrastructure_attempt_marker(HEAD, 1)
         # Empty / one / multi-page via stdin CLI.
