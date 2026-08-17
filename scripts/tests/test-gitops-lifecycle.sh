@@ -422,7 +422,7 @@ pass "blocked resolves repository from gh repo view without env"
 # Origin remote resolution when gh fails; strip credentials; never print secrets
 export GH_REPO_VIEW_FAIL=1
 git -C "$WT" remote remove origin 2>/dev/null || true
-git -C "$WT" remote add origin "https://x-access-token:ghs_NOT_A_REAL_SECRET@github.com/fixture/from-origin.git"
+git -C "$WT" remote add origin "https://example:not-a-secret@github.com/fixture/from-origin.git"
 export LINKTREND_REPAIR_DIR="$TMP/repair-blocked-origin"
 mkdir -p "$LINKTREND_REPAIR_DIR"
 set +e

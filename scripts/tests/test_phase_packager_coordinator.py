@@ -431,8 +431,8 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
 
         return coordinator.LiveGitHub(
             repository="owner/name",
-            automation_token="auto-token",
-            user_token="user-token",
+            automation_token="ltfx.coordinator.auto_token.v1",
+            user_token="ltfx.coordinator.user_token.v1",
             transport=transport,
         )
 

@@ -36,13 +36,13 @@ KIND_STALE = "stale_fixture_declaration"
 KIND_SCOPE = "fixture_scope_violation"
 BLOCKING_KINDS = frozenset({KIND_CREDENTIAL, KIND_STALE, KIND_SCOPE})
 
-RULE_ASSIGNMENT_SECRET = "assignment.secret"
-RULE_GITHUB = "format.github"
-RULE_CLOUD = "format.cloud"
-RULE_TOKEN = "format.token"
-RULE_DATABASE = "format.database"
-RULE_PRIVATE_KEY = "format.private_key"
-RULE_HIGH_ENTROPY = "format.high_entropy"
+RULE_ASSIGNMENT = "assignment.secret"
+RULE_FORMAT_GITHUB = "format.github"
+RULE_FORMAT_CLOUD = "format.cloud"
+RULE_FORMAT_SK = "format.token"
+RULE_FORMAT_DATABASE = "format.database"
+RULE_FORMAT_PEM = "format.private_key"
+RULE_FORMAT_HIGH_ENTROPY = "format.high_entropy"
 RULE_BINDING_TREE = "binding.candidate_tree"
 RULE_BINDING_POLICY = "binding.scanner_policy"
 RULE_UNKNOWN = "declaration.unknown_rule"
@@ -56,13 +56,13 @@ RULE_GIT_FAILED = "git.failed"
 
 KNOWN_RULES = frozenset(
     {
-        RULE_ASSIGNMENT_SECRET,
-        RULE_GITHUB,
-        RULE_CLOUD,
-        RULE_TOKEN,
-        RULE_DATABASE,
-        RULE_PRIVATE_KEY,
-        RULE_HIGH_ENTROPY,
+        RULE_ASSIGNMENT,
+        RULE_FORMAT_GITHUB,
+        RULE_FORMAT_CLOUD,
+        RULE_FORMAT_SK,
+        RULE_FORMAT_DATABASE,
+        RULE_FORMAT_PEM,
+        RULE_FORMAT_HIGH_ENTROPY,
     }
 )
 
@@ -267,18 +267,18 @@ def is_synthetic_value(value: str) -> bool:
 
 def _rule_for_value(value: str, *, assigned: bool) -> str:
     if GITHUB_RE.search(value):
-        return RULE_GITHUB
+        return RULE_FORMAT_GITHUB
     if CLOUD_RE.search(value):
-        return RULE_CLOUD
+        return RULE_FORMAT_CLOUD
     if TOKEN_RE.search(value):
-        return RULE_TOKEN
+        return RULE_FORMAT_SK
     if DATABASE_RE.search(value):
-        return RULE_DATABASE
+        return RULE_FORMAT_DATABASE
     if PRIVATE_KEY_RE.search(value):
-        return RULE_PRIVATE_KEY
+        return RULE_FORMAT_PEM
     if len(value) >= 40 and _shannon(value) >= 3.5 and not value.startswith(SYNTHETIC_PREFIX):
-        return RULE_HIGH_ENTROPY
-    return RULE_ASSIGNMENT_SECRET if assigned else RULE_HIGH_ENTROPY
+        return RULE_FORMAT_HIGH_ENTROPY
+    return RULE_ASSIGNMENT if assigned else RULE_FORMAT_HIGH_ENTROPY
 
 
 def _add_detection(
@@ -439,7 +439,7 @@ def scan_text(path: str, text: str) -> list[dict[str, Any]]:
                 path=path,
                 line=index,
                 field="token",
-                rule=RULE_GITHUB,
+                rule=RULE_FORMAT_GITHUB,
                 value=match.group(0),
             )
         for match in CLOUD_RE.finditer(raw_line):
@@ -448,7 +448,7 @@ def scan_text(path: str, text: str) -> list[dict[str, Any]]:
                 path=path,
                 line=index,
                 field="key",
-                rule=RULE_CLOUD,
+                rule=RULE_FORMAT_CLOUD,
                 value=match.group(0),
             )
         for match in TOKEN_RE.finditer(raw_line):
@@ -457,7 +457,7 @@ def scan_text(path: str, text: str) -> list[dict[str, Any]]:
                 path=path,
                 line=index,
                 field="token",
-                rule=RULE_TOKEN,
+                rule=RULE_FORMAT_SK,
                 value=match.group(0),
             )
         for match in DATABASE_RE.finditer(raw_line):
@@ -466,7 +466,7 @@ def scan_text(path: str, text: str) -> list[dict[str, Any]]:
                 path=path,
                 line=index,
                 field="url",
-                rule=RULE_DATABASE,
+                rule=RULE_FORMAT_DATABASE,
                 value=match.group(0),
             )
         if PRIVATE_KEY_RE.search(raw_line):
@@ -475,7 +475,7 @@ def scan_text(path: str, text: str) -> list[dict[str, Any]]:
                 path=path,
                 line=index,
                 field="private_key",
-                rule=RULE_PRIVATE_KEY,
+                rule=RULE_FORMAT_PEM,
                 value=raw_line.strip(),
             )
     return detections
@@ -1037,7 +1037,7 @@ def identify_synthetic_candidates(root: Path) -> list[dict[str, Any]]:
     for detection in detections:
         if detection["path"] == DECLARATION_REL or detection["realistic"]:
             continue
-        if is_synthetic_value(detection["value"]) or detection["rule"] == RULE_ASSIGNMENT_SECRET:
+        if is_synthetic_value(detection["value"]) or detection["rule"] == RULE_ASSIGNMENT:
             candidates.append(
                 {
                     "path": detection["path"],

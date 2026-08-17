@@ -27,7 +27,10 @@ contents.
 Approves only values in the `ltfx.` namespace. Realistic GitHub, cloud,
 `sk-*`, database, private-key, and high-entropy token formats cannot be
 approved, even if declared, including unquoted env/YAML assignments and
-escaped or concatenated quoted forms.
+escaped or concatenated quoted forms. Negative detector coverage for those
+realistic forms must use runtime-generated isolated temp-repo vectors (or
+equivalent in-test assembly) so the factory tree never stores an approvable
+realistic credential.
 
 ## Result kinds
 

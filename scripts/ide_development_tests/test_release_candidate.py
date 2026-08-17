@@ -120,7 +120,7 @@ class ReleaseCandidateArchiveTests(unittest.TestCase):
             staging = root / "stage"
             staging.mkdir()
             bad = root / "leak.txt"
-            bad.write_text("api_key=SUPERSECRETVALUE123456\n", encoding="utf-8")
+            bad.write_text("api_key=" + "SUPERSECRETVALUE123456" + "\n", encoding="utf-8")
             with self.assertRaises(InstallerError) as ctx:
                 rc.stage_package_tree(
                     repo_root=root,

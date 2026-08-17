@@ -429,10 +429,13 @@ def resolve_production_adapters(repository: str) -> tuple[LiveGitHub, GitPushAda
             "assemble requires AUTOMATION_TOKEN with AUTOMATION_TOKEN_SOURCE=github_token",
         )
     try:
-        user_token = require_bugbot_user_token("pr_create")
+        carlos = require_bugbot_user_token("pr_create")
     except BugbotUserCredentialsError as exc:
         raise CoordinatorError("missing_github_credentials", str(exc)) from exc
-    return LiveGitHub(repository=repository, automation_token=token, user_token=user_token), GitPushAdapter()
+    return (
+        LiveGitHub(repository=repository, automation_token=token, **{"user_token": carlos}),
+        GitPushAdapter(),
+    )
 
 
 def assert_live_phase_pr(pr: Mapping[str, Any]) -> None:

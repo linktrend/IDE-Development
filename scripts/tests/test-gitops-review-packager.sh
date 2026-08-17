@@ -258,7 +258,7 @@ print("outcomes ok")
 PY
 pass "Honest outcome vocabulary present"
 
-# ---- Normal automation token: same-job secret; never job-output secrets ----
+# ---- Normal automation credential: same job only; never job-output secret transport ----
 for wf in "${WRITE_WFS[@]}"; do
   ! grep -q 'create-github-app-token' "$wf" \
     || fail "GitHub automation token action remains: $wf"
@@ -591,7 +591,7 @@ try:
     ok_eval = eval_mod.evaluate_pr(44, "ghs_automation_token_for_packager_test")
     assert ok_eval["status"] == "bugbot_requested", ok_eval
     assert ok_eval["headSha"] == READY_SHA
-    assert ok_eval["bugbot_comment_token"] == "bugbot_user"
+    assert ok_eval["bugbot_comment_token"] == "BUGBOT_USER"
     bugbot = [
         c
         for c in api_calls

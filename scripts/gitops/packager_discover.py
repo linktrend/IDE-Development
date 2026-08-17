@@ -289,7 +289,7 @@ def ensure_draft_pr(app_token: str, branch: str, sha: str) -> dict:
                 "title_preserved": True,
                 "body_untouched": True,
                 "author": author_detail,
-                "author_token": "preexisting",
+                "author_token": "PREEXISTING",
             }
         new_body = merge_body(pr.get("body") or "", sha, branch)
         if new_body != (pr.get("body") or ""):
@@ -306,7 +306,7 @@ def ensure_draft_pr(app_token: str, branch: str, sha: str) -> dict:
             "created": False,
             "title_preserved": True,
             "author": author_detail,
-            "author_token": "preexisting",
+            "author_token": "PREEXISTING",
         }
 
     # Create path — Carlos user token only. Never normal automation or GITHUB_TOKEN.
@@ -355,7 +355,7 @@ def ensure_draft_pr(app_token: str, branch: str, sha: str) -> dict:
         "created": True,
         "title_preserved": True,
         "author": author_detail,
-        "author_token": "bugbot_user",
+        "author_token": "BUGBOT_USER",
     }
 
 

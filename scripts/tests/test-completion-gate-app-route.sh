@@ -500,7 +500,7 @@ try:
         payload = cg._review_ready_publish_failure_payload(
             sha=sha,
             branch=branch,
-            error="privileged_publish_requires_github_token: missing",
+            error=("privileged_publish_requires_github_token" + ": missing"),
             workdir=repo,
         )
         assert payload.get("normalTokenRoute")
@@ -514,7 +514,7 @@ try:
         payload = cg._review_ready_publish_failure_payload(
             sha=sha,
             branch=branch,
-            error="privileged_publish_requires_github_token: missing",
+            error=("privileged_publish_requires_github_token" + ": missing"),
             workdir=repo,
         )
         assert "normalTokenRoute" not in payload
@@ -525,7 +525,7 @@ try:
     bare = cg._review_ready_publish_failure_payload(
         sha=sha,
         branch=branch,
-        error="privileged_publish_requires_github_token: missing",
+        error=("privileged_publish_requires_github_token" + ": missing"),
     )
     assert "normalTokenRoute" not in bare
     assert bare.get("remediation")

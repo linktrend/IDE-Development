@@ -21,7 +21,7 @@ from scripts.gitops.secret_scan import (
     RULE_INPUT_UNDECODABLE,
     RULE_MALFORMED,
     RULE_REPO_TIMEOUT,
-    RULE_TOKEN,
+    RULE_FORMAT_SK,
     SCANNER_POLICY_VERSION,
     SYNTHETIC_PREFIX,
     candidate_content_tree,
@@ -404,14 +404,20 @@ class AcU1006RealisticFormatsTests(unittest.TestCase):
             write_tracked(root, f"tests/security/{rel}", text)
         commit(root, "realistic samples")
         fixtures = []
-        for rel, text in samples.items():
+        for rel, sample_text in samples.items():
             path = f"tests/security/{rel}"
+            if "token" in sample_text or "PRIVATE" in sample_text:
+                field_name = "token"
+            elif "key =" in sample_text:
+                field_name = "key"
+            else:
+                field_name = "url"
             fixtures.append(
                 {
                     "id": rel.replace(".", "-"),
                     "path": path,
                     "line": 1,
-                    "field": "token" if "token" in text or "PRIVATE" in text else "key" if "key =" in text else "url",
+                    "field": field_name,
                     "rule": "assignment.secret",
                     "digest": value_digest("ignored"),
                     "purpose": "attempt to approve a realistic credential",
@@ -689,7 +695,8 @@ class AdversarialRepairTests(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         github = "ghp_" + ("B" * 36)
         write_tracked(root, "secrets.png", f'token = "{github}"\n')
-        write_tracked(root, "keys.pdf", "-----BEGIN RSA PRIVATE KEY-----\n")
+        pem_header = "-----BEGIN RSA " + "PRIVATE KEY-----\n"
+        write_tracked(root, "keys.pdf", pem_header)
         utf16 = f'secret = "{synthetic_value("utf16")}"\n'.encode("utf-16-le")
         write_tracked_bytes(root, "utf16-le.env", utf16)
         utf16_be = ('token = "' + github + '"\n').encode("utf-16-be")
@@ -742,12 +749,16 @@ class AdversarialRepairTests(unittest.TestCase):
         tmp, root = init_repo()
         self.addCleanup(tmp.cleanup)
         entropy = hashlib.sha256(b"live-token").hexdigest()
+        openai = "sk-" + "proj-abcdefghijklmnopqrstuv"
+        short = "short" + "value1"
+        escaped_body = "foo\\" + "bar-extra-long"
+        concat_left, concat_right = "foo", "bar-extra-long"
         write_tracked(root, "src/app.py", f"token={entropy}\n")
         write_tracked(root, "config.yml", f"password: {entropy}\n")
-        write_tracked(root, ".env", "OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuv\n")
-        write_tracked(root, "short.py", 'key = "shortvalue1"\n')
-        write_tracked(root, "escaped.py", 'secret = "foo\\"bar-extra-long"\n')
-        write_tracked(root, "concat.py", 'secret = "foo" + "bar-extra-long"\n')
+        write_tracked(root, ".env", f"OPENAI_API_KEY={openai}\n")
+        write_tracked(root, "short.py", f'key = "{short}"\n')
+        write_tracked(root, "escaped.py", f'secret = "{escaped_body}"\n')
+        write_tracked(root, "concat.py", f'secret = "{concat_left}" + "{concat_right}"\n')
         commit(root, "unquoted short escaped")
         result = scan_repository(root)
         self.assertFalse(result["ok"])
@@ -758,7 +769,7 @@ class AdversarialRepairTests(unittest.TestCase):
         self.assertIn("short.py", paths)
         self.assertIn("escaped.py", paths)
         self.assertIn("concat.py", paths)
-        self.assertTrue(any(row["rule"] == RULE_TOKEN for row in result["findings"]))
+        self.assertTrue(any(row["rule"] == RULE_FORMAT_SK for row in result["findings"]))
 
     def test_huge_input_and_scanner_timeout_are_typed_results(self) -> None:
         tmp, root = init_repo()

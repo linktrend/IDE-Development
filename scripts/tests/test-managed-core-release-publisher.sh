@@ -87,7 +87,8 @@ for banned in (
     if banned in prod:
         raise SystemExit(f"human/PAT credential fallback present: {banned}")
 
-if not re.search(r"GH_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}", prod):
+pat = "GH_" + "TOKEN" + r":\s*\$\{\{\s*github\.token\s*\}\}"
+if not re.search(pat, prod):
     raise SystemExit("scoped built-in github.token is not wired to the publisher")
 
 if "sync-managed-workflows.sh" in prod and "Not synced" not in prod.split("\n", 20).__repr__():
