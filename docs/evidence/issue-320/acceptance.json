@@ -3,8 +3,8 @@
   "issue": 320,
   "workPackage": "WP-U07",
   "branch": "issue/320-wp-u07-repository-owned-ci-trigger-contract",
-  "headSha": "dcb7cfe379e7cefed07210e6bdea87aeb35755d3",
-  "tree": "31443e05968ba2193287b8af47ca68fba9f94e01",
+  "headSha": "c23ada6a248e1fec16109228d1d4b7df618d03a6",
+  "tree": "becbf9c9cf5e02a688bc421f35026f4836700650",
   "startSha": "741e58922e7413c1097f4a58ea25e94a934af903",
   "startTree": "1affbab9035df799fdb7d723d8518e54fa6a1c00",
   "dependencyContextSha": "152d39130746dde16cc00a343e949e518db58ef2",
@@ -34,5 +34,9 @@
   "hold": [
     "Factory .github/workflows/ci.yml still has broad pull_request/push triggers; installer audit reports promotion_expensive_retrigger without mutating (rollout-scoped fix later).",
     "No review-ready / PR / Full / consumer rollout in this packet."
-  ]
+  ],
+  "implementationHeadSha": "72ce7464bc32e60ff5933ccf0fb175ddd3bb208a",
+  "implementationTree": "fadaa468ebbb1f4703afdeb4fb6eca3e7fadcf62",
+  "evidenceHeadSha": "c23ada6a248e1fec16109228d1d4b7df618d03a6",
+  "evidenceTree": "becbf9c9cf5e02a688bc421f35026f4836700650"
 }
