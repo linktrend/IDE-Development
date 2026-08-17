@@ -19,16 +19,16 @@
 | Dependency-context HEAD/tree | `a926794d7e549a97579f2e1816aca7a893993ccd` / `53af75c63ad2dc48403ba0c2f3be5adb71d79bd2` |
 | Finding-reviewed tip (pagination fail-open) | `cc0854788eecf64c5676a9668015e7b42c9306cb` (historical review target; not current tip claim) |
 | Content head/tree | `6ec04c16b6753789e30b8fd0a67d2a014355f8dd` / `664f193adf3013ca360b8cf6f62a43812e851655` |
-| Evidence head/tree | (filled at evidence commit) |
-| Final tip binding | branch HEAD after bind-metadata commit; tip SHA not self-embedded (non-self-reference boundary) |
-| Novel packet commit range | `2c1448647d96f3b447bf84a3b0723bbeaf6fc63a..6ec04c16b6753789e30b8fd0a67d2a014355f8dd` (through content head; evidence/bind follow) |
+| Evidence head/tree | `74fc5ab5503e7222b95dc0a8027b54be551f202a` / `215f901ada79fd73f84d544605a0e7de82352f8b` |
+| Final tip binding | branch HEAD after this bind-metadata commit; tip SHA not self-embedded (non-self-reference boundary) |
+| Novel packet commit range | `2c1448647d96f3b447bf84a3b0723bbeaf6fc63a..74fc5ab5503e7222b95dc0a8027b54be551f202a` (through evidence head; bind-metadata tip follows without self-SHA) |
 | Phase base at handoff | not used (no Phase integration in this packet) |
 
 ## Topology notes
 
 `agentsetup` created this branch from `origin/development`. Required predecessors were layered by resetting onto the independently CLEAN WP-U07 tip, which already preserves WP-U09 and WP-U10 tip patch content (verified patch-id equality). See `predecessor-ledger.json`.
 
-Identity model: **content-head / evidence-head / final-bind-tip**. The final tip commit contains only binding metadata and does not embed its own commit SHA (impossible self-reference). Immutable reviewed identities are content and evidence heads/trees only.
+Identity model: **content-head / evidence-head / final-bind-tip**. This bind-metadata commit is the final tip and contains only binding metadata. It does not embed its own commit SHA (impossible self-reference). Immutable reviewed identities are content and evidence heads/trees only.
 
 ## Rollback
 
