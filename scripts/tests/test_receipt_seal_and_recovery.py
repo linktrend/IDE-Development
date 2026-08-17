@@ -106,7 +106,7 @@ class ReceiptBodyTrustTests(unittest.TestCase):
         }
         self.assertEqual(
             classify_receipt_artifact(mismatch, expected=expected)["classification"],
-            "metadata_body_mismatch",
+            "metadata_body_head_mismatch",
         )
 
         missing_body = {
@@ -175,6 +175,105 @@ class ReceiptBodyTrustTests(unittest.TestCase):
         selected = enumerate_and_select_receipt([mismatch, missing_body, exact], expected=expected)
         self.assertTrue(selected["accepted"])
         self.assertEqual(selected["selected"]["id"], "exact-trusted")
+
+    def test_exhaustive_metadata_body_field_cross_check_before_exact(self) -> None:
+        from scripts.gitops.receipt_seal import DUPLICATED_METADATA_BODY_FIELDS
+
+        head = _sha(1)
+        tree = _sha(2)
+        trusted = _complete_receipt(candidateIdentity=_identity(head=head, tree=tree))
+        expected = {
+            "repository": "acme/demo",
+            "prNumber": 7,
+            "headCommit": head,
+            "gitTree": tree,
+            "workflowRunId": 101,
+            "workflowRunAttempt": 1,
+        }
+        base = {
+            "id": "base",
+            "readable": True,
+            "repository": "acme/demo",
+            "prNumber": 7,
+            "headCommit": head,
+            "gitTree": tree,
+            "workflowRunId": 101,
+            "workflowRunAttempt": 1,
+            "schemaVersion": 2,
+            "conclusion": "success",
+            "receiptDigest": trusted["receiptDigest"],
+            "commandDigest": trusted["commandDigest"],
+            "requiredGate": "full-gate",
+            "gate": "full-gate",
+            "receipt": trusted,
+        }
+        self.assertEqual(classify_receipt_artifact(base, expected=expected)["classification"], "exact")
+
+        cases = [
+            ("repository", "other/repo", "metadata_body_repository_mismatch"),
+            ("workflowRunId", 999, "metadata_body_run_mismatch"),
+            ("workflowRunAttempt", 2, "metadata_body_attempt_mismatch"),
+            ("headCommit", _sha(9), "metadata_body_head_mismatch"),
+            ("gitTree", _sha(8), "metadata_body_tree_mismatch"),
+            ("conclusion", "failure", "metadata_body_conclusion_mismatch"),
+            ("schemaVersion", 1, "metadata_body_schema_mismatch"),
+            ("receiptDigest", "sha256:" + ("1" * 64), "metadata_body_receipt_digest_mismatch"),
+            ("commandDigest", "sha256:" + ("2" * 64), "metadata_body_command_digest_mismatch"),
+            ("requiredGate", "fast-gate", "metadata_body_gate_mismatch"),
+            ("gate", "fast-gate", "metadata_body_gate_mismatch"),
+        ]
+        covered = {code for _, _, code in cases}
+        inventory_codes = {spec["code"] for spec in DUPLICATED_METADATA_BODY_FIELDS}
+        self.assertTrue(
+            inventory_codes <= covered | {"metadata_body_head_mismatch", "metadata_body_tree_mismatch"},
+            f"test inventory missing codes: {sorted(inventory_codes - covered)}",
+        )
+        self.assertEqual(
+            {spec["name"] for spec in DUPLICATED_METADATA_BODY_FIELDS},
+            {
+                "repository",
+                "headCommit",
+                "gitTree",
+                "workflowRunId",
+                "workflowRunAttempt",
+                "conclusion",
+                "schemaVersion",
+                "receiptDigest",
+                "commandDigest",
+                "gate",
+            },
+        )
+        for field, bad_value, code in cases:
+            poisoned = dict(base)
+            poisoned["id"] = f"bad-{field}"
+            poisoned[field] = bad_value
+            row = classify_receipt_artifact(poisoned, expected=expected)
+            self.assertEqual(row["classification"], code, field)
+            self.assertNotEqual(row["classification"], "exact", field)
+
+        # Metadata must not override body when selecting against expected identity.
+        override = dict(base)
+        override["id"] = "override-run"
+        override["workflowRunId"] = 101  # matches expected
+        # Body has 101; if we mutated only a shadow field that disagreed we'd catch it above.
+        # Forge metadata run to match expected while body differs — rebuild body with run 55.
+        body_other_run = _complete_receipt(
+            candidateIdentity=_identity(head=head, tree=tree),
+            workflowRunId=55,
+        )
+        override["receipt"] = body_other_run
+        override["workflowRunId"] = 101
+        override["receiptDigest"] = body_other_run["receiptDigest"]
+        override["commandDigest"] = body_other_run["commandDigest"]
+        row = classify_receipt_artifact(override, expected=expected)
+        self.assertEqual(row["classification"], "metadata_body_run_mismatch")
+
+        positive = dict(base)
+        positive["id"] = "positive-exact"
+        self.assertEqual(classify_receipt_artifact(positive, expected=expected)["classification"], "exact")
+        selected = enumerate_and_select_receipt([override, positive], expected=expected)
+        self.assertTrue(selected["accepted"])
+        self.assertEqual(selected["selected"]["id"], "positive-exact")
 
     def test_truncated_receipt_and_wrong_tree_fail_merge_eligibility(self) -> None:
         head = _sha(1)
@@ -442,7 +541,7 @@ class ReceiptDiscoverySelectionTests(unittest.TestCase):
             "headCommit": old_head,
             "gitTree": tree,
             "lockDigest": DEP_DIGEST,
-            "workflowRunId": 1,
+            "workflowRunId": 101,
             "workflowRunAttempt": 1,
             "receipt": _complete_receipt(candidateIdentity=_identity(head=old_head, tree=tree)),
         }
@@ -453,7 +552,7 @@ class ReceiptDiscoverySelectionTests(unittest.TestCase):
                 "prNumber": 7,
                 "headCommit": new_head,
                 "gitTree": tree,
-                "workflowRunId": 1,
+                "workflowRunId": 101,
                 "workflowRunAttempt": 1,
             },
         )
@@ -465,7 +564,7 @@ class ReceiptDiscoverySelectionTests(unittest.TestCase):
                 "prNumber": 7,
                 "headCommit": new_head,
                 "gitTree": tree,
-                "workflowRunId": 1,
+                "workflowRunId": 101,
                 "workflowRunAttempt": 1,
             },
         )

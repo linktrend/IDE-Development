@@ -176,6 +176,96 @@ def parse_trusted_full_suite_receipt(receipt: Mapping[str, Any] | None) -> FullS
     return parsed
 
 
+# Exhaustive inventory of trust/identity fields that may be duplicated on artifact
+# metadata and the validated FullSuiteReceipt body. When metadata supplies a
+# value it must equal the verified body; metadata never overrides the body.
+DUPLICATED_METADATA_BODY_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "repository",
+        "meta_keys": ("repository",),
+        "code": "metadata_body_repository_mismatch",
+        "body": lambda parsed: parsed.candidate_identity.repository,
+    },
+    {
+        "name": "headCommit",
+        "meta_keys": ("headCommit", "head"),
+        "code": "metadata_body_head_mismatch",
+        "body": lambda parsed: parsed.candidate_identity.head_commit,
+        "normalize": lambda value: _sha(value) or str(value or ""),
+    },
+    {
+        "name": "gitTree",
+        "meta_keys": ("gitTree", "tree"),
+        "code": "metadata_body_tree_mismatch",
+        "body": lambda parsed: parsed.candidate_identity.git_tree,
+        "normalize": lambda value: _sha(value) or str(value or ""),
+    },
+    {
+        "name": "workflowRunId",
+        "meta_keys": ("workflowRunId",),
+        "code": "metadata_body_run_mismatch",
+        "body": lambda parsed: parsed.workflow_run_id,
+    },
+    {
+        "name": "workflowRunAttempt",
+        "meta_keys": ("workflowRunAttempt",),
+        "code": "metadata_body_attempt_mismatch",
+        "body": lambda parsed: parsed.workflow_run_attempt,
+    },
+    {
+        "name": "conclusion",
+        "meta_keys": ("conclusion",),
+        "code": "metadata_body_conclusion_mismatch",
+        "body": lambda parsed: parsed.conclusion,
+    },
+    {
+        "name": "schemaVersion",
+        "meta_keys": ("schemaVersion",),
+        "code": "metadata_body_schema_mismatch",
+        "body": lambda parsed: parsed.schema_version,
+    },
+    {
+        "name": "receiptDigest",
+        "meta_keys": ("receiptDigest",),
+        "code": "metadata_body_receipt_digest_mismatch",
+        "body": lambda parsed: parsed.receipt_digest,
+    },
+    {
+        "name": "commandDigest",
+        "meta_keys": ("commandDigest",),
+        "code": "metadata_body_command_digest_mismatch",
+        "body": lambda parsed: parsed.command_digest,
+    },
+    {
+        "name": "gate",
+        "meta_keys": ("gate", "requiredGate"),
+        "code": "metadata_body_gate_mismatch",
+        # FullSuiteReceipt is reusable only for full-gate; body implies that gate.
+        "body": lambda parsed: "full-gate",
+    },
+)
+
+
+def cross_check_metadata_body_fields(
+    artifact: Mapping[str, Any],
+    parsed: FullSuiteReceipt,
+) -> str | None:
+    """Return a specific mismatch code when metadata conflicts with trusted body."""
+
+    for spec in DUPLICATED_METADATA_BODY_FIELDS:
+        body_value = spec["body"](parsed)
+        normalize = spec.get("normalize")
+        body_cmp = normalize(body_value) if normalize else body_value
+        for key in spec["meta_keys"]:
+            if key not in artifact or artifact.get(key) is None:
+                continue
+            meta_value = artifact.get(key)
+            meta_cmp = normalize(meta_value) if normalize else meta_value
+            if meta_cmp != body_cmp:
+                return str(spec["code"])
+    return None
+
+
 def classify_receipt_artifact(
     artifact: Mapping[str, Any],
     *,
@@ -218,25 +308,19 @@ def classify_receipt_artifact(
     except SealError:
         return {"id": artifact_id, "classification": "malformed", "artifact": row}
 
-    body_head = parsed.candidate_identity.head_commit
-    body_tree = parsed.candidate_identity.git_tree
-    meta_head = _sha(row.get("headCommit") or row.get("head"))
-    meta_tree = _sha(row.get("gitTree") or row.get("tree"))
-    if meta_head and meta_head != body_head:
-        return {"id": artifact_id, "classification": "metadata_body_mismatch", "artifact": row}
-    if meta_tree and meta_tree != body_tree:
-        return {"id": artifact_id, "classification": "metadata_body_mismatch", "artifact": row}
+    mismatch = cross_check_metadata_body_fields(row, parsed)
+    if mismatch:
+        return {"id": artifact_id, "classification": mismatch, "artifact": row}
 
-    head = body_head
-    tree = body_tree
-    # Prefer body run identity; metadata may omit run fields.
-    run_id = row.get("workflowRunId", parsed.workflow_run_id)
-    attempt = row.get("workflowRunAttempt", parsed.workflow_run_attempt)
+    # Identity for expected matching is sourced only from the verified body.
+    head = parsed.candidate_identity.head_commit
+    tree = parsed.candidate_identity.git_tree
+    run_id = parsed.workflow_run_id
+    attempt = parsed.workflow_run_attempt
+    repository = parsed.candidate_identity.repository
 
-    if expected_repo:
-        artifact_repo = str(row.get("repository") or parsed.candidate_identity.repository)
-        if artifact_repo != expected_repo:
-            return {"id": artifact_id, "classification": "unrelated_repository", "artifact": row}
+    if expected_repo and repository != expected_repo:
+        return {"id": artifact_id, "classification": "unrelated_repository", "artifact": row}
     if expected_pr is not None and row.get("prNumber") not in (None, expected_pr):
         return {"id": artifact_id, "classification": "unrelated_pr", "artifact": row}
     if expected_head and head != expected_head:
@@ -254,6 +338,7 @@ def classify_receipt_artifact(
         and (not expected_tree or tree == expected_tree)
         and (expected_run is None or run_id == expected_run)
         and (expected_attempt is None or attempt == expected_attempt)
+        and (not expected_repo or repository == expected_repo)
     )
     if exact_keys_match:
         return {"id": artifact_id, "classification": "exact", "artifact": row}
@@ -284,6 +369,16 @@ def enumerate_and_select_receipt(
             "inaccessible",
             "inaccessible_stale",
             "metadata_body_mismatch",
+            "metadata_body_repository_mismatch",
+            "metadata_body_head_mismatch",
+            "metadata_body_tree_mismatch",
+            "metadata_body_run_mismatch",
+            "metadata_body_attempt_mismatch",
+            "metadata_body_conclusion_mismatch",
+            "metadata_body_schema_mismatch",
+            "metadata_body_receipt_digest_mismatch",
+            "metadata_body_command_digest_mismatch",
+            "metadata_body_gate_mismatch",
             "stale_head",
             "wrong_tree",
             "unrelated_repository",
