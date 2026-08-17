@@ -53,21 +53,22 @@ jobs:
               || { echo "untrusted_provider_error_file"; PROVIDER_JSON=""; }
           fi
 
-          # Infrastructure markers: paginated slurp → one JSON array. Fail closed
-          # on API/auth/pagination/parse errors (never reset attempts via []).
+          # Infrastructure markers: paginated slurp via stdin (never argv / ARG_MAX).
+          # pipefail keeps gh api/auth/pagination failures fail-closed (no [] reset).
           MARKERS_URL="repos/${GITHUB_REPOSITORY}/issues/comments"
           if [ -n "${PR_NUMBER}" ]; then
             MARKERS_URL="repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments"
           fi
-          MARKERS_SLURP="$(gh api --paginate --slurp "${MARKERS_URL}")" \
-            || { echo "HOLD: infra_marker_read_failed"; exit 1; }
-          MARKERS_JSON="$(python3 scripts/gitops/linktrend_review_gate.py flatten-comment-bodies \
-            --slurp-json "${MARKERS_SLURP}")" \
-            || { echo "HOLD: infra_marker_parse_failed"; exit 1; }
-          echo "${MARKERS_JSON}" | jq -e 'type=="array"' >/dev/null \
-            || { echo "HOLD: infra_marker_invalid_json"; exit 1; }
-          ATTEMPTS="$(python3 scripts/gitops/linktrend_review_gate.py count-infra-attempts \
-            --head-sha "${HEAD_SHA}" --markers-json "${MARKERS_JSON}" | jq -r .attempts)"
+          ATTEMPTS="$(
+            gh api --paginate --slurp "${MARKERS_URL}" \
+              | python3 scripts/gitops/linktrend_review_gate.py flatten-comment-bodies --slurp-json - \
+              | python3 scripts/gitops/linktrend_review_gate.py count-infra-attempts \
+                  --head-sha "${HEAD_SHA}" --markers-json - \
+              | jq -r .attempts
+          )" || { echo "HOLD: infra_marker_read_failed"; exit 1; }
+          case "${ATTEMPTS}" in
+            ''|*[!0-9]*) echo "HOLD: infra_marker_invalid_json"; exit 1 ;;
+          esac
           if [ -n "${PROVIDER_JSON}" ]; then
             ATTEMPTS=$((ATTEMPTS + 1))
           fi
@@ -131,23 +132,23 @@ jobs:
           fi
 
           # Durable founder alert (deduped via prior alert ISSUE BODIES) — fail closed.
+          # Slurp payloads enter flatten/dedupe via stdin (--slurp-json - / --issue-bodies-json -).
           if [ "${ALERT}" = "true" ]; then
             CLASS_JSON="$(jq -c .classification <<<"${OUT}")"
             ALERT_JSON="$(python3 scripts/gitops/linktrend_review_gate.py founder-alert \
               --classification-json "${CLASS_JSON}")"
-            ALERT_SLURP="$(gh api --paginate --slurp \
-              "repos/${GITHUB_REPOSITORY}/issues?state=all&filter=all&per_page=100")" \
+            DECISION="$(
+              gh api --paginate --slurp \
+                "repos/${GITHUB_REPOSITORY}/issues?state=all&filter=all&per_page=100" \
+                | python3 scripts/gitops/linktrend_review_gate.py flatten-issue-bodies --slurp-json - \
+                | python3 scripts/gitops/linktrend_review_gate.py founder-alert-dedupe \
+                    --head-sha "${HEAD_SHA}" \
+                    --issue-bodies-json - \
+                    --alert-required \
+                    --bodies-readable
+            )" || { echo "HOLD: founder_alert_dedupe_unreadable"; exit 1; }
+            echo "${DECISION}" | jq -e 'type=="object"' >/dev/null \
               || { echo "HOLD: founder_alert_dedupe_unreadable"; exit 1; }
-            ALERT_BODIES_JSON="$(python3 scripts/gitops/linktrend_review_gate.py flatten-issue-bodies \
-              --slurp-json "${ALERT_SLURP}")" \
-              || { echo "HOLD: founder_alert_dedupe_unreadable"; exit 1; }
-            echo "${ALERT_BODIES_JSON}" | jq -e 'type=="array"' >/dev/null \
-              || { echo "HOLD: founder_alert_dedupe_unreadable"; exit 1; }
-            DECISION="$(python3 scripts/gitops/linktrend_review_gate.py founder-alert-dedupe \
-              --head-sha "${HEAD_SHA}" \
-              --issue-bodies-json "${ALERT_BODIES_JSON}" \
-              --alert-required \
-              --bodies-readable)"
             if [ "$(jq -r .publish <<<"${DECISION}")" = "true" ]; then
               TITLE="$(jq -r .title <<<"${ALERT_JSON}")"
               BODY="$(jq -r .body <<<"${ALERT_JSON}")"

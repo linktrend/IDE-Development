@@ -870,13 +870,21 @@ def main(argv: list[str] | None = None) -> int:
         "flatten-comment-bodies",
         help="Flatten gh --paginate --slurp comment pages into one JSON body array",
     )
-    fc.add_argument("--slurp-json", required=True)
+    fc.add_argument(
+        "--slurp-json",
+        required=True,
+        help="Slurp JSON pages, or '-' to read stdin (never pass large slurps via argv)",
+    )
 
     fi = sub.add_parser(
         "flatten-issue-bodies",
         help="Flatten gh --paginate --slurp issue pages into non-PR body array",
     )
-    fi.add_argument("--slurp-json", required=True)
+    fi.add_argument(
+        "--slurp-json",
+        required=True,
+        help="Slurp JSON pages, or '-' to read stdin (never pass large slurps via argv)",
+    )
 
     fb = sub.add_parser("fallback-comment", help="Build fallback request comment body")
     fb.add_argument("--fallback-json", required=True)

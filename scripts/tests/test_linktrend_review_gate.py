@@ -358,11 +358,20 @@ class LinktrendReviewGateTests(unittest.TestCase):
             self.assertIn("flatten-issue-bodies", text)
             self.assertIn("founder_alert_dedupe_unreadable", text)
             self.assertIn("--paginate --slurp", text)
+            # Slurp payloads must enter via stdin, never argv interpolation.
+            self.assertIn("--slurp-json -", text)
+            self.assertIn("--issue-bodies-json -", text)
+            self.assertIn("--markers-json -", text)
+            self.assertNotIn('--slurp-json "${', text)
+            self.assertNotIn("--slurp-json \"${", text)
+            self.assertNotIn("MARKERS_SLURP", text)
+            self.assertNotIn("ALERT_SLURP", text)
             # Marker reads must not fail-open to empty arrays.
             self.assertNotIn("2>/dev/null || echo '[]'", text)
             self.assertNotIn("|| echo '[]'", text)
             self.assertIn("flatten-comment-bodies", text)
             self.assertIn("HOLD: infra_marker_read_failed", text)
+            self.assertIn("set -euo pipefail", text)
             # U01-R4: infra marker publication is fail-closed.
             self.assertIn("infra_attempt_marker_persist_failed", text)
             self.assertNotIn('-f body="${INFRA_MARKER}" >/dev/null || true', text)
@@ -483,6 +492,103 @@ class LinktrendReviewGateTests(unittest.TestCase):
             prior_issue_bodies=["unrelated"],
         )
         self.assertEqual(repeated["created"], 1)
+
+    def test_slurp_json_stdin_handles_arg_max_and_pipefail_hold(self) -> None:
+        """Workflow path: stdin --slurp-json - survives ARG_MAX; upstream fail stays HOLD."""
+        import os
+
+        marker = founder_alert_marker(HEAD)
+        infra1 = infrastructure_attempt_marker(HEAD, 1)
+        # Empty / one / multi-page via stdin CLI.
+        for pages, expected_len in (
+            ([], 0),
+            ([[{"body": infra1}]], 1),
+            ([[{"body": infra1}], [{"body": infrastructure_attempt_marker(HEAD, 2)}]], 2),
+        ):
+            proc = subprocess.run(
+                [sys.executable, str(MODULE), "flatten-comment-bodies", "--slurp-json", "-"],
+                input=json.dumps(pages),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            bodies = json.loads(proc.stdout)
+            self.assertEqual(len(bodies), expected_len)
+            if expected_len:
+                self.assertEqual(
+                    count_infrastructure_attempts(bodies, head_sha=HEAD),
+                    expected_len,
+                )
+
+        # Payload larger than ARG_MAX must succeed via stdin and fail via argv.
+        try:
+            arg_max = int(os.sysconf("SC_ARG_MAX"))
+        except (AttributeError, ValueError, OSError):
+            arg_max = 131072
+        # Keep well above ARG_MAX while staying tractable for unit runtime.
+        target = max(arg_max + 4096, 300_000)
+        chunk = "x" * 4000
+        page: list[dict[str, str]] = []
+        size = 2  # rough JSON overhead
+        while size < target:
+            page.append({"body": chunk})
+            size += len(chunk) + 20
+        pages = [page, [{"body": marker + "\npage2"}]]
+        payload = json.dumps(pages)
+        self.assertGreater(len(payload), arg_max)
+
+        stdin_proc = subprocess.run(
+            [sys.executable, str(MODULE), "flatten-issue-bodies", "--slurp-json", "-"],
+            input=payload,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(stdin_proc.returncode, 0, stdin_proc.stderr)
+        issue_bodies = json.loads(stdin_proc.stdout)
+        self.assertTrue(any(marker in body for body in issue_bodies))
+        decision = decide_founder_alert_publish(
+            alert_required=True,
+            issue_bodies=issue_bodies,
+            bodies_readable=True,
+            head_sha=HEAD,
+        )
+        self.assertFalse(decision["publish"])
+
+        argv_failed = False
+        try:
+            argv_proc = subprocess.run(
+                [sys.executable, str(MODULE), "flatten-issue-bodies", "--slurp-json", payload],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            argv_failed = argv_proc.returncode != 0
+        except OSError:
+            argv_failed = True
+        self.assertTrue(argv_failed)
+
+        # Upstream read failure must not be masked when pipefail is set.
+        hold_script = r"""
+set -euo pipefail
+if ! (
+  false \
+    | python3 scripts/gitops/linktrend_review_gate.py flatten-comment-bodies --slurp-json -
+); then
+  echo "HOLD: infra_marker_read_failed"
+  exit 1
+fi
+"""
+        hold = subprocess.run(
+            ["bash", "-lc", hold_script],
+            cwd=str(ROOT),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(hold.returncode, 1)
+        self.assertIn("HOLD: infra_marker_read_failed", hold.stdout + hold.stderr)
 
     def test_undocumented_task_hold_rejected(self) -> None:
         reject_undocumented_task_hold(configured_gates_passed=True, task_hold=None)
