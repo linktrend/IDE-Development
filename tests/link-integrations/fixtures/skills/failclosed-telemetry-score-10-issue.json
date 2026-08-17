@@ -1,0 +1,12 @@
+{
+  "reportKind": "completed_use",
+  "score": 10,
+  "skillReleaseRef": "opaque:release-synthetic-skill-1.0.0",
+  "actorRef": "opaque:actor-ide-dev-s4",
+  "idempotencyKey": "opaque:use-report-s4-perfect-issue",
+  "issue": {
+    "type": "other",
+    "severity": "low",
+    "issueRef": "opaque:issue-should-not-exist"
+  }
+}
