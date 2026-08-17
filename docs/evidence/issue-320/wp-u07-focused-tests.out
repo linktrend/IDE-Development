@@ -1,5 +1,3 @@
-test_ci_evidence_schema_accepts_real_producer_outputs (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_ci_evidence_schema_accepts_real_producer_outputs)
-Draft 2020-12 instance validation against packaged ci-evidence schema. ... ok
 test_aggregate_gate_trusted_and_fail_closed_cases (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_aggregate_gate_trusted_and_fail_closed_cases) ... ok
 test_artifact_stdout_wrong_schema_missing_and_wrong_head_fail (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_artifact_stdout_wrong_schema_missing_and_wrong_head_fail) ... ok
 test_audit_live_ide_development_workflows_report (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_audit_live_ide_development_workflows_report) ... ok
@@ -29,6 +27,6 @@ test_required_cursor_materialization_sources_are_packaged (scripts.ide_developme
 test_version_alignment_helpers (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests.test_version_alignment_helpers) ... ok
 
 ----------------------------------------------------------------------
-Ran 27 tests in 0.116s
+Ran 26 tests in 0.126s
 
 OK
