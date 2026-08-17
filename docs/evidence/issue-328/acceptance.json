@@ -124,5 +124,7 @@
       "exitCode": 0,
       "notes": "candidateTree refreshed with content and evidence commits"
     }
-  ]
+  ],
+  "evidenceHeadSha": "c067af7e9ee433bdebdb68aa71280110594c410a",
+  "evidenceTree": "b499e7f003136a051f7f95d57dc62f167508149a"
 }
