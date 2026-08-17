@@ -200,6 +200,129 @@ test('AC-I6-FC-brain: malformed identities, stale pin, and incompatible provider
   )
 })
 
+test('AC-I6-FC-brain: inherited prototype properties fail closed', () => {
+  const positive = load('positive-valid.json')
+  const inheritedExtra = Object.assign(Object.create({ extraField: 'from-prototype' }), positive.projection)
+  classify(
+    () => validateBrainProjection(inheritedExtra, positive.context),
+    'inherited_property',
+    'fail_closed',
+  )
+  const { projectionRef, ...ownWithoutRef } = positive.projection
+  const inheritedMaterial = Object.assign(Object.create({ projectionRef }), ownWithoutRef)
+  classify(
+    () => validateBrainProjection(inheritedMaterial, positive.context),
+    'inherited_property',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-FC-brain: accessor getter and setter inputs fail closed', () => {
+  const positive = load('positive-valid.json')
+  const getterProjection = { ...positive.projection }
+  Object.defineProperty(getterProjection, 'projectionRef', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      return 'projection-ide-dev-s3'
+    },
+  })
+  classify(
+    () => validateBrainProjection(getterProjection, positive.context),
+    'accessor_property',
+    'fail_closed',
+  )
+  const setterProjection = { ...positive.projection }
+  Object.defineProperty(setterProjection, 'trap', {
+    enumerable: true,
+    configurable: true,
+    set() {},
+  })
+  classify(
+    () => validateBrainProjection(setterProjection, positive.context),
+    'accessor_property',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-FC-brain: TOCTOU getter that changes between reads fails closed', () => {
+  const positive = load('positive-valid.json')
+  const toctouProjection = { ...positive.projection }
+  let reads = 0
+  Object.defineProperty(toctouProjection, 'projectionRef', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      reads += 1
+      return reads === 1 ? 'projection-ide-dev-s3' : 'mutated-after-first-read'
+    },
+  })
+  classify(
+    () => validateBrainProjection(toctouProjection, positive.context),
+    'accessor_property',
+    'fail_closed',
+  )
+  assert.equal(reads, 0)
+})
+
+test('AC-I6-POS-brain: accepts full S0 Brain pin repository, commit, and tree', () => {
+  const fixture = load('positive-full-s0-pin.json')
+  const accepted = validateBrainProjection(fixture.projection, fixture.context)
+  assert.deepEqual(accepted, { projectionRef: 'projection-ide-dev-s3-full-pin' })
+  assert.ok(Object.isFrozen(accepted))
+  assert.equal(fixture.context.providerPin.repository, FROZEN_PROVIDERS.brain.repository)
+  assert.equal(fixture.context.providerPin.commit, FROZEN_PROVIDERS.brain.commit)
+  assert.equal(fixture.context.providerPin.tree, FROZEN_PROVIDERS.brain.tree)
+  const live = { ...fixture.projection }
+  const fromOfficialPin = validateBrainProjection(live, {
+    ...fixture.context,
+    providerPin: FROZEN_PROVIDERS.brain,
+  })
+  live.projectionRef = 'mutated-after-validate'
+  assert.deepEqual(fromOfficialPin, { projectionRef: 'projection-ide-dev-s3-full-pin' })
+  assert.throws(() => {
+    fromOfficialPin.projectionRef = 'mutated'
+  }, TypeError)
+})
+
+test('AC-I6-FC-brain: extra or confused providerPin keys fail closed', () => {
+  const fixture = load('positive-valid.json')
+  classify(
+    () => validateBrainProjection(fixture.projection, {
+      ...fixture.context,
+      providerPin: {
+        ...fixture.context.providerPin,
+        extra: 'no',
+      },
+    }),
+    'unknown_field',
+    'fail_closed',
+  )
+  classify(
+    () => validateBrainProjection(fixture.projection, {
+      ...fixture.context,
+      providerPin: {
+        ...fixture.context.providerPin,
+        repo: FROZEN_PROVIDERS.brain.repository,
+      },
+    }),
+    'unknown_field',
+    'fail_closed',
+  )
+  classify(
+    () => validateBrainProjection(fixture.projection, {
+      ...fixture.context,
+      providerPin: {
+        repository: FROZEN_PROVIDERS.platform.repository,
+        commit: FROZEN_PROVIDERS.brain.commit,
+        tree: FROZEN_PROVIDERS.brain.tree,
+      },
+    }),
+    'incompatible_pin',
+    'fail_closed',
+  )
+})
+
 test('validator has no Brain call, tool execution, transport, or credential APIs', () => {
   assert.doesNotMatch(MODULE_SOURCE, /\b(fetch|XMLHttpRequest|createServer|net\.connect)\b/)
   assert.doesNotMatch(MODULE_SOURCE, /from ['"]node:(http|https|net|child_process|tls)['"]/)
