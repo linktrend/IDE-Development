@@ -3,14 +3,22 @@
   "issue": 320,
   "workPackage": "WP-U07",
   "branch": "issue/320-wp-u07-repository-owned-ci-trigger-contract",
-  "headSha": "c23ada6a248e1fec16109228d1d4b7df618d03a6",
-  "tree": "becbf9c9cf5e02a688bc421f35026f4836700650",
+  "headSha": "678a618e1ac5668fe2f57d22938a7ef65b5aaee9",
+  "tree": "ff76774124199a15dfb35a7aa28e5f5578f6d4a2",
   "startSha": "741e58922e7413c1097f4a58ea25e94a934af903",
   "startTree": "1affbab9035df799fdb7d723d8518e54fa6a1c00",
   "dependencyContextSha": "152d39130746dde16cc00a343e949e518db58ef2",
   "dependencyContextTree": "8335a0c71285fb870673114a456ece3f7268dcbd",
   "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
-  "acceptance": "AC-U07-02 through AC-U07-22 except live nine-repo AC-U07-01",
+  "acceptance": "AC-U07-02 through AC-U07-22 except live nine-repo AC-U07-01; independent review P1/P2 repairs included",
+  "reviewRepairs": [
+    "P1 artifact_missing_head fail-closed",
+    "P1 preflight bootstrapCommand + invalidated-only resume",
+    "P2 repositoryCiTriggerAudit on install/verify",
+    "P2 affected-surface classifierDigest/inputsDigest/selectedProfile",
+    "P2 acceptance bound to exact repaired tip",
+    "P2 promotion_receipt_gate exact-receipt negatives"
+  ],
   "exclusions": [
     "AC-U07-01 live nine-repo",
     "AC-U07-23 consumer audits",
@@ -29,14 +37,14 @@
       "exitCode": 0
     }
   ],
-  "at": "2026-08-17T11:15:17Z",
+  "at": "2026-08-17T11:44:33Z",
   "sanitized": true,
   "hold": [
-    "Factory .github/workflows/ci.yml still has broad pull_request/push triggers; installer audit reports promotion_expensive_retrigger without mutating (rollout-scoped fix later).",
+    "Factory .github/workflows/ci.yml still has broad pull_request/push; audit reports promotion_expensive_retrigger without mutating.",
     "No review-ready / PR / Full / consumer rollout in this packet."
   ],
-  "implementationHeadSha": "72ce7464bc32e60ff5933ccf0fb175ddd3bb208a",
-  "implementationTree": "fadaa468ebbb1f4703afdeb4fb6eca3e7fadcf62",
-  "evidenceHeadSha": "c23ada6a248e1fec16109228d1d4b7df618d03a6",
-  "evidenceTree": "becbf9c9cf5e02a688bc421f35026f4836700650"
+  "evidenceHeadSha": "678a618e1ac5668fe2f57d22938a7ef65b5aaee9",
+  "evidenceTree": "ff76774124199a15dfb35a7aa28e5f5578f6d4a2",
+  "repairedHeadSha": "678a618e1ac5668fe2f57d22938a7ef65b5aaee9",
+  "repairedTree": "ff76774124199a15dfb35a7aa28e5f5578f6d4a2"
 }
