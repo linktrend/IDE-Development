@@ -6,6 +6,9 @@
  * with no silent downgrade. OKF `0.2` is an optional field mapping only — never
  * a second source of truth and never an authority or Brain execution bridge.
  *
+ * Public options and OKF fieldMappings are snapshotted as own enumerable plain
+ * data before allowlist checks, matching S1–S5 fail-closed doctrine.
+ *
  * This module has no transport, credentials, Git write, Ledger, Gate mutation,
  * or MCP server runtime.
  */
@@ -56,7 +59,12 @@ const OKF_KEYS = new Set([
   'nonApplicabilityReason',
 ])
 
-/** Authority / execution vocabulary — matched case-insensitively. */
+/**
+ * Authority / execution vocabulary. Comparison uses conservative
+ * canonicalization (lowercase + strip `_` / `-` / `.` / whitespace only) so
+ * snake/kebab/dotted/spaced/camel variants match without collapsing unrelated
+ * names such as `toolbox` or `executionPlan`.
+ */
 const AUTHORITY_BRIDGE_NAMES = Object.freeze([
   'authority',
   'executionAuthority',
@@ -72,7 +80,15 @@ const AUTHORITY_BRIDGE_NAMES = Object.freeze([
   'permittedOperations',
 ])
 
-const AUTHORITY_BRIDGE_LOWER = new Set(AUTHORITY_BRIDGE_NAMES.map((name) => name.toLowerCase()))
+/**
+ * @param {string} name
+ * @returns {string}
+ */
+function canonicalizeAuthorityToken(name) {
+  return name.toLowerCase().replace(/[_\-.\s]+/g, '')
+}
+
+const AUTHORITY_BRIDGE_CANONICAL = new Set(AUTHORITY_BRIDGE_NAMES.map((name) => canonicalizeAuthorityToken(name)))
 
 const SENSITIVE = /(?:secret|password|token|authorization|private.?key|prompt|transcript|conversation|raw(?:_|$)|full.?content|^body$)/i
 const FIELD_NAME = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/
@@ -89,6 +105,71 @@ function object(value, code = 'invalid_object') {
     fail(code, 'expected a plain object', { classification: 'fail_closed' })
   }
   return /** @type {Record<string, unknown>} */ (value)
+}
+
+/**
+ * @param {object} proto
+ * @param {string} label
+ */
+function rejectInheritedEnumerable(proto, label) {
+  const protoDescriptors = Object.getOwnPropertyDescriptors(proto)
+  for (const key of Object.keys(protoDescriptors)) {
+    if (protoDescriptors[key].enumerable) {
+      fail('inherited_property', `${label} inherits a property: ${key}`, {
+        classification: 'fail_closed',
+        field: key,
+      })
+    }
+  }
+}
+
+/**
+ * Copy own enumerable plain data properties before any semantic read.
+ * Rejects inherited, prototype, accessor, getter, setter, and TOCTOU inputs.
+ *
+ * @param {unknown} value
+ * @param {string} [code]
+ * @param {string} [label]
+ * @returns {Record<string, unknown>}
+ */
+function snapshotOwnEnumerablePlainData(value, code = 'invalid_object', label = 'input') {
+  const record = object(value, code)
+  const proto = Object.getPrototypeOf(record)
+  const descriptors = Object.getOwnPropertyDescriptors(record)
+  if (proto !== Object.prototype && proto !== null) {
+    fail('inherited_property', `${label} must be a plain object`, {
+      classification: 'fail_closed',
+    })
+  }
+  if (proto === Object.prototype) {
+    rejectInheritedEnumerable(proto, label)
+  }
+  const snapshot = Object.create(null)
+  for (const key of Reflect.ownKeys(descriptors)) {
+    const desc = descriptors[key]
+    if (typeof key !== 'string') {
+      if (desc.get !== undefined || desc.set !== undefined) {
+        fail('accessor_property', `${label} has an accessor`, {
+          classification: 'fail_closed',
+        })
+      }
+      if (desc.enumerable) {
+        fail('unknown_field', `${label} has a non-string property key`, {
+          classification: 'fail_closed',
+        })
+      }
+      continue
+    }
+    if (desc.get !== undefined || desc.set !== undefined) {
+      fail('accessor_property', `${label} has an accessor: ${key}`, {
+        classification: 'fail_closed',
+        field: key,
+      })
+    }
+    if (!desc.enumerable) continue
+    snapshot[key] = desc.value
+  }
+  return snapshot
 }
 
 /**
@@ -114,7 +195,7 @@ function rejectUnknown(value, allowed, label) {
  */
 function isAuthorityBridgeName(name) {
   if (typeof name !== 'string') return true
-  if (AUTHORITY_BRIDGE_LOWER.has(name.toLowerCase())) return true
+  if (AUTHORITY_BRIDGE_CANONICAL.has(canonicalizeAuthorityToken(name))) return true
   return SENSITIVE.test(name)
 }
 
@@ -199,8 +280,8 @@ function normalizeEraOption(era) {
  * Negotiate the shared modern MCP boundary.
  *
  * Only `version === '2026-07-28'` with `era === 'modern'` succeeds. Options, when
- * present, must use the strict allowlist. Legacy/session/`initialize` encodings
- * (any case or truthy/string/numeric form) fail closed with no silent downgrade.
+ * present, are snapshotted as own enumerable plain data, then checked against
+ * the strict allowlist. Legacy/session/`initialize` encodings fail closed.
  *
  * @param {unknown} version
  * @param {unknown} era
@@ -222,7 +303,7 @@ export function negotiateMcp(version, era, options = undefined) {
     return MCP_PROTOCOL_VERSION
   }
 
-  const opts = object(options, 'mcp_options_invalid')
+  const opts = snapshotOwnEnumerablePlainData(options, 'mcp_options_invalid', 'mcp options')
   rejectUnknown(opts, MCP_OPTION_KEY_SET, 'mcp options')
 
   if (opts.method !== undefined) {
@@ -274,7 +355,7 @@ export function negotiateMcp(version, era, options = undefined) {
  * Applicable only for canonical knowledge/projection exchange kinds. Never
  * grants Brain execution authority or overrides provider authority fields.
  * Authority/execution vocabulary in fieldMappings keys or values is rejected
- * case-insensitively.
+ * after conservative separator-aware canonicalization.
  *
  * @param {unknown} value
  * @returns {Readonly<{ format: 'OKF', version: '0.2', exchangeKind: string, applicable: boolean }>}
@@ -286,7 +367,7 @@ export function validateOkfMapping(value) {
     })
   }
 
-  const mapping = object(value, 'okf_mapping_invalid')
+  const mapping = snapshotOwnEnumerablePlainData(value, 'okf_mapping_invalid', 'okf mapping')
   rejectAuthorityBridge(mapping, 'okf mapping')
   rejectUnknown(mapping, OKF_KEYS, 'okf mapping')
 
@@ -344,7 +425,11 @@ export function validateOkfMapping(value) {
   }
 
   if (mapping.fieldMappings !== undefined) {
-    const fields = object(mapping.fieldMappings, 'okf_field_mappings_invalid')
+    const fields = snapshotOwnEnumerablePlainData(
+      mapping.fieldMappings,
+      'okf_field_mappings_invalid',
+      'okf fieldMappings',
+    )
     rejectAuthorityBridge(fields, 'okf fieldMappings')
     const keys = Object.keys(fields)
     if (keys.length > FIELD_MAP_MAX) {
@@ -354,10 +439,11 @@ export function validateOkfMapping(value) {
       })
     }
     for (const key of keys) {
-      if (!FIELD_NAME.test(key) || SENSITIVE.test(key) || isAuthorityBridgeName(key)) {
+      const authorityKey = isAuthorityBridgeName(key)
+      if (!FIELD_NAME.test(key) || SENSITIVE.test(key) || authorityKey) {
         fail(
-          isAuthorityBridgeName(key) ? 'okf_authority_bridge_forbidden' : 'okf_field_mappings_invalid',
-          isAuthorityBridgeName(key)
+          authorityKey ? 'okf_authority_bridge_forbidden' : 'okf_field_mappings_invalid',
+          authorityKey
             ? 'OKF fieldMappings key cannot carry authority or execution vocabulary'
             : 'OKF fieldMappings key is invalid or sensitive',
           {
@@ -368,7 +454,7 @@ export function validateOkfMapping(value) {
         )
       }
       const target = fields[key]
-      if (typeof target !== 'string' || !FIELD_NAME.test(target) || SENSITIVE.test(target)) {
+      if (typeof target !== 'string') {
         fail('okf_field_mappings_invalid', 'OKF fieldMappings value is invalid or sensitive', {
           classification: 'fail_closed',
           field: key,
@@ -380,6 +466,13 @@ export function validateOkfMapping(value) {
           classification: 'fail_closed',
           field: key,
           value: target,
+          surface: 'okf fieldMappings',
+        })
+      }
+      if (!FIELD_NAME.test(target) || SENSITIVE.test(target)) {
+        fail('okf_field_mappings_invalid', 'OKF fieldMappings value is invalid or sensitive', {
+          classification: 'fail_closed',
+          field: key,
           surface: 'okf fieldMappings',
         })
       }

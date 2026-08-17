@@ -285,3 +285,184 @@ test('AC-I6-X-02 repair: OKF fieldMappings reject authority vocabulary case-inse
     },
   )
 })
+
+test('AC-I6-X-02 repair: OKF fieldMappings reject separator and mixed-case authority variants without collapsing benign names', () => {
+  const base = {
+    format: 'OKF',
+    version: '0.2',
+    exchangeKind: 'canonical_projection',
+    applicable: true,
+  }
+
+  const forbiddenMappings = [
+    { tool_request: 'id' },
+    { 'tool-request': 'id' },
+    { 'tool.request': 'id' },
+    { 'tool request': 'id' },
+    { Tool_Request: 'id' },
+    { 'TOOL-REQUEST': 'id' },
+    { tool_calls: 'id' },
+    { 'tool-calls': 'id' },
+    { 'tool.calls': 'id' },
+    { ToolCalls: 'id' },
+    { execution_authority: 'id' },
+    { 'execution-authority': 'id' },
+    { 'execution.authority': 'id' },
+    { 'Execution Authority': 'id' },
+    { permitted_operations: 'id' },
+    { 'permitted-operations': 'id' },
+    { 'permitted.operations': 'id' },
+    { PermittedOperations: 'id' },
+    { title: 'tool_request' },
+    { title: 'tool-request' },
+    { title: 'tool.request' },
+    { title: 'Tool Request' },
+    { title: 'tool_calls' },
+    { title: 'tool-calls' },
+    { title: 'execution_authority' },
+    { title: 'execution-authority' },
+    { title: 'Execution.Authority' },
+    { title: 'permitted_operations' },
+    { title: 'permitted-operations' },
+    { title: 'Permitted.Operations' },
+  ]
+
+  for (const fieldMappings of forbiddenMappings) {
+    throws(() => validateOkfMapping({ ...base, fieldMappings }), 'okf_authority_bridge_forbidden')
+  }
+
+  // Benign names that share prefixes/substrings must not collapse into authority.
+  assert.deepEqual(
+    validateOkfMapping({
+      ...base,
+      fieldMappings: {
+        toolbox: 'toolbox',
+        toolbar: 'toolbar',
+        executionPlan: 'executionPlan',
+        authorityNote: 'authorityNote',
+        permittedOpsCount: 'permittedOpsCount',
+        skillRunner: 'skillRunner',
+      },
+    }),
+    {
+      format: 'OKF',
+      version: '0.2',
+      exchangeKind: 'canonical_projection',
+      applicable: true,
+    },
+  )
+})
+
+test('AC-I6-X repair: MCP options and OKF fieldMappings reject inherited/prototype/accessor inputs', () => {
+  const inheritedUnknown = Object.create({ unknownFlag: true })
+  inheritedUnknown.method = 'tools/list'
+  throws(
+    () => negotiateMcp(MCP_PROTOCOL_VERSION, 'modern', inheritedUnknown),
+    'inherited_property',
+  )
+
+  const inheritedAuthority = Object.create({ Authority: 'id' })
+  throws(
+    () =>
+      validateOkfMapping({
+        format: 'OKF',
+        version: '0.2',
+        exchangeKind: 'canonical_projection',
+        applicable: true,
+        fieldMappings: inheritedAuthority,
+      }),
+    'inherited_property',
+  )
+
+  const accessorOptions = {}
+  Object.defineProperty(accessorOptions, 'session', {
+    enumerable: true,
+    get() {
+      return true
+    },
+  })
+  throws(
+    () => negotiateMcp(MCP_PROTOCOL_VERSION, 'modern', accessorOptions),
+    'accessor_property',
+  )
+
+  const accessorMappings = {}
+  Object.defineProperty(accessorMappings, 'title', {
+    enumerable: true,
+    get() {
+      return 'description'
+    },
+  })
+  throws(
+    () =>
+      validateOkfMapping({
+        format: 'OKF',
+        version: '0.2',
+        exchangeKind: 'canonical_projection',
+        applicable: true,
+        fieldMappings: accessorMappings,
+      }),
+    'accessor_property',
+  )
+
+  const pollutedKey = 'unknownFlag'
+  const hadPolluted = Object.prototype.hasOwnProperty.call(Object.prototype, pollutedKey)
+  const priorDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, pollutedKey)
+  Object.defineProperty(Object.prototype, pollutedKey, {
+    configurable: true,
+    enumerable: true,
+    value: true,
+  })
+  try {
+    throws(
+      () => negotiateMcp(MCP_PROTOCOL_VERSION, 'modern', { method: 'tools/list' }),
+      'inherited_property',
+    )
+    throws(
+      () =>
+        validateOkfMapping({
+          format: 'OKF',
+          version: '0.2',
+          exchangeKind: 'canonical_projection',
+          applicable: true,
+          fieldMappings: { title: 'description' },
+        }),
+      'inherited_property',
+    )
+  } finally {
+    if (hadPolluted && priorDescriptor) {
+      Object.defineProperty(Object.prototype, pollutedKey, priorDescriptor)
+    } else {
+      Reflect.deleteProperty(Object.prototype, pollutedKey)
+    }
+  }
+
+  // Valid plain inputs remain accepted after adversarial cases.
+  assert.equal(
+    negotiateMcp(MCP_PROTOCOL_VERSION, 'modern', {
+      method: 'tools/list',
+      session: false,
+      sessionless: true,
+      era: 'modern',
+    }),
+    MCP_PROTOCOL_VERSION,
+  )
+  assert.deepEqual(
+    validateOkfMapping({
+      format: 'OKF',
+      version: '0.2',
+      exchangeKind: 'canonical_projection',
+      applicable: true,
+      fieldMappings: {
+        projectionId: 'id',
+        title: 'title',
+      },
+    }),
+    {
+      format: 'OKF',
+      version: '0.2',
+      exchangeKind: 'canonical_projection',
+      applicable: true,
+    },
+  )
+})
