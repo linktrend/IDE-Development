@@ -4,28 +4,28 @@
   "workPackage": "WP-U01",
   "branch": "issue/322-implement-ide-development-v2-4-0-wp-u01",
   "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
+  "reviewedTip": "d020b73431af6c77ed90f93febac63c9064753d0",
+  "reviewedTree": "9363d4e085f6d423106f679113a1e443e4ae327c",
   "startSha": "741e58922e7413c1097f4a58ea25e94a934af903",
   "startTree": "1affbab9035df799fdb7d723d8518e54fa6a1c00",
   "dependencyContextSha": "a926794d7e549a97579f2e1816aca7a893993ccd",
   "dependencyContextTree": "53af75c63ad2dc48403ba0c2f3be5adb71d79bd2",
-  "implementationHeadSha": "185e58bb4123772f7cbf108b190a007806e3430e",
-  "implementationTree": "97c1fd86bcf1d3b0b77298abb0f2aa8b874706da",
-  "acceptedPredecessors": {
-    "WP-U07": {
-      "tipSha": "a926794d7e549a97579f2e1816aca7a893993ccd",
-      "tree": "53af75c63ad2dc48403ba0c2f3be5adb71d79bd2"
-    },
-    "WP-U09": {
-      "tipSha": "36231634601e5580c83d4339acaeef651769ea93",
-      "tree": "259bc414e753e3d8f9a5b193f8e5bee7c9fa1a75"
-    },
-    "WP-U10": {
-      "tipSha": "f738a94f3db6888968692d617b0b2bcd85024684",
-      "tree": "1c73c8747ab73ff0c9cc5671740aa1c7c9ec061f"
-    }
-  },
-  "predecessorLedgerPath": "docs/evidence/issue-322/predecessor-ledger.json",
-  "acceptance": "AC-U01-01..18 except AC-U01-07; tip bind documents headSha/tree of prior tip 4aabf52bd36c876424ad81a4855b008d9be47bb7; evidenceHeadSha is transcript commit; implementationHeadSha is feat tip",
+  "contentHeadSha": "c11d2586ddd31f735b11a5cc179f7cdfcaca0b56",
+  "contentTree": "c0adeb78f7a977a964a7ee8e7dd5f84f19e59f14",
+  "implementationHeadSha": "c11d2586ddd31f735b11a5cc179f7cdfcaca0b56",
+  "implementationTree": "c0adeb78f7a977a964a7ee8e7dd5f84f19e59f14",
+  "repair": [
+    "split provider vs Review Gate in repair-observer template/config/tests",
+    "durable founder-alert issue path with dedupe/fail-closed",
+    "wire evaluate_fallback_review into managed workflow",
+    "trusted verified unavailability only; no heuristic failure->success",
+    "migrate verify-ide/wire-repo/coordinator/apply/bootstrap/external-state required contexts",
+    "infra-only attempt counting",
+    "Full receipt required before successful gate publish",
+    "content-head/bind-tip evidence pattern",
+    "git diff --check clean"
+  ],
+  "acceptance": "AC-U01-01..18 except AC-U01-07; repaired exact-head review findings; 25 focused OK",
   "exclusions": [
     "AC-U01-07 nine-consumer install",
     "Full suite",
@@ -47,7 +47,7 @@
       "command": "python3 -m unittest scripts.tests.test_linktrend_review_gate scripts.ide_development_tests.test_build_manifest",
       "exitCode": 0,
       "evidencePath": "docs/evidence/issue-322/wp-u01-focused-tests.out",
-      "testsRan": 19
+      "testsRan": 25
     },
     {
       "command": "bash scripts/tests/test-repository-protection.sh",
@@ -70,10 +70,10 @@
     "AC-U01-07 deferred to WP-CONSUMERS",
     "No Full / PR / review-ready / promotion / rollout in this packet"
   ],
-  "at": "2026-08-17T12:56:18Z",
+  "at": "2026-08-17T13:14:04Z",
   "sanitized": true,
-  "headSha": "4aabf52bd36c876424ad81a4855b008d9be47bb7",
-  "tree": "92bcdafe81b80fff9164a4f74d42479a61728df8",
-  "evidenceHeadSha": "d4ed665ab5821ccc9497019c84d932b02e6e09fe",
-  "evidenceTree": "2d5e38de0fc095db71730ad55d2738fcb0ee4341"
+  "headSha": "c11d2586ddd31f735b11a5cc179f7cdfcaca0b56",
+  "tree": "c0adeb78f7a977a964a7ee8e7dd5f84f19e59f14",
+  "evidenceHeadSha": "c11d2586ddd31f735b11a5cc179f7cdfcaca0b56",
+  "evidenceTree": "c0adeb78f7a977a964a7ee8e7dd5f84f19e59f14"
 }
