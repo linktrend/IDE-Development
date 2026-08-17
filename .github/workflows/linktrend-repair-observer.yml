@@ -1,6 +1,6 @@
 name: LiNKtrend Repair Observer
 
-# Observes CI / Branch Source Policy / Cursor Bugbot lifecycle events and
+# Observes CI / Branch Source Policy / Cursor Bugbot provider lifecycle events and
 # maintains durable repair tasks with the built-in least-privilege workflow token.
 # Does NOT spawn Cursor.
 #
