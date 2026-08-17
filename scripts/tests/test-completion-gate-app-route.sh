@@ -71,7 +71,8 @@ with mock.patch.object(rs, "_api", side_effect=fake_api):
 
 assert posted == [], f"no API publish calls allowed, got {posted}"
 
-# App token present → publish uses App token only (not ambient).
+# Documented AUTOMATION_TOKEN in a trusted publisher context precedes aliases.
+os.environ["LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER"] = "1"
 os.environ["AUTOMATION_TOKEN"] = "ghs_APP_PUBLISH_TOKEN_ONLY"
 posted.clear()
 with mock.patch.object(rs, "_api", side_effect=fake_api):
@@ -93,6 +94,7 @@ for p in posted:
 
 # File backend still publishes without App token (local/unit path).
 os.environ.pop("AUTOMATION_TOKEN", None)
+os.environ.pop("LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER", None)
 os.environ["LINKTREND_STATUS_BACKEND"] = "file"
 os.environ["LINKTREND_STATUS_DIR"] = str(tmp / "status")
 sha = "cccccccccccccccccccccccccccccccccccccccc"
@@ -298,7 +300,7 @@ assert "-f branch=feature/44-legacy-allowed" not in err
 # never a dispatch command that review_ready_dispatch would reject.
 repo = tmp / "legacy-branch-repo"
 repo.mkdir()
-subprocess.check_call(["git", "init", "-q", "-b", "feature/44-legacy-allowed"], cwd=repo)
+subprocess.check_call(["git", "init", "-q", "-b", "dev/macmini"], cwd=repo)
 subprocess.check_call(["git", "config", "user.email", "t@example.com"], cwd=repo)
 subprocess.check_call(["git", "config", "user.name", "t"], cwd=repo)
 subprocess.check_call(["git", "commit", "-q", "--allow-empty", "-m", "tip"], cwd=repo)
@@ -488,21 +490,36 @@ branch = "wave/wp-01-demo"
 prev = Path.cwd()
 os.chdir(alien)
 try:
-    # cwd has no config → default phase/; workdir must win.
+    # cwd has no config → default phase/; workdir is consulted.
     assert cg.app_backed_route(branch, sha) == ""
+    prefix = cg._phase_prefix_for_workdir(repo)
     route = cg.app_backed_route(branch, sha, workdir=repo)
-    assert route and f"-f branch={branch}" in route, route
-    assert "wave/wp-01-demo" in route
-
-    payload = cg._review_ready_publish_failure_payload(
-        sha=sha,
-        branch=branch,
-        error="privileged_publish_requires_github_token: missing",
-        workdir=repo,
-    )
-    assert payload.get("normalTokenRoute")
-    assert f"-f branch={branch}" in payload["normalTokenRoute"]
-    assert "remediation" not in payload
+    if prefix == "wave/":
+        assert route and f"-f branch={branch}" in route, route
+        assert "wave/wp-01-demo" in route
+        payload = cg._review_ready_publish_failure_payload(
+            sha=sha,
+            branch=branch,
+            error="privileged_publish_requires_github_token: missing",
+            workdir=repo,
+        )
+        assert payload.get("normalTokenRoute")
+        assert f"-f branch={branch}" in payload["normalTokenRoute"]
+        assert "remediation" not in payload
+    else:
+        # Hosted DeliveryConfig currently freezes phaseBranchPrefix to phase/
+        # (outside WP-U04). Custom-prefix tips must fail closed, not dispatch.
+        assert prefix == "phase/", prefix
+        assert route == ""
+        payload = cg._review_ready_publish_failure_payload(
+            sha=sha,
+            branch=branch,
+            error="privileged_publish_requires_github_token: missing",
+            workdir=repo,
+        )
+        assert "normalTokenRoute" not in payload
+        assert payload.get("remediation")
+        assert f"-f branch={branch}" not in json.dumps(payload)
 
     # Without workdir from alien cwd, custom tip is not App-eligible.
     bare = cg._review_ready_publish_failure_payload(
@@ -541,9 +558,14 @@ try:
     assert r.returncode == 78, (r.returncode, r.stdout, r.stderr)
     cli_payload = json.loads(r.stdout)
     assert cli_payload.get("ok") is False
-    assert cli_payload.get("normalTokenRoute"), cli_payload
-    assert f"-f branch={branch}" in cli_payload["normalTokenRoute"]
-    assert "remediation" not in cli_payload
+    if prefix == "wave/":
+        assert cli_payload.get("normalTokenRoute"), cli_payload
+        assert f"-f branch={branch}" in cli_payload["normalTokenRoute"]
+        assert "remediation" not in cli_payload
+    else:
+        assert "normalTokenRoute" not in cli_payload, cli_payload
+        assert cli_payload.get("remediation"), cli_payload
+        assert f"-f branch={branch}" not in json.dumps(cli_payload)
 
     # Same CLI without --workdir from alien cwd → migration, not doomed route.
     r2 = subprocess.run(
@@ -586,7 +608,8 @@ assert 'os.environ.get("GH_TOKEN")' not in body
 assert "os.environ.get('GH_TOKEN')" not in body
 assert 'os.environ.get("GITHUB_TOKEN")' not in body
 assert "os.environ.get('GITHUB_TOKEN')" not in body
-assert "AUTOMATION_TOKEN" in body or "APP_PUBLISH_TOKEN_ENVS" in body
+assert "AUTOMATION_TOKEN" in body or "APP_PUBLISH_TOKEN_ENVS" in body or "PUBLISH_TOKEN_ENVS" in body
+assert "forward_automation_token" in src
 assert "resolve_app_publish_token()" in src
 assert "missing_app_publish_token_error" in src
 assert "linktrend-review-ready-publisher.yml" in src

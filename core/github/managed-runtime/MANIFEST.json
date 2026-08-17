@@ -34,6 +34,7 @@
     "scripts/gitops/repair_observer.py",
     "scripts/gitops/repair_task.py",
     "scripts/gitops/review_ready_dispatch.py",
+    "scripts/gitops/review_ready_publisher_bootstrap.py",
     "scripts/gitops/wait_named_gate.py",
     "scripts/gitops/write_outcome.py",
     "scripts/gitops/work-branch-allowlist.sh",
