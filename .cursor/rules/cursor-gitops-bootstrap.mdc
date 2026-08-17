@@ -8,13 +8,13 @@ alwaysApply: true
 ## Ship checkpoint
 
 - Ship waves are **checkpoint only**: commit + push the work branch.
-- Do **not** open a PR. Review Packager opens PRs.
+- Do **not** open a PR. The Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the Phase PR. Retained `packager_discover.py` is not that component.
 - Do **not** request Bugbot from the implementer session.
 - Do **not** mark review-ready unless the issue is actually finished and evidence exists.
 
 ## Packager opens PR
 
-- Draft PRs into `development` are opened by **Linktrend Review Packager**, not by implementers.
+- Draft PRs into `development` are opened by the **Phase Packager/Coordinator** (`scripts/gitops/packager_coordinator.py`), not by implementers. Retained `packager_discover.py` is not that component.
 - Integrator merges only when named gates + Cursor Bugbot succeed on the exact reviewed SHA.
 
 ## Completion gate

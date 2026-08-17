@@ -12,8 +12,9 @@ pull requests, branch protection, and promotion records.
 
 1. An implementer checkpoints on `issue/<number>-<slug>` (or an approved
    `dev/*` branch). A checkpoint push does not start managed CI.
-2. Accepted issue SHAs are integrated serially on `phase/*`. A Phase PR is the
-   single review unit for the combined phase result.
+2. The Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`)
+   integrates accepted issue SHAs serially on `phase/*` and opens or updates
+   one draft Phase PR. Retained `packager_discover.py` is not that component.
 3. The Phase PR runs `Linktrend Fast Checks` on hosted `ubuntu-24.04-arm`.
    Fast runs are scoped to repository, workflow, and PR number; a newer run
    cancels only an older run for that same PR.

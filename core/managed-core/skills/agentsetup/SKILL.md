@@ -94,7 +94,7 @@ Remind hard stops in plain English:
 - Do **not** merge into `development`
 - Do **not** self-review (Bugbot reviews)
 - Do **not** promote to `staging` or `main`
-- Do **not** open a PR (Review Packager opens PRs)
+- Do **not** open a PR (the Phase Packager/Coordinator `scripts/gitops/packager_coordinator.py` opens the Phase PR; retained `packager_discover.py` is not that component)
 - Ship waves: **checkpoint only** = commit → push → stop (no PR, no Bugbot)
 - When finished: `scripts/gitops/completion_gate.py review-ready` after `mark-review-ready.sh`
 

@@ -7,9 +7,11 @@ IDE Development source and is not a consumer install target.
 
 Implementers work on short-lived `issue/*` branches, checkpoint with one
 focused commit, and stop. Accepted issue commits are integrated serially on a
-`phase/*` branch. The Packager opens one Phase PR into `development`; the
-Integrator and promotion gates evaluate exact PR heads. No implementer opens,
-merges, or promotes a PR.
+`phase/*` branch. The Phase Packager/Coordinator
+(`scripts/gitops/packager_coordinator.py`) opens one Phase PR into
+`development`; retained `packager_discover.py` is not that component. The
+delivery controller and promotion gates evaluate exact PR heads. No implementer
+opens, merges, or promotes a PR.
 
 Checkpoints do not trigger managed CI. The Phase PR runs hosted ARM64 fast
 checks. Only an exact final seal may trigger Bugbot and the full suite. A

@@ -8,8 +8,10 @@ profile consumed by managed-core. The frozen field meanings are defined in
 
 `phase-integration` is the approved system profile. Issue branches are
 checkpoint-only. Accepted issue commits are integrated serially into one
-`phase/*` branch, and one Phase PR carries the combined result into
-`development`.
+`phase/*` branch by `scripts/gitops/packager_coordinator.py`, and one Phase PR
+carries the combined result into `development`. Retained
+`packager_discover.py` still discovers Review-Ready tips into ordinary draft
+PRs and is not the Phase Packager.
 
 The configuration is `.github/linktrend-delivery-mode.json`:
 

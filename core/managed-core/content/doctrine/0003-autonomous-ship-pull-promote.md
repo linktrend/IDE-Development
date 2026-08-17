@@ -138,3 +138,13 @@ Principal / WP-01 locked:
 3. **Risk exceptions:** Issue-level PRs under `phase-integration` require an explicit risk class (`security`, `authentication`, `database_migration`, `infrastructure`, `major_shared_api`, `unusually_large_scope`, `cross_phase_impact`) via `.linktrend/issue-pr-exception.json`.
 4. **Named gates** remain `fast-gate` / `staging-gate` / `release-gate` on the exact PR head SHA; missing/zero/wrong/stale/skipped-neutral are non-success.
 5. **Ship remains checkpoint-only** in both modes.
+
+## Amendment — 2026-08-17 (Phase Packager/Coordinator)
+
+Factual correction for Update 3:
+
+1. **Phase Packager/Coordinator** is `scripts/gitops/packager_coordinator.py`. Any authorized agent or operator may invoke it. It accepts completed remote issue commits, preserves dependency order, and creates or updates one `phase/*` branch and one draft Phase PR into `development`.
+2. Retained `scripts/gitops/packager_discover.py` still discovers Review-Ready tips into ordinary draft PRs. It is **not** the Phase Packager and does not satisfy Update 3.
+3. Workers remain checkpoint-only. They do not open PRs and do not wait for a nonexistent Packager path.
+4. Checkpoint pushes do not start managed Fast or Full CI. Opening or updating the Phase PR starts Fast and repository-owned PR CI on the exact Phase head. Full cannot start before Fast and required CI pass.
+5. The coordinator produces an exact-identity handoff for the delivery controller. A later Phase head invalidates that handoff. The coordinator cannot merge protected branches or start Full.

@@ -19,6 +19,7 @@
     "scripts/gitops/main_approve_package_discover.py",
     "scripts/gitops/main_approve_package_reuse.py",
     "scripts/gitops/packager_logic.py",
+    "scripts/gitops/packager_coordinator.py",
     "scripts/gitops/phase_integrator.py",
     "scripts/gitops/promotion_receipt_gate.py",
     "scripts/gitops/promote_staging.sh",

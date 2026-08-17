@@ -106,7 +106,7 @@ Allowed `classification` values:
 
 ## Hard rules
 
-- Implementers **never** open or update PRs. Review Packager opens PRs.
+- Implementers **never** open or update PRs. The Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the Phase PR. Retained `packager_discover.py` is not that component.
 - Ship waves = checkpoint only (no Bugbot, no review-ready unless truly finished).
 - Incomplete review-ready claims must fail closed (exit `78`), not soft-succeed.
 - Agents call `python3 scripts/gitops/completion_gate.py review-ready` directly, or call `write-evidence` first and then `review-ready`.

@@ -107,6 +107,7 @@ HOSTED_TEST_FILES = (
     "scripts/tests/test_candidate_lifecycle.py",
     "scripts/tests/test_gate_receipts.py",
     "scripts/tests/test_phase_batch_lifecycle.py",
+    "scripts/tests/test_phase_packager_coordinator.py",
     "scripts/tests/test_promotion_receipt_gate.py",
 )
 
@@ -349,6 +350,14 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "schemas/gate-receipt.schema.json",
             ".ide-development/schemas/gate-receipt.schema.json",
+        ),
+        (
+            "schemas/phase-record.schema.json",
+            ".ide-development/schemas/phase-record.schema.json",
+        ),
+        (
+            "schemas/phase-handoff.schema.json",
+            ".ide-development/schemas/phase-handoff.schema.json",
         ),
         (
             "schemas/managed-core-release.schema.json",

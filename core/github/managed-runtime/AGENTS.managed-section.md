@@ -13,12 +13,12 @@ Consumer-specific guidance may live **outside** these markers.
 
 ### Lifecycle
 
-- Work on `issue/<n>-<slug>` (or `dev/*`) → push → Packager opens draft PR → Integrator merges to `development`.
+- Work on `issue/<n>-<slug>` (or `dev/*`) → push → Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the draft Phase PR → Integrator merges to `development`. Retained `packager_discover.py` is not that component.
 - Promote: `development` → `staging` → `main` via temporary `promote/*` PRs only.
 
 ### Agent rules
 
-- Ship = checkpoint (commit+push). Packager opens PRs. Max 3 ordinary repairs.
+- Ship = checkpoint (commit+push). The Phase Packager/Coordinator opens Phase PRs. Max 3 ordinary repairs.
 - Completion: `python3 scripts/gitops/completion_gate.py` (checkpoint | review-ready | blocked | status | write-evidence).
 - Finished work runs appropriate tests/checks, auto-repairs ordinary failures with at most 3 bounded repair cycles, writes machine-readable evidence with `completion_gate.py write-evidence`, then calls `completion_gate.py review-ready`.
 - `review-ready` is the authoritative fail-closed gate. Production publish and withdraw use the trusted `linktrend-review-ready-publisher` workflow with scoped built-in `GITHUB_TOKEN` permissions, `LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER=1` on the publish/withdraw step, and documented `AUTOMATION_TOKEN` forwarding (aliases `GH_TOKEN` / `GITHUB_TOKEN`; `AUTOMATION_TOKEN` precedes). Custom App/PAT automation is retired. Do not call `mark-review-ready.sh` as a pre-gate publisher; it is only a compatibility wrapper that requires evidence and delegates to the gate.

@@ -34,7 +34,7 @@ At Ship 05 / Ship 16, at 17:00 EOD, or whenever you need a safe save:
 7. Do **not** call `scripts/mark-review-ready.sh` as a pre-gate publisher. It is only a compatibility wrapper that requires evidence and delegates to the gate.
 8. Do **not** create or use `.linktrend/review-ready.json`.
 9. Set issue status to `review_ready`.
-10. Stop. The **Review Packager** opens a **draft** PR, then requests Bugbot only after fast-gate on that exact SHA.
+10. Stop. The **Phase Packager/Coordinator** (`scripts/gitops/packager_coordinator.py`) opens a **draft** Phase PR. Retained `packager_discover.py` is not that component. Bugbot is requested only after fast-gate on the exact Phase head.
 
 If completion cannot pass after bounded repair, call `python3 scripts/gitops/completion_gate.py blocked` to write `.linktrend/completion-blocker.json` and leave the branch ineligible.
 
