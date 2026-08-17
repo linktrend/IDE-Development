@@ -719,6 +719,215 @@ class IndependentReviewRepairProbeTests(unittest.TestCase):
         self.assertFalse(session.prior_review["valid"])
         self.assertEqual(entries, [])
 
+    def test_p1_04_empty_ledger_hold_stays_hold_and_blocks_evaluate_full_repair(self) -> None:
+        session, entries, clock = open_default()
+        adapter = MemoryReviewer()
+        lease = start_reviewer(session, adapter, wait_seconds=5, clock=clock)
+        clock.advance(6)
+        hold = timeout_reviewer(session, adapter, lease, clock=clock)
+        self.assertEqual(hold["status"], STATUS_HOLD)
+        self.assertEqual(hold["reason"], HOLD_REVIEWER_TIMEOUT)
+        self.assertFalse(hold["clean"])
+        self.assertEqual(entries, [])
+        decision = evaluate_progress(session, entries, clock=clock)
+        self.assertEqual(decision.status, STATUS_HOLD)
+        self.assertEqual(decision.reason, HOLD_REVIEWER_TIMEOUT)
+        self.assertFalse(decision.continue_authorized)
+        self.assertFalse(decision.measurable_progress)
+        self.assertTrue(decision.founder_packet_required)
+        self.assertEqual(session.status, STATUS_HOLD)
+        self.assertEqual(session.hold_reason, HOLD_REVIEWER_TIMEOUT)
+        self.assertNotEqual(session.status, STATUS_REVIEW_CLEAN)
+        with self.assertRaises(ConvergenceError) as raised:
+            record_full_evidence(session, head_sha=HEAD_A)
+        self.assertEqual(raised.exception.code, STATUS_HOLD)
+        consolidate_repair_batch(session, entries)
+        with self.assertRaises(ConvergenceError) as raised:
+            apply_repair(session, entries, new_head=HEAD_B, new_tree=TREE_B, touched_paths=["src/a.py"])
+        self.assertEqual(raised.exception.code, STATUS_HOLD)
+        self.assertEqual(session.candidate_sha, HEAD_A)
+        self.assertEqual(session.git_tree, TREE_A)
+        self.assertEqual(session.repair_cycle_count, 0)
+        packet = founder_decision_packet(session, entries)
+        self.assertEqual(packet["status"], STATUS_HOLD)
+        self.assertNotEqual(packet["status"], STATUS_REVIEW_CLEAN)
+
+        session, entries, _clock = open_default()
+        with self.assertRaises(ConvergenceError) as raised:
+            ingest_review(session, entries, None, actor=session.reviewer_actor, role="reviewer")
+        self.assertEqual(raised.exception.code, HOLD_REVIEWER_SILENCE)
+        self.assertEqual(session.status, STATUS_HOLD)
+        decision = evaluate_progress(session, entries)
+        self.assertEqual(decision.status, STATUS_HOLD)
+        self.assertEqual(decision.reason, HOLD_REVIEWER_SILENCE)
+        self.assertEqual(session.status, STATUS_HOLD)
+        self.assertFalse(session.prior_review["valid"])
+        with self.assertRaises(ConvergenceError) as raised:
+            record_full_evidence(session, head_sha=HEAD_A)
+        self.assertEqual(raised.exception.code, STATUS_HOLD)
+        with self.assertRaises(ConvergenceError) as raised:
+            apply_repair(session, entries, new_head=HEAD_B, new_tree=TREE_B, touched_paths=["src/a.py"])
+        self.assertEqual(raised.exception.code, STATUS_HOLD)
+        with self.assertRaises(ConvergenceError) as raised:
+            review(session, entries, [])
+        self.assertEqual(raised.exception.code, STATUS_HOLD)
+        self.assertEqual(session.status, STATUS_HOLD)
+        self.assertFalse(session.prior_review["valid"])
+
+        session, entries, _clock = open_default()
+        with self.assertRaises(ConvergenceError) as raised:
+            ingest_review(
+                session,
+                entries,
+                {
+                    "headSha": HEAD_A,
+                    "gitTree": TREE_A,
+                    "findings": [finding("authz", paths="src/authz.py")],
+                },
+                actor=session.reviewer_actor,
+                role="reviewer",
+            )
+        self.assertEqual(raised.exception.code, HOLD_MALFORMED_OUTPUT)
+        decision = evaluate_progress(session, entries)
+        self.assertEqual(decision.status, STATUS_HOLD)
+        self.assertEqual(decision.reason, HOLD_MALFORMED_OUTPUT)
+        self.assertEqual(session.status, STATUS_HOLD)
+        self.assertEqual(entries, [])
+        with self.assertRaises(ConvergenceError) as raised:
+            record_full_evidence(session, head_sha=HEAD_A)
+        self.assertEqual(raised.exception.code, STATUS_HOLD)
+        with self.assertRaises(ConvergenceError) as raised:
+            apply_repair(session, entries, new_head=HEAD_B, new_tree=TREE_B, touched_paths=["src/authz.py"])
+        self.assertEqual(raised.exception.code, STATUS_HOLD)
+        self.assertEqual(session.repair_cycle_count, 0)
+
+    def test_p1_04_hold_with_findings_stays_hold_and_cannot_repair(self) -> None:
+        session, entries, _clock = open_default()
+        review(session, entries, [finding("authz")])
+        with self.assertRaises(ConvergenceError):
+            ingest_review(session, entries, None, actor=session.reviewer_actor, role="reviewer")
+        self.assertEqual(session.status, STATUS_HOLD)
+        self.assertEqual(session.hold_reason, HOLD_REVIEWER_SILENCE)
+        self.assertEqual(entries[0].classification, CLASS_UNRESOLVED)
+        decision = evaluate_progress(session, entries)
+        self.assertEqual(decision.status, STATUS_HOLD)
+        self.assertEqual(decision.reason, HOLD_REVIEWER_SILENCE)
+        self.assertEqual(session.status, STATUS_HOLD)
+        self.assertNotEqual(session.status, "in_progress")
+        self.assertNotEqual(session.status, STATUS_REVIEW_CLEAN)
+        consolidate_repair_batch(session, entries)
+        with self.assertRaises(ConvergenceError) as raised:
+            apply_repair(session, entries, new_head=HEAD_B, new_tree=TREE_B, touched_paths=["src/authz.py"])
+        self.assertEqual(raised.exception.code, STATUS_HOLD)
+        self.assertEqual(session.candidate_sha, HEAD_A)
+        self.assertEqual(session.git_tree, TREE_A)
+        self.assertEqual(session.repair_cycle_count, 0)
+        self.assertEqual(entries[0].classification, CLASS_UNRESOLVED)
+        with self.assertRaises(ConvergenceError) as raised:
+            record_full_evidence(session, head_sha=HEAD_A)
+        self.assertEqual(raised.exception.code, STATUS_HOLD)
+        with self.assertRaises(ConvergenceError) as raised:
+            review(session, entries, [])
+        self.assertEqual(raised.exception.code, STATUS_HOLD)
+        self.assertEqual(session.status, STATUS_HOLD)
+        self.assertEqual(entries[0].classification, CLASS_UNRESOLVED)
+
+    def test_p1_05_stalled_empty_ingest_preserves_repeated_and_infra_stops(self) -> None:
+        session, entries, _clock = open_default()
+        review(session, entries, [finding("authz")])
+        cycle(session, entries, new_head=HEAD_B, new_tree=TREE_B, remaining=[finding("authz")])
+        cycle(session, entries, new_head=HEAD_C, new_tree=TREE_C, remaining=[finding("authz")])
+        self.assertEqual(session.status, STATUS_REVIEW_STALLED)
+        self.assertEqual(session.stall_reason, STALL_REPEATED_UNRESOLVED)
+        self.assertEqual(session.candidate_sha, HEAD_C)
+        classifications = [entry.classification for entry in entries]
+        fingerprints = [entry.finding.fingerprint for entry in entries]
+        with self.assertRaises(ConvergenceError) as raised:
+            review(session, entries, [])
+        self.assertEqual(raised.exception.code, STATUS_REVIEW_STALLED)
+        self.assertEqual(session.status, STATUS_REVIEW_STALLED)
+        self.assertEqual(session.stall_reason, STALL_REPEATED_UNRESOLVED)
+        self.assertNotEqual(session.status, STATUS_REVIEW_CLEAN)
+        self.assertEqual([entry.classification for entry in entries], classifications)
+        self.assertEqual([entry.finding.fingerprint for entry in entries], fingerprints)
+        self.assertNotEqual(entries[0].classification, "corrected")
+        self.assertEqual(session.candidate_sha, HEAD_C)
+        self.assertEqual(session.git_tree, TREE_C)
+
+        session, entries, _clock = open_default()
+        record_preflight(session, [{"path": "bundle/a", "problem": "secret"}])
+        record_preflight(session, [{"path": "bundle/b", "problem": "secret"}])
+        with self.assertRaises(ConvergenceError):
+            record_preflight(session, [{"path": "bundle/c", "problem": "secret"}])
+        self.assertEqual(session.status, STATUS_REVIEW_STALLED)
+        self.assertEqual(session.stall_reason, STALL_INFRA_EXHAUSTED)
+        self.assertFalse(session.prior_review["valid"])
+        with self.assertRaises(ConvergenceError) as raised:
+            review(session, entries, [])
+        self.assertEqual(raised.exception.code, STATUS_REVIEW_STALLED)
+        self.assertEqual(session.status, STATUS_REVIEW_STALLED)
+        self.assertEqual(session.stall_reason, STALL_INFRA_EXHAUSTED)
+        self.assertNotEqual(session.status, STATUS_REVIEW_CLEAN)
+        self.assertFalse(session.prior_review["valid"])
+        self.assertEqual(entries, [])
+        self.assertEqual(session.repair_cycle_count, 0)
+
+    def test_p2_05_touched_paths_reject_string_empty_malformed_before_state_change(self) -> None:
+        session, entries, _clock = open_default()
+        review(session, entries, [finding("old", paths=["src/old.py"])])
+        consolidate_repair_batch(session, entries)
+        frozen_head = session.candidate_sha
+        frozen_tree = session.git_tree
+        frozen_cycles = session.repair_cycle_count
+        frozen_touched = list(session.last_touched_paths)
+        frozen_status = session.status
+        frozen_batch = session.pending_batch
+        for bad in (
+            "src/old.py",
+            "",
+            [],
+            [""],
+            ["  "],
+            ["src/old.py", ""],
+            ["src/old.py", None],
+            [["src/old.py"]],
+            None,
+            {"path": "src/old.py"},
+        ):
+            with self.assertRaises(ConvergenceError) as raised:
+                apply_repair(
+                    session,
+                    entries,
+                    new_head=HEAD_B,
+                    new_tree=TREE_B,
+                    touched_paths=bad,  # type: ignore[arg-type]
+                )
+            self.assertEqual(raised.exception.code, "invalid_touched_paths")
+            self.assertEqual(session.candidate_sha, frozen_head)
+            self.assertEqual(session.git_tree, frozen_tree)
+            self.assertEqual(session.repair_cycle_count, frozen_cycles)
+            self.assertEqual(session.last_touched_paths, frozen_touched)
+            self.assertEqual(session.status, frozen_status)
+            self.assertIs(session.pending_batch, frozen_batch)
+            self.assertFalse(session.pending_batch.cycle_consumed)
+
+        apply_repair(session, entries, new_head=HEAD_B, new_tree=TREE_B, touched_paths=["src/old.py"])
+        review(
+            session,
+            entries,
+            [
+                finding("old", paths=["src/old.py"]),
+                finding("new-on-touched", paths=["src/old.py"], statement="repair left a new defect"),
+            ],
+        )
+        by_fp = {entry.finding.fingerprint: entry for entry in entries}
+        self.assertEqual(by_fp["new-on-touched"].classification, CLASS_INTRODUCED_BY_REPAIR)
+        self.assertEqual(by_fp["old"].classification, CLASS_REPEATED)
+        decision = evaluate_progress(session, entries)
+        self.assertEqual(decision.status, STATUS_REVIEW_STALLED)
+        self.assertEqual(decision.reason, STALL_REINTRODUCTION)
+        self.assertTrue(any(entry.classification == CLASS_INTRODUCED_BY_REPAIR for entry in entries))
+
 
 if __name__ == "__main__":
     unittest.main()

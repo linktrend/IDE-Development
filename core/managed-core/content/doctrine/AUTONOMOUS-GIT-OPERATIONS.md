@@ -40,18 +40,28 @@ arbitrary terminal cycle cap. Unattended work pauses after three cycles. A
 recorded founder `continue until clean` instruction authorizes further
 progressing cycles without repeated approval. `apply_repair` fails closed
 after that pause without that authority, and after `review_stalled` / HOLD,
-preserving the exact stalled identity. Repair cancels or invalidates any live
-reviewer. First-seen findings on touched paths are `introduced_by_repair`;
-only untouched paths are `newly_discovered_in_unchanged_scope`. Same-identity
+preserving the exact stalled identity. `apply_repair` requires `touched_paths`
+as a nonempty list of nonempty strings and rejects a string or malformed
+paths before changing state. Repair cancels or invalidates any live
+reviewer. First-seen findings on touched paths are `introduced_by_repair`
+and remain blocking; only untouched paths are
+`newly_discovered_in_unchanged_scope`. Same-identity
 severity reductions count as measurable progress. Compute units use an
 explicit accounting path so `maxComputeUnits` can stall truthfully. Stop only
 for repeated unresolved findings, two no-progress cycles, repair
 reintroduction, redesign/new authority, infrastructure retry exhaustion, or
 an explicit resource limit. Those stops publish a truthful HOLD /
-`review_stalled` founder packet. Implementers never review their own work.
-Reviewer silence or timeout is never clean. A later source change invalidates
-prior review and Full evidence. Full does not run until required independent
-review is clean unless repository policy explicitly requires Full first.
+`review_stalled` founder packet. `evaluate_progress` short-circuits HOLD and
+`review_stalled` and cannot rewrite timeout, silence, or malformed HOLD to
+clean or in-progress. `ingest_review` fails closed on HOLD /
+`review_stalled`; empty findings cannot mark pending or stalled identities
+corrected or fabricate clean after a stop. Implementers never review their
+own work. Reviewer silence or timeout is never clean and cannot authorize
+Full or repair until a valid exact-bound review transition explicitly clears
+the stop. A later source change invalidates prior review and Full evidence.
+Full does not run until required independent review is clean unless
+repository policy explicitly requires Full first, and never while HOLD or
+`review_stalled`.
 
 ## External boundary
 

@@ -326,6 +326,23 @@ def require_finding_paths(paths: Any) -> list[str]:
     return sorted(set(out))
 
 
+def require_touched_paths(paths: Any) -> list[str]:
+    if not isinstance(paths, list) or not paths:
+        raise ConvergenceError(
+            "invalid_touched_paths",
+            "touched_paths must be a nonempty list of nonempty strings",
+        )
+    out: list[str] = []
+    for path in paths:
+        if not isinstance(path, str) or not path.strip():
+            raise ConvergenceError(
+                "invalid_touched_paths",
+                "touched_paths must be a nonempty list of nonempty strings",
+            )
+        out.append(path.strip().replace("\\", "/"))
+    return sorted(set(out))
+
+
 def same_finding(left: Finding, right: Finding) -> bool:
     left_fp = (left.fingerprint or "").strip()
     right_fp = (right.fingerprint or "").strip()
@@ -648,6 +665,11 @@ def ingest_review(
 ) -> list[Finding]:
     clock = clock or SystemClock()
     _require_reviewer_actor(session, actor, role)
+    if session.status in {STATUS_HOLD, STATUS_REVIEW_STALLED}:
+        raise ConvergenceError(
+            session.status,
+            "ingest_review cannot overwrite a held or stalled exact-head identity",
+        )
     if payload is None or payload == {}:
         session.live_reviewer = None
         session.status = STATUS_HOLD
@@ -678,6 +700,8 @@ def ingest_review(
     )
     session.prior_review = {"valid": True, "headSha": session.candidate_sha}
     _classify_into_ledger(session, entries, findings)
+    if session.status in {STATUS_HOLD, STATUS_REVIEW_STALLED}:
+        return findings
     if not findings and not blocking_unresolved(entries):
         session.status = STATUS_REVIEW_CLEAN
         session.hold_reason = None
@@ -735,6 +759,8 @@ def _classify_into_ledger(
         )
         seen.append(existing)
     seen_ids = {id(entry) for entry in seen}
+    if session.status in {STATUS_HOLD, STATUS_REVIEW_STALLED}:
+        return
     for entry in entries:
         if id(entry) in seen_ids:
             continue
@@ -796,6 +822,7 @@ def apply_repair(
             session.status,
             "apply_repair cannot change a stalled or held exact-head identity",
         )
+    normalized_touched = require_touched_paths(touched_paths)
     if session.repair_cycle_count >= UNATTENDED_CHECKPOINT_CYCLES and not _has_continue_until_clean(session):
         session.status = STATUS_UNATTENDED_CHECKPOINT
         raise ConvergenceError(
@@ -815,7 +842,7 @@ def apply_repair(
     session.git_tree = new_tree
     session.repair_cycle_count += 1
     session.pending_batch.cycle_consumed = True
-    session.last_touched_paths = normalize_paths(touched_paths)
+    session.last_touched_paths = normalized_touched
     session.tests.extend(dict(item) for item in (tests or []))
     for entry in entries:
         if entry.finding.fingerprint in set(session.pending_batch.fingerprints):
@@ -833,6 +860,11 @@ def record_full_evidence(session: ReviewSession, *, head_sha: str) -> None:
     head_sha = require_sha(head_sha, "headSha")
     if head_sha != session.candidate_sha:
         raise ConvergenceError("stale_full", "Full evidence is not bound to the current exact head")
+    if session.status in {STATUS_HOLD, STATUS_REVIEW_STALLED}:
+        raise ConvergenceError(
+            session.status,
+            "Full cannot run while independent review is held or stalled",
+        )
     if session.status != STATUS_REVIEW_CLEAN and not session.require_full_before_review:
         raise ConvergenceError(
             "full_before_review",
@@ -897,6 +929,8 @@ def evaluate_progress(
     clock = clock or SystemClock()
     if session.status == STATUS_REVIEW_STALLED:
         return ProgressDecision(STATUS_REVIEW_STALLED, session.stall_reason, False, False, True)
+    if session.status == STATUS_HOLD:
+        return ProgressDecision(STATUS_HOLD, session.hold_reason, False, False, True)
     if session.status == STATUS_REVIEW_CLEAN:
         if blocking_unresolved(entries):
             raise ConvergenceError("findings_bypass", "clean review cannot bypass remaining blocking findings")
