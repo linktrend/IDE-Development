@@ -24,6 +24,7 @@ schemas:
   - schemas/repository-ci-contract.schema.json
   - schemas/ci-component-manifest.schema.json
   - schemas/ci-evidence.schema.json
+  - schemas/linktrend-review-gate.schema.json
   - schemas/external-state-fixture.schema.json
   - schemas/external-state-plan.schema.json
   - schemas/external-state-verify.schema.json

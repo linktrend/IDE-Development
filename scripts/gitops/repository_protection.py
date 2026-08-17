@@ -37,7 +37,8 @@ DEFAULT_FAST_GATE = ["Verify IDE Development"]
 DEFAULT_STAGING_GATE = ["Verify IDE Development"]
 DEFAULT_RELEASE_GATE = ["Verify IDE Development"]
 SOURCE_POLICY_CHECK = "Enforce allowed PR source branches"
-BUGBOT_CHECK = "Cursor Bugbot"
+REVIEW_GATE_CHECK = "Linktrend Review Gate"
+BUGBOT_CHECK = REVIEW_GATE_CHECK  # migrated managed context (WP-U01)
 
 GOVERNED = ("development", "staging", "main")
 

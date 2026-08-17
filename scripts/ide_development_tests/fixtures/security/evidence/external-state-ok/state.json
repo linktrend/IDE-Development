@@ -31,7 +31,7 @@
           "type": "required_status_checks",
           "parameters": {
             "required_status_checks": [
-              {"context": "Cursor Bugbot"},
+              {"context": "Linktrend Review Gate"},
               {"context": "Enforce allowed PR source branches"}
             ]
           }

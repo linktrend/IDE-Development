@@ -46,7 +46,7 @@ Defaults match IDE Development. Consumers override via repository variables / CL
 
 Managed baseline (order stable):
 
-1. `Cursor Bugbot`
+1. `Linktrend Review Gate`
 2. Fast-gate checks — default `Verify IDE Development`, or `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` when provided
 3. `Enforce allowed PR source branches` (always present)
 
@@ -59,7 +59,7 @@ Managed baseline:
 1. Staging-gate checks — default `Verify IDE Development`, or `LINKTREND_STAGING_GATE_CHECKS`
 2. `Enforce allowed PR source branches`
 
-Do **not** require `Cursor Bugbot` on staging promotion PRs.
+Do **not** require `Linktrend Review Gate` on staging promotion PRs.
 
 ### `main` (release-gate + Main Approve)
 
@@ -68,7 +68,7 @@ Managed baseline:
 1. Release-gate checks — default `Verify IDE Development`, or `LINKTREND_RELEASE_GATE_CHECKS`
 2. `Enforce allowed PR source branches`
 
-Do **not** require `Cursor Bugbot` on main promotion PRs.
+Do **not** require `Linktrend Review Gate` on main promotion PRs.
 Do **not** invent extra human-review rules that conflict with Lisa Main Approve (`docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`). Preserve existing `bypass_actors` on update. Main Approve remains Principal Approve of the sealed package + release-gate success on the promote head.
 
 ---
@@ -126,7 +126,7 @@ Never invent a third mechanism. Document the gap for the Principal; do not force
 
 ## Integrator / Main Approve compatibility notes
 
-- Development: required checks must include `Cursor Bugbot` + fast-gate; `allow_auto_merge=true`.
+- Development: required checks must include `Linktrend Review Gate` + fast-gate; `allow_auto_merge=true`.
 - Staging / main: merge only via temporary `promote/*` PRs after named gates; never direct-push.
 - Preserve `bypass_actors` on ruleset update so existing App / operator bypasses are not wiped.
 - Preserve non-check ruleset rules and classic `required_pull_request_reviews` / `restrictions` (and similar) on update.

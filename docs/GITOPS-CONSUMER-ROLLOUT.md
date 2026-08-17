@@ -150,7 +150,7 @@ Consumers **must** set these so Integrator / Packager / promote / repair-observe
 | `LINKTREND_RELEASE_GATE_CHECKS` | main promote gate | `Verify IDE Development` |
 | `LINKTREND_CI_WORKFLOW_NAME` | `workflow_run` / observer CI name | `CI` |
 | `LINKTREND_BRANCH_POLICY_WORKFLOW_NAME` | branch policy workflow display name | `Branch Source Policy` |
-| `LINKTREND_BUGBOT_CHECK_NAME` | Bugbot check run name | `Cursor Bugbot` |
+| `LINKTREND_BUGBOT_CHECK_NAME` / `LINKTREND_REVIEW_GATE_CHECK_NAME` | Managed review gate check name | `Linktrend Review Gate` |
 
 Note: `workflow_run.workflows` lists in YAML are **static** and must still be substituted when a consumer renames `CI` / `Branch Source Policy`.
 
@@ -197,7 +197,7 @@ Managed workflows contain `__LINKTREND_*` placeholders. Install/sync paths rende
   "schemaVersion": 1,
   "ciWorkflowName": "Consumer CI",
   "branchPolicyWorkflowName": "Branch Source Policy",
-  "bugbotCheckName": "Cursor Bugbot",
+  "bugbotCheckName": "Linktrend Review Gate",
   "runnerType": "github-hosted"
 }
 ```

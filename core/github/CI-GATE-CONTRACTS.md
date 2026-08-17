@@ -65,7 +65,7 @@ Prior green results on source branches are **not** proof of the combined promoti
 
 | Check name | Meaning |
 |------------|---------|
-| `Cursor Bugbot` | Required Bugbot success conclusion for Integrator auto-merge. |
+| `Linktrend Review Gate` | Required Bugbot success conclusion for Integrator auto-merge. |
 
 Bugbot is **not** part of `fast-gate`. Deterministic gates run first; Bugbot is requested only after `fast-gate` is green (or after Review Packager has confirmed deterministic readiness).
 
@@ -78,7 +78,7 @@ Auto-merge to `development` only when **all** are true:
 1. PR is into `development`, non-draft, open.
 2. Head SHA equals the recorded reviewed SHA (Bugbot marker / review-ready association).
 3. `fast-gate` all required checks = success.
-4. `Cursor Bugbot` = success for that head SHA.
+4. `Linktrend Review Gate` = success for that head SHA.
 5. No `conflict_blocked` / mergeability conflict.
 6. Within conflict-repair budget (see conflict recovery).
 
@@ -104,7 +104,7 @@ When syncing managed workflows into a consumer:
 Optional / informational checks that must **not** block `fast-gate`:
 
 - Docs-only or advisory workflows not listed in the gate tables
-- `Cursor Bugbot` (separate success check — see Bugbot contract)
+- `Linktrend Review Gate` (separate success check — see Bugbot contract)
 - Unrelated third-party checks not in the gate tables
 
 Missing required checks are **not ready** (missing ≠ success).
@@ -117,7 +117,7 @@ Missing required checks are **not ready** (missing ≠ success).
 |-------|----------|
 | `pull_request_target` | Initial evaluate on trusted workflow definition (scripts from default branch) |
 | `workflow_run` (every gate-producing workflow, e.g. `CI` + `Branch Source Policy`) | Reevaluate when GitHub Actions gates finish (Actions does not emit usable `check_run` workflow events for its own suites) |
-| `check_run` (non-`github-actions`) | External apps such as Cursor Bugbot |
+| `check_run` (non-`github-actions`) | External apps such as Linktrend Review Gate |
 | `schedule` / `workflow_dispatch` | Discovery / promote build windows |
 
 Privileged jobs always check out `github.event.repository.default_branch` with `persist-credentials: false`. Ordinary testing of proposed code remains in unprivileged `ci.yml` (`contents: read`).

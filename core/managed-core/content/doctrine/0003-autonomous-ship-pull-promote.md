@@ -96,9 +96,9 @@ Principal locked (IDE Development redesign):
 2. **`review_ready`:** branch-local `.linktrend/review-ready.json` with `commitSha == HEAD`. Later commits invalidate.
 3. **Review Packager:** Tuesday & Friday **08:00** Asia/Taipei (`0 0 * * 2,5` UTC). Discover eligible review-ready work → deterministic readiness → open/ready PR → Bugbot once.
 4. **Staging promote:** Tuesday & Friday **10:00** Asia/Taipei (`0 2 * * 2,5` UTC). Promote only work already merged into `development`. If not ready: skip and report why. Never force. No prefer-incoming.
-5. **Bugbot:** request command configurable; authoritative default exactly `@cursor review` (with the `@`). Success check remains `Cursor Bugbot`. Hidden idempotency marker `<!-- linktrend-bugbot-requested: <sha> -->`. Normal max 2 requests per PR (initial + one after consolidated corrections). Request accounting counts only comments that contain an executable trigger (`@cursor review` or `bugbot run`) **plus** that marker; bare historical `cursor review` + marker does **not** consume the limit.
+5. **Bugbot:** request command configurable; authoritative default exactly `@cursor review` (with the `@`). Success check remains `Linktrend Review Gate`. Hidden idempotency marker `<!-- linktrend-bugbot-requested: <sha> -->`. Normal max 2 requests per PR (initial + one after consolidated corrections). Request accounting counts only comments that contain an executable trigger (`@cursor review` or `bugbot run`) **plus** that marker; bare historical `cursor review` + marker does **not** consume the limit.
 6. **Named CI gates:** `fast-gate` / `staging-gate` / `release-gate` — never “wait for every visible check.” Missing ≠ success.
-7. **Integrator:** auto-merge only when non-draft → `development`, head SHA = reviewed SHA, fast-gate green, `Cursor Bugbot` success.
+7. **Integrator:** auto-merge only when non-draft → `development`, head SHA = reviewed SHA, fast-gate green, `Linktrend Review Gate` success.
 8. **Review freeze:** do not modify the frozen reviewed branch; continue on another issue branch/worktree.
 9. **Ship 05 / Pull 07** remain authoritative morning wave labels (not 06/08).
 10. Follow-up contracts for Lisa/OpenClaw (no edits in those repos in this change): `docs/contracts/LISA-OPENCLAW-FOLLOW-UP.md`, `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`.

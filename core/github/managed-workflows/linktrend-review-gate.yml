@@ -1,0 +1,81 @@
+name: Linktrend Review Gate
+
+# Classifies exact-head Cursor Bugbot provider results into the managed
+# Linktrend Review Gate commit status (WP-U01). Never labels advisory
+# unavailability as a Bugbot pass.
+
+on:
+  check_run:
+    types: [completed]
+
+permissions:
+  contents: read
+  statuses: write
+  pull-requests: read
+  checks: read
+
+jobs:
+  classify:
+    name: Classify Bugbot into Linktrend Review Gate
+    if: github.event.check_run.name == 'Cursor Bugbot'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.check_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Classify and publish managed gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.check_run.head_sha }}
+          CHECK_CONCLUSION: ${{ github.event.check_run.conclusion }}
+          CHECK_STATUS: ${{ github.event.check_run.status }}
+          CHECK_DETAILS: ${{ github.event.check_run.output.summary }}
+        run: |
+          set -euo pipefail
+          TREE="$(git rev-parse "${HEAD_SHA}^{tree}")"
+          ATTEMPTS="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/status" \
+            --jq '[.statuses[] | select(.context=="Linktrend Review Gate")] | length' || echo 0)"
+          ATTEMPTS=$((ATTEMPTS + 1))
+          PROVIDER_JSON=""
+          DETAILS_LC="$(printf '%s' "${CHECK_DETAILS}" | tr '[:upper:]' '[:lower:]')"
+          if printf '%s' "${DETAILS_LC}" | grep -Eq 'quota|rate limit|spending|billing|outage|unavailable|provider error'; then
+            if printf '%s' "${DETAILS_LC}" | grep -Eq 'quota|rate limit'; then CLASS=quota
+            elif printf '%s' "${DETAILS_LC}" | grep -Eq 'spending|billing'; then CLASS=spending_limit
+            elif printf '%s' "${DETAILS_LC}" | grep -Eq 'outage|unavailable'; then CLASS=service_outage
+            else CLASS=provider_error
+            fi
+            PROVIDER_JSON="$(printf '{"class":"%s"}' "${CLASS}")"
+          fi
+          ARGS=(
+            python3 scripts/gitops/linktrend_review_gate.py classify
+            --repository "${GITHUB_REPOSITORY}"
+            --head-sha "${HEAD_SHA}"
+            --git-tree "${TREE}"
+            --bugbot-state "${CHECK_STATUS}"
+            --bugbot-conclusion "${CHECK_CONCLUSION}"
+            --infrastructure-attempts "${ATTEMPTS}"
+            --result-head-sha "${HEAD_SHA}"
+          )
+          if [ -n "${PROVIDER_JSON}" ]; then
+            ARGS+=(--provider-error-json "${PROVIDER_JSON}")
+          fi
+          if printf '%s' "${DETAILS_LC}" | grep -Eq 'finding|findings|bugbot found'; then
+            ARGS+=(--findings-present)
+          fi
+          OUT="$("${ARGS[@]}")"
+          echo "${OUT}"
+          STATE="$(jq -r .commitStatus.state <<<"${OUT}")"
+          DESC="$(jq -r .commitStatus.description <<<"${OUT}")"
+          CONTEXT="$(jq -r .commitStatus.context <<<"${OUT}")"
+          CLAIM="$(jq -r .classification.bugbotPassedClaim <<<"${OUT}")"
+          OUTCOME="$(jq -r .classification.outcome <<<"${OUT}")"
+          if [ "${OUTCOME}" = "advisory-unavailable" ] && [ "${CLAIM}" = "true" ]; then
+            echo "advisory_must_not_claim_bugbot_pass"; exit 1
+          fi
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state="${STATE}" \
+            -f context="${CONTEXT}" \
+            -f description="${DESC}"

@@ -42,6 +42,7 @@ RC_REQUIRED_SCHEMA_RELS = (
     "core/managed-core/schemas/repository-ci-contract.schema.json",
     "core/managed-core/schemas/ci-component-manifest.schema.json",
     "core/managed-core/schemas/ci-evidence.schema.json",
+    "core/managed-core/schemas/linktrend-review-gate.schema.json",
     "core/managed-core/schemas/managed-core-release.schema.json",
 )
 RC_REQUIRED_TEST_RELS = (
