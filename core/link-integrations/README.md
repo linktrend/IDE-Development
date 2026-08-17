@@ -3,12 +3,24 @@
 This directory is the **fail-closed consumer boundary** for exactly five
 providers: LiNKplatform, LiNKlibraries, LiNKbrain, LiNKskills, and LiNKautowork.
 
-WP-I6-S0 freezes pin identities and the typed error class. Provider validators
-arrive in later packets. This module has **no** transport, credentials, Git
-write, Ledger, or Gate mutation APIs. It does not call live provider runtimes.
+| Module | Role |
+|---|---|
+| `pins.mjs` / `errors.mjs` | Frozen GitHub `development` tips and typed `ConsumerContractError` |
+| `platform.mjs` | Identity / permissions / capabilities (`AuthClaims 1.1.0`) |
+| `libraries.mjs` | Revision-2 immutable library references |
+| `brain.mjs` | Advisory knowledge / coordination projections |
+| `skills.mjs` | Immutable skill release addressing and bounded telemetry |
+| `autowork.mjs` | Request / status / handoff / receipt validators |
+| `mcp.mjs` | Shared MCP `2026-07-28` modern negotiation and optional OKF `0.2` mapping |
+| `index.mjs` | Public barrel after S1–S5 validators exist |
+
+This module has **no** transport, credentials, Git write, Ledger, Gate mutation,
+or nested self-install APIs. It does not call live provider runtimes. Provider
+repositories are not modified by this work.
 
 IDE Development is the system source. It must never receive a nested
-`.ide-development/` install of itself.
+`.ide-development/` install of itself. Do not run
+`python3 scripts/ide-development.py install` against this repository.
 
 ## Pin authority
 
@@ -32,13 +44,21 @@ Frozen on 2026-08-17 (Asia/Taipei) from that GitHub API:
 | skills | `linktrend/LiNKskills` | `0d6bf34546f89c9beb7f05483a3ed4deeb3a5a67` | `6c36e6c98f90e55d957fba781327b1b0ef90860a` |
 | autowork | `linktrend/LiNKautowork` | `9caab9aa33de5f96e33d67d880f2934dc6fd9fef` | `5f306d674780a5a26048017f916da6048d71e7a5` |
 
-Issue 244 pin SHAs are refused and must not appear in `pins.mjs`.
+Issue 244 pin SHAs are refused and must not appear as pins in `pins.mjs`.
 
-Export: `FROZEN_PROVIDERS` from `pins.mjs`. Typed failures use
-`ConsumerContractError` with a stable `code` from `errors.mjs`.
+## MCP and OKF
+
+`negotiateMcp('2026-07-28', 'modern')` is the only accepted negotiation.
+Legacy or session `initialize` negotiation fails closed. Optional OKF `0.2`
+mapping is field mapping only: it cannot override Brain
+`authority=advisory` / `executionAuthority=none`.
+
+Export: `FROZEN_PROVIDERS` from `pins.mjs` (also re-exported from `index.mjs`).
+Typed failures use `ConsumerContractError` with a stable `code` from `errors.mjs`.
 
 The installed Wave-1 `core/library/library-client.mjs` stays in place. This
 directory does not replace it.
 
 Managed-core materialization for the nine consumers is a later packet after
-`v2.4.0`. Provider repositories are not modified by this work.
+`v2.4.0`. Pre-rollout source stays under `core/link-integrations/` and
+`tests/link-integrations/` only.

@@ -12,6 +12,7 @@
  */
 
 import { fail } from './errors.mjs'
+import { validateOkfMapping } from './mcp.mjs'
 import { FROZEN_PROVIDERS } from './pins.mjs'
 
 export const BRAIN_CONTRACT_VERSION = '2.0.0'
@@ -27,6 +28,7 @@ const PROJECTION_KEYS = new Set([
   'projectionRef',
   'summary',
   'handoffRef',
+  'okf',
 ])
 const CONTEXT_KEYS = new Set(['providerPin', 'providerStatus'])
 const PIN_KEYS = new Set(['repository', 'commit', 'tree'])
@@ -372,6 +374,12 @@ export function validateBrainProjection(value, context = {}) {
         field: 'summary',
       })
     }
+  }
+
+  // Optional OKF mapping is validated after Brain authority gates so it can
+  // never override advisory / executionAuthority=none provider authority.
+  if (record.okf !== undefined) {
+    validateOkfMapping(record.okf)
   }
 
   /** @type {{ projectionRef: string, handoffRef?: string }} */
