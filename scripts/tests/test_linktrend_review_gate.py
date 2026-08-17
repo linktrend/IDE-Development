@@ -27,6 +27,7 @@ from scripts.gitops.linktrend_review_gate import (
     build_fallback_request_comment,
     classify_bugbot_result,
     count_infrastructure_attempts,
+    decide_founder_alert_publish,
     evaluate_fallback_review,
     evaluate_github_approval,
     founder_alert_already_recorded,
@@ -35,11 +36,13 @@ from scripts.gitops.linktrend_review_gate import (
     infrastructure_attempt_marker,
     invalidate_if_head_changed,
     migrated_required_contexts,
+    normalize_full_receipt_payload,
     reject_third_infrastructure_attempt,
     reject_undocumented_task_hold,
     require_full_receipt_for_gate_success,
     require_no_raw_bugbot_required,
     require_review_gate_on_development,
+    simulate_repeated_founder_alert_events,
     verified_provider_unavailability,
 )
 
@@ -198,6 +201,41 @@ class LinktrendReviewGateTests(unittest.TestCase):
                 git_tree=TREE,
             )
         self.assertEqual(stale.exception.code, "full_receipt_not_success")
+        with self.assertRaises(ReviewGateError) as missing_tree:
+            require_full_receipt_for_gate_success(
+                gate_success=True,
+                full_receipt={"name": FULL_SUITE_CONTEXT, "headSha": HEAD, "status": "success"},
+                head_sha=HEAD,
+                git_tree=TREE,
+            )
+        self.assertEqual(missing_tree.exception.code, "full_receipt_missing_tree")
+        # FullSuiteReceipt v2 candidateIdentity.gitTreeSha is preserved.
+        v2 = {
+            "name": FULL_SUITE_CONTEXT,
+            "candidateIdentity": {"sourceSha": HEAD, "gitTreeSha": TREE},
+            "conclusion": "success",
+        }
+        require_full_receipt_for_gate_success(
+            gate_success=True, full_receipt=v2, head_sha=HEAD, git_tree=TREE
+        )
+
+    def test_normalize_full_receipt_never_injects_live_tree(self) -> None:
+        raw = {
+            "name": FULL_SUITE_CONTEXT,
+            "headSha": HEAD,
+            "status": "success",
+            "outputSummary": f"head={HEAD}\ngitTreeSha={'d' * 40}\n",
+        }
+        normalized = normalize_full_receipt_payload(raw)
+        assert normalized is not None
+        self.assertEqual(normalized["gitTree"], "d" * 40)
+        self.assertNotEqual(normalized["gitTree"], TREE)
+        # Empty receipt stays empty — callers must not fill from live TREE.
+        empty = normalize_full_receipt_payload(
+            {"name": FULL_SUITE_CONTEXT, "headSha": HEAD, "status": "success"}
+        )
+        assert empty is not None
+        self.assertEqual(empty["gitTree"], "")
 
     def test_infrastructure_attempts_count_only_infra_markers(self) -> None:
         markers = [
@@ -297,15 +335,29 @@ class LinktrendReviewGateTests(unittest.TestCase):
             )
 
     def test_workflow_forbids_heuristic_and_wires_alert_fallback_full(self) -> None:
-        text = WORKFLOW.read_text()
-        self.assertIn("Free-text provider heuristics are forbidden", text)
-        self.assertNotIn("grep -Eq 'quota|rate limit", text)
-        self.assertIn("founder-alert", text)
-        self.assertIn("fallback", text)
-        self.assertIn("require-full-receipt", text)
-        self.assertIn("count-infra-attempts", text)
-        self.assertIn("issues: write", text)
-        self.assertIn("review-gate-provider-error.json", text)
+        for path in (WORKFLOW, MANAGED_WORKFLOW):
+            text = path.read_text()
+            self.assertIn("Free-text provider heuristics are forbidden", text)
+            self.assertNotIn("grep -Eq 'quota|rate limit", text)
+            self.assertIn("founder-alert", text)
+            self.assertIn("founder-alert-dedupe", text)
+            self.assertIn("fallback", text)
+            self.assertIn("require-full-receipt", text)
+            self.assertIn("normalize-full-receipt", text)
+            self.assertIn("count-infra-attempts", text)
+            self.assertIn("issues: write", text)
+            self.assertIn("review-gate-provider-error.json", text)
+            # U01-R3: never overwrite receipt tree with live TREE.
+            self.assertNotIn(".gitTree=$t", text)
+            self.assertNotIn("gitTree:$t", text)
+            self.assertIn("never overwrite with live TREE", text)
+            # U01-R2: dedupe from issue bodies with fail-closed read.
+            self.assertIn("issue-bodies-json", text)
+            self.assertIn("founder_alert_dedupe_unreadable", text)
+            self.assertIn("select(has(\"pull_request\") | not)", text)
+            # U01-R4: infra marker publication is fail-closed.
+            self.assertIn("infra_attempt_marker_persist_failed", text)
+            self.assertNotIn('-f body="${INFRA_MARKER}" >/dev/null || true', text)
 
     def test_durable_founder_alert_dedupe_and_fail_closed(self) -> None:
         advisory = self._classify(
@@ -320,9 +372,59 @@ class LinktrendReviewGateTests(unittest.TestCase):
             founder_alert_already_recorded([alert["body"]], head_sha=HEAD)
         )
         self.assertFalse(founder_alert_already_recorded(["other"], head_sha=HEAD))
+        # Issue-body dedupe decision path.
+        first = decide_founder_alert_publish(
+            alert_required=True,
+            issue_bodies=[],
+            bodies_readable=True,
+            head_sha=HEAD,
+        )
+        self.assertTrue(first["publish"])
+        second = decide_founder_alert_publish(
+            alert_required=True,
+            issue_bodies=[alert["body"]],
+            bodies_readable=True,
+            head_sha=HEAD,
+        )
+        self.assertFalse(second["publish"])
+        self.assertEqual(second["reason"], "already_recorded")
+        with self.assertRaises(ReviewGateError) as unreadable:
+            decide_founder_alert_publish(
+                alert_required=True,
+                issue_bodies=None,
+                bodies_readable=False,
+                head_sha=HEAD,
+            )
+        self.assertEqual(unreadable.exception.code, "founder_alert_dedupe_unreadable")
+        # Repeated workflow events create exactly one durable alert.
+        repeated = simulate_repeated_founder_alert_events(alert_required=True, head_sha=HEAD)
+        self.assertEqual(repeated["created"], 1)
         passed = self._classify()
         with self.assertRaises(ReviewGateError):
             build_durable_founder_alert(passed)
+
+    def test_workflow_path_wrong_tree_receipt_negative(self) -> None:
+        """Adversarial: receipt tree differs from live TREE and must fail closed."""
+        receipt = {
+            "name": FULL_SUITE_CONTEXT,
+            "headSha": HEAD,
+            "gitTree": "d" * 40,
+            "status": "success",
+        }
+        # Simulate the fixed workflow: normalize without injecting live TREE.
+        normalized = normalize_full_receipt_payload(receipt)
+        assert normalized is not None
+        self.assertEqual(normalized["gitTree"], "d" * 40)
+        with self.assertRaises(ReviewGateError) as ctx:
+            require_full_receipt_for_gate_success(
+                gate_success=True,
+                full_receipt=normalized,
+                head_sha=HEAD,
+                git_tree=TREE,
+            )
+        self.assertEqual(ctx.exception.code, "full_receipt_wrong_tree")
+        # Old buggy overwrite path would have masked this — prove inject is absent.
+        self.assertNotIn('.gitTree=$t', WORKFLOW.read_text())
 
     def test_undocumented_task_hold_rejected(self) -> None:
         reject_undocumented_task_hold(configured_gates_passed=True, task_hold=None)

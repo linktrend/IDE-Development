@@ -42,7 +42,8 @@ Do not claim Bugbot passed under `advisory-unavailable`.
 When classification sets `alertFounder`, the managed workflow must publish a
 deduplicated GitHub issue (marker `<!-- linktrend-review-gate-alert: <sha> -->`)
 with the sanitized alert body. In-memory fields alone are not sufficient.
-Alert publish failure is fail-closed.
+Dedupe inspects prior alert **issue bodies** (paginated) and fails closed when
+that state cannot be read. Alert publish failure is fail-closed.
 
 ## Trusted unavailability evidence
 
@@ -53,5 +54,12 @@ convert `conclusion=failure` into gate success.
 ## Full receipt before success
 
 Publishing a successful `Linktrend Review Gate` status requires an exact-head
-Full Suite success receipt/check. Missing, wrong-head, wrong-tree, or non-success
-Full evidence fails closed.
+Full Suite success receipt/check. The receipt-provided `gitTree` is preserved
+and compared independently to the live exact tree; never overwrite receipt tree
+with live `TREE`. Missing, wrong-head, wrong-tree, or non-success Full evidence
+fails closed.
+
+## Infrastructure attempt accounting
+
+Infrastructure retry markers must be persisted fail-closed. Do not swallow
+marker publication failures with `|| true`.

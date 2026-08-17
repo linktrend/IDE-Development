@@ -95,19 +95,27 @@ jobs:
           fi
 
           # Exact Full receipt/check required before publishing a successful gate.
+          # Preserve receipt-provided gitTree; never overwrite with live TREE.
           if [ "${GATE_SUCCESS}" = "true" ]; then
-            FULL_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs" \
-              --jq --arg head "${HEAD_SHA}" '
-                [.check_runs[]
-                  | select(.name=="Linktrend Full Suite")
-                  | {name:.name, headSha:.head_sha, gitTree:"", status:(.conclusion // .status)}
-                ] | .[0] // empty' || true)"
-            if [ -z "${FULL_JSON}" ] || [ "${FULL_JSON}" = "null" ]; then
-              FULL_JSON="$(jq -n --arg h "${HEAD_SHA}" --arg t "${TREE}" \
-                '{name:"Linktrend Full Suite",headSha:$h,gitTree:$t,status:"missing"}')"
+            FULL_RAW=""
+            if [ -f .linktrend/full-suite-receipt.json ]; then
+              FULL_RAW="$(cat .linktrend/full-suite-receipt.json)"
             else
-              FULL_JSON="$(jq --arg t "${TREE}" '.gitTree=$t' <<<"${FULL_JSON}")"
+              FULL_RAW="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs" \
+                --jq '
+                  [.check_runs[]
+                    | select(.name=="Linktrend Full Suite")
+                    | {
+                        name:.name,
+                        headSha:.head_sha,
+                        status:(.conclusion // .status),
+                        outputSummary:(.output.summary // "")
+                      }
+                  ] | .[0] // empty')" \
+                || { echo "full_receipt_check_lookup_failed"; exit 1; }
             fi
+            FULL_JSON="$(python3 scripts/gitops/linktrend_review_gate.py normalize-full-receipt \
+              --receipt-json "${FULL_RAW:-null}")"
             python3 scripts/gitops/linktrend_review_gate.py require-full-receipt \
               --gate-success \
               --full-receipt-json "${FULL_JSON}" \
@@ -115,13 +123,21 @@ jobs:
               --git-tree "${TREE}"
           fi
 
-          # Durable founder alert (deduped) — fail closed when required.
+          # Durable founder alert (deduped via prior alert ISSUE BODIES) — fail closed.
           if [ "${ALERT}" = "true" ]; then
             CLASS_JSON="$(jq -c .classification <<<"${OUT}")"
             ALERT_JSON="$(python3 scripts/gitops/linktrend_review_gate.py founder-alert \
               --classification-json "${CLASS_JSON}")"
-            MARKER="$(jq -r .marker <<<"${ALERT_JSON}")"
-            if ! printf '%s\n' "${MARKERS_JSON}" | grep -Fq "${MARKER}"; then
+            ALERT_BODIES_JSON="$(gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/issues?state=all&filter=all&per_page=100" \
+              --jq '[.[] | select(has("pull_request") | not) | (.body // "")]' \
+              )" || { echo "founder_alert_dedupe_unreadable"; exit 1; }
+            DECISION="$(python3 scripts/gitops/linktrend_review_gate.py founder-alert-dedupe \
+              --head-sha "${HEAD_SHA}" \
+              --issue-bodies-json "${ALERT_BODIES_JSON}" \
+              --alert-required \
+              --bodies-readable)"
+            if [ "$(jq -r .publish <<<"${DECISION}")" = "true" ]; then
               TITLE="$(jq -r .title <<<"${ALERT_JSON}")"
               BODY="$(jq -r .body <<<"${ALERT_JSON}")"
               gh api --method POST "repos/${GITHUB_REPOSITORY}/issues" \
@@ -129,13 +145,13 @@ jobs:
                 -f body="${BODY}" >/tmp/review-gate-alert.json \
                 || { echo "founder_alert_publish_failed"; exit 1; }
             fi
-            # Record infrastructure attempt marker on the PR when present.
-            if [ -n "${PR_NUMBER}" ]; then
-              INFRA_MARKER="$(jq -r '.infraAttemptMarker // empty' <<<"${OUT}")"
-              if [ -n "${INFRA_MARKER}" ]; then
-                gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-                  -f body="${INFRA_MARKER}" >/dev/null || true
-              fi
+            # Record infrastructure attempt marker — fail closed when accounting cannot persist.
+            INFRA_MARKER="$(jq -r '.infraAttemptMarker // empty' <<<"${OUT}")"
+            if [ -n "${INFRA_MARKER}" ]; then
+              [ -n "${PR_NUMBER}" ] || { echo "infra_attempt_marker_requires_pr"; exit 1; }
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+                -f body="${INFRA_MARKER}" >/dev/null \
+                || { echo "infra_attempt_marker_persist_failed"; exit 1; }
             fi
           fi
 

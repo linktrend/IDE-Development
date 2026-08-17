@@ -328,8 +328,107 @@ def build_durable_founder_alert(classification: Classification) -> dict[str, Any
 
 
 def founder_alert_already_recorded(existing_bodies: Sequence[str], *, head_sha: str) -> bool:
+    """Return True when a prior founder-alert issue body already carries the marker."""
     marker = founder_alert_marker(head_sha)
     return any(marker in _norm(body) for body in existing_bodies or [])
+
+
+def decide_founder_alert_publish(
+    *,
+    alert_required: bool,
+    issue_bodies: Sequence[str] | None,
+    bodies_readable: bool,
+    head_sha: str,
+) -> dict[str, Any]:
+    """Decide whether to create a founder-alert issue.
+
+    Dedupe inspects prior alert **issue bodies** only. If dedupe state cannot be
+    read, fail closed.
+    """
+    if not alert_required:
+        return {"publish": False, "reason": "not_required"}
+    if not bodies_readable:
+        raise ReviewGateError(
+            "founder_alert_dedupe_unreadable",
+            "cannot read prior founder-alert issue bodies",
+        )
+    marker = founder_alert_marker(head_sha)
+    if founder_alert_already_recorded(issue_bodies or [], head_sha=head_sha):
+        return {"publish": False, "reason": "already_recorded", "marker": marker}
+    return {"publish": True, "reason": "create", "marker": marker}
+
+
+def simulate_repeated_founder_alert_events(
+    *,
+    alert_required: bool,
+    head_sha: str,
+    prior_issue_bodies: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    """Workflow-path proof: repeated events create at most one durable alert."""
+    bodies = list(prior_issue_bodies or [])
+    created = 0
+    for _ in range(2):
+        decision = decide_founder_alert_publish(
+            alert_required=alert_required,
+            issue_bodies=bodies,
+            bodies_readable=True,
+            head_sha=head_sha,
+        )
+        if decision.get("publish"):
+            created += 1
+            bodies.append(f"{decision['marker']}\nsimulated durable founder alert\n")
+    return {"created": created, "bodies": bodies, "marker": founder_alert_marker(head_sha)}
+
+
+def normalize_full_receipt_payload(raw: Any) -> dict[str, Any] | None:
+    """Normalize Full check/receipt JSON without injecting the live tree.
+
+    Receipt ``gitTree`` must come from the Full receipt/check itself (flat
+    fields, ``candidateIdentity.gitTreeSha``, or embedded summary text).
+    """
+    if raw is None or raw == "" or raw == "null":
+        return None
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text or text == "null":
+            return None
+        try:
+            loaded = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ReviewGateError("invalid_full_receipt", "receipt JSON is malformed") from exc
+        return normalize_full_receipt_payload(loaded)
+    if not isinstance(raw, Mapping):
+        raise ReviewGateError("invalid_full_receipt", "full receipt must be an object")
+
+    candidate = raw.get("candidateIdentity")
+    head = _norm(raw.get("headSha") or raw.get("head") or "")
+    # Never accept a caller-supplied live tree overwrite here — only receipt fields.
+    tree = _norm(raw.get("gitTree") or raw.get("gitTreeSha") or raw.get("tree") or "")
+    if isinstance(candidate, Mapping):
+        head = head or _norm(candidate.get("sourceSha") or candidate.get("headCommit") or "")
+        tree = tree or _norm(candidate.get("gitTreeSha") or candidate.get("gitTree") or "")
+    summary = _norm(
+        raw.get("outputSummary")
+        or raw.get("summary")
+        or ((raw.get("output") or {}) if isinstance(raw.get("output"), Mapping) else {}).get("summary")
+        or ""
+    )
+    if not tree:
+        match = re.search(r"\b(?:gitTree|gitTreeSha)=([0-9a-f]{40})\b", summary)
+        if match:
+            tree = match.group(1)
+    if not head:
+        match = re.search(r"\bhead=([0-9a-f]{40})\b", summary)
+        if match:
+            head = match.group(1)
+    status = _norm(raw.get("status") or raw.get("conclusion") or "")
+    name = _norm(raw.get("name") or raw.get("context") or FULL_SUITE_CONTEXT)
+    return {
+        "name": name or FULL_SUITE_CONTEXT,
+        "headSha": head,
+        "gitTree": tree,
+        "status": status,
+    }
 
 
 def require_full_receipt_for_gate_success(
@@ -339,23 +438,40 @@ def require_full_receipt_for_gate_success(
     head_sha: str,
     git_tree: str,
 ) -> None:
-    """Successful managed gate publish requires an exact-head Full receipt/check."""
+    """Successful managed gate publish requires an exact-head Full receipt/check.
+
+    The receipt-provided ``gitTree`` is preserved and compared independently to
+    the live exact tree. Callers must never overwrite receipt tree with live TREE.
+    """
     if not gate_success:
         return
     head = require_sha40(head_sha, "head_sha")
-    tree = require_sha40(git_tree, "git_tree")
-    if not full_receipt:
+    live_tree = require_sha40(git_tree, "git_tree")
+    normalized = normalize_full_receipt_payload(full_receipt)
+    if not normalized:
         raise ReviewGateError("full_receipt_missing", "successful gate requires Full receipt")
-    receipt_head = require_sha40(str(full_receipt.get("headSha") or ""), "full_receipt.headSha")
-    receipt_tree = require_sha40(str(full_receipt.get("gitTree") or full_receipt.get("tree") or ""), "full_receipt.gitTree")
-    status = _lower(full_receipt.get("status") or full_receipt.get("conclusion") or "")
-    context = _norm(full_receipt.get("context") or full_receipt.get("name") or FULL_SUITE_CONTEXT)
+    receipt_head_raw = _norm(normalized.get("headSha"))
+    receipt_tree_raw = _norm(normalized.get("gitTree"))
+    if not receipt_head_raw:
+        raise ReviewGateError("full_receipt_missing_head", "receipt headSha missing")
+    if not receipt_tree_raw:
+        raise ReviewGateError(
+            "full_receipt_missing_tree",
+            "receipt gitTree must come from Full receipt, not live TREE",
+        )
+    receipt_head = require_sha40(receipt_head_raw, "full_receipt.headSha")
+    receipt_tree = require_sha40(receipt_tree_raw, "full_receipt.gitTree")
+    status = _lower(normalized.get("status"))
+    context = _norm(normalized.get("name") or FULL_SUITE_CONTEXT)
     if context not in {FULL_SUITE_CONTEXT, "full", "full-gate", "Linktrend Full Suite"}:
         raise ReviewGateError("full_receipt_wrong_context", context)
     if receipt_head != head:
         raise ReviewGateError("full_receipt_wrong_head", f"receipt={receipt_head} live={head}")
-    if receipt_tree != tree:
-        raise ReviewGateError("full_receipt_wrong_tree", f"receipt={receipt_tree} live={tree}")
+    if receipt_tree != live_tree:
+        raise ReviewGateError(
+            "full_receipt_wrong_tree",
+            f"receipt={receipt_tree} live={live_tree}",
+        )
     if status not in {"success", "passed"}:
         raise ReviewGateError("full_receipt_not_success", status or "missing")
 
@@ -672,8 +788,28 @@ def main(argv: list[str] | None = None) -> int:
     fr.add_argument("--head-sha", required=True)
     fr.add_argument("--git-tree", required=True)
 
+    nr = sub.add_parser(
+        "normalize-full-receipt",
+        help="Normalize Full receipt/check JSON without injecting live TREE",
+    )
+    nr.add_argument("--receipt-json", required=True)
+
     fa = sub.add_parser("founder-alert", help="Build durable founder-alert payload")
     fa.add_argument("--classification-json", required=True)
+
+    fd = sub.add_parser(
+        "founder-alert-dedupe",
+        help="Decide founder-alert publish from prior issue bodies (fail closed)",
+    )
+    fd.add_argument("--head-sha", required=True)
+    fd.add_argument("--issue-bodies-json", required=True)
+    fd.add_argument("--alert-required", action="store_true")
+    fd.add_argument(
+        "--bodies-readable",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="False when issue-body pagination/read failed",
+    )
 
     ci = sub.add_parser("count-infra-attempts", help="Count infrastructure retry markers")
     ci.add_argument("--head-sha", required=True)
@@ -756,9 +892,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"ok": True, "attempts": args.attempts}, indent=2))
             return 0
         if args.command == "require-full-receipt":
-            receipt = _load_json_arg(args.full_receipt_json)
-            if receipt is not None and not isinstance(receipt, dict):
-                raise ReviewGateError("invalid_full_receipt", "full-receipt-json must be object or null")
+            receipt = normalize_full_receipt_payload(_load_json_arg(args.full_receipt_json))
             require_full_receipt_for_gate_success(
                 gate_success=args.gate_success,
                 full_receipt=receipt,
@@ -767,14 +901,20 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(json.dumps({"ok": True}, indent=2, sort_keys=True))
             return 0
+        if args.command == "normalize-full-receipt":
+            normalized = normalize_full_receipt_payload(_load_json_arg(args.receipt_json))
+            print(json.dumps(normalized, indent=2, sort_keys=True))
+            return 0
         if args.command == "founder-alert":
             raw = _load_json_arg(args.classification_json)
+            if not isinstance(raw, dict):
+                raise ReviewGateError("invalid_classification", "classification-json must be object")
             classification = Classification(
                 outcome=str(raw["outcome"]),
                 gateSuccess=bool(raw["gateSuccess"]),
                 bugbotPassedClaim=bool(raw["bugbotPassedClaim"]),
                 alertFounder=bool(raw["alertFounder"]),
-                detail=str(raw["detail"]),
+                detail=str(raw.get("detail") or ""),
                 headSha=str(raw["headSha"]),
                 gitTree=str(raw["gitTree"]),
                 repository=str(raw["repository"]),
@@ -784,6 +924,18 @@ def main(argv: list[str] | None = None) -> int:
                 sanitizedAlert=raw.get("sanitizedAlert"),
             )
             print(json.dumps(build_durable_founder_alert(classification), indent=2, sort_keys=True))
+            return 0
+        if args.command == "founder-alert-dedupe":
+            bodies_raw = _load_json_arg(args.issue_bodies_json)
+            if not isinstance(bodies_raw, list):
+                raise ReviewGateError("invalid_issue_bodies", "issue-bodies-json must be a list")
+            decision = decide_founder_alert_publish(
+                alert_required=args.alert_required,
+                issue_bodies=[str(x) for x in bodies_raw],
+                bodies_readable=bool(args.bodies_readable),
+                head_sha=args.head_sha,
+            )
+            print(json.dumps(decision, indent=2, sort_keys=True))
             return 0
         if args.command == "count-infra-attempts":
             markers = _load_json_arg(args.markers_json)
@@ -796,11 +948,17 @@ def main(argv: list[str] | None = None) -> int:
             fallback = _load_json_arg(args.fallback_json)
             if not isinstance(fallback, dict):
                 raise ReviewGateError("invalid_fallback", "fallback-json must be object")
-            print(json.dumps(build_fallback_request_comment(fallback=fallback, head_sha=args.head_sha), indent=2, sort_keys=True))
+            print(
+                json.dumps(
+                    build_fallback_request_comment(fallback=fallback, head_sha=args.head_sha),
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
             return 0
         raise ReviewGateError("unknown_command", args.command)
     except ReviewGateError as exc:
-        print(json.dumps({"error": exc.code, "detail": exc.detail}, indent=2, sort_keys=True))
+        print(json.dumps({"error": exc.code, "detail": exc.detail}, indent=2, sort_keys=True), file=sys.stderr)
         return 2
 
 
