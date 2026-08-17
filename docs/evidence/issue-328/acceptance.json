@@ -7,24 +7,28 @@
   "identityModel": "content-head/evidence-head",
   "startSha": "70acec9871cd23598b1db264946b4f0c00291ac3",
   "startTree": "cc1f666dccce26545884f87dc065f7cfcd86a235",
-  "priorTip": "70acec9871cd23598b1db264946b4f0c00291ac3",
-  "contentHeadSha": "fce4018d97b639fd1712f2ee2bdeea65126472d4",
-  "contentTree": "5834a95d72daea8212dba2336101bab16f45ca5f",
-  "implementationHeadSha": "fce4018d97b639fd1712f2ee2bdeea65126472d4",
-  "implementationTree": "5834a95d72daea8212dba2336101bab16f45ca5f",
-  "headSha": "fce4018d97b639fd1712f2ee2bdeea65126472d4",
-  "tree": "5834a95d72daea8212dba2336101bab16f45ca5f",
-  "acceptance": "Repaired PR #326 Fast secret_scan, Verify IDE vendored-skills, and cross-platform installer matrix package_v2 CI-contract load; narrow reproductions OK; manifest verify OK; diff --check OK",
+  "priorTip": "cfa141aced4e4843f7d5f51a0b76c3d64f384b72",
+  "priorTree": "09eef53c721e0f00a81d048b565352a1a4fc841b",
+  "contentHeadSha": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
+  "contentTree": "0b900215b13088735588eb5ea2563069e634b865",
+  "implementationHeadSha": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
+  "implementationTree": "0b900215b13088735588eb5ea2563069e634b865",
+  "headSha": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
+  "tree": "0b900215b13088735588eb5ea2563069e634b865",
+  "acceptance": "Preserved A–C repairs; closed Verify IDE managed-workflow render drift for linktrend-repair-observer.yml via official sync; narrow local render/sync/bounded-verify/manifest/diff OK. Does not claim hosted CI pass after D.",
   "covered": [
     "A-secret-scan-fixture-binding-and-publisher-literal",
     "B-vendored-skills-hash-inventory",
-    "C-package-v2-repository-ci-contract-stub"
+    "C-package-v2-repository-ci-contract-stub",
+    "D-repair-observer-managed-workflow-render-sync"
   ],
   "githubFailures": {
     "fast": "32058396059",
     "verifyIde": "32058396209",
-    "crossPlatformMatrix": "32056985170"
+    "crossPlatformMatrix": "32056985170",
+    "verifyIdeRepairObserverDrift": "32060954525"
   },
+  "hostedCiClaim": false,
   "exclusions": [
     "Full suite",
     "phase branch/PR update",
@@ -37,59 +41,62 @@
     "protection changes",
     "GitHub CI re-run",
     "self-review",
-    "review-ready publish"
+    "review-ready publish",
+    "hosted CI pass claim for tip after D"
   ],
   "rollback": [
     "Leave issue branch unmerged; no prefer-incoming",
     "Do not weaken secret-scan fail-closed policy",
-    "Do not disable vendored-skills verification"
+    "Do not disable vendored-skills verification",
+    "Do not weaken managed-workflow render checks"
   ],
   "changedFiles": [
     ".github/linktrend-secret-scan-fixtures.json",
+    ".github/workflows/linktrend-repair-observer.yml",
     "core/runtime/skills/VENDOR-MANIFEST.json",
     "scripts/ide_development_tests/fixtures/package_v2/scripts/gitops/repository_ci_contract.py",
     "scripts/tests/test-review-ready-publisher.sh"
   ],
+  "priorCommandsRetained": true,
   "commands": [
     {
-      "command": "python3 scripts/gitops/secret_scan.py",
+      "command": "bash scripts/sync-managed-workflows.sh .",
       "exitCode": 0,
-      "evidencePath": "docs/evidence/issue-328/secret-scan.out",
-      "againstHead": "fce4018d97b639fd1712f2ee2bdeea65126472d4",
-      "againstTree": "5834a95d72daea8212dba2336101bab16f45ca5f"
+      "notes": "Official sync; updated only linktrend-repair-observer.yml",
+      "againstHead": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
+      "againstTree": "0b900215b13088735588eb5ea2563069e634b865"
     },
     {
-      "command": "bash scripts/verify-vendored-skills.sh",
+      "command": "verify-ide-development managed-workflow render check (exact embedded python)",
       "exitCode": 0,
-      "evidencePath": "docs/evidence/issue-328/verify-vendored-skills.out",
-      "againstHead": "fce4018d97b639fd1712f2ee2bdeea65126472d4",
-      "againstTree": "5834a95d72daea8212dba2336101bab16f45ca5f"
+      "evidencePath": "docs/evidence/issue-328/managed-workflow-render-check.out",
+      "againstHead": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
+      "againstTree": "0b900215b13088735588eb5ea2563069e634b865"
     },
     {
-      "command": "python3 scripts/run_cross_platform_matrix.py",
+      "command": "bash scripts/sync-managed-workflows.sh . --dry-run",
       "exitCode": 0,
-      "evidencePath": "docs/evidence/issue-328/installer-matrix.out",
-      "testsRan": 87,
-      "againstHead": "fce4018d97b639fd1712f2ee2bdeea65126472d4",
-      "againstTree": "5834a95d72daea8212dba2336101bab16f45ca5f"
+      "evidencePath": "docs/evidence/issue-328/managed-workflow-sync-dry.out",
+      "againstHead": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
+      "againstTree": "0b900215b13088735588eb5ea2563069e634b865"
+    },
+    {
+      "command": "bounded verify-ide-development.sh through managed-workflow pass",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-328/verify-ide-bounded-through-managed-workflows.out",
+      "againstHead": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
+      "againstTree": "0b900215b13088735588eb5ea2563069e634b865",
+      "notes": "Stops after managed-workflow render pass; does not run later expensive verify suites"
     },
     {
       "command": "python3 -m scripts.ide_development.build_manifest --verify",
       "exitCode": 0,
-      "evidencePath": "docs/evidence/issue-328/manifest-verify.out"
+      "evidencePath": "docs/evidence/issue-328/manifest-verify-repair-observer.out"
     },
     {
       "command": "git diff --check",
       "exitCode": 0,
-      "evidencePath": "docs/evidence/issue-328/diff-check.out"
-    },
-    {
-      "command": "python3 -m unittest scripts.tests.test_fixture_aware_secret_scan",
-      "exitCode": 0,
-      "evidencePath": "docs/evidence/issue-328/fixture-aware-secret-scan.out",
-      "testsRan": 29
+      "evidencePath": "docs/evidence/issue-328/diff-check-repair-observer.out"
     }
-  ],
-  "evidenceHeadSha": "cf356fddf0e58cef9e5ad542c50ee079ac8ecf52",
-  "evidenceTree": "46cb697648893340931e3333139586be5e104694"
+  ]
 }
