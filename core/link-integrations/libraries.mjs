@@ -3,8 +3,12 @@
  *
  * Consumes `FROZEN_PROVIDERS.libraries` and `ConsumerContractError`. Accepts
  * only immutable provider/tree/catalogue/entry identities with well-formed
- * digests and `verified_cache` or `consumption` receipts. Does not pull
- * remote objects, execute payloads, call live providers, or replace the
+ * digests and `verified_cache` or `consumption` receipts. Snapshots own
+ * enumerable plain data properties before any read; inherited, prototype,
+ * accessor, getter, setter, and TOCTOU inputs are rejected. Validation and
+ * the returned reference use only that immutable snapshot, including a
+ * deep-frozen `catalogueRecord` when present. This module never pulls
+ * remote objects, executes payloads, calls live providers, or replaces the
  * installed Wave-1 library client.
  */
 
@@ -74,13 +78,122 @@ const REQUIRED_CATALOGUE = ['catalogueSha256', 'catalogueRecordsSha256']
 
 /**
  * @param {unknown} value
+ * @param {string} [code]
  * @returns {Record<string, unknown>}
  */
-function object(value) {
+function object(value, code = 'invalid_object') {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    fail('invalid_object', 'library reference must be a non-array object')
+    fail(code, 'library reference must be a non-array object')
   }
   return /** @type {Record<string, unknown>} */ (value)
+}
+
+/**
+ * @param {unknown} item
+ * @param {string} code
+ * @param {string} label
+ * @param {number} depth
+ * @returns {unknown}
+ */
+function snapshotChild(item, code, label, depth) {
+  if (item === null || typeof item !== 'object') return item
+  if (Array.isArray(item)) return snapshotArray(item, code, label, depth + 1)
+  return snapshotOwnEnumerablePlainData(item, code, label, depth + 1)
+}
+
+/**
+ * @param {object} proto
+ * @param {string} label
+ */
+function rejectInheritedEnumerable(proto, label) {
+  const protoDescriptors = Object.getOwnPropertyDescriptors(proto)
+  for (const key of Object.keys(protoDescriptors)) {
+    if (protoDescriptors[key].enumerable) {
+      fail('inherited_property', `${label} inherits a property: ${key}`, {
+        classification: 'fail_closed',
+        field: key,
+      })
+    }
+  }
+}
+
+/**
+ * @param {unknown} value
+ * @param {string} code
+ * @param {string} label
+ * @param {number} depth
+ * @returns {readonly unknown[]}
+ */
+function snapshotArray(value, code, label, depth) {
+  if (depth > 5) fail('payload_too_deep', 'library reference exceeded bounded depth')
+  const list = /** @type {unknown[]} */ (value)
+  const descriptors = Object.getOwnPropertyDescriptors(list)
+  const proto = Object.getPrototypeOf(list)
+  if (proto !== Array.prototype && proto !== null) {
+    fail('inherited_property', `${label} array must be a plain array`, { classification: 'fail_closed' })
+  }
+  if (proto === Array.prototype) {
+    rejectInheritedEnumerable(proto, label)
+  }
+  for (const key of Object.keys(descriptors)) {
+    if (key === 'length') continue
+    const desc = descriptors[key]
+    if (desc.get !== undefined || desc.set !== undefined) {
+      fail('accessor_property', `${label} array has an accessor: ${key}`, {
+        classification: 'fail_closed',
+        field: key,
+      })
+    }
+    if (desc.enumerable && !/^(0|[1-9]\d*)$/.test(key)) {
+      fail('unknown_field', `${label} array has a non-index field: ${key}`, {
+        classification: 'fail_closed',
+        field: key,
+      })
+    }
+  }
+  const length = descriptors.length && typeof descriptors.length.value === 'number' ? descriptors.length.value : 0
+  const copy = []
+  for (let index = 0; index < length; index += 1) {
+    const desc = descriptors[String(index)]
+    copy[index] = desc ? snapshotChild(desc.value, code, label, depth) : undefined
+  }
+  return Object.freeze(copy)
+}
+
+/**
+ * Copy own enumerable plain data properties before any semantic read.
+ * Rejects inherited, prototype, accessor, getter, setter, and TOCTOU inputs.
+ *
+ * @param {unknown} value
+ * @param {string} [code]
+ * @param {string} [label]
+ * @param {number} [depth]
+ * @returns {Record<string, unknown>}
+ */
+function snapshotOwnEnumerablePlainData(value, code = 'invalid_object', label = 'library reference', depth = 0) {
+  if (depth > 5) fail('payload_too_deep', 'library reference exceeded bounded depth')
+  const record = object(value, code)
+  const proto = Object.getPrototypeOf(record)
+  const descriptors = Object.getOwnPropertyDescriptors(record)
+  if (proto !== Object.prototype && proto !== null) {
+    fail('inherited_property', `${label} must be a plain object`, { classification: 'fail_closed' })
+  }
+  if (proto === Object.prototype) {
+    rejectInheritedEnumerable(proto, label)
+  }
+  const snapshot = Object.create(null)
+  for (const key of Object.keys(descriptors)) {
+    const desc = descriptors[key]
+    if (desc.get !== undefined || desc.set !== undefined) {
+      fail('accessor_property', `${label} has an accessor: ${key}`, {
+        classification: 'fail_closed',
+        field: key,
+      })
+    }
+    if (!desc.enumerable) continue
+    snapshot[key] = snapshotChild(desc.value, code, label, depth)
+  }
+  return Object.freeze(snapshot)
 }
 
 /**
@@ -163,7 +276,7 @@ function assertCatalogueEntryBinding(value) {
  * @returns {Readonly<Record<string, unknown>>}
  */
 export function validateLibraryReference(facts) {
-  const value = object(facts)
+  const value = snapshotOwnEnumerablePlainData(facts)
   rejectSensitive(value)
   rejectUnknown(value, ALLOWED_KEYS)
 
@@ -256,6 +369,7 @@ export function validateLibraryReference(facts) {
   }
   if (value.contentMode === 'metadata_only') {
     fail('library_not_selectable', 'metadata-only library references are not selectable', {
+      classification: 'denied',
       contentMode: value.contentMode,
     })
   }
@@ -263,5 +377,5 @@ export function validateLibraryReference(facts) {
     fail('library_identity_invalid', 'library contentMode is malformed', { field: 'contentMode' })
   }
 
-  return Object.freeze({ ...value })
+  return value
 }

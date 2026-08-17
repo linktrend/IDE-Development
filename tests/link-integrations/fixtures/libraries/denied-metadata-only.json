@@ -15,7 +15,7 @@
   "receiptType": "verified_cache",
   "receiptId": "external-synthetic-component-1.0.0",
   "lifecycle": "admitted",
-  "selectability": "non_selectable",
+  "selectability": "selectable",
   "compatibility": "compatible",
   "contentMode": "metadata_only"
 }

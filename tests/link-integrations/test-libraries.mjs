@@ -19,6 +19,18 @@ function throws(fn, code) {
   assert.throws(fn, (error) => error instanceof ConsumerContractError && error.code === code)
 }
 
+function classify(fn, code, classification) {
+  try {
+    fn()
+    assert.fail(`expected ${code}`)
+  } catch (error) {
+    assert.ok(error instanceof ConsumerContractError)
+    assert.equal(error.code, code)
+    assert.equal(error.details.classification, classification)
+    return error
+  }
+}
+
 test('AC-I6-POS-libraries: accepts a frozen verified_cache reference', () => {
   const facts = load('positive-verified-cache.json')
   const accepted = validateLibraryReference(facts)
@@ -36,8 +48,12 @@ test('AC-I6-POS-libraries: accepts a frozen verified_cache reference', () => {
   assert.equal(accepted.catalogueRecordsSha256, 'dcabdfa363fe419d5b1ec04266efb65bd835ea5bc916c770d587404a2abe97a5')
   assert.equal(accepted.releaseManifestSha256, '6b9979777561d1771294ff4ddd10159b543c3b3cdd699c82ad759ab04ea67212')
   assert.ok(Object.isFrozen(accepted))
+  assert.ok(Object.isFrozen(accepted.catalogueRecord))
   assert.throws(() => {
     accepted.entryId = 'mutated'
+  }, TypeError)
+  assert.throws(() => {
+    accepted.catalogueRecord.entryId = 'mutated'
   }, TypeError)
 })
 
@@ -64,11 +80,26 @@ test('AC-I6-POS-libraries: identity, digests, and receipt are sufficient without
   assert.equal(accepted.catalogueSha256, facts.catalogueSha256)
 })
 
-test('AC-I6-DEN-libraries: denies quarantined, superseded, non-selectable, and metadata-only', () => {
+test('AC-I6-DEN-libraries: denies quarantined, superseded, and non-selectable', () => {
   throws(() => validateLibraryReference(load('denied-quarantined.json')), 'library_not_selectable')
   throws(() => validateLibraryReference(load('denied-superseded.json')), 'library_not_selectable')
   throws(() => validateLibraryReference(load('denied-non-selectable.json')), 'library_not_selectable')
-  throws(() => validateLibraryReference(load('denied-metadata-only.json')), 'library_not_selectable')
+})
+
+test('AC-I6-DEN-libraries: metadata-only denial is the intended contentMode branch', () => {
+  const facts = load('denied-metadata-only.json')
+  assert.equal(facts.lifecycle, 'admitted')
+  assert.equal(facts.selectability, 'selectable')
+  assert.equal(facts.compatibility, 'compatible')
+  assert.equal(facts.contentMode, 'metadata_only')
+  const error = classify(
+    () => validateLibraryReference(facts),
+    'library_not_selectable',
+    'denied',
+  )
+  assert.equal(error.details.contentMode, 'metadata_only')
+  assert.equal(error.details.selectability, undefined)
+  assert.equal(error.details.lifecycle, undefined)
 })
 
 test('AC-I6-UNA-libraries: missing source identity is unavailable, not success or stale', () => {
@@ -136,6 +167,93 @@ test('AC-I6-FC-libraries: unknown field, execute receipt, unpinned/malformed ide
   throws(() => validateLibraryReference(missingCatalogue), 'library_digest_invalid')
   throws(() => validateLibraryReference(null), 'invalid_object')
   throws(() => validateLibraryReference([]), 'invalid_object')
+})
+
+test('AC-I6-FC-libraries: inherited prototype properties fail closed', () => {
+  const facts = load('positive-verified-cache.json')
+  const inheritedExtra = Object.assign(Object.create({ extraField: 'from-prototype' }), facts)
+  classify(
+    () => validateLibraryReference(inheritedExtra),
+    'inherited_property',
+    'fail_closed',
+  )
+  const { entryId, ...ownWithoutEntry } = facts
+  const inheritedMaterial = Object.assign(Object.create({ entryId }), ownWithoutEntry)
+  classify(
+    () => validateLibraryReference(inheritedMaterial),
+    'inherited_property',
+    'fail_closed',
+  )
+  const nestedInherited = {
+    ...facts,
+    catalogueRecord: Object.assign(Object.create({ extraField: 'nested-proto' }), facts.catalogueRecord),
+  }
+  classify(
+    () => validateLibraryReference(nestedInherited),
+    'inherited_property',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-FC-libraries: accessor getter and setter inputs fail closed before TOCTOU reads', () => {
+  const facts = load('positive-verified-cache.json')
+  const getterFacts = { ...facts }
+  let reads = 0
+  Object.defineProperty(getterFacts, 'entryId', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      reads += 1
+      return reads === 1 ? 'synthetic-component' : 'mutated-after-read'
+    },
+  })
+  classify(
+    () => validateLibraryReference(getterFacts),
+    'accessor_property',
+    'fail_closed',
+  )
+  assert.equal(reads, 0)
+  const setterFacts = { ...facts }
+  Object.defineProperty(setterFacts, 'trap', {
+    enumerable: true,
+    configurable: true,
+    set() {},
+  })
+  classify(
+    () => validateLibraryReference(setterFacts),
+    'accessor_property',
+    'fail_closed',
+  )
+  const nestedGetter = {
+    ...facts,
+    catalogueRecord: { ...facts.catalogueRecord },
+  }
+  Object.defineProperty(nestedGetter.catalogueRecord, 'entryId', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      return 'synthetic-component'
+    },
+  })
+  classify(
+    () => validateLibraryReference(nestedGetter),
+    'accessor_property',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-FC-libraries: accepted nested catalogueRecord cannot be mutated', () => {
+  const facts = load('positive-verified-cache.json')
+  const accepted = validateLibraryReference(facts)
+  assert.ok(Object.isFrozen(accepted))
+  assert.ok(Object.isFrozen(accepted.catalogueRecord))
+  assert.throws(() => {
+    accepted.catalogueRecord.payloadSha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  }, TypeError)
+  facts.entryId = 'mutated-after-snapshot'
+  facts.catalogueRecord.entryId = 'mutated-after-snapshot'
+  assert.equal(accepted.entryId, 'synthetic-component')
+  assert.equal(accepted.catalogueRecord.entryId, 'synthetic-component')
 })
 
 test('validator has no transport, git fetch, or library-client coupling', () => {
