@@ -10,11 +10,11 @@
 #   ./scripts/apply-development-merge-ruleset.sh
 #   ./scripts/apply-development-merge-ruleset.sh --repo linktrend/LiNKskills
 #   ./scripts/apply-development-merge-ruleset.sh --repo linktrend/LiNKskills \
-#     -- "Linktrend Review Gate" "test" "Enforce allowed PR source branches"
+#     -- "Linktrend Review Gate" "test" "Linktrend Branch Source Policy"
 #
 # Defaults:
 #   repo   = linktrend/IDE-Development (or GH_REPO)
-#   checks = Linktrend Review Gate + Verify IDE Development + Enforce allowed PR source branches
+#   checks = Linktrend Review Gate + Verify IDE Development + Linktrend Branch Source Policy
 
 set -euo pipefail
 
@@ -23,7 +23,7 @@ REPO="${GH_REPO:-linktrend/IDE-Development}"
 CHECKS=(
   "Linktrend Review Gate"
   "Verify IDE Development"
-  "Enforce allowed PR source branches"
+  "Linktrend Branch Source Policy"
 )
 CHECKS_SET=0
 FIXTURE_DIR=""

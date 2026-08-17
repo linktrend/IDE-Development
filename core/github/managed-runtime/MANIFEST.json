@@ -30,6 +30,8 @@
     "scripts/gitops/phase_integrator.py",
     "scripts/gitops/promotion_receipt_gate.py",
     "scripts/gitops/receipt_seal.py",
+    "scripts/gitops/atomic_workflow_ruleset_migration.py",
+    "scripts/gitops/repository_protection.py",
     "scripts/gitops/promote_staging.sh",
     "scripts/gitops/promote_main.sh",
     "scripts/gitops/ruleset_plan.py",

@@ -496,18 +496,18 @@ from packager_logic import should_request_bugbot, fast_gate_status, build_bugbot
 
 sha = "cccccccccccccccccccccccccccccccccccccccc"
 required = parse_required_checks(
-    "Verify IDE Development,Enforce allowed PR source branches"
+    "Verify IDE Development,Linktrend Branch Source Policy"
 )
-assert required == ["Verify IDE Development", "Enforce allowed PR source branches"]
+assert required == ["Verify IDE Development", "Linktrend Branch Source Policy"]
 comma_name = "Install, typecheck, test, build"
 json_required = parse_required_checks(
-    '["Install, typecheck, test, build", "Enforce allowed PR source branches"]'
+    '["Install, typecheck, test, build", "Linktrend Branch Source Policy"]'
 )
-assert json_required == [comma_name, "Enforce allowed PR source branches"]
+assert json_required == [comma_name, "Linktrend Branch Source Policy"]
 semicolon_required = parse_required_checks(
-    "Install, typecheck, test, build;Enforce allowed PR source branches"
+    "Install, typecheck, test, build;Linktrend Branch Source Policy"
 )
-assert semicolon_required == [comma_name, "Enforce allowed PR source branches"]
+assert semicolon_required == [comma_name, "Linktrend Branch Source Policy"]
 assert parse_required_checks('["unterminated"') == []
 assert parse_required_checks('{"not": "a list"}') == [
     '{"not": "a list"}'
@@ -515,7 +515,7 @@ assert parse_required_checks('{"not": "a list"}') == [
 
 comma_checks = [
     {"name": comma_name, "state": "SUCCESS", "completedAt": "t1"},
-    {"name": "Enforce allowed PR source branches", "state": "SUCCESS", "completedAt": "t2"},
+    {"name": "Linktrend Branch Source Policy", "state": "SUCCESS", "completedAt": "t2"},
 ]
 comma_status, comma_detail = fast_gate_status(comma_checks, json_required)
 assert comma_status == "success", (comma_status, comma_detail)
@@ -523,7 +523,7 @@ assert comma_status == "success", (comma_status, comma_detail)
 # 1-2) PR/head ready; CI completes; Branch Source Policy still pending
 checks_after_ci = [
     {"name": "Verify IDE Development", "state": "SUCCESS", "completedAt": "t1"},
-    {"name": "Enforce allowed PR source branches", "state": "PENDING", "completedAt": ""},
+    {"name": "Linktrend Branch Source Policy", "state": "PENDING", "completedAt": ""},
 ]
 st, detail = fast_gate_status(checks_after_ci, required)
 assert st == "pending", (st, detail)
@@ -536,7 +536,7 @@ assert eval1_status == "waiting"
 # 5-6) Branch Source Policy then completes → evaluation wakes again
 checks_both = [
     {"name": "Verify IDE Development", "state": "SUCCESS", "completedAt": "t1"},
-    {"name": "Enforce allowed PR source branches", "state": "SUCCESS", "completedAt": "t2"},
+    {"name": "Linktrend Branch Source Policy", "state": "SUCCESS", "completedAt": "t2"},
 ]
 st2, _ = fast_gate_status(checks_both, required)
 assert st2 == "success"
@@ -1915,7 +1915,7 @@ def run(args, checks=None, body=BODY, extra=None):
             "--main-tip", MAIN,
             "--now", "2026-08-03T10:00:00+08:00",
             "--release-gate-checks",
-            "Verify IDE Development,Enforce allowed PR source branches",
+            "Verify IDE Development,Linktrend Branch Source Policy",
         ]
         if checks is not None:
             cf = td / "checks.json"
@@ -1933,7 +1933,7 @@ def run(args, checks=None, body=BODY, extra=None):
 
 ok_checks = [
     {"name": "Verify IDE Development", "state": "SUCCESS"},
-    {"name": "Enforce allowed PR source branches", "state": "SUCCESS"},
+    {"name": "Linktrend Branch Source Policy", "state": "SUCCESS"},
 ]
 
 # all gates successful
@@ -1955,14 +1955,14 @@ assert d["items"][0]["gateEvidence"]["status"] == "missing"
 # pending gate
 rc, d = run([], checks=[
     {"name": "Verify IDE Development", "state": "SUCCESS"},
-    {"name": "Enforce allowed PR source branches", "state": "PENDING"},
+    {"name": "Linktrend Branch Source Policy", "state": "PENDING"},
 ])
 assert d["items"][0]["gateResult"] == "Issues" and d["items"][0]["gateEvidence"]["status"] == "pending"
 
 # failed gate
 rc, d = run([], checks=[
     {"name": "Verify IDE Development", "state": "FAILURE"},
-    {"name": "Enforce allowed PR source branches", "state": "SUCCESS"},
+    {"name": "Linktrend Branch Source Policy", "state": "SUCCESS"},
 ])
 assert d["items"][0]["gateResult"] == "Issues" and d["items"][0]["gateEvidence"]["status"] == "failed"
 
@@ -2045,7 +2045,7 @@ with tempfile.TemporaryDirectory() as td:
         "--checks-json", str(cf),
         "--now", "2026-08-03T10:00:00+08:00",
         "--release-gate-checks",
-        "Verify IDE Development,Enforce allowed PR source branches",
+        "Verify IDE Development,Linktrend Branch Source Policy",
     ], capture_output=True, text=True)
     d = json.loads(p.stdout)
     assert d["itemCount"] == 0, d
@@ -2097,7 +2097,7 @@ assert out == {"action": "reuse", "pr": 7}, out
 main_sh = (root / "scripts/gitops/promote_main.sh").read_text()
 assert "main_approve_package_reuse.py" in main_sh
 assert "requires repackage" in main_sh
-assert "Verify IDE Development,Enforce allowed PR source branches" in main_sh
+assert "Verify IDE Development,Linktrend Branch Source Policy" in main_sh
 
 print("main approve store behavioral ok")
 PY
@@ -2147,9 +2147,9 @@ LOG="${FAKE_GH_LOG:-/dev/null}"
 printf '%s\n' "$*" >>"$LOG"
 ARGS=("$@")
 
-ok_checks='[{"name":"Verify IDE Development","state":"SUCCESS"},{"name":"Enforce allowed PR source branches","state":"SUCCESS"}]'
-pending_checks='[{"name":"Verify IDE Development","state":"SUCCESS"},{"name":"Enforce allowed PR source branches","state":"PENDING"}]'
-failed_checks='[{"name":"Verify IDE Development","state":"FAILURE"},{"name":"Enforce allowed PR source branches","state":"SUCCESS"}]'
+ok_checks='[{"name":"Verify IDE Development","state":"SUCCESS"},{"name":"Linktrend Branch Source Policy","state":"SUCCESS"}]'
+pending_checks='[{"name":"Verify IDE Development","state":"SUCCESS"},{"name":"Linktrend Branch Source Policy","state":"PENDING"}]'
+failed_checks='[{"name":"Verify IDE Development","state":"FAILURE"},{"name":"Linktrend Branch Source Policy","state":"SUCCESS"}]'
 
 if [[ "${1:-}" == "pr" && "${2:-}" == "checks" ]]; then
   COUNT_FILE="${FAKE_GH_CHECKS_COUNT:-}"
@@ -2210,7 +2210,7 @@ if [[ "${1:-}" == "api" ]]; then
         exit 0
         ;;
       value)
-        printf '%s\n' "Verify IDE Development,Enforce allowed PR source branches"
+        printf '%s\n' "Verify IDE Development,Linktrend Branch Source Policy"
         exit 0
         ;;
       auth)

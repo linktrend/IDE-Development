@@ -32,7 +32,7 @@
           "parameters": {
             "required_status_checks": [
               {"context": "Linktrend Review Gate"},
-              {"context": "Enforce allowed PR source branches"}
+              {"context": "Linktrend Branch Source Policy"}
             ]
           }
         }

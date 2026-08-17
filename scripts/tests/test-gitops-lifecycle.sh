@@ -665,7 +665,7 @@ CHECKS="$TMP/main-approve-checks.json"
 cat >"$CHECKS" <<'EOF'
 [
   {"name":"Verify IDE Development","state":"SUCCESS"},
-  {"name":"Enforce allowed PR source branches","state":"SUCCESS"}
+  {"name":"Linktrend Branch Source Policy","state":"SUCCESS"}
 ]
 EOF
 disc="$(python3 "$ROOT/scripts/gitops/main_approve_package_discover.py" \

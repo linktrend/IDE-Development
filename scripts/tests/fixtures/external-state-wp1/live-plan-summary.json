@@ -81,7 +81,7 @@
       "id": "protection.development_ruleset",
       "status": "ok",
       "observed": "active_with_required_checks",
-      "detail": "ruleset active; checks include Linktrend Review Gate, Enforce allowed PR source branches"
+      "detail": "ruleset active; checks include Linktrend Review Gate, Linktrend Branch Source Policy"
     },
     {
       "id": "protection.staging_ruleset",

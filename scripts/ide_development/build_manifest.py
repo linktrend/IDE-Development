@@ -81,6 +81,7 @@ CONTENT_DOCTRINE = (
     ("docs/contracts/REPOSITORY-CI-TRIGGER.md", "content/doctrine/REPOSITORY-CI-TRIGGER.md"),
     ("docs/contracts/LINKTREND-REVIEW-GATE.md", "content/doctrine/LINKTREND-REVIEW-GATE.md"),
     ("docs/contracts/RECEIPT-SEAL-AND-RECOVERY.md", "content/doctrine/RECEIPT-SEAL-AND-RECOVERY.md"),
+    ("docs/contracts/ATOMIC-WORKFLOW-RULESET-MIGRATION.md", "content/doctrine/ATOMIC-WORKFLOW-RULESET-MIGRATION.md"),
     ("docs/adr/0003-autonomous-ship-pull-promote.md", "content/doctrine/0003-autonomous-ship-pull-promote.md"),
     ("docs/adr/0004-portable-managed-core-v2.md", "content/doctrine/0004-portable-managed-core-v2.md"),
     ("docs/adr/0005-streamlined-delivery-coordinator.md", "content/doctrine/0005-streamlined-delivery-coordinator.md"),
@@ -119,6 +120,7 @@ HOSTED_TEST_FILES = (
     "scripts/tests/test_promotion_receipt_gate.py",
     "scripts/tests/test_receipt_seal_and_recovery.py",
     "scripts/tests/test_delivery_controller.py",
+    "scripts/tests/test_atomic_workflow_ruleset_migration.py",
 )
 
 ID_SAFE = re.compile(r"[^a-z0-9]+")

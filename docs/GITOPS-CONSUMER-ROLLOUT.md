@@ -145,7 +145,7 @@ Consumers **must** set these so Integrator / Packager / promote / repair-observe
 
 | Variable | Purpose | IDE default |
 |---|---|---|
-| `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` | fast-gate comma-separated check names | `Verify IDE Development,Enforce allowed PR source branches` |
+| `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` | fast-gate comma-separated check names | `Verify IDE Development,Linktrend Branch Source Policy` |
 | `LINKTREND_STAGING_GATE_CHECKS` | staging promote gate | `Verify IDE Development` |
 | `LINKTREND_RELEASE_GATE_CHECKS` | main promote gate | `Verify IDE Development` |
 | `LINKTREND_CI_WORKFLOW_NAME` | `workflow_run` / observer CI name | `CI` |

@@ -1292,6 +1292,17 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "doctrine-atomic-workflow-ruleset-migration-md",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/doctrine/ATOMIC-WORKFLOW-RULESET-MIGRATION.md",
+      "sourceHash": "sha256:61c04a5e0827db08afba464be246b1b7ce0a13269802ff6cb413de523c12cc17",
+      "destination": ".ide-development/content/doctrine/ATOMIC-WORKFLOW-RULESET-MIGRATION.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "doctrine-autonomous-git-operations-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/AUTONOMOUS-GIT-OPERATIONS.md",
@@ -1361,7 +1372,7 @@
       "id": "doctrine-repository-protection-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/REPOSITORY-PROTECTION.md",
-      "sourceHash": "sha256:4fca5285a0a36cfaa7ffa82d3a981d0cf876fd7e3aea06ae3ebf0d18894ef59c",
+      "sourceHash": "sha256:b2c6d32b537da3d97db1d7fa10557a002ff04b10c304ec42b0e9ccca11665f19",
       "destination": ".ide-development/content/doctrine/REPOSITORY-PROTECTION.md",
       "mode": "0644",
       "platform": "all",
@@ -1394,7 +1405,7 @@
       "id": "github-doc-ci-gate-contracts-md",
       "ownershipClass": "managed-core",
       "source": "core/github/CI-GATE-CONTRACTS.md",
-      "sourceHash": "sha256:287e12cf90518e2da8119792b5402f5a1078723a2c373c7577d0e7a3f61e58d8",
+      "sourceHash": "sha256:ccb084b827666af76915f88dabcf7da6c3691baa510d6ee4c931f4369ba2b93a",
       "destination": ".ide-development/content/github/CI-GATE-CONTRACTS.md",
       "mode": "0644",
       "platform": "github",
@@ -2558,6 +2569,18 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "test-test-atomic-workflow-ruleset-migration-py",
+      "ownershipClass": "managed-core",
+      "source": "scripts/tests/test_atomic_workflow_ruleset_migration.py",
+      "sourceHash": "sha256:bf6a89c696aade2f96f8e8caf021e3be8f51a68e956b463deb826b07a073ccc8",
+      "destination": ".ide-development/tests/test_atomic_workflow_ruleset_migration.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Hosted lifecycle/receipt validation input."
+    },
+    {
       "id": "test-test-candidate-lifecycle-py",
       "ownershipClass": "managed-core",
       "source": "scripts/tests/test_candidate_lifecycle.py",
@@ -2812,6 +2835,18 @@
       "notes": "Managed GitOps script; never overwrites consumer ci.yml."
     },
     {
+      "id": "gitops-scripts-gitops-atomic-workflow-ruleset-migration-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/atomic_workflow_ruleset_migration.py",
+      "sourceHash": "sha256:499c41a9eef6ec7907d1916b7fd187e024560bff5522866581271aeb113fc8fa",
+      "destination": "scripts/gitops/atomic_workflow_ruleset_migration.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
       "id": "gitops-scripts-gitops-bugbot-user-credentials-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/bugbot_user_credentials.py",
@@ -2959,7 +2994,7 @@
       "id": "gitops-scripts-gitops-external-state-audit-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/external_state_audit.py",
-      "sourceHash": "sha256:5764bccee81eee48dab2824faceed7e25a512468f8de106185f8a5f4d5ef53af",
+      "sourceHash": "sha256:3337b59d72318006ce2b51f51d9ed3ef7d20a9b71f63787dffea36ce9bebac91",
       "destination": "scripts/gitops/external_state_audit.py",
       "mode": "0755",
       "platform": "github",
@@ -3007,7 +3042,7 @@
       "id": "gitops-scripts-gitops-main-approve-package-discover-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/main_approve_package_discover.py",
-      "sourceHash": "sha256:f6c5f1caf5541d260cb1f3f52157080c9d0e5241e79a2c30342a820026f6d155",
+      "sourceHash": "sha256:042046e218bd5dedbd325f9117d69d762e6fb8f6452864dbedce34ca71ee4737",
       "destination": "scripts/gitops/main_approve_package_discover.py",
       "mode": "0755",
       "platform": "github",
@@ -3067,7 +3102,7 @@
       "id": "gitops-scripts-gitops-promote-main-sh",
       "ownershipClass": "managed",
       "source": "scripts/gitops/promote_main.sh",
-      "sourceHash": "sha256:2ee0524fecb07e0d1f10d4864fdce42873b1b891f16d20cae9ec839909a05118",
+      "sourceHash": "sha256:aab7ef9dd67d35d3616c8c0f89265666f51f95f8e061c8a6e87e94e345338d4f",
       "destination": "scripts/gitops/promote_main.sh",
       "mode": "0755",
       "platform": "github",
@@ -3160,15 +3195,16 @@
       "notes": "Managed GitOps script; never overwrites consumer ci.yml."
     },
     {
-      "id": "tooling-scripts-gitops-repository-protection-py",
+      "id": "gitops-scripts-gitops-repository-protection-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/repository_protection.py",
-      "sourceHash": "sha256:e03405291ab73ac096b01446e9402944b948774bf1f50d7ec802329653924aa5",
+      "sourceHash": "sha256:2fcf391dcd8ef93106d87011a95ffadb09d2759b913d33797171736c9ab872e8",
       "destination": "scripts/gitops/repository_protection.py",
       "mode": "0755",
-      "platform": "all",
+      "platform": "github",
       "os": "all",
-      "mergeStrategy": "replace"
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
     },
     {
       "id": "gitops-scripts-gitops-require-exact-ci-success-py",
@@ -3375,7 +3411,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:d5c28289d24d37ee22831f0f0078b7c775d01b00026fa9edf91e2950055131d4",
+      "sourceHash": "sha256:cbb97498d73eb3c30d30543a4b2e829d8d7ae561a299c846a4806bdd42bd5dc0",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",
@@ -3562,7 +3598,7 @@
       "id": "gitops-scripts-tests-test-gitops-phase-delivery-sh",
       "ownershipClass": "managed",
       "source": "scripts/tests/test-gitops-phase-delivery.sh",
-      "sourceHash": "sha256:0f2fac579e31985cf1a369ea3c057fc4de26767db22cb0655843dff3abd5fa6e",
+      "sourceHash": "sha256:2c0160e8dece2e08112c36ab118416e176247bcf25a552d53fd458757048c13d",
       "destination": "scripts/tests/test-gitops-phase-delivery.sh",
       "mode": "0755",
       "platform": "github",

@@ -19,12 +19,12 @@
         "contexts": [
           "Linktrend Review Gate",
           "Verify IDE Development",
-          "Enforce allowed PR source branches"
+          "Linktrend Branch Source Policy"
         ],
         "checks": [
           {"context": "Linktrend Review Gate", "app_id": -1},
           {"context": "Verify IDE Development", "app_id": -1},
-          {"context": "Enforce allowed PR source branches", "app_id": -1}
+          {"context": "Linktrend Branch Source Policy", "app_id": -1}
         ]
       },
       "enforce_admins": {
@@ -81,7 +81,7 @@
         "strict": true,
         "contexts": [
           "Verify IDE Development",
-          "Enforce allowed PR source branches"
+          "Linktrend Branch Source Policy"
         ]
       },
       "enforce_admins": true,
@@ -95,7 +95,7 @@
         "strict": true,
         "contexts": [
           "Verify IDE Development",
-          "Enforce allowed PR source branches"
+          "Linktrend Branch Source Policy"
         ]
       },
       "enforce_admins": true,

@@ -35,7 +35,7 @@ Optional (if available on the Cursor team): enable **fail on unresolved issues**
 
    # Consumer with different CI job name(s):
    ./scripts/apply-development-merge-ruleset.sh linktrend/YourRepo \
-     "Linktrend Review Gate" "Your CI job name" "Enforce allowed PR source branches"
+     "Linktrend Review Gate" "Your CI job name" "Linktrend Branch Source Policy"
    ```
 6. Confirm Integrator workflow is present: `.github/workflows/linktrend-integrator-merge.yml`.
 7. Set GitHub Actions variable `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` to this repo's **fast-gate** CI job name(s), comma-separated (example for IDE Development: `Verify IDE Development`). Integrator no longer waits for every visible check — see `core/github/CI-GATE-CONTRACTS.md`. Leave unset only if the managed workflow default is wrong for the consumer (then set explicitly).

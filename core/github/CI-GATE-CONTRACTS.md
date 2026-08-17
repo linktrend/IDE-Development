@@ -37,7 +37,7 @@ All of the following must conclude **success** on the PR head SHA (when the work
 | Check name (GitHub check / workflow job display) | Source workflow display name |
 |--------------------------------------------------|------------------------------|
 | `Verify IDE Development` | `CI` (`.github/workflows/ci.yml`) |
-| `Enforce allowed PR source branches` | `Branch Source Policy` (`.github/workflows/branch-source-policy.yml`) |
+| `Linktrend Branch Source Policy` | `Linktrend Branch Source Policy` (`.github/workflows/branch-source-policy.yml`) |
 
 Packager and Integrator must list **both** workflow display names under `workflow_run.workflows`. Completion of either workflow reevaluates the exact PR/head; Bugbot/merge proceeds only when **every** named fast-gate check is success on that SHA.
 

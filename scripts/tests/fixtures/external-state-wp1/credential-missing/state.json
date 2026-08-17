@@ -73,7 +73,7 @@
                 "context": "Verify IDE Development"
               },
               {
-                "context": "Enforce allowed PR source branches"
+                "context": "Linktrend Branch Source Policy"
               }
             ]
           }
@@ -114,7 +114,7 @@
                 "context": "Verify IDE Development"
               },
               {
-                "context": "Enforce allowed PR source branches"
+                "context": "Linktrend Branch Source Policy"
               },
               {
                 "context": "Consumer Staging Lint"
@@ -149,7 +149,7 @@
                 "context": "Verify IDE Development"
               },
               {
-                "context": "Enforce allowed PR source branches"
+                "context": "Linktrend Branch Source Policy"
               }
             ]
           }

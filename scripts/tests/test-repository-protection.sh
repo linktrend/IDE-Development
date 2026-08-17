@@ -31,11 +31,11 @@ dev = rp.managed_baseline("development")
 assert dev == [
     "Linktrend Review Gate",
     "Verify IDE Development",
-    "Enforce allowed PR source branches",
+    "Linktrend Branch Source Policy",
 ], dev
 stg = rp.managed_baseline("staging")
 assert "Linktrend Review Gate" not in stg
-assert stg[-1] == "Enforce allowed PR source branches"
+assert stg[-1] == "Linktrend Branch Source Policy"
 main = rp.managed_baseline("main")
 assert "Linktrend Review Gate" not in main
 
@@ -84,10 +84,10 @@ assert p["branches"]["staging"]["action"] == "create"
 assert p["branches"]["main"]["action"] == "create"
 dev = p["branches"]["development"]["requiredChecks"]["desired"]
 assert dev[0] == "Linktrend Review Gate"
-assert "Enforce allowed PR source branches" in dev
+assert "Linktrend Branch Source Policy" in dev
 stg = p["branches"]["staging"]["requiredChecks"]["desired"]
 assert "Linktrend Review Gate" not in stg
-assert "Enforce allowed PR source branches" in stg
+assert "Linktrend Branch Source Policy" in stg
 main = p["branches"]["main"]["requiredChecks"]["desired"]
 assert "Linktrend Review Gate" not in main
 assert p["repoSettings"]["allow_auto_merge"]["after"] is True
@@ -108,7 +108,7 @@ p = json.loads(Path("${TMP}/plan-partial.json").read_text())
 dev = p["branches"]["development"]
 assert "Consumer Custom Lint" in dev["requiredChecks"]["preserved"]
 assert "Consumer Custom Lint" in dev["requiredChecks"]["desired"]
-assert "Enforce allowed PR source branches" in dev["requiredChecks"]["desired"]
+assert "Linktrend Branch Source Policy" in dev["requiredChecks"]["desired"]
 assert dev["after"]["bypassActors"][0]["actor_id"] == 1
 assert dev["action"] == "update"
 assert p["branches"]["staging"]["action"] == "create"
@@ -133,12 +133,12 @@ assert "pull_request" in types
 assert "non_fast_forward" in types
 assert "deletion" in types
 # Managed source-policy check was missing → unioned in; non-check rules untouched.
-assert "Enforce allowed PR source branches" in dev["requiredChecks"]["desired"]
+assert "Linktrend Branch Source Policy" in dev["requiredChecks"]["desired"]
 contexts = [
     c["context"]
     for c in rules[0]["parameters"]["required_status_checks"]
 ]
-assert "Enforce allowed PR source branches" in contexts
+assert "Linktrend Branch Source Policy" in contexts
 assert types.count("required_status_checks") == 1
 assert dev["after"]["bypassActors"][0]["actor_id"] == 9
 print("extra-rules plan ok")
@@ -357,7 +357,7 @@ dev = p["branches"]["development"]
 assert dev["requiredChecks"]["desired"] == [
     "Linktrend Review Gate",
     "Verify IDE Development",
-    "Enforce allowed PR source branches",
+    "Linktrend Branch Source Policy",
 ], dev["requiredChecks"]["desired"]
 # Checks match and GET-shaped reviews/restrictions are semantically equal → durable noop.
 assert dev["action"] == "noop", dev["action"]
@@ -621,7 +621,7 @@ assert Path("${TMP}/legacy-fx/state.json").read_text() == Path("${FX}/rulesets-e
 print("legacy dry-run ok")
 PY
 "$LEGACY" --repo linktrend/Fixture --fixture-dir "${TMP}/legacy-fx" \
-  "Linktrend Review Gate" "Verify IDE Development" "Enforce allowed PR source branches" \
+  "Linktrend Review Gate" "Verify IDE Development" "Linktrend Branch Source Policy" \
   >"${TMP}/legacy-apply.out"
 python3 - <<PY
 import json

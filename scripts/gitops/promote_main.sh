@@ -16,7 +16,7 @@ source "${SCRIPT_DIR}/work-branch-allowlist.sh"
 
 MODE="${MODE:-package}"
 MAIN_PROMOTION_MODE="${MAIN_PROMOTION_MODE:-principal-approval}"
-RELEASE_GATE_CHECKS="${RELEASE_GATE_CHECKS:-Verify IDE Development,Enforce allowed PR source branches}"
+RELEASE_GATE_CHECKS="${RELEASE_GATE_CHECKS:-Verify IDE Development,Linktrend Branch Source Policy}"
 TIMEZONE_LABEL="${TIMEZONE_LABEL:-Asia/Taipei}"
 EXPECTED_STAGING_SHA="${EXPECTED_STAGING_SHA:-}"
 EXPECTED_PROMOTE_HEAD="${EXPECTED_PROMOTE_HEAD:-}"
