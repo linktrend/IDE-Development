@@ -25,7 +25,8 @@ The configuration is `.github/linktrend-delivery-mode.json`:
 
 Repository-owned fast, full, and release commands stay in the configuration.
 The managed system validates their shape; it does not invent product
-commands. Managed Fast and Full include `scripts/gitops/secret_scan.py`.
+commands. Managed Fast and Full execute `python3 scripts/gitops/secret_scan.py`
+on the candidate tree; compiling or unit-testing the scanner is not a substitute.
 See [`SECRET-SCAN-FIXTURES.md`](./SECRET-SCAN-FIXTURES.md).
 
 ## Named gates

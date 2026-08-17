@@ -9,15 +9,21 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+from scripts.gitops import secret_scan as secret_scan_mod
 from scripts.gitops.secret_scan import (
     KIND_APPROVED,
     KIND_CREDENTIAL,
     KIND_SCOPE,
     KIND_STALE,
+    RULE_INPUT_TOO_LARGE,
+    RULE_INPUT_UNDECODABLE,
+    RULE_MALFORMED,
+    RULE_REPO_TIMEOUT,
+    RULE_TOKEN,
     SCANNER_POLICY_VERSION,
     SYNTHETIC_PREFIX,
-    SecretScanError,
     candidate_content_tree,
     digest_bytes,
     identify_synthetic_candidates,
@@ -65,7 +71,14 @@ def write_tracked(root: Path, rel: str, text: str) -> None:
     path = root / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
-    git(root, "add", rel)
+    git(root, "add", "--", rel)
+
+
+def write_tracked_bytes(root: Path, rel: str, raw: bytes) -> None:
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(raw)
+    git(root, "add", "--", rel)
 
 
 def commit(root: Path, message: str) -> tuple[str, str]:
@@ -175,13 +188,14 @@ class PackagingContractTests(unittest.TestCase):
         runtime = json.loads((ROOT / "core/github/managed-runtime/MANIFEST.json").read_text(encoding="utf-8"))
         self.assertIn("scripts/gitops/secret_scan.py", runtime["files"])
         self.assertIn("scripts/gitops/secret_scan_migrate.py", runtime["files"])
+        live = ["python3", "scripts/gitops/secret_scan.py"]
         fast = json.loads((ROOT / ".github/linktrend-delivery-mode.json").read_text(encoding="utf-8"))
-        blob = json.dumps(fast["profiles"])
-        self.assertIn("secret_scan.py", blob)
-        self.assertIn("test_fixture_aware_secret_scan", blob)
+        self.assertIn(live, fast["profiles"]["fast"]["commands"])
+        self.assertIn(live, fast["profiles"]["full"]["commands"])
+        self.assertIn("test_fixture_aware_secret_scan", json.dumps(fast["profiles"]))
         managed = json.loads((ROOT / "core/managed-core/config/delivery.json").read_text(encoding="utf-8"))
-        managed_blob = json.dumps(managed["profiles"])
-        self.assertIn("secret_scan.py", managed_blob)
+        self.assertIn(live, managed["profiles"]["fast"]["commands"])
+        self.assertIn(live, managed["profiles"]["full"]["commands"])
 
     def test_doctrine_and_installer_docs_name_fixture_contract(self) -> None:
         contract = (ROOT / "docs/contracts/SECRET-SCAN-FIXTURES.md").read_text(encoding="utf-8")
@@ -524,8 +538,10 @@ class AcU1002NoBlindSpotTests(unittest.TestCase):
         self.assertFalse(missing["ok"])
         write_tracked(root, ".github/linktrend-secret-scan-fixtures.json", "{not-json\n")
         commit(root, "malformed declaration")
-        with self.assertRaises(SecretScanError):
-            scan_repository(root)
+        malformed = scan_repository(root)
+        self.assertFalse(malformed["ok"])
+        self.assertEqual(malformed["kind"], "secret-scan-result")
+        self.assertTrue(any(row["rule"] == RULE_MALFORMED for row in malformed["findings"]))
 
 
 class AcU1009RepositoryScannersTests(unittest.TestCase):
@@ -645,6 +661,222 @@ class CliAggregationTests(unittest.TestCase):
         self.assertEqual(payload["kind"], "secret-scan-result")
         self.assertFalse(payload["ok"])
         self.assertGreaterEqual(len(payload["findings"]), 1)
+
+
+class AdversarialRepairTests(unittest.TestCase):
+    def test_directory_symlink_and_option_like_path_use_index_identities(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        (root / "core").mkdir()
+        (root / "core" / "agents").mkdir()
+        write_tracked(root, "core/agents/README.md", "# agents\n")
+        (root / ".cursor").mkdir()
+        os.symlink("../core/agents", root / ".cursor" / "agents")
+        git(root, "add", "--", ".cursor/agents")
+        github = "ghp_" + ("A" * 36)
+        write_tracked(root, "--secret-file.py", f'token = "{github}"\n')
+        commit(root, "symlink and option-like path")
+        tree = candidate_content_tree(root)
+        self.assertEqual(len(tree), 40)
+        result = scan_repository(root)
+        self.assertEqual(result["kind"], "secret-scan-result")
+        self.assertFalse(result["ok"])
+        self.assertFalse(any(row["rule"] == "git.failed" for row in result["findings"]))
+        self.assertTrue(any(row["path"] == "--secret-file.py" and row["kind"] == KIND_CREDENTIAL for row in result["findings"]))
+
+    def test_suffix_named_text_and_utf16_are_scanned(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        github = "ghp_" + ("B" * 36)
+        write_tracked(root, "secrets.png", f'token = "{github}"\n')
+        write_tracked(root, "keys.pdf", "-----BEGIN RSA PRIVATE KEY-----\n")
+        utf16 = f'secret = "{synthetic_value("utf16")}"\n'.encode("utf-16-le")
+        write_tracked_bytes(root, "utf16-le.env", utf16)
+        utf16_be = ('token = "' + github + '"\n').encode("utf-16-be")
+        write_tracked_bytes(root, "utf16-be.yml", utf16_be)
+        commit(root, "suffix and utf-16")
+        result = scan_repository(root)
+        self.assertFalse(result["ok"])
+        paths = {row["path"] for row in result["findings"] if row["kind"] == KIND_CREDENTIAL}
+        self.assertIn("secrets.png", paths)
+        self.assertIn("keys.pdf", paths)
+        self.assertIn("utf16-le.env", paths)
+        self.assertIn("utf16-be.yml", paths)
+
+    def test_declaration_bytes_and_notes_cannot_hide_credentials(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        value = synthetic_value()
+        github = "ghp_" + ("C" * 36)
+        write_tracked(root, "tests/security/test_integrity.py", f'secret = "{value}"\n')
+        commit(root, "fixture")
+        payload = declaration(
+            candidate_tree=candidate_content_tree(root),
+            fixtures=[
+                fixture(
+                    fixture_id="integrity-secret-property",
+                    path="tests/security/test_integrity.py",
+                    line=1,
+                    field="secret",
+                    rule="assignment.secret",
+                    value=value,
+                )
+            ],
+        )
+        payload["fixtures"][0]["bytes"] = github
+        payload["fixtures"][0]["note"] = f'token = "{github}"'
+        write_declaration(root, payload)
+        commit(root, "declaration with hidden credential")
+        result = scan_repository(root)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["kind"], "secret-scan-result")
+        self.assertTrue(any(row["path"] == ".github/linktrend-secret-scan-fixtures.json" for row in result["findings"]))
+        self.assertFalse(
+            any(
+                row["kind"] == KIND_APPROVED and row["path"] == ".github/linktrend-secret-scan-fixtures.json"
+                for row in result["findings"]
+            )
+        )
+
+    def test_unquoted_env_yaml_short_and_escaped_secrets(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        entropy = hashlib.sha256(b"live-token").hexdigest()
+        write_tracked(root, "src/app.py", f"token={entropy}\n")
+        write_tracked(root, "config.yml", f"password: {entropy}\n")
+        write_tracked(root, ".env", "OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuv\n")
+        write_tracked(root, "short.py", 'key = "shortvalue1"\n')
+        write_tracked(root, "escaped.py", 'secret = "foo\\"bar-extra-long"\n')
+        write_tracked(root, "concat.py", 'secret = "foo" + "bar-extra-long"\n')
+        commit(root, "unquoted short escaped")
+        result = scan_repository(root)
+        self.assertFalse(result["ok"])
+        paths = {row["path"] for row in result["findings"] if row["kind"] == KIND_CREDENTIAL}
+        self.assertIn("src/app.py", paths)
+        self.assertIn("config.yml", paths)
+        self.assertIn(".env", paths)
+        self.assertIn("short.py", paths)
+        self.assertIn("escaped.py", paths)
+        self.assertIn("concat.py", paths)
+        self.assertTrue(any(row["rule"] == RULE_TOKEN for row in result["findings"]))
+
+    def test_huge_input_and_scanner_timeout_are_typed_results(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        write_tracked(root, "huge.txt", "x" * 200)
+        blocker = root / "slow.sh"
+        blocker.write_text("#!/bin/sh\nsleep 5\n", encoding="utf-8")
+        blocker.chmod(0o755)
+        write_tracked(
+            root,
+            ".github/linktrend-repository-secret-scanners.json",
+            json.dumps({"schemaVersion": 1, "scanners": [{"id": "slow", "command": ["./slow.sh"]}]}) + "\n",
+        )
+        git(root, "add", "--", "slow.sh")
+        commit(root, "huge and slow")
+        with patch.object(secret_scan_mod, "MAX_FILE_BYTES", 64), patch.object(
+            secret_scan_mod, "REPO_SCANNER_TIMEOUT_SEC", 0.2
+        ):
+            result = scan_repository(root)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["kind"], "secret-scan-result")
+        self.assertTrue(any(row["rule"] == RULE_INPUT_TOO_LARGE and row["path"] == "huge.txt" for row in result["findings"]))
+        self.assertTrue(any(row["rule"] == RULE_REPO_TIMEOUT and row.get("scannerId") == "slow" for row in result["findings"]))
+
+    def test_schema_extras_and_typed_failures_match_result_schema(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        write_tracked(root, "tests/security/test_integrity.py", f'secret = "{synthetic_value()}"\n')
+        commit(root, "undeclared")
+        extra = declaration(
+            candidate_tree=candidate_content_tree(root),
+            fixtures=[
+                fixture(
+                    fixture_id="integrity-secret-property",
+                    path="tests/security/test_integrity.py",
+                    line=1,
+                    field="secret",
+                    rule="assignment.secret",
+                    value=synthetic_value(),
+                )
+            ],
+        )
+        extra["unexpected"] = True
+        extra["fixtures"][0]["extra"] = "nope"
+        write_declaration(root, extra)
+        commit(root, "schema extras")
+        result = scan_repository(root)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["kind"], "secret-scan-result")
+        self.assertIn("schemaVersion", result)
+        self.assertIn("candidateTree", result)
+        self.assertTrue(any(row["rule"] == RULE_MALFORMED for row in result["findings"]))
+        schema = json.loads(RESULT_SCHEMA.read_text(encoding="utf-8"))
+        self.assertEqual(schema["properties"]["kind"]["const"], "secret-scan-result")
+        self.assertFalse(schema["additionalProperties"])
+        for key in ("schemaVersion", "kind", "scannerPolicyVersion", "candidateTree", "ok", "findings"):
+            self.assertIn(key, result)
+
+    def test_undecodable_nul_content_fails_closed(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        write_tracked_bytes(root, "opaque.bin", b"\x00\x01\x02\x00secret-not-decoded")
+        commit(root, "undecodable")
+        result = scan_repository(root)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any(row["rule"] == RULE_INPUT_UNDECODABLE and row["path"] == "opaque.bin" for row in result["findings"]))
+
+    def test_bound_bytes_must_match_detected_value(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        value = synthetic_value()
+        write_tracked(root, "tests/security/test_integrity.py", f'secret = "{value}"\n')
+        commit(root, "fixture")
+        payload = declaration(
+            candidate_tree=candidate_content_tree(root),
+            fixtures=[
+                fixture(
+                    fixture_id="integrity-secret-property",
+                    path="tests/security/test_integrity.py",
+                    line=1,
+                    field="secret",
+                    rule="assignment.secret",
+                    value=value,
+                )
+            ],
+        )
+        payload["fixtures"][0]["bytes"] = value + "-mismatch"
+        write_declaration(root, payload)
+        commit(root, "mismatched bytes")
+        result = scan_repository(root)
+        self.assertFalse(result["ok"])
+        self.assertFalse(any(row["kind"] == KIND_APPROVED for row in result["findings"]))
+
+    def test_matching_bytes_still_approve_synthetic_only(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        value = synthetic_value()
+        write_tracked(root, "tests/security/test_integrity.py", f'secret = "{value}"\n')
+        commit(root, "fixture")
+        payload = declaration(
+            candidate_tree=candidate_content_tree(root),
+            fixtures=[
+                fixture(
+                    fixture_id="integrity-secret-property",
+                    path="tests/security/test_integrity.py",
+                    line=1,
+                    field="secret",
+                    rule="assignment.secret",
+                    value=value,
+                )
+            ],
+        )
+        payload["fixtures"][0]["bytes"] = value
+        write_declaration(root, payload)
+        commit(root, "bound bytes")
+        result = scan_repository(root)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(kinds(result), [KIND_APPROVED])
 
 
 if __name__ == "__main__":
