@@ -196,6 +196,126 @@ test('AC-I6-FC-platform: disabled identity service and incompatible pin fail clo
   )
 })
 
+test('AC-I6-FC-platform: inherited prototype properties fail closed', () => {
+  const positive = load('positive-valid.json')
+  const inheritedExtra = Object.assign(Object.create({ extraField: 'from-prototype' }), positive.claim)
+  classify(
+    () => validatePlatformIdentity(inheritedExtra, positive.context),
+    'inherited_property',
+    'fail_closed',
+  )
+  const { actorId, ...ownWithoutActor } = positive.claim
+  const inheritedMaterial = Object.assign(Object.create({ actorId }), ownWithoutActor)
+  classify(
+    () => validatePlatformIdentity(inheritedMaterial, positive.context),
+    'inherited_property',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-FC-platform: accessor getter and setter inputs fail closed', () => {
+  const positive = load('positive-valid.json')
+  const getterClaim = { ...positive.claim }
+  let reads = 0
+  Object.defineProperty(getterClaim, 'actorId', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      reads += 1
+      return reads === 1 ? 'actor-ide-dev-s1' : 'mutated-after-read'
+    },
+  })
+  classify(
+    () => validatePlatformIdentity(getterClaim, positive.context),
+    'accessor_property',
+    'fail_closed',
+  )
+  const setterClaim = { ...positive.claim }
+  Object.defineProperty(setterClaim, 'trap', {
+    enumerable: true,
+    configurable: true,
+    set() {},
+  })
+  classify(
+    () => validatePlatformIdentity(setterClaim, positive.context),
+    'accessor_property',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-FC-platform: unknown or sensitive fields fail closed before missing-material unavailable', () => {
+  const positive = load('positive-valid.json')
+  classify(
+    () => validatePlatformIdentity({ ...positive.claim, actorId: '', secret: 'redacted' }, positive.context),
+    'sensitive_field',
+    'fail_closed',
+  )
+  classify(
+    () => validatePlatformIdentity(
+      { ...positive.claim, runtimeBindingId: '', extraField: 'no' },
+      positive.context,
+    ),
+    'unknown_field',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-POS-platform: accepts full S0 platform pin repository, commit, and tree', () => {
+  const fixture = load('positive-valid.json')
+  const accepted = validatePlatformIdentity(fixture.claim, {
+    ...fixture.context,
+    providerPin: {
+      repository: FROZEN_PROVIDERS.platform.repository,
+      commit: FROZEN_PROVIDERS.platform.commit,
+      tree: FROZEN_PROVIDERS.platform.tree,
+    },
+  })
+  assert.deepEqual(accepted, {
+    actorId: 'actor-ide-dev-s1',
+    runtimeBindingId: 'bind-ide-dev-s1',
+    orgId: 'org-synthetic-s1',
+  })
+  assert.ok(Object.isFrozen(accepted))
+})
+
+test('AC-I6-FC-platform: extra or confused providerPin keys fail closed', () => {
+  const fixture = load('positive-valid.json')
+  classify(
+    () => validatePlatformIdentity(fixture.claim, {
+      ...fixture.context,
+      providerPin: {
+        ...fixture.context.providerPin,
+        extra: 'no',
+      },
+    }),
+    'unknown_field',
+    'fail_closed',
+  )
+  classify(
+    () => validatePlatformIdentity(fixture.claim, {
+      ...fixture.context,
+      providerPin: {
+        ...fixture.context.providerPin,
+        repo: FROZEN_PROVIDERS.platform.repository,
+      },
+    }),
+    'unknown_field',
+    'fail_closed',
+  )
+  classify(
+    () => validatePlatformIdentity(fixture.claim, {
+      ...fixture.context,
+      providerPin: {
+        repository: FROZEN_PROVIDERS.brain.repository,
+        commit: FROZEN_PROVIDERS.platform.commit,
+        tree: FROZEN_PROVIDERS.platform.tree,
+      },
+    }),
+    'incompatible_pin',
+    'fail_closed',
+  )
+})
+
 test('validator has no transport, mint, signing-key, or credential store APIs', () => {
   assert.doesNotMatch(MODULE_SOURCE, /\b(fetch|XMLHttpRequest|createServer|net\.connect)\b/)
   assert.doesNotMatch(MODULE_SOURCE, /from ['"]node:(http|https|net|child_process|tls|crypto)['"]/)

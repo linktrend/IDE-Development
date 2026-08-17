@@ -2,9 +2,12 @@
  * Fail-closed LiNKplatform identity / permissions / capabilities validator.
  *
  * Consumes `FROZEN_PROVIDERS.platform` and `ConsumerContractError`. Accepts
- * only Platform-issued AuthClaims `platform.auth-claims/1.1.0`. This module
- * never mints claims, stores signing keys, calls Platform HTTP, or holds
- * runtime credentials.
+ * only Platform-issued AuthClaims `platform.auth-claims/1.1.0`. Snapshots own
+ * enumerable plain data properties before any read; inherited, prototype,
+ * accessor, getter, setter, and TOCTOU inputs are rejected. Validation and
+ * the returned identity use only that immutable snapshot. This module never
+ * mints claims, stores signing keys, calls Platform HTTP, or holds runtime
+ * credentials.
  */
 
 import { fail } from './errors.mjs'
@@ -57,6 +60,7 @@ const FORBIDDEN_COMPETING_KEYS = new Set([
   'runtime_binding_id',
   'https://linktrend.dev/claims/auth',
 ])
+const PIN_KEYS = new Set(['repository', 'commit', 'tree'])
 const SENSITIVE = /(?:secret|password|token|authorization|private.?key|prompt|transcript|raw(?:_|$)|full.?content|^body$)/i
 const IDENTITY_MATERIAL = ['actorId', 'runtimeBindingId']
 
@@ -94,6 +98,114 @@ function isStringArray(value, minItems) {
  */
 function isIsoDateTime(value) {
   return isNonEmptyString(value) && ISO_DATE_TIME.test(value) && Number.isFinite(Date.parse(value))
+}
+
+/**
+ * @param {unknown} item
+ * @param {string} code
+ * @param {string} label
+ * @param {number} depth
+ * @returns {unknown}
+ */
+function snapshotChild(item, code, label, depth) {
+  if (item === null || typeof item !== 'object') return item
+  if (Array.isArray(item)) return snapshotArray(item, code, label, depth + 1)
+  return snapshotOwnEnumerablePlainData(item, code, label, depth + 1)
+}
+
+/**
+ * @param {object} proto
+ * @param {string} label
+ */
+function rejectInheritedEnumerable(proto, label) {
+  const protoDescriptors = Object.getOwnPropertyDescriptors(proto)
+  for (const key of Object.keys(protoDescriptors)) {
+    if (protoDescriptors[key].enumerable) {
+      fail('inherited_property', `${label} inherits a property: ${key}`, {
+        classification: 'fail_closed',
+        field: key,
+      })
+    }
+  }
+}
+
+/**
+ * @param {unknown} value
+ * @param {string} code
+ * @param {string} label
+ * @param {number} depth
+ * @returns {readonly unknown[]}
+ */
+function snapshotArray(value, code, label, depth) {
+  if (depth > 5) fail('payload_too_deep', 'platform claim exceeded bounded depth')
+  const list = /** @type {unknown[]} */ (value)
+  const descriptors = Object.getOwnPropertyDescriptors(list)
+  const proto = Object.getPrototypeOf(list)
+  if (proto !== Array.prototype && proto !== null) {
+    fail('inherited_property', `${label} array must be a plain array`, { classification: 'fail_closed' })
+  }
+  if (proto === Array.prototype) {
+    rejectInheritedEnumerable(proto, label)
+  }
+  for (const key of Object.keys(descriptors)) {
+    if (key === 'length') continue
+    const desc = descriptors[key]
+    if (desc.get !== undefined || desc.set !== undefined) {
+      fail('accessor_property', `${label} array has an accessor: ${key}`, {
+        classification: 'fail_closed',
+        field: key,
+      })
+    }
+    if (desc.enumerable && !/^(0|[1-9]\d*)$/.test(key)) {
+      fail('unknown_field', `${label} array has a non-index field: ${key}`, {
+        classification: 'fail_closed',
+        field: key,
+      })
+    }
+  }
+  const length = descriptors.length && typeof descriptors.length.value === 'number' ? descriptors.length.value : 0
+  const copy = []
+  for (let index = 0; index < length; index += 1) {
+    const desc = descriptors[String(index)]
+    copy[index] = desc ? snapshotChild(desc.value, code, label, depth) : undefined
+  }
+  return Object.freeze(copy)
+}
+
+/**
+ * Copy own enumerable plain data properties before any semantic read.
+ * Rejects inherited, prototype, accessor, getter, setter, and TOCTOU inputs.
+ *
+ * @param {unknown} value
+ * @param {string} [code]
+ * @param {string} [label]
+ * @param {number} [depth]
+ * @returns {Record<string, unknown>}
+ */
+function snapshotOwnEnumerablePlainData(value, code = 'invalid_object', label = 'platform input', depth = 0) {
+  if (depth > 5) fail('payload_too_deep', 'platform claim exceeded bounded depth')
+  const record = object(value, code)
+  const proto = Object.getPrototypeOf(record)
+  const descriptors = Object.getOwnPropertyDescriptors(record)
+  if (proto !== Object.prototype && proto !== null) {
+    fail('inherited_property', `${label} must be a plain object`, { classification: 'fail_closed' })
+  }
+  if (proto === Object.prototype) {
+    rejectInheritedEnumerable(proto, label)
+  }
+  const snapshot = Object.create(null)
+  for (const key of Object.keys(descriptors)) {
+    const desc = descriptors[key]
+    if (desc.get !== undefined || desc.set !== undefined) {
+      fail('accessor_property', `${label} has an accessor: ${key}`, {
+        classification: 'fail_closed',
+        field: key,
+      })
+    }
+    if (!desc.enumerable) continue
+    snapshot[key] = snapshotChild(desc.value, code, label, depth)
+  }
+  return Object.freeze(snapshot)
 }
 
 /**
@@ -143,10 +255,21 @@ function rejectUnknown(value, allowed, label) {
 function assertFrozenPin(pin) {
   if (pin === undefined) return
   const value = object(pin, 'incompatible_pin')
+  rejectUnknown(value, PIN_KEYS, 'platform provider pin')
+  if (value.repository !== undefined && value.repository !== PLATFORM_PIN.repository) {
+    fail('incompatible_pin', 'context provider pin does not match the frozen LiNKplatform pin', {
+      classification: 'fail_closed',
+      provider: 'platform',
+      frozenRepository: PLATFORM_PIN.repository,
+      frozenCommit: PLATFORM_PIN.commit,
+      frozenTree: PLATFORM_PIN.tree,
+    })
+  }
   if (value.commit !== PLATFORM_PIN.commit || value.tree !== PLATFORM_PIN.tree) {
     fail('incompatible_pin', 'context provider pin does not match the frozen LiNKplatform pin', {
       classification: 'fail_closed',
       provider: 'platform',
+      frozenRepository: PLATFORM_PIN.repository,
       frozenCommit: PLATFORM_PIN.commit,
       frozenTree: PLATFORM_PIN.tree,
     })
@@ -183,14 +306,11 @@ function assertContext(context) {
 }
 
 /**
- * @param {unknown} claim
+ * @param {Record<string, unknown>} claim
  * @returns {boolean}
  */
 function identityMaterialAbsent(claim) {
-  if (claim === null || claim === undefined) return true
-  if (!claim || typeof claim !== 'object' || Array.isArray(claim)) return false
-  const record = /** @type {Record<string, unknown>} */ (claim)
-  return IDENTITY_MATERIAL.some((field) => !isNonEmptyString(record[field]))
+  return IDENTITY_MATERIAL.some((field) => !isNonEmptyString(claim[field]))
 }
 
 /**
@@ -199,7 +319,7 @@ function identityMaterialAbsent(claim) {
  * @returns {Readonly<{ actorId: string, runtimeBindingId: string, orgId: string | null }>}
  */
 export function validatePlatformIdentity(claim, context) {
-  const ctx = object(context, 'invalid_context')
+  const ctx = snapshotOwnEnumerablePlainData(context, 'invalid_context', 'platform context')
   assertContext(ctx)
 
   if (ctx.identityServiceStatus === 'unavailable') {
@@ -221,16 +341,23 @@ export function validatePlatformIdentity(claim, context) {
     })
   }
 
-  if (identityMaterialAbsent(claim)) {
+  if (claim === null || claim === undefined) {
     fail('identity_unavailable', 'required platform claim material is absent', {
       classification: 'unavailable',
       provider: 'platform',
     })
   }
 
-  const record = object(claim)
+  const record = snapshotOwnEnumerablePlainData(claim, 'invalid_object', 'platform claim')
   rejectSensitive(record)
   rejectUnknown(record, CLAIM_KEYS, 'platform claim')
+
+  if (identityMaterialAbsent(record)) {
+    fail('identity_unavailable', 'required platform claim material is absent', {
+      classification: 'unavailable',
+      provider: 'platform',
+    })
+  }
 
   if (record.claimContractVersion !== PLATFORM_AUTH_CLAIMS_CONTRACT_VERSION) {
     fail('wrong_claim_contract_version', 'claimContractVersion must be platform.auth-claims/1.1.0', {
