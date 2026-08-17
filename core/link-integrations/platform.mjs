@@ -61,6 +61,8 @@ const FORBIDDEN_COMPETING_KEYS = new Set([
   'https://linktrend.dev/claims/auth',
 ])
 const PIN_KEYS = new Set(['repository', 'commit', 'tree'])
+const CREDENTIAL_STATUSES = new Set(['active', 'expired', 'revoked', 'rotated'])
+const BINDING_STATES = new Set(['active', 'suspended', 'retired'])
 const SENSITIVE = /(?:secret|password|token|authorization|private.?key|prompt|transcript|raw(?:_|$)|full.?content|^body$)/i
 const IDENTITY_MATERIAL = ['actorId', 'runtimeBindingId']
 
@@ -137,7 +139,9 @@ function rejectInheritedEnumerable(proto, label) {
  * @returns {readonly unknown[]}
  */
 function snapshotArray(value, code, label, depth) {
-  if (depth > 5) fail('payload_too_deep', 'platform claim exceeded bounded depth')
+  if (depth > 5) {
+    fail('payload_too_deep', 'platform claim exceeded bounded depth', { classification: 'fail_closed' })
+  }
   const list = /** @type {unknown[]} */ (value)
   const descriptors = Object.getOwnPropertyDescriptors(list)
   const proto = Object.getPrototypeOf(list)
@@ -147,9 +151,17 @@ function snapshotArray(value, code, label, depth) {
   if (proto === Array.prototype) {
     rejectInheritedEnumerable(proto, label)
   }
-  for (const key of Object.keys(descriptors)) {
+  for (const key of Reflect.ownKeys(descriptors)) {
     if (key === 'length') continue
     const desc = descriptors[key]
+    if (typeof key !== 'string') {
+      if (desc.enumerable) {
+        fail('unknown_field', `${label} array has a non-string property key`, {
+          classification: 'fail_closed',
+        })
+      }
+      continue
+    }
     if (desc.get !== undefined || desc.set !== undefined) {
       fail('accessor_property', `${label} array has an accessor: ${key}`, {
         classification: 'fail_closed',
@@ -183,7 +195,9 @@ function snapshotArray(value, code, label, depth) {
  * @returns {Record<string, unknown>}
  */
 function snapshotOwnEnumerablePlainData(value, code = 'invalid_object', label = 'platform input', depth = 0) {
-  if (depth > 5) fail('payload_too_deep', 'platform claim exceeded bounded depth')
+  if (depth > 5) {
+    fail('payload_too_deep', 'platform claim exceeded bounded depth', { classification: 'fail_closed' })
+  }
   const record = object(value, code)
   const proto = Object.getPrototypeOf(record)
   const descriptors = Object.getOwnPropertyDescriptors(record)
@@ -194,8 +208,21 @@ function snapshotOwnEnumerablePlainData(value, code = 'invalid_object', label = 
     rejectInheritedEnumerable(proto, label)
   }
   const snapshot = Object.create(null)
-  for (const key of Object.keys(descriptors)) {
+  for (const key of Reflect.ownKeys(descriptors)) {
     const desc = descriptors[key]
+    if (typeof key !== 'string') {
+      if (desc.get !== undefined || desc.set !== undefined) {
+        fail('accessor_property', `${label} has an accessor`, {
+          classification: 'fail_closed',
+        })
+      }
+      if (desc.enumerable) {
+        fail('unknown_field', `${label} has a non-string property key`, {
+          classification: 'fail_closed',
+        })
+      }
+      continue
+    }
     if (desc.get !== undefined || desc.set !== undefined) {
       fail('accessor_property', `${label} has an accessor: ${key}`, {
         classification: 'fail_closed',
@@ -213,7 +240,18 @@ function snapshotOwnEnumerablePlainData(value, code = 'invalid_object', label = 
  * @param {number} [depth]
  */
 function rejectSensitive(value, depth = 0) {
-  if (depth > 5) fail('payload_too_deep', 'platform claim exceeded bounded depth')
+  if (depth > 5) {
+    fail('payload_too_deep', 'platform claim exceeded bounded depth', { classification: 'fail_closed' })
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (item && typeof item === 'object') {
+        rejectSensitive(item, depth + 1)
+      }
+    }
+    return
+  }
+  if (!value || typeof value !== 'object') return
   for (const [key, item] of Object.entries(value)) {
     if (SENSITIVE.test(key)) {
       fail('sensitive_field', `platform claim contains a sensitive field: ${key}`, {
@@ -221,8 +259,8 @@ function rejectSensitive(value, depth = 0) {
         field: key,
       })
     }
-    if (item && typeof item === 'object' && !Array.isArray(item)) {
-      rejectSensitive(/** @type {Record<string, unknown>} */ (item), depth + 1)
+    if (item && typeof item === 'object') {
+      rejectSensitive(item, depth + 1)
     }
   }
 }
@@ -302,7 +340,37 @@ function assertContext(context) {
   if (context.expectedOrgId !== undefined && context.expectedOrgId !== null && !isNonEmptyString(context.expectedOrgId)) {
     fail('invalid_context', 'expectedOrgId must be a non-empty string or null', { classification: 'fail_closed' })
   }
+  if (context.credentialStatus !== undefined && !CREDENTIAL_STATUSES.has(context.credentialStatus)) {
+    fail('incompatible_credential_status', 'platform credential status is incompatible', {
+      classification: 'fail_closed',
+      field: 'credentialStatus',
+    })
+  }
+  if (context.bindingState !== undefined && !BINDING_STATES.has(context.bindingState)) {
+    fail('incompatible_binding_state', 'platform runtime binding state is incompatible', {
+      classification: 'fail_closed',
+      field: 'bindingState',
+    })
+  }
   assertFrozenPin(context.providerPin)
+}
+
+/**
+ * Present but non-string identity fields are malformed, not absent.
+ *
+ * @param {Record<string, unknown>} claim
+ */
+function assertIdentityMaterialShape(claim) {
+  for (const field of IDENTITY_MATERIAL) {
+    const value = claim[field]
+    if (value === undefined || value === '') continue
+    if (!isNonEmptyString(value)) {
+      fail('auth_claims_shape_invalid', `${field} must be a non-empty string`, {
+        classification: 'fail_closed',
+        field,
+      })
+    }
+  }
 }
 
 /**
@@ -321,6 +389,15 @@ function identityMaterialAbsent(claim) {
 export function validatePlatformIdentity(claim, context) {
   const ctx = snapshotOwnEnumerablePlainData(context, 'invalid_context', 'platform context')
   assertContext(ctx)
+
+  /** @type {Record<string, unknown> | null} */
+  let record = null
+  if (claim !== null && claim !== undefined) {
+    record = snapshotOwnEnumerablePlainData(claim, 'invalid_object', 'platform claim')
+    rejectSensitive(record)
+    rejectUnknown(record, CLAIM_KEYS, 'platform claim')
+    assertIdentityMaterialShape(record)
+  }
 
   if (ctx.identityServiceStatus === 'unavailable') {
     fail('identity_unavailable', 'platform identity service is unavailable', {
@@ -341,16 +418,12 @@ export function validatePlatformIdentity(claim, context) {
     })
   }
 
-  if (claim === null || claim === undefined) {
+  if (record === null) {
     fail('identity_unavailable', 'required platform claim material is absent', {
       classification: 'unavailable',
       provider: 'platform',
     })
   }
-
-  const record = snapshotOwnEnumerablePlainData(claim, 'invalid_object', 'platform claim')
-  rejectSensitive(record)
-  rejectUnknown(record, CLAIM_KEYS, 'platform claim')
 
   if (identityMaterialAbsent(record)) {
     fail('identity_unavailable', 'required platform claim material is absent', {
@@ -381,6 +454,13 @@ export function validatePlatformIdentity(claim, context) {
     fail('auth_claims_shape_invalid', 'orgId must be a non-empty string or null', {
       classification: 'fail_closed',
       field: 'orgId',
+    })
+  }
+  if (record.orgId === null && record.actorKind !== 'service') {
+    fail('auth_claims_shape_invalid', 'orgId may be null only when actorKind is service', {
+      classification: 'fail_closed',
+      field: 'orgId',
+      actorKind: record.actorKind,
     })
   }
   if (typeof record.internal !== 'boolean') {
@@ -454,20 +534,10 @@ export function validatePlatformIdentity(claim, context) {
   if (ctx.credentialStatus === 'revoked' || ctx.credentialStatus === 'rotated') {
     fail('revoked', 'platform credential is revoked or rotated', { classification: 'fail_closed' })
   }
-  if (ctx.bindingState === 'disabled') {
-    fail('binding_disabled', 'platform runtime binding is disabled', { classification: 'fail_closed' })
-  }
   if (ctx.actorLifecycleState !== undefined && ctx.actorLifecycleState !== 'active') {
     fail('inactive_actor', 'platform actor is not active', { classification: 'fail_closed' })
   }
 
-  if (record.orgId === null && record.actorKind !== 'service') {
-    fail('illegal_actor_combination', 'orgId may be null only when actorKind is service', {
-      classification: 'denied',
-      actorKind: record.actorKind,
-      orgId: record.orgId,
-    })
-  }
   if (record.internal === true && record.actorKind === 'human') {
     fail('illegal_actor_combination', 'internal Platform principals cannot use actorKind human', {
       classification: 'denied',
@@ -508,7 +578,7 @@ export function validatePlatformIdentity(claim, context) {
   }
   if (ctx.bindingState !== undefined && ctx.bindingState !== 'active') {
     fail('inactive_binding', 'platform runtime binding is not active', {
-      classification: 'denied',
+      classification: 'fail_closed',
       field: 'bindingState',
     })
   }

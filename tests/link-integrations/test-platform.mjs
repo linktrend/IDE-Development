@@ -102,12 +102,12 @@ test('AC-I6-DEN-platform: denies missing capability, wrong audience, wrong org, 
   )
 })
 
-test('AC-I6-DEN-platform: orgId null is denied for non-service actorKind', () => {
+test('AC-I6-FC-platform: orgId null plus non-service is a fail-closed shape error', () => {
   const fixture = load('positive-valid.json')
   classify(
     () => validatePlatformIdentity({ ...fixture.claim, orgId: null, actorKind: 'adapter' }, fixture.context),
-    'illegal_actor_combination',
-    'denied',
+    'auth_claims_shape_invalid',
+    'fail_closed',
   )
 })
 
@@ -312,6 +312,131 @@ test('AC-I6-FC-platform: extra or confused providerPin keys fail closed', () => 
       },
     }),
     'incompatible_pin',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-FC-platform: non-string identity fields fail closed instead of unavailable', () => {
+  const positive = load('positive-valid.json')
+  classify(
+    () => validatePlatformIdentity({ ...positive.claim, actorId: { extra: true } }, positive.context),
+    'auth_claims_shape_invalid',
+    'fail_closed',
+  )
+  classify(
+    () => validatePlatformIdentity({ ...positive.claim, actorId: 123 }, positive.context),
+    'auth_claims_shape_invalid',
+    'fail_closed',
+  )
+  classify(
+    () => validatePlatformIdentity(
+      { ...positive.claim, runtimeBindingId: { id: 'bind-ide-dev-s1' } },
+      positive.context,
+    ),
+    'auth_claims_shape_invalid',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-FC-platform: nested array secrets fail closed before missing-material unavailable', () => {
+  const positive = load('positive-valid.json')
+  classify(
+    () => validatePlatformIdentity(
+      { ...positive.claim, actorId: '', serviceScopes: [{ secret: 'redacted' }] },
+      positive.context,
+    ),
+    'sensitive_field',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-FC-platform: claim poison fails closed before identity-service unavailable', () => {
+  const positive = load('positive-valid.json')
+  const unavailable = { ...positive.context, identityServiceStatus: 'unavailable' }
+  classify(
+    () => validatePlatformIdentity({ ...positive.claim, secret: 'redacted' }, unavailable),
+    'sensitive_field',
+    'fail_closed',
+  )
+  classify(
+    () => validatePlatformIdentity({ ...positive.claim, extraField: 'no' }, unavailable),
+    'unknown_field',
+    'fail_closed',
+  )
+  const getterClaim = { ...positive.claim }
+  Object.defineProperty(getterClaim, 'actorId', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      return 'actor-ide-dev-s1'
+    },
+  })
+  classify(
+    () => validatePlatformIdentity(getterClaim, unavailable),
+    'accessor_property',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-FC-platform: enumerable symbol keys fail closed', () => {
+  const positive = load('positive-valid.json')
+  const secretSymbol = { ...positive.claim }
+  Object.defineProperty(secretSymbol, Symbol('secret'), {
+    enumerable: true,
+    configurable: true,
+    value: 'redacted',
+  })
+  classify(
+    () => validatePlatformIdentity(secretSymbol, positive.context),
+    'unknown_field',
+    'fail_closed',
+  )
+  const extraSymbol = { ...positive.claim }
+  Object.defineProperty(extraSymbol, Symbol('extraField'), {
+    enumerable: true,
+    configurable: true,
+    value: 'no',
+  })
+  classify(
+    () => validatePlatformIdentity(extraSymbol, positive.context),
+    'unknown_field',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-FC-platform: unknown credentialStatus and bindingState fail closed', () => {
+  const positive = load('positive-valid.json')
+  classify(
+    () => validatePlatformIdentity(positive.claim, { ...positive.context, credentialStatus: 'pending' }),
+    'incompatible_credential_status',
+    'fail_closed',
+  )
+  classify(
+    () => validatePlatformIdentity(positive.claim, { ...positive.context, bindingState: 'bogus' }),
+    'incompatible_binding_state',
+    'fail_closed',
+  )
+  classify(
+    () => validatePlatformIdentity(positive.claim, { ...positive.context, bindingState: 'disabled' }),
+    'incompatible_binding_state',
+    'fail_closed',
+  )
+  classify(
+    () => validatePlatformIdentity(positive.claim, { ...positive.context, bindingState: 'suspended' }),
+    'inactive_binding',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-FC-platform: payload_too_deep is classified fail_closed', () => {
+  const positive = load('positive-valid.json')
+  let nested = { secret: 'redacted' }
+  for (let index = 0; index < 6; index += 1) {
+    nested = { child: nested }
+  }
+  classify(
+    () => validatePlatformIdentity({ ...positive.claim, extraDeep: nested }, positive.context),
+    'payload_too_deep',
     'fail_closed',
   )
 })
