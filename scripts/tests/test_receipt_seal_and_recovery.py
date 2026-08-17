@@ -76,7 +76,214 @@ def _receipt(**changes: object) -> dict[str, object]:
 
 def _complete_receipt(**changes: object) -> dict[str, object]:
     raw = _receipt(**changes)
-    return receipts.FullSuiteReceipt.from_dict(raw, allow_missing_digest=True).to_dict()
+    return receipts.create_full_suite_receipt(raw).to_dict()
+
+
+class ReceiptBodyTrustTests(unittest.TestCase):
+    def test_metadata_body_mismatch_missing_schema_forged_digest_never_exact(self) -> None:
+        head = _sha(1)
+        tree = _sha(2)
+        trusted = _complete_receipt(candidateIdentity=_identity(head=head, tree=tree))
+        expected = {
+            "repository": "acme/demo",
+            "prNumber": 7,
+            "headCommit": head,
+            "gitTree": tree,
+            "workflowRunId": 101,
+            "workflowRunAttempt": 1,
+        }
+
+        mismatch = {
+            "id": "meta-mismatch",
+            "readable": True,
+            "repository": "acme/demo",
+            "prNumber": 7,
+            "headCommit": _sha(9),
+            "gitTree": tree,
+            "workflowRunId": 101,
+            "workflowRunAttempt": 1,
+            "receipt": trusted,
+        }
+        self.assertEqual(
+            classify_receipt_artifact(mismatch, expected=expected)["classification"],
+            "metadata_body_mismatch",
+        )
+
+        missing_body = {
+            "id": "no-body",
+            "readable": True,
+            "repository": "acme/demo",
+            "prNumber": 7,
+            "headCommit": head,
+            "gitTree": tree,
+            "workflowRunId": 101,
+            "workflowRunAttempt": 1,
+        }
+        self.assertEqual(
+            classify_receipt_artifact(missing_body, expected=expected)["classification"],
+            "malformed",
+        )
+
+        no_schema = dict(trusted)
+        no_schema.pop("schemaVersion")
+        missing_schema = {
+            "id": "no-schema",
+            "readable": True,
+            "repository": "acme/demo",
+            "prNumber": 7,
+            "headCommit": head,
+            "gitTree": tree,
+            "workflowRunId": 101,
+            "workflowRunAttempt": 1,
+            "receipt": no_schema,
+        }
+        self.assertEqual(
+            classify_receipt_artifact(missing_schema, expected=expected)["classification"],
+            "malformed",
+        )
+
+        forged = dict(trusted)
+        forged["receiptDigest"] = "sha256:" + ("0" * 64)
+        forged_artifact = {
+            "id": "forged-digest",
+            "readable": True,
+            "repository": "acme/demo",
+            "prNumber": 7,
+            "headCommit": head,
+            "gitTree": tree,
+            "workflowRunId": 101,
+            "workflowRunAttempt": 1,
+            "receipt": forged,
+        }
+        self.assertEqual(
+            classify_receipt_artifact(forged_artifact, expected=expected)["classification"],
+            "malformed",
+        )
+
+        exact = {
+            "id": "exact-trusted",
+            "readable": True,
+            "repository": "acme/demo",
+            "prNumber": 7,
+            "headCommit": head,
+            "gitTree": tree,
+            "workflowRunId": 101,
+            "workflowRunAttempt": 1,
+            "receipt": trusted,
+        }
+        self.assertEqual(classify_receipt_artifact(exact, expected=expected)["classification"], "exact")
+        selected = enumerate_and_select_receipt([mismatch, missing_body, exact], expected=expected)
+        self.assertTrue(selected["accepted"])
+        self.assertEqual(selected["selected"]["id"], "exact-trusted")
+
+    def test_truncated_receipt_and_wrong_tree_fail_merge_eligibility(self) -> None:
+        head = _sha(1)
+        tree = _sha(2)
+        record = {
+            "sealed": True,
+            "sealedSha": head,
+            "headSha": head,
+            "candidateIdentity": {"sourceSha": head, "gitTreeSha": tree},
+            "fast": {"status": "passed", "sha": head},
+            "bugbot": {"status": "passed", "sha": head},
+            "full": {"status": "passed", "sha": head},
+        }
+        truncated = {
+            "candidateIdentity": _identity(head=head, tree=tree),
+            "conclusion": "success",
+        }
+        blocked = phase_merge_eligibility_with_receipt(
+            record, live_head_sha=head, retained_receipt=truncated, expected_tree=tree
+        )
+        self.assertFalse(blocked.eligible)
+        self.assertTrue(
+            "retained_receipt_malformed" in blocked.detail
+            or "invalid_receipt" in blocked.detail
+            or "unsupported_version" in blocked.detail,
+            blocked.detail,
+        )
+
+        wrong_tree = _complete_receipt(candidateIdentity=_identity(head=head, tree=_sha(8)))
+        tree_blocked = phase_merge_eligibility_with_receipt(
+            record, live_head_sha=head, retained_receipt=wrong_tree, expected_tree=tree
+        )
+        self.assertFalse(tree_blocked.eligible)
+        self.assertIn("retained_receipt_wrong_tree", tree_blocked.detail)
+
+        forged = _complete_receipt(candidateIdentity=_identity(head=head, tree=tree))
+        forged = dict(forged)
+        forged["receiptDigest"] = "sha256:" + ("a" * 64)
+        digest_blocked = phase_merge_eligibility_with_receipt(
+            record, live_head_sha=head, retained_receipt=forged, expected_tree=tree
+        )
+        self.assertFalse(digest_blocked.eligible)
+        self.assertIn("receipt_digest_mismatch", digest_blocked.detail)
+
+        trusted = _complete_receipt(candidateIdentity=_identity(head=head, tree=tree))
+        ok = phase_merge_eligibility_with_receipt(
+            record, live_head_sha=head, retained_receipt=trusted, expected_tree=tree
+        )
+        self.assertTrue(ok.eligible, ok.detail)
+
+    def test_integrator_eligible_cli_requires_retained_receipt(self) -> None:
+        head = _sha(1)
+        tree = _sha(2)
+        record = {
+            "sealed": True,
+            "sealedSha": head,
+            "headSha": head,
+            "candidateIdentity": {"sourceSha": head, "gitTreeSha": tree},
+            "fast": {"status": "passed", "sha": head},
+            "bugbot": {"status": "passed", "sha": head},
+            "full": {"status": "passed", "sha": head},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            record_path = root / "record.json"
+            receipt_path = root / "receipt.json"
+            record_path.write_text(json.dumps(record), encoding="utf-8")
+            receipt_path.write_text(
+                json.dumps(_complete_receipt(candidateIdentity=_identity(head=head, tree=tree))),
+                encoding="utf-8",
+            )
+            missing = subprocess.run(
+                [
+                    "python3",
+                    "scripts/gitops/phase_integrator.py",
+                    "eligible",
+                    str(record_path),
+                    head,
+                ],
+                cwd=Path(__file__).resolve().parents[2],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(missing.returncode, 0)
+            missing_payload = json.loads(missing.stdout)
+            self.assertFalse(missing_payload["eligible"])
+            self.assertIn("retained_receipt_missing", missing_payload["detail"])
+
+            ok = subprocess.run(
+                [
+                    "python3",
+                    "scripts/gitops/phase_integrator.py",
+                    "eligible",
+                    str(record_path),
+                    head,
+                    "--receipt",
+                    str(receipt_path),
+                    "--expected-tree",
+                    tree,
+                ],
+                cwd=Path(__file__).resolve().parents[2],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
+            ok_payload = json.loads(ok.stdout)
+            self.assertTrue(ok_payload["eligible"])
 
 
 class CanonicalCandidateHeadTests(unittest.TestCase):

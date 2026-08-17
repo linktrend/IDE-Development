@@ -26,7 +26,9 @@ if str(SCRIPT_DIR.parent) not in sys.path:
 
 from coordinator.receipts import (  # noqa: E402
     CandidateIdentity,
+    FullSuiteReceipt,
     ReceiptError,
+    compute_receipt_digest,
     verify_receipt,
 )
 from phase_integrator import MergeEligibility, phase_merge_eligibility  # noqa: E402
@@ -154,6 +156,26 @@ def resolve_canonical_candidate_head(payload: Mapping[str, Any]) -> dict[str, An
     return result
 
 
+def parse_trusted_full_suite_receipt(receipt: Mapping[str, Any] | None) -> FullSuiteReceipt:
+    """Parse and integrity-check a schemaVersion 2 FullSuiteReceipt fail-closed."""
+
+    if receipt is None:
+        raise SealError("retained_receipt_missing", "receipt body is required")
+    if not isinstance(receipt, Mapping):
+        raise SealError("retained_receipt_malformed", "receipt must be an object")
+    if "schemaVersion" not in receipt:
+        raise SealError("retained_receipt_malformed", "schemaVersion is mandatory and must be exactly 2")
+    if receipt.get("schemaVersion") != 2:
+        raise SealError("retained_receipt_malformed", "schemaVersion must be exactly 2")
+    try:
+        parsed = FullSuiteReceipt.from_dict(receipt, allow_missing_digest=False)
+        if parsed.receipt_digest != compute_receipt_digest(parsed):
+            raise SealError("receipt_digest_mismatch", "receiptDigest does not match canonical receipt bytes")
+    except ReceiptError as exc:
+        raise SealError(exc.code if exc.code else "retained_receipt_malformed", str(exc)) from exc
+    return parsed
+
+
 def classify_receipt_artifact(
     artifact: Mapping[str, Any],
     *,
@@ -189,46 +211,52 @@ def classify_receipt_artifact(
         }
 
     receipt = row.get("receipt")
-    if receipt is not None and not isinstance(receipt, Mapping):
+    if receipt is None:
+        return {"id": artifact_id, "classification": "malformed", "artifact": row}
+    try:
+        parsed = parse_trusted_full_suite_receipt(receipt if isinstance(receipt, Mapping) else None)
+    except SealError:
         return {"id": artifact_id, "classification": "malformed", "artifact": row}
 
-    head = _sha(row.get("headCommit") or row.get("head"))
-    tree = _sha(row.get("gitTree") or row.get("tree"))
-    if isinstance(receipt, Mapping):
-        identity = receipt.get("candidateIdentity") if isinstance(receipt.get("candidateIdentity"), Mapping) else {}
-        head = head or _sha(identity.get("headCommit"))
-        tree = tree or _sha(identity.get("gitTree"))
-        try:
-            # Parse only enough to reject malformed schema without requiring digest present in test stubs.
-            if receipt.get("schemaVersion") not in (None, 2):
-                return {"id": artifact_id, "classification": "malformed", "artifact": row}
-        except Exception:
-            return {"id": artifact_id, "classification": "malformed", "artifact": row}
+    body_head = parsed.candidate_identity.head_commit
+    body_tree = parsed.candidate_identity.git_tree
+    meta_head = _sha(row.get("headCommit") or row.get("head"))
+    meta_tree = _sha(row.get("gitTree") or row.get("tree"))
+    if meta_head and meta_head != body_head:
+        return {"id": artifact_id, "classification": "metadata_body_mismatch", "artifact": row}
+    if meta_tree and meta_tree != body_tree:
+        return {"id": artifact_id, "classification": "metadata_body_mismatch", "artifact": row}
 
-    if expected_repo and str(row.get("repository") or "") not in ("", expected_repo):
-        return {"id": artifact_id, "classification": "unrelated_repository", "artifact": row}
+    head = body_head
+    tree = body_tree
+    # Prefer body run identity; metadata may omit run fields.
+    run_id = row.get("workflowRunId", parsed.workflow_run_id)
+    attempt = row.get("workflowRunAttempt", parsed.workflow_run_attempt)
+
+    if expected_repo:
+        artifact_repo = str(row.get("repository") or parsed.candidate_identity.repository)
+        if artifact_repo != expected_repo:
+            return {"id": artifact_id, "classification": "unrelated_repository", "artifact": row}
     if expected_pr is not None and row.get("prNumber") not in (None, expected_pr):
         return {"id": artifact_id, "classification": "unrelated_pr", "artifact": row}
-    if expected_head and head and head != expected_head:
+    if expected_head and head != expected_head:
         return {"id": artifact_id, "classification": "stale_head", "artifact": row}
-    if expected_tree and tree and tree != expected_tree:
+    if expected_tree and tree != expected_tree:
         return {"id": artifact_id, "classification": "wrong_tree", "artifact": row}
-    if expected_run is not None and row.get("workflowRunId") not in (None, expected_run):
+    if expected_run is not None and run_id != expected_run:
         return {"id": artifact_id, "classification": "unrelated_run", "artifact": row}
-    if expected_attempt is not None and row.get("workflowRunAttempt") not in (None, expected_attempt):
+    if expected_attempt is not None and attempt != expected_attempt:
         return {"id": artifact_id, "classification": "unrelated_attempt", "artifact": row}
 
     exact_keys_match = (
         bool(expected_head)
         and head == expected_head
         and (not expected_tree or tree == expected_tree)
-        and (expected_run is None or row.get("workflowRunId") == expected_run)
-        and (expected_attempt is None or row.get("workflowRunAttempt") == expected_attempt)
+        and (expected_run is None or run_id == expected_run)
+        and (expected_attempt is None or attempt == expected_attempt)
     )
     if exact_keys_match:
         return {"id": artifact_id, "classification": "exact", "artifact": row}
-    if not head:
-        return {"id": artifact_id, "classification": "malformed", "artifact": row}
     return {"id": artifact_id, "classification": "non_matching", "artifact": row}
 
 
@@ -255,6 +283,7 @@ def enumerate_and_select_receipt(
         elif code in {
             "inaccessible",
             "inaccessible_stale",
+            "metadata_body_mismatch",
             "stale_head",
             "wrong_tree",
             "unrelated_repository",
@@ -323,11 +352,9 @@ def phase_merge_eligibility_with_receipt(
         return MergeEligibility(False, "blocked:" + ",".join(failed + ["retained_receipt_missing"]), checks)
 
     try:
-        identity = retained_receipt.get("candidateIdentity")
-        if not isinstance(identity, Mapping):
-            raise SealError("retained_receipt_malformed", "candidateIdentity missing")
-        receipt_head = _sha(identity.get("headCommit"))
-        receipt_tree = _sha(identity.get("gitTree"))
+        parsed = parse_trusted_full_suite_receipt(retained_receipt)
+        receipt_head = parsed.candidate_identity.head_commit
+        receipt_tree = parsed.candidate_identity.git_tree
         if not receipt_head or receipt_head != head:
             checks["retainedReceipt"] = False
             failed = [name for name, ok in checks.items() if not ok]
@@ -340,8 +367,14 @@ def phase_merge_eligibility_with_receipt(
         if not live_tree:
             candidate = record.get("candidateIdentity")
             if isinstance(candidate, Mapping):
-                live_tree = _sha(candidate.get("gitTreeSha") or candidate.get("gitTree"))
-        if live_tree and receipt_tree and receipt_tree != live_tree:
+                live_tree = _sha(
+                    candidate.get("gitTreeSha")
+                    or candidate.get("gitTree")
+                    or candidate.get("git_tree")
+                )
+        if not live_tree:
+            live_tree = receipt_tree
+        if live_tree and receipt_tree != live_tree:
             checks["retainedReceipt"] = False
             failed = [name for name, ok in checks.items() if not ok]
             return MergeEligibility(
@@ -349,12 +382,22 @@ def phase_merge_eligibility_with_receipt(
                 "blocked:" + ",".join(failed + ["retained_receipt_wrong_tree"]),
                 checks,
             )
-        if str(retained_receipt.get("conclusion") or "").lower() != "success":
+        live_identity = CandidateIdentity(
+            parsed.candidate_identity.repository,
+            parsed.candidate_identity.source_branch,
+            head,
+            live_tree or receipt_tree,
+            parsed.candidate_identity.dependency_digest,
+            parsed.candidate_identity.profile_digest,
+            parsed.candidate_identity.workflow_digest,
+        )
+        verdict = verify_receipt(parsed, live_identity, "full-gate")
+        if not verdict.accepted:
             checks["retainedReceipt"] = False
             failed = [name for name, ok in checks.items() if not ok]
             return MergeEligibility(
                 False,
-                "blocked:" + ",".join(failed + ["retained_receipt_not_success"]),
+                "blocked:" + ",".join(failed + [verdict.code]),
                 checks,
             )
     except SealError as exc:
