@@ -19,9 +19,9 @@
 | HOLD audit branch preserved | `issue/323-implement-ide-development-v2-4-0-wp-u06` @ `867009f0f33a9a6426c6680a8e95fbec66dc9b02` |
 | Finding-reviewed tip | `90dd3faf88117cb3e488c7f17517d5a8b0fa8e5b` (historical review target; not current tip claim) |
 | Content head/tree | `fc7936597bb4e3ba2453ff062e43ab93b57898e9` / `f196ad70995bf1514ab3a61d85901ea1adf668d6` |
-| Evidence head/tree |  /  |
+| Evidence head/tree | `b5eace1792fe2727e37b9f9accef01dd57ec11d0` / `d467c0fdfa7142b6a997bfd5fcecdfbd796524db` |
 | Final tip binding | branch HEAD after this bind-metadata commit; tip SHA not self-embedded (non-self-reference boundary) |
-| Novel packet commit range |  (through evidence head; bind-metadata tip follows without self-SHA) |
+| Novel packet commit range | `fc7936597bb4e3ba2453ff062e43ab93b57898e9..b5eace1792fe2727e37b9f9accef01dd57ec11d0` (through evidence head; bind-metadata tip follows without self-SHA) |
 | Phase base at handoff | not used |
 
 ## Topology notes
