@@ -19,16 +19,16 @@
 | Dependency-context HEAD/tree | `a926794d7e549a97579f2e1816aca7a893993ccd` / `53af75c63ad2dc48403ba0c2f3be5adb71d79bd2` |
 | Finding-reviewed tip (argv slurp) | `b0b7051f1b45aa0bd127ca973a1574af4ab1683e` (historical review target; not current tip claim) |
 | Content head/tree | `e4a2ceff2dfcf664699ee1e2c750911000058762` / `517743c39db81d549ca316360412801c75894fb8` |
-| Evidence head/tree | (filled at evidence commit) |
-| Final tip binding | branch HEAD after bind-metadata commit; tip SHA not self-embedded (non-self-reference boundary) |
-| Novel packet commit range | `2c1448647d96f3b447bf84a3b0723bbeaf6fc63a..e4a2ceff2dfcf664699ee1e2c750911000058762` (through content head; evidence/bind follow) |
+| Evidence head/tree | `13d1cb740c58a86f85a6884091a229f8caaecb91` / `c2942ba8b714e107d287b23789f43574a4de40da` |
+| Final tip binding | branch HEAD after this bind-metadata commit; tip SHA not self-embedded (non-self-reference boundary) |
+| Novel packet commit range | `2c1448647d96f3b447bf84a3b0723bbeaf6fc63a..13d1cb740c58a86f85a6884091a229f8caaecb91` (through evidence head; bind-metadata tip follows without self-SHA) |
 | Phase base at handoff | not used (no Phase integration in this packet) |
 
 ## Topology notes
 
 `agentsetup` created this branch from `origin/development`. Required predecessors were layered by resetting onto the independently CLEAN WP-U07 tip, which already preserves WP-U09 and WP-U10 tip patch content (verified patch-id equality). See `predecessor-ledger.json`.
 
-Identity model: **content-head / evidence-head / final-bind-tip**. The final tip commit contains only binding metadata and does not embed its own commit SHA (impossible self-reference). Immutable reviewed identities are content and evidence heads/trees only.
+Identity model: **content-head / evidence-head / final-bind-tip**. This bind-metadata commit is the final tip and contains only binding metadata. It does not embed its own commit SHA (impossible self-reference). Immutable reviewed identities are content and evidence heads/trees only.
 
 ## Rollback
 
