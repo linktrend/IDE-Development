@@ -11,6 +11,8 @@
 | Start tree | cc1f666dccce26545884f87dc065f7cfcd86a235 |
 | Prior accepted tip (A–C) | cfa141aced4e4843f7d5f51a0b76c3d64f384b72 / 09eef53c721e0f00a81d048b565352a1a4fc841b |
 | Content head/tree (includes D) | 555cba0cceb96b334754a6e9ef28fb9aadf13567 / 0b900215b13088735588eb5ea2563069e634b865 |
+| Evidence head/tree (includes D) | 2b9083effb732a4510e6fff8ebf03c0e3a70b836 / 6a7356945a5e3b84b9cdbdcb9c8097e4ec46a4d3 |
+| Final tip binding | branch HEAD after bind-metadata commit; tip SHA not self-embedded |
 | Scope | Repair only PR #326 combined-phase Fast / Verify IDE / installer matrix failures (+ residual Verify IDE managed-workflow drift) |
 
 ## Failures repaired

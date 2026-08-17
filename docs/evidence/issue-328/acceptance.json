@@ -15,7 +15,7 @@
   "implementationTree": "0b900215b13088735588eb5ea2563069e634b865",
   "headSha": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
   "tree": "0b900215b13088735588eb5ea2563069e634b865",
-  "acceptance": "Preserved A–C repairs; closed Verify IDE managed-workflow render drift for linktrend-repair-observer.yml via official sync; narrow local render/sync/bounded-verify/manifest/diff OK. Does not claim hosted CI pass after D.",
+  "acceptance": "Preserved A\u2013C repairs; closed Verify IDE managed-workflow render drift for linktrend-repair-observer.yml via official sync; narrow local render/sync/bounded-verify/manifest/diff OK. Does not claim hosted CI pass after D.",
   "covered": [
     "A-secret-scan-fixture-binding-and-publisher-literal",
     "B-vendored-skills-hash-inventory",
@@ -98,5 +98,7 @@
       "exitCode": 0,
       "evidencePath": "docs/evidence/issue-328/diff-check-repair-observer.out"
     }
-  ]
+  ],
+  "evidenceHeadSha": "2b9083effb732a4510e6fff8ebf03c0e3a70b836",
+  "evidenceTree": "6a7356945a5e3b84b9cdbdcb9c8097e4ec46a4d3"
 }
