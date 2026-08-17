@@ -4,30 +4,26 @@
   "workPackage": "WP-U01",
   "branch": "issue/322-implement-ide-development-v2-4-0-wp-u01",
   "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
-  "reviewedTip": "d020b73431af6c77ed90f93febac63c9064753d0",
-  "reviewedTree": "9363d4e085f6d423106f679113a1e443e4ae327c",
+  "identityModel": "content-head/evidence-head/final-bind-tip",
+  "findingReviewedTip": "ee8097ca54a0ff8134e98591c20d37b80bc3b253",
+  "findingReviewedNote": "Tip reviewed for U01-R1..R4 findings; not claimed as current packet tip.",
   "startSha": "741e58922e7413c1097f4a58ea25e94a934af903",
   "startTree": "1affbab9035df799fdb7d723d8518e54fa6a1c00",
   "dependencyContextSha": "a926794d7e549a97579f2e1816aca7a893993ccd",
   "dependencyContextTree": "53af75c63ad2dc48403ba0c2f3be5adb71d79bd2",
-  "contentHeadSha": "7eb1c8f55d0253d9e2537f56bccee6c767891678",
-  "contentTree": "824e8f8297331a9ad6866f3504804757acc99a84",
-  "implementationHeadSha": "7eb1c8f55d0253d9e2537f56bccee6c767891678",
-  "implementationTree": "824e8f8297331a9ad6866f3504804757acc99a84",
+  "contentHeadSha": "7fee5d9cf423eb3eeff99af8a40c1a530c4b8809",
+  "contentTree": "2ccef486126c2439e3dbfd50d728cb8f07cc3c5c",
+  "implementationHeadSha": "7fee5d9cf423eb3eeff99af8a40c1a530c4b8809",
+  "implementationTree": "2ccef486126c2439e3dbfd50d728cb8f07cc3c5c",
+  "headSha": "7fee5d9cf423eb3eeff99af8a40c1a530c4b8809",
+  "tree": "2ccef486126c2439e3dbfd50d728cb8f07cc3c5c",
   "repair": [
-    "split provider vs Review Gate in repair-observer template/config/tests",
-    "durable founder-alert issue path with dedupe/fail-closed",
-    "wire evaluate_fallback_review into managed workflow",
-    "trusted verified unavailability only; no heuristic failure->success",
-    "migrate verify-ide/wire-repo/coordinator/apply/bootstrap/external-state required contexts",
-    "infra-only attempt counting",
-    "Full receipt required before successful gate publish",
-    "content-head/bind-tip evidence pattern",
-    "git diff --check clean",
-    "local .cursor bootstrap Integrator gate \u2192 Linktrend Review Gate",
-    "restore bugbotProviderCheckName=Cursor Bugbot in coordinator/profile fixtures"
+    "U01-R1 evidence identity content/evidence/final-bind-tip with non-self-reference boundary",
+    "U01-R2 founder-alert dedupe via paginated issue bodies; fail closed if unread",
+    "U01-R3 preserve Full receipt gitTree; never overwrite with live TREE",
+    "U01-R4 remove || true on infra marker publication; fail closed"
   ],
-  "acceptance": "AC-U01-01..18 except AC-U01-07; repaired exact-head review findings; follow-up provider/bootstrap split; 25 focused OK",
+  "acceptance": "AC-U01-01..18 except AC-U01-07; U01-R1..R4 repaired; focused U01 OK",
   "exclusions": [
     "AC-U01-07 nine-consumer install",
     "Full suite",
@@ -49,8 +45,8 @@
       "command": "python3 -m unittest scripts.tests.test_linktrend_review_gate scripts.ide_development_tests.test_build_manifest",
       "exitCode": 0,
       "evidencePath": "docs/evidence/issue-322/wp-u01-focused-tests.out",
-      "testsRan": 25,
-      "againstHead": "7eb1c8f55d0253d9e2537f56bccee6c767891678"
+      "testsRan": 27,
+      "againstHead": "7fee5d9cf423eb3eeff99af8a40c1a530c4b8809"
     },
     {
       "command": "bash scripts/tests/test-repository-protection.sh",
@@ -73,10 +69,10 @@
     "AC-U01-07 deferred to WP-CONSUMERS",
     "No Full / PR / review-ready / promotion / rollout in this packet"
   ],
-  "at": "2026-08-17T13:16:51Z",
-  "sanitized": true,
-  "headSha": "7eb1c8f55d0253d9e2537f56bccee6c767891678",
-  "tree": "824e8f8297331a9ad6866f3504804757acc99a84",
-  "evidenceHeadSha": "c84abbbe98f5c82bc382812f07131d2c43a41cfd",
-  "evidenceTree": "73c453a79c9f39cfadec877e114fd85dc5315f31"
+  "finalTipBinding": {
+    "mode": "non-self-reference-boundary",
+    "note": "Final tip is the branch HEAD after the bind-metadata commit. A commit cannot truthfully embed its own commit SHA inside its tree (impossible self-reference). Immutable reviewed identities are contentHeadSha/contentTree and evidenceHeadSha/evidenceTree only. No annotated evidence ref is required by accepted plan for this packet."
+  },
+  "at": "2026-08-17T13:35:21Z",
+  "sanitized": true
 }

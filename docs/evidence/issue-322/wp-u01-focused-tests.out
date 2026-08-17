@@ -8,6 +8,7 @@ test_full_receipt_required_before_successful_gate_publish (scripts.tests.test_li
 test_infrastructure_attempts_count_only_infra_markers (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_infrastructure_attempts_count_only_infra_markers) ... ok
 test_managed_surfaces_reject_raw_bugbot_required_defaults (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_managed_surfaces_reject_raw_bugbot_required_defaults) ... ok
 test_new_commit_invalidates_prior_outcome (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_new_commit_invalidates_prior_outcome) ... ok
+test_normalize_full_receipt_never_injects_live_tree (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_normalize_full_receipt_never_injects_live_tree) ... ok
 test_observer_rejects_raw_bugbot_as_managed_gate (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_observer_rejects_raw_bugbot_as_managed_gate) ... ok
 test_packaged_surfaces_exist (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_packaged_surfaces_exist) ... ok
 test_protection_and_consumer_defaults_migrated (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_protection_and_consumer_defaults_migrated) ... ok
@@ -15,6 +16,8 @@ test_raw_bugbot_required_contexts_rejected (scripts.tests.test_linktrend_review_
 test_same_account_comment_not_github_approval (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_same_account_comment_not_github_approval) ... ok
 test_undocumented_task_hold_rejected (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_undocumented_task_hold_rejected) ... ok
 test_workflow_forbids_heuristic_and_wires_alert_fallback_full (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_workflow_forbids_heuristic_and_wires_alert_fallback_full) ... ok
+test_workflow_path_wrong_tree_receipt_negative (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_workflow_path_wrong_tree_receipt_negative)
+Adversarial: receipt tree differs from live TREE and must fail closed. ... ok
 test_workflow_static_no_trailing_whitespace (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_workflow_static_no_trailing_whitespace) ... ok
 test_content_doctrine_covers_required_contracts (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests.test_content_doctrine_covers_required_contracts) ... ok
 test_content_doctrine_sources_exist (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests.test_content_doctrine_sources_exist) ... ok
@@ -25,6 +28,6 @@ test_required_cursor_materialization_sources_are_packaged (scripts.ide_developme
 test_version_alignment_helpers (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests.test_version_alignment_helpers) ... ok
 
 ----------------------------------------------------------------------
-Ran 25 tests in 0.283s
+Ran 27 tests in 0.285s
 
 OK

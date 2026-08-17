@@ -17,14 +17,18 @@
 | Start tree | `1affbab9035df799fdb7d723d8518e54fa6a1c00` |
 | Accepted prerequisite commits | WP-U07 `a926794d7e549a97579f2e1816aca7a893993ccd` / tree `53af75c63ad2dc48403ba0c2f3be5adb71d79bd2`; WP-U09 `36231634601e5580c83d4339acaeef651769ea93` / tree `259bc414e753e3d8f9a5b193f8e5bee7c9fa1a75`; WP-U10 `f738a94f3db6888968692d617b0b2bcd85024684` / tree `1c73c8747ab73ff0c9cc5671740aa1c7c9ec061f` |
 | Dependency-context HEAD/tree | `a926794d7e549a97579f2e1816aca7a893993ccd` / `53af75c63ad2dc48403ba0c2f3be5adb71d79bd2` |
-| Novel packet commit range | `2c1448647d96f3b447bf84a3b0723bbeaf6fc63a..a67f2f8f286de8c059f9c458230371416191b4d5` |
+| Finding-reviewed tip (U01-R1..R4) | `ee8097ca54a0ff8134e98591c20d37b80bc3b253` (historical review target; not current tip claim) |
+| Content head/tree | `7fee5d9cf423eb3eeff99af8a40c1a530c4b8809` / `2ccef486126c2439e3dbfd50d728cb8f07cc3c5c` |
+| Evidence head/tree | (filled at evidence commit) |
+| Final tip binding | branch HEAD after bind-metadata commit; tip SHA not self-embedded (non-self-reference boundary) |
+| Novel packet commit range | `2c1448647d96f3b447bf84a3b0723bbeaf6fc63a..7fee5d9cf423eb3eeff99af8a40c1a530c4b8809` (through content head; evidence/bind follow) |
 | Phase base at handoff | not used (no Phase integration in this packet) |
-| Exact HEAD after packet | `7eb1c8f55d0253d9e2537f56bccee6c767891678` (content) / `a67f2f8f286de8c059f9c458230371416191b4d5` (bind tip) |
-| Exact tree after packet | `824e8f8297331a9ad6866f3504804757acc99a84` (content) / `154028fb6f6216023a9f99e28a55ac97543a494f` (bind tip) |
 
 ## Topology notes
 
 `agentsetup` created this branch from `origin/development`. Required predecessors were layered by resetting onto the independently CLEAN WP-U07 tip, which already preserves WP-U09 and WP-U10 tip patch content (verified patch-id equality). See `predecessor-ledger.json`. WP-U04/U03/U08 tips were verified but not separately integrated as U01 matrix dependencies.
+
+Identity model: **content-head / evidence-head / final-bind-tip**. The final tip commit contains only binding metadata and does not embed its own commit SHA (impossible self-reference). Immutable reviewed identities are content and evidence heads/trees only.
 
 ## Rollback
 
