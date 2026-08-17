@@ -17,15 +17,18 @@
 | Start tree | `9fb4583be84b1fe2bd9bf70fd5e15e65cf674117` |
 | Predecessor phase | `phase/v240-core-through-u01` (independently verified CLEAN) |
 | HOLD audit branch preserved | `issue/323-implement-ide-development-v2-4-0-wp-u06` @ `867009f0f33a9a6426c6680a8e95fbec66dc9b02` |
-| Content head/tree | `39d2afca2e383b982ad03284232ed3acf74102e0` / `18a56e15dc7a784a3908ba34379b56d24f7c3681` |
-| Evidence head/tree | `b0ff0eca52223869aab9a9e4d7f84ffa55bd07aa` / `4dc97d47ea10d2d35b1d8bca27e099ef8649b1fe` |
-| Final tip binding | branch HEAD after this bind-metadata commit; tip SHA not self-embedded (non-self-reference boundary) |
-| Novel packet commit range | `39d2afca2e383b982ad03284232ed3acf74102e0..b0ff0eca52223869aab9a9e4d7f84ffa55bd07aa` (through evidence head; bind-metadata tip follows without self-SHA) |
+| Finding-reviewed tip | `90dd3faf88117cb3e488c7f17517d5a8b0fa8e5b` (historical review target; not current tip claim) |
+| Content head/tree | `fc7936597bb4e3ba2453ff062e43ab93b57898e9` / `f196ad70995bf1514ab3a61d85901ea1adf668d6` |
+| Evidence head/tree | (set at evidence commit; bind tip follows without self-SHA) |
+| Final tip binding | branch HEAD after bind-metadata commit; tip SHA not self-embedded |
+| Novel packet commit range | through evidence head; bind-metadata tip follows without self-SHA |
 | Phase base at handoff | not used |
 
 ## Topology notes
 
 Retry branch created from the serially integrated `phase/v240-core-through-u01` tip after matrix dependencies WP-U03/U07/U01 were integrated. Prior HOLD branch left unchanged as audit history. Spec Update-6 language naming Update 2 is treated as forward-reference; matrix order places WP-U02 after WP-U06 (not implemented here).
+
+Repair R1 closes independent findings on tip `90dd3fa`: trusted FullSuiteReceipt body parse + metadata/body equality before `exact`; schemaVersion exactly 2 + digest integrity on merge eligibility; Integrator `eligible` CLI routed through retained-receipt gate. U03 `phase_merge_eligibility` library checks remain available for non-CLI callers.
 
 Identity model: **content-head / evidence-head / final-bind-tip**.
 

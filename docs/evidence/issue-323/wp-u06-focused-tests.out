@@ -1,9 +1,11 @@
-.................................
+....................................
 ----------------------------------------------------------------------
-Ran 33 tests in 3.998s
+Ran 36 tests in 4.117s
 
 OK
 MANIFEST verify OK
-againstHead:39d2afca2e383b982ad03284232ed3acf74102e0
-againstTree:18a56e15dc7a784a3908ba34379b56d24f7c3681
-at:2026-08-17T15:52:14Z
+againstHead:fc7936597bb4e3ba2453ff062e43ab93b57898e9
+againstTree:f196ad70995bf1514ab3a61d85901ea1adf668d6
+at:2026-08-17T16:07:48Z
+testsRan:36
+findingReviewedTip:90dd3faf88117cb3e488c7f17517d5a8b0fa8e5b

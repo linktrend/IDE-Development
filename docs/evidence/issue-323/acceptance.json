@@ -6,19 +6,27 @@
   "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
   "docsAuthorityTree": "6b9f73f1e78ae4abda3b78b939adc190b6d0842a",
   "identityModel": "content-head/evidence-head/final-bind-tip",
+  "findingReviewedTip": "90dd3faf88117cb3e488c7f17517d5a8b0fa8e5b",
+  "findingReviewedNote": "Tip reviewed for four independent P1/P2 receipt-trust findings; not claimed as current packet tip.",
   "startSha": "194078a4186da110e42f514aed860683b0bdbe23",
   "startTree": "9fb4583be84b1fe2bd9bf70fd5e15e65cf674117",
   "predecessorPhase": "phase/v240-core-through-u01",
   "predecessorVerifiedClean": true,
   "holdBranchPreserved": "issue/323-implement-ide-development-v2-4-0-wp-u06",
   "holdBranchTip": "867009f0f33a9a6426c6680a8e95fbec66dc9b02",
-  "contentHeadSha": "39d2afca2e383b982ad03284232ed3acf74102e0",
-  "contentTree": "18a56e15dc7a784a3908ba34379b56d24f7c3681",
-  "implementationHeadSha": "39d2afca2e383b982ad03284232ed3acf74102e0",
-  "implementationTree": "18a56e15dc7a784a3908ba34379b56d24f7c3681",
-  "headSha": "39d2afca2e383b982ad03284232ed3acf74102e0",
-  "tree": "18a56e15dc7a784a3908ba34379b56d24f7c3681",
-  "acceptance": "AC-U06-01..10; focused adversarial receipt-seal tests OK; manifest verify OK; diff --check OK",
+  "contentHeadSha": "fc7936597bb4e3ba2453ff062e43ab93b57898e9",
+  "contentTree": "f196ad70995bf1514ab3a61d85901ea1adf668d6",
+  "implementationHeadSha": "fc7936597bb4e3ba2453ff062e43ab93b57898e9",
+  "implementationTree": "f196ad70995bf1514ab3a61d85901ea1adf668d6",
+  "headSha": "fc7936597bb4e3ba2453ff062e43ab93b57898e9",
+  "tree": "f196ad70995bf1514ab3a61d85901ea1adf668d6",
+  "repair": [
+    "P1: classify requires trusted FullSuiteReceipt body parse; metadata head/tree must equal body candidateIdentity; mismatch/missing/malformed/forged digest never exact",
+    "P1: merge eligibility requires schemaVersion 2 + receiptDigest integrity + verify_receipt; truncated candidateIdentity+success fails closed",
+    "P2: schemaVersion mandatory and exactly 2 (missing is malformed)",
+    "P2: phase_integrator eligible CLI routes through phase_merge_eligibility_with_receipt; library phase_merge_eligibility preserved for U03"
+  ],
+  "acceptance": "AC-U06-01..10; P1/P2 findings repaired; focused adversarial + integrator tests OK; manifest verify OK; diff --check OK",
   "covered": [
     "AC-U06-01",
     "AC-U06-02",
@@ -51,12 +59,12 @@
   ],
   "commands": [
     {
-      "command": "python3 -m unittest scripts.tests.test_receipt_seal_and_recovery scripts.tests.test_gate_receipts scripts.tests.test_promotion_receipt_gate scripts.tests.test_phase_batch_lifecycle scripts.ide_development_tests.test_build_manifest",
+      "command": "python3 -m unittest scripts.tests.test_receipt_seal_and_recovery scripts.tests.test_phase_batch_lifecycle scripts.tests.test_gate_receipts scripts.tests.test_promotion_receipt_gate scripts.ide_development_tests.test_build_manifest",
       "exitCode": 0,
       "evidencePath": "docs/evidence/issue-323/wp-u06-focused-tests.out",
-      "testsRan": 33,
-      "againstHead": "39d2afca2e383b982ad03284232ed3acf74102e0",
-      "againstTree": "18a56e15dc7a784a3908ba34379b56d24f7c3681"
+      "testsRan": 36,
+      "againstHead": "fc7936597bb4e3ba2453ff062e43ab93b57898e9",
+      "againstTree": "f196ad70995bf1514ab3a61d85901ea1adf668d6"
     },
     {
       "command": "python3 -m scripts.ide_development.build_manifest --verify",
@@ -76,7 +84,5 @@
     "note": "Bind-metadata commit becomes the branch tip. It records content and evidence heads/trees only. It does not embed its own commit SHA."
   },
   "sanitized": true,
-  "at": "2026-08-17T15:52:14Z",
-  "evidenceHeadSha": "b0ff0eca52223869aab9a9e4d7f84ffa55bd07aa",
-  "evidenceTree": "4dc97d47ea10d2d35b1d8bca27e099ef8649b1fe"
+  "at": "2026-08-17T16:07:48Z"
 }
