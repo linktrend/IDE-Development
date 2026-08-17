@@ -17,6 +17,7 @@ schemas:
   - schemas/candidate-lifecycle.schema.json
   - schemas/phase-record.schema.json
   - schemas/phase-handoff.schema.json
+  - schemas/delivery-operation.schema.json
   - schemas/review-session.schema.json
   - schemas/finding-ledger.schema.json
   - schemas/secret-scan-fixtures.schema.json

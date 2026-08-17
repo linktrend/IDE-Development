@@ -35,6 +35,7 @@ RC_REQUIRED_SCHEMA_RELS = (
     "core/managed-core/schemas/delivery-modes.schema.json",
     "core/managed-core/schemas/phase-record.schema.json",
     "core/managed-core/schemas/phase-handoff.schema.json",
+    "core/managed-core/schemas/delivery-operation.schema.json",
     "core/managed-core/schemas/review-session.schema.json",
     "core/managed-core/schemas/finding-ledger.schema.json",
     "core/managed-core/schemas/secret-scan-fixtures.schema.json",

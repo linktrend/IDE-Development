@@ -149,6 +149,15 @@ Factual correction for Update 3:
 4. Checkpoint pushes do not start managed Fast or Full CI. Opening or updating the Phase PR starts Fast and repository-owned PR CI on the exact Phase head. Full cannot start before Fast and required CI pass.
 5. The coordinator produces an exact-identity handoff for the delivery controller. A later Phase head invalidates that handoff. The coordinator cannot merge protected branches or start Full.
 
+## Amendment — 2026-08-18 (Delivery controller)
+
+Factual correction for Update 2:
+
+1. **Delivery controller** is `scripts/gitops/delivery_controller.py`. Any authorized agent or operator may invoke it. It accepts an exact `phase/*` PR handoff, verifies development eligibility, merges through GitHub protection, promotes staging on reusable receipt identity without rerunning Full, prepares main, and completes main only after explicit founder approval.
+2. It replaces the nonexistent Integrator merge actor. Review Ready remains a Packager discovery status and does **not** promise a merge trigger by itself.
+3. Workers cannot invoke a self-merge path. The controller never pushes directly to `development`/`staging`/`main`, never bypasses branch protection, and deletes only controller-created `promote/*` branches after successful merges.
+4. Behavior is identical regardless of which supported agent invokes the command; agent environment markers are ignored for decisions.
+
 ## Amendment — 2026-08-17 (Independent-review convergence)
 
 Factual correction for Update 9:

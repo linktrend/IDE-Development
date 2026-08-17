@@ -118,6 +118,7 @@ HOSTED_TEST_FILES = (
     "scripts/tests/test_linktrend_review_gate.py",
     "scripts/tests/test_promotion_receipt_gate.py",
     "scripts/tests/test_receipt_seal_and_recovery.py",
+    "scripts/tests/test_delivery_controller.py",
 )
 
 ID_SAFE = re.compile(r"[^a-z0-9]+")
@@ -367,6 +368,10 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "schemas/phase-handoff.schema.json",
             ".ide-development/schemas/phase-handoff.schema.json",
+        ),
+        (
+            "schemas/delivery-operation.schema.json",
+            ".ide-development/schemas/delivery-operation.schema.json",
         ),
         (
             "schemas/review-session.schema.json",

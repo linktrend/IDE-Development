@@ -10,8 +10,12 @@ focused commit, and stop. Accepted issue commits are integrated serially on a
 `phase/*` branch. The Phase Packager/Coordinator
 (`scripts/gitops/packager_coordinator.py`) opens one Phase PR into
 `development`; retained `packager_discover.py` is not that component. The
-delivery controller and promotion gates evaluate exact PR heads. No implementer
-opens, merges, or promotes a PR.
+agent-agnostic delivery controller (`scripts/gitops/delivery_controller.py`)
+is the merge and promotion actor: it evaluates exact PR heads, merges through
+GitHub protection, promotes staging on receipt identity, and completes main
+only after explicit founder approval. Review Ready publishes a status for
+Packager discovery; it does not itself trigger a merge. No implementer opens,
+merges, or promotes a PR.
 
 Checkpoints do not trigger managed CI. The Phase PR runs hosted ARM64 fast
 checks. Only an exact final seal may trigger Bugbot and the full suite. A

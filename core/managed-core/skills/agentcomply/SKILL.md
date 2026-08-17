@@ -37,7 +37,7 @@ Migrate an **already-open agent** onto a proper short-lived `issue/*` branch for
 - Multi-root: if which repo is being touched is ambiguous, ask (normal ambiguity ask). Detect or ask once if role is Orchestrator vs Implementer when unclear.
 - `cursor/*` for cloud; `dev/*` rare ad-hoc only.
 - Never dump work onto `development` / `staging` / `main`.
-- Never merge own PR; never self-review; Bugbot reviews; Integrator merges.
+- Never merge own PR; never self-review; Bugbot reviews; the delivery controller merges through GitHub protection.
 
 ## Use When
 

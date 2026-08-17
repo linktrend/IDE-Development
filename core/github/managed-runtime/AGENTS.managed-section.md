@@ -13,7 +13,7 @@ Consumer-specific guidance may live **outside** these markers.
 
 ### Lifecycle
 
-- Work on `issue/<n>-<slug>` (or `dev/*`) → push → Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the draft Phase PR → Integrator merges to `development`. Retained `packager_discover.py` is not that component.
+- Work on `issue/<n>-<slug>` (or `dev/*`) → push → Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the draft Phase PR → delivery controller (`scripts/gitops/delivery_controller.py`) merges to `development` through GitHub protection. Retained `packager_discover.py` is not the Phase Packager. Review Ready does not itself trigger a merge.
 - Promote: `development` → `staging` → `main` via temporary `promote/*` PRs only.
 
 ### Agent rules
