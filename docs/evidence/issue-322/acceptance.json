@@ -71,8 +71,10 @@
   ],
   "finalTipBinding": {
     "mode": "non-self-reference-boundary",
-    "note": "Final tip is the branch HEAD after the bind-metadata commit. A commit cannot truthfully embed its own commit SHA inside its tree (impossible self-reference). Immutable reviewed identities are contentHeadSha/contentTree and evidenceHeadSha/evidenceTree only. No annotated evidence ref is required by accepted plan for this packet."
+    "note": "This bind-metadata commit becomes the branch tip. It records content and evidence heads/trees only. It does not embed its own commit SHA (impossible self-reference). No annotated evidence ref is required by accepted plan for this packet."
   },
   "at": "2026-08-17T13:35:21Z",
-  "sanitized": true
+  "sanitized": true,
+  "evidenceHeadSha": "38069d21af6d74993936b95e4d3c38869c45a95c",
+  "evidenceTree": "38822882a47ef7b0086bb16a40ff2c7e7f6db95c"
 }
