@@ -60,7 +60,7 @@ Managed materialization (`core/managed-core/MANIFEST.json`, `core/managed-core/p
 - No provider-repo edits.
 - No `MANIFEST.json`, managed workflows, packager, or controller-state edits in pre-rollout packets.
 - Cursor model for authorized implementation: `cursor-grok-4.6-high`.
-- Max 3 ordinary repair cycles, then `completion_gate.py blocked`.
+- Continue bounded repair/review while findings remain actionable, in scope, and each cycle makes measurable progress. Stop only for repeated unresolved findings, no progress across consecutive cycles, a redesign or new-authority requirement, infrastructure retry exhaustion, or an explicit resource limit. The separate two-attempt infrastructure retry limit remains mandatory.
 - Fail closed on identity, pin, policy, and malformed input. No prefer-incoming.
 
 ## 4. Two calendars (must not be mixed)
@@ -80,7 +80,7 @@ WAIT FOR v2.4.0
 POST-ROLLOUT (only after v2.4.0 is on IDE Development protected lines)
   WP-I6-MANIFEST   managed-core materialization for nine consumers
   WP-I6-INTEGRATE  Packager/Phase PR of Item 6 novel commits
-  WP-I6-HOSTED     Fast on Phase PR; Full only if required by then-installed policy
+  WP-I6-HOSTED     Fast on Phase PR; reuse the single final-combined exact-tree Full
 ```
 
 Do not create `phase/next-ide-development-v2.4.0` from Item 6. That branch belongs to WP-U03.
@@ -140,7 +140,7 @@ Do not create `phase/next-ide-development-v2.4.0` from Item 6. That branch belon
 | WP-I6-S6 | Pre-rollout source | WP-I6-S1 through S5 | `AC-I6-X-01`, `AC-I6-X-02`, `AC-I6-X-03`, `AC-I6-X-04`, `AC-I6-REL-04`, `AC-I6-REL-05` | Serial after S1–S5 | No |
 | WP-I6-MANIFEST | Post-`v2.4.0` | `v2.4.0` on protected lines; WP-I6-S6 | `AC-I6-X-05` | No | No |
 | WP-I6-INTEGRATE | Post-`v2.4.0` | WP-I6-S6 novel commits + Packager of that era | `AC-I6-REL-06`, `AC-I6-X-06` (PR half) | No | No |
-| WP-I6-HOSTED | Post-`v2.4.0` | WP-I6-INTEGRATE Phase PR | `AC-I6-X-06` (hosted half) | No | Only if then-installed policy requires Full for this tree |
+| WP-I6-HOSTED | Post-`v2.4.0` | WP-I6-INTEGRATE Phase PR | `AC-I6-X-06` (hosted half) | No | Reuse the single final-combined exact-tree Full; no standalone Item 6 Full |
 
 Trace: `AC-I6-DOC-*` (5), `AC-I6-REL-*` (7), twenty POS/DEN/UNA/FC IDs, `AC-I6-X-*` (6) = 38 IDs, each named in exactly one owning packet.
 
@@ -290,7 +290,7 @@ After S6, run all `tests/link-integrations/*.mjs`, `git diff --check`, and `git 
 | Field | Value |
 |---|---|
 | Fast | Only on the Packager Phase/review PR |
-| Full | Only if the then-installed `v2.4.0` policy requires Full for this tree; never from a checkpoint push |
+| Full | Do not run a separate Item 6 Full. Reuse the single final-combined exact-tree Full unless Carlos later authorizes a specific exception |
 | Acceptance | Hosted half of `AC-I6-X-06` |
 
 ## 8. Safe parallelism and ordering
@@ -374,7 +374,7 @@ Run only packet-owned `node --test tests/link-integrations/test-*.mjs` plus `git
 
 - Pre-rollout: forbidden.
 - Fast: WP-I6-HOSTED after Packager PR.
-- Full: forbidden in WP-I6-S* and WP-I6-DOCS. Allowed in WP-I6-HOSTED only under then-installed v2.4.0 policy.
+- Full: forbidden in WP-I6-S* and WP-I6-DOCS. WP-I6-HOSTED reuses the single final-combined exact-tree Full; it does not start a standalone Item 6 Full without a later explicit founder exception.
 
 ## Prohibited
 
@@ -402,7 +402,7 @@ Stop and run `python3 scripts/gitops/completion_gate.py blocked` when:
 - a provider pin cannot be proven from GitHub `development`
 - a required POS/DEN/UNA/FC test cannot be expressed without live production calls
 - path ownership collides with an in-flight v2.4.0 packet
-- repair has failed three times
+- actionable findings repeat without resolution, consecutive cycles make no measurable progress, repair requires redesign or new authority, infrastructure retries are exhausted, or an explicit resource limit is reached
 - nested `.ide-development/` would be required for the test to pass
 
 ## Handoff
@@ -414,7 +414,7 @@ Commit and push. Report start commit/tree, novel range, final local/remote SHA a
 
 | Gate | Rule |
 |---|---|
-| Review | Codex supervises this documentation packet. Later source packets: independent review only after `v2.4.0` Packager PR, using then-installed Update 9/1 rules |
+| Review | Codex supervises this documentation packet. Every source checkpoint receives an independent exact-head review before acceptance; post-rollout Packager review remains separate |
 | Repair | ≤3 ordinary cycles on the same issue branch; then `blocked`. No prefer-incoming |
 | Evidence | Pre-rollout: commands, exit codes, pin SHAs in the packet handoff. Post-v2.4.0: `completion_gate.py write-evidence` bound to exact HEAD |
 | Rollback | Unmerged issue branch is the rollback. Do not force-push protected lines. Do not delete unique work |
@@ -447,7 +447,7 @@ Expected for this **documentation** packet: the `tests/link-integrations/` direc
 - Using Issue 244 as the merge source
 - Rewriting historical or navigation documents
 - Freezing future implementation-packet start SHAs in this plan (S0 freeze happens at S0 execution)
-- Beginning Orchestrator execution of S0–S6
+- Executing S0–S6 from this documentation branch. The founder has separately authorized those source packets through bounded Cursor/Grok issue branches
 
 ## 13. Definition of done
 
