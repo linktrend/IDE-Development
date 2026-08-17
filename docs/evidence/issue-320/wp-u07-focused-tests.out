@@ -1,9 +1,13 @@
+test_ci_evidence_schema_accepts_real_producer_outputs (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_ci_evidence_schema_accepts_real_producer_outputs)
+Draft 2020-12 instance validation against packaged ci-evidence schema. ... ok
 test_aggregate_gate_trusted_and_fail_closed_cases (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_aggregate_gate_trusted_and_fail_closed_cases) ... ok
 test_artifact_stdout_wrong_schema_missing_and_wrong_head_fail (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_artifact_stdout_wrong_schema_missing_and_wrong_head_fail) ... ok
 test_audit_live_ide_development_workflows_report (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_audit_live_ide_development_workflows_report) ... ok
 test_authorized_omission_and_fail_closed (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_authorized_omission_and_fail_closed) ... ok
 test_cache_key_fixed_before_mutation_and_advisory (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_cache_key_fixed_before_mutation_and_advisory) ... ok
 test_checkpoint_push_consumes_no_managed_compute (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_checkpoint_push_consumes_no_managed_compute) ... ok
+test_ci_evidence_schema_accepts_real_producer_outputs (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_ci_evidence_schema_accepts_real_producer_outputs)
+Draft 2020-12 instance validation against packaged ci-evidence schema. ... ok
 test_full_requires_coverage_manifest_and_rejects_missing_component (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_full_requires_coverage_manifest_and_rejects_missing_component) ... ok
 test_innermost_diagnostic_retained (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_innermost_diagnostic_retained) ... ok
 test_install_and_verify_surfaces_attach_ci_trigger_audit (scripts.tests.test_repository_ci_trigger_contract.RepositoryCiTriggerContractTests.test_install_and_verify_surfaces_attach_ci_trigger_audit) ... ok
@@ -25,6 +29,6 @@ test_required_cursor_materialization_sources_are_packaged (scripts.ide_developme
 test_version_alignment_helpers (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests.test_version_alignment_helpers) ... ok
 
 ----------------------------------------------------------------------
-Ran 25 tests in 0.127s
+Ran 27 tests in 0.116s
 
 OK

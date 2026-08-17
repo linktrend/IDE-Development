@@ -7,6 +7,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError
+
 from scripts.gitops.repository_ci_contract import (
     CLASS_APPLICATION,
     CLASS_MIXED,
@@ -714,6 +717,151 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
             self.assertEqual(accepted["profile"]["profile"], PROFILE_PROMOTION)
             self.assertEqual(accepted["receipt"]["gate"], "promotion_receipt_gate")
             self.assertTrue(accepted["receipt"]["ok"])
+
+    def test_ci_evidence_schema_accepts_real_producer_outputs(self) -> None:
+        """Draft 2020-12 instance validation against packaged ci-evidence schema.
+
+        Uses live ``run_component_preflight`` / ``expand_reverse_dependencies``
+        (and cache producers) so the schema stays reconciled with owned fields
+        while ``additionalProperties: false`` still rejects unknowns.
+        """
+        schema = json.loads(EVIDENCE_SCHEMA.read_text(encoding="utf-8"))
+        self.assertEqual(schema.get("$schema"), "https://json-schema.org/draft/2020-12/schema")
+        self.assertFalse(schema["$defs"]["preflightEvidence"]["additionalProperties"])
+        self.assertFalse(schema["$defs"]["affectedSurfaceEvidence"]["additionalProperties"])
+        validator = Draft202012Validator(schema)
+
+        component = {
+            "id": "browser-e2e",
+            "runtime": [
+                {
+                    "id": "chromium",
+                    "kind": "browser",
+                    "allowedVersions": ["120.0"],
+                    "bootstrapCommand": ["install-browser", "chromium"],
+                    "binding": {
+                        "variable": "PLAYWRIGHT_BROWSER",
+                        "executablePath": "/opt/browsers/chromium",
+                    },
+                }
+            ],
+        }
+        bootstrapped = run_component_preflight(
+            component=component,
+            environ={},
+            present_executables={},
+            successful_component_ids=["unit-tests"],
+            invalidated_component_ids=["browser-e2e"],
+            bootstrap_runner=lambda command, env: {
+                "ok": True,
+                "verifiedVersion": "120.0",
+                "resolvedPath": "/opt/browsers/chromium",
+                "evidencePath": "build/browser-bootstrap.json",
+            },
+        )
+        self.assertIn("detail", bootstrapped)
+        self.assertTrue(bootstrapped["resumedOnlyInvalidated"])
+        self.assertEqual(bootstrapped["bootstrap"]["command"], ["install-browser", "chromium"])
+        self.assertTrue(bootstrapped["bootstrap"]["ok"])
+        self.assertEqual(bootstrapped["bootstrap"]["resolvedPath"], "/opt/browsers/chromium")
+        self.assertTrue(bootstrapped["bindings"][0]["bootstrap"])
+        validator.validate(bootstrapped)
+
+        skipped = run_component_preflight(
+            component={"id": "unit-tests", "runtime": []},
+            successful_component_ids=["unit-tests"],
+            invalidated_component_ids=["browser-e2e"],
+        )
+        self.assertEqual(skipped["detail"], "skipped_not_invalidated")
+        self.assertTrue(skipped["resumedOnlyInvalidated"])
+        validator.validate(skipped)
+
+        affected = expand_reverse_dependencies(
+            changed_paths=["packages/ui/src/index.ts", "packages/ui/package.json"],
+            dependency_graph={"packages/ui": ["apps/web", "apps/admin"]},
+            package_export_paths=["packages/ui/src/index.ts"],
+            selected_profile=PROFILE_FULL,
+        )
+        self.assertTrue(affected["typecheckInsufficient"])
+        self.assertTrue(affected["exportHit"])
+        validator.validate(affected)
+
+        cache_key = compute_cache_key(
+            candidate_head=_head(5),
+            tracked_manifest_digest=digest_text("tracked"),
+            lockfile_digest=digest_text("lock"),
+            workspace_mutated=False,
+        )
+        validator.validate(cache_key)
+        advisory = evaluate_cache_advisory(
+            cache_key=cache_key["cacheKey"],
+            restore_status="hit",
+            save_status="saved",
+            required_profile_ok=True,
+            required_component_failed=False,
+        )
+        self.assertTrue(advisory["correctnessUnchanged"])
+        validator.validate(advisory)
+
+        unknown_top = dict(bootstrapped)
+        unknown_top["unexpectedProducerField"] = True
+        with self.assertRaises(ValidationError):
+            validator.validate(unknown_top)
+
+        unknown_bootstrap = dict(bootstrapped)
+        unknown_bootstrap["bootstrap"] = {
+            **bootstrapped["bootstrap"],
+            "extraBootstrapKey": "nope",
+        }
+        with self.assertRaises(ValidationError):
+            validator.validate(unknown_bootstrap)
+
+        unknown_binding = dict(bootstrapped)
+        unknown_binding["bindings"] = [
+            {**bootstrapped["bindings"][0], "rogue": 1},
+        ]
+        with self.assertRaises(ValidationError):
+            validator.validate(unknown_binding)
+
+        unknown_affected = dict(affected)
+        unknown_affected["notOwned"] = "x"
+        with self.assertRaises(ValidationError):
+            validator.validate(unknown_affected)
+
+        malformed_detail = dict(bootstrapped)
+        malformed_detail["detail"] = 12
+        with self.assertRaises(ValidationError):
+            validator.validate(malformed_detail)
+
+        malformed_flag = dict(bootstrapped)
+        malformed_flag["resumedOnlyInvalidated"] = "yes"
+        with self.assertRaises(ValidationError):
+            validator.validate(malformed_flag)
+
+        malformed_command = dict(bootstrapped)
+        malformed_command["bootstrap"] = {
+            **bootstrapped["bootstrap"],
+            "command": "install-browser chromium",
+        }
+        with self.assertRaises(ValidationError):
+            validator.validate(malformed_command)
+
+        malformed_binding_bootstrap = dict(bootstrapped)
+        malformed_binding_bootstrap["bindings"] = [
+            {**bootstrapped["bindings"][0], "bootstrap": "true"},
+        ]
+        with self.assertRaises(ValidationError):
+            validator.validate(malformed_binding_bootstrap)
+
+        malformed_export = dict(affected)
+        malformed_export["exportHit"] = "yes"
+        with self.assertRaises(ValidationError):
+            validator.validate(malformed_export)
+
+        malformed_typecheck = dict(affected)
+        malformed_typecheck["typecheckInsufficient"] = 1
+        with self.assertRaises(ValidationError):
+            validator.validate(malformed_typecheck)
 
 
 if __name__ == "__main__":

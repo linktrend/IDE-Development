@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://linktrend.local/managed-core/ci-evidence.schema.json",
   "title": "Repository CI preflight, cache, artifact, and affected-surface evidence",
-  "description": "Evidence envelopes consumed by the managed aggregate gate. Cache evidence is advisory and never substitutes for mandatory component execution.",
+  "description": "Evidence envelopes consumed by the managed aggregate gate. Cache evidence is advisory and never substitutes for mandatory component execution. Properties enumerate every owned producer field; additionalProperties stays false.",
   "oneOf": [
     { "$ref": "#/$defs/preflightEvidence" },
     { "$ref": "#/$defs/cacheEvidence" },
@@ -32,6 +32,7 @@
           "type": "string",
           "enum": ["infrastructure", "application"]
         },
+        "detail": { "type": "string" },
         "bindings": {
           "type": "array",
           "items": {
@@ -42,23 +43,33 @@
               "variable": { "type": "string", "minLength": 1 },
               "resolvedPath": { "type": "string" },
               "matched": { "type": "boolean" },
-              "detail": { "type": "string" }
+              "detail": { "type": "string" },
+              "bootstrap": { "type": "boolean" }
             }
           }
         },
         "bootstrap": {
           "type": "object",
           "additionalProperties": false,
+          "required": ["ran"],
           "properties": {
             "ran": { "type": "boolean" },
+            "command": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "ok": { "type": "boolean" },
+            "detail": { "type": "string" },
             "verifiedVersion": { "type": "string" },
-            "evidencePath": { "type": "string" }
+            "evidencePath": { "type": "string" },
+            "resolvedPath": { "type": "string" }
           }
         },
         "retainedComponentIds": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
-        }
+        },
+        "resumedOnlyInvalidated": { "type": "boolean" }
       }
     },
     "cacheEvidence": {
@@ -67,7 +78,6 @@
       "required": [
         "schemaVersion",
         "kind",
-        "candidateHead",
         "cacheKey",
         "keyFixedBeforeMutation",
         "advisory"
@@ -91,7 +101,9 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
         },
-        "rejectedBroadHash": { "type": "boolean" }
+        "rejectedBroadHash": { "type": "boolean" },
+        "correctnessUnchanged": { "type": "boolean" },
+        "ok": { "type": "boolean" }
       }
     },
     "artifactEvidence": {
@@ -150,7 +162,9 @@
             "type": "string",
             "enum": ["production-resolution", "docker-import-build", "typecheck"]
           }
-        }
+        },
+        "typecheckInsufficient": { "type": "boolean" },
+        "exportHit": { "type": "boolean" }
       }
     }
   }
