@@ -428,7 +428,7 @@ root = Path(sys.argv[1])
 sys.path.insert(0, str(root / "scripts/gitops"))
 import readiness_status as rs
 
-secret = "ghs_DOCUMENTED_AUTOMATION_TOKEN_VALUE_NEVER_LOG"
+secret = "ltfx.review.automation_token.v1"
 human = "ghs_FAKE_HUMAN_MUST_NOT_WIN"
 workflow = "ghs_FAKE_WORKFLOW_ALIAS"
 
