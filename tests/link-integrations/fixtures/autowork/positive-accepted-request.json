@@ -1,0 +1,50 @@
+{
+  "contract_version": "2026-08-13.v1",
+  "protocol_version": "http/1",
+  "request_id": "00000000-0000-4000-8000-000000000010",
+  "platform": {
+    "org_id": "00000000-0000-4000-8000-000000000001",
+    "actor_id": "ide-consumer-1",
+    "audience": "lautowork",
+    "capability": "catalogue.invoke",
+    "credential_id": "credential-1",
+    "binding_id": "binding-1",
+    "issued_at": "2026-08-17T00:00:00.000Z",
+    "expires_at": "2027-01-01T00:00:00.000Z",
+    "revocation_ref": "platform://revocations/current"
+  },
+  "automation": {
+    "automation_id": "ide-repository-status",
+    "version": "1.0.0",
+    "definition_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "configuration_ref": {
+      "ref": "autowork://config/ide-repository-status/1.0.0",
+      "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "observed_at": "2026-08-17T00:00:00.000Z"
+    }
+  },
+  "operation_kind": "precheck",
+  "input_ref": {
+    "ref": "ide://inputs/status",
+    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "observed_at": "2026-08-17T00:00:00.000Z"
+  },
+  "artifact_refs": [],
+  "result_destination_ref": "ide://receipts/inbox",
+  "correlation_refs": [
+    {
+      "ref": "ide://attempt/one",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "observed_at": "2026-08-17T00:00:00.000Z"
+    }
+  ],
+  "idempotency_key": "autowork-idempotency-0001",
+  "expires_at": "2027-01-01T00:00:00.000Z",
+  "policy": {
+    "side_effect_class": "read_only",
+    "approval_requirement": "none",
+    "policy_profile_ref": "policy://repo/read-only",
+    "data_classification": "internal"
+  },
+  "approval_refs": []
+}
