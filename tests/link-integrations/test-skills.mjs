@@ -17,13 +17,10 @@ const ROOT = join(HERE, '../..')
 const FIXTURES = join(HERE, 'fixtures/skills')
 const MODULE_SOURCE = readFileSync(join(HERE, '../../core/link-integrations/skills.mjs'), 'utf8')
 const MANIFEST_SOURCE = readFileSync(join(HERE, '../../core/managed-core/MANIFEST.json'), 'utf8')
+const DETAIL_KEYS = new Set(['classification', 'field', 'provider', 'frozenCommit', 'frozenTree'])
 
 function load(name) {
   return JSON.parse(readFileSync(join(FIXTURES, name), 'utf8'))
-}
-
-function throws(fn, code) {
-  assert.throws(fn, (error) => error instanceof ConsumerContractError && error.code === code)
 }
 
 function classify(fn, code, classification) {
@@ -34,6 +31,12 @@ function classify(fn, code, classification) {
     assert.ok(error instanceof ConsumerContractError)
     assert.equal(error.code, code)
     assert.equal(error.details.classification, classification)
+    for (const [key, item] of Object.entries(error.details)) {
+      assert.ok(DETAIL_KEYS.has(key), `details.${key} is not a bounded token`)
+      if (item && typeof item === 'object') {
+        assert.fail(`details.${key} must not carry a caller object`)
+      }
+    }
   }
 }
 
@@ -67,14 +70,13 @@ test('AC-I6-POS-skills: accepts validation and execution addressing of the same 
   assert.ok(Object.isFrozen(addressed))
 })
 
-test('AC-I6-POS-skills: accepts bounded completed-use telemetry at score 10 without issue', () => {
+test('AC-I6-POS-skills: accepts bounded pin-time use-report-v0.2 telemetry at score 10 without issue', () => {
   const accepted = validateSkillsTelemetry(load('positive-telemetry-score-10.json'))
   assert.deepEqual(accepted, {
-    reportKind: 'completed_use',
+    report_kind: 'completed_use',
     score: 10,
-    skillReleaseRef: 'opaque:release-synthetic-skill-1.0.0',
-    actorRef: 'opaque:actor-ide-dev-s4',
-    idempotencyKey: 'opaque:use-report-s4-10',
+    skill_release_ref: 'opaque:release-synthetic-skill-1.0.0',
+    actor_ref: 'opaque:actor-ide-dev-s4',
   })
   assert.equal(accepted.issue, undefined)
   assert.ok(Object.isFrozen(accepted))
@@ -83,21 +85,23 @@ test('AC-I6-POS-skills: accepts bounded completed-use telemetry at score 10 with
   }, TypeError)
 })
 
-test('AC-I6-POS-skills: accepts bounded completed-use telemetry at score 9 with a typed issue', () => {
+test('AC-I6-POS-skills: accepts bounded pin-time use-report-v0.2 telemetry at score 9 with issue_ref', () => {
   const accepted = validateSkillsTelemetry(load('positive-telemetry-score-9.json'))
   assert.equal(accepted.score, 9)
   assert.deepEqual(accepted.issue, {
     type: 'incomplete',
     severity: 'low',
-    issueRef: 'opaque:issue-telemetry-s4',
+    issue_ref: 'opaque:issue-telemetry-s4',
   })
   assert.ok(Object.isFrozen(accepted))
   assert.ok(Object.isFrozen(accepted.issue))
 })
 
-test('AC-I6-DEN-skills: denies unqualified and unpublished releases', () => {
+test('AC-I6-DEN-skills: denies unqualified, unpublished, forbidden, and unauthorized releases', () => {
   classify(() => validateSkillsRelease(load('denied-unqualified.json')), 'skills_not_qualified', 'denied')
   classify(() => validateSkillsRelease(load('denied-unpublished.json')), 'skills_not_published', 'denied')
+  classify(() => validateSkillsRelease(load('denied-forbidden.json')), 'skills_not_permitted', 'denied')
+  classify(() => validateSkillsRelease(load('denied-unauthorized.json')), 'skills_not_permitted', 'denied')
 })
 
 test('AC-I6-UNA-skills: missing pin material or offline availability is not success', () => {
@@ -116,20 +120,24 @@ test('AC-I6-UNA-skills: missing pin material or offline availability is not succ
     'skills_release_unavailable',
     'unavailable',
   )
+  classify(() => validateSkillsRelease(null), 'skills_release_unavailable', 'unavailable')
 })
 
-test('AC-I6-FC-skills: wrong pin, incompatible state, latest alias, and fragmentLevel 7 fail closed', () => {
-  classify(() => validateSkillsRelease(load('failclosed-wrong-pin.json')), 'incompatible_pin', 'fail_closed')
+test('AC-I6-skills: incompatible availability and compatibility are incompatible, not fail-closed', () => {
   classify(
     () => validateSkillsRelease(load('failclosed-incompatible.json')),
     'skills_release_incompatible',
     'incompatible',
   )
   classify(
-    () => validateSkillsRelease({ ...load('positive-validation.json'), compatibility: 'incompatible' }),
+    () => validateSkillsRelease(load('incompatible-compatibility.json')),
     'skills_release_incompatible',
     'incompatible',
   )
+})
+
+test('AC-I6-FC-skills: wrong pin, latest alias, and fragmentLevel 7 fail closed', () => {
+  classify(() => validateSkillsRelease(load('failclosed-wrong-pin.json')), 'incompatible_pin', 'fail_closed')
   classify(
     () => validateSkillsRelease({ ...load('positive-validation.json'), skillId: 'latest' }),
     'skills_latest_alias',
@@ -145,6 +153,52 @@ test('AC-I6-FC-skills: wrong pin, incompatible state, latest alias, and fragment
     'skills_fragment_invalid',
     'fail_closed',
   )
+})
+
+test('AC-I6-FC-skills: prototypes, accessors, and inherited fields fail closed', () => {
+  const valid = load('positive-validation.json')
+  classify(
+    () => validateSkillsRelease(Object.create(valid)),
+    'skills_prototype_forbidden',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsRelease(Object.create({ ...valid, extraField: 'x', secret: 'leak' })),
+    'skills_prototype_forbidden',
+    'fail_closed',
+  )
+  const accessor = { ...valid }
+  Object.defineProperty(accessor, 'skillId', {
+    configurable: true,
+    enumerable: true,
+    get() {
+      return 'synthetic-skill'
+    },
+  })
+  classify(() => validateSkillsRelease(accessor), 'skills_accessor_forbidden', 'fail_closed')
+  const pinAccessor = { ...valid }
+  let reads = 0
+  Object.defineProperty(pinAccessor, 'providerCommit', {
+    configurable: true,
+    enumerable: true,
+    get() {
+      reads += 1
+      return reads === 1 ? FROZEN_PROVIDERS.skills.commit : '0'.repeat(40)
+    },
+  })
+  classify(() => validateSkillsRelease(pinAccessor), 'skills_accessor_forbidden', 'fail_closed')
+  const nestedIssue = load('positive-telemetry-score-9.json')
+  const issueAccessor = {
+    ...nestedIssue,
+    issue: Object.defineProperty({ ...nestedIssue.issue }, 'type', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        return 'incomplete'
+      },
+    }),
+  }
+  classify(() => validateSkillsTelemetry(issueAccessor), 'skills_accessor_forbidden', 'fail_closed')
 })
 
 test('AC-I6-FC-skills: legacy run/tool names, cross-operation fields, raw/private payloads fail closed', () => {
@@ -164,8 +218,8 @@ test('AC-I6-FC-skills: legacy run/tool names, cross-operation fields, raw/privat
     'fail_closed',
   )
   classify(
-    () => validateSkillsRelease({ ...load('positive-validation.json'), reportKind: 'completed_use' }),
-    'cross_operation_field',
+    () => validateSkillsRelease({ ...load('positive-validation.json'), report_kind: 'completed_use' }),
+    'competing_envelope',
     'fail_closed',
   )
   classify(
@@ -198,11 +252,35 @@ test('AC-I6-FC-skills: legacy run/tool names, cross-operation fields, raw/privat
     'skills_digest_invalid',
     'fail_closed',
   )
-  classify(() => validateSkillsRelease(null), 'skills_release_unavailable', 'unavailable')
   classify(() => validateSkillsRelease([]), 'invalid_object', 'fail_closed')
 })
 
-test('AC-I6-FC-skills: telemetry rejects score 10 with issue, cross-operation fields, and private payloads', () => {
+test('AC-I6-FC-skills: arrays are scanned and caller bodies are not echoed', () => {
+  classify(
+    () => validateSkillsRelease({
+      ...load('positive-validation.json'),
+      operation: [{ transcript: 'secret' }],
+    }),
+    'sensitive_field',
+    'fail_closed',
+  )
+  try {
+    validateSkillsRelease({
+      ...load('positive-validation.json'),
+      compatibility: { payload: '<skill body>' },
+    })
+    assert.fail('expected incompatible compatibility object')
+  } catch (error) {
+    assert.ok(error instanceof ConsumerContractError)
+    assert.equal(error.code, 'skills_release_incompatible')
+    assert.equal(error.details.classification, 'incompatible')
+    assert.equal(error.details.field, 'compatibility')
+    assert.equal(error.details.compatibility, undefined)
+    assert.equal(JSON.stringify(error.details).includes('<skill body>'), false)
+  }
+})
+
+test('AC-I6-FC-skills: telemetry rejects camelCase, extra pin-time fields, score 10 with issue, and private payloads', () => {
   classify(
     () => validateSkillsTelemetry(load('failclosed-telemetry-score-10-issue.json')),
     'skills_perfect_use_has_issue',
@@ -215,8 +293,13 @@ test('AC-I6-FC-skills: telemetry rejects score 10 with issue, cross-operation fi
     'fail_closed',
   )
   classify(
-    () => validateSkillsTelemetry({ ...positive, report_kind: 'completed_use' }),
+    () => validateSkillsTelemetry({ ...positive, reportKind: 'completed_use' }),
     'competing_envelope',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsTelemetry({ ...positive, schema_version: '0.2' }),
+    'unknown_field',
     'fail_closed',
   )
   classify(
@@ -230,16 +313,42 @@ test('AC-I6-FC-skills: telemetry rejects score 10 with issue, cross-operation fi
     'fail_closed',
   )
   classify(
-    () => validateSkillsTelemetry({ ...positive, skillReleaseRef: 'latest' }),
-    'skills_reference_invalid',
-    'fail_closed',
-  )
-  classify(
     () => validateSkillsTelemetry({ ...load('positive-telemetry-score-9.json'), issue: undefined }),
     'skills_issue_required',
     'fail_closed',
   )
   classify(() => validateSkillsTelemetry(null), 'invalid_object', 'fail_closed')
+})
+
+test('AC-I6-FC-skills: opaque latest aliases in telemetry refs fail closed', () => {
+  const positive = load('positive-telemetry-score-10.json')
+  classify(
+    () => validateSkillsTelemetry(load('failclosed-telemetry-opaque-latest.json')),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsTelemetry({ ...positive, skill_release_ref: 'opaque:release/latest' }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsTelemetry({ ...positive, actor_ref: 'opaque:rel@latest' }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsTelemetry({
+      ...load('positive-telemetry-score-9.json'),
+      issue: {
+        type: 'incomplete',
+        severity: 'low',
+        issue_ref: 'opaque:latest',
+      },
+    }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
 })
 
 test('validator has no transport, skill execution, catalogue, or credential APIs', () => {
