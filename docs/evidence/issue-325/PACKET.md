@@ -17,7 +17,7 @@
 | Start tree | 6d296378923a1e5b8ecd7b0ca6b5064ed644b3c4 |
 | Prior reviewed tip | ccaeae212e448e1c49369cf1fabfc28341476b62 (independently accepted U02) |
 | Content head/tree | 75d4cb07dd330b5aef89fa96421a7bdf91e95941 / 6ec7ba3174f774393d5ebd1c18b5f952185bbd05 |
-| Evidence head/tree | (filled after evidence commit; tip SHA not self-embedded) |
+| Evidence head/tree | 04fc302ea0bf630e658fda2f6f92ffc516160c63 / aca99492c4a5745f61b4ba629fb68765337395fb |
 | Final tip binding | branch HEAD after bind-metadata commit; tip SHA not self-embedded |
 | Phase base at handoff | not used |
 

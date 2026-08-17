@@ -85,5 +85,7 @@
     "note": "Bind-metadata commit becomes the branch tip. It records content and evidence heads/trees only. It does not embed its own commit SHA."
   },
   "sanitized": true,
-  "at": "2026-08-17T18:49:59Z"
+  "at": "2026-08-17T18:49:59Z",
+  "evidenceHeadSha": "04fc302ea0bf630e658fda2f6f92ffc516160c63",
+  "evidenceTree": "aca99492c4a5745f61b4ba629fb68765337395fb"
 }
