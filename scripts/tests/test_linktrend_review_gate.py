@@ -26,15 +26,18 @@ from scripts.gitops.linktrend_review_gate import (
     build_durable_founder_alert,
     build_fallback_request_comment,
     classify_bugbot_result,
+    comment_bodies_from_slurp,
     count_infrastructure_attempts,
     decide_founder_alert_publish,
     evaluate_fallback_review,
     evaluate_github_approval,
+    flatten_gh_slurp_pages,
     founder_alert_already_recorded,
     founder_alert_marker,
     gate_commit_status,
     infrastructure_attempt_marker,
     invalidate_if_head_changed,
+    issue_bodies_from_slurp,
     migrated_required_contexts,
     normalize_full_receipt_payload,
     reject_third_infrastructure_attempt,
@@ -352,9 +355,14 @@ class LinktrendReviewGateTests(unittest.TestCase):
             self.assertNotIn("gitTree:$t", text)
             self.assertIn("never overwrite with live TREE", text)
             # U01-R2: dedupe from issue bodies with fail-closed read.
-            self.assertIn("issue-bodies-json", text)
+            self.assertIn("flatten-issue-bodies", text)
             self.assertIn("founder_alert_dedupe_unreadable", text)
-            self.assertIn("select(has(\"pull_request\") | not)", text)
+            self.assertIn("--paginate --slurp", text)
+            # Marker reads must not fail-open to empty arrays.
+            self.assertNotIn("2>/dev/null || echo '[]'", text)
+            self.assertNotIn("|| echo '[]'", text)
+            self.assertIn("flatten-comment-bodies", text)
+            self.assertIn("HOLD: infra_marker_read_failed", text)
             # U01-R4: infra marker publication is fail-closed.
             self.assertIn("infra_attempt_marker_persist_failed", text)
             self.assertNotIn('-f body="${INFRA_MARKER}" >/dev/null || true', text)
@@ -425,6 +433,56 @@ class LinktrendReviewGateTests(unittest.TestCase):
         self.assertEqual(ctx.exception.code, "full_receipt_wrong_tree")
         # Old buggy overwrite path would have masked this — prove inject is absent.
         self.assertNotIn('.gitTree=$t', WORKFLOW.read_text())
+
+    def test_paginated_slurp_flatten_multi_page_bodies_and_dedupe(self) -> None:
+        """Two+ pages must flatten to one JSON list; alert/marker counts stay exact."""
+        marker = founder_alert_marker(HEAD)
+        infra1 = infrastructure_attempt_marker(HEAD, 1)
+        infra2 = infrastructure_attempt_marker(HEAD, 2)
+        # Empty / single / multi-page deterministic flatten.
+        self.assertEqual(flatten_gh_slurp_pages([]), [])
+        self.assertEqual(
+            comment_bodies_from_slurp([[{"body": infra1}]]),
+            [infra1],
+        )
+        two_pages = [
+            [{"body": infra1}, {"body": "noise"}],
+            [{"body": infra2}, {"body": marker + "\nalert body"}],
+        ]
+        bodies = comment_bodies_from_slurp(two_pages)
+        self.assertEqual(len(bodies), 4)
+        self.assertEqual(count_infrastructure_attempts(bodies, head_sha=HEAD), 2)
+        # Issue pages skip pull_request entries and flatten across pages.
+        issue_pages = [
+            [
+                {"body": "pr body", "pull_request": {"url": "https://example/pr/1"}},
+                {"body": "other issue"},
+            ],
+            [{"body": f"{marker}\nfounder alert page 2"}],
+        ]
+        issue_bodies = issue_bodies_from_slurp(issue_pages)
+        self.assertEqual(issue_bodies, ["other issue", f"{marker}\nfounder alert page 2"])
+        decision = decide_founder_alert_publish(
+            alert_required=True,
+            issue_bodies=issue_bodies,
+            bodies_readable=True,
+            head_sha=HEAD,
+        )
+        self.assertFalse(decision["publish"])
+        self.assertEqual(decision["reason"], "already_recorded")
+        # Malformed slurp / fail-open equivalent must fail closed (not become []).
+        with self.assertRaises(ReviewGateError) as bad:
+            flatten_gh_slurp_pages("not-json")
+        self.assertEqual(bad.exception.code, "paginated_response_invalid")
+        with self.assertRaises(ReviewGateError):
+            flatten_gh_slurp_pages([{"not": "a page list"}])
+        # Simulate two workflow events after multi-page prior bodies → one alert.
+        repeated = simulate_repeated_founder_alert_events(
+            alert_required=True,
+            head_sha=HEAD,
+            prior_issue_bodies=["unrelated"],
+        )
+        self.assertEqual(repeated["created"], 1)
 
     def test_undocumented_task_hold_rejected(self) -> None:
         reject_undocumented_task_hold(configured_gates_passed=True, task_hold=None)

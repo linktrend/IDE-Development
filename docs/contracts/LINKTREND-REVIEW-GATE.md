@@ -42,8 +42,9 @@ Do not claim Bugbot passed under `advisory-unavailable`.
 When classification sets `alertFounder`, the managed workflow must publish a
 deduplicated GitHub issue (marker `<!-- linktrend-review-gate-alert: <sha> -->`)
 with the sanitized alert body. In-memory fields alone are not sufficient.
-Dedupe inspects prior alert **issue bodies** (paginated) and fails closed when
-that state cannot be read. Alert publish failure is fail-closed.
+Dedupe inspects prior alert **issue bodies** via `gh api --paginate --slurp`
+flattened into one JSON array and fails closed when that state cannot be read
+or parsed. Alert publish failure is fail-closed.
 
 ## Trusted unavailability evidence
 
@@ -61,5 +62,8 @@ fails closed.
 
 ## Infrastructure attempt accounting
 
-Infrastructure retry markers must be persisted fail-closed. Do not swallow
-marker publication failures with `|| true`.
+Infrastructure retry markers must be read and persisted fail-closed. Paginated
+marker comment reads use `gh api --paginate --slurp` flattened into one JSON
+array. Do not swallow read failures with `2>/dev/null || echo []` (that resets
+or undercounts attempts). Do not swallow marker publication failures with
+`|| true`.

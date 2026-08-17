@@ -327,6 +327,57 @@ def build_durable_founder_alert(classification: Classification) -> dict[str, Any
     }
 
 
+def flatten_gh_slurp_pages(pages: Any) -> list[Any]:
+    """Flatten ``gh api --paginate --slurp`` output into one item list.
+
+    Empty slurps (``[]``), a single page, and multiple pages must all yield one
+    deterministic list. Non-list roots or non-list pages fail closed.
+    """
+    if pages is None:
+        raise ReviewGateError("paginated_response_invalid", "slurp payload is null")
+    if isinstance(pages, str):
+        text = pages.strip()
+        if not text:
+            raise ReviewGateError("paginated_response_invalid", "slurp payload is empty")
+        try:
+            pages = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ReviewGateError("paginated_response_invalid", "slurp JSON is malformed") from exc
+    if not isinstance(pages, list):
+        raise ReviewGateError("paginated_response_invalid", "slurp root must be a JSON array")
+    items: list[Any] = []
+    for index, page in enumerate(pages):
+        if not isinstance(page, list):
+            raise ReviewGateError(
+                "paginated_response_invalid",
+                f"page {index} must be a JSON array",
+            )
+        items.extend(page)
+    return items
+
+
+def comment_bodies_from_slurp(pages: Any) -> list[str]:
+    """Extract comment bodies from paginated/slurped comment pages."""
+    bodies: list[str] = []
+    for item in flatten_gh_slurp_pages(pages):
+        if not isinstance(item, Mapping):
+            raise ReviewGateError("paginated_response_invalid", "comment page item must be object")
+        bodies.append(str(item.get("body") or ""))
+    return bodies
+
+
+def issue_bodies_from_slurp(pages: Any) -> list[str]:
+    """Extract non-PR issue bodies from paginated/slurped issue pages."""
+    bodies: list[str] = []
+    for item in flatten_gh_slurp_pages(pages):
+        if not isinstance(item, Mapping):
+            raise ReviewGateError("paginated_response_invalid", "issue page item must be object")
+        if "pull_request" in item:
+            continue
+        bodies.append(str(item.get("body") or ""))
+    return bodies
+
+
 def founder_alert_already_recorded(existing_bodies: Sequence[str], *, head_sha: str) -> bool:
     """Return True when a prior founder-alert issue body already carries the marker."""
     marker = founder_alert_marker(head_sha)
@@ -815,6 +866,18 @@ def main(argv: list[str] | None = None) -> int:
     ci.add_argument("--head-sha", required=True)
     ci.add_argument("--markers-json", required=True)
 
+    fc = sub.add_parser(
+        "flatten-comment-bodies",
+        help="Flatten gh --paginate --slurp comment pages into one JSON body array",
+    )
+    fc.add_argument("--slurp-json", required=True)
+
+    fi = sub.add_parser(
+        "flatten-issue-bodies",
+        help="Flatten gh --paginate --slurp issue pages into non-PR body array",
+    )
+    fi.add_argument("--slurp-json", required=True)
+
     fb = sub.add_parser("fallback-comment", help="Build fallback request comment body")
     fb.add_argument("--fallback-json", required=True)
     fb.add_argument("--head-sha", required=True)
@@ -943,6 +1006,14 @@ def main(argv: list[str] | None = None) -> int:
                 raise ReviewGateError("invalid_markers", "markers-json must be a list")
             count = count_infrastructure_attempts([str(x) for x in markers], head_sha=args.head_sha)
             print(json.dumps({"attempts": count}, indent=2, sort_keys=True))
+            return 0
+        if args.command == "flatten-comment-bodies":
+            bodies = comment_bodies_from_slurp(_load_json_arg(args.slurp_json))
+            print(json.dumps(bodies, indent=2, sort_keys=True))
+            return 0
+        if args.command == "flatten-issue-bodies":
+            bodies = issue_bodies_from_slurp(_load_json_arg(args.slurp_json))
+            print(json.dumps(bodies, indent=2, sort_keys=True))
             return 0
         if args.command == "fallback-comment":
             fallback = _load_json_arg(args.fallback_json)
