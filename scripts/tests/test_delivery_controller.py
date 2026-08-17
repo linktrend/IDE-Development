@@ -82,6 +82,13 @@ def _named_checks(head: str) -> dict[str, dict[str, str]]:
     }
 
 
+def _repository_ci(head: str, *, name: str = "Verify IDE Development") -> dict[str, object]:
+    return {
+        "required": [name],
+        "results": {name: {"status": "success", "sha": head}},
+    }
+
+
 def _gates(head: str) -> dict[str, dict[str, str]]:
     return {
         "seal": {"status": "passed", "sha": head},
@@ -113,14 +120,8 @@ class DeliveryControllerTests(unittest.TestCase):
         self.github.refs["staging"] = _sha(7)
         self.github.refs["main"] = _sha(6)
 
-    def test_component_replaces_nonexistent_integrator_handoff(self) -> None:
-        self.assertTrue(controller.IS_DELIVERY_CONTROLLER)
-        self.assertEqual(controller.COMPONENT_KIND, "delivery_controller")
-        self.assertIn("Replaces the nonexistent Integrator", controller.__doc__)
-        self.assertFalse(getattr(discover, "IS_DELIVERY_CONTROLLER", False))
-
-    def test_valid_phase_pr_reaches_development_without_external_integrator(self) -> None:
-        result = controller.deliver_phase_to_development(
+    def _deliver(self, **kwargs):
+        defaults = dict(
             github=self.github,
             repository="owner/name",
             handoff=self.handoff,
@@ -129,10 +130,38 @@ class DeliveryControllerTests(unittest.TestCase):
             live_tree=self.tree,
             gate_payload=_gates(self.head),
             named_checks=_named_checks(self.head),
+            repository_ci=_repository_ci(self.head),
             receipt=self.receipt,
             candidate_identity=self.identity,
             role="operator",
         )
+        defaults.update(kwargs)
+        return controller.deliver_phase_to_development(**defaults)
+
+    def _verify(self, **kwargs):
+        defaults = dict(
+            handoff=self.handoff,
+            pr=self.pr,
+            repository="owner/name",
+            live_head=self.head,
+            live_tree=self.tree,
+            gate_payload=_gates(self.head),
+            named_checks=_named_checks(self.head),
+            repository_ci=_repository_ci(self.head),
+            receipt=self.receipt,
+            candidate_identity=self.identity,
+        )
+        defaults.update(kwargs)
+        return controller.verify_development_eligibility(**defaults)
+
+    def test_component_replaces_nonexistent_integrator_handoff(self) -> None:
+        self.assertTrue(controller.IS_DELIVERY_CONTROLLER)
+        self.assertEqual(controller.COMPONENT_KIND, "delivery_controller")
+        self.assertIn("Replaces the nonexistent Integrator", controller.__doc__)
+        self.assertFalse(getattr(discover, "IS_DELIVERY_CONTROLLER", False))
+
+    def test_valid_phase_pr_reaches_development_without_external_integrator(self) -> None:
+        result = self._deliver()
         self.assertEqual(result["status"], "merged")
         self.assertEqual(result["stage"], "development")
         self.assertFalse(result["directPush"])
@@ -183,6 +212,7 @@ class DeliveryControllerTests(unittest.TestCase):
                 live_tree=self.tree,
                 gate_payload=_gates(self.head),
                 named_checks=missing,
+                repository_ci=_repository_ci(self.head),
                 receipt=self.receipt,
                 candidate_identity=self.identity,
             )
@@ -197,6 +227,7 @@ class DeliveryControllerTests(unittest.TestCase):
                 live_tree=self.tree,
                 gate_payload=_gates(self.head),
                 named_checks=skipped,
+                repository_ci=_repository_ci(self.head),
                 receipt=self.receipt,
                 candidate_identity=self.identity,
             )
@@ -210,6 +241,7 @@ class DeliveryControllerTests(unittest.TestCase):
                 live_tree=self.tree,
                 gate_payload=failed_gates,
                 named_checks=_named_checks(self.head),
+                repository_ci=_repository_ci(self.head),
                 receipt=self.receipt,
                 candidate_identity=self.identity,
             )
@@ -225,6 +257,7 @@ class DeliveryControllerTests(unittest.TestCase):
                 live_tree=self.tree,
                 gate_payload=_gates(self.head),
                 named_checks=_named_checks(self.head),
+                repository_ci=_repository_ci(self.head),
                 receipt=forged,
                 candidate_identity=self.identity,
             )
@@ -364,6 +397,7 @@ class DeliveryControllerTests(unittest.TestCase):
             live_tree=self.tree,
             gate_payload=_gates(self.head),
             named_checks=_named_checks(self.head),
+            repository_ci=_repository_ci(self.head),
             receipt=self.receipt,
             candidate_identity=self.identity,
             role="operator",
@@ -434,6 +468,7 @@ class DeliveryControllerTests(unittest.TestCase):
                 live_tree=self.tree,
                 gate_payload=_gates(self.head),
                 named_checks=_named_checks(self.head),
+                repository_ci=_repository_ci(self.head),
                 receipt=self.receipt,
                 candidate_identity=self.identity,
                 conflict=True,
@@ -471,6 +506,138 @@ class DeliveryControllerTests(unittest.TestCase):
         self.assertEqual(completed["status"], "merged")
         self.assertTrue(completed["founderApproval"])
 
+    def test_production_live_github_adapter_is_executable(self) -> None:
+        self.assertTrue(hasattr(controller, "LiveGitHub"))
+        self.assertTrue(callable(controller.resolve_production_github))
+        with self.assertRaisesRegex(controller.ControllerError, "missing_github_credentials"):
+            controller.resolve_production_github("owner/name")
+        calls: list[tuple[str, str]] = []
+
+        def transport(method: str, url: str, token: str, body):
+            calls.append((method, url))
+            self.assertEqual(token, "tok")
+            if method == "GET" and url.endswith("/pulls/11"):
+                return {
+                    "number": 11,
+                    "html_url": "https://github.com/owner/name/pull/11",
+                    "draft": False,
+                    "state": "open",
+                    "head": {"ref": "phase/next", "sha": self.head, "repo": {"full_name": "owner/name"}},
+                    "base": {"ref": "development"},
+                    "mergeable_state": "clean",
+                }
+            if method == "PUT" and url.endswith("/merge"):
+                return {"merged": True, "sha": _sha(4)}
+            raise AssertionError((method, url))
+
+        live = controller.LiveGitHub(repository="owner/name", automation_token="tok", transport=transport)
+        merged = live.merge_pull_request(repository="owner/name", number=11, expected_head=self.head)
+        self.assertEqual(merged["mergeCommitSha"], _sha(4))
+        self.assertFalse(merged["directPush"])
+        self.assertEqual(calls[0][0], "GET")
+        self.assertEqual(calls[1][0], "PUT")
+        with self.assertRaisesRegex(controller.ControllerError, "direct_push_forbidden"):
+            live.push_protected(repository="owner/name", branch="development", sha=self.head)
+
+    def test_staging_and_main_require_exact_source_sha_equality(self) -> None:
+        with self.assertRaisesRegex(controller.ControllerError, "promotion_source_mismatch"):
+            controller.promote_to_staging(
+                github=self.github,
+                repository="owner/name",
+                development_sha=self.head,
+                staging_sha=_sha(7),
+                candidate_sha=_sha(99),
+                candidate_tree=self.tree,
+                receipt=self.receipt,
+                candidate_identity=self.identity,
+                release_gate={"status": "passed", "testProfile": "release"},
+                role="operator",
+            )
+        with self.assertRaisesRegex(controller.ControllerError, "promotion_source_mismatch"):
+            controller.prepare_main_promotion(
+                github=self.github,
+                repository="owner/name",
+                staging_sha=self.head,
+                main_sha=_sha(6),
+                candidate_sha=_sha(88),
+                receipt=self.receipt,
+                candidate_identity=self.identity,
+                release_gate={"status": "passed", "testProfile": "release"},
+                role="operator",
+            )
+        with self.assertRaisesRegex(controller.ControllerError, "promotion_source_mismatch"):
+            controller.complete_main_promotion(
+                github=self.github,
+                repository="owner/name",
+                pr_number=11,
+                expected_head=self.head,
+                source_sha=_sha(55),
+                base_sha=_sha(6),
+                approval={
+                    "decision": "approve",
+                    "sourceSha": _sha(55),
+                    "baseSha": _sha(6),
+                    "prHeadSha": self.head,
+                    "receiptDigest": receipts.compute_receipt_digest(self.receipt),
+                },
+                receipt=self.receipt,
+                role="founder",
+            )
+
+    def test_infrastructure_retry_bound_is_enforced(self) -> None:
+        attempts = {"n": 0}
+
+        def flaky() -> str:
+            attempts["n"] += 1
+            raise controller.ControllerError("github_unavailable", f"attempt-{attempts['n']}")
+
+        with self.assertRaisesRegex(controller.ControllerError, "infrastructure_retries_exhausted"):
+            controller.call_with_infrastructure_retry(flaky)
+        self.assertEqual(attempts["n"], controller.INFRA_RETRY_LIMIT)
+
+        attempts["n"] = 0
+
+        def recover() -> str:
+            attempts["n"] += 1
+            if attempts["n"] < 2:
+                raise controller.ControllerError("network_error", "transient")
+            return "ok"
+
+        self.assertEqual(controller.call_with_infrastructure_retry(recover), "ok")
+        self.assertEqual(attempts["n"], 2)
+
+        with self.assertRaisesRegex(controller.ControllerError, "stale_pr_head"):
+            controller.call_with_infrastructure_retry(
+                lambda: (_ for _ in ()).throw(controller.ControllerError("stale_pr_head", "no-retry"))
+            )
+
+    def test_repository_owned_ci_is_distinct_eligibility_gate(self) -> None:
+        ok = self._verify()
+        self.assertEqual(ok["repositoryCi"], "passed")
+        with self.assertRaisesRegex(controller.ControllerError, "repository_ci_missing"):
+            self._verify(repository_ci={"required": [], "results": {}})
+        with self.assertRaisesRegex(controller.ControllerError, "repository_ci_failed"):
+            self._verify(
+                repository_ci={
+                    "required": ["Verify IDE Development"],
+                    "results": {"Verify IDE Development": {"status": "failure", "sha": self.head}},
+                }
+            )
+        with self.assertRaisesRegex(controller.ControllerError, "repository_ci_stale"):
+            self._verify(
+                repository_ci={
+                    "required": ["Verify IDE Development"],
+                    "results": {"Verify IDE Development": {"status": "success", "sha": _sha(99)}},
+                }
+            )
+        with self.assertRaisesRegex(controller.ControllerError, "repository_ci_collides_with_system"):
+            self._verify(
+                repository_ci={
+                    "required": ["Linktrend Fast Checks"],
+                    "results": {"Linktrend Fast Checks": {"status": "success", "sha": self.head}},
+                }
+            )
+
     def test_index_manifest_schema_and_hosted_fast_cover_controller(self) -> None:
         index = (ROOT / "core/managed-core/INDEX.yaml").read_text(encoding="utf-8")
         self.assertIn("schemas/delivery-operation.schema.json", index)
@@ -497,6 +664,20 @@ class DeliveryControllerTests(unittest.TestCase):
         )
         self.assertIn("delivery controller", bootstrap.lower())
         self.assertNotIn("Integrator merges only when", bootstrap)
+        branching = (ROOT / "core/managed-core/platforms/cursor/rules/linktrend-git-branching.mdc").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("delivery controller", branching.lower())
+        self.assertNotIn("→ Integrator", branching)
+        local_branching = (ROOT / ".cursor/rules/01-git-branching.mdc").read_text(encoding="utf-8")
+        self.assertIn("delivery controller", local_branching.lower())
+        self.assertNotIn("Integrator merges", local_branching)
+        self.assertNotIn("Integrator only", local_branching)
+        runtime_branching = (
+            ROOT / "core/github/managed-runtime/entrypoints/rules/linktrend-git-branching.mdc"
+        ).read_text(encoding="utf-8")
+        self.assertIn("delivery controller", runtime_branching.lower())
+        self.assertNotIn("→ Integrator", runtime_branching)
         schema = json.loads(
             (ROOT / "core/managed-core/schemas/delivery-operation.schema.json").read_text(encoding="utf-8")
         )

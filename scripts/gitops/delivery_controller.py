@@ -22,9 +22,11 @@ import json
 import os
 import re
 import sys
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Protocol
+from typing import Any, Callable, Mapping, Protocol
 
 try:
     from scripts.gitops.delivery_modes import is_phase_branch, is_valid_sha, normalize_sha
@@ -65,6 +67,15 @@ AGENT_ENV_KEYS = (
     "ANTHROPIC_MODEL",
 )
 INFRA_RETRY_LIMIT = 2
+INFRASTRUCTURE_ERROR_CODES = frozenset(
+    {
+        "github_api_failed",
+        "github_unavailable",
+        "rate_limited",
+        "network_error",
+        "infrastructure_failure",
+    }
+)
 REQUIRED_CHECK_NAMES = (
     "Linktrend Fast Checks",
     "Linktrend Full Suite",
@@ -230,6 +241,215 @@ class MemoryGitHub:
         raise ControllerError("direct_push_forbidden", branch)
 
 
+def _github_api(
+    method: str,
+    url: str,
+    token: str,
+    body: Mapping[str, Any] | None = None,
+) -> Any:
+    data = None if body is None else json.dumps(body).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=data,
+        method=method,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "linktrend-delivery-controller",
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request) as response:
+            raw = response.read().decode("utf-8")
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        if exc.code in {429, 502, 503, 504}:
+            raise ControllerError("github_unavailable", f"{method} {url} -> {exc.code}: {detail[:240]}") from exc
+        if exc.code == 403 and "rate limit" in detail.lower():
+            raise ControllerError("rate_limited", f"{method} {url} -> {exc.code}") from exc
+        if exc.code in {405, 409, 422} and "merge" in url:
+            raise ControllerError("protected_merge_rejected", f"{method} {url} -> {exc.code}: {detail[:240]}") from exc
+        raise ControllerError("github_api_failed", f"{method} {url} -> {exc.code}: {detail[:300]}") from exc
+    except urllib.error.URLError as exc:
+        raise ControllerError("network_error", str(exc.reason)[:240]) from exc
+
+
+@dataclass
+class LiveGitHub:
+    """Production GitHub adapter for protected merge/promote under normal automation token."""
+
+    repository: str
+    automation_token: str
+    transport: Callable[[str, str, str, Mapping[str, Any] | None], Any] | None = None
+
+    def _request(self, method: str, url: str, body: Mapping[str, Any] | None = None) -> Any:
+        if self.transport is not None:
+            return self.transport(method, url, self.automation_token, body)
+        return _github_api(method, url, self.automation_token, body)
+
+    def get_pull_request(self, *, repository: str, number: int) -> dict[str, Any]:
+        if repository != self.repository:
+            raise ControllerError("wrong_repository", repository)
+        payload = self._request("GET", f"https://api.github.com/repos/{repository}/pulls/{number}")
+        if not isinstance(payload, Mapping):
+            raise ControllerError("github_api_failed", "pull payload was not an object")
+        head = payload.get("head") if isinstance(payload.get("head"), Mapping) else {}
+        base = payload.get("base") if isinstance(payload.get("base"), Mapping) else {}
+        return {
+            "number": int(payload.get("number") or number),
+            "url": str(payload.get("html_url") or ""),
+            "isDraft": bool(payload.get("draft")),
+            "state": "open" if payload.get("state") == "open" else str(payload.get("state") or ""),
+            "head": str(head.get("ref") or ""),
+            "base": str(base.get("ref") or ""),
+            "headSha": normalize_sha(str(head.get("sha") or "")),
+            "mergeableState": str(payload.get("mergeable_state") or ""),
+            "crossRepository": bool(
+                isinstance(head.get("repo"), Mapping)
+                and str((head.get("repo") or {}).get("full_name") or "") not in {"", repository}
+            ),
+            "merged": bool(payload.get("merged")),
+            "mergeCommitSha": normalize_sha(str(payload.get("merge_commit_sha") or "")),
+        }
+
+    def merge_pull_request(
+        self,
+        *,
+        repository: str,
+        number: int,
+        expected_head: str,
+        method: str = "merge",
+    ) -> dict[str, Any]:
+        live = self.get_pull_request(repository=repository, number=number)
+        head = normalize_sha(str(live.get("headSha") or ""))
+        if head != normalize_sha(expected_head):
+            raise ControllerError("stale_pr_head", f"live={head}:expected={expected_head}")
+        if bool(live.get("isDraft")):
+            raise ControllerError("draft_pr", str(number))
+        if str(live.get("state") or "").lower() != "open":
+            raise ControllerError("pr_not_open", str(number))
+        payload = self._request(
+            "PUT",
+            f"https://api.github.com/repos/{repository}/pulls/{number}/merge",
+            {
+                "merge_method": method,
+                "sha": normalize_sha(expected_head),
+            },
+        )
+        if not isinstance(payload, Mapping) or not payload.get("merged"):
+            raise ControllerError("protected_merge_rejected", f"PR #{number} was not merged")
+        return {
+            "number": number,
+            "method": method,
+            "headSha": normalize_sha(expected_head),
+            "mergeCommitSha": normalize_sha(str(payload.get("sha") or "")),
+            "base": str(live.get("base") or ""),
+            "directPush": False,
+        }
+
+    def create_pull_request(
+        self,
+        *,
+        repository: str,
+        head: str,
+        base: str,
+        title: str,
+        body: str,
+        head_sha: str,
+    ) -> dict[str, Any]:
+        if repository != self.repository:
+            raise ControllerError("wrong_repository", repository)
+        if base in PROTECTED_BRANCHES and head in PROTECTED_BRANCHES:
+            raise ControllerError("protected_direct", f"{head}->{base}")
+        created = self._request(
+            "POST",
+            f"https://api.github.com/repos/{repository}/pulls",
+            {
+                "title": title,
+                "body": body,
+                "head": head,
+                "base": base,
+                "draft": False,
+            },
+        )
+        if not isinstance(created, Mapping):
+            raise ControllerError("github_api_failed", "create pull response was not an object")
+        number = created.get("number")
+        if not isinstance(number, int) or isinstance(number, bool) or number < 1:
+            raise ControllerError("github_api_failed", "create pull missing number")
+        return self.get_pull_request(repository=repository, number=number)
+
+    def delete_ref(self, *, repository: str, ref: str) -> bool:
+        if repository != self.repository:
+            raise ControllerError("wrong_repository", repository)
+        name = ref.removeprefix("refs/heads/")
+        if name in PROTECTED_BRANCHES:
+            raise ControllerError("protected_ref_delete", name)
+        self._request("DELETE", f"https://api.github.com/repos/{repository}/git/refs/heads/{name}")
+        return True
+
+    def push_protected(self, *, repository: str, branch: str, sha: str) -> None:
+        raise ControllerError("direct_push_forbidden", branch)
+
+
+def resolve_production_github(repository: str) -> LiveGitHub:
+    """Fail closed unless a trusted normal automation token is configured."""
+
+    if not repository or repository.count("/") != 1:
+        raise ControllerError("missing_repository", "delivery requires --repository owner/name")
+    token = (os.environ.get("AUTOMATION_TOKEN") or "").strip()
+    source = (os.environ.get("AUTOMATION_TOKEN_SOURCE") or "").strip()
+    if not token or source != "github_token":
+        raise ControllerError(
+            "missing_github_credentials",
+            "delivery requires AUTOMATION_TOKEN with AUTOMATION_TOKEN_SOURCE=github_token",
+        )
+    return LiveGitHub(repository=repository, automation_token=token)
+
+
+def call_with_infrastructure_retry(operation: Callable[[], Any], *, attempts: int | None = None) -> Any:
+    """Retry only infrastructure failures; bound to INFRA_RETRY_LIMIT total attempts."""
+
+    limit = INFRA_RETRY_LIMIT if attempts is None else int(attempts)
+    if limit < 1:
+        raise ControllerError("invalid_retry_limit", str(limit))
+    last: ControllerError | None = None
+    for attempt in range(1, limit + 1):
+        try:
+            return operation()
+        except ControllerError as exc:
+            if exc.code not in INFRASTRUCTURE_ERROR_CODES:
+                raise
+            last = exc
+            if attempt >= limit:
+                raise ControllerError(
+                    "infrastructure_retries_exhausted",
+                    f"attempts={attempt} max={limit} last={exc.code}:{exc.detail}",
+                ) from exc
+    assert last is not None
+    raise last
+
+
+def require_promotion_source_equality(
+    *,
+    stage: str,
+    candidate_sha: str,
+    source_sha: str,
+) -> None:
+    """Staging candidate must equal development; main candidate must equal staging."""
+
+    candidate = normalize_sha(candidate_sha)
+    source = normalize_sha(source_sha)
+    if not is_valid_sha(candidate) or not is_valid_sha(source) or candidate != source:
+        raise ControllerError(
+            "promotion_source_mismatch",
+            f"{stage}:candidate={candidate or 'missing'}:source={source or 'missing'}",
+        )
+
+
 def agent_env_fingerprint(environ: Mapping[str, str] | None = None) -> str:
     """Sanitize agent markers so behavior cannot depend on which agent invoked."""
 
@@ -312,6 +532,35 @@ def _check_named_gates(checks: Mapping[str, Any] | None, *, live_head: str) -> N
             raise ControllerError("required_gate_stale", f"{name}:{observed}")
 
 
+def _check_repository_owned_ci(
+    repository_ci: Mapping[str, Any] | None,
+    *,
+    live_head: str,
+    required_names: list[str] | None = None,
+) -> None:
+    """Distinct gate: repository-owned required CI on the exact candidate head."""
+
+    payload = repository_ci if isinstance(repository_ci, Mapping) else {}
+    names = list(required_names or payload.get("required") or [])
+    if not names:
+        raise ControllerError("repository_ci_missing", "repository-owned required CI list is required")
+    results = payload.get("results") if isinstance(payload.get("results"), Mapping) else payload
+    for name in names:
+        if name in REQUIRED_CHECK_NAMES:
+            raise ControllerError("repository_ci_collides_with_system", name)
+        row = results.get(name) if isinstance(results, Mapping) else None
+        if not isinstance(row, Mapping):
+            raise ControllerError("repository_ci_missing", name)
+        status = str(row.get("status") or row.get("state") or row.get("conclusion") or "").lower()
+        if status in {"skipped", "neutral", "cancelled", "canceled"}:
+            raise ControllerError("repository_ci_skipped", name)
+        if status not in {"passed", "success", "successful", "green"}:
+            raise ControllerError("repository_ci_failed", f"{name}:{status or 'missing'}")
+        observed = normalize_sha(str(row.get("sha") or row.get("headSha") or ""))
+        if not observed or observed != normalize_sha(live_head):
+            raise ControllerError("repository_ci_stale", f"{name}:{observed or 'missing'}")
+
+
 def verify_development_eligibility(
     *,
     handoff: Mapping[str, Any],
@@ -321,11 +570,12 @@ def verify_development_eligibility(
     live_tree: str,
     gate_payload: Mapping[str, Any],
     named_checks: Mapping[str, Any],
+    repository_ci: Mapping[str, Any],
     receipt: Mapping[str, Any],
     candidate_identity: Mapping[str, Any],
     conflict: bool = False,
 ) -> dict[str, Any]:
-    """Require exact gates, genuine receipt, and an unchanged Phase PR head."""
+    """Require exact gates, repo-owned CI, genuine receipt, and an unchanged Phase PR head."""
 
     accepted = accept_phase_pr(
         pr,
@@ -337,6 +587,7 @@ def verify_development_eligibility(
     if conflict:
         raise ControllerError("merge_conflict", str(accepted["number"]))
     _check_named_gates(named_checks, live_head=live_head)
+    _check_repository_owned_ci(repository_ci, live_head=live_head)
     gates = evaluate_development_gates(gate_payload, live_head)
     if not gates.accepted:
         raise ControllerError(gates.code, gates.detail)
@@ -352,6 +603,7 @@ def verify_development_eligibility(
         "pr": accepted,
         "receiptLookupKey": receipt_decision.receipt_lookup_key,
         "receiptDigest": compute_receipt_digest(receipt),
+        "repositoryCi": "passed",
         "detail": "development_eligible",
     }
 
@@ -373,11 +625,13 @@ def merge_to_development(
     except ControllerError as exc:
         if exc.code != "direct_push_forbidden":
             raise
-    result = github.merge_pull_request(
-        repository=repository,
-        number=pr_number,
-        expected_head=expected_head,
-        method="merge",
+    result = call_with_infrastructure_retry(
+        lambda: github.merge_pull_request(
+            repository=repository,
+            number=pr_number,
+            expected_head=expected_head,
+            method="merge",
+        )
     )
     return {
         "status": "merged",
@@ -409,6 +663,11 @@ def promote_to_staging(
     """Promote via temporary promote/staging/* PR using exact receipt reuse."""
 
     require_controller_role(role)
+    require_promotion_source_equality(
+        stage="staging",
+        candidate_sha=candidate_sha,
+        source_sha=development_sha,
+    )
     if full_suite_invoked or bool(release_gate.get("fullSuiteInvoked")):
         raise ControllerError("full_suite_reentered", "staging must reuse the matching receipt")
     release = evaluate_release_path({**dict(release_gate), "fullSuiteInvoked": False})
@@ -436,18 +695,22 @@ def promote_to_staging(
         "receiptDigest": compute_receipt_digest(receipt),
     }
     body = f"<!-- linktrend-promote: {json.dumps(marker, sort_keys=True)} -->"
-    pr = github.create_pull_request(
-        repository=repository,
-        head=branch,
-        base="staging",
-        title=f"Promote development {short} to staging",
-        body=body,
-        head_sha=candidate_sha,
+    pr = call_with_infrastructure_retry(
+        lambda: github.create_pull_request(
+            repository=repository,
+            head=branch,
+            base="staging",
+            title=f"Promote development {short} to staging",
+            body=body,
+            head_sha=candidate_sha,
+        )
     )
-    merged = github.merge_pull_request(
-        repository=repository,
-        number=int(pr["number"]),
-        expected_head=candidate_sha,
+    merged = call_with_infrastructure_retry(
+        lambda: github.merge_pull_request(
+            repository=repository,
+            number=int(pr["number"]),
+            expected_head=candidate_sha,
+        )
     )
     return {
         "status": "merged",
@@ -480,6 +743,11 @@ def prepare_main_promotion(
     """Open promote/main/* and wait for explicit founder approval."""
 
     require_controller_role(role)
+    require_promotion_source_equality(
+        stage="main",
+        candidate_sha=candidate_sha,
+        source_sha=staging_sha,
+    )
     release = evaluate_release_path({**dict(release_gate), "fullSuiteInvoked": False})
     if not release.accepted:
         raise ControllerError(release.code, release.detail)
@@ -501,13 +769,15 @@ def prepare_main_promotion(
         "awaitingFounderApproval": True,
     }
     body = f"<!-- linktrend-promote: {json.dumps(marker, sort_keys=True)} -->"
-    pr = github.create_pull_request(
-        repository=repository,
-        head=branch,
-        base="main",
-        title=f"Promote staging {short} to main (awaiting founder approval)",
-        body=body,
-        head_sha=candidate_sha,
+    pr = call_with_infrastructure_retry(
+        lambda: github.create_pull_request(
+            repository=repository,
+            head=branch,
+            base="main",
+            title=f"Promote staging {short} to main (awaiting founder approval)",
+            body=body,
+            head_sha=candidate_sha,
+        )
     )
     return {
         "status": "waiting_founder_approval",
@@ -538,6 +808,11 @@ def complete_main_promotion(
     """Merge main only after exact founder approval; reject ambiguous/stale."""
 
     require_controller_role(role)
+    require_promotion_source_equality(
+        stage="main",
+        candidate_sha=expected_head,
+        source_sha=source_sha,
+    )
     if not isinstance(approval, Mapping) or not approval:
         raise ControllerError("founder_approval_missing", "main always waits for explicit founder approval")
     if bool(approval.get("inferredFromGreenCi") or approval.get("inferredFromElapsedTime")):
@@ -557,10 +832,12 @@ def complete_main_promotion(
     live_head = normalize_sha(str(live.get("headSha") or ""))
     if live_head != normalize_sha(expected_head):
         raise ControllerError("stale_pr_head", live_head)
-    merged = github.merge_pull_request(
-        repository=repository,
-        number=pr_number,
-        expected_head=expected_head,
+    merged = call_with_infrastructure_retry(
+        lambda: github.merge_pull_request(
+            repository=repository,
+            number=pr_number,
+            expected_head=expected_head,
+        )
     )
     return {
         "status": "merged",
@@ -677,6 +954,7 @@ def deliver_phase_to_development(
     live_tree: str,
     gate_payload: Mapping[str, Any],
     named_checks: Mapping[str, Any],
+    repository_ci: Mapping[str, Any],
     receipt: Mapping[str, Any],
     candidate_identity: Mapping[str, Any],
     role: str,
@@ -694,6 +972,7 @@ def deliver_phase_to_development(
         live_tree=live_tree,
         gate_payload=gate_payload,
         named_checks=named_checks,
+        repository_ci=repository_ci,
         receipt=receipt,
         candidate_identity=candidate_identity,
         conflict=conflict,
@@ -742,11 +1021,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--live-tree", default="")
     parser.add_argument("--gates-json", default="")
     parser.add_argument("--checks-json", default="")
+    parser.add_argument("--repository-ci-json", default="")
     parser.add_argument("--receipt", default="")
     parser.add_argument("--identity-json", default="")
     parser.add_argument("--approval-json", default="")
     parser.add_argument("--release-json", default="")
+    parser.add_argument("--promote-json", default="")
     parser.add_argument("--pr-number", type=int, default=0)
+    parser.add_argument("--expected-head", default="")
+    parser.add_argument("--source-sha", default="")
+    parser.add_argument("--base-sha", default="")
+    parser.add_argument("--branches", default="")
     parser.add_argument("--payload-json", default="")
     parser.add_argument("--out", default="")
     args = parser.parse_args(argv)
@@ -776,18 +1061,72 @@ def main(argv: list[str] | None = None) -> int:
                 live_tree=args.live_tree,
                 gate_payload=load(args.gates_json),
                 named_checks=load(args.checks_json),
+                repository_ci=load(args.repository_ci_json),
                 receipt=load(args.receipt),
                 candidate_identity=load(args.identity_json),
             )
         else:
-            # Remaining mutating commands require an injected GitHub adapter.
-            # Production operators use Memory-free live adapters in a later
-            # trusted workflow boundary; the CLI still rejects worker roles.
             require_controller_role(args.role)
-            raise ControllerError(
-                "github_adapter_required",
-                f"{args.command} requires a trusted GitHub adapter in hosted automation",
-            )
+            github = resolve_production_github(args.repository)
+            if args.command == "merge-development":
+                result = merge_to_development(
+                    github=github,
+                    repository=args.repository,
+                    pr_number=args.pr_number,
+                    expected_head=args.expected_head or args.live_head,
+                    role=args.role,
+                )
+            elif args.command == "promote-staging":
+                payload = load(args.promote_json)
+                result = promote_to_staging(
+                    github=github,
+                    repository=args.repository,
+                    development_sha=str(payload["developmentSha"]),
+                    staging_sha=str(payload["stagingSha"]),
+                    candidate_sha=str(payload["candidateSha"]),
+                    candidate_tree=str(payload["candidateTree"]),
+                    receipt=load(args.receipt),
+                    candidate_identity=load(args.identity_json),
+                    release_gate=load(args.release_json),
+                    role=args.role,
+                    full_suite_invoked=bool(payload.get("fullSuiteInvoked")),
+                )
+            elif args.command == "prepare-main":
+                payload = load(args.promote_json)
+                result = prepare_main_promotion(
+                    github=github,
+                    repository=args.repository,
+                    staging_sha=str(payload["stagingSha"]),
+                    main_sha=str(payload["mainSha"]),
+                    candidate_sha=str(payload["candidateSha"]),
+                    receipt=load(args.receipt),
+                    candidate_identity=load(args.identity_json),
+                    release_gate=load(args.release_json),
+                    role=args.role,
+                )
+            elif args.command == "complete-main":
+                result = complete_main_promotion(
+                    github=github,
+                    repository=args.repository,
+                    pr_number=args.pr_number,
+                    expected_head=args.expected_head,
+                    source_sha=args.source_sha,
+                    base_sha=args.base_sha,
+                    approval=load(args.approval_json),
+                    receipt=load(args.receipt),
+                    role=args.role,
+                )
+            elif args.command == "cleanup":
+                branches = [item for item in args.branches.split(",") if item]
+                result = cleanup_temporary_branches(
+                    github=github,
+                    repository=args.repository,
+                    branches=branches,
+                    merge_succeeded=True,
+                    controller_owned={name: True for name in branches},
+                )
+            else:  # pragma: no cover
+                raise ControllerError("unknown_command", args.command)
     except ControllerError as exc:
         payload = {"status": "rejected", **exc.to_dict(), "component": COMPONENT_KIND}
         text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
