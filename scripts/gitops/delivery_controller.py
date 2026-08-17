@@ -364,6 +364,11 @@ class LiveGitHub:
             raise ControllerError("wrong_repository", repository)
         if base in PROTECTED_BRANCHES and head in PROTECTED_BRANCHES:
             raise ControllerError("protected_direct", f"{head}->{base}")
+        expected = normalize_sha(head_sha)
+        if not is_valid_sha(expected):
+            raise ControllerError("invalid_head_sha", head_sha)
+        if PROMOTE_STAGING_RE.fullmatch(head) or PROMOTE_MAIN_RE.fullmatch(head):
+            self.ensure_promote_ref(repository=repository, branch=head, head_sha=expected)
         created = self._request(
             "POST",
             f"https://api.github.com/repos/{repository}/pulls",
@@ -380,7 +385,47 @@ class LiveGitHub:
         number = created.get("number")
         if not isinstance(number, int) or isinstance(number, bool) or number < 1:
             raise ControllerError("github_api_failed", "create pull missing number")
-        return self.get_pull_request(repository=repository, number=number)
+        pr = self.get_pull_request(repository=repository, number=number)
+        live_head = normalize_sha(str(pr.get("headSha") or ""))
+        if live_head != expected:
+            raise ControllerError("promote_ref_mismatch", f"pr_head={live_head}:expected={expected}")
+        return pr
+
+    def ensure_promote_ref(self, *, repository: str, branch: str, head_sha: str) -> str:
+        """Create or update promote/* at exact head_sha; fail closed if remote differs."""
+
+        if repository != self.repository:
+            raise ControllerError("wrong_repository", repository)
+        if not (PROMOTE_STAGING_RE.fullmatch(branch) or PROMOTE_MAIN_RE.fullmatch(branch)):
+            raise ControllerError("invalid_promote_branch", branch)
+        expected = normalize_sha(head_sha)
+        if not is_valid_sha(expected):
+            raise ControllerError("invalid_head_sha", head_sha)
+        ref = f"heads/{branch}"
+        api = f"https://api.github.com/repos/{repository}/git/refs/{ref}"
+        try:
+            existing = self._request("GET", api)
+        except ControllerError as exc:
+            if "404" not in exc.detail and "not found" not in exc.detail.lower():
+                raise
+            existing = None
+        if isinstance(existing, Mapping):
+            current = normalize_sha(str((existing.get("object") or {}).get("sha") or existing.get("sha") or ""))
+            if current != expected:
+                self._request("PATCH", api, {"sha": expected, "force": True})
+        else:
+            self._request(
+                "POST",
+                f"https://api.github.com/repos/{repository}/git/refs",
+                {"ref": f"refs/heads/{branch}", "sha": expected},
+            )
+        verified = self._request("GET", api)
+        if not isinstance(verified, Mapping):
+            raise ControllerError("promote_ref_mismatch", "remote promote ref missing after write")
+        remote = normalize_sha(str((verified.get("object") or {}).get("sha") or verified.get("sha") or ""))
+        if remote != expected:
+            raise ControllerError("promote_ref_mismatch", f"remote={remote or 'missing'}:expected={expected}")
+        return remote
 
     def delete_ref(self, *, repository: str, ref: str) -> bool:
         if repository != self.repository:
@@ -849,6 +894,35 @@ def complete_main_promotion(
     }
 
 
+def authorize_cleanup_from_evidence(
+    evidence: Mapping[str, Any] | None,
+    branches: list[str],
+) -> dict[str, bool]:
+    """Require truthful merged evidence bound to the exact promote refs being cleaned."""
+
+    if not isinstance(evidence, Mapping) or not evidence:
+        raise ControllerError("cleanup_before_success", "merge evidence missing")
+    if str(evidence.get("status") or "") != "merged":
+        raise ControllerError("cleanup_before_success", "preceding merge did not succeed")
+    allowed: set[str] = set()
+    promote = str(evidence.get("promoteBranch") or "").strip()
+    if promote:
+        allowed.add(promote.removeprefix("refs/heads/"))
+    for item in evidence.get("controllerOwnedBranches") or evidence.get("promoteBranches") or []:
+        text = str(item or "").strip().removeprefix("refs/heads/")
+        if text:
+            allowed.add(text)
+    if not allowed:
+        raise ControllerError("cleanup_before_success", "merge evidence has no promote ref binding")
+    owned: dict[str, bool] = {}
+    for branch in branches:
+        name = branch.removeprefix("refs/heads/")
+        if name not in allowed:
+            raise ControllerError("cleanup_before_success", f"no successful merge evidence for {name}")
+        owned[name] = True
+    return owned
+
+
 def cleanup_temporary_branches(
     *,
     github: GitHubPort,
@@ -1027,6 +1101,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--approval-json", default="")
     parser.add_argument("--release-json", default="")
     parser.add_argument("--promote-json", default="")
+    parser.add_argument("--merge-evidence-json", default="")
     parser.add_argument("--pr-number", type=int, default=0)
     parser.add_argument("--expected-head", default="")
     parser.add_argument("--source-sha", default="")
@@ -1118,12 +1193,14 @@ def main(argv: list[str] | None = None) -> int:
                 )
             elif args.command == "cleanup":
                 branches = [item for item in args.branches.split(",") if item]
+                evidence = load(args.merge_evidence_json) if args.merge_evidence_json else {}
+                owned = authorize_cleanup_from_evidence(evidence, branches)
                 result = cleanup_temporary_branches(
                     github=github,
                     repository=args.repository,
                     branches=branches,
                     merge_succeeded=True,
-                    controller_owned={name: True for name in branches},
+                    controller_owned=owned,
                 )
             else:  # pragma: no cover
                 raise ControllerError("unknown_command", args.command)

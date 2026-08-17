@@ -30,7 +30,7 @@ Every repository that installs the managed system must protect these three branc
 
 | Branch | Ruleset name (when rulesets available) | Managed purpose |
 |--------|----------------------------------------|-----------------|
-| `development` | `development-autonomous-merge` | Strict required checks, work-branch source policy, Bugbot, Integrator auto-merge compatibility |
+| `development` | `development-autonomous-merge` | Strict required checks, work-branch source policy, Bugbot, delivery-controller auto-merge compatibility |
 | `staging` | `staging-autonomous-promote` | Promotion-only PR sources (`promote/staging/*`) + staging-gate checks |
 | `main` | `main-autonomous-release` | Promotion-only PR sources (`promote/main/*`) + release-gate checks + Main Approve compatibility |
 
@@ -42,7 +42,7 @@ Promotion-only source policy is enforced by the managed workflow check **`Enforc
 
 Defaults match IDE Development. Consumers override via repository variables / CLI extras; baselines always union with Bugbot / source-policy where required.
 
-### `development` (Integrator + Bugbot)
+### `development` (delivery controller + Bugbot)
 
 Managed baseline (order stable):
 
@@ -50,7 +50,7 @@ Managed baseline (order stable):
 2. Fast-gate checks — default `Verify IDE Development`, or `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` when provided
 3. `Enforce allowed PR source branches` (always present)
 
-Also set repository setting `allow_auto_merge=true` so the Integrator may auto-merge when gates are green.
+Also set repository setting `allow_auto_merge=true` so the delivery controller may auto-merge when gates are green.
 
 ### `staging` (staging-gate)
 
@@ -124,7 +124,7 @@ Never invent a third mechanism. Document the gap for the Principal; do not force
 
 ---
 
-## Integrator / Main Approve compatibility notes
+## Delivery controller / Main Approve compatibility notes
 
 - Development: required checks must include `Linktrend Review Gate` + fast-gate; `allow_auto_merge=true`.
 - Staging / main: merge only via temporary `promote/*` PRs after named gates; never direct-push.

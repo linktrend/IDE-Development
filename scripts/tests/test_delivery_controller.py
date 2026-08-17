@@ -638,6 +638,171 @@ class DeliveryControllerTests(unittest.TestCase):
                 }
             )
 
+    def test_live_github_promote_ref_exact_binding_and_wrong_tip(self) -> None:
+        branch = f"promote/staging/{self.head[:12]}"
+        refs: dict[str, str] = {branch: _sha(99)}
+        calls: list[tuple[str, str]] = []
+
+        def transport(method: str, url: str, token: str, body):
+            calls.append((method, url))
+            self.assertEqual(token, "tok")
+            if method == "GET" and "/git/refs/heads/" in url:
+                name = url.rsplit("/git/refs/heads/", 1)[-1]
+                if name not in refs:
+                    raise controller.ControllerError("github_api_failed", f"GET {url} -> 404: not found")
+                return {"ref": f"refs/heads/{name}", "object": {"sha": refs[name]}}
+            if method == "PATCH" and "/git/refs/heads/" in url:
+                name = url.rsplit("/git/refs/heads/", 1)[-1]
+                refs[name] = str(body["sha"])
+                return {"ref": f"refs/heads/{name}", "object": {"sha": refs[name]}}
+            if method == "POST" and url.endswith("/git/refs"):
+                name = str(body["ref"]).removeprefix("refs/heads/")
+                refs[name] = str(body["sha"])
+                return {"ref": body["ref"], "object": {"sha": body["sha"]}}
+            if method == "POST" and url.endswith("/pulls"):
+                return {
+                    "number": 42,
+                    "html_url": "https://github.com/owner/name/pull/42",
+                    "draft": False,
+                    "state": "open",
+                    "head": {"ref": branch, "sha": self.head, "repo": {"full_name": "owner/name"}},
+                    "base": {"ref": "staging"},
+                }
+            if method == "GET" and url.endswith("/pulls/42"):
+                return {
+                    "number": 42,
+                    "html_url": "https://github.com/owner/name/pull/42",
+                    "draft": False,
+                    "state": "open",
+                    "head": {"ref": branch, "sha": refs[branch], "repo": {"full_name": "owner/name"}},
+                    "base": {"ref": "staging"},
+                    "mergeable_state": "clean",
+                }
+            raise AssertionError((method, url, body))
+
+        live = controller.LiveGitHub(repository="owner/name", automation_token="tok", transport=transport)
+        # Existing wrong tip must be rewritten to exact head_sha before PR open.
+        pr = live.create_pull_request(
+            repository="owner/name",
+            head=branch,
+            base="staging",
+            title="promote",
+            body="body",
+            head_sha=self.head,
+        )
+        self.assertEqual(refs[branch], self.head)
+        self.assertEqual(pr["headSha"], self.head)
+        self.assertTrue(any(method == "PATCH" for method, _ in calls))
+
+        # Adversarial: remote remains wrong after write → fail closed.
+        def bad_transport(method: str, url: str, token: str, body):
+            if method == "GET" and "/git/refs/heads/" in url:
+                return {"object": {"sha": _sha(77)}}
+            if method in {"PATCH", "POST"} and "git/refs" in url:
+                return {"object": {"sha": _sha(77)}}
+            raise AssertionError((method, url))
+
+        bad = controller.LiveGitHub(repository="owner/name", automation_token="tok", transport=bad_transport)
+        with self.assertRaisesRegex(controller.ControllerError, "promote_ref_mismatch"):
+            bad.ensure_promote_ref(repository="owner/name", branch=branch, head_sha=self.head)
+
+        # Successful create path when ref is absent.
+        fresh_branch = f"promote/main/{self.head[:12]}"
+        fresh_refs: dict[str, str] = {}
+
+        def create_transport(method: str, url: str, token: str, body):
+            if method == "GET" and "/git/refs/heads/" in url:
+                name = url.rsplit("/git/refs/heads/", 1)[-1]
+                if name not in fresh_refs:
+                    raise controller.ControllerError("github_api_failed", f"GET {url} -> 404: missing")
+                return {"object": {"sha": fresh_refs[name]}}
+            if method == "POST" and url.endswith("/git/refs"):
+                name = str(body["ref"]).removeprefix("refs/heads/")
+                fresh_refs[name] = str(body["sha"])
+                return {"object": {"sha": body["sha"]}}
+            if method == "POST" and url.endswith("/pulls"):
+                return {"number": 7}
+            if method == "GET" and url.endswith("/pulls/7"):
+                return {
+                    "number": 7,
+                    "html_url": "https://github.com/owner/name/pull/7",
+                    "draft": False,
+                    "state": "open",
+                    "head": {"ref": fresh_branch, "sha": self.head, "repo": {"full_name": "owner/name"}},
+                    "base": {"ref": "main"},
+                }
+            raise AssertionError((method, url))
+
+        creator = controller.LiveGitHub(repository="owner/name", automation_token="tok", transport=create_transport)
+        created = creator.create_pull_request(
+            repository="owner/name",
+            head=fresh_branch,
+            base="main",
+            title="main",
+            body="body",
+            head_sha=self.head,
+        )
+        self.assertEqual(fresh_refs[fresh_branch], self.head)
+        self.assertEqual(created["headSha"], self.head)
+
+    def test_cleanup_cli_requires_truthful_merge_evidence(self) -> None:
+        branch = f"promote/staging/{self.head[:12]}"
+        with self.assertRaisesRegex(controller.ControllerError, "cleanup_before_success"):
+            controller.authorize_cleanup_from_evidence({}, [branch])
+        with self.assertRaisesRegex(controller.ControllerError, "cleanup_before_success"):
+            controller.authorize_cleanup_from_evidence({"status": "waiting"}, [branch])
+        with self.assertRaisesRegex(controller.ControllerError, "cleanup_before_success"):
+            controller.authorize_cleanup_from_evidence(
+                {"status": "merged", "promoteBranch": "promote/staging/deadbeefcafe"},
+                [branch],
+            )
+        owned = controller.authorize_cleanup_from_evidence(
+            {"status": "merged", "promoteBranch": branch},
+            [branch],
+        )
+        self.assertEqual(owned, {branch: True})
+
+        import os
+        import tempfile
+        from unittest import mock
+
+        evidence_path = Path(tempfile.mkdtemp()) / "merge.json"
+        evidence_path.write_text(json.dumps({"status": "merged", "promoteBranch": branch}), encoding="utf-8")
+        self.github.refs[branch] = self.head
+        with mock.patch.dict(
+            os.environ,
+            {"AUTOMATION_TOKEN": "tok", "AUTOMATION_TOKEN_SOURCE": "github_token"},
+            clear=False,
+        ):
+            with mock.patch.object(controller, "resolve_production_github", return_value=self.github):
+                rc = controller.main(
+                    [
+                        "cleanup",
+                        "--repository",
+                        "owner/name",
+                        "--role",
+                        "operator",
+                        "--branches",
+                        branch,
+                        "--merge-evidence-json",
+                        str(evidence_path),
+                    ]
+                )
+                self.assertEqual(rc, 0)
+                self.assertIn(branch, self.github.deleted_refs)
+                rc_fail = controller.main(
+                    [
+                        "cleanup",
+                        "--repository",
+                        "owner/name",
+                        "--role",
+                        "operator",
+                        "--branches",
+                        branch,
+                    ]
+                )
+                self.assertEqual(rc_fail, 2)
+
     def test_index_manifest_schema_and_hosted_fast_cover_controller(self) -> None:
         index = (ROOT / "core/managed-core/INDEX.yaml").read_text(encoding="utf-8")
         self.assertIn("schemas/delivery-operation.schema.json", index)
@@ -678,6 +843,21 @@ class DeliveryControllerTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("delivery controller", runtime_branching.lower())
         self.assertNotIn("→ Integrator", runtime_branching)
+        prd = (ROOT / "docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md").read_text(encoding="utf-8")
+        self.assertIn("delivery controller merges into `development`", prd)
+        self.assertNotIn("Integrator merges into `development`", prd)
+        pipeline = (ROOT / "core/execution/APPLICATION-PIPELINE.md").read_text(encoding="utf-8")
+        self.assertIn("delivery controller into `development`", pipeline)
+        self.assertNotIn("Integrator into `development`", pipeline)
+        module3 = (ROOT / "core/runtime/skills/linktrend/module3-execution/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("delivery controller merges into `development`", module3)
+        protection = (ROOT / "docs/contracts/REPOSITORY-PROTECTION.md").read_text(encoding="utf-8")
+        self.assertIn("delivery controller may auto-merge", protection)
+        self.assertNotIn("so the Integrator may auto-merge", protection)
+        packaged_protection = (
+            ROOT / "core/managed-core/content/doctrine/REPOSITORY-PROTECTION.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("delivery controller may auto-merge", packaged_protection)
         schema = json.loads(
             (ROOT / "core/managed-core/schemas/delivery-operation.schema.json").read_text(encoding="utf-8")
         )
