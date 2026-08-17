@@ -3,21 +3,17 @@
   "issue": 320,
   "workPackage": "WP-U07",
   "branch": "issue/320-wp-u07-repository-owned-ci-trigger-contract",
-  "headSha": "678a618e1ac5668fe2f57d22938a7ef65b5aaee9",
-  "tree": "ff76774124199a15dfb35a7aa28e5f5578f6d4a2",
+  "headSha": "b35e816a455da1007562f65515774a60294a2d9a",
+  "tree": "1b1ada822582f279570c111010c027ccfae4d951",
   "startSha": "741e58922e7413c1097f4a58ea25e94a934af903",
   "startTree": "1affbab9035df799fdb7d723d8518e54fa6a1c00",
   "dependencyContextSha": "152d39130746dde16cc00a343e949e518db58ef2",
   "dependencyContextTree": "8335a0c71285fb870673114a456ece3f7268dcbd",
   "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
-  "acceptance": "AC-U07-02 through AC-U07-22 except live nine-repo AC-U07-01; independent review P1/P2 repairs included",
+  "acceptance": "AC-U07 schema reconciliation: ci-evidence accepts truthful producer fields under additionalProperties:false",
   "reviewRepairs": [
-    "P1 artifact_missing_head fail-closed",
-    "P1 preflight bootstrapCommand + invalidated-only resume",
-    "P2 repositoryCiTriggerAudit on install/verify",
-    "P2 affected-surface classifierDigest/inputsDigest/selectedProfile",
-    "P2 acceptance bound to exact repaired tip",
-    "P2 promotion_receipt_gate exact-receipt negatives"
+    "P2 ci-evidence.schema.json producer-field reconciliation (preflight/bootstrap/bindings/affected-surface/cache)",
+    "P2 Draft202012 instance validation with real producer outputs and unknown/malformed negatives"
   ],
   "exclusions": [
     "AC-U07-01 live nine-repo",
@@ -33,18 +29,19 @@
       "evidencePath": "docs/evidence/issue-320/wp-u07-focused-tests.out"
     },
     {
-      "command": "python3 -m py_compile scripts/gitops/repository_ci_contract.py scripts/ide_development/engine.py",
+      "command": "python3 -m scripts.ide_development.build_manifest --verify",
       "exitCode": 0
     }
   ],
-  "at": "2026-08-17T11:44:33Z",
+  "at": "2026-08-17T12:08:51Z",
   "sanitized": true,
   "hold": [
     "Factory .github/workflows/ci.yml still has broad pull_request/push; audit reports promotion_expensive_retrigger without mutating.",
     "No review-ready / PR / Full / consumer rollout in this packet."
   ],
-  "evidenceHeadSha": "678a618e1ac5668fe2f57d22938a7ef65b5aaee9",
-  "evidenceTree": "ff76774124199a15dfb35a7aa28e5f5578f6d4a2",
-  "repairedHeadSha": "678a618e1ac5668fe2f57d22938a7ef65b5aaee9",
-  "repairedTree": "ff76774124199a15dfb35a7aa28e5f5578f6d4a2"
+  "evidenceHeadSha": "b35e816a455da1007562f65515774a60294a2d9a",
+  "evidenceTree": "1b1ada822582f279570c111010c027ccfae4d951",
+  "repairedHeadSha": "b35e816a455da1007562f65515774a60294a2d9a",
+  "repairedTree": "1b1ada822582f279570c111010c027ccfae4d951",
+  "priorTip": "12f9c630b7fd3d0e94f189c2b71f412ac01fbdef"
 }
