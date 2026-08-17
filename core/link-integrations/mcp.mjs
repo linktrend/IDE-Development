@@ -19,6 +19,22 @@ export const MCP_PROTOCOL_VERSION = '2026-07-28'
 export const OKF_FORMAT = 'OKF'
 export const OKF_VERSION = '0.2'
 
+/**
+ * Strict allowlist of negotiateMcp options keys. Unknown keys fail closed.
+ * Present keys are still validated: session/initialize signals and non-modern
+ * era values are refused (no silent downgrade).
+ */
+export const MCP_OPTION_KEYS = Object.freeze([
+  'method',
+  'session',
+  'sessionRequired',
+  'sessionReliance',
+  'era',
+  'sessionless',
+])
+
+const MCP_OPTION_KEY_SET = new Set(MCP_OPTION_KEYS)
+
 const OKF_EXCHANGE_KINDS = Object.freeze([
   'canonical_knowledge',
   'canonical_projection',
@@ -40,7 +56,8 @@ const OKF_KEYS = new Set([
   'nonApplicabilityReason',
 ])
 
-const AUTHORITY_BRIDGE_KEYS = new Set([
+/** Authority / execution vocabulary — matched case-insensitively. */
+const AUTHORITY_BRIDGE_NAMES = Object.freeze([
   'authority',
   'executionAuthority',
   'execute',
@@ -54,6 +71,8 @@ const AUTHORITY_BRIDGE_KEYS = new Set([
   'capability',
   'permittedOperations',
 ])
+
+const AUTHORITY_BRIDGE_LOWER = new Set(AUTHORITY_BRIDGE_NAMES.map((name) => name.toLowerCase()))
 
 const SENSITIVE = /(?:secret|password|token|authorization|private.?key|prompt|transcript|conversation|raw(?:_|$)|full.?content|^body$)/i
 const FIELD_NAME = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/
@@ -90,12 +109,22 @@ function rejectUnknown(value, allowed, label) {
 }
 
 /**
+ * @param {string} name
+ * @returns {boolean}
+ */
+function isAuthorityBridgeName(name) {
+  if (typeof name !== 'string') return true
+  if (AUTHORITY_BRIDGE_LOWER.has(name.toLowerCase())) return true
+  return SENSITIVE.test(name)
+}
+
+/**
  * @param {Record<string, unknown>} value
  * @param {string} label
  */
 function rejectAuthorityBridge(value, label) {
   for (const key of Object.keys(value)) {
-    if (AUTHORITY_BRIDGE_KEYS.has(key) || SENSITIVE.test(key)) {
+    if (isAuthorityBridgeName(key)) {
       fail('okf_authority_bridge_forbidden', `${label} cannot carry authority or execution fields`, {
         classification: 'fail_closed',
         field: key,
@@ -106,10 +135,72 @@ function rejectAuthorityBridge(value, label) {
 }
 
 /**
+ * Any non-explicit-false value is treated as a session signal.
+ * Strings/numbers/objects that encode session intent fail closed.
+ *
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isSessionSignal(value) {
+  if (value === false) return false
+  if (value === true) return true
+  if (value === null || value === undefined) return false
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'bigint') return value !== 0n
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === '' || normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off') {
+      return false
+    }
+    return true
+  }
+  return true
+}
+
+/**
+ * @param {unknown} method
+ * @returns {string}
+ */
+function normalizeMethod(method) {
+  if (typeof method !== 'string' || method.trim() === '') {
+    fail('mcp_negotiation_failed', 'MCP method must be a non-empty string when provided', {
+      classification: 'fail_closed',
+      field: 'method',
+      method,
+    })
+  }
+  return method.trim().toLowerCase()
+}
+
+/**
+ * @param {string} method
+ * @returns {boolean}
+ */
+function isInitializeMethod(method) {
+  return method === 'initialize' || method.includes('initialize')
+}
+
+/**
+ * @param {unknown} era
+ * @returns {string}
+ */
+function normalizeEraOption(era) {
+  if (typeof era !== 'string' || era.trim() === '') {
+    fail('mcp_negotiation_failed', 'MCP options era must be a non-empty string when provided', {
+      classification: 'fail_closed',
+      field: 'era',
+      era,
+    })
+  }
+  return era.trim().toLowerCase()
+}
+
+/**
  * Negotiate the shared modern MCP boundary.
  *
- * Only `version === '2026-07-28'` with `era === 'modern'` succeeds. Legacy,
- * session, mismatched versions, and session `initialize` attempts fail closed.
+ * Only `version === '2026-07-28'` with `era === 'modern'` succeeds. Options, when
+ * present, must use the strict allowlist. Legacy/session/`initialize` encodings
+ * (any case or truthy/string/numeric form) fail closed with no silent downgrade.
  *
  * @param {unknown} version
  * @param {unknown} era
@@ -127,29 +218,51 @@ export function negotiateMcp(version, era, options = undefined) {
     })
   }
 
-  if (options !== undefined && options !== null) {
-    const opts = object(options, 'mcp_options_invalid')
-    if (
-      opts.method === 'initialize' ||
-      opts.session === true ||
-      opts.sessionRequired === true ||
-      opts.sessionReliance === true ||
-      opts.era === 'legacy' ||
-      opts.era === 'session'
-    ) {
+  if (options === undefined || options === null) {
+    return MCP_PROTOCOL_VERSION
+  }
+
+  const opts = object(options, 'mcp_options_invalid')
+  rejectUnknown(opts, MCP_OPTION_KEY_SET, 'mcp options')
+
+  if (opts.method !== undefined) {
+    const method = normalizeMethod(opts.method)
+    if (isInitializeMethod(method)) {
       fail('mcp_negotiation_failed', 'legacy or session initialize negotiation is refused', {
         classification: 'fail_closed',
-        version,
-        era,
-        options: {
-          method: opts.method,
-          session: opts.session,
-          sessionRequired: opts.sessionRequired,
-          sessionReliance: opts.sessionReliance,
-          era: opts.era,
-        },
+        field: 'method',
+        method: opts.method,
       })
     }
+  }
+
+  for (const field of ['session', 'sessionRequired', 'sessionReliance']) {
+    if (opts[field] !== undefined && isSessionSignal(opts[field])) {
+      fail('mcp_negotiation_failed', 'legacy or session initialize negotiation is refused', {
+        classification: 'fail_closed',
+        field,
+        [field]: opts[field],
+      })
+    }
+  }
+
+  if (opts.era !== undefined) {
+    const optionEra = normalizeEraOption(opts.era)
+    if (optionEra !== 'modern') {
+      fail('mcp_negotiation_failed', 'legacy or session initialize negotiation is refused', {
+        classification: 'fail_closed',
+        field: 'era',
+        era: opts.era,
+      })
+    }
+  }
+
+  if (opts.sessionless !== undefined && opts.sessionless !== true) {
+    fail('mcp_negotiation_failed', 'MCP sessionless affirmation must be exactly true when provided', {
+      classification: 'fail_closed',
+      field: 'sessionless',
+      sessionless: opts.sessionless,
+    })
   }
 
   return MCP_PROTOCOL_VERSION
@@ -160,6 +273,8 @@ export function negotiateMcp(version, era, options = undefined) {
  *
  * Applicable only for canonical knowledge/projection exchange kinds. Never
  * grants Brain execution authority or overrides provider authority fields.
+ * Authority/execution vocabulary in fieldMappings keys or values is rejected
+ * case-insensitively.
  *
  * @param {unknown} value
  * @returns {Readonly<{ format: 'OKF', version: '0.2', exchangeKind: string, applicable: boolean }>}
@@ -239,17 +354,33 @@ export function validateOkfMapping(value) {
       })
     }
     for (const key of keys) {
-      if (!FIELD_NAME.test(key) || SENSITIVE.test(key)) {
-        fail('okf_field_mappings_invalid', 'OKF fieldMappings key is invalid or sensitive', {
-          classification: 'fail_closed',
-          field: key,
-        })
+      if (!FIELD_NAME.test(key) || SENSITIVE.test(key) || isAuthorityBridgeName(key)) {
+        fail(
+          isAuthorityBridgeName(key) ? 'okf_authority_bridge_forbidden' : 'okf_field_mappings_invalid',
+          isAuthorityBridgeName(key)
+            ? 'OKF fieldMappings key cannot carry authority or execution vocabulary'
+            : 'OKF fieldMappings key is invalid or sensitive',
+          {
+            classification: 'fail_closed',
+            field: key,
+            surface: 'okf fieldMappings',
+          },
+        )
       }
       const target = fields[key]
       if (typeof target !== 'string' || !FIELD_NAME.test(target) || SENSITIVE.test(target)) {
         fail('okf_field_mappings_invalid', 'OKF fieldMappings value is invalid or sensitive', {
           classification: 'fail_closed',
           field: key,
+          surface: 'okf fieldMappings',
+        })
+      }
+      if (isAuthorityBridgeName(target)) {
+        fail('okf_authority_bridge_forbidden', 'OKF fieldMappings value cannot carry authority or execution vocabulary', {
+          classification: 'fail_closed',
+          field: key,
+          value: target,
+          surface: 'okf fieldMappings',
         })
       }
     }
