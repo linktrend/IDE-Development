@@ -89,5 +89,7 @@
       "evidencePath": "docs/evidence/issue-328/fixture-aware-secret-scan.out",
       "testsRan": 29
     }
-  ]
+  ],
+  "evidenceHeadSha": "cf356fddf0e58cef9e5ad542c50ee079ac8ecf52",
+  "evidenceTree": "46cb697648893340931e3333139586be5e104694"
 }
