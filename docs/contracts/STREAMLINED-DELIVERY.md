@@ -18,8 +18,11 @@ pull requests, branch protection, and promotion records.
 3. The Phase PR runs `Linktrend Fast Checks` on hosted `ubuntu-24.04-arm`.
    Fast runs are scoped to repository, workflow, and PR number; a newer run
    cancels only an older run for that same PR.
-4. Terra seals one exact candidate head. Only that final sealed candidate may
-   run `Linktrend Full Suite` and the existing Bugbot final-candidate check.
+4. Terra seals one exact candidate head. Required independent review must be
+   clean on that exact head before `Linktrend Full Suite`, unless repository
+   policy explicitly requires Full first. A later repair invalidates prior
+   review and Full evidence. Only the final sealed candidate may run Full and
+   the existing Bugbot final-candidate check.
 5. A successful full-suite receipt is reusable only when repository, Git tree,
    dependency, profile, and workflow identities match exactly. A changed tree
    or dependency invalidates reuse.

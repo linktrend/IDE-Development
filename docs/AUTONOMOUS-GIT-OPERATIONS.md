@@ -25,6 +25,24 @@ source policy, an unresolved conflict, a third infrastructure attempt, or a
 third sealed candidate. Preserve the prior evidence and report the reason;
 never repair by choosing one side automatically.
 
+## Independent-review convergence
+
+Pre-land independent review is governed by
+`scripts/gitops/independent_review_convergence.py`. One session tracks one
+exact repository, base, candidate, tree, scope, and reviewer policy. Findings
+keep a durable ledger and stable identity. One review produces one
+consolidated repair batch and one observational repair cycle. There is no
+arbitrary terminal cycle cap. Unattended work pauses after three cycles. A
+recorded founder `continue until clean` instruction authorizes further
+progressing cycles without repeated approval. Stop only for repeated
+unresolved findings, two no-progress cycles, repair reintroduction,
+redesign/new authority, infrastructure retry exhaustion, or an explicit
+resource limit. Those stops publish a truthful HOLD / `review_stalled`
+founder packet. Implementers never review their own work. Reviewer silence
+or timeout is never clean. A later source change invalidates prior review
+and Full evidence. Full does not run until required independent review is
+clean unless repository policy explicitly requires Full first.
+
 ## External boundary
 
 This doctrine does not perform GitHub, host, Docker, consumer, release, or

@@ -17,6 +17,8 @@ schemas:
   - schemas/candidate-lifecycle.schema.json
   - schemas/phase-record.schema.json
   - schemas/phase-handoff.schema.json
+  - schemas/review-session.schema.json
+  - schemas/finding-ledger.schema.json
   - schemas/external-state-fixture.schema.json
   - schemas/external-state-plan.schema.json
   - schemas/external-state-verify.schema.json

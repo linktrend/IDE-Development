@@ -118,6 +118,7 @@ class BuildManifestPackagingTests(unittest.TestCase):
         self.assertIn("core/managed-core/migrations/external-cleanup-plan.json", sources)
         self.assertNotIn("scripts/gitops/resolve_automation_token.sh", sources)
         self.assertIn("scripts/gitops/packager_coordinator.py", sources)
+        self.assertIn("scripts/gitops/independent_review_convergence.py", sources)
         self.assertNotIn("scripts/gitops/packager_discover.py", sources)
 
 

@@ -119,7 +119,7 @@ Allowed `classification` values:
 When an issue appears complete:
 
 1. Run the appropriate tests/checks for the touched surface.
-2. Repair ordinary failures automatically, with at most **3** bounded repair cycles.
+2. Repair ordinary failures automatically, with at most **3** bounded repair cycles. This implementer bound is not the independent-review convergence policy. Pre-land independent review uses progress-based continuation in `scripts/gitops/independent_review_convergence.py`: no arbitrary terminal cycle cap, unattended pause after three review-repair cycles, and recorded founder `continue until clean` authority for additional progressing cycles.
 3. Write machine-readable evidence with `completion_gate.py write-evidence` or an equivalent schema-versioned JSON file under `.linktrend/`.
 4. Call `python3 scripts/gitops/completion_gate.py review-ready` only after validation succeeds.
 5. If the gate fails closed for missing privileged publish credentials, follow the normal-token route diagnostics (dispatch the publisher for this repo/branch/SHA). Do not invent a local status publish with a user token.

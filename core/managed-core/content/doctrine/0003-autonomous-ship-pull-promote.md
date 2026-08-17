@@ -148,3 +148,12 @@ Factual correction for Update 3:
 3. Workers remain checkpoint-only. They do not open PRs and do not wait for a nonexistent Packager path.
 4. Checkpoint pushes do not start managed Fast or Full CI. Opening or updating the Phase PR starts Fast and repository-owned PR CI on the exact Phase head. Full cannot start before Fast and required CI pass.
 5. The coordinator produces an exact-identity handoff for the delivery controller. A later Phase head invalidates that handoff. The coordinator cannot merge protected branches or start Full.
+
+## Amendment — 2026-08-17 (Independent-review convergence)
+
+Factual correction for Update 9:
+
+1. **Independent-review convergence** is `scripts/gitops/independent_review_convergence.py`. It tracks one exact-head session, a durable finding ledger, and observational repair-cycle counts.
+2. There is **no arbitrary terminal cycle cap**. Unattended work pauses after three review-repair cycles. Recorded founder `continue until clean` authority permits additional progressing cycles without repeated approval.
+3. Stop only for repeated unresolved findings, two no-progress cycles, repair reintroduction, redesign/new authority, infrastructure retry exhaustion, or an explicit resource limit. Those stops are truthful HOLD / `review_stalled` packets and cannot fabricate a clean review.
+4. Implementer and reviewer actors stay separate. Reviewer silence or timeout is never clean. A later source change invalidates prior review and Full evidence.
