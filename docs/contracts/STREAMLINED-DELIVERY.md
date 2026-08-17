@@ -16,7 +16,8 @@ pull requests, branch protection, and promotion records.
    integrates accepted issue SHAs serially on `phase/*` and opens or updates
    one draft Phase PR. Retained `packager_discover.py` is not that component.
 3. The Phase PR runs `Linktrend Fast Checks` on hosted `ubuntu-24.04-arm`.
-   Fast runs are scoped to repository, workflow, and PR number; a newer run
+   Fast includes fixture-aware secret scanning of every tracked file. Fast
+   runs are scoped to repository, workflow, and PR number; a newer run
    cancels only an older run for that same PR.
 4. Terra seals one exact candidate head. Required independent review must be
    clean on that exact head before `Linktrend Full Suite`, unless repository

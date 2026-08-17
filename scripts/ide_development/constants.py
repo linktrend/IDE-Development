@@ -37,6 +37,8 @@ RC_REQUIRED_SCHEMA_RELS = (
     "core/managed-core/schemas/phase-handoff.schema.json",
     "core/managed-core/schemas/review-session.schema.json",
     "core/managed-core/schemas/finding-ledger.schema.json",
+    "core/managed-core/schemas/secret-scan-fixtures.schema.json",
+    "core/managed-core/schemas/secret-scan-result.schema.json",
     "core/managed-core/schemas/managed-core-release.schema.json",
 )
 RC_REQUIRED_TEST_RELS = (
