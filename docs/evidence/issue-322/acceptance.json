@@ -5,24 +5,24 @@
   "branch": "issue/322-implement-ide-development-v2-4-0-wp-u01",
   "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
   "identityModel": "content-head/evidence-head/final-bind-tip",
-  "findingReviewedTip": "cc0854788eecf64c5676a9668015e7b42c9306cb",
-  "findingReviewedNote": "Tip reviewed for pagination/fail-open findings; not claimed as current packet tip.",
+  "findingReviewedTip": "b0b7051f1b45aa0bd127ca973a1574af4ab1683e",
+  "findingReviewedNote": "Tip reviewed for argv-slurp ARG_MAX finding; not claimed as current packet tip.",
   "startSha": "741e58922e7413c1097f4a58ea25e94a934af903",
   "startTree": "1affbab9035df799fdb7d723d8518e54fa6a1c00",
   "dependencyContextSha": "a926794d7e549a97579f2e1816aca7a893993ccd",
   "dependencyContextTree": "53af75c63ad2dc48403ba0c2f3be5adb71d79bd2",
-  "contentHeadSha": "6ec04c16b6753789e30b8fd0a67d2a014355f8dd",
-  "contentTree": "664f193adf3013ca360b8cf6f62a43812e851655",
-  "implementationHeadSha": "6ec04c16b6753789e30b8fd0a67d2a014355f8dd",
-  "implementationTree": "664f193adf3013ca360b8cf6f62a43812e851655",
-  "headSha": "6ec04c16b6753789e30b8fd0a67d2a014355f8dd",
-  "tree": "664f193adf3013ca360b8cf6f62a43812e851655",
+  "contentHeadSha": "e4a2ceff2dfcf664699ee1e2c750911000058762",
+  "contentTree": "517743c39db81d549ca316360412801c75894fb8",
+  "implementationHeadSha": "e4a2ceff2dfcf664699ee1e2c750911000058762",
+  "implementationTree": "517743c39db81d549ca316360412801c75894fb8",
+  "headSha": "e4a2ceff2dfcf664699ee1e2c750911000058762",
+  "tree": "517743c39db81d549ca316360412801c75894fb8",
   "repair": [
-    "paginated gh api --paginate --slurp flatten for founder-alert issue bodies and infra markers",
-    "remove marker-read 2>/dev/null || echo [] fail-open; HOLD fail-closed on read/parse failure",
-    "multi-page tests prove one JSON array and exact alert/marker counts"
+    "pipe founder-alert and infra-marker slurps via --slurp-json - stdin (never argv)",
+    "pipefail preserves gh api/auth/pagination failures as HOLD",
+    "ARG_MAX stdin + empty/one/multi-page + upstream HOLD workflow-path tests"
   ],
-  "acceptance": "AC-U01-01..18 except AC-U01-07; pagination/fail-open findings repaired; focused U01 OK",
+  "acceptance": "AC-U01-01..18 except AC-U01-07; argv-slurp finding repaired; focused U01 OK",
   "exclusions": [
     "AC-U01-07 nine-consumer install",
     "Full suite",
@@ -44,8 +44,8 @@
       "command": "python3 -m unittest scripts.tests.test_linktrend_review_gate scripts.ide_development_tests.test_build_manifest",
       "exitCode": 0,
       "evidencePath": "docs/evidence/issue-322/wp-u01-focused-tests.out",
-      "testsRan": 28,
-      "againstHead": "6ec04c16b6753789e30b8fd0a67d2a014355f8dd"
+      "testsRan": 29,
+      "againstHead": "e4a2ceff2dfcf664699ee1e2c750911000058762"
     },
     {
       "command": "bash scripts/tests/test-repository-protection.sh",
@@ -70,10 +70,8 @@
   ],
   "finalTipBinding": {
     "mode": "non-self-reference-boundary",
-    "note": "This bind-metadata commit becomes the branch tip. It records content and evidence heads/trees only. It does not embed its own commit SHA (impossible self-reference)."
+    "note": "Final tip is the branch HEAD after the bind-metadata commit. A commit cannot truthfully embed its own commit SHA inside its tree (impossible self-reference). Immutable reviewed identities are contentHeadSha/contentTree and evidenceHeadSha/evidenceTree only."
   },
-  "at": "2026-08-17T14:12:37Z",
-  "sanitized": true,
-  "evidenceHeadSha": "74fc5ab5503e7222b95dc0a8027b54be551f202a",
-  "evidenceTree": "215f901ada79fd73f84d544605a0e7de82352f8b"
+  "at": "2026-08-17T14:34:05Z",
+  "sanitized": true
 }

@@ -16,6 +16,8 @@ Two+ pages must flatten to one JSON list; alert/marker counts stay exact. ... ok
 test_protection_and_consumer_defaults_migrated (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_protection_and_consumer_defaults_migrated) ... ok
 test_raw_bugbot_required_contexts_rejected (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_raw_bugbot_required_contexts_rejected) ... ok
 test_same_account_comment_not_github_approval (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_same_account_comment_not_github_approval) ... ok
+test_slurp_json_stdin_handles_arg_max_and_pipefail_hold (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_slurp_json_stdin_handles_arg_max_and_pipefail_hold)
+Workflow path: stdin --slurp-json - survives ARG_MAX; upstream fail stays HOLD. ... ok
 test_undocumented_task_hold_rejected (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_undocumented_task_hold_rejected) ... ok
 test_workflow_forbids_heuristic_and_wires_alert_fallback_full (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_workflow_forbids_heuristic_and_wires_alert_fallback_full) ... ok
 test_workflow_path_wrong_tree_receipt_negative (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_workflow_path_wrong_tree_receipt_negative)
@@ -30,6 +32,6 @@ test_required_cursor_materialization_sources_are_packaged (scripts.ide_developme
 test_version_alignment_helpers (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests.test_version_alignment_helpers) ... ok
 
 ----------------------------------------------------------------------
-Ran 28 tests in 0.286s
+Ran 29 tests in 1.282s
 
 OK
