@@ -1196,7 +1196,7 @@
       "id": "core-index-yaml",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/INDEX.yaml",
-      "sourceHash": "sha256:d6adc94b9419fb07bdab5dd108970178df77ae27be145f5e39768badef5fad37",
+      "sourceHash": "sha256:39b0a9f3db603a943b8f9f5642cecb9ab29305e9a3da3ed8304b9f4911103996",
       "destination": ".ide-development/INDEX.yaml",
       "mode": "0644",
       "platform": "all",
@@ -1229,7 +1229,7 @@
       "id": "core-config-delivery-json",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/config/delivery.json",
-      "sourceHash": "sha256:d7666be5cee1f10f71980bf64a41d85db4577c47b26b4cd5248bb937e2956b50",
+      "sourceHash": "sha256:db1990f409ac4a1a26fda4bc14a8ae10502068619a5049ff474c21902aca1ac2",
       "destination": ".ide-development/config/delivery.json",
       "mode": "0644",
       "platform": "all",
@@ -1325,6 +1325,17 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "doctrine-repository-ci-trigger-md",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/doctrine/REPOSITORY-CI-TRIGGER.md",
+      "sourceHash": "sha256:05cf5db1b2df9d7262f3ca8077f0bcae6a47881048b53a6ce0384b793ac136c7",
+      "destination": ".ide-development/content/doctrine/REPOSITORY-CI-TRIGGER.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "doctrine-repository-protection-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/REPOSITORY-PROTECTION.md",
@@ -1361,7 +1372,7 @@
       "id": "github-doc-ci-gate-contracts-md",
       "ownershipClass": "managed-core",
       "source": "core/github/CI-GATE-CONTRACTS.md",
-      "sourceHash": "sha256:bc4323d98f6842f8591ac5163c2986da6ed117e593b7c59208cff4972398bedc",
+      "sourceHash": "sha256:25e023bec7bc2d1c9b578c7f4291d01ab547a52eb68c66bfd0d3901916ca0f1a",
       "destination": ".ide-development/content/github/CI-GATE-CONTRACTS.md",
       "mode": "0644",
       "platform": "github",
@@ -1799,6 +1810,28 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "core-schemas-ci-component-manifest-schema-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/schemas/ci-component-manifest.schema.json",
+      "sourceHash": "sha256:1ad34c0a76fa046311d325bef0104266936b882746f0ad8c0f65a343a8c55a4b",
+      "destination": ".ide-development/schemas/ci-component-manifest.schema.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
+      "id": "core-schemas-ci-evidence-schema-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/schemas/ci-evidence.schema.json",
+      "sourceHash": "sha256:b7a4574184ac0783b6dd5ce5cb3e9194ea262224688d956c12d505ac6952ebb2",
+      "destination": ".ide-development/schemas/ci-evidence.schema.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "core-schemas-delivery-modes-schema-json",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/schemas/delivery-modes.schema.json",
@@ -1947,6 +1980,17 @@
       "source": "core/managed-core/schemas/release-candidate.schema.json",
       "sourceHash": "sha256:e90ed31f11909ad9c302bf86d8c15340265ca7846547ecc7ae3f4805d94ccfa2",
       "destination": ".ide-development/schemas/release-candidate.schema.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
+      "id": "core-schemas-repository-ci-contract-schema-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/schemas/repository-ci-contract.schema.json",
+      "sourceHash": "sha256:c9f7f4e177281a688bb4bc7964e9b59df9b15889706f827154ae34991fe94687",
+      "destination": ".ide-development/schemas/repository-ci-contract.schema.json",
       "mode": "0644",
       "platform": "all",
       "os": "all",
@@ -2554,6 +2598,18 @@
       "notes": "Hosted lifecycle/receipt validation input."
     },
     {
+      "id": "test-test-repository-ci-trigger-contract-py",
+      "ownershipClass": "managed-core",
+      "source": "scripts/tests/test_repository_ci_trigger_contract.py",
+      "sourceHash": "sha256:a83c9000d5e7a842df11d943df9867990ae2e1c1b199e814d379f1e027eb9f93",
+      "destination": ".ide-development/tests/test_repository_ci_trigger_contract.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Hosted lifecycle/receipt validation input."
+    },
+    {
       "id": "workflow-branch-source-policy-yml",
       "ownershipClass": "managed-core",
       "source": "core/github/managed-workflows/branch-source-policy.yml",
@@ -2964,6 +3020,18 @@
       "notes": "Managed GitOps script; never overwrites consumer ci.yml."
     },
     {
+      "id": "gitops-scripts-gitops-repository-ci-contract-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/repository_ci_contract.py",
+      "sourceHash": "sha256:79784807acb1d3d3875930e2076f38abcfbcfd7c6aa6eab479fa80753c41a6c4",
+      "destination": "scripts/gitops/repository_ci_contract.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
       "id": "tooling-scripts-gitops-repository-protection-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/repository_protection.py",
@@ -3179,7 +3247,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:cede8ec25bb0b42a92b0e0f7d12fc14717411b3706d5f68aed38d64fa43e49a3",
+      "sourceHash": "sha256:7712e1a80270390d46fca63128b821a8e603702a803d42ef8df11afb2e0729df",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",
@@ -3201,7 +3269,7 @@
       "id": "installer-scripts-ide-development-constants-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/constants.py",
-      "sourceHash": "sha256:9c35f47d65e3df30b0554992d4709c56e79a47746c0b62ee5e467a6a84b5b75f",
+      "sourceHash": "sha256:29d7e4a9db4dde06cd48f2d0302d9bc6af0ef68f23afc3c0d753fceba090013d",
       "destination": "scripts/ide_development/constants.py",
       "mode": "0644",
       "platform": "all",
@@ -3212,7 +3280,7 @@
       "id": "installer-scripts-ide-development-engine-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/engine.py",
-      "sourceHash": "sha256:2312230b97c91d5fd953f0ee0863aedc1ad893233c5c8b2971f4a20c8bdb4881",
+      "sourceHash": "sha256:a616c99b25b1e5f2d56879d54c6c5944e6e2ca896f82c1d1048a7a20b6cc4660",
       "destination": "scripts/ide_development/engine.py",
       "mode": "0644",
       "platform": "all",

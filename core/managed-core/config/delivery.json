@@ -12,15 +12,17 @@
   "profiles": {
     "fast": {
       "commands": [
-        ["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py"],
-        ["python3", "scripts/gitops/secret_scan.py"]
+        ["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py"],
+        ["python3", "scripts/gitops/secret_scan.py"],
+        ["python3", "-m", "unittest", "scripts.tests.test_repository_ci_trigger_contract"]
       ],
       "timeoutMinutes": 5
     },
     "full": {
       "commands": [
-        ["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py"],
-        ["python3", "scripts/gitops/secret_scan.py"]
+        ["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py"],
+        ["python3", "scripts/gitops/secret_scan.py"],
+        ["python3", "-m", "unittest", "scripts.tests.test_repository_ci_trigger_contract"]
       ],
       "required": true
     },

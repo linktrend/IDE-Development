@@ -12,9 +12,9 @@
   "profiles": {
     "fast": {
       "commands": [
-        ["python3", "-m", "py_compile", "scripts/gitops/phase_integrator.py", "scripts/gitops/packager_coordinator.py", "scripts/gitops/secret_scan.py", "scripts/gitops/coordinator/state.py", "scripts/gitops/coordinator/receipts.py", "scripts/gitops/promotion_receipt_gate.py"],
+        ["python3", "-m", "py_compile", "scripts/gitops/phase_integrator.py", "scripts/gitops/packager_coordinator.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/coordinator/state.py", "scripts/gitops/coordinator/receipts.py", "scripts/gitops/promotion_receipt_gate.py"],
         ["python3", "scripts/gitops/secret_scan.py"],
-        ["python3", "-m", "unittest", "scripts.tests.test_candidate_lifecycle", "scripts.tests.test_gate_receipts", "scripts.tests.test_promotion_receipt_gate", "scripts.tests.test_phase_packager_coordinator", "scripts.tests.test_fixture_aware_secret_scan"]
+        ["python3", "-m", "unittest", "scripts.tests.test_candidate_lifecycle", "scripts.tests.test_gate_receipts", "scripts.tests.test_promotion_receipt_gate", "scripts.tests.test_phase_packager_coordinator", "scripts.tests.test_fixture_aware_secret_scan", "scripts.tests.test_repository_ci_trigger_contract"]
       ],
       "timeoutMinutes": 5
     },
@@ -22,7 +22,7 @@
       "required": true,
       "commands": [
         ["python3", "scripts/gitops/secret_scan.py"],
-        ["python3", "-m", "unittest", "scripts.tests.test_candidate_lifecycle", "scripts.tests.test_gate_receipts", "scripts.tests.test_promotion_receipt_gate", "scripts.tests.test_phase_batch_lifecycle", "scripts.tests.test_fixture_aware_secret_scan"],
+        ["python3", "-m", "unittest", "scripts.tests.test_candidate_lifecycle", "scripts.tests.test_gate_receipts", "scripts.tests.test_promotion_receipt_gate", "scripts.tests.test_phase_batch_lifecycle", "scripts.tests.test_fixture_aware_secret_scan", "scripts.tests.test_repository_ci_trigger_contract"],
         ["bash", "scripts/tests/test-gitops-phase-delivery.sh"]
       ]
     },

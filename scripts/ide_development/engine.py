@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,20 @@ CONSUMER_CONFIG = Path(".github/linktrend-gitops-consumer.json")
 MANAGED_FAST_WORKFLOW = "Linktrend Fast Checks"
 MANAGED_RUNNER_TYPE = "github-hosted"
 RETIRED_RUNNER_TYPE = "linktrend-private-macos-arm64"
+CI_CONTRACT_MODULE_REL = Path("scripts/gitops/repository_ci_contract.py")
+
+
+def _load_repository_ci_contract_module(package_root: Path):
+    """Load WP-U07 audit helpers from the package tree without package coupling."""
+    module_path = package_root / CI_CONTRACT_MODULE_REL
+    if not module_path.is_file():
+        raise InvalidPackageError(f"repository CI contract module missing: {module_path}")
+    spec = importlib.util.spec_from_file_location("linktrend_repository_ci_contract", module_path)
+    if spec is None or spec.loader is None:
+        raise InvalidPackageError(f"repository CI contract module unloadable: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _normalize_consumer_workflow_contract(target_root: Path, *, mutate: bool) -> bool:
@@ -144,8 +159,16 @@ def run_plan(
         prior=prior,
         dry_run=True,
     )
+    ci_module = _load_repository_ci_contract_module(package_root)
+    ci_trigger_audit = ci_module.installer_audit_repository_ci_triggers(target_root)
     exit_code = EXIT_CONFLICT if plan.has_conflicts else EXIT_OK
-    payload = _plan_payload(plan, recovery=recovery, installerVersion=installer_version, normalizedFastWorkflowName=normalized_fast)
+    payload = _plan_payload(
+        plan,
+        recovery=recovery,
+        installerVersion=installer_version,
+        normalizedFastWorkflowName=normalized_fast,
+        repositoryCiTriggerAudit=ci_trigger_audit,
+    )
     return EngineResult(exit_code=exit_code, payload=payload)
 
 
