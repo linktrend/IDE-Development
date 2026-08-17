@@ -1314,6 +1314,17 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "doctrine-linktrend-review-gate-md",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/doctrine/LINKTREND-REVIEW-GATE.md",
+      "sourceHash": "sha256:b725e11165b888f1cdfd0b2a4be42fcc43945aabf4bb8353eb773220343a1c65",
+      "destination": ".ide-development/content/doctrine/LINKTREND-REVIEW-GATE.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "doctrine-managed-core-v2-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/MANAGED-CORE-V2.md",
@@ -1859,6 +1870,17 @@
       "source": "core/managed-core/schemas/installed-state.schema.json",
       "sourceHash": "sha256:9d98b1c7893460af727f248cbcfd3b7e6b53aee91a84e37cfd8aea507a89b944",
       "destination": ".ide-development/schemas/installed-state.schema.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
+      "id": "core-schemas-linktrend-review-gate-schema-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/schemas/linktrend-review-gate.schema.json",
+      "sourceHash": "sha256:e156676b3573f5068659778945d2cb74f54f9b9beb8b35a25ebfb7cdf7c5ac1c",
+      "destination": ".ide-development/schemas/linktrend-review-gate.schema.json",
       "mode": "0644",
       "platform": "all",
       "os": "all",
@@ -2417,6 +2439,18 @@
       "notes": "Hosted lifecycle/receipt validation input."
     },
     {
+      "id": "test-test-linktrend-review-gate-py",
+      "ownershipClass": "managed-core",
+      "source": "scripts/tests/test_linktrend_review_gate.py",
+      "sourceHash": "sha256:5c2533c7ac93bbcfc3b01197271485304c9ed15215cadcdca629b0af2769f5b6",
+      "destination": ".ide-development/tests/test_linktrend_review_gate.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Hosted lifecycle/receipt validation input."
+    },
+    {
       "id": "test-test-phase-batch-lifecycle-py",
       "ownershipClass": "managed-core",
       "source": "scripts/tests/test_phase_batch_lifecycle.py",
@@ -2482,6 +2516,18 @@
       "source": "core/github/managed-workflows/linktrend-integrator-merge.yml",
       "sourceHash": "sha256:634a92348345f3b568f70ad930d60881d25483e8b6e288954840fedb0b569f29",
       "destination": ".ide-development/workflows/linktrend-integrator-merge.yml",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Hosted W2-P1 workflow template; materialized by workflow sync."
+    },
+    {
+      "id": "workflow-linktrend-review-gate-yml",
+      "ownershipClass": "managed-core",
+      "source": "core/github/managed-workflows/linktrend-review-gate.yml",
+      "sourceHash": "sha256:43a730048524fd1918f60d093527dece9fde7a02ebf8bab8dd3990301d4cfc12",
+      "destination": ".ide-development/workflows/linktrend-review-gate.yml",
       "mode": "0644",
       "platform": "github",
       "os": "all",
@@ -2688,6 +2734,18 @@
       "source": "scripts/gitops/gate_receipt.py",
       "sourceHash": "sha256:f7fcb247385d8a82588bef2e701167f12e4edfaa66a63f92a82c3573bfac519d",
       "destination": "scripts/gitops/gate_receipt.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
+      "id": "gitops-scripts-gitops-linktrend-review-gate-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/linktrend_review_gate.py",
+      "sourceHash": "sha256:3081b5112081572b7577d643b55130d1e5a2d69886462518391f3e2c918a95df",
+      "destination": "scripts/gitops/linktrend_review_gate.py",
       "mode": "0644",
       "platform": "github",
       "os": "all",
@@ -2994,7 +3052,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:c681ed1f157ff85c90447e309437bea741de0e4ca7d13ae131958f943ec4eb19",
+      "sourceHash": "sha256:eac3de2c2a5d71bd55166861583da7db49d7e3b23980274fcc326da4917612b5",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",

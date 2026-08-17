@@ -1,0 +1,13 @@
+sealed_product_candidate_pr=326
+sealed_head=2f204781e093acad694b084e7c4ba0652fd17721
+sealed_tree=4556fb197c575c64cb1a152c00738c8651a3cb74
+full_run=32071094022
+pr326_head_now=2f204781e093acad694b084e7c4ba0652fd17721
+pr326_tree_now=4556fb197c575c64cb1a152c00738c8651a3cb74
+exact_runtime_blobs:
+  .github/workflows/linktrend-review-gate.yml=3cd823626dc072e552723e4326fc46616c6a4af0 exact=yes
+  core/github/managed-workflows/linktrend-review-gate.yml=3cd823626dc072e552723e4326fc46616c6a4af0 exact=yes
+  scripts/gitops/linktrend_review_gate.py=e456c949d9bb8cc2a25f34e3994b42e7352ab45a exact=yes
+  core/managed-core/schemas/linktrend-review-gate.schema.json=5e2cfe41332e6f9b20983eb6fd0a8bc4f0059e46 exact=yes
+  docs/contracts/LINKTREND-REVIEW-GATE.md=f2684c54379b067f33891a2d496b016157a99fa5 exact=yes
+changed_paths_vs_origin_development:

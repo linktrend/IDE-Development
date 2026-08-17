@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "issue": 329,
+  "workPackage": "trusted-review-gate-bootstrap",
+  "branch": "issue/329-bootstrap-trusted-linktrend-review-gate-for-ide",
+  "sealedProductCandidate": {
+    "pr": 326,
+    "head": "2f204781e093acad694b084e7c4ba0652fd17721",
+    "tree": "4556fb197c575c64cb1a152c00738c8651a3cb74",
+    "fullRun": "32071094022",
+    "unchanged": true
+  },
+  "acceptance": "AC-U05-06/14 separate trusted Review Gate source package from exact WP-U01 blobs; Update 1 classifier/receipt/advisory invariants preserved; no live ruleset/PR/promote/publish/rollout/Full",
+  "covered": [
+    "AC-U05-06",
+    "AC-U05-14",
+    "Update1-classifier-outcomes",
+    "Update1-exact-head-full-receipt-binding",
+    "Update1-verified-unavailability-fallback",
+    "Update1-no-missing-as-pass",
+    "default-branch-trust-boundary-workflow-present"
+  ],
+  "exclusions": [
+    "live ruleset apply",
+    "AC-U05-17 consumer verification",
+    "Full suite",
+    "PR open/merge",
+    "promotion",
+    "publication",
+    "rollout",
+    "unrelated v2.4.0 product surface migrations"
+  ],
+  "rollback": [
+    "Leave issue branch unmerged; no prefer-incoming",
+    "Do not alter PR #326 sealed head/tree/receipt",
+    "Do not mutate live rulesets from this packet",
+    "Failed trusted install leaves sealed candidate unchanged (trusted_gate_version_unavailable semantics)"
+  ],
+  "exactRuntimeBlobs": {
+    ".github/workflows/linktrend-review-gate.yml": "3cd823626dc072e552723e4326fc46616c6a4af0",
+    "core/github/managed-workflows/linktrend-review-gate.yml": "3cd823626dc072e552723e4326fc46616c6a4af0",
+    "scripts/gitops/linktrend_review_gate.py": "e456c949d9bb8cc2a25f34e3994b42e7352ab45a",
+    "core/managed-core/schemas/linktrend-review-gate.schema.json": "5e2cfe41332e6f9b20983eb6fd0a8bc4f0059e46",
+    "docs/contracts/LINKTREND-REVIEW-GATE.md": "f2684c54379b067f33891a2d496b016157a99fa5"
+  },
+  "commands": [
+    {
+      "command": "actionlint .github/workflows/linktrend-review-gate.yml core/github/managed-workflows/linktrend-review-gate.yml",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-329/focused-tests.out"
+    },
+    {
+      "command": "python3 -m unittest scripts.tests.test_linktrend_review_gate scripts.ide_development_tests.test_build_manifest -v",
+      "exitCode": 0,
+      "testsRan": 29,
+      "skipped": 3,
+      "evidencePath": "docs/evidence/issue-329/focused-tests.out"
+    },
+    {
+      "command": "python3 -m scripts.ide_development.build_manifest --verify",
+      "exitCode": 0
+    },
+    {
+      "command": "changed-path secret scan (security harness)",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-329/secret-scan.out"
+    },
+    {
+      "command": "bash scripts/verify-ide-development.sh",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-329/verify-secret-diff.out"
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "hold": [
+    "Independent review / Packager only",
+    "No Full / PR / merge / promote / publish / rollout / live ruleset apply",
+    "PR #326 sealed product candidate must remain unchanged until trusted verifier is installed via protected migration"
+  ],
+  "sanitized": true
+}

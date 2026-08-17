@@ -33,6 +33,7 @@
     "scripts/gitops/bugbot_user_credentials.py",
     "scripts/gitops/repair_observer.py",
     "scripts/gitops/repair_task.py",
+    "scripts/gitops/linktrend_review_gate.py",
     "scripts/gitops/review_ready_dispatch.py",
     "scripts/gitops/wait_named_gate.py",
     "scripts/gitops/write_outcome.py",
