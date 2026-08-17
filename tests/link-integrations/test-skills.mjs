@@ -68,6 +68,11 @@ test('AC-I6-POS-skills: accepts validation and execution addressing of the same 
   assert.equal(addressed.fragmentLevel, 3)
   assert.ok(Object.isFrozen(validated))
   assert.ok(Object.isFrozen(addressed))
+  const withoutCompatibility = { ...load('positive-validation.json') }
+  delete withoutCompatibility.compatibility
+  const omitted = validateSkillsRelease(withoutCompatibility)
+  assert.equal(omitted.skillId, 'synthetic-skill')
+  assert.ok(Object.isFrozen(omitted))
 })
 
 test('AC-I6-POS-skills: accepts bounded pin-time use-report-v0.2 telemetry at score 10 without issue', () => {
@@ -104,7 +109,7 @@ test('AC-I6-DEN-skills: denies unqualified, unpublished, forbidden, and unauthor
   classify(() => validateSkillsRelease(load('denied-unauthorized.json')), 'skills_not_permitted', 'denied')
 })
 
-test('AC-I6-UNA-skills: missing pin material or offline availability is not success', () => {
+test('AC-I6-UNA-skills: missing/null/empty pin material or offline availability is unavailable', () => {
   classify(
     () => validateSkillsRelease(load('unavailable-missing-pin.json')),
     'skills_release_unavailable',
@@ -121,9 +126,25 @@ test('AC-I6-UNA-skills: missing pin material or offline availability is not succ
     'unavailable',
   )
   classify(() => validateSkillsRelease(null), 'skills_release_unavailable', 'unavailable')
+  classify(
+    () => validateSkillsRelease({
+      ...load('positive-validation.json'),
+      providerCommit: null,
+    }),
+    'skills_release_unavailable',
+    'unavailable',
+  )
+  classify(
+    () => validateSkillsRelease({
+      ...load('positive-validation.json'),
+      providerTree: '',
+    }),
+    'skills_release_unavailable',
+    'unavailable',
+  )
 })
 
-test('AC-I6-skills: incompatible availability and compatibility are incompatible, not fail-closed', () => {
+test('AC-I6-INC-skills: explicit incompatible availability or compatibility token is incompatible', () => {
   classify(
     () => validateSkillsRelease(load('failclosed-incompatible.json')),
     'skills_release_incompatible',
@@ -131,6 +152,14 @@ test('AC-I6-skills: incompatible availability and compatibility are incompatible
   )
   classify(
     () => validateSkillsRelease(load('incompatible-compatibility.json')),
+    'skills_release_incompatible',
+    'incompatible',
+  )
+  classify(
+    () => validateSkillsRelease({
+      ...load('positive-validation.json'),
+      availability: 'contract_incompatible',
+    }),
     'skills_release_incompatible',
     'incompatible',
   )
@@ -151,6 +180,67 @@ test('AC-I6-FC-skills: wrong pin, latest alias, and fragmentLevel 7 fail closed'
   classify(
     () => validateSkillsRelease({ ...load('positive-validation.json'), fragmentLevel: 7 }),
     'skills_fragment_invalid',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-FC-skills: present wrong-type, non-SHA, or malformed pin material fail closed', () => {
+  const valid = load('positive-validation.json')
+  classify(
+    () => validateSkillsRelease(load('failclosed-pin-wrong-type.json')),
+    'skills_pin_invalid',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsRelease({ ...valid, providerCommit: { sha: FROZEN_PROVIDERS.skills.commit } }),
+    'skills_pin_invalid',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsRelease({ ...valid, providerTree: ['not-a-sha'] }),
+    'skills_pin_invalid',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsRelease({ ...valid, providerCommit: 'not-a-git-sha' }),
+    'skills_pin_invalid',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsRelease({
+      ...valid,
+      providerCommit: 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz',
+    }),
+    'skills_pin_invalid',
+    'fail_closed',
+  )
+})
+
+test('AC-I6-FC-skills: malformed compatibility values fail closed, not incompatible', () => {
+  const valid = load('positive-validation.json')
+  classify(
+    () => validateSkillsRelease(load('failclosed-compatibility-object.json')),
+    'skills_compatibility_invalid',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsRelease({ ...valid, compatibility: 0 }),
+    'skills_compatibility_invalid',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsRelease({ ...valid, compatibility: ['incompatible'] }),
+    'skills_compatibility_invalid',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsRelease({ ...valid, compatibility: 'unknown' }),
+    'skills_compatibility_invalid',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsRelease({ ...valid, compatibility: 'contract_incompatible' }),
+    'skills_compatibility_invalid',
     'fail_closed',
   )
 })
@@ -269,11 +359,11 @@ test('AC-I6-FC-skills: arrays are scanned and caller bodies are not echoed', () 
       ...load('positive-validation.json'),
       compatibility: { payload: '<skill body>' },
     })
-    assert.fail('expected incompatible compatibility object')
+    assert.fail('expected fail-closed malformed compatibility object')
   } catch (error) {
     assert.ok(error instanceof ConsumerContractError)
-    assert.equal(error.code, 'skills_release_incompatible')
-    assert.equal(error.details.classification, 'incompatible')
+    assert.equal(error.code, 'skills_compatibility_invalid')
+    assert.equal(error.details.classification, 'fail_closed')
     assert.equal(error.details.field, 'compatibility')
     assert.equal(error.details.compatibility, undefined)
     assert.equal(JSON.stringify(error.details).includes('<skill body>'), false)
@@ -320,10 +410,16 @@ test('AC-I6-FC-skills: telemetry rejects camelCase, extra pin-time fields, score
   classify(() => validateSkillsTelemetry(null), 'invalid_object', 'fail_closed')
 })
 
-test('AC-I6-FC-skills: opaque latest aliases in telemetry refs fail closed', () => {
+test('AC-I6-FC-skills: any exact latest segment in refs, skillId, or version fail closed', () => {
   const positive = load('positive-telemetry-score-10.json')
+  const release = load('positive-validation.json')
   classify(
     () => validateSkillsTelemetry(load('failclosed-telemetry-opaque-latest.json')),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsTelemetry(load('failclosed-telemetry-latest-segment.json')),
     'skills_latest_alias',
     'fail_closed',
   )
@@ -338,6 +434,31 @@ test('AC-I6-FC-skills: opaque latest aliases in telemetry refs fail closed', () 
     'fail_closed',
   )
   classify(
+    () => validateSkillsTelemetry({ ...positive, skill_release_ref: 'opaque:latest:2.0.0' }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsTelemetry({ ...positive, skill_release_ref: 'opaque:release:latest:2.0.0' }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsTelemetry({ ...positive, skill_release_ref: 'opaque:latest/foo' }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsTelemetry({ ...positive, skill_release_ref: 'opaque:foo/latest/bar' }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsTelemetry({ ...positive, actor_ref: 'opaque:actor@latest:session' }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
     () => validateSkillsTelemetry({
       ...load('positive-telemetry-score-9.json'),
       issue: {
@@ -346,6 +467,40 @@ test('AC-I6-FC-skills: opaque latest aliases in telemetry refs fail closed', () 
         issue_ref: 'opaque:latest',
       },
     }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsTelemetry({
+      ...load('positive-telemetry-score-9.json'),
+      issue: {
+        type: 'incomplete',
+        severity: 'low',
+        issue_ref: 'opaque:latest:issue',
+      },
+    }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsTelemetry({
+      ...load('positive-telemetry-score-9.json'),
+      issue: {
+        type: 'incomplete',
+        severity: 'low',
+        issue_ref: 'opaque:latest/x',
+      },
+    }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsRelease({ ...release, skillId: 'release/latest/skill' }),
+    'skills_latest_alias',
+    'fail_closed',
+  )
+  classify(
+    () => validateSkillsRelease({ ...release, version: '1.0.0:latest:rc' }),
     'skills_latest_alias',
     'fail_closed',
   )

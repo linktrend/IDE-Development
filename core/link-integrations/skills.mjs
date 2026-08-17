@@ -294,14 +294,6 @@ function snapshotPlain(value, code = 'invalid_object', depth = 0) {
 
 /**
  * @param {unknown} value
- * @returns {value is string}
- */
-function isNonEmptyString(value) {
-  return typeof value === 'string' && value.length > 0
-}
-
-/**
- * @param {unknown} value
  * @param {number} [depth]
  */
 function rejectSensitive(value, depth = 0) {
@@ -370,34 +362,53 @@ function isLegacyOperation(value) {
 }
 
 /**
+ * Reject any exact `latest` segment separated by `/`, `:`, or `@` — not only
+ * suffix forms. Applies to skillId, version, and opaque telemetry refs.
+ *
  * @param {unknown} value
  * @param {string} field
  */
 function rejectLatestAlias(value, field) {
   if (typeof value !== 'string' || value === '') return
-  if (
-    value === 'latest' ||
-    value.endsWith('/latest') ||
-    value.endsWith('@latest') ||
-    value.endsWith(':latest')
-  ) {
-    closed('skills_latest_alias', `skills ${field} must be an immutable identity, not latest`, {
-      classification: 'fail_closed',
-      field,
-    })
+  for (const segment of value.split(/[/:@]/)) {
+    if (segment === 'latest') {
+      closed('skills_latest_alias', `skills ${field} must be an immutable identity, not latest`, {
+        classification: 'fail_closed',
+        field,
+      })
+    }
   }
 }
 
 /**
- * @param {unknown} value
- * @returns {boolean}
+ * Missing / null / empty pin keys are unavailable. Present wrong-type,
+ * non-SHA, or otherwise malformed pin material is fail-closed separately.
+ *
+ * @param {Record<string, unknown>} record
+ * @returns {'absent' | 'present'}
  */
-function pinMaterialAbsent(value) {
-  if (value === null || value === undefined) return true
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const record = /** @type {Record<string, unknown>} */ (value)
-  return !Object.hasOwn(record, 'providerCommit') || !Object.hasOwn(record, 'providerTree') ||
-    !isNonEmptyString(record.providerCommit) || !isNonEmptyString(record.providerTree)
+function pinMaterialPresence(record) {
+  const hasCommit = Object.hasOwn(record, 'providerCommit')
+  const hasTree = Object.hasOwn(record, 'providerTree')
+  if (!hasCommit || !hasTree) return 'absent'
+  const commit = record.providerCommit
+  const tree = record.providerTree
+  if (commit === null || commit === undefined || commit === '') return 'absent'
+  if (tree === null || tree === undefined || tree === '') return 'absent'
+  return 'present'
+}
+
+/**
+ * @param {unknown} commit
+ * @param {unknown} tree
+ */
+function rejectMalformedPin(commit, tree) {
+  if (typeof commit !== 'string' || typeof tree !== 'string' || !GIT_SHA.test(commit) || !GIT_SHA.test(tree)) {
+    closed('skills_pin_invalid', 'skills provider pin is malformed', {
+      classification: 'fail_closed',
+      provider: 'skills',
+    })
+  }
 }
 
 /**
@@ -423,7 +434,7 @@ export function validateSkillsRelease(value) {
   }
 
   const release = snapshotPlain(value)
-  if (pinMaterialAbsent(release)) {
+  if (pinMaterialPresence(release) === 'absent') {
     closed('skills_release_unavailable', 'required skills provider pin material is absent', {
       classification: 'unavailable',
       provider: 'skills',
@@ -460,12 +471,7 @@ export function validateSkillsRelease(value) {
 
   const providerCommit = release.providerCommit
   const providerTree = release.providerTree
-  if (!GIT_SHA.test(/** @type {string} */ (providerCommit)) || !GIT_SHA.test(/** @type {string} */ (providerTree))) {
-    closed('skills_pin_invalid', 'skills provider pin is malformed', {
-      classification: 'fail_closed',
-      provider: 'skills',
-    })
-  }
+  rejectMalformedPin(providerCommit, providerTree)
   if (providerCommit !== SKILLS_PIN.commit || providerTree !== SKILLS_PIN.tree) {
     closed('incompatible_pin', 'skills provider pin does not match the frozen LiNKskills pin', {
       classification: 'fail_closed',
@@ -548,9 +554,16 @@ export function validateSkillsRelease(value) {
     })
   }
 
-  if (release.compatibility !== undefined && release.compatibility !== 'compatible') {
-    closed('skills_release_incompatible', 'skills compatibility is fail-closed', {
+  if (release.compatibility === undefined || release.compatibility === 'compatible') {
+    // omitted or explicit compatible — allowed
+  } else if (release.compatibility === 'incompatible') {
+    closed('skills_release_incompatible', 'skills compatibility is incompatible', {
       classification: 'incompatible',
+      field: 'compatibility',
+    })
+  } else {
+    closed('skills_compatibility_invalid', 'skills compatibility is malformed', {
+      classification: 'fail_closed',
       field: 'compatibility',
     })
   }
