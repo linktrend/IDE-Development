@@ -33,7 +33,7 @@ const RUN_STATES = Object.freeze([
 ])
 const TERMINAL = new Set([
   'succeeded', 'failed', 'expired', 'cancelled', 'timed_out', 'rejected',
-  'quarantined', 'unavailable', 'contract_incompatible',
+  'blocked', 'quarantined', 'unavailable', 'contract_incompatible',
 ])
 const OPERATION_KINDS = new Set([
   'status_collection', 'precheck', 'evidence_collection', 'notification_delivery',

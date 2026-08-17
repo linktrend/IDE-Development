@@ -293,6 +293,19 @@ test('AC-I6-FC-autowork: pin mismatch, expiry, replay, and monotonic regression 
     'autowork_terminal_regression',
     'fail_closed',
   )
+  classify(
+    () => validateAutoworkStatus(load('positive-accepted-status.json'), { previousStatus: 'blocked' }),
+    'autowork_terminal_regression',
+    'fail_closed',
+  )
+  classify(
+    () => validateAutoworkStatus({
+      ...load('positive-accepted-status.json'),
+      state: 'succeeded',
+    }, { previousStatus: 'blocked' }),
+    'autowork_terminal_regression',
+    'fail_closed',
+  )
   classify(() => validateAutoworkStatus(load('positive-accepted-status.json'), {
     previousStatus: { state: 'running', attempt_count: 3 },
   }), 'autowork_terminal_regression', 'fail_closed')
