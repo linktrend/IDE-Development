@@ -19,8 +19,8 @@
 | Dependency-context HEAD/tree | `a926794d7e549a97579f2e1816aca7a893993ccd` / `53af75c63ad2dc48403ba0c2f3be5adb71d79bd2` |
 | Novel packet commit range | `2c1448647d96f3b447bf84a3b0723bbeaf6fc63a^..HEAD` (ledger + implementation + evidence) |
 | Phase base at handoff | not used (no Phase integration in this packet) |
-| Exact HEAD after packet | `185e58bb4123772f7cbf108b190a007806e3430e` (rebind after evidence commit) |
-| Exact tree after packet | `97c1fd86bcf1d3b0b77298abb0f2aa8b874706da` (rebind after evidence commit) |
+| Exact HEAD after packet |  |
+| Exact tree after packet |  |
 
 ## Topology notes
 
