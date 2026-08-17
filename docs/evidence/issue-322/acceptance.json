@@ -5,25 +5,24 @@
   "branch": "issue/322-implement-ide-development-v2-4-0-wp-u01",
   "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
   "identityModel": "content-head/evidence-head/final-bind-tip",
-  "findingReviewedTip": "ee8097ca54a0ff8134e98591c20d37b80bc3b253",
-  "findingReviewedNote": "Tip reviewed for U01-R1..R4 findings; not claimed as current packet tip.",
+  "findingReviewedTip": "cc0854788eecf64c5676a9668015e7b42c9306cb",
+  "findingReviewedNote": "Tip reviewed for pagination/fail-open findings; not claimed as current packet tip.",
   "startSha": "741e58922e7413c1097f4a58ea25e94a934af903",
   "startTree": "1affbab9035df799fdb7d723d8518e54fa6a1c00",
   "dependencyContextSha": "a926794d7e549a97579f2e1816aca7a893993ccd",
   "dependencyContextTree": "53af75c63ad2dc48403ba0c2f3be5adb71d79bd2",
-  "contentHeadSha": "7fee5d9cf423eb3eeff99af8a40c1a530c4b8809",
-  "contentTree": "2ccef486126c2439e3dbfd50d728cb8f07cc3c5c",
-  "implementationHeadSha": "7fee5d9cf423eb3eeff99af8a40c1a530c4b8809",
-  "implementationTree": "2ccef486126c2439e3dbfd50d728cb8f07cc3c5c",
-  "headSha": "7fee5d9cf423eb3eeff99af8a40c1a530c4b8809",
-  "tree": "2ccef486126c2439e3dbfd50d728cb8f07cc3c5c",
+  "contentHeadSha": "6ec04c16b6753789e30b8fd0a67d2a014355f8dd",
+  "contentTree": "664f193adf3013ca360b8cf6f62a43812e851655",
+  "implementationHeadSha": "6ec04c16b6753789e30b8fd0a67d2a014355f8dd",
+  "implementationTree": "664f193adf3013ca360b8cf6f62a43812e851655",
+  "headSha": "6ec04c16b6753789e30b8fd0a67d2a014355f8dd",
+  "tree": "664f193adf3013ca360b8cf6f62a43812e851655",
   "repair": [
-    "U01-R1 evidence identity content/evidence/final-bind-tip with non-self-reference boundary",
-    "U01-R2 founder-alert dedupe via paginated issue bodies; fail closed if unread",
-    "U01-R3 preserve Full receipt gitTree; never overwrite with live TREE",
-    "U01-R4 remove || true on infra marker publication; fail closed"
+    "paginated gh api --paginate --slurp flatten for founder-alert issue bodies and infra markers",
+    "remove marker-read 2>/dev/null || echo [] fail-open; HOLD fail-closed on read/parse failure",
+    "multi-page tests prove one JSON array and exact alert/marker counts"
   ],
-  "acceptance": "AC-U01-01..18 except AC-U01-07; U01-R1..R4 repaired; focused U01 OK",
+  "acceptance": "AC-U01-01..18 except AC-U01-07; pagination/fail-open findings repaired; focused U01 OK",
   "exclusions": [
     "AC-U01-07 nine-consumer install",
     "Full suite",
@@ -45,8 +44,8 @@
       "command": "python3 -m unittest scripts.tests.test_linktrend_review_gate scripts.ide_development_tests.test_build_manifest",
       "exitCode": 0,
       "evidencePath": "docs/evidence/issue-322/wp-u01-focused-tests.out",
-      "testsRan": 27,
-      "againstHead": "7fee5d9cf423eb3eeff99af8a40c1a530c4b8809"
+      "testsRan": 28,
+      "againstHead": "6ec04c16b6753789e30b8fd0a67d2a014355f8dd"
     },
     {
       "command": "bash scripts/tests/test-repository-protection.sh",
@@ -71,10 +70,8 @@
   ],
   "finalTipBinding": {
     "mode": "non-self-reference-boundary",
-    "note": "This bind-metadata commit becomes the branch tip. It records content and evidence heads/trees only. It does not embed its own commit SHA (impossible self-reference). No annotated evidence ref is required by accepted plan for this packet."
+    "note": "Final tip is the branch HEAD after the bind-metadata commit. A commit cannot truthfully embed its own commit SHA inside its tree (impossible self-reference). Immutable reviewed identities are contentHeadSha/contentTree and evidenceHeadSha/evidenceTree only."
   },
-  "at": "2026-08-17T13:35:21Z",
-  "sanitized": true,
-  "evidenceHeadSha": "38069d21af6d74993936b95e4d3c38869c45a95c",
-  "evidenceTree": "38822882a47ef7b0086bb16a40ff2c7e7f6db95c"
+  "at": "2026-08-17T14:12:37Z",
+  "sanitized": true
 }

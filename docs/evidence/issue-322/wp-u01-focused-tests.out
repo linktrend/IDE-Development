@@ -11,6 +11,8 @@ test_new_commit_invalidates_prior_outcome (scripts.tests.test_linktrend_review_g
 test_normalize_full_receipt_never_injects_live_tree (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_normalize_full_receipt_never_injects_live_tree) ... ok
 test_observer_rejects_raw_bugbot_as_managed_gate (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_observer_rejects_raw_bugbot_as_managed_gate) ... ok
 test_packaged_surfaces_exist (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_packaged_surfaces_exist) ... ok
+test_paginated_slurp_flatten_multi_page_bodies_and_dedupe (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_paginated_slurp_flatten_multi_page_bodies_and_dedupe)
+Two+ pages must flatten to one JSON list; alert/marker counts stay exact. ... ok
 test_protection_and_consumer_defaults_migrated (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_protection_and_consumer_defaults_migrated) ... ok
 test_raw_bugbot_required_contexts_rejected (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_raw_bugbot_required_contexts_rejected) ... ok
 test_same_account_comment_not_github_approval (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests.test_same_account_comment_not_github_approval) ... ok
@@ -28,6 +30,6 @@ test_required_cursor_materialization_sources_are_packaged (scripts.ide_developme
 test_version_alignment_helpers (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests.test_version_alignment_helpers) ... ok
 
 ----------------------------------------------------------------------
-Ran 27 tests in 0.285s
+Ran 28 tests in 0.286s
 
 OK
