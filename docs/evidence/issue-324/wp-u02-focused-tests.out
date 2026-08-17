@@ -1,5 +1,19 @@
+..{
+  "code": "cleanup_before_success",
+  "component": "delivery_controller",
+  "detail": "merge evidence missing",
+  "status": "rejected"
+}
 .....................................................................
 ----------------------------------------------------------------------
-Ran 69 tests in 19.367s
+Ran 71 tests in 19.148s
 
 OK
+{
+  "component": "delivery_controller",
+  "deleted": [
+    "promote/staging/000000000000"
+  ],
+  "preserved": [],
+  "status": "cleaned"
+}
