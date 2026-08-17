@@ -9,11 +9,9 @@
 | Authority plans | 3a5d15231d65b8549d64971960b2aeb617b58838 |
 | Start commit | 70acec9871cd23598b1db264946b4f0c00291ac3 |
 | Start tree | cc1f666dccce26545884f87dc065f7cfcd86a235 |
-| Prior accepted tip (A–C) | cfa141aced4e4843f7d5f51a0b76c3d64f384b72 / 09eef53c721e0f00a81d048b565352a1a4fc841b |
-| Content head/tree (includes D) | 555cba0cceb96b334754a6e9ef28fb9aadf13567 / 0b900215b13088735588eb5ea2563069e634b865 |
-| Evidence head/tree (includes D) | 2b9083effb732a4510e6fff8ebf03c0e3a70b836 / 6a7356945a5e3b84b9cdbdcb9c8097e4ec46a4d3 |
-| Final tip binding | branch HEAD after bind-metadata commit; tip SHA not self-embedded |
-| Scope | Repair only PR #326 combined-phase Fast / Verify IDE / installer matrix failures (+ residual Verify IDE managed-workflow drift) |
+| Prior accepted tip (A–D) | 7e9a4bbf7c374d7b395812cd638386206f1ef21c / 9e0d324a144349022c862ca470dc9482640789e5 |
+| Content head/tree (includes E) | f7a6b3e132a0a3edbee5e17a9ba9c3b36f7a7253 / e79080297e906135190b9e3a17bbdc7afb41e262 |
+| Scope | Repair only PR #326 combined-phase Verify IDE / Fast / matrix failures and residual Verify IDE defects |
 
 ## Failures repaired
 
@@ -22,11 +20,12 @@
 | A secret_scan stale fixtures + high-entropy literal | Fast 32058396059 | Refresh `candidateTree` binding; declare publisher `ltfx.` fixture; replace `ghs_DOCUMENTED_…` at `test-review-ready-publisher.sh:431` |
 | B vendored skill hash mismatch | Verify IDE 32058396209 | Update `VENDOR-MANIFEST.json` hashes for `gstack/qa/SKILL.md` and `gstack/review/SKILL.md` to on-disk adapted copies |
 | C package_v2 missing `repository_ci_contract.py` | Matrix 32056985170 (ubuntu/macos/windows) | Add self-contained installer-audit stub at fixture `scripts/gitops/repository_ci_contract.py` |
-| D managed workflow render drift `linktrend-repair-observer.yml` | Verify IDE 32060954525 | Official `scripts/sync-managed-workflows.sh .` converge live `.github/workflows/` copy to rendered `core/github/managed-workflows/` template (comment wording); verifier unchanged |
+| D managed workflow render drift `linktrend-repair-observer.yml` | Verify IDE 32060954525 | Official `scripts/sync-managed-workflows.sh .` converge live `.github/workflows/` copy to rendered managed template |
+| E behavioral heredoc IndentationError on chained `.replace` | Verify IDE 32063802001 | Restore parenthesized `.replace()` chain in resolver managed/live block; keep Review Gate + Bugbot check-name substitutions |
 
-## Local verification notes (D)
+## Local verification notes (E)
 
-Narrow local reproductions only. Does **not** claim hosted GitHub CI re-run or pass for tip after D.
+Narrow local reproductions only. Does **not** claim hosted GitHub CI re-run or pass for tip after E.
 
 ## Exclusions
 
@@ -34,4 +33,4 @@ Full suite, phase PR update, implementer PR, merge, promote, publish, deploy, ro
 
 ## Rollback
 
-Leave issue branch unmerged. Do not prefer-incoming. Do not weaken secret-scan, vendored-skill verification, or managed-workflow render checks.
+Leave issue branch unmerged. Do not prefer-incoming. Do not weaken secret-scan, vendored-skill verification, managed-workflow render checks, or Review Gate behavioral assertions.

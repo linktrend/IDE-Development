@@ -7,26 +7,28 @@
   "identityModel": "content-head/evidence-head",
   "startSha": "70acec9871cd23598b1db264946b4f0c00291ac3",
   "startTree": "cc1f666dccce26545884f87dc065f7cfcd86a235",
-  "priorTip": "cfa141aced4e4843f7d5f51a0b76c3d64f384b72",
-  "priorTree": "09eef53c721e0f00a81d048b565352a1a4fc841b",
-  "contentHeadSha": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
-  "contentTree": "0b900215b13088735588eb5ea2563069e634b865",
-  "implementationHeadSha": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
-  "implementationTree": "0b900215b13088735588eb5ea2563069e634b865",
-  "headSha": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
-  "tree": "0b900215b13088735588eb5ea2563069e634b865",
-  "acceptance": "Preserved A\u2013C repairs; closed Verify IDE managed-workflow render drift for linktrend-repair-observer.yml via official sync; narrow local render/sync/bounded-verify/manifest/diff OK. Does not claim hosted CI pass after D.",
+  "priorTip": "7e9a4bbf7c374d7b395812cd638386206f1ef21c",
+  "priorTree": "9e0d324a144349022c862ca470dc9482640789e5",
+  "contentHeadSha": "f7a6b3e132a0a3edbee5e17a9ba9c3b36f7a7253",
+  "contentTree": "e79080297e906135190b9e3a17bbdc7afb41e262",
+  "implementationHeadSha": "f7a6b3e132a0a3edbee5e17a9ba9c3b36f7a7253",
+  "implementationTree": "e79080297e906135190b9e3a17bbdc7afb41e262",
+  "headSha": "f7a6b3e132a0a3edbee5e17a9ba9c3b36f7a7253",
+  "tree": "e79080297e906135190b9e3a17bbdc7afb41e262",
+  "acceptance": "Preserved A–D; closed Verify IDE IndentationError in test-gitops-behavioral.sh resolver render chain while retaining Review Gate substitutions; narrow local behavioral/bounded-verify/manifest/diff/secret-scan OK. Does not claim hosted CI pass after E.",
   "covered": [
     "A-secret-scan-fixture-binding-and-publisher-literal",
     "B-vendored-skills-hash-inventory",
     "C-package-v2-repository-ci-contract-stub",
-    "D-repair-observer-managed-workflow-render-sync"
+    "D-repair-observer-managed-workflow-render-sync",
+    "E-behavioral-heredoc-indentation-review-gate-chain"
   ],
   "githubFailures": {
     "fast": "32058396059",
     "verifyIde": "32058396209",
     "crossPlatformMatrix": "32056985170",
-    "verifyIdeRepairObserverDrift": "32060954525"
+    "verifyIdeRepairObserverDrift": "32060954525",
+    "verifyIdeBehavioralIndentation": "32063802001"
   },
   "hostedCiClaim": false,
   "exclusions": [
@@ -42,63 +44,58 @@
     "GitHub CI re-run",
     "self-review",
     "review-ready publish",
-    "hosted CI pass claim for tip after D"
+    "hosted CI pass claim for tip after E"
   ],
   "rollback": [
     "Leave issue branch unmerged; no prefer-incoming",
     "Do not weaken secret-scan fail-closed policy",
     "Do not disable vendored-skills verification",
-    "Do not weaken managed-workflow render checks"
+    "Do not weaken managed-workflow render checks",
+    "Do not remove Review Gate behavioral substitutions"
   ],
   "changedFiles": [
     ".github/linktrend-secret-scan-fixtures.json",
     ".github/workflows/linktrend-repair-observer.yml",
     "core/runtime/skills/VENDOR-MANIFEST.json",
     "scripts/ide_development_tests/fixtures/package_v2/scripts/gitops/repository_ci_contract.py",
+    "scripts/tests/test-gitops-behavioral.sh",
     "scripts/tests/test-review-ready-publisher.sh"
   ],
   "priorCommandsRetained": true,
   "commands": [
     {
-      "command": "bash scripts/sync-managed-workflows.sh .",
+      "command": "bash scripts/tests/test-gitops-behavioral.sh",
       "exitCode": 0,
-      "notes": "Official sync; updated only linktrend-repair-observer.yml",
-      "againstHead": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
-      "againstTree": "0b900215b13088735588eb5ea2563069e634b865"
+      "evidencePath": "docs/evidence/issue-328/gitops-behavioral.out",
+      "againstHead": "f7a6b3e132a0a3edbee5e17a9ba9c3b36f7a7253",
+      "againstTree": "e79080297e906135190b9e3a17bbdc7afb41e262"
     },
     {
-      "command": "verify-ide-development managed-workflow render check (exact embedded python)",
+      "command": "heredoc ast.parse for resolver managed/live identity block",
       "exitCode": 0,
-      "evidencePath": "docs/evidence/issue-328/managed-workflow-render-check.out",
-      "againstHead": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
-      "againstTree": "0b900215b13088735588eb5ea2563069e634b865"
+      "evidencePath": "docs/evidence/issue-328/behavioral-heredoc-ast-check.out"
     },
     {
-      "command": "bash scripts/sync-managed-workflows.sh . --dry-run",
+      "command": "bounded verify-ide-development.sh through and past GitOps behavioral",
       "exitCode": 0,
-      "evidencePath": "docs/evidence/issue-328/managed-workflow-sync-dry.out",
-      "againstHead": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
-      "againstTree": "0b900215b13088735588eb5ea2563069e634b865"
-    },
-    {
-      "command": "bounded verify-ide-development.sh through managed-workflow pass",
-      "exitCode": 0,
-      "evidencePath": "docs/evidence/issue-328/verify-ide-bounded-through-managed-workflows.out",
-      "againstHead": "555cba0cceb96b334754a6e9ef28fb9aadf13567",
-      "againstTree": "0b900215b13088735588eb5ea2563069e634b865",
-      "notes": "Stops after managed-workflow render pass; does not run later expensive verify suites"
+      "evidencePath": "docs/evidence/issue-328/verify-ide-bounded-past-behavioral.out",
+      "againstHead": "f7a6b3e132a0a3edbee5e17a9ba9c3b36f7a7253",
+      "againstTree": "e79080297e906135190b9e3a17bbdc7afb41e262"
     },
     {
       "command": "python3 -m scripts.ide_development.build_manifest --verify",
       "exitCode": 0,
-      "evidencePath": "docs/evidence/issue-328/manifest-verify-repair-observer.out"
+      "evidencePath": "docs/evidence/issue-328/manifest-verify-behavioral-syntax.out"
     },
     {
       "command": "git diff --check",
       "exitCode": 0,
-      "evidencePath": "docs/evidence/issue-328/diff-check-repair-observer.out"
+      "evidencePath": "docs/evidence/issue-328/diff-check-behavioral-syntax.out"
+    },
+    {
+      "command": "python3 scripts/gitops/secret_scan.py",
+      "exitCode": 0,
+      "notes": "candidateTree refreshed with content commit"
     }
-  ],
-  "evidenceHeadSha": "2b9083effb732a4510e6fff8ebf03c0e3a70b836",
-  "evidenceTree": "6a7356945a5e3b84b9cdbdcb9c8097e4ec46a4d3"
+  ]
 }
