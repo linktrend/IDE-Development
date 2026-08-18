@@ -40,3 +40,8 @@ shape transcribed above. Source of truth for routing criteria: LiNKdeveloper
 Review role — never auto-escalated to a different author model. On failure: log
 and surface to Principal / repair. Do not substitute this route for Ledger-style
 gate grading that requires a different provider family from the author.
+
+Pre-land convergence is governed by
+`scripts/gitops/independent_review_convergence.py`. Report every known
+actionable finding in one structured response. Do not treat silence or
+timeout as clean. Do not discard or renumber prior findings.

@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "issue": 324,
+  "workPackage": "WP-U02",
+  "branch": "issue/324-implement-ide-development-v2-4-0-wp-u02",
+  "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
+  "docsAuthorityTree": "6b9f73f1e78ae4abda3b78b939adc190b6d0842a",
+  "identityModel": "content-head/evidence-head/final-bind-tip",
+  "startSha": "0b1b741588679bb1b13543cfc64d6fd22d54a150",
+  "startTree": "014563e36ad8547276df82a34ad0688936b58533",
+  "priorTip": "026cd13c4eebd25411aacc31ee9e5610e23c9312",
+  "repair": [
+    "LiveGitHub ensure_promote_ref exact head_sha before PR; fail closed on mismatch",
+    "cleanup CLI requires truthful merged evidence for exact promote refs; no hardcoded merge_succeeded without authorize_cleanup_from_evidence",
+    "clear Integrator merge-actor wording in PRD:348, APPLICATION-PIPELINE, module3-execution SKILL, REPOSITORY-PROTECTION active lines"
+  ],
+  "contentHeadSha": "c3482a11a5412406181fb5c0bd5eea21d3d90f8d",
+  "contentTree": "6b17d2e65a48b21e49d6bd12e43697eca2f73df9",
+  "implementationHeadSha": "c3482a11a5412406181fb5c0bd5eea21d3d90f8d",
+  "implementationTree": "6b17d2e65a48b21e49d6bd12e43697eca2f73df9",
+  "headSha": "c3482a11a5412406181fb5c0bd5eea21d3d90f8d",
+  "tree": "6b17d2e65a48b21e49d6bd12e43697eca2f73df9",
+  "acceptance": "AC-U02-01..18 except AC-U02-07; three residual findings repaired; focused tests OK; manifest verify OK; diff --check OK",
+  "covered": [
+    "AC-U02-01",
+    "AC-U02-02",
+    "AC-U02-03",
+    "AC-U02-04",
+    "AC-U02-05",
+    "AC-U02-06",
+    "AC-U02-08",
+    "AC-U02-09",
+    "AC-U02-10",
+    "AC-U02-11",
+    "AC-U02-12",
+    "AC-U02-13",
+    "AC-U02-14",
+    "AC-U02-15",
+    "AC-U02-16",
+    "AC-U02-17",
+    "AC-U02-18"
+  ],
+  "exclusions": [
+    "AC-U02-07 nine-consumer install",
+    "Full suite",
+    "PR",
+    "merge",
+    "promotion",
+    "publication",
+    "rollout",
+    "consumer install",
+    "review-ready publish",
+    "WP-U05"
+  ],
+  "rollback": [
+    "Leave issue branch unmerged; no prefer-incoming",
+    "Never bypass branch protection",
+    "Never infer founder approval"
+  ],
+  "commands": [
+    {
+      "command": "python3 -m unittest scripts.tests.test_delivery_controller scripts.tests.test_phase_packager_coordinator scripts.tests.test_promotion_receipt_gate scripts.tests.test_receipt_seal_and_recovery scripts.ide_development_tests.test_build_manifest",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-324/wp-u02-focused-tests.out",
+      "testsRan": 71,
+      "againstHead": "c3482a11a5412406181fb5c0bd5eea21d3d90f8d",
+      "againstTree": "6b17d2e65a48b21e49d6bd12e43697eca2f73df9"
+    },
+    {
+      "command": "python3 -m scripts.ide_development.build_manifest --verify",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "hold": [
+    "AC-U02-07 deferred to WP-CONSUMERS",
+    "No Full / PR / review-ready / promotion / rollout / consumer install in this packet"
+  ],
+  "finalTipBinding": {
+    "mode": "non-self-reference-boundary",
+    "note": "Bind-metadata commit becomes the branch tip. It records content and evidence heads/trees only. It does not embed its own commit SHA."
+  },
+  "sanitized": true,
+  "at": "2026-08-17T17:44:10Z"
+}

@@ -1,0 +1,6 @@
+actor=linktrend
+repo=linktrend/IDE-Development
+candidate_head=2f204781e093acad694b084e7c4ba0652fd17721
+candidate_tree=4556fb197c575c64cb1a152c00738c8651a3cb74
+pr=326
+scope=bootstrap-step1-source-policy-only

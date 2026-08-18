@@ -10,20 +10,20 @@
 #   ./scripts/apply-development-merge-ruleset.sh
 #   ./scripts/apply-development-merge-ruleset.sh --repo linktrend/LiNKskills
 #   ./scripts/apply-development-merge-ruleset.sh --repo linktrend/LiNKskills \
-#     -- "Cursor Bugbot" "test" "Enforce allowed PR source branches"
+#     -- "Linktrend Review Gate" "test" "Linktrend Branch Source Policy"
 #
 # Defaults:
 #   repo   = linktrend/IDE-Development (or GH_REPO)
-#   checks = Cursor Bugbot + Verify IDE Development + Enforce allowed PR source branches
+#   checks = Linktrend Review Gate + Verify IDE Development + Linktrend Branch Source Policy
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO="${GH_REPO:-linktrend/IDE-Development}"
 CHECKS=(
-  "Cursor Bugbot"
+  "Linktrend Review Gate"
   "Verify IDE Development"
-  "Enforce allowed PR source branches"
+  "Linktrend Branch Source Policy"
 )
 CHECKS_SET=0
 FIXTURE_DIR=""
@@ -74,17 +74,17 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-# If caller passed check names without --repo, keep Cursor Bugbot unless they included it.
+# If caller passed check names without --repo, keep Linktrend Review Gate unless they included it.
 if [ "${CHECKS_SET}" -eq 1 ]; then
   has_bugbot=0
   for c in "${CHECKS[@]}"; do
-    if [ "$c" = "Cursor Bugbot" ]; then
+    if [ "$c" = "Linktrend Review Gate" ]; then
       has_bugbot=1
       break
     fi
   done
   if [ "${has_bugbot}" -eq 0 ]; then
-    CHECKS=("Cursor Bugbot" "${CHECKS[@]}")
+    CHECKS=("Linktrend Review Gate" "${CHECKS[@]}")
   fi
 fi
 

@@ -1,0 +1,100 @@
+test_content_doctrine_covers_required_contracts (ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_content_doctrine_sources_exist (ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_hosted_defaults_and_redacted_cleanup_inventory_are_packaged (ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_library_vendor_rename_has_exact_removal_migrations (ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_manifest_package_version_identity (ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_required_cursor_materialization_sources_are_packaged (ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_version_alignment_helpers (ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_cli_install_and_verify (ide_development_tests.test_cli.CliTests) ... ok
+test_cli_install_dry_run (ide_development_tests.test_cli.CliTests) ... ok
+test_cli_version_json (ide_development_tests.test_cli.CliTests) ... ok
+test_consumer_owned_preserved_and_unknown_conflict (ide_development_tests.test_engine.EngineTests) ... ok
+test_drift_detection (ide_development_tests.test_engine.EngineTests) ... ok
+test_exclusive_lock_fail_closed (ide_development_tests.test_engine.EngineTests) ... ok
+test_install_idempotent_and_physical (ide_development_tests.test_engine.EngineTests) ... ok
+test_install_into_gitfile_worktree (ide_development_tests.test_engine.EngineTests) ... ok
+test_interrupted_transaction_recovery (ide_development_tests.test_engine.EngineTests) ... ok
+test_invalid_package_hash (ide_development_tests.test_engine.EngineTests) ... ok
+test_marker_upsert_preserves_consumer_text (ide_development_tests.test_engine.EngineTests) ... ok
+test_migration_exact_remove_and_refuse_mismatch (ide_development_tests.test_engine.EngineTests) ... ok
+test_noop_rewrites_missing_installed_state (ide_development_tests.test_engine.EngineTests) ... ok
+test_plan_and_dry_run_no_writes (ide_development_tests.test_engine.EngineTests) ... ok
+test_plan_dry_run_does_not_take_lock (ide_development_tests.test_engine.EngineTests) ... ok
+test_refuse_system_self_install (ide_development_tests.test_engine.EngineTests) ... ok
+test_rollback_restores_bytes_and_modes (ide_development_tests.test_engine.EngineTests) ... ok
+test_sha256_and_read_refuse_symlink (ide_development_tests.test_engine.EngineTests) ... ok
+test_version (ide_development_tests.test_engine.EngineTests) ... ok
+test_cross_process_exclusive_lock_fail_closed (ide_development_tests.test_lock_contention.CrossProcessLockContentionTests)
+Child holds lock; parent fails closed with ConflictError; then re-acquires. ... ok
+test_lock_refuses_symlink_lock_path (ide_development_tests.test_lock_contention.CrossProcessLockContentionTests) ... ok
+test_contention_under_fresh_temp_git_repo (ide_development_tests.test_lock_contention.CrossProcessLockInGitRepoTests) ... ok
+test_atomic_write_physical_roundtrip (ide_development_tests.test_lock_contention.SymlinkRefuseAndToctouTests) ... ok
+test_atomic_write_refuses_symlink_dest_without_following (ide_development_tests.test_lock_contention.SymlinkRefuseAndToctouTests) ... ok
+test_atomic_write_refuses_when_dest_swapped_to_symlink_before_call (ide_development_tests.test_lock_contention.SymlinkRefuseAndToctouTests) ... ok
+test_sha256_and_read_refuse_symlink (ide_development_tests.test_lock_contention.SymlinkRefuseAndToctouTests) ... ok
+test_simulated_symlink_swap_before_open_refuses (ide_development_tests.test_lock_contention.SymlinkRefuseAndToctouTests)
+Simulate race-ish case: path is a symlink at call time (pre-open). ... ok
+test_collect_package_paths_are_repo_relative (ide_development_tests.test_package_reproducibility.ArchiveReproducibilityHelperTests) ... ok
+test_consecutive_write_manifest_byte_identical (ide_development_tests.test_package_reproducibility.ManifestReproducibilityTests) ... ok
+test_release_candidate_schemas_listed_in_generated_manifest (ide_development_tests.test_package_reproducibility.ManifestReproducibilityTests) ... ok
+test_verify_manifest_clean_after_write (ide_development_tests.test_package_reproducibility.ManifestReproducibilityTests) ... ok
+test_backup_encoding_roundtrip (ide_development_tests.test_paths.PathTests) ... ok
+test_mode_normalize (ide_development_tests.test_paths.PathTests) ... ok
+test_rejects_escape (ide_development_tests.test_paths.PathTests) ... ok
+test_rejects_traversal (ide_development_tests.test_paths.PathTests) ... ok
+test_resolve_git_dir_directory (ide_development_tests.test_paths.PathTests) ... ok
+test_resolve_git_dir_worktree_gitfile (ide_development_tests.test_paths.PathTests) ... ok
+test_sha (ide_development_tests.test_paths.PathTests) ... ok
+test_spaces_and_join (ide_development_tests.test_paths.PathTests) ... ok
+test_metadata_schema_shape (ide_development_tests.test_release_candidate.ReleaseCandidateArchiveTests) ... ok
+test_refuse_host_absolute_path_content (ide_development_tests.test_release_candidate.ReleaseCandidateArchiveTests) ... ok
+test_refuse_secret_like_content (ide_development_tests.test_release_candidate.ReleaseCandidateArchiveTests) ... ok
+test_refuse_symlink_source (ide_development_tests.test_release_candidate.ReleaseCandidateArchiveTests) ... ok
+test_tar_and_zip_reproducible (ide_development_tests.test_release_candidate.ReleaseCandidateArchiveTests) ... ok
+test_module_help (ide_development_tests.test_release_candidate.ReleaseCandidateCliSmokeTests) ... ok
+test_dirty_worktree_refusal (ide_development_tests.test_release_candidate.ReleaseCandidateGateTests) ... ok
+test_missing_evidence_refusal (ide_development_tests.test_release_candidate.ReleaseCandidateGateTests) ... ok
+test_validate_schemas_ok (ide_development_tests.test_release_candidate.ReleaseCandidateGateTests) ... ok
+test_validate_versions_ok (ide_development_tests.test_release_candidate.ReleaseCandidateGateTests) ... ok
+test_version_inconsistency_refusal (ide_development_tests.test_release_candidate.ReleaseCandidateGateTests) ... ok
+test_atomic_write_refuses_symlink_dest (ide_development_tests.test_security_adversarial.SecurityAdversarialTests) ... ok
+test_consumer_owned_preserved (ide_development_tests.test_security_adversarial.SecurityAdversarialTests) ... ok
+test_destination_symlink_fail_closed (ide_development_tests.test_security_adversarial.SecurityAdversarialTests) ... ok
+test_duplicate_destination_refused (ide_development_tests.test_security_adversarial.SecurityAdversarialTests) ... ok
+test_lock_symlink_refused (ide_development_tests.test_security_adversarial.SecurityAdversarialTests) ... ok
+test_path_traversal_refused (ide_development_tests.test_security_adversarial.SecurityAdversarialTests) ... ok
+test_rollback_without_tx_exit_code (ide_development_tests.test_security_adversarial.SecurityAdversarialTests) ... ok
+test_security_fixture_wrong_repo_present (ide_development_tests.test_security_adversarial.SecurityAdversarialTests) ... ok
+test_source_symlink_in_package_refused (ide_development_tests.test_security_adversarial.SecurityAdversarialTests) ... ok
+test_wrong_hash_invalid_package (ide_development_tests.test_security_adversarial.SecurityAdversarialTests) ... ok
+test_detect_cursor_symlink_readlink_only (ide_development_tests.test_symlink_migration.SymlinkMigrationTests) ... ok
+test_dry_run_writes_nothing (ide_development_tests.test_symlink_migration.SymlinkMigrationTests) ... ok
+test_file_symlink_elsewhere_still_fail_closed (ide_development_tests.test_symlink_migration.SymlinkMigrationTests)
+Non-.cursor unsafe links remain fail-closed (migrate is .cursor-only). ... ok
+test_migrate_success_outside_untouched_consumer_preserved (ide_development_tests.test_symlink_migration.SymlinkMigrationTests) ... ok
+test_plan_includes_migrate_symlink (ide_development_tests.test_symlink_migration.SymlinkMigrationTests) ... ok
+test_relative_symlink_migrate (ide_development_tests.test_symlink_migration.SymlinkMigrationTests) ... ok
+test_rollback_restores_symlink (ide_development_tests.test_symlink_migration.SymlinkMigrationTests) ... ok
+test_cross_process_exclusive_lock_all_platforms (platform_matrix.test_cross_process_lock_matrix.CrossProcessLockMatrixTests)
+Child holds lock; parent fails closed; parent re-acquires after release. ... ok
+test_plan_dry_run_no_writes_unicode_target (platform_matrix.test_unicode_paths.UnicodePathMatrixTests) ... ok
+test_unicode_and_spaces_join (platform_matrix.test_unicode_paths.UnicodePathMatrixTests) ... ok
+test_unicode_target_install_verify (platform_matrix.test_unicode_paths.UnicodePathMatrixTests) ... ok
+test_atomic_write_physical_roundtrip_portable (platform_matrix.test_windows_safe_contracts.WindowsSafeContractsTests) ... ok
+test_install_modes_portable (platform_matrix.test_windows_safe_contracts.WindowsSafeContractsTests) ... ok
+test_lock_path_physical_after_acquire (platform_matrix.test_windows_safe_contracts.WindowsSafeContractsTests) ... ok
+test_path_is_symlink_false_for_physical (platform_matrix.test_windows_safe_contracts.WindowsSafeContractsTests) ... ok
+test_physical_cursor_tree_after_install (platform_matrix.test_windows_safe_contracts.WindowsSafeContractsTests)
+Equivalent to symlink-migration success path when symlink privilege is absent. ... ok
+test_physical_install_never_symlink (platform_matrix.test_windows_safe_contracts.WindowsSafeContractsTests) ... ok
+test_rollback_restores_bytes_portable_modes (platform_matrix.test_windows_safe_contracts.WindowsSafeContractsTests) ... ok
+test_symlink_capability_documented (platform_matrix.test_windows_safe_contracts.WindowsSafeContractsTests)
+Record whether this host can create symlinks (informational assert). ... ok
+test_worktree_gitfile_meta_under_real_gitdir (platform_matrix.test_windows_safe_contracts.WindowsSafeContractsTests) ... ok
+
+----------------------------------------------------------------------
+Ran 87 tests in 5.451s
+
+OK
+matrix summary written: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val/tests/platform_matrix/summaries/matrix-darwin-20260817T191929Z.json
+exit:0

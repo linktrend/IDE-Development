@@ -206,7 +206,7 @@ class DeliveryStateTests(unittest.TestCase):
         state = transition(self.state, {"type": "phase-opened"})
         state = transition(state, {"type": "issue-accepted", "issue": {"branch": "issue/1-x", "sha": "d" * 40}})
         state = transition(state, {"type": "issue-included", "issue": {"branch": "issue/1-x", "sha": "d" * 40}})
-        state = transition(state, {"type": "draft-pr-created", "draftPr": {"number": 10, "url": "sanitized"}})
+        state = transition(state, {"type": "draft-pr-created", "draftPr": {"number": 10, "url": "SANITIZED"}})
         state = transition(state, {"type": "sealed", "candidateIdentity": IDENTITY.to_dict()})
         for event in ("observe", "deduplicate", "passive-observation", "cancel-before-start"):
             if event == "cancel-before-start":

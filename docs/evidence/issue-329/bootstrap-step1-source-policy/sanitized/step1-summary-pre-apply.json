@@ -1,0 +1,71 @@
+{
+  "repo": "linktrend/IDE-Development",
+  "actor": "linktrend",
+  "preflight": {
+    "ok": true,
+    "code": "",
+    "detail": "",
+    "assurance": "protected",
+    "findings": []
+  },
+  "mechanism": "rulesets",
+  "rulesetIds": {
+    "development": 19728531,
+    "staging": 20218450,
+    "main": 20218451
+  },
+  "beforeContexts": {
+    "development": [
+      "Cursor Bugbot",
+      "Verify IDE Development",
+      "Enforce allowed PR source branches"
+    ],
+    "staging": [
+      "Verify IDE Development",
+      "Enforce allowed PR source branches"
+    ],
+    "main": [
+      "Verify IDE Development",
+      "Enforce allowed PR source branches"
+    ]
+  },
+  "afterContexts": {
+    "development": [
+      "Cursor Bugbot",
+      "Verify IDE Development",
+      "Linktrend Branch Source Policy"
+    ],
+    "staging": [
+      "Verify IDE Development",
+      "Linktrend Branch Source Policy"
+    ],
+    "main": [
+      "Verify IDE Development",
+      "Linktrend Branch Source Policy"
+    ]
+  },
+  "actions": [
+    "development:update",
+    "staging:update",
+    "main:update"
+  ],
+  "preserve": {
+    "Cursor Bugbot": true,
+    "strict": true,
+    "bypassActorsUnchanged": true
+  },
+  "rollbackCommand": "./scripts/manage-repository-protections.sh --repo linktrend/IDE-Development rollback --snapshot docs/evidence/issue-328-bootstrap-step1-source-policy/sanitized/step1-apply-plan.json --apply",
+  "pr326": {
+    "pr": 326,
+    "head": "2f204781e093acad694b084e7c4ba0652fd17721",
+    "tree": "4556fb197c575c64cb1a152c00738c8651a3cb74",
+    "expectedHead": "2f204781e093acad694b084e7c4ba0652fd17721",
+    "expectedTree": "4556fb197c575c64cb1a152c00738c8651a3cb74",
+    "unchanged": true
+  },
+  "producer": {
+    "name": "Linktrend Branch Source Policy",
+    "state": "active",
+    "id": 315986457
+  }
+}

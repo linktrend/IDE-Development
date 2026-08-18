@@ -79,7 +79,7 @@ Light pre-Execution sanity (git / `development` branch / CI present) may be fixe
 1. `3.1-issue-dispatch`
 2. `3.2-implement-and-proof` — branch `issue/<id>-<slug>` from `development`
 3. `3.3-independent-review`
-4. `3.4-integration` — PR + CI; merge-ready → Integrator into `development`
+4. `3.4-integration` — Phase PR + CI; merge-ready → delivery controller into `development`
 5. `3.5-module-gate`
 
 ### Module 4 — Verification & Hardening

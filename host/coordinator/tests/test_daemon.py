@@ -19,7 +19,7 @@ def identity():
 
 
 class FakeGitHub:
-    token = "test-secret"
+    token = "ltfx.daemon.fake_github.v1"
 
     def load_protected_policy(self, repository, *, candidate_ref=None):
         return {"schemaVersion": 1, "deliveryMode": "phase-integration"}, "development"

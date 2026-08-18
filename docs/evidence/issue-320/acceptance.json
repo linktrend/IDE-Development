@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "issue": 320,
+  "workPackage": "WP-U07",
+  "branch": "issue/320-wp-u07-repository-owned-ci-trigger-contract",
+  "headSha": "e74bfb032b36b0ecb98c0c800ca39b13ee644812",
+  "tree": "5112798fa0d0e44122e3a079863206adf08b0c7a",
+  "startSha": "741e58922e7413c1097f4a58ea25e94a934af903",
+  "startTree": "1affbab9035df799fdb7d723d8518e54fa6a1c00",
+  "dependencyContextSha": "152d39130746dde16cc00a343e949e518db58ef2",
+  "dependencyContextTree": "8335a0c71285fb870673114a456ece3f7268dcbd",
+  "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
+  "schemaRepairHeadSha": "b35e816a455da1007562f65515774a60294a2d9a",
+  "schemaRepairTree": "1b1ada822582f279570c111010c027ccfae4d951",
+  "priorEvidenceTip": "5b5306106f33ed0f8c81b7d796f5db12d13c3ff2",
+  "acceptance": "AC-U07 evidence-only: focused-tests.out is one clean run of the claimed bounded command (26 OK); schema repair unchanged",
+  "reviewRepairs": [
+    "P2 evidence transcript regenerated from single claimed unittest command (26 OK, no duplicate)"
+  ],
+  "exclusions": [
+    "AC-U07-01 live nine-repo",
+    "AC-U07-23 consumer audits",
+    "Full suite",
+    "PR",
+    "review-ready publish",
+    "source behavior change"
+  ],
+  "commands": [
+    {
+      "command": "python3 -m unittest scripts.tests.test_repository_ci_trigger_contract scripts.ide_development_tests.test_build_manifest",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-320/wp-u07-focused-tests.out",
+      "testsRan": 26
+    },
+    {
+      "command": "python3 -m scripts.ide_development.build_manifest --verify",
+      "exitCode": 0
+    }
+  ],
+  "at": "2026-08-17T12:27:43Z",
+  "sanitized": true,
+  "hold": [
+    "Factory .github/workflows/ci.yml still has broad pull_request/push; audit reports promotion_expensive_retrigger without mutating.",
+    "No review-ready / PR / Full / consumer rollout in this packet."
+  ],
+  "evidenceHeadSha": "e74bfb032b36b0ecb98c0c800ca39b13ee644812",
+  "evidenceTree": "5112798fa0d0e44122e3a079863206adf08b0c7a",
+  "repairedHeadSha": "e74bfb032b36b0ecb98c0c800ca39b13ee644812",
+  "repairedTree": "5112798fa0d0e44122e3a079863206adf08b0c7a"
+}

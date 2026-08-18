@@ -90,7 +90,7 @@ All three test scripts: **PASS**.
 | `github_app.authority_scope` | **unknown** (permission matrix not observable) |
 | `bugbot.user_token_secret` | ok (name present) |
 | `bugbot.manual_trigger_only` | **unknown** (Cursor dashboard not on GitHub API) |
-| `bugbot.check_name` | ok (default `Cursor Bugbot`) |
+| `bugbot.check_name` | ok (managed `Linktrend Review Gate` (provider `Cursor Bugbot`)) |
 | `carlos.user_token_boundary` | **unknown** (PAT scopes not readable via repo API) |
 | `protection.development_ruleset` | ok |
 | `protection.staging_ruleset` | **missing** |

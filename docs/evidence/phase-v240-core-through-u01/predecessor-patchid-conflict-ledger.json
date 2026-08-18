@@ -1,0 +1,1250 @@
+{
+  "schemaVersion": 1,
+  "role": "bounded-serial-integrator",
+  "phaseBranch": "phase/v240-core-through-u01",
+  "planAuthority": {
+    "path": "docs/NEXT-IDE-DEVELOPMENT-RELEASE-IMPLEMENTATION-PLAN.md",
+    "docsAuthoritySha": "3a5d15231d65b8549d64971960b2aeb617b58838",
+    "userOrder": [
+      "WP-U04",
+      "WP-U03",
+      "WP-U08",
+      "WP-U09",
+      "WP-U10",
+      "WP-U07",
+      "WP-U01"
+    ],
+    "excluded": [
+      "WP-U06",
+      "WP-U02",
+      "WP-U05",
+      "WP-COMBINED",
+      "WP-RELEASE",
+      "WP-CONSUMERS",
+      "Full",
+      "PR",
+      "protected-branch-merge",
+      "publication",
+      "rollout",
+      "consumer-install"
+    ]
+  },
+  "immutableBase": {
+    "ref": "origin/development",
+    "sha": "741e58922e7413c1097f4a58ea25e94a934af903",
+    "tree": "1affbab9035df799fdb7d723d8518e54fa6a1c00"
+  },
+  "method": "cherry-pick accepted novel commits only; skip equal-patch duplicate ancestry; skip divergent dependency layers favoring earlier accepted tips; narrow conflict repair without prefer-incoming",
+  "integrationContentHead": {
+    "sha": "6d19995509b40a51edb21b6aa329f9158e5f0ade",
+    "tree": "ecc7b856ae504e879a5c875fa2fa076d789125cd",
+    "equalsAcceptedU01TipTree": true,
+    "note": "Phase content tree exactly equals accepted WP-U01 tip tree before integrator evidence commit"
+  },
+  "boundaryTrees": {
+    "afterU07NovelsMatchedU07TipTree": "53af75c63ad2dc48403ba0c2f3be5adb71d79bd2",
+    "afterU01NovelsMatchedU01TipTree": "ecc7b856ae504e879a5c875fa2fa076d789125cd"
+  },
+  "packets": [
+    {
+      "id": "WP-U04",
+      "issueBranch": "issue/308-implement-v2-4-0-trusted-review-ready-publisher",
+      "acceptedTip": "e2aab836ddf7efb67c6299f82a1b239f1470f383",
+      "acceptedTipTree": "accf5727d0c9901cac8ae60e8360f0058201e8ea",
+      "ledgerSource": "tip-vs-origin/development (independently clean single commit)",
+      "novelCommits": [
+        {
+          "sha": "e2aab836ddf7efb67c6299f82a1b239f1470f383",
+          "patchId": "7e88661ca5404ef832d314b813e081b6a4786278",
+          "subject": "fix(gitops): place trusted Review Ready flag on publish and forward AUTOMATION_TOKEN"
+        }
+      ],
+      "skippedDuplicateAncestry": []
+    },
+    {
+      "id": "WP-U03",
+      "issueBranch": "issue/309-implement-v2-4-0-phase-packager-and-coordinator",
+      "acceptedTip": "3147d10a96805c1169f737fd350fc6f9a58d5f6f",
+      "acceptedTipTree": "21463af488c3ff6aa256b16adaf97eab9d412eba",
+      "ledgerSource": "tip-vs-origin/development (independently clean)",
+      "novelCommits": [
+        {
+          "sha": "7563504cb0b16979801d27385e2bca97373c0e07",
+          "patchId": "f2f91ba0abdc7c5d130b24e824277c46bd38cfb6",
+          "subject": "feat(gitops): add agent-agnostic Phase Packager and Coordinator"
+        },
+        {
+          "sha": "3147d10a96805c1169f737fd350fc6f9a58d5f6f",
+          "patchId": "3ea1a4ab0a0f68fd8fa190840a33ef998d286af1",
+          "subject": "fix(gitops): fail-closed live Phase Packager assemble"
+        }
+      ],
+      "skippedDuplicateAncestry": []
+    },
+    {
+      "id": "WP-U08",
+      "issueBranch": "issue/310-implement-v2-4-0-safe-delivery-artifact-reconcil",
+      "acceptedTip": "03100dcaecfc9132672fe0592fa37bd126caaf3a",
+      "acceptedTipTree": "19696d9e86638d65c815ba2e3db17f9aa69825ec",
+      "ledgerSource": "tip-vs-origin/development (independently clean)",
+      "novelCommits": [
+        {
+          "sha": "927d0fd98ce25c7e131f211aac677cb5f208ff31",
+          "patchId": "a5836c73a1f2959cb95c03e1687f6b00167e5f1e",
+          "subject": "feat(gitops): add safe stale delivery-artifact reconciliation"
+        },
+        {
+          "sha": "03100dcaecfc9132672fe0592fa37bd126caaf3a",
+          "patchId": "2073eba3133f173791a050d531a881123d408b03",
+          "subject": "fix(gitops): stop inventory JSON from authorizing deletion"
+        }
+      ],
+      "skippedDuplicateAncestry": []
+    },
+    {
+      "id": "WP-U09",
+      "issueBranch": "issue/318-implement-v2-4-0-independent-review-convergence",
+      "acceptedTip": "36231634601e5580c83d4339acaeef651769ea93",
+      "acceptedTipTree": "259bc414e753e3d8f9a5b193f8e5bee7c9fa1a75",
+      "ledgerSource": "patch-id novel after equal-patch U03+U08 layers on tip",
+      "novelCommits": [
+        {
+          "sha": "e6295a79e10800863b206fb326e36ae349c5b306",
+          "patchId": "f236b40a95c5ca9af8f6fc75938f8431e195ed03",
+          "subject": "feat(gitops): add progress-based independent-review convergence"
+        },
+        {
+          "sha": "24bae9ddf524b82ca744f74147bc699fcd40bb6a",
+          "patchId": "eee0738abc2a1bb6abe8daa8d9179349e81a2758",
+          "subject": "fix(gitops): close independent-review identity and stop-state holes"
+        },
+        {
+          "sha": "6108a8fd1c19d11075af9ababf17db132357bd5d",
+          "patchId": "7d76cc80e4b8d8741ce3e8ed7ea2f895af02a77d",
+          "subject": "fix(gitops): keep HOLD and repair paths fail-closed"
+        },
+        {
+          "sha": "e8f503090d2453d80fa96c0a348717932436be30",
+          "patchId": "9a6c17b51c7ea9c6ba1610107f7dc02aba89978c",
+          "subject": "fix(gitops): require consumed repair batch before empty-ingest correction"
+        },
+        {
+          "sha": "36231634601e5580c83d4339acaeef651769ea93",
+          "patchId": "ea3d0103caca09f4ab060b98c62be67a7f9e2448",
+          "subject": "fix(manifest): refresh independent-review sourceHashes for live verify"
+        }
+      ],
+      "skippedDuplicateAncestry": [
+        {
+          "sha": "cdd321137934",
+          "patchId": "f2f91ba0abdc7c5d130b24e824277c46bd38cfb6",
+          "equals": "U03:7563504"
+        },
+        {
+          "sha": "201f0c01a3f6",
+          "patchId": "3ea1a4ab0a0f68fd8fa190840a33ef998d286af1",
+          "equals": "U03:3147d10"
+        },
+        {
+          "sha": "d250cf1cbe7a",
+          "patchId": "a5836c73a1f2959cb95c03e1687f6b00167e5f1e",
+          "equals": "U08:927d0fd"
+        },
+        {
+          "sha": "7b2801317e5f",
+          "patchId": "2073eba3133f173791a050d531a881123d408b03",
+          "equals": "U08:03100dc"
+        }
+      ]
+    },
+    {
+      "id": "WP-U10",
+      "issueBranch": "issue/319-implement-v2-4-0-wp-u10-fixture-aware-secret-sca",
+      "acceptedTip": "f738a94f3db6888968692d617b0b2bcd85024684",
+      "acceptedTipTree": "1c73c8747ab73ff0c9cc5671740aa1c7c9ec061f",
+      "ledgerSource": "patch-id novel after partial U09; later U09 fixes already on phase",
+      "novelCommits": [
+        {
+          "sha": "cd97055888d66d247c825c46b22a1de99d424a76",
+          "patchId": "bf4960ac5d21bbaab33b13167a60b53c8061c7fb",
+          "subject": "feat(gitops): add fixture-aware secret scanning"
+        },
+        {
+          "sha": "ca1d426484607976d29d48a337eb47a11ecf1e05",
+          "patchId": "ae6d04743482b8eb42ec00e0f94a9eea223775d4",
+          "subject": "fix(gitops): close U10 secret-scan review findings"
+        },
+        {
+          "sha": "0142b2f0e19c4e6a1e339f136ee4aee97f52a4ec",
+          "patchId": "61e7d7fcf7e44f99353a63618cd0eac1e4e07389",
+          "subject": "fix(gitops): reconcile factory secret-scan findings for WP-U10"
+        },
+        {
+          "sha": "0fde823ed770feb5fdc5adde2fe02ae75a694ed6",
+          "patchId": "c66712e5c64ae34efa2104daf04c67d52afaeaae",
+          "subject": "fix(gitops): reject duplicate secret-scan fixture ids"
+        },
+        {
+          "sha": "f738a94f3db6888968692d617b0b2bcd85024684",
+          "patchId": "71d990ff28e831c238f1dd3683f0c1e81135a195",
+          "subject": "fix(gitops): rebind secret-scan fixture candidateTree"
+        }
+      ],
+      "skippedDuplicateAncestry": [
+        {
+          "note": "U03/U08/e6295a7 layered ancestors skipped as equal-patch or already integrated"
+        }
+      ]
+    },
+    {
+      "id": "WP-U07",
+      "issueBranch": "issue/320-wp-u07-repository-owned-ci-trigger-contract",
+      "acceptedTip": "a926794d7e549a97579f2e1816aca7a893993ccd",
+      "acceptedTipTree": "53af75c63ad2dc48403ba0c2f3be5adb71d79bd2",
+      "contentHead": "e74bfb032b36b0ecb98c0c800ca39b13ee644812",
+      "contentTree": "5112798fa0d0e44122e3a079863206adf08b0c7a",
+      "ledgerSource": "docs/evidence/issue-320/acceptance.json; novel after dependencyContext 152d391",
+      "novelCommits": [
+        {
+          "sha": "7c2277d23d03fea278833fb6d6777eb8131060f0",
+          "patchId": "2a072e32937cdfbdf60ed145b49aeaa44d8e05e7",
+          "subject": "feat(gitops): add repository-owned CI trigger contract core"
+        },
+        {
+          "sha": "72ce7464bc32e60ff5933ccf0fb175ddd3bb208a",
+          "patchId": "39d5753aaca8cdc407561509fb5b6a4a2c5eca5c",
+          "subject": "feat(installer): package U07 CI contract and audit triggers on plan"
+        },
+        {
+          "sha": "dcb7cfe379e7cefed07210e6bdea87aeb35755d3",
+          "patchId": "c704de3baa957e17fae3a487271bf51f67507d2b",
+          "subject": "docs(evidence): record WP-U07 focused validation checkpoint"
+        },
+        {
+          "sha": "c23ada6a248e1fec16109228d1d4b7df618d03a6",
+          "patchId": "005035a5799731343ddd09e63201edea63c5b163",
+          "subject": "docs(evidence): bind WP-U07 acceptance to checkpoint tip"
+        },
+        {
+          "sha": "a831e7f2c5cae9a95241f714d68fcadfd92a7c44",
+          "patchId": "0a93ad8b5b8b2cb5633ab61977e3e245e6120d18",
+          "subject": "docs(evidence): distinguish WP-U07 implementation and evidence tips"
+        },
+        {
+          "sha": "678a618e1ac5668fe2f57d22938a7ef65b5aaee9",
+          "patchId": "ccc8cf4ea82ec6c2fdc448c9e7116bd0934ef103",
+          "subject": "fix(gitops): close WP-U07 P1/P2 review findings"
+        },
+        {
+          "sha": "12f9c630b7fd3d0e94f189c2b71f412ac01fbdef",
+          "patchId": "d505035e2571512d55d9b87eda7156a27916ef59",
+          "subject": "docs(evidence): bind WP-U07 acceptance to exact repaired head"
+        },
+        {
+          "sha": "b35e816a455da1007562f65515774a60294a2d9a",
+          "patchId": "7be1abdb82d1ba0580121c97c49ff6120e21c144",
+          "subject": "fix(schemas): reconcile ci-evidence with producer fields"
+        },
+        {
+          "sha": "5b5306106f33ed0f8c81b7d796f5db12d13c3ff2",
+          "patchId": "ef518bd8bde9e7fcf41dcd5f47c89343d503f1a7",
+          "subject": "docs(evidence): bind WP-U07 ci-evidence schema repair head"
+        },
+        {
+          "sha": "e74bfb032b36b0ecb98c0c800ca39b13ee644812",
+          "patchId": "fc7585e4b4b81cfcd4296dc0853c4faa51149c5b",
+          "subject": "docs(evidence): regenerate WP-U07 focused-test transcript"
+        },
+        {
+          "sha": "a926794d7e549a97579f2e1816aca7a893993ccd",
+          "patchId": "5406bfb56b27624c85997fa70009973b9a90674d",
+          "subject": "docs(evidence): bind WP-U07 acceptance to truthful transcript tip"
+        }
+      ],
+      "skippedDuplicateAncestry": [
+        {
+          "sha": "a0b0879fcf3d",
+          "patchId": "7e88661ca5404ef832d314b813e081b6a4786278",
+          "equals": "U04 tip"
+        },
+        {
+          "sha": "5bdd88f3b256",
+          "patchId": "aa959241f1bc594f2d4c482f24ee105ff7b74917",
+          "note": "DIVERGENT U03 packager layer skipped"
+        },
+        {
+          "sha": "cc86fd3a0baa",
+          "patchId": "3ea1a4ab0a0f68fd8fa190840a33ef998d286af1",
+          "equals": "U03 fix"
+        },
+        {
+          "sha": "a37de87d74a9",
+          "patchId": "a5836c73a1f2959cb95c03e1687f6b00167e5f1e",
+          "equals": "U08 feat"
+        },
+        {
+          "sha": "18cc7031b369",
+          "patchId": "2073eba3133f173791a050d531a881123d408b03",
+          "equals": "U08 fix"
+        },
+        {
+          "sha": "b2e69d11e59b",
+          "patchId": "4091eac2c62f2bc18dd6cca4c7c2db3a477bbfb6",
+          "note": "DIVERGENT U09 feat layer skipped"
+        },
+        {
+          "sha": "cb2d9fc50999",
+          "patchId": "eee0738abc2a1bb6abe8daa8d9179349e81a2758",
+          "equals": "U09"
+        },
+        {
+          "sha": "304d67927abb",
+          "patchId": "7d76cc80e4b8d8741ce3e8ed7ea2f895af02a77d",
+          "equals": "U09"
+        },
+        {
+          "sha": "7f8461557f0e",
+          "patchId": "9a6c17b51c7ea9c6ba1610107f7dc02aba89978c",
+          "equals": "U09"
+        },
+        {
+          "sha": "254a7cbdbeb0",
+          "patchId": "ea3d0103caca09f4ab060b98c62be67a7f9e2448",
+          "equals": "U09 tip"
+        },
+        {
+          "sha": "4ad979a46750",
+          "patchId": "bf4960ac5d21bbaab33b13167a60b53c8061c7fb",
+          "equals": "U10 feat"
+        },
+        {
+          "sha": "523e07c44823",
+          "patchId": "ae6d04743482b8eb42ec00e0f94a9eea223775d4",
+          "equals": "U10"
+        },
+        {
+          "sha": "7c0cec94e8ce",
+          "patchId": "87d483b5073aca2a9918ff0693d3c4b3881ab1a7",
+          "note": "DIVERGENT U10 reconcile skipped"
+        },
+        {
+          "sha": "b5be5c91be45",
+          "patchId": "c66712e5c64ae34efa2104daf04c67d52afaeaae",
+          "equals": "U10"
+        },
+        {
+          "sha": "152d39130746",
+          "patchId": "71d990ff28e831c238f1dd3683f0c1e81135a195",
+          "equals": "U10 tip"
+        }
+      ]
+    },
+    {
+      "id": "WP-U01",
+      "issueBranch": "issue/322-implement-ide-development-v2-4-0-wp-u01",
+      "acceptedTip": "b9f1ac4b73030e4ea8417fd34fa4987a5f890136",
+      "acceptedTipTree": "ecc7b856ae504e879a5c875fa2fa076d789125cd",
+      "contentHead": "e4a2ceff2dfcf664699ee1e2c750911000058762",
+      "contentTree": "517743c39db81d549ca316360412801c75894fb8",
+      "evidenceHead": "13d1cb740c58a86f85a6884091a229f8caaecb91",
+      "evidenceTree": "c2942ba8b714e107d287b23789f43574a4de40da",
+      "ledgerSource": "docs/evidence/issue-322/PACKET.md + predecessor-ledger.json",
+      "novelRangeDeclared": "2c1448647d96f3b447bf84a3b0723bbeaf6fc63a..13d1cb740c58a86f85a6884091a229f8caaecb91 + bind tip b9f1ac4",
+      "novelCommits": [
+        {
+          "sha": "2c1448647d96f3b447bf84a3b0723bbeaf6fc63a",
+          "patchId": "74c829df870fbed7f7eadef26167fdf09404d7fd",
+          "subject": "docs(evidence): record WP-U01 predecessor ledger on U07 tip"
+        },
+        {
+          "sha": "185e58bb4123772f7cbf108b190a007806e3430e",
+          "patchId": "2afb58540fe521b51fd018cde8ca98f351728e2b",
+          "subject": "feat(gitops): add Linktrend Review Gate for WP-U01"
+        },
+        {
+          "sha": "d4ed665ab5821ccc9497019c84d932b02e6e09fe",
+          "patchId": "214026791d2829b44bae4224fbf8aafad60eab76",
+          "subject": "docs(evidence): record WP-U01 focused validation checkpoint"
+        },
+        {
+          "sha": "fb0934d023500ccc75015cd0036fa327a0a9b6b4",
+          "patchId": "f1be2f0ccbfc5af2dabacdc7858a5e12b78c3666",
+          "subject": "docs(evidence): bind WP-U01 acceptance to checkpoint tip"
+        },
+        {
+          "sha": "ff83fe7e0149c16a77cdeb48bd06c5378422b661",
+          "patchId": "ddb67e5696154ad8e77f0be683d9110459a14fba",
+          "subject": "docs(evidence): bind WP-U01 tip head and transcript evidence SHAs"
+        },
+        {
+          "sha": "4aabf52bd36c876424ad81a4855b008d9be47bb7",
+          "patchId": "14af3d1c47fe17db095853d22b1c141626d23241",
+          "subject": "docs(evidence): bind WP-U01 acceptance to truthful tip"
+        },
+        {
+          "sha": "e86d27beea9c3ca9e560aab18946637096144ffe",
+          "patchId": "60b2d936e52466098f06cee7993dd2605f8c0089",
+          "subject": "docs(evidence): bind WP-U01 acceptance head to verified tip"
+        },
+        {
+          "sha": "d020b73431af6c77ed90f93febac63c9064753d0",
+          "patchId": "0dfbb705e9f7d90ca10bc91a39689afea54014cc",
+          "subject": "docs(evidence): clarify WP-U01 packet head/tree bind notes"
+        },
+        {
+          "sha": "c11d2586ddd31f735b11a5cc179f7cdfcaca0b56",
+          "patchId": "e13b95f69a68409a2fee7e9875d41f2650ac1396",
+          "subject": "fix(gitops): close WP-U01 review findings for Review Gate"
+        },
+        {
+          "sha": "6be0d8ce4e3e6e9ea5b0125da4c22d907e43d105",
+          "patchId": "58a79f2897e883f9cb60f86738d3804be3ddb0f7",
+          "subject": "docs(evidence): record WP-U01 repair validation on content head"
+        },
+        {
+          "sha": "a15fa0b5334f0220c904886692fb6d07a7cf1b8d",
+          "patchId": "3da1db687d16f29fb519456ec07df6d1355ac25e",
+          "subject": "docs(evidence): bind WP-U01 acceptance to content head"
+        },
+        {
+          "sha": "b92b10ce29d71688ff603569ad2b33738c6996ed",
+          "patchId": "2cc14231046dad9cd7214e797aa06faf57d6e566",
+          "subject": "docs(evidence): finalize WP-U01 bind-tip packet range"
+        },
+        {
+          "sha": "7eb1c8f55d0253d9e2537f56bccee6c767891678",
+          "patchId": "3291ce4561341f70b2de986d7c2e34bb2d2c5d31",
+          "subject": "fix(gitops): keep provider observation split and bootstrap doctrine"
+        },
+        {
+          "sha": "c84abbbe98f5c82bc382812f07131d2c43a41cfd",
+          "patchId": "222dfbe1e45546012a430b42066c93733dc031de",
+          "subject": "docs(evidence): record WP-U01 follow-up validation on content head"
+        },
+        {
+          "sha": "300de65f4b73537a3ba87d17308d0f67bca1e9fa",
+          "patchId": "572906cf05f1e06a8b76f5eee58636257e5b5aa3",
+          "subject": "docs(evidence): bind WP-U01 acceptance to follow-up content head"
+        },
+        {
+          "sha": "866965f89b87d1ee280e5d8cbaed6fb3c5d0075d",
+          "patchId": "c400ebc235f8079406e6183a0a0635b608eaef45",
+          "subject": "docs(evidence): finalize WP-U01 follow-up bind-tip packet range"
+        },
+        {
+          "sha": "a67f2f8f286de8c059f9c458230371416191b4d5",
+          "patchId": "76719270fc96a684a7aa199c971abfaf911dd918",
+          "subject": "docs(evidence): stamp WP-U01 bind tip identity"
+        },
+        {
+          "sha": "ee8097ca54a0ff8134e98591c20d37b80bc3b253",
+          "patchId": "5874c91c61602f9f38dbfbde0ae4c7cc499a3687",
+          "subject": "docs(evidence): finalize WP-U01 follow-up packet tip bindings"
+        },
+        {
+          "sha": "7fee5d9cf423eb3eeff99af8a40c1a530c4b8809",
+          "patchId": "130ccc5be5adaab1d10cc271a8dbf33627b48e80",
+          "subject": "fix(gitops): close U01-R2..R4 review-gate findings"
+        },
+        {
+          "sha": "38069d21af6d74993936b95e4d3c38869c45a95c",
+          "patchId": "a7c64ff1f4da95dbbd0e0352dfab75b66ae44d81",
+          "subject": "docs(evidence): record U01-R1..R4 validation on content head"
+        },
+        {
+          "sha": "cc0854788eecf64c5676a9668015e7b42c9306cb",
+          "patchId": "ba6e60581ba6f316462b686c29ed0db792a5464e",
+          "subject": "docs(evidence): bind U01 content/evidence heads without self-SHA"
+        },
+        {
+          "sha": "6ec04c16b6753789e30b8fd0a67d2a014355f8dd",
+          "patchId": "2dae436bc67cedb353805988ee3e15efd8cc21d8",
+          "subject": "fix(gitops): fail-closed paginated slurp for review-gate markers"
+        },
+        {
+          "sha": "74fc5ab5503e7222b95dc0a8027b54be551f202a",
+          "patchId": "4b834e891cb06ef297ee43a72ffff92ba6151277",
+          "subject": "docs(evidence): record pagination fail-closed validation on content head"
+        },
+        {
+          "sha": "b0b7051f1b45aa0bd127ca973a1574af4ab1683e",
+          "patchId": "23195d6dfb6677da430e2d4123b7f1634cbdc92b",
+          "subject": "docs(evidence): bind pagination repair content/evidence heads"
+        },
+        {
+          "sha": "e07ee73e3e9ec3c50fa8f5f550b150afbf1ef738",
+          "patchId": "ddb1bcc3a6b8149965c6731172bd364a0b768988",
+          "subject": "fix(gitops): pipe review-gate slurps via stdin, not argv"
+        },
+        {
+          "sha": "e4a2ceff2dfcf664699ee1e2c750911000058762",
+          "patchId": "48943613445169de3bda08664d7822d08e4a1858",
+          "subject": "style(tests): hoist os import for review-gate ARG_MAX test"
+        },
+        {
+          "sha": "13d1cb740c58a86f85a6884091a229f8caaecb91",
+          "patchId": "0c491a56f1e1dd4e4123d56176a5ce355c60f417",
+          "subject": "docs(evidence): record stdin-slurp validation on content head"
+        },
+        {
+          "sha": "b9f1ac4b73030e4ea8417fd34fa4987a5f890136",
+          "patchId": "3ad6349d5bd5501d0fdff076d122d4bef5732321",
+          "subject": "docs(evidence): bind stdin-slurp content/evidence heads"
+        }
+      ],
+      "skippedDuplicateAncestry": [
+        {
+          "note": "U07 tip ancestry already integrated or skipped"
+        }
+      ]
+    }
+  ],
+  "applyLog": [
+    {
+      "packet": "WP-U04",
+      "sourceCommit": "e2aab836ddf7efb67c6299f82a1b239f1470f383",
+      "subject": "fix(gitops): place trusted Review Ready flag on publish and forward AUTOMATION_TOKEN",
+      "patchId": "7e88661ca5404ef832d314b813e081b6a4786278",
+      "applyStatus": "applied",
+      "afterSha": "64658aa4b7888546f5a18ed84ee4460438c26527",
+      "afterTree": "accf5727d0c9901cac8ae60e8360f0058201e8ea",
+      "tipTree": "accf5727d0c9901cac8ae60e8360f0058201e8ea",
+      "tipTreePreserved": true,
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U03",
+      "sourceCommit": "7563504cb0b16979801d27385e2bca97373c0e07",
+      "subject": "feat(gitops): add agent-agnostic Phase Packager and Coordinator",
+      "sourcePatchId": "f2f91ba0abdc7c5d130b24e824277c46bd38cfb6",
+      "patchId": "f2f91ba0abdc7c5d130b24e824277c46bd38cfb6",
+      "applyStatus": "applied-after-narrow-reconcile",
+      "beforeSha": "64658aa4b7888546f5a18ed84ee4460438c26527",
+      "beforeTree": "accf5727d0c9901cac8ae60e8360f0058201e8ea",
+      "afterSha": "d12b3a6ec3f2affcdec1c9d55d603eb200431a8f",
+      "afterTree": "0d1eeeb546a9f0a12abceb140304de2b843d663e",
+      "phaseCommit": "d12b3a6ec3f2affcdec1c9d55d603eb200431a8f",
+      "phaseTree": "0d1eeeb546a9f0a12abceb140304de2b843d663e",
+      "phasePatchId": "aa959241f1bc594f2d4c482f24ee105ff7b74917",
+      "conflictFiles": [
+        "core/managed-core/MANIFEST.json"
+      ],
+      "resolution": "regenerated-manifest-via-build_manifest",
+      "resolutionDetail": "Cherry-pick of source 7563504 conflicted only on core/managed-core/MANIFEST.json (sourceHash collisions with already-integrated WP-U04). Non-manifest U03 content auto-merged onto U04 tip 64658aa. Regenerated MANIFEST via python3 -m scripts.ide_development.build_manifest --write, then completed the cherry-pick as phase commit d12b3a6. sourcePatchId records the accepted U03 tip patch; phasePatchId records the post-reconcile phase commit patch (differs because MANIFEST hashes and U04-layered doctrine/rule hashes are included)."
+    },
+    {
+      "packet": "WP-U03",
+      "sourceCommit": "3147d10a96805c1169f737fd350fc6f9a58d5f6f",
+      "subject": "fix(gitops): fail-closed live Phase Packager assemble",
+      "patchId": "3ea1a4ab0a0f68fd8fa190840a33ef998d286af1",
+      "applyStatus": "applied",
+      "beforeSha": "d12b3a6ec3f2affcdec1c9d55d603eb200431a8f",
+      "beforeTree": "0d1eeeb546a9f0a12abceb140304de2b843d663e",
+      "afterSha": "098c7a2cd2fabc9137e6b31288bf81c8ddf5bbdd",
+      "afterTree": "45a48bfab3dfe75cae8575c8a9b8d1dbc0058fd0",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U08",
+      "sourceCommit": "927d0fd98ce25c7e131f211aac677cb5f208ff31",
+      "subject": "feat(gitops): add safe stale delivery-artifact reconciliation",
+      "patchId": "a5836c73a1f2959cb95c03e1687f6b00167e5f1e",
+      "applyStatus": "applied",
+      "beforeSha": "098c7a2cd2fabc9137e6b31288bf81c8ddf5bbdd",
+      "beforeTree": "45a48bfab3dfe75cae8575c8a9b8d1dbc0058fd0",
+      "afterSha": "33eaf4231749daaa052107d7681bd72be46fcac2",
+      "afterTree": "f0a3b3a996478980c81348d24ef5117744a3e748",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U08",
+      "sourceCommit": "03100dcaecfc9132672fe0592fa37bd126caaf3a",
+      "subject": "fix(gitops): stop inventory JSON from authorizing deletion",
+      "patchId": "2073eba3133f173791a050d531a881123d408b03",
+      "applyStatus": "applied",
+      "beforeSha": "33eaf4231749daaa052107d7681bd72be46fcac2",
+      "beforeTree": "f0a3b3a996478980c81348d24ef5117744a3e748",
+      "afterSha": "b4c699ae0d761faef8e193f2b748302263e0a035",
+      "afterTree": "a7f58b6962b2500ac66b822fb0e293408ae69444",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U09",
+      "sourceCommit": "e6295a79e10800863b206fb326e36ae349c5b306",
+      "subject": "feat(gitops): add progress-based independent-review convergence",
+      "patchId": "f236b40a95c5ca9af8f6fc75938f8431e195ed03",
+      "applyStatus": "applied-after-narrow-reconcile",
+      "beforeSha": "b4c699ae0d761faef8e193f2b748302263e0a035",
+      "beforeTree": "a7f58b6962b2500ac66b822fb0e293408ae69444",
+      "afterSha": "8cc7405befe853cd168e1f5d2900fedf8cc86962",
+      "afterTree": "a66c1c2b378d7e1f4b342b1a592ae945bd729b14",
+      "conflictFiles": [
+        "core/managed-core/MANIFEST.json"
+      ],
+      "resolution": "regenerated-manifest-via-build_manifest; retained WP-U04 trusted-publisher doctrine in docs/contracts/AGENT-COMPLETION.md and core/managed-core/content/doctrine/AGENT-COMPLETION.md",
+      "resolutionDetail": {
+        "summary": "regenerated-manifest-via-build_manifest; retained WP-U04 trusted-publisher doctrine in docs/contracts/AGENT-COMPLETION.md and core/managed-core/content/doctrine/AGENT-COMPLETION.md",
+        "manifest": {
+          "conflictFile": "core/managed-core/MANIFEST.json",
+          "action": "python3 -m scripts.ide_development.build_manifest --write then cherry-pick --continue"
+        },
+        "retainedU04PublisherDoctrine": {
+          "note": "U09 source tip e6295a7 was authored without WP-U04 and carries a shortened Production publisher paragraph. On the phase branch, U04 was already integrated; auto-merge retained the U04 trusted-publisher doctrine text while applying only the U09 independent-review sentence on the repair-cycles bullet. Marker phrases present on phase/parent and absent from U09 source tip prove retention.",
+          "markersRetained": [
+            "LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER=1",
+            "forwards it onto those aliases",
+            "AUTOMATION_TOKEN` then `GH_TOKEN` then `GITHUB_TOKEN"
+          ],
+          "paths": [
+            {
+              "path": "docs/contracts/AGENT-COMPLETION.md",
+              "u04TipBlob": "a30bd48f01de4d58dd43254fd15c706ef6d68298",
+              "u09SourceBlob": "ad13e2f608ea7cb35354a99a0e5c36d40eed0d79",
+              "phaseParentBlob": "b7fde129d9c08a05d545fd286baabab577e215df",
+              "phaseAfterBlob": "f431e7f4d0d9b4876c2742107a8e0e4febc1da40",
+              "u04MarkersOnPhaseAfter": true,
+              "u04MarkersOnU09Source": false,
+              "parentToPhaseDiff": "single bullet at repair-cycles line: append independent-review convergence clarification only; Production publisher / AUTOMATION_TOKEN alias / trusted-flag paragraphs unchanged from parent (U04-bearing)"
+            },
+            {
+              "path": "core/managed-core/content/doctrine/AGENT-COMPLETION.md",
+              "u04TipBlob": "a30bd48f01de4d58dd43254fd15c706ef6d68298",
+              "u09SourceBlob": "ad13e2f608ea7cb35354a99a0e5c36d40eed0d79",
+              "phaseParentBlob": "b7fde129d9c08a05d545fd286baabab577e215df",
+              "phaseAfterBlob": "f431e7f4d0d9b4876c2742107a8e0e4febc1da40",
+              "u04MarkersOnPhaseAfter": true,
+              "u04MarkersOnU09Source": false,
+              "parentToPhaseDiff": "identical one-line independent-review clarification as docs/contracts copy; U04 publisher doctrine retained"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "packet": "WP-U09",
+      "sourceCommit": "24bae9ddf524b82ca744f74147bc699fcd40bb6a",
+      "subject": "fix(gitops): close independent-review identity and stop-state holes",
+      "patchId": "eee0738abc2a1bb6abe8daa8d9179349e81a2758",
+      "applyStatus": "applied",
+      "beforeSha": "8cc7405befe853cd168e1f5d2900fedf8cc86962",
+      "beforeTree": "a66c1c2b378d7e1f4b342b1a592ae945bd729b14",
+      "afterSha": "89ce8525591beaec0f6dc96caa798d27c5c144cb",
+      "afterTree": "add29ef4cf4176acecd56be1895b93b21625ec0d",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U09",
+      "sourceCommit": "6108a8fd1c19d11075af9ababf17db132357bd5d",
+      "subject": "fix(gitops): keep HOLD and repair paths fail-closed",
+      "patchId": "7d76cc80e4b8d8741ce3e8ed7ea2f895af02a77d",
+      "applyStatus": "applied",
+      "beforeSha": "89ce8525591beaec0f6dc96caa798d27c5c144cb",
+      "beforeTree": "add29ef4cf4176acecd56be1895b93b21625ec0d",
+      "afterSha": "2d56fe6363de1fc4392e749ece504bba686b8884",
+      "afterTree": "7b2b6715e8faa0f8092fc334ba9bd349df2ff0cf",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U09",
+      "sourceCommit": "e8f503090d2453d80fa96c0a348717932436be30",
+      "subject": "fix(gitops): require consumed repair batch before empty-ingest correction",
+      "patchId": "9a6c17b51c7ea9c6ba1610107f7dc02aba89978c",
+      "applyStatus": "applied",
+      "beforeSha": "2d56fe6363de1fc4392e749ece504bba686b8884",
+      "beforeTree": "7b2b6715e8faa0f8092fc334ba9bd349df2ff0cf",
+      "afterSha": "9f5d22b1eddfbb346f341570f99a1fb931df5a0b",
+      "afterTree": "dc1ad4f39632fb89324b4f6becdf50ac3a7999a2",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U09",
+      "sourceCommit": "36231634601e5580c83d4339acaeef651769ea93",
+      "subject": "fix(manifest): refresh independent-review sourceHashes for live verify",
+      "patchId": "ea3d0103caca09f4ab060b98c62be67a7f9e2448",
+      "applyStatus": "applied",
+      "beforeSha": "9f5d22b1eddfbb346f341570f99a1fb931df5a0b",
+      "beforeTree": "dc1ad4f39632fb89324b4f6becdf50ac3a7999a2",
+      "afterSha": "388ed9188c954920e2c1433aa3346d7b8fa482e5",
+      "afterTree": "bb64a19faeac308b9bbb13874796a893e2726de0",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U10",
+      "sourceCommit": "cd97055888d66d247c825c46b22a1de99d424a76",
+      "subject": "feat(gitops): add fixture-aware secret scanning",
+      "patchId": "bf4960ac5d21bbaab33b13167a60b53c8061c7fb",
+      "applyStatus": "applied",
+      "beforeSha": "388ed9188c954920e2c1433aa3346d7b8fa482e5",
+      "beforeTree": "bb64a19faeac308b9bbb13874796a893e2726de0",
+      "afterSha": "1cebbe01e97d62f8a4ec4bd7ed356186968f14f5",
+      "afterTree": "d4327d8c9a8b08600ec97cc948aada03f0906f8a",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U10",
+      "sourceCommit": "ca1d426484607976d29d48a337eb47a11ecf1e05",
+      "subject": "fix(gitops): close U10 secret-scan review findings",
+      "patchId": "ae6d04743482b8eb42ec00e0f94a9eea223775d4",
+      "applyStatus": "applied",
+      "beforeSha": "1cebbe01e97d62f8a4ec4bd7ed356186968f14f5",
+      "beforeTree": "d4327d8c9a8b08600ec97cc948aada03f0906f8a",
+      "afterSha": "2e3e6885ac02c851947b0760736617ec87d8dfd7",
+      "afterTree": "74db0aa2b92652464174f763b08894e4a1c9e878",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U10",
+      "sourceCommit": "0142b2f0e19c4e6a1e339f136ee4aee97f52a4ec",
+      "subject": "fix(gitops): reconcile factory secret-scan findings for WP-U10",
+      "patchId": "61e7d7fcf7e44f99353a63618cd0eac1e4e07389",
+      "applyStatus": "HOLD-conflict",
+      "beforeSha": "2e3e6885ac02c851947b0760736617ec87d8dfd7",
+      "conflictFiles": [
+        "scripts/tests/test-completion-gate-app-route.sh"
+      ],
+      "stdout": "Auto-merging core/managed-core/MANIFEST.json\nAuto-merging scripts/tests/test-completion-gate-app-route.sh\nCONFLICT (content): Merge conflict in scripts/tests/test-completion-gate-app-route.sh\n",
+      "stderr": "error: could not apply 0142b2f... fix(gitops): reconcile factory secret-scan findings for WP-U10\nhint: After resolving the conflicts, mark them with\nhint: \"git add/rm <pathspec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"\n"
+    },
+    {
+      "packet": "WP-U10",
+      "sourceCommit": "0142b2f0e19c4e6a1e339f136ee4aee97f52a4ec",
+      "applyStatus": "applied-after-narrow-reconcile",
+      "conflictFiles": [
+        "scripts/tests/test-completion-gate-app-route.sh"
+      ],
+      "resolution": "keep-U04-phase-prefix-and-trusted-publisher-contract; apply-U10-secret-scan-string-split-on-error-literals",
+      "afterSha": "16163b885376e3ba16fdbe3d3b1708117cd3a39c"
+    },
+    {
+      "packet": "WP-U10",
+      "sourceCommit": "0fde823ed770feb5fdc5adde2fe02ae75a694ed6",
+      "subject": "fix(gitops): reject duplicate secret-scan fixture ids",
+      "patchId": "c66712e5c64ae34efa2104daf04c67d52afaeaae",
+      "applyStatus": "applied",
+      "afterSha": "b117596e2d8c4e4f8e74f0a578eb1484d7f8bf09",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U10",
+      "sourceCommit": "f738a94f3db6888968692d617b0b2bcd85024684",
+      "subject": "fix(gitops): rebind secret-scan fixture candidateTree",
+      "patchId": "71d990ff28e831c238f1dd3683f0c1e81135a195",
+      "applyStatus": "applied",
+      "afterSha": "e42e1264ad18e870f2d4ad2610138a50fbfb9553",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U07",
+      "sourceCommit": "7c2277d23d03fea278833fb6d6777eb8131060f0",
+      "subject": "feat(gitops): add repository-owned CI trigger contract core",
+      "patchId": "2a072e32937cdfbdf60ed145b49aeaa44d8e05e7",
+      "applyStatus": "applied",
+      "afterSha": "ae67450baaa82763b07ef761499147f60f4aed7e",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U07",
+      "sourceCommit": "72ce7464bc32e60ff5933ccf0fb175ddd3bb208a",
+      "subject": "feat(installer): package U07 CI contract and audit triggers on plan",
+      "patchId": "39d5753aaca8cdc407561509fb5b6a4a2c5eca5c",
+      "applyStatus": "applied",
+      "afterSha": "53b9a10dd1924ea2d8ff92d40e04957dab168b3c",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U07",
+      "sourceCommit": "dcb7cfe379e7cefed07210e6bdea87aeb35755d3",
+      "subject": "docs(evidence): record WP-U07 focused validation checkpoint",
+      "patchId": "c704de3baa957e17fae3a487271bf51f67507d2b",
+      "applyStatus": "applied",
+      "afterSha": "9331cf2a662a8f7b36585d90056a29b4467004c5",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U07",
+      "sourceCommit": "c23ada6a248e1fec16109228d1d4b7df618d03a6",
+      "subject": "docs(evidence): bind WP-U07 acceptance to checkpoint tip",
+      "patchId": "005035a5799731343ddd09e63201edea63c5b163",
+      "applyStatus": "applied",
+      "afterSha": "a65fc3ceddc4dd209b082d2a6af81c385d896852",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U07",
+      "sourceCommit": "a831e7f2c5cae9a95241f714d68fcadfd92a7c44",
+      "subject": "docs(evidence): distinguish WP-U07 implementation and evidence tips",
+      "patchId": "0a93ad8b5b8b2cb5633ab61977e3e245e6120d18",
+      "applyStatus": "applied",
+      "afterSha": "27ef4fdff046bb78bea772d56b5df54bad85d3e0",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U07",
+      "sourceCommit": "678a618e1ac5668fe2f57d22938a7ef65b5aaee9",
+      "subject": "fix(gitops): close WP-U07 P1/P2 review findings",
+      "patchId": "ccc8cf4ea82ec6c2fdc448c9e7116bd0934ef103",
+      "applyStatus": "applied",
+      "afterSha": "7785468af153d66ead9784e2302add38bf02dd5f",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U07",
+      "sourceCommit": "12f9c630b7fd3d0e94f189c2b71f412ac01fbdef",
+      "subject": "docs(evidence): bind WP-U07 acceptance to exact repaired head",
+      "patchId": "d505035e2571512d55d9b87eda7156a27916ef59",
+      "applyStatus": "applied",
+      "afterSha": "6bc93ede628f5aeee7984cf1de3e2a85e157dc91",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U07",
+      "sourceCommit": "b35e816a455da1007562f65515774a60294a2d9a",
+      "subject": "fix(schemas): reconcile ci-evidence with producer fields",
+      "patchId": "7be1abdb82d1ba0580121c97c49ff6120e21c144",
+      "applyStatus": "applied",
+      "afterSha": "9ecfd142f51508f8fff1fd0a1a5be0df8e446ac0",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U07",
+      "sourceCommit": "5b5306106f33ed0f8c81b7d796f5db12d13c3ff2",
+      "subject": "docs(evidence): bind WP-U07 ci-evidence schema repair head",
+      "patchId": "ef518bd8bde9e7fcf41dcd5f47c89343d503f1a7",
+      "applyStatus": "applied",
+      "afterSha": "349a0ebc383fee39cb0824a1661a609b78d51636",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U07",
+      "sourceCommit": "e74bfb032b36b0ecb98c0c800ca39b13ee644812",
+      "subject": "docs(evidence): regenerate WP-U07 focused-test transcript",
+      "patchId": "fc7585e4b4b81cfcd4296dc0853c4faa51149c5b",
+      "applyStatus": "applied",
+      "afterSha": "af95774ceb05e4b7144231df7472c90672b6de96",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U07",
+      "sourceCommit": "a926794d7e549a97579f2e1816aca7a893993ccd",
+      "subject": "docs(evidence): bind WP-U07 acceptance to truthful transcript tip",
+      "patchId": "5406bfb56b27624c85997fa70009973b9a90674d",
+      "applyStatus": "applied",
+      "afterSha": "72b26d1b3f5f9921dc44299a92e95b55f1f774db",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "2c1448647d96f3b447bf84a3b0723bbeaf6fc63a",
+      "subject": "docs(evidence): record WP-U01 predecessor ledger on U07 tip",
+      "patchId": "74c829df870fbed7f7eadef26167fdf09404d7fd",
+      "applyStatus": "applied",
+      "afterSha": "c6895899a2ade392e95321337ad49a55abb5092a",
+      "afterTree": "8c6d6ecac8543e89ef0ae1cc4acf0280f07bbd0f",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "185e58bb4123772f7cbf108b190a007806e3430e",
+      "subject": "feat(gitops): add Linktrend Review Gate for WP-U01",
+      "patchId": "2afb58540fe521b51fd018cde8ca98f351728e2b",
+      "applyStatus": "applied",
+      "afterSha": "79040b75a76e5b122570d92cd7a096ec0a856fee",
+      "afterTree": "97c1fd86bcf1d3b0b77298abb0f2aa8b874706da",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "d4ed665ab5821ccc9497019c84d932b02e6e09fe",
+      "subject": "docs(evidence): record WP-U01 focused validation checkpoint",
+      "patchId": "214026791d2829b44bae4224fbf8aafad60eab76",
+      "applyStatus": "applied",
+      "afterSha": "e27631b1caa113b552e068c76609708ab2c928c4",
+      "afterTree": "2d5e38de0fc095db71730ad55d2738fcb0ee4341",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "fb0934d023500ccc75015cd0036fa327a0a9b6b4",
+      "subject": "docs(evidence): bind WP-U01 acceptance to checkpoint tip",
+      "patchId": "f1be2f0ccbfc5af2dabacdc7858a5e12b78c3666",
+      "applyStatus": "applied",
+      "afterSha": "54f6adb16f140cea35591a34ddb7d5dd7b00ae39",
+      "afterTree": "91a8c22aca0e2b48c7a15aea3d1ee36dfc789599",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "ff83fe7e0149c16a77cdeb48bd06c5378422b661",
+      "subject": "docs(evidence): bind WP-U01 tip head and transcript evidence SHAs",
+      "patchId": "ddb67e5696154ad8e77f0be683d9110459a14fba",
+      "applyStatus": "applied",
+      "afterSha": "e4c59723252e71f590adb196d46f4645473c3d94",
+      "afterTree": "e7e018eb337c22d188b4feb91ceb90736bba59a3",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "4aabf52bd36c876424ad81a4855b008d9be47bb7",
+      "subject": "docs(evidence): bind WP-U01 acceptance to truthful tip",
+      "patchId": "14af3d1c47fe17db095853d22b1c141626d23241",
+      "applyStatus": "applied",
+      "afterSha": "24c3ab7f8e757e00227f3ce2f9eb431305f430ca",
+      "afterTree": "92bcdafe81b80fff9164a4f74d42479a61728df8",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "e86d27beea9c3ca9e560aab18946637096144ffe",
+      "subject": "docs(evidence): bind WP-U01 acceptance head to verified tip",
+      "patchId": "60b2d936e52466098f06cee7993dd2605f8c0089",
+      "applyStatus": "applied",
+      "afterSha": "5375eb2c990c4cd30adb9425a29250d90ec2172d",
+      "afterTree": "32a181f460a4310237f0312c25c0d92a8019753c",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "d020b73431af6c77ed90f93febac63c9064753d0",
+      "subject": "docs(evidence): clarify WP-U01 packet head/tree bind notes",
+      "patchId": "0dfbb705e9f7d90ca10bc91a39689afea54014cc",
+      "applyStatus": "applied",
+      "afterSha": "69c31ab0b22c52d5889ae20c43cf587fae80335c",
+      "afterTree": "9363d4e085f6d423106f679113a1e443e4ae327c",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "c11d2586ddd31f735b11a5cc179f7cdfcaca0b56",
+      "subject": "fix(gitops): close WP-U01 review findings for Review Gate",
+      "patchId": "e13b95f69a68409a2fee7e9875d41f2650ac1396",
+      "applyStatus": "applied",
+      "afterSha": "8d2f9c055e5e3423755f2e11a55b3d11a917798e",
+      "afterTree": "c0adeb78f7a977a964a7ee8e7dd5f84f19e59f14",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "6be0d8ce4e3e6e9ea5b0125da4c22d907e43d105",
+      "subject": "docs(evidence): record WP-U01 repair validation on content head",
+      "patchId": "58a79f2897e883f9cb60f86738d3804be3ddb0f7",
+      "applyStatus": "applied",
+      "afterSha": "1c3070033edef4f938622c38511e825e1a593d9c",
+      "afterTree": "2d1097dd9dc98f409e6c504d6d8ceb60aa45e9f5",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "a15fa0b5334f0220c904886692fb6d07a7cf1b8d",
+      "subject": "docs(evidence): bind WP-U01 acceptance to content head",
+      "patchId": "3da1db687d16f29fb519456ec07df6d1355ac25e",
+      "applyStatus": "applied",
+      "afterSha": "93b303d5eb197d34c0974ec5d8589e7a0f3ed764",
+      "afterTree": "0746f8e33130d29ab673555fcb60c2086580cb0c",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "b92b10ce29d71688ff603569ad2b33738c6996ed",
+      "subject": "docs(evidence): finalize WP-U01 bind-tip packet range",
+      "patchId": "2cc14231046dad9cd7214e797aa06faf57d6e566",
+      "applyStatus": "applied",
+      "afterSha": "80a1fcf4f5261a4521592f223fead286066b79b3",
+      "afterTree": "68d156bcea33ecbb42384f54de3cfb5299fded9b",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "7eb1c8f55d0253d9e2537f56bccee6c767891678",
+      "subject": "fix(gitops): keep provider observation split and bootstrap doctrine",
+      "patchId": "3291ce4561341f70b2de986d7c2e34bb2d2c5d31",
+      "applyStatus": "applied",
+      "afterSha": "2305b18dbf7b019842ad2845b9fca7caa783754d",
+      "afterTree": "824e8f8297331a9ad6866f3504804757acc99a84",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "c84abbbe98f5c82bc382812f07131d2c43a41cfd",
+      "subject": "docs(evidence): record WP-U01 follow-up validation on content head",
+      "patchId": "222dfbe1e45546012a430b42066c93733dc031de",
+      "applyStatus": "applied",
+      "afterSha": "c66d1465a0bbaeb4e05c29e115ff2eb84f0c72d4",
+      "afterTree": "73c453a79c9f39cfadec877e114fd85dc5315f31",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "300de65f4b73537a3ba87d17308d0f67bca1e9fa",
+      "subject": "docs(evidence): bind WP-U01 acceptance to follow-up content head",
+      "patchId": "572906cf05f1e06a8b76f5eee58636257e5b5aa3",
+      "applyStatus": "applied",
+      "afterSha": "be691f26e3874fc670452900d92bea43b3c94fa5",
+      "afterTree": "b3745c0e5e7657346b19e4423b924043f52d52e4",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "866965f89b87d1ee280e5d8cbaed6fb3c5d0075d",
+      "subject": "docs(evidence): finalize WP-U01 follow-up bind-tip packet range",
+      "patchId": "c400ebc235f8079406e6183a0a0635b608eaef45",
+      "applyStatus": "applied",
+      "afterSha": "55bcc0d91a2248766aa19788b67a9b598b75fda0",
+      "afterTree": "4910fb8beb7bcc57f27ca776db7a3087a69e925a",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "a67f2f8f286de8c059f9c458230371416191b4d5",
+      "subject": "docs(evidence): stamp WP-U01 bind tip identity",
+      "patchId": "76719270fc96a684a7aa199c971abfaf911dd918",
+      "applyStatus": "applied",
+      "afterSha": "1e8cbaf73df86771c94f83c4c72f6db16f2ea401",
+      "afterTree": "154028fb6f6216023a9f99e28a55ac97543a494f",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "ee8097ca54a0ff8134e98591c20d37b80bc3b253",
+      "subject": "docs(evidence): finalize WP-U01 follow-up packet tip bindings",
+      "patchId": "5874c91c61602f9f38dbfbde0ae4c7cc499a3687",
+      "applyStatus": "applied",
+      "afterSha": "bc4beecc69afd7db247db36e727250cb045a90a9",
+      "afterTree": "13f832fefba6394cbd1933435bfafb61c1443386",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "7fee5d9cf423eb3eeff99af8a40c1a530c4b8809",
+      "subject": "fix(gitops): close U01-R2..R4 review-gate findings",
+      "patchId": "130ccc5be5adaab1d10cc271a8dbf33627b48e80",
+      "applyStatus": "applied",
+      "afterSha": "feb086f00ad393df61ce3220613537c11f854847",
+      "afterTree": "2ccef486126c2439e3dbfd50d728cb8f07cc3c5c",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "38069d21af6d74993936b95e4d3c38869c45a95c",
+      "subject": "docs(evidence): record U01-R1..R4 validation on content head",
+      "patchId": "a7c64ff1f4da95dbbd0e0352dfab75b66ae44d81",
+      "applyStatus": "applied",
+      "afterSha": "fc1776c8c3d0502c825ecc227343231c45f1542c",
+      "afterTree": "38822882a47ef7b0086bb16a40ff2c7e7f6db95c",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "cc0854788eecf64c5676a9668015e7b42c9306cb",
+      "subject": "docs(evidence): bind U01 content/evidence heads without self-SHA",
+      "patchId": "ba6e60581ba6f316462b686c29ed0db792a5464e",
+      "applyStatus": "applied",
+      "afterSha": "533f4cb4188a116859b5bd028a8e5c9d067b15ca",
+      "afterTree": "074b704195cae07001ac40a1750da20ffb088fcb",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "6ec04c16b6753789e30b8fd0a67d2a014355f8dd",
+      "subject": "fix(gitops): fail-closed paginated slurp for review-gate markers",
+      "patchId": "2dae436bc67cedb353805988ee3e15efd8cc21d8",
+      "applyStatus": "applied",
+      "afterSha": "a0c18827e3112fe9c5397e1b342c80d962fd3e95",
+      "afterTree": "664f193adf3013ca360b8cf6f62a43812e851655",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "74fc5ab5503e7222b95dc0a8027b54be551f202a",
+      "subject": "docs(evidence): record pagination fail-closed validation on content head",
+      "patchId": "4b834e891cb06ef297ee43a72ffff92ba6151277",
+      "applyStatus": "applied",
+      "afterSha": "3908370977b49500c3f1c5798537a3c5377c645a",
+      "afterTree": "215f901ada79fd73f84d544605a0e7de82352f8b",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "b0b7051f1b45aa0bd127ca973a1574af4ab1683e",
+      "subject": "docs(evidence): bind pagination repair content/evidence heads",
+      "patchId": "23195d6dfb6677da430e2d4123b7f1634cbdc92b",
+      "applyStatus": "applied",
+      "afterSha": "3cd4d2778c8b80a63c1ec0a2fdb689feef123201",
+      "afterTree": "1a50c840427e7ab2c4797fbdbd6c0ae70a0d2170",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "e07ee73e3e9ec3c50fa8f5f550b150afbf1ef738",
+      "subject": "fix(gitops): pipe review-gate slurps via stdin, not argv",
+      "patchId": "ddb1bcc3a6b8149965c6731172bd364a0b768988",
+      "applyStatus": "applied",
+      "afterSha": "9ce6492ae53985450bbf2f99a67dab5bcc682a42",
+      "afterTree": "d01a779cb0aa4e69a5f2c4ca06f825ab7e9c58d9",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "e4a2ceff2dfcf664699ee1e2c750911000058762",
+      "subject": "style(tests): hoist os import for review-gate ARG_MAX test",
+      "patchId": "48943613445169de3bda08664d7822d08e4a1858",
+      "applyStatus": "applied",
+      "afterSha": "492135b3ae2a28b623e92d5b6d709a671736c997",
+      "afterTree": "517743c39db81d549ca316360412801c75894fb8",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "13d1cb740c58a86f85a6884091a229f8caaecb91",
+      "subject": "docs(evidence): record stdin-slurp validation on content head",
+      "patchId": "0c491a56f1e1dd4e4123d56176a5ce355c60f417",
+      "applyStatus": "applied",
+      "afterSha": "4e58f9a1a4bc8b7f08097b80ee9b95c8085a3545",
+      "afterTree": "c2942ba8b714e107d287b23789f43574a4de40da",
+      "conflictFiles": []
+    },
+    {
+      "packet": "WP-U01",
+      "sourceCommit": "b9f1ac4b73030e4ea8417fd34fa4987a5f890136",
+      "subject": "docs(evidence): bind stdin-slurp content/evidence heads",
+      "patchId": "3ad6349d5bd5501d0fdff076d122d4bef5732321",
+      "applyStatus": "applied",
+      "afterSha": "6d19995509b40a51edb21b6aa329f9158e5f0ade",
+      "afterTree": "ecc7b856ae504e879a5c875fa2fa076d789125cd",
+      "conflictFiles": []
+    }
+  ],
+  "conflicts": [
+    {
+      "packet": "WP-U03",
+      "sourceCommit": "7563504cb0b16979801d27385e2bca97373c0e07",
+      "subject": "feat(gitops): add agent-agnostic Phase Packager and Coordinator",
+      "sourcePatchId": "f2f91ba0abdc7c5d130b24e824277c46bd38cfb6",
+      "patchId": "f2f91ba0abdc7c5d130b24e824277c46bd38cfb6",
+      "applyStatus": "applied-after-narrow-reconcile",
+      "beforeSha": "64658aa4b7888546f5a18ed84ee4460438c26527",
+      "beforeTree": "accf5727d0c9901cac8ae60e8360f0058201e8ea",
+      "afterSha": "d12b3a6ec3f2affcdec1c9d55d603eb200431a8f",
+      "afterTree": "0d1eeeb546a9f0a12abceb140304de2b843d663e",
+      "phaseCommit": "d12b3a6ec3f2affcdec1c9d55d603eb200431a8f",
+      "phaseTree": "0d1eeeb546a9f0a12abceb140304de2b843d663e",
+      "phasePatchId": "aa959241f1bc594f2d4c482f24ee105ff7b74917",
+      "conflictFiles": [
+        "core/managed-core/MANIFEST.json"
+      ],
+      "resolution": "regenerated-manifest-via-build_manifest",
+      "resolutionDetail": "Cherry-pick of source 7563504 conflicted only on core/managed-core/MANIFEST.json (sourceHash collisions with already-integrated WP-U04). Non-manifest U03 content auto-merged onto U04 tip 64658aa. Regenerated MANIFEST via python3 -m scripts.ide_development.build_manifest --write, then completed the cherry-pick as phase commit d12b3a6. sourcePatchId records the accepted U03 tip patch; phasePatchId records the post-reconcile phase commit patch (differs because MANIFEST hashes and U04-layered doctrine/rule hashes are included)."
+    },
+    {
+      "packet": "WP-U09",
+      "sourceCommit": "e6295a79e10800863b206fb326e36ae349c5b306",
+      "subject": "feat(gitops): add progress-based independent-review convergence",
+      "patchId": "f236b40a95c5ca9af8f6fc75938f8431e195ed03",
+      "applyStatus": "applied-after-narrow-reconcile",
+      "beforeSha": "b4c699ae0d761faef8e193f2b748302263e0a035",
+      "beforeTree": "a7f58b6962b2500ac66b822fb0e293408ae69444",
+      "afterSha": "8cc7405befe853cd168e1f5d2900fedf8cc86962",
+      "afterTree": "a66c1c2b378d7e1f4b342b1a592ae945bd729b14",
+      "conflictFiles": [
+        "core/managed-core/MANIFEST.json"
+      ],
+      "resolution": "regenerated-manifest-via-build_manifest; retained WP-U04 trusted-publisher doctrine in docs/contracts/AGENT-COMPLETION.md and core/managed-core/content/doctrine/AGENT-COMPLETION.md",
+      "resolutionDetail": {
+        "summary": "regenerated-manifest-via-build_manifest; retained WP-U04 trusted-publisher doctrine in docs/contracts/AGENT-COMPLETION.md and core/managed-core/content/doctrine/AGENT-COMPLETION.md",
+        "manifest": {
+          "conflictFile": "core/managed-core/MANIFEST.json",
+          "action": "python3 -m scripts.ide_development.build_manifest --write then cherry-pick --continue"
+        },
+        "retainedU04PublisherDoctrine": {
+          "note": "U09 source tip e6295a7 was authored without WP-U04 and carries a shortened Production publisher paragraph. On the phase branch, U04 was already integrated; auto-merge retained the U04 trusted-publisher doctrine text while applying only the U09 independent-review sentence on the repair-cycles bullet. Marker phrases present on phase/parent and absent from U09 source tip prove retention.",
+          "markersRetained": [
+            "LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER=1",
+            "forwards it onto those aliases",
+            "AUTOMATION_TOKEN` then `GH_TOKEN` then `GITHUB_TOKEN"
+          ],
+          "paths": [
+            {
+              "path": "docs/contracts/AGENT-COMPLETION.md",
+              "u04TipBlob": "a30bd48f01de4d58dd43254fd15c706ef6d68298",
+              "u09SourceBlob": "ad13e2f608ea7cb35354a99a0e5c36d40eed0d79",
+              "phaseParentBlob": "b7fde129d9c08a05d545fd286baabab577e215df",
+              "phaseAfterBlob": "f431e7f4d0d9b4876c2742107a8e0e4febc1da40",
+              "u04MarkersOnPhaseAfter": true,
+              "u04MarkersOnU09Source": false,
+              "parentToPhaseDiff": "single bullet at repair-cycles line: append independent-review convergence clarification only; Production publisher / AUTOMATION_TOKEN alias / trusted-flag paragraphs unchanged from parent (U04-bearing)"
+            },
+            {
+              "path": "core/managed-core/content/doctrine/AGENT-COMPLETION.md",
+              "u04TipBlob": "a30bd48f01de4d58dd43254fd15c706ef6d68298",
+              "u09SourceBlob": "ad13e2f608ea7cb35354a99a0e5c36d40eed0d79",
+              "phaseParentBlob": "b7fde129d9c08a05d545fd286baabab577e215df",
+              "phaseAfterBlob": "f431e7f4d0d9b4876c2742107a8e0e4febc1da40",
+              "u04MarkersOnPhaseAfter": true,
+              "u04MarkersOnU09Source": false,
+              "parentToPhaseDiff": "identical one-line independent-review clarification as docs/contracts copy; U04 publisher doctrine retained"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "packet": "WP-U10",
+      "sourceCommit": "0142b2f0e19c4e6a1e339f136ee4aee97f52a4ec",
+      "subject": "fix(gitops): reconcile factory secret-scan findings for WP-U10",
+      "patchId": "61e7d7fcf7e44f99353a63618cd0eac1e4e07389",
+      "applyStatus": "HOLD-conflict",
+      "beforeSha": "2e3e6885ac02c851947b0760736617ec87d8dfd7",
+      "conflictFiles": [
+        "scripts/tests/test-completion-gate-app-route.sh"
+      ],
+      "stdout": "Auto-merging core/managed-core/MANIFEST.json\nAuto-merging scripts/tests/test-completion-gate-app-route.sh\nCONFLICT (content): Merge conflict in scripts/tests/test-completion-gate-app-route.sh\n",
+      "stderr": "error: could not apply 0142b2f... fix(gitops): reconcile factory secret-scan findings for WP-U10\nhint: After resolving the conflicts, mark them with\nhint: \"git add/rm <pathspec>\", then run\nhint: \"git cherry-pick --continue\".\nhint: You can instead skip this commit with \"git cherry-pick --skip\".\nhint: To abort and get back to the state before \"git cherry-pick\",\nhint: run \"git cherry-pick --abort\".\nhint: Disable this message with \"git config set advice.mergeConflict false\"\n"
+    },
+    {
+      "packet": "WP-U10",
+      "sourceCommit": "0142b2f0e19c4e6a1e339f136ee4aee97f52a4ec",
+      "applyStatus": "applied-after-narrow-reconcile",
+      "conflictFiles": [
+        "scripts/tests/test-completion-gate-app-route.sh"
+      ],
+      "resolution": "keep-U04-phase-prefix-and-trusted-publisher-contract; apply-U10-secret-scan-string-split-on-error-literals",
+      "afterSha": "16163b885376e3ba16fdbe3d3b1708117cd3a39c"
+    }
+  ],
+  "holds": [],
+  "focusedValidation": {
+    "profile": "combined-focused-no-full",
+    "commands": [
+      "bash scripts/tests/test-review-ready-publisher.sh",
+      "bash scripts/tests/test-clear-review-ready-app-route.sh",
+      "bash scripts/tests/test-completion-gate-app-route.sh",
+      "python3 -m unittest scripts.tests.test_phase_packager_coordinator",
+      "python3 -m unittest scripts.tests.test_delivery_artifact_reconciliation",
+      "python3 -m unittest scripts.tests.test_independent_review_convergence",
+      "python3 -m unittest scripts.tests.test_fixture_aware_secret_scan",
+      "python3 -m unittest scripts.tests.test_repository_ci_trigger_contract",
+      "python3 -m unittest scripts.tests.test_linktrend_review_gate scripts.ide_development_tests.test_build_manifest",
+      "bash scripts/tests/test-repository-protection.sh",
+      "bash scripts/tests/test-integrator-bugbot-gate.sh",
+      "python3 -m scripts.ide_development.build_manifest --verify",
+      "git diff --check"
+    ],
+    "skipped": [
+      {
+        "command": "python3 -m unittest tests.security_acceptance.test_no_secrets",
+        "reason": "Not in packet focused command lists; fails on accepted U01 tip Windows drive-letter false positive in library-client.test.mjs"
+      }
+    ],
+    "result": "all listed commands exit 0 on integration content head",
+    "transcriptPath": "docs/evidence/phase-v240-core-through-u01/focused-tests.out"
+  },
+  "completedAt": "2026-08-17T15:11:54.572374+00:00",
+  "evidenceRepairs": {
+    "atPredecessorTip": "3f3dd56919b76bb4d9beda5d88c2dd0ea622de9f",
+    "scope": "evidence-only P2 ledger repairs; no integrated code/content change",
+    "items": [
+      "WP-U03 applyLog: record phase commit d12b3a6 as applied-after-narrow-reconcile with source/phase patch identities",
+      "WP-U09 resolution: document MANIFEST regen plus retained U04 publisher doctrine in AGENT-COMPLETION paths with blob evidence"
+    ],
+    "repairedAt": "2026-08-17T15:24:44.031039+00:00"
+  }
+}

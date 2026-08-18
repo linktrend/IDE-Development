@@ -345,7 +345,7 @@ Allowed short-lived sources into `development`: `dev/*`, `issue/*`, `feature/*`,
 
 ### Branching doctrine (consumer + this repo)
 
-See `.cursor/rules/01-git-branching.mdc` and `docs/AUTONOMOUS-GIT-OPERATIONS.md`: Bugbot reviews; Integrator merges into `development`; Promoter auto-merges `development`→`staging` (Tue/Fri); Principal Approves `staging`→`main` via Lisa/Telegram (Mon). Module 6 product Release OK remains separate.
+See `.cursor/rules/01-git-branching.mdc` and `docs/AUTONOMOUS-GIT-OPERATIONS.md`: Bugbot reviews; the delivery controller merges into `development`; the delivery controller auto-promotes `development`→`staging` (Tue/Fri) on receipt identity; Principal Approves `staging`→`main` via Lisa/Telegram (Mon). Module 6 product Release OK remains separate.
 
 ---
 

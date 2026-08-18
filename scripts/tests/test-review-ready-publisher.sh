@@ -85,23 +85,35 @@ for banned in (
     if banned in prod:
         raise SystemExit(f"human credential fallback present: {banned}")
 
-# github.token must not authorize status publication.
+# Built-in github.token must authorize only the trusted publish/withdraw step.
 blocks = re.split(r"\n(?=      - name:)", prod)
+publish_blocks = 0
 for block in blocks:
     uses_github_token = bool(
-        re.search(r"(GH_TOKEN|GITHUB_TOKEN):\s*\$\{\{\s*github\.token", block)
+        re.search(
+            r"(AUTOMATION_TOKEN|GH_TOKEN|GITHUB_TOKEN):\s*\$\{\{\s*github\.token",
+            block,
+        )
     )
     publishes = bool(
-        re.search(
-            r"(statuses/|readiness_status|publish_review_ready|Linktrend Review Ready)",
-            block,
-            re.I,
-        )
+        re.search(r"(publish_review_ready|withdraw_sha|readiness_status)", block)
     )
-    if uses_github_token and publishes and "run:" in block:
-        raise SystemExit(
-            "github.token bound in a block that also publishes/readiness statuses"
-        )
+    has_flag = "LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER" in block
+    if publishes and "run:" in block:
+        publish_blocks += 1
+        if not uses_github_token:
+            raise SystemExit("publish step must forward github.token")
+        if not has_flag:
+            raise SystemExit(
+                "publish step must set LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER=1"
+            )
+        if "AUTOMATION_TOKEN:" not in block:
+            raise SystemExit("publish step must forward documented AUTOMATION_TOKEN")
+    elif has_flag and "Validate dispatch inputs" in block:
+        raise SystemExit("trusted flag must not sit on input validation")
+
+if publish_blocks != 1:
+    raise SystemExit(f"expected exactly one publish/withdraw step, got {publish_blocks}")
 
 for key in ("branch", "sha", "dry_run", "action", "reason"):
     if not re.search(rf"^\s*{key}\s*:", prod, re.M):
@@ -111,16 +123,15 @@ for key in ("branch", "sha", "dry_run", "action", "reason"):
 assert "github.event.repository.default_branch" in prod
 assert "untrusted-branch-data" in prod
 assert "sha_mismatch" in prod
-assert "refuse GITHUB_TOKEN publish fallback" in prod or "no human fallback" in prod.lower()
+assert "no human fallback" in prod.lower()
 assert "completion_gate" in prod or "validate_evidence" in prod
 assert "review_ready_dispatch.py" in prod
-assert "automation_credentials_blocked" in prod
-assert "resolve_automation_token" in prod
 assert "withdraw_sha" in prod
 assert "withdraw" in prod
+assert "statuses: write" in prod
 print("ok")
 PY
-pass "Production workflow trusted-source + no human/token-fallback static checks"
+pass "Production workflow trusted-source + flag on publish step + built-in token forwarding"
 
 # ---- 3) Adversarial fixture fails the same must/must_not requirements ----
 python3 - <<'PY' "$NEG_WF" "$PATTERNS"
@@ -380,5 +391,334 @@ assert "-f action=withdraw" in contract["withdrawRoute"]
 print("ok")
 PY
 pass "Fixture contract matches readiness_status normal-token route"
+
+# ---- 9) Structural flag placement vs defective predecessor ----
+python3 - <<'PY' "$ROOT" "$WF" "$FIX"
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root / "scripts/gitops"))
+import review_ready_publisher_bootstrap as boot
+
+prod = Path(sys.argv[2]).read_text(encoding="utf-8")
+fix = Path(sys.argv[3])
+defective = (fix / "workflow/defective-v238-flag-on-validate.yml").read_text(encoding="utf-8")
+neg = (fix / "workflow/adversarial-untrusted-source.yml").read_text(encoding="utf-8")
+
+prod_info = boot.publisher_defect(prod)
+bad_info = boot.publisher_defect(defective)
+neg_info = boot.publisher_defect(neg)
+assert prod_info["corrected"] and not prod_info["defective"], prod_info
+assert prod_info["flagOnPublish"] and not prod_info["flagOnUnrelatedSteps"], prod_info
+assert bad_info["defective"] and not bad_info["corrected"], bad_info
+assert bad_info["flagOnUnrelatedSteps"] and not bad_info["flagOnPublish"], bad_info
+assert not neg_info["corrected"], neg_info
+print("ok")
+PY
+pass "Structural parse: trusted flag on publication step only; defective predecessor detected"
+
+# ---- 10) Token forwarding, precedence, and no disclosure ----
+python3 - <<'PY' "$ROOT"
+import os
+import sys
+from pathlib import Path
+from unittest import mock
+
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root / "scripts/gitops"))
+import readiness_status as rs
+
+secret = "ltfx.review.automation_token.v1"
+human = "ghs_FAKE_HUMAN_MUST_NOT_WIN"
+workflow = "ghs_FAKE_WORKFLOW_ALIAS"
+
+def clear_tokens():
+    for k in (*rs.PUBLISH_TOKEN_ENVS, rs.TRUSTED_PUBLISHER_FLAG):
+        os.environ.pop(k, None)
+
+# Missing flag: AUTOMATION_TOKEN must not silently authorize publish.
+clear_tokens()
+os.environ["AUTOMATION_TOKEN"] = secret
+os.environ["GH_TOKEN"] = human
+os.environ["GITHUB_TOKEN"] = workflow
+assert rs.resolve_app_publish_token() == ""
+assert rs.automation_token_present() is True
+fwd = rs.forward_automation_token({"AUTOMATION_TOKEN": secret, "GH_TOKEN": human})
+assert fwd["GH_TOKEN"] == secret
+assert fwd["GITHUB_TOKEN"] == secret
+assert fwd["AUTOMATION_TOKEN"] == secret
+# Silent-loss probe: documented token is not dropped when GH_TOKEN was absent.
+fwd2 = rs.forward_automation_token({"AUTOMATION_TOKEN": secret})
+assert fwd2.get("GH_TOKEN") == secret
+assert fwd2.get("GITHUB_TOKEN") == secret
+
+# Trusted flag + documented token: AUTOMATION_TOKEN precedes aliases.
+os.environ[rs.TRUSTED_PUBLISHER_FLAG] = "1"
+assert rs.resolve_app_publish_token() == secret
+
+# Alias-only trusted path (built-in github.token forwarded as GH_TOKEN).
+clear_tokens()
+os.environ[rs.TRUSTED_PUBLISHER_FLAG] = "1"
+os.environ["GH_TOKEN"] = workflow
+assert rs.resolve_app_publish_token() == workflow
+
+# Missing flag + aliases: fail closed.
+clear_tokens()
+os.environ["GH_TOKEN"] = human
+os.environ["GITHUB_TOKEN"] = workflow
+assert rs.resolve_app_publish_token() == ""
+
+# Diagnostics never disclose token values.
+clear_tokens()
+os.environ["AUTOMATION_TOKEN"] = secret
+os.environ["GH_TOKEN"] = human
+msg = rs.missing_app_publish_token_error(
+    branch="issue/44-add-app-backed-review-ready-publisher-and-produc",
+    sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+)
+assert "AUTOMATION_TOKEN" in msg
+assert secret not in msg
+assert human not in msg
+assert "forward_automation_token" in msg
+assert "linktrend-review-ready-publisher.yml" in msg
+
+# Publish/withdraw exact SHA with trusted built-in token (mocked GitHub).
+clear_tokens()
+os.environ[rs.TRUSTED_PUBLISHER_FLAG] = "1"
+os.environ["AUTOMATION_TOKEN"] = secret
+os.environ["GH_TOKEN"] = human
+os.environ["GITHUB_REPOSITORY"] = "linktrend/IDE-Development"
+sha = "dddddddddddddddddddddddddddddddddddddddd"
+posted = []
+
+def fake_api(method, url, token, body=None):
+    posted.append({"method": method, "url": url, "token": token, "body": body})
+    if method == "GET":
+        mine = [p for p in posted if p["method"] == "POST"]
+        if not mine:
+            return []
+        last = mine[-1]["body"]
+        return [{"context": rs.CONTEXT, "state": last["state"], "description": last["description"]}]
+    if method == "POST" and "/statuses/" in url:
+        if token != secret:
+            raise RuntimeError("insufficient permission: 403")
+        return {}
+    raise RuntimeError(f"unexpected {method} {url}")
+
+with mock.patch.object(rs, "_api", side_effect=fake_api):
+    st = rs.publish_review_ready(sha, "308", notes="exact-tip", branch="issue/308-x")
+    assert st.state == "success"
+    ok, detail = rs.is_sha_review_ready(sha)
+    assert ok, detail
+    wd = rs.withdraw_sha(sha, "rollback", branch="issue/308-x")
+    assert wd.state == "failure"
+    ok2, detail2 = rs.is_sha_review_ready(sha)
+    assert not ok2
+
+assert any(p["method"] == "POST" and p["token"] == secret for p in posted)
+assert all(p["token"] != human for p in posted if p.get("token"))
+blob = repr(posted) + msg
+assert secret not in msg
+print("ok")
+PY
+pass "AUTOMATION_TOKEN forwarding, alias precedence, publish/withdraw exact tip, no disclosure"
+
+# ---- 11) Fail closed: missing flag, wrong SHA/evidence, untrusted source, 403 ----
+python3 - <<'PY' "$ROOT" "$FIX" "$NEG_WF"
+import json
+import os
+import sys
+from pathlib import Path
+from unittest import mock
+
+root = Path(sys.argv[1])
+fix = Path(sys.argv[2])
+neg = Path(sys.argv[3]).read_text(encoding="utf-8")
+sys.path.insert(0, str(root / "scripts/gitops"))
+import completion_gate as cg
+import readiness_status as rs
+import review_ready_publisher_bootstrap as boot
+
+# Missing flag
+for k in (*rs.PUBLISH_TOKEN_ENVS, rs.TRUSTED_PUBLISHER_FLAG):
+    os.environ.pop(k, None)
+os.environ["GH_TOKEN"] = "ghs_AMBIENT"
+os.environ["GITHUB_REPOSITORY"] = "linktrend/IDE-Development"
+posted = []
+
+def fake_api(method, url, token, body=None):
+    posted.append({"method": method, "url": url, "token": token, "body": body})
+    return []
+
+with mock.patch.object(rs, "_api", side_effect=fake_api):
+    try:
+        rs.publish_review_ready(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "1",
+            branch="issue/1-x",
+        )
+        raise SystemExit("missing flag must fail closed")
+    except RuntimeError as exc:
+        assert "privileged_publish_requires_github_token" in str(exc)
+assert posted == []
+
+# Wrong SHA / stale evidence
+sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+other = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+evidence = json.loads((fix / "evidence/valid.json").read_text(encoding="utf-8"))
+assert cg.validate_evidence(evidence, sha) == []
+stale = json.loads((fix / "evidence/sha-mismatch.json").read_text(encoding="utf-8"))
+assert cg.validate_evidence(stale, sha)
+assert cg.validate_evidence(evidence, other)
+
+# Untrusted workflow source is not corrected
+assert not boot.publisher_defect(neg)["corrected"]
+assert "pull_request.head.sha" in neg
+assert "LINKTREND_BUGBOT_USER_TOKEN" in neg
+
+# Insufficient permission
+os.environ[rs.TRUSTED_PUBLISHER_FLAG] = "1"
+os.environ["AUTOMATION_TOKEN"] = "ghs_TRUSTED_BUT_FORBIDDEN"
+
+def deny(method, url, token, body=None):
+    raise RuntimeError(f"{method} {url} -> 403: Resource not accessible by integration")
+
+with mock.patch.object(rs, "_api", side_effect=deny):
+    try:
+        rs.publish_review_ready(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "1",
+            branch="issue/1-x",
+        )
+        raise SystemExit("403 must fail closed")
+    except RuntimeError as exc:
+        assert "403" in str(exc)
+print("ok")
+PY
+pass "Missing flag, stale evidence, untrusted source, and insufficient permission fail closed"
+
+# ---- 12) Bootstrap positive + negatives ----
+python3 - <<'PY' "$ROOT" "$WF" "$FIX"
+import subprocess
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+boot_path = root / "scripts/gitops/review_ready_publisher_bootstrap.py"
+st = subprocess.run(
+    [sys.executable, str(boot_path), "self-test"],
+    cwd=str(root),
+    text=True,
+    capture_output=True,
+)
+if st.returncode != 0:
+    raise SystemExit(f"bootstrap self-test failed: {st.stdout}\n{st.stderr}")
+
+sys.path.insert(0, str(root / "scripts/gitops"))
+import review_ready_publisher_bootstrap as boot
+
+prod = Path(sys.argv[2]).read_text(encoding="utf-8")
+defective = (
+    Path(sys.argv[3]) / "workflow/defective-v238-flag-on-validate.yml"
+).read_text(encoding="utf-8")
+sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+req = boot.BootstrapRequest(
+    actor_role="integrator",
+    requested_head_sha=sha,
+    evidence_head_sha=sha,
+    installed_workflow=defective,
+    corrected_workflow=prod,
+    pr={"number": 99, "head_sha": sha, "head_branch": "issue/99-fix", "state": "open"},
+    required_checks=["Linktrend Fast Checks"],
+    passing_checks=["Linktrend Fast Checks"],
+    required_contexts=["Linktrend Fast Checks"],
+)
+plan = boot.evaluate_bootstrap(req)
+assert plan["ok"] is True
+assert plan["callPublisher"] is False
+assert plan["installViaExistingPr"] is True
+assert plan["rerunUnchangedFull"] is False
+assert plan["markDraftReady"] is True
+
+for code, kwargs in (
+    ("worker_self_use", {"actor_role": "worker"}),
+    ("new_pr_forbidden", {"create_new_pr": True}),
+    ("direct_protected_push", {"direct_protected_push": True}),
+    ("missing_required_checks", {"passing_checks": []}),
+    (
+        "changed_head",
+        {
+            "pr": {
+                "number": 99,
+                "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "head_branch": "issue/99-fix",
+                "state": "open",
+            }
+        },
+    ),
+    (
+        "founder_authorization_required",
+        {"required_contexts": ["Linktrend Review Ready"], "founder_authorized": False},
+    ),
+    ("stale_evidence", {"evidence_head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}),
+    ("defective_publisher_forbidden", {"call_publisher": True}),
+):
+    data = {**req.__dict__, **kwargs}
+    try:
+        boot.evaluate_bootstrap(boot.BootstrapRequest(**data))
+        raise SystemExit(f"expected {code}")
+    except boot.BootstrapError as exc:
+        if exc.code != code:
+            raise SystemExit(f"expected {code}, got {exc.code}")
+print("ok")
+PY
+pass "Bootstrap positive Integrator exact-head path and negative probes"
+
+# ---- 13) Installed workflow equals managed source / package manifest ----
+python3 - <<'PY' "$ROOT"
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+root = Path(sys.argv[1])
+managed = (root / "core/github/managed-workflows/linktrend-review-ready-publisher.yml").read_bytes()
+live = (root / ".github/workflows/linktrend-review-ready-publisher.yml").read_bytes()
+assert managed == live, "live workflow must equal managed source"
+
+manifest = json.loads((root / "core/managed-core/MANIFEST.json").read_text(encoding="utf-8"))
+entry = next(
+    f for f in manifest["files"] if f["id"] == "workflow-linktrend-review-ready-publisher-yml"
+)
+digest = "sha256:" + hashlib.sha256(managed).hexdigest()
+assert entry["sourceHash"] == digest, f"manifest hash {entry['sourceHash']} != {digest}"
+assert entry["source"] == "core/github/managed-workflows/linktrend-review-ready-publisher.yml"
+
+tmp = Path(tempfile.mkdtemp(prefix="rr-publisher-install."))
+try:
+    (tmp / ".github").mkdir()
+    shutil.copyfile(
+        root / ".github/linktrend-gitops-consumer.json",
+        tmp / ".github/linktrend-gitops-consumer.json",
+    )
+    r = subprocess.run(
+        ["bash", str(root / "scripts/sync-managed-workflows.sh"), str(tmp)],
+        cwd=str(root),
+        text=True,
+        capture_output=True,
+    )
+    if r.returncode != 0:
+        raise SystemExit(f"sync failed: {r.stdout}\n{r.stderr}")
+    installed = (tmp / ".github/workflows/linktrend-review-ready-publisher.yml").read_bytes()
+    assert installed == managed, "disposable-consumer install must match managed source"
+finally:
+    shutil.rmtree(tmp, ignore_errors=True)
+print("ok")
+PY
+pass "Installed/live workflow equals managed source and package manifest hash"
 
 echo "PASS: review-ready publisher adversarial/static suite"

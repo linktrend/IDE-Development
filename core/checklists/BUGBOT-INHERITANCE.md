@@ -10,7 +10,7 @@ Layer B installs GitHub Actions. **Bugbot** is the Reviewer for PRs into `develo
 
 ## What “Bugbot pass” means
 
-Authoritative signal is the GitHub check named **`Cursor Bugbot`** (see [Cursor Bugbot docs](https://cursor.com/docs/bugbot)):
+Authoritative managed merge signal is **`Linktrend Review Gate`** (provider observation remains **`Cursor Bugbot`** (see [Cursor Bugbot docs](https://cursor.com/docs/bugbot)):
 
 | Check conclusion | Meaning | Integrator |
 |---|---|---|
@@ -35,11 +35,11 @@ Optional (if available on the Cursor team): enable **fail on unresolved issues**
 
    # Consumer with different CI job name(s):
    ./scripts/apply-development-merge-ruleset.sh linktrend/YourRepo \
-     "Cursor Bugbot" "Your CI job name" "Enforce allowed PR source branches"
+     "Linktrend Review Gate" "Your CI job name" "Linktrend Branch Source Policy"
    ```
 6. Confirm Integrator workflow is present: `.github/workflows/linktrend-integrator-merge.yml`.
 7. Set GitHub Actions variable `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` to this repo's **fast-gate** CI job name(s), comma-separated (example for IDE Development: `Verify IDE Development`). Integrator no longer waits for every visible check — see `core/github/CI-GATE-CONTRACTS.md`. Leave unset only if the managed workflow default is wrong for the consumer (then set explicitly).
-8. Confirm Review Packager workflow is present: `.github/workflows/linktrend-review-packager.yml` (Tue/Fri 08:00 Asia/Taipei). Bugbot request default command is `@cursor review` (configurable; with the `@`); success check remains `Cursor Bugbot`. The 2-request limit counts only comments with an executable trigger (`@cursor review` or `bugbot run`) **plus** `<!-- linktrend-bugbot-requested: <sha> -->`; bare historical `cursor review` + marker does not count.
+8. Confirm Review Packager workflow is present: `.github/workflows/linktrend-review-packager.yml` (Tue/Fri 08:00 Asia/Taipei). Bugbot request default command is `@cursor review` (configurable; with the `@`); managed success check is `Linktrend Review Gate` (provider check remains `Cursor Bugbot`). The 2-request limit counts only comments with an executable trigger (`@cursor review` or `bugbot run`) **plus** `<!-- linktrend-bugbot-requested: <sha> -->`; bare historical `cursor review` + marker does not count.
 9. Confirm Integrator managed template matches live file after sync (`cmp` in IDE Development verify).
 10. Record completion in the adoption/wire report: `Bugbot: enabled | blocked:<reason>`.
 

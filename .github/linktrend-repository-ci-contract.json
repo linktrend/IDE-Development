@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "kind": "repository-ci-contract",
+  "aggregateContext": "Linktrend Repository CI Gate",
+  "profiles": {
+    "fast": {
+      "id": "fast",
+      "commands": [
+        [
+          "python3",
+          "-m",
+          "py_compile",
+          "scripts/gitops/repository_ci_contract.py",
+          "scripts/gitops/run_delivery_profile.py",
+          "scripts/gitops/gate_receipt.py"
+        ],
+        [
+          "python3",
+          "-m",
+          "unittest",
+          "scripts.tests.test_repository_ci_trigger_contract"
+        ]
+      ],
+      "requiredCheckContexts": ["Linktrend Fast Checks"],
+      "timeoutMinutes": 5
+    },
+    "full": {
+      "id": "full",
+      "commands": [],
+      "requiredCheckContexts": ["Linktrend Repository CI Gate"]
+    },
+    "scheduled": {
+      "id": "scheduled",
+      "commands": []
+    },
+    "promotion": {
+      "id": "promotion",
+      "commands": [],
+      "requiredCheckContexts": [
+        "Branch Source Policy",
+        "Linktrend Receipt Gate"
+      ]
+    },
+    "trusted-governance": {
+      "id": "trusted-governance",
+      "commands": [
+        [
+          "python3",
+          "-m",
+          "unittest",
+          "scripts.tests.test_repository_ci_trigger_contract"
+        ]
+      ],
+      "requiredCheckContexts": ["Linktrend Repository CI Gate"]
+    }
+  },
+  "coverageComponents": [
+    {
+      "id": "governance-gate-contract",
+      "mandatory": true,
+      "category": "governance"
+    },
+    {
+      "id": "secret-scan",
+      "mandatory": true,
+      "category": "security",
+      "commands": [["python3", "scripts/gitops/secret_scan.py"]]
+    },
+    {
+      "id": "application-tests",
+      "mandatory": true,
+      "category": "test"
+    },
+    {
+      "id": "production-resolution",
+      "mandatory": true,
+      "category": "production-resolution"
+    }
+  ],
+  "trustedGovernance": {
+    "pathPrefixes": [
+      ".github/workflows/",
+      ".github/linktrend-",
+      "core/github/",
+      "core/managed-core/schemas/",
+      "core/managed-core/content/doctrine/",
+      "scripts/gitops/",
+      "docs/contracts/",
+      "docs/adr/"
+    ],
+    "requiredProofs": [
+      "gate-contract",
+      "workflow-syntax",
+      "identity-receipt",
+      "ruleset-migration",
+      "rollback",
+      "no-application-path"
+    ]
+  },
+  "expensiveWorkflowMarkers": [
+    "full",
+    "matrix",
+    "e2e",
+    "integration",
+    "browser",
+    "playwright",
+    "cypress",
+    "docker",
+    "build-and-test",
+    "verify ide development"
+  ]
+}
