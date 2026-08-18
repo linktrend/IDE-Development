@@ -1,0 +1,29 @@
+# NEGATIVE FIXTURE ONLY — defective v2.3.8 placement (flag on validation).
+name: Defective V238 Review Ready Publisher
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        required: true
+        type: string
+      sha:
+        required: true
+        type: string
+jobs:
+  publish:
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Validate dispatch inputs
+        env:
+          LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER: "1"
+        run: python3 scripts/gitops/review_ready_dispatch.py validate
+      - name: Verify remote tip equals immutable SHA; publish or withdraw
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          import readiness_status as rs
+          rs.publish_review_ready(sha, "1")
+          rs.withdraw_sha(sha)

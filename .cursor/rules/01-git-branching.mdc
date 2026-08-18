@@ -11,13 +11,13 @@ Authoritative schedule and roles: `docs/AUTONOMOUS-GIT-OPERATIONS.md` and `docs/
 
 ## Integration branch
 
-- **`development`** is the integration branch for factory and Integrator merges.
+- **`development`** is the integration branch for factory merges by the delivery controller.
 
 ## Branch prefixes
 
 | Prefix | Use | Merge target |
 |--------|-----|--------------|
-| `issue/<id>-<slug>` | **Studio default** — one short-lived branch per governed issue | **`development`** (Integrator only) |
+| `issue/<id>-<slug>` | **Studio default** — one short-lived branch per governed issue | **`development`** (delivery controller only) |
 | `dev/<machine><ide>` | Rare ad-hoc IDE work only (not forever home) | **`development`** via PR |
 | `cursor/*` | Cloud / dashboard agent work | **`development`** via PR |
 | Promotion | `development` → `staging` → `main` | See promotion flow below |
@@ -27,14 +27,14 @@ Bootstrap new sessions with `/agentsetup`. Migrate already-open dirty/wrong-bran
 ## Promotion flow
 
 ```
-issue/* or dev/* or cursor/*  →  PR to development
-  →  Bugbot reviews  →  Integrator merges when CI green + Bugbot pass
-development  →  staging   (Tue & Fri 10:00 Asia/Taipei, auto)
+issue/* or dev/* or cursor/*  →  Phase PR to development
+  →  Bugbot / Review Gate  →  delivery controller merges when named gates + receipt pass
+development  →  staging   (Tue & Fri 10:00 Asia/Taipei, auto via delivery controller)
 staging      →  main      (Mon 08:00 package; Principal Approve ~08:30 via Lisa/Telegram)
 ```
 
-- **Integrator** automation merges only into **`development`**.
-- **Promoter** automation merges **`development` → `staging`** on schedule.
+- **Delivery controller** merges only into **`development`** through GitHub protection.
+- **Delivery controller** promotes **`development` → `staging`** on schedule when receipt identity holds.
 - **Principal** approves **`staging` → `main`** (Lisa Telegram). Not a code review of every PR.
 - Module 6 **product Release OK / live deploy** remains a separate Principal gate.
 - Allowed PR sources into `development` are enforced in `.github/workflows/branch-source-policy.yml`.

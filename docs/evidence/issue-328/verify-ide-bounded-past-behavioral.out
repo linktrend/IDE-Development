@@ -1,0 +1,132 @@
+PASS: Symlinks: 21 total, 0 broken
+PASS: Wire-checklist required files present
+PASS: Wire-checklist required directories present
+PASS: core/ → .cursor/ symlinks for workflows and checklists
+PASS: No 00-linkdev-bootstrap in core/prompts/execution/ (excluding adoption-backups)
+PASS: Hybrid skills registry present
+PASS: All 8 sunset skills removed from core/skills/
+PASS: Hybrid command entrypoints present
+PASS: Operations manual present
+PASS: Workspace operator guide retired (file absent)
+PASS: Active docs free of Layer 1/2/3 and three.layer terminology
+PASS: No linkdev-*.md at core/commands/ root
+PASS: Archive index present
+PASS: In-repo archive tree present (docs/archive + README)
+PASS: Active docs have no LiNKdev references (excluding docs/archive, adoption-backups, workspace-reports, ARCHIVE-INDEX)
+PASS: No 00-linkdev-bootstrap in core/prompts/ or .cursor/prompts/ (excluding adoption-backups)
+PASS: No dangling core/pilots/hybrid-smoke references in active docs
+PASS: SKILLS_CATALOG.md path list matches core/skills/ on disk
+PASS: Application pipeline schema/order fixtures present
+PASS: No active absolute hybrid sibling paths
+MANIFEST verify OK
+PASS: Managed-core manifest hashes and doctrine sync
+PASS: verify-vendored-skills (73 files)
+=== GATE-STOP-001 negative scenario ===
+module gate rejected OK
+PASS: orchestrator refuse continue-anyway (validator non-zero, state unchanged)
+waiver rejected OK
+PASS: negative scenario
+=== GATE-STOP-001 positive control ===
+PASS: positive control
+GATE-STOP-001: ALL CHECKS PASSED
+ok
+PASS: Integrator/packager/promote/observer managed templates match live (after name render)
+PASS: managed runner routing is explicit, deterministic, and fail closed
+PASS: integrator Bugbot gate cases
+PASS: Workflow phases use PR/explicit promotion triggers without cascades
+ok
+PASS: Managed workflows match live copies (after consumer-name render)
+PASS: Readiness status + Bugbot command
+PASS: No direct push; receipt-gated promotion
+PASS: Trust boundary: trusted checkout + least-privilege token; CI unprivileged
+PASS: No indefinite self-trigger via event cascades
+PASS: Doctrine Ship 05/Pull 07 + status readiness
+PASS: Activation + mention-only + normal credential docs
+PASS: Executable modes + obsolete readiness file artifacts removed
+no authoritative positive JSON readiness dependency
+PASS: No authoritative positive dependency on deleted JSON readiness
+outcomes ok
+PASS: Honest outcome vocabulary present
+ok
+ok
+PASS: Normal token same-job only; no job-output secret transport
+PASS: Uniform SHA concurrency + resolve-before-mint; test-only helpers removed
+PASS: actionlint managed workflows (expression-safe)
+OUTCOME_STATUS=skipped
+OUTCOME_DETAIL=discover packaged_or_refreshed=0 deliveryMode=phase-integration
+[
+  {
+    "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+    "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ready": true,
+    "detail": "issue=44; normal_token_publish",
+    "deliveryMode": "phase-integration",
+    "prDecision": "skipped_phase_mode_issue_without_exception",
+    "action": "skipped_phase_mode_issue_without_exception"
+  },
+  {
+    "branch": "issue/99-not-ready-yet",
+    "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "ready": false,
+    "detail": "no_ready_status",
+    "deliveryMode": "phase-integration",
+    "action": "skipped_not_ready"
+  },
+  {
+    "branch": "issue/77-head-will-drift",
+    "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ready": true,
+    "detail": "issue=44; normal_token_publish",
+    "deliveryMode": "phase-integration",
+    "prDecision": "skipped_phase_mode_issue_without_exception",
+    "action": "skipped_phase_mode_issue_without_exception"
+  }
+]
+exact-SHA normal-token publisher packager compatibility ok
+PASS: Exact-SHA normal-token publisher compatibility (discover + evaluate)
+PASS: gitops static redesign + trust-boundary checks
+PASS: readiness status exact SHA; later commit invalidates; concurrent branches no shared file
+packager policy ok
+packager phases ok
+PASS: Packager discovery without Bugbot; gate/head abort; idempotent request policy
+PASS: multiple candidates not blocked by serial discover wait
+reevaluate clean
+PASS: promotion reevaluate does not rebuild; head stable across events
+PASS: durable conflict attempts persist and stop at three
+PASS: main approval requires both expected SHAs
+Preparing worktree (detached HEAD 053d0e0)
+Switched to and reset branch 'issue/unfinished'
+PASS: Pull preserves caller checkout; skips frozen; updates unfinished
+Preparing worktree (checking out 'issue/dirty')
+PASS: cleanup squash/session/promote/dirty safety (dry-run)
+PASS: no direct push to staging/main
+PASS: activation + mention-only docs + explicit Phase triggers
+body preserve ok
+PASS: existing PR content survives outside managed section
+exact candidate ok
+PASS: exact-candidate promote binding + advancement fail-closed
+explicit-wake+final-bugbot scenarios ok
+PASS: wake path + Bugbot request scenarios
+built-in token and no-App credential boundary ok
+PASS: Built-in least-privilege token; custom App and PAT automation retired
+resolver ok
+PASS: trusted event PR/SHA resolver
+discovery uses built-in read-only workflow authority
+PASS: Discovery uses built-in read-only workflow authority; no App token
+sha concurrency + serialized idempotency ok
+PASS: uniform SHA concurrency + production-path Bugbot idempotency
+resolver matrix rows 15
+resolver matrix ok
+PASS: actual resolver event matrix (incl. empty PR arrays)
+hosted workflows have no App or private-runner authority
+PASS: Hosted workflows use least-privilege built-in authority; no custom App
+main approve store behavioral ok
+PASS: Main Approve store gates/freshness/trust/expiry/schema/reuse
+live gh subprocess path ok
+PASS: Main Approve live gh checks/reread/variable fail-closed
+built-in token identity boundary ok
+PASS: Built-in token identity is explicit; retired App identity absent
+
+PASS: behavioral gitops tests (22 groups)
+BOUNDED_VERIFY_OK: through gitops-behavioral
+exit:0

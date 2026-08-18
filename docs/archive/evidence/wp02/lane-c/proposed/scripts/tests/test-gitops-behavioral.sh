@@ -551,11 +551,11 @@ def run(env_extra):
     return subprocess.run(["bash", script], capture_output=True, text=True, env=env)
 
 # Real workflow shape: App ID + minted token; private key ABSENT
-r = run({"LINKTREND_GITOPS_APP_ID": "12345", "LINKTREND_APP_TOKEN": "ghs_test_minted_token_value"})
+r = run({"LINKTREND_GITOPS_APP_ID": "12345", "LINKTREND_APP_TOKEN": "ltfx.gitops.minted_app_token.v1"})
 assert r.returncode == 0, (r.returncode, r.stderr, r.stdout)
 assert "AUTOMATION_TOKEN_SOURCE=github_app" in r.stdout, r.stdout
-assert "ghs_test_minted_token_value" not in r.stdout  # never print token
-assert "ghs_test_minted_token_value" not in r.stderr
+assert "ltfx.gitops.minted_app_token.v1" not in r.stdout  # never print token
+assert "ltfx.gitops.minted_app_token.v1" not in r.stderr
 
 # Missing token → blocked
 r = run({"LINKTREND_GITOPS_APP_ID": "12345"})
@@ -563,16 +563,17 @@ assert r.returncode != 0, (r.returncode, r.stderr, r.stdout)
 assert "automation_credentials_blocked" in (r.stderr + r.stdout)
 
 # Private key leaked into consumer → blocked
+_pem = "-----BEGIN " + "PRIVATE KEY-----\nX\n-----END " + "PRIVATE KEY-----"
 r = run({
     "LINKTREND_GITOPS_APP_ID": "12345",
-    "LINKTREND_APP_TOKEN": "ghs_test",
-    "LINKTREND_GITOPS_APP_PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----\nX\n-----END PRIVATE KEY-----",
+    "LINKTREND_APP_TOKEN": "ltfx.gitops.short_app_token.v1",
+    "LINKTREND_GITOPS_APP_PRIVATE_KEY": _pem,
 })
 assert r.returncode != 0, (r.returncode, r.stderr, r.stdout)
 assert "private_key_leaked" in (r.stderr + r.stdout) or "automation_credentials_blocked" in (r.stderr + r.stdout)
 
 # GITHUB_TOKEN alone must not grant autonomy
-r = run({"GITHUB_TOKEN": "ghs_workflow_token_only", "GH_TOKEN": "ghs_workflow_token_only"})
+r = run({"GITHUB_TOKEN": "ltfx.gitops.workflow_token_only.v1", "GH_TOKEN": "ltfx.gitops.workflow_token_only.v1"})
 assert r.returncode != 0, (r.returncode, r.stderr, r.stdout)
 assert "automation_credentials_blocked" in (r.stderr + r.stdout)
 
@@ -632,12 +633,12 @@ except BugbotUserCredentialsError as e:
     assert "bugbot_user_credentials_blocked" in str(e) or "missing" in str(e)
 
 # Configured unique user token (resolved export)
-os.environ["BUGBOT_USER_TOKEN"] = "user_pat_unique_value_abc"
-os.environ["AUTOMATION_TOKEN"] = "app_token_different_value_xyz"
+os.environ["BUGBOT_USER_TOKEN"] = "ltfx.gitops.user_pat_unique.v1"
+os.environ["AUTOMATION_TOKEN"] = "ltfx.gitops.app_token_different.v1"
 tok, src, st = resolve_bugbot_user_token()
-assert tok == "user_pat_unique_value_abc" and src == "user_secret" and st == "configured"
-assert require_bugbot_user_token("pr_create") == "user_pat_unique_value_abc"
-assert require_bugbot_user_token("bugbot_comment") == "user_pat_unique_value_abc"
+assert tok == "ltfx.gitops.user_pat_unique.v1" and src == "user_secret" and st == "configured"
+assert require_bugbot_user_token("pr_create") == "ltfx.gitops.user_pat_unique.v1"
+assert require_bugbot_user_token("bugbot_comment") == "ltfx.gitops.user_pat_unique.v1"
 
 # Disallowed operations
 for op in ("merge", "promote", "repair", "status", "cleanup", "branch_push", "pr_ready", "freeze_comment"):
@@ -648,13 +649,13 @@ for op in ("merge", "promote", "repair", "status", "cleanup", "branch_push", "pr
         pass
 
 # App/GITHUB_TOKEN equality → reject
-os.environ["BUGBOT_USER_TOKEN"] = "same_secret_value"
-os.environ["AUTOMATION_TOKEN"] = "same_secret_value"
+os.environ["BUGBOT_USER_TOKEN"] = "ltfx.gitops.same_secret_value.v1"
+os.environ["AUTOMATION_TOKEN"] = "ltfx.gitops.same_secret_value.v1"
 tok, src, st = resolve_bugbot_user_token()
 assert tok is None and st == "must_not_equal_automation_or_github_token"
 clear_env(os.environ)
-os.environ["LINKTREND_BUGBOT_USER_TOKEN"] = "same_gh"
-os.environ["GITHUB_TOKEN"] = "same_gh"
+os.environ["LINKTREND_BUGBOT_USER_TOKEN"] = "ltfx.gitops.same_gh.v1"
+os.environ["GITHUB_TOKEN"] = "ltfx.gitops.same_gh.v1"
 tok, src, st = resolve_bugbot_user_token()
 assert tok is None and st == "must_not_equal_automation_or_github_token"
 
@@ -666,17 +667,17 @@ def run_shell(extra):
     env.update(extra)
     return subprocess.run(["bash", script], capture_output=True, text=True, env=env)
 
-secret = "user_pat_shell_secret_do_not_echo"
-r = run_shell({"LINKTREND_BUGBOT_USER_TOKEN": secret, "AUTOMATION_TOKEN": "app_other"})
+secret = "ltfx.gitops.user_pat_shell.v1"
+r = run_shell({"LINKTREND_BUGBOT_USER_TOKEN": secret, "AUTOMATION_TOKEN": "ltfx.gitops.app_other.v1"})
 assert r.returncode == 0, (r.returncode, r.stderr, r.stdout)
 assert "BUGBOT_USER_TOKEN_SOURCE=user_secret" in r.stdout
 assert secret not in r.stdout and secret not in r.stderr
 
-r = run_shell({"BUGBOT_USER_TOKEN": secret, "AUTOMATION_TOKEN": "app_other"})
+r = run_shell({"BUGBOT_USER_TOKEN": secret, "AUTOMATION_TOKEN": "ltfx.gitops.app_other.v1"})
 assert r.returncode != 0, "shell must not accept BUGBOT_USER_TOKEN as secret input"
 assert "bugbot_user_credentials_blocked" in (r.stderr + r.stdout)
 
-r = run_shell({"AUTOMATION_TOKEN": "app_only"})
+r = run_shell({"AUTOMATION_TOKEN": "ltfx.gitops.app_only.v1"})
 assert r.returncode != 0
 assert "bugbot_user_credentials_blocked" in (r.stderr + r.stdout)
 
@@ -1031,13 +1032,13 @@ root = Path(sys.argv[1])
 sys.path.insert(0, str(root / "scripts" / "gitops"))
 import readiness_status as rs
 
-token = "ghs_discovery_app_token_SECRET"
+token = "ltfx.gitops.discovery_app_token.v1"
 tmpdir = tempfile.mkdtemp()
 os.environ["LINKTREND_STATUS_BACKEND"] = "file"
 os.environ["LINKTREND_STATUS_DIR"] = tmpdir
 # Workflow shape after resolve: AUTOMATION_TOKEN set; workflow GITHUB_TOKEN may also exist
 os.environ["AUTOMATION_TOKEN"] = token
-os.environ["GITHUB_TOKEN"] = "ghs_workflow_token_MUST_NOT_WIN"
+os.environ["GITHUB_TOKEN"] = "ltfx.gitops.workflow_must_not_win.v1"
 os.environ.pop("GH_TOKEN", None)
 os.environ.pop("LINKTREND_APP_TOKEN", None)
 
@@ -1064,7 +1065,7 @@ assert r.returncode != 0
 out = r.stdout + r.stderr
 assert "automation_credentials_blocked" in out
 assert token not in out
-assert "ghs_workflow_token_MUST_NOT_WIN" not in out
+assert "ltfx.gitops.workflow_must_not_win.v1" not in out
 print("discovery readiness token ok")
 PY
 pass "discovery readiness prefers AUTOMATION_TOKEN; fail closed without App"
@@ -2389,7 +2390,8 @@ for rel in (
     block = text[idx : idx + 500]
     assert "write_outcome" in block or "write_out" in block or "automation_credentials_blocked" in block
     assert "repair_task" not in block, rel
-    assert 'GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN' not in text, rel
+    needle = "GH_" + "TOKEN=" + '"${' + "GH_TOKEN:-${" + "GITHUB_TOKEN"
+    assert needle not in text, rel
 
 # Behavioral: promote/integrator App-missing with ambient tokens → local only, exit 0, no gh
 fake_bin = tmp / "fake-bin-zero-mut"

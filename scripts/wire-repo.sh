@@ -87,7 +87,7 @@ if [ ! -f "$CONFIG_PATH" ]; then
   if [ -z "$CI_NAME" ] || [ -z "$BRANCH_POLICY_NAME" ]; then
     fail "Missing $CONFIG_PATH. Create it or pass --ci-workflow-name and --branch-policy-workflow-name (fail closed)."
   fi
-  BUGBOT_NAME="${BUGBOT_NAME:-Cursor Bugbot}"
+  BUGBOT_NAME="${BUGBOT_NAME:-Linktrend Review Gate}"
   python3 - "$CONFIG_PATH" "$CI_NAME" "$BRANCH_POLICY_NAME" "$BUGBOT_NAME" "$RUNNER_TYPE" <<'PY'
 import json, sys
 from pathlib import Path
@@ -98,6 +98,8 @@ Path(path).write_text(json.dumps({
     "ciWorkflowName": ci,
     "branchPolicyWorkflowName": branch,
     "bugbotCheckName": bugbot,
+    "reviewGateCheckName": bugbot,
+    "bugbotProviderCheckName": "Cursor Bugbot",
     "runnerType": runner_type,
 }, indent=2) + "\n", encoding="utf-8")
 print(f"PASS: wrote consumer config {path}")

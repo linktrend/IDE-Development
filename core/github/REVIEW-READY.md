@@ -25,9 +25,9 @@ Concurrent feature branches must not fight over a shared path like `.linktrend/r
 
 | Path | Who | When |
 |------|-----|------|
-| **normal-token publisher (production)** | `LINKTREND_AUTOMATION_TOKEN` inside `linktrend-review-ready-publisher.yml` | Trusted Actions context after independent re-validation |
-| Local `completion_gate.py review-ready` | Same normal automation token **only if** already present in a trusted context | Fail closed otherwise; print normal-token dispatch diagnostics |
-| Carlos restricted user / `GITHUB_TOKEN` / PAT fallback | **Forbidden** for this status | Packager/Bugbot user scope unchanged; must not publish readiness |
+| **trusted built-in publisher (production)** | `github.token` forwarded as `AUTOMATION_TOKEN` (aliases `GH_TOKEN` / `GITHUB_TOKEN`) inside `linktrend-review-ready-publisher.yml` with `LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER=1` on the publish/withdraw step only | Trusted Actions context after independent re-validation |
+| Local `completion_gate.py review-ready` | Same documented `AUTOMATION_TOKEN` **only if** already present in that trusted context; otherwise fail closed and print dispatch diagnostics that forward `AUTOMATION_TOKEN` without logging it | Fail closed otherwise; print normal-token dispatch diagnostics |
+| Carlos restricted user / human PAT fallback | **Forbidden** for this status | Packager/Bugbot user scope unchanged; must not publish readiness |
 
 Workflow source and validation scripts are checked out from the **protected default branch**. The untrusted issue branch supplies branch tip data and evidence only.
 
@@ -51,7 +51,21 @@ Exact input names live in the workflow YAML / dispatch validator. The contract r
 
 ### Fail closed (no success status)
 
-Mismatched SHA, malformed/foreign branch, changed/missing evidence, missing normal automation token, human-token substitution, or cross-repo/SHA attempts must fail with **no** successful `Linktrend Review Ready` status written.
+Mismatched SHA, malformed/foreign branch, changed/missing evidence, missing trusted publisher flag, missing `AUTOMATION_TOKEN` (or alias in trusted context), human-token substitution, untrusted workflow source, insufficient `statuses: write` permission, or cross-repo/SHA attempts must fail with **no** successful `Linktrend Review Ready` status written.
+
+### Token resolution
+
+| Input | Role |
+|-------|------|
+| `AUTOMATION_TOKEN` | Documented privileged input. Wins over aliases. Forwarded onto `GH_TOKEN` / `GITHUB_TOKEN` without logging. |
+| `GH_TOKEN` | Alias used by `gh` and the trusted workflow's built-in token binding. |
+| `GITHUB_TOKEN` | Alias. Lowest precedence. Ordinary workflow tokens without `LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER=1` never authorize publish. |
+
+`LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER=1` is set only on the step that verifies the immutable remote tip and publishes or withdraws. Input validation must not carry that flag.
+
+### v2.3.8 bootstrap
+
+Repositories whose installed publisher still places the trusted flag on validation use `scripts/gitops/review_ready_publisher_bootstrap.py`. The route is limited to an already-open exact-head PR controlled by an authorized Integrator. It must not call the defective publisher, invent a PR, change the head, skip required checks, push directly to a protected branch, weaken a ruleset, or reuse stale evidence. When `Linktrend Review Ready` is a live required context, founder authorization is required and before/after rule state is recorded.
 
 ### Operator / agent steps
 

@@ -1,0 +1,51 @@
+=== actionlint ===
+actionlint_exit=0
+=== unittest ===
+test_all_classified_outcomes (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_candidate_cannot_replace_classifier_or_self_approve (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
+Negative: candidate tree cannot replace trusted classifier / self-approve. ... ok
+test_detect_findings_from_trustworthy_event_evidence (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_durable_founder_alert_dedupe_and_fail_closed (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_fail_closed_missing_malformed_forged_wrong_head (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_failure_never_becomes_advisory_via_heuristic (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_fallback_reviewer_rules_and_comment (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_full_failure_blocks_bugbot_request (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_full_receipt_required_before_successful_gate_publish (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_infrastructure_attempts_count_only_infra_markers (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_managed_surfaces_reject_raw_bugbot_required_defaults (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... skipped 'bootstrap scope: deferred to sealed product candidate / later ruleset migration; do not copy verifier repair onto PR #326'
+test_new_commit_invalidates_prior_outcome (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_normalize_full_receipt_never_injects_live_tree (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_observer_rejects_raw_bugbot_as_managed_gate (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... skipped 'bootstrap scope: deferred to sealed product candidate / later ruleset migration; do not copy verifier repair onto PR #326'
+test_packaged_surfaces_exist (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_paginated_slurp_flatten_multi_page_bodies_and_dedupe (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
+Two+ pages must flatten to one JSON list; alert/marker counts stay exact. ... ok
+test_planted_allowlisted_provider_error_and_forged_receipt_rejected (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
+Adversarial: each allowlisted planted source + forged Full receipt fail closed. ... ok
+test_protection_and_consumer_defaults_migrated (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... skipped 'bootstrap scope: deferred to sealed product candidate / later ruleset migration; do not copy verifier repair onto PR #326'
+test_raw_bugbot_required_contexts_rejected (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_same_account_comment_not_github_approval (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_slurp_json_stdin_handles_arg_max_and_pipefail_hold (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
+Workflow path: stdin --slurp-json - survives ARG_MAX; upstream fail stays HOLD. ... ok
+test_undocumented_task_hold_rejected (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_workflow_forbids_heuristic_and_wires_alert_fallback_full (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_workflow_path_wrong_tree_receipt_negative (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
+Adversarial: receipt tree differs from live TREE and must fail closed. ... ok
+test_workflow_static_no_trailing_whitespace (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_content_doctrine_covers_required_contracts (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_content_doctrine_sources_exist (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_hosted_defaults_and_redacted_cleanup_inventory_are_packaged (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_library_vendor_rename_has_exact_removal_migrations (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_manifest_package_version_identity (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_required_cursor_materialization_sources_are_packaged (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_version_alignment_helpers (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+
+----------------------------------------------------------------------
+Ran 32 tests in 0.461s
+
+OK (skipped=3)
+unittest_exit=0
+=== manifest verify ===
+MANIFEST verify OK
+manifest_exit=0
+=== git diff --check ===
+diffcheck_exit=0

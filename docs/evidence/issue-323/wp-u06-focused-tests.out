@@ -1,0 +1,11 @@
+.....................................
+----------------------------------------------------------------------
+Ran 37 tests in 4.118s
+
+OK
+MANIFEST verify OK
+againstHead:54e8e8ce0905988aa62116a5032e206c7454b1fe
+againstTree:c01ccf93215c1e5e49c2f5e9db41881f73d7a4ff
+testsRan:37
+findingReviewedTip:0b4905f066a8248c39058d198d074b036a50d816
+at:2026-08-17T16:28:21Z

@@ -144,7 +144,7 @@
                 "context": "Verify IDE Development"
               },
               {
-                "context": "Enforce allowed PR source branches"
+                "context": "Linktrend Branch Source Policy"
               }
             ]
           }

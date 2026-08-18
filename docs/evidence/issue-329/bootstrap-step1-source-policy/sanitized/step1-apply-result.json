@@ -1,0 +1,20 @@
+{
+  "mutations": [
+    {
+      "op": "update_ruleset",
+      "branch": "development",
+      "id": 19728531
+    },
+    {
+      "op": "update_ruleset",
+      "branch": "staging",
+      "id": 20218450
+    },
+    {
+      "op": "update_ruleset",
+      "branch": "main",
+      "id": 20218451
+    }
+  ],
+  "ok": true
+}

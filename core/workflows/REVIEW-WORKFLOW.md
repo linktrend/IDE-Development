@@ -85,6 +85,11 @@ Typical owners:
 - generates rework obligations
 - may create escalation needs
 
+Independent-review repair continuation is progress-based. Use
+`scripts/gitops/independent_review_convergence.py` for exact-head session
+identity, finding-ledger preservation, consolidated repair batches, and
+truthful HOLD / `review_stalled` stops. Do not invent a terminal cycle cap.
+
 ## Read Next
 
 1. `INTEGRATION-WORKFLOW.md`

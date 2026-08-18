@@ -27,10 +27,19 @@ class NoSecretsPackagingTests(unittest.TestCase):
         self.assertEqual(findings, [], msg="\n".join(findings[:30]))
 
     def test_tainted_fixture_is_detected(self) -> None:
-        """Positive control: scanner must flag intentionally tainted fixture bytes."""
-        tainted = SECURITY_FIXTURES / "tainted" / "leaky-snippet.txt"
-        self.assertTrue(tainted.is_file())
-        findings = scan_text(tainted.read_text(encoding="utf-8"), rel="tainted/leaky-snippet.txt")
+        """Positive control: scanner must flag intentionally tainted bytes at runtime."""
+        github = "ghp_" + ("a" * 36)
+        pem = "-----BEGIN RSA " + "PRIVATE KEY-----\nMIIEowIBAAKFAKE_FOR_SCANNER_ONLY\n-----END RSA " + "PRIVATE KEY-----\n"
+        api = "ABCD" + "EFGHIJKLMNOPQRSTUVWX123456"
+        payload = "\n".join(
+            [
+                "# runtime tainted vector",
+                "api" + "_key=" + api,
+                "tok" + "en=" + github,
+                pem,
+            ]
+        )
+        findings = scan_text(payload, rel="tainted/runtime-leaky-snippet.txt")
         self.assertTrue(findings, "expected scanner to flag tainted fixture")
 
     def test_evidence_fixture_without_secrets(self) -> None:
@@ -45,14 +54,12 @@ class NoSecretsPackagingTests(unittest.TestCase):
         findings = scan_text(dirty.read_text(encoding="utf-8"), rel=dirty.name)
         self.assertTrue(any("absolute" in f or "username" in f for f in findings), findings)
 
-    def test_security_fixtures_tainted_dir_only_contains_intentional_secrets(self) -> None:
-        """Only the tainted/ subtree may contain secret-like patterns under security fixtures."""
+    def test_security_fixtures_contain_no_tracked_secret_bytes(self) -> None:
+        """Security fixtures stay free of tracked realistic credential bytes (incl. tainted/)."""
         for path in sorted(SECURITY_FIXTURES.rglob("*")):
             if not path.is_file() or path.is_symlink():
                 continue
             rel = path.relative_to(SECURITY_FIXTURES).as_posix()
-            if rel.startswith("tainted/"):
-                continue
             if "host-path" in path.name or "wrong-repo" in path.name:
                 # wrong-repo / host-path fixtures are intentional adversarial samples
                 continue

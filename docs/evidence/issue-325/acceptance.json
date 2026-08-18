@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "issue": 325,
+  "workPackage": "WP-U05",
+  "branch": "issue/325-implement-ide-development-v2-4-0-wp-u05",
+  "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
+  "docsAuthorityTree": "6b9f73f1e78ae4abda3b78b939adc190b6d0842a",
+  "identityModel": "content-head/evidence-head/final-bind-tip",
+  "startSha": "ccaeae212e448e1c49369cf1fabfc28341476b62",
+  "startTree": "6d296378923a1e5b8ecd7b0ca6b5064ed644b3c4",
+  "priorTip": "ccaeae212e448e1c49369cf1fabfc28341476b62",
+  "contentHeadSha": "75d4cb07dd330b5aef89fa96421a7bdf91e95941",
+  "contentTree": "6ec7ba3174f774393d5ebd1c18b5f952185bbd05",
+  "implementationHeadSha": "75d4cb07dd330b5aef89fa96421a7bdf91e95941",
+  "implementationTree": "6ec7ba3174f774393d5ebd1c18b5f952185bbd05",
+  "headSha": "75d4cb07dd330b5aef89fa96421a7bdf91e95941",
+  "tree": "6ec7ba3174f774393d5ebd1c18b5f952185bbd05",
+  "acceptance": "AC-U05-01..16 except AC-U05-17; focused tests OK; protection suite OK; manifest verify OK; diff --check OK",
+  "covered": [
+    "AC-U05-01",
+    "AC-U05-02",
+    "AC-U05-03",
+    "AC-U05-04",
+    "AC-U05-05",
+    "AC-U05-06",
+    "AC-U05-07",
+    "AC-U05-08",
+    "AC-U05-09",
+    "AC-U05-10",
+    "AC-U05-11",
+    "AC-U05-12",
+    "AC-U05-13",
+    "AC-U05-14",
+    "AC-U05-15",
+    "AC-U05-16"
+  ],
+  "exclusions": [
+    "AC-U05-17 live consumer verification",
+    "Full suite",
+    "PR",
+    "merge",
+    "promotion",
+    "publication",
+    "rollout",
+    "consumer install",
+    "review-ready publish",
+    "live ruleset apply"
+  ],
+  "rollback": [
+    "Leave issue branch unmerged; no prefer-incoming",
+    "Restore archived before-state on partial migration",
+    "Never weaken native protection or infer founder approval",
+    "Never copy verifier repair onto sealed product candidate"
+  ],
+  "commands": [
+    {
+      "command": "python3 -m unittest scripts.tests.test_atomic_workflow_ruleset_migration scripts.ide_development_tests.test_build_manifest",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-325/wp-u05-focused-tests.out",
+      "testsRan": 25,
+      "againstHead": "75d4cb07dd330b5aef89fa96421a7bdf91e95941",
+      "againstTree": "6ec7ba3174f774393d5ebd1c18b5f952185bbd05"
+    },
+    {
+      "command": "bash scripts/tests/test-repository-protection.sh",
+      "exitCode": 0,
+      "againstHead": "75d4cb07dd330b5aef89fa96421a7bdf91e95941",
+      "againstTree": "6ec7ba3174f774393d5ebd1c18b5f952185bbd05"
+    },
+    {
+      "command": "python3 -m scripts.ide_development.build_manifest --verify",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "hold": [
+    "AC-U05-17 deferred to WP-CONSUMERS",
+    "No Full / PR / review-ready / promotion / rollout / consumer install / live ruleset apply in this packet"
+  ],
+  "finalTipBinding": {
+    "mode": "non-self-reference-boundary",
+    "note": "Bind-metadata commit becomes the branch tip. It records content and evidence heads/trees only. It does not embed its own commit SHA."
+  },
+  "sanitized": true,
+  "at": "2026-08-17T18:49:59Z",
+  "evidenceHeadSha": "04fc302ea0bf630e658fda2f6f92ffc516160c63",
+  "evidenceTree": "aca99492c4a5745f61b4ba629fb68765337395fb"
+}
