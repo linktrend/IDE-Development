@@ -92,13 +92,22 @@ def _actions_check(
     summary: str,
     app_slug: str = "github-actions",
     head_sha: str = HEAD,
+    check_id: int | None = None,
+    suite_id: int | None = None,
+    conclusion: str = "success",
+    details_run_id: int | None = None,
 ) -> dict:
+    cid = check_id if check_id is not None else run_id * 10
+    sid = suite_id if suite_id is not None else run_id * 100
+    details = details_run_id if details_run_id is not None else run_id
     return {
+        "id": cid,
         "name": name,
         "head_sha": head_sha,
-        "conclusion": "success",
+        "conclusion": conclusion,
         "app": {"slug": app_slug},
-        "details_url": f"https://github.com/{REPO}/actions/runs/{run_id}",
+        "check_suite": {"id": sid},
+        "details_url": f"https://github.com/{REPO}/actions/runs/{details}",
         "output": {"summary": summary},
     }
 
@@ -109,12 +118,39 @@ def _workflow_run(
     path: str,
     head_branch: str = "issue/329-candidate",
     head_sha: str = HEAD,
+    suite_id: int | None = None,
+    conclusion: str = "success",
+    status: str = "completed",
 ) -> dict:
     return {
         "id": run_id,
         "path": path,
         "head_branch": head_branch,
         "head_sha": head_sha,
+        "check_suite_id": suite_id if suite_id is not None else run_id * 100,
+        "conclusion": conclusion,
+        "status": status,
+    }
+
+
+def _jobs_for(
+    *,
+    run_id: int,
+    check_id: int,
+    name: str,
+    conclusion: str = "success",
+) -> dict:
+    return {
+        "jobs": [
+            {
+                "id": check_id + 1,
+                "run_id": run_id,
+                "name": name,
+                "status": "completed",
+                "conclusion": conclusion,
+                "check_run_url": f"https://api.github.com/repos/{REPO}/check-runs/{check_id}",
+            }
+        ]
     }
 
 
@@ -131,6 +167,37 @@ def _wf_shas(
     elif head is not None:
         entry["head"] = head
     return {path: entry}
+
+
+def _trusted_extract_kwargs(
+    *,
+    run_id: int,
+    path: str,
+    name: str,
+    head_branch: str = DEFAULT_BRANCH,
+    suite_id: int | None = None,
+    check_id: int | None = None,
+    shas: dict | None = None,
+) -> dict:
+    cid = check_id if check_id is not None else run_id * 10
+    sid = suite_id if suite_id is not None else run_id * 100
+    return {
+        "default_branch": DEFAULT_BRANCH,
+        "workflow_runs": {
+            "workflow_runs": [
+                _workflow_run(
+                    run_id=run_id,
+                    path=path,
+                    head_branch=head_branch,
+                    suite_id=sid,
+                )
+            ]
+        },
+        "workflow_jobs": _jobs_for(run_id=run_id, check_id=cid, name=name),
+        "workflow_file_shas": shas
+        if shas is not None
+        else _wf_shas(path, head=None if head_branch == DEFAULT_BRANCH else DEFAULT_WF_BLOB),
+    }
 
 
 def _verified_quota() -> dict:
@@ -504,10 +571,13 @@ class LinktrendReviewGateTests(unittest.TestCase):
             self.assertIn("extract-trusted-full-receipt", text)
             self.assertIn("--default-branch", text)
             self.assertIn("--workflow-runs-json", text)
+            self.assertIn("--workflow-jobs-json", text)
             self.assertIn("--workflow-file-shas-json", text)
             self.assertIn("resolve-workflow-file-shas", text)
+            self.assertIn("resolve-workflow-jobs", text)
             self.assertIn("actions/runs?head_sha=", text)
             self.assertIn("HOLD: workflow_runs_unreadable", text)
+            self.assertIn("HOLD: workflow_jobs_unreadable", text)
             self.assertIn("HOLD: workflow_file_shas_unreadable", text)
             self.assertIn("--provider-evidence-channel", text)
             self.assertIn("--evidence-channel", text)
@@ -762,27 +832,25 @@ class LinktrendReviewGateTests(unittest.TestCase):
         # Candidate-authored check (non github-actions) must not extract as trusted Full.
         planted_checks = {
             "check_runs": [
-                {
-                    "name": FULL_SUITE_CONTEXT,
-                    "head_sha": HEAD,
-                    "conclusion": "success",
-                    "app": {"slug": "cursor"},
-                    "details_url": f"https://github.com/{REPO}/actions/runs/1",
-                    "output": {"summary": f"head={HEAD}\ngitTree={TREE}\n"},
-                }
+                _actions_check(
+                    name=FULL_SUITE_CONTEXT,
+                    run_id=1,
+                    summary=f"head={HEAD}\ngitTree={TREE}\n",
+                    app_slug="cursor",
+                )
             ]
         }
         self.assertIsNone(
             extract_trusted_full_receipt_from_check_runs(
                 planted_checks,
                 head_sha=HEAD,
-                default_branch=DEFAULT_BRANCH,
-                workflow_runs={"workflow_runs": [_workflow_run(run_id=1, path=FULL_WF_PATH)]},
-                workflow_file_shas=_wf_shas(FULL_WF_PATH),
+                **_trusted_extract_kwargs(
+                    run_id=1, path=FULL_WF_PATH, name=FULL_SUITE_CONTEXT
+                ),
             )
         )
 
-        # Trusted default-branch-bound Full check extracts with github_check_run channel.
+        # Trusted suite+job-bound Full check extracts with github_check_run channel.
         trusted_checks = {
             "check_runs": [
                 _actions_check(
@@ -795,13 +863,9 @@ class LinktrendReviewGateTests(unittest.TestCase):
         extracted = extract_trusted_full_receipt_from_check_runs(
             trusted_checks,
             head_sha=HEAD,
-            default_branch=DEFAULT_BRANCH,
-            workflow_runs={
-                "workflow_runs": [
-                    _workflow_run(run_id=42, path=FULL_WF_PATH, head_branch=DEFAULT_BRANCH)
-                ]
-            },
-            workflow_file_shas=_wf_shas(FULL_WF_PATH, head=None),
+            **_trusted_extract_kwargs(
+                run_id=42, path=FULL_WF_PATH, name=FULL_SUITE_CONTEXT
+            ),
         )
         assert extracted is not None
         self.assertEqual(extracted["evidenceChannel"], EVIDENCE_CHANNEL_GITHUB_CHECK_RUN)
@@ -816,33 +880,29 @@ class LinktrendReviewGateTests(unittest.TestCase):
         # Planted provider-unavailability check from non-actions app is ignored.
         planted_provider = {
             "check_runs": [
-                {
-                    "name": "Linktrend Provider Unavailability",
-                    "head_sha": HEAD,
-                    "conclusion": "success",
-                    "app": {"slug": "dependabot"},
-                    "details_url": f"https://github.com/{REPO}/actions/runs/7",
-                    "output": {
-                        "summary": json.dumps(
-                            {
-                                "verified": True,
-                                "class": "quota",
-                                "source": "repair_observer.usage_limit",
-                            }
-                        )
-                    },
-                }
+                _actions_check(
+                    name="Linktrend Provider Unavailability",
+                    run_id=7,
+                    summary=json.dumps(
+                        {
+                            "verified": True,
+                            "class": "quota",
+                            "source": "repair_observer.usage_limit",
+                        }
+                    ),
+                    app_slug="dependabot",
+                )
             ]
         }
         self.assertIsNone(
             extract_trusted_provider_evidence_from_check_runs(
                 planted_provider,
                 head_sha=HEAD,
-                default_branch=DEFAULT_BRANCH,
-                workflow_runs={
-                    "workflow_runs": [_workflow_run(run_id=7, path=PROVIDER_WF_PATH)]
-                },
-                workflow_file_shas=_wf_shas(PROVIDER_WF_PATH),
+                **_trusted_extract_kwargs(
+                    run_id=7,
+                    path=PROVIDER_WF_PATH,
+                    name="Linktrend Provider Unavailability",
+                ),
             )
         )
 
@@ -864,15 +924,11 @@ class LinktrendReviewGateTests(unittest.TestCase):
         provider = extract_trusted_provider_evidence_from_check_runs(
             trusted_provider,
             head_sha=HEAD,
-            default_branch=DEFAULT_BRANCH,
-            workflow_runs={
-                "workflow_runs": [
-                    _workflow_run(
-                        run_id=8, path=PROVIDER_WF_PATH, head_branch=DEFAULT_BRANCH
-                    )
-                ]
-            },
-            workflow_file_shas=_wf_shas(PROVIDER_WF_PATH, head=None),
+            **_trusted_extract_kwargs(
+                run_id=8,
+                path=PROVIDER_WF_PATH,
+                name="Linktrend Provider Unavailability",
+            ),
         )
         assert provider is not None
         self.assertEqual(provider["evidenceChannel"], EVIDENCE_CHANNEL_GITHUB_CHECK_RUN)
@@ -884,6 +940,206 @@ class LinktrendReviewGateTests(unittest.TestCase):
             infrastructure_attempts=1,
         )
         self.assertEqual(classified.outcome, OUTCOME_ADVISORY)
+
+    def test_details_url_hijack_and_producer_membership_binding(self) -> None:
+        """P1: borrowed details_url + forged summary cannot authorize Full/provider success."""
+        full_summary = f"head={HEAD}\ngitTree={TREE}\n"
+        forged_summary = f"head={HEAD}\ngitTree={TREE}\nforged=1\n"
+        provider_summary = json.dumps(
+            {
+                "verified": True,
+                "class": "quota",
+                "source": "repair_observer.usage_limit",
+            }
+        )
+        forged_provider = json.dumps(
+            {
+                "verified": True,
+                "class": "quota",
+                "source": "repair_observer.usage_limit",
+                "forged": True,
+            }
+        )
+
+        # Genuine successful producer run/job/suite (membership target).
+        genuine_run = 201
+        genuine_check = 2010
+        genuine_suite = 20100
+        genuine_jobs = _jobs_for(
+            run_id=genuine_run, check_id=genuine_check, name=FULL_SUITE_CONTEXT
+        )
+        genuine_runs = {
+            "workflow_runs": [
+                _workflow_run(
+                    run_id=genuine_run,
+                    path=FULL_WF_PATH,
+                    head_branch=DEFAULT_BRANCH,
+                    suite_id=genuine_suite,
+                )
+            ]
+        }
+
+        # Attacker check borrows genuine details_url but has a different suite/check id.
+        hijack = {
+            "check_runs": [
+                _actions_check(
+                    name=FULL_SUITE_CONTEXT,
+                    run_id=999,
+                    check_id=9990,
+                    suite_id=99900,
+                    details_run_id=genuine_run,
+                    summary=forged_summary,
+                )
+            ]
+        }
+        self.assertIsNone(
+            extract_trusted_full_receipt_from_check_runs(
+                hijack,
+                head_sha=HEAD,
+                default_branch=DEFAULT_BRANCH,
+                workflow_runs=genuine_runs,
+                workflow_jobs=genuine_jobs,
+                workflow_file_shas=_wf_shas(FULL_WF_PATH, head=None),
+            )
+        )
+
+        # Failed genuine producer cannot authorize even with matching suite membership.
+        failed_runs = {
+            "workflow_runs": [
+                _workflow_run(
+                    run_id=genuine_run,
+                    path=FULL_WF_PATH,
+                    head_branch=DEFAULT_BRANCH,
+                    suite_id=genuine_suite,
+                    conclusion="failure",
+                )
+            ]
+        }
+        self.assertIsNone(
+            extract_trusted_full_receipt_from_check_runs(
+                {
+                    "check_runs": [
+                        _actions_check(
+                            name=FULL_SUITE_CONTEXT,
+                            run_id=genuine_run,
+                            check_id=genuine_check,
+                            suite_id=genuine_suite,
+                            summary=full_summary,
+                        )
+                    ]
+                },
+                head_sha=HEAD,
+                default_branch=DEFAULT_BRANCH,
+                workflow_runs=failed_runs,
+                workflow_jobs=genuine_jobs,
+                workflow_file_shas=_wf_shas(FULL_WF_PATH, head=None),
+            )
+        )
+
+        # Missing check_suite / check id → fail closed.
+        self.assertIsNone(
+            extract_trusted_full_receipt_from_check_runs(
+                {
+                    "check_runs": [
+                        {
+                            "name": FULL_SUITE_CONTEXT,
+                            "head_sha": HEAD,
+                            "conclusion": "success",
+                            "app": {"slug": "github-actions"},
+                            "details_url": f"https://github.com/{REPO}/actions/runs/{genuine_run}",
+                            "output": {"summary": full_summary},
+                        }
+                    ]
+                },
+                head_sha=HEAD,
+                default_branch=DEFAULT_BRANCH,
+                workflow_runs=genuine_runs,
+                workflow_jobs=genuine_jobs,
+                workflow_file_shas=_wf_shas(FULL_WF_PATH, head=None),
+            )
+        )
+
+        # Valid producer: suite + successful job membership + successful run.
+        ok = extract_trusted_full_receipt_from_check_runs(
+            {
+                "check_runs": [
+                    _actions_check(
+                        name=FULL_SUITE_CONTEXT,
+                        run_id=genuine_run,
+                        check_id=genuine_check,
+                        suite_id=genuine_suite,
+                        summary=full_summary,
+                    )
+                ]
+            },
+            head_sha=HEAD,
+            default_branch=DEFAULT_BRANCH,
+            workflow_runs=genuine_runs,
+            workflow_jobs=genuine_jobs,
+            workflow_file_shas=_wf_shas(FULL_WF_PATH, head=None),
+        )
+        assert ok is not None
+        self.assertEqual(ok["workflowRunId"], genuine_run)
+        self.assertEqual(ok["checkRunId"], genuine_check)
+
+        # Provider hijack: borrow genuine repair-observer URL with forged summary.
+        p_run, p_check, p_suite = 301, 3010, 30100
+        p_jobs = _jobs_for(
+            run_id=p_run,
+            check_id=p_check,
+            name="Linktrend Provider Unavailability",
+        )
+        p_runs = {
+            "workflow_runs": [
+                _workflow_run(
+                    run_id=p_run,
+                    path=PROVIDER_WF_PATH,
+                    head_branch=DEFAULT_BRANCH,
+                    suite_id=p_suite,
+                )
+            ]
+        }
+        self.assertIsNone(
+            extract_trusted_provider_evidence_from_check_runs(
+                {
+                    "check_runs": [
+                        _actions_check(
+                            name="Linktrend Provider Unavailability",
+                            run_id=888,
+                            check_id=8880,
+                            suite_id=88800,
+                            details_run_id=p_run,
+                            summary=forged_provider,
+                        )
+                    ]
+                },
+                head_sha=HEAD,
+                default_branch=DEFAULT_BRANCH,
+                workflow_runs=p_runs,
+                workflow_jobs=p_jobs,
+                workflow_file_shas=_wf_shas(PROVIDER_WF_PATH, head=None),
+            )
+        )
+        ok_provider = extract_trusted_provider_evidence_from_check_runs(
+            {
+                "check_runs": [
+                    _actions_check(
+                        name="Linktrend Provider Unavailability",
+                        run_id=p_run,
+                        check_id=p_check,
+                        suite_id=p_suite,
+                        summary=provider_summary,
+                    )
+                ]
+            },
+            head_sha=HEAD,
+            default_branch=DEFAULT_BRANCH,
+            workflow_runs=p_runs,
+            workflow_jobs=p_jobs,
+            workflow_file_shas=_wf_shas(PROVIDER_WF_PATH, head=None),
+        )
+        assert ok_provider is not None
+        self.assertEqual(ok_provider["checkSuiteId"], p_suite)
 
     def test_same_app_check_name_collision_requires_default_branch_workflow_identity(
         self,
@@ -899,69 +1155,75 @@ class LinktrendReviewGateTests(unittest.TestCase):
         )
 
         # Colliding candidate workflow path under the same Actions app.
-        collision_full = {
-            "check_runs": [
-                _actions_check(name=FULL_SUITE_CONTEXT, run_id=101, summary=full_summary)
-            ]
-        }
         self.assertIsNone(
             extract_trusted_full_receipt_from_check_runs(
-                collision_full,
-                head_sha=HEAD,
-                default_branch=DEFAULT_BRANCH,
-                workflow_runs={
-                    "workflow_runs": [
-                        _workflow_run(run_id=101, path=COLLISION_WF_PATH)
+                {
+                    "check_runs": [
+                        _actions_check(
+                            name=FULL_SUITE_CONTEXT, run_id=101, summary=full_summary
+                        )
                     ]
                 },
-                workflow_file_shas={
-                    **_wf_shas(FULL_WF_PATH),
-                    **_wf_shas(COLLISION_WF_PATH),
-                },
-            )
-        )
-
-        # Allowlisted path but rewritten producer blob on the candidate tip.
-        rewritten = {
-            "check_runs": [
-                _actions_check(name=FULL_SUITE_CONTEXT, run_id=102, summary=full_summary)
-            ]
-        }
-        self.assertIsNone(
-            extract_trusted_full_receipt_from_check_runs(
-                rewritten,
                 head_sha=HEAD,
-                default_branch=DEFAULT_BRANCH,
-                workflow_runs={
-                    "workflow_runs": [_workflow_run(run_id=102, path=FULL_WF_PATH)]
-                },
-                workflow_file_shas=_wf_shas(
-                    FULL_WF_PATH, head=REWRITTEN_WF_BLOB
+                **_trusted_extract_kwargs(
+                    run_id=101,
+                    path=COLLISION_WF_PATH,
+                    name=FULL_SUITE_CONTEXT,
+                    shas={
+                        **_wf_shas(FULL_WF_PATH),
+                        **_wf_shas(COLLISION_WF_PATH),
+                    },
                 ),
             )
         )
 
-        # Missing details_url / run id → fail closed.
-        no_url = {
-            "check_runs": [
-                {
-                    "name": FULL_SUITE_CONTEXT,
-                    "head_sha": HEAD,
-                    "conclusion": "success",
-                    "app": {"slug": "github-actions"},
-                    "output": {"summary": full_summary},
-                }
-            ]
-        }
+        # Allowlisted path but rewritten producer blob on the candidate tip.
         self.assertIsNone(
             extract_trusted_full_receipt_from_check_runs(
-                no_url,
+                {
+                    "check_runs": [
+                        _actions_check(
+                            name=FULL_SUITE_CONTEXT, run_id=102, summary=full_summary
+                        )
+                    ]
+                },
+                head_sha=HEAD,
+                **_trusted_extract_kwargs(
+                    run_id=102,
+                    path=FULL_WF_PATH,
+                    name=FULL_SUITE_CONTEXT,
+                    head_branch="issue/329-candidate",
+                    shas=_wf_shas(FULL_WF_PATH, head=REWRITTEN_WF_BLOB),
+                ),
+            )
+        )
+
+        # Missing suite/job membership → fail closed.
+        self.assertIsNone(
+            extract_trusted_full_receipt_from_check_runs(
+                {
+                    "check_runs": [
+                        {
+                            "name": FULL_SUITE_CONTEXT,
+                            "head_sha": HEAD,
+                            "conclusion": "success",
+                            "app": {"slug": "github-actions"},
+                            "details_url": f"https://github.com/{REPO}/actions/runs/103",
+                            "output": {"summary": full_summary},
+                        }
+                    ]
+                },
                 head_sha=HEAD,
                 default_branch=DEFAULT_BRANCH,
                 workflow_runs={
-                    "workflow_runs": [_workflow_run(run_id=103, path=FULL_WF_PATH)]
+                    "workflow_runs": [
+                        _workflow_run(
+                            run_id=103, path=FULL_WF_PATH, head_branch=DEFAULT_BRANCH
+                        )
+                    ]
                 },
-                workflow_file_shas=_wf_shas(FULL_WF_PATH),
+                workflow_jobs={"jobs": []},
+                workflow_file_shas=_wf_shas(FULL_WF_PATH, head=None),
             )
         )
 
@@ -984,6 +1246,9 @@ class LinktrendReviewGateTests(unittest.TestCase):
                         )
                     ]
                 },
+                workflow_jobs=_jobs_for(
+                    run_id=104, check_id=1040, name=FULL_SUITE_CONTEXT
+                ),
                 workflow_file_shas=_wf_shas(FULL_WF_PATH),
             )
         )
@@ -997,15 +1262,12 @@ class LinktrendReviewGateTests(unittest.TestCase):
                     ]
                 },
                 head_sha=HEAD,
-                default_branch=DEFAULT_BRANCH,
-                workflow_runs={
-                    "workflow_runs": [
-                        _workflow_run(
-                            run_id=105, path=FULL_WF_PATH, head_branch=DEFAULT_BRANCH
-                        )
-                    ]
-                },
-                workflow_file_shas=_wf_shas(FULL_WF_PATH, default="", head=None),
+                **_trusted_extract_kwargs(
+                    run_id=105,
+                    path=FULL_WF_PATH,
+                    name=FULL_SUITE_CONTEXT,
+                    shas=_wf_shas(FULL_WF_PATH, default="", head=None),
+                ),
             )
         )
 
@@ -1019,15 +1281,9 @@ class LinktrendReviewGateTests(unittest.TestCase):
                 ]
             },
             head_sha=HEAD,
-            default_branch=DEFAULT_BRANCH,
-            workflow_runs={
-                "workflow_runs": [
-                    _workflow_run(
-                        run_id=201, path=FULL_WF_PATH, head_branch=DEFAULT_BRANCH
-                    )
-                ]
-            },
-            workflow_file_shas=_wf_shas(FULL_WF_PATH, head=None),
+            **_trusted_extract_kwargs(
+                run_id=201, path=FULL_WF_PATH, name=FULL_SUITE_CONTEXT
+            ),
         )
         assert ok_default is not None
         self.assertEqual(ok_default["workflowPath"], FULL_WF_PATH)
@@ -1042,13 +1298,12 @@ class LinktrendReviewGateTests(unittest.TestCase):
                 ]
             },
             head_sha=HEAD,
-            default_branch=DEFAULT_BRANCH,
-            workflow_runs={
-                "workflow_runs": [_workflow_run(run_id=202, path=FULL_WF_PATH)]
-            },
-            workflow_file_shas=_wf_shas(
-                FULL_WF_PATH,
-                by_head={HEAD: DEFAULT_WF_BLOB},
+            **_trusted_extract_kwargs(
+                run_id=202,
+                path=FULL_WF_PATH,
+                name=FULL_SUITE_CONTEXT,
+                head_branch="issue/329-candidate",
+                shas=_wf_shas(FULL_WF_PATH, by_head={HEAD: DEFAULT_WF_BLOB}),
             ),
         )
         assert ok_same_blob is not None
@@ -1067,16 +1322,15 @@ class LinktrendReviewGateTests(unittest.TestCase):
                     ]
                 },
                 head_sha=HEAD,
-                default_branch=DEFAULT_BRANCH,
-                workflow_runs={
-                    "workflow_runs": [
-                        _workflow_run(run_id=301, path=COLLISION_WF_PATH)
-                    ]
-                },
-                workflow_file_shas={
-                    **_wf_shas(PROVIDER_WF_PATH),
-                    **_wf_shas(COLLISION_WF_PATH),
-                },
+                **_trusted_extract_kwargs(
+                    run_id=301,
+                    path=COLLISION_WF_PATH,
+                    name="Linktrend Provider Unavailability",
+                    shas={
+                        **_wf_shas(PROVIDER_WF_PATH),
+                        **_wf_shas(COLLISION_WF_PATH),
+                    },
+                ),
             )
         )
         # Provider: rewritten repair-observer workflow on candidate tip.
@@ -1092,14 +1346,12 @@ class LinktrendReviewGateTests(unittest.TestCase):
                     ]
                 },
                 head_sha=HEAD,
-                default_branch=DEFAULT_BRANCH,
-                workflow_runs={
-                    "workflow_runs": [
-                        _workflow_run(run_id=302, path=PROVIDER_WF_PATH)
-                    ]
-                },
-                workflow_file_shas=_wf_shas(
-                    PROVIDER_WF_PATH, head=REWRITTEN_WF_BLOB
+                **_trusted_extract_kwargs(
+                    run_id=302,
+                    path=PROVIDER_WF_PATH,
+                    name="Linktrend Provider Unavailability",
+                    head_branch="issue/329-candidate",
+                    shas=_wf_shas(PROVIDER_WF_PATH, head=REWRITTEN_WF_BLOB),
                 ),
             )
         )
@@ -1115,17 +1367,11 @@ class LinktrendReviewGateTests(unittest.TestCase):
                 ]
             },
             head_sha=HEAD,
-            default_branch=DEFAULT_BRANCH,
-            workflow_runs={
-                "workflow_runs": [
-                    _workflow_run(
-                        run_id=303,
-                        path=PROVIDER_WF_PATH,
-                        head_branch=DEFAULT_BRANCH,
-                    )
-                ]
-            },
-            workflow_file_shas=_wf_shas(PROVIDER_WF_PATH, head=None),
+            **_trusted_extract_kwargs(
+                run_id=303,
+                path=PROVIDER_WF_PATH,
+                name="Linktrend Provider Unavailability",
+            ),
         )
         assert ok_provider is not None
         self.assertEqual(ok_provider["workflowPath"], PROVIDER_WF_PATH)
@@ -1141,14 +1387,12 @@ class LinktrendReviewGateTests(unittest.TestCase):
                 ]
             },
             head_sha=HEAD,
-            default_branch=DEFAULT_BRANCH,
-            workflow_runs={
-                "workflow_runs": [
-                    _workflow_run(run_id=304, path=PROVIDER_WF_PATH)
-                ]
-            },
-            workflow_file_shas=_wf_shas(
-                PROVIDER_WF_PATH, by_head={HEAD: DEFAULT_WF_BLOB}
+            **_trusted_extract_kwargs(
+                run_id=304,
+                path=PROVIDER_WF_PATH,
+                name="Linktrend Provider Unavailability",
+                head_branch="issue/329-candidate",
+                shas=_wf_shas(PROVIDER_WF_PATH, by_head={HEAD: DEFAULT_WF_BLOB}),
             ),
         )
         assert ok_provider_blob is not None
@@ -1180,6 +1424,82 @@ class LinktrendReviewGateTests(unittest.TestCase):
         self.assertEqual(built[FULL_WF_PATH]["byHead"][HEAD], DEFAULT_WF_BLOB)
         self.assertEqual(built[PROVIDER_WF_PATH]["byHead"][HEAD], DEFAULT_WF_BLOB)
         self.assertIn((FULL_WF_PATH, DEFAULT_BRANCH), calls)
+
+    def test_provider_extractor_requires_exact_item_and_run_head(self) -> None:
+        """P2: provider extraction requires exact check head and workflow_run head."""
+        summary = json.dumps(
+            {
+                "verified": True,
+                "class": "quota",
+                "source": "repair_observer.usage_limit",
+            }
+        )
+        kwargs = _trusted_extract_kwargs(
+            run_id=401,
+            path=PROVIDER_WF_PATH,
+            name="Linktrend Provider Unavailability",
+        )
+        # Missing check head_sha → reject.
+        missing_item_head = {
+            "check_runs": [
+                {
+                    "id": 4010,
+                    "name": "Linktrend Provider Unavailability",
+                    "conclusion": "success",
+                    "app": {"slug": "github-actions"},
+                    "check_suite": {"id": 40100},
+                    "details_url": f"https://github.com/{REPO}/actions/runs/401",
+                    "output": {"summary": summary},
+                }
+            ]
+        }
+        self.assertIsNone(
+            extract_trusted_provider_evidence_from_check_runs(
+                missing_item_head, head_sha=HEAD, **kwargs
+            )
+        )
+        # Wrong workflow_run.head_sha → reject.
+        wrong_run = dict(kwargs)
+        wrong_run["workflow_runs"] = {
+            "workflow_runs": [
+                _workflow_run(
+                    run_id=401,
+                    path=PROVIDER_WF_PATH,
+                    head_branch=DEFAULT_BRANCH,
+                    head_sha="e" * 40,
+                )
+            ]
+        }
+        self.assertIsNone(
+            extract_trusted_provider_evidence_from_check_runs(
+                {
+                    "check_runs": [
+                        _actions_check(
+                            name="Linktrend Provider Unavailability",
+                            run_id=401,
+                            summary=summary,
+                        )
+                    ]
+                },
+                head_sha=HEAD,
+                **wrong_run,
+            )
+        )
+        # Exact heads succeed.
+        ok = extract_trusted_provider_evidence_from_check_runs(
+            {
+                "check_runs": [
+                    _actions_check(
+                        name="Linktrend Provider Unavailability",
+                        run_id=401,
+                        summary=summary,
+                    )
+                ]
+            },
+            head_sha=HEAD,
+            **kwargs,
+        )
+        assert ok is not None
 
     def test_paginated_slurp_flatten_multi_page_bodies_and_dedupe(self) -> None:
         """Two+ pages must flatten to one JSON list; alert/marker counts stay exact."""

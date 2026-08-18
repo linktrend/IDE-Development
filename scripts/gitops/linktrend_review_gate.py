@@ -102,6 +102,7 @@ TRUSTED_PROVIDER_UNAVAILABILITY_WORKFLOW_PATHS = frozenset(
     {".github/workflows/linktrend-repair-observer.yml"}
 )
 _ACTIONS_RUN_ID_RE = re.compile(r"/actions/runs/(\d+)")
+_CHECK_RUN_ID_RE = re.compile(r"/check-runs/(\d+)")
 
 _SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
@@ -396,8 +397,34 @@ def _as_workflow_run_list(workflow_runs: Any) -> list[Any]:
     raise ReviewGateError("invalid_workflow_runs", "workflow_runs must be list or object")
 
 
+def _as_int(value: Any) -> int | None:
+    try:
+        if value is None or value == "":
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def check_suite_id_from_check_run(check_run: Mapping[str, Any]) -> int | None:
+    """Return the GitHub-assigned check_suite id (not attacker-settable on create)."""
+    suite = check_run.get("check_suite") if isinstance(check_run.get("check_suite"), Mapping) else {}
+    suite_id = _as_int((suite or {}).get("id"))
+    if suite_id is not None:
+        return suite_id
+    return _as_int(check_run.get("check_suite_id") or check_run.get("checkSuiteId"))
+
+
+def check_run_numeric_id(check_run: Mapping[str, Any]) -> int | None:
+    return _as_int(check_run.get("id"))
+
+
 def workflow_run_id_from_check_run(check_run: Mapping[str, Any]) -> int | None:
-    """Parse the Actions workflow run id from authenticated check-run URL fields."""
+    """Parse an Actions workflow run id from check URL fields (advisory only).
+
+    ``details_url`` / attacker-influenced ``html_url`` fragments are controllable on
+    Checks API creates and must never be the sole membership proof.
+    """
     for key in ("details_url", "html_url"):
         match = _ACTIONS_RUN_ID_RE.search(_norm(check_run.get(key)))
         if match:
@@ -410,12 +437,84 @@ def index_workflow_runs_by_id(workflow_runs: Any) -> dict[int, Mapping[str, Any]
     for item in _as_workflow_run_list(workflow_runs):
         if not isinstance(item, Mapping):
             continue
-        try:
-            run_id = int(item.get("id"))
-        except (TypeError, ValueError):
+        run_id = _as_int(item.get("id"))
+        if run_id is None:
             continue
         indexed[run_id] = item
     return indexed
+
+
+def index_workflow_runs_by_check_suite_id(
+    workflow_runs: Any,
+) -> dict[int, Mapping[str, Any]]:
+    indexed: dict[int, Mapping[str, Any]] = {}
+    for item in _as_workflow_run_list(workflow_runs):
+        if not isinstance(item, Mapping):
+            continue
+        suite_id = _as_int(item.get("check_suite_id") or item.get("checkSuiteId"))
+        if suite_id is None:
+            continue
+        indexed.setdefault(suite_id, item)
+    return indexed
+
+
+def _as_workflow_job_list(workflow_jobs: Any) -> list[Any]:
+    if workflow_jobs is None:
+        return []
+    if isinstance(workflow_jobs, Mapping):
+        jobs = workflow_jobs.get("jobs")
+        if jobs is None:
+            return [workflow_jobs]
+        if not isinstance(jobs, list):
+            raise ReviewGateError("invalid_workflow_jobs", "jobs must be a list")
+        return jobs
+    if isinstance(workflow_jobs, list):
+        return workflow_jobs
+    raise ReviewGateError("invalid_workflow_jobs", "workflow_jobs must be list or object")
+
+
+def check_run_id_from_job(job: Mapping[str, Any]) -> int | None:
+    """Extract the check-run id owned by an Actions job (API-authenticated)."""
+    direct = _as_int(job.get("check_run_id") or job.get("checkRunId"))
+    if direct is not None:
+        return direct
+    for key in ("check_run_url", "checkRunUrl", "html_url", "url"):
+        match = _CHECK_RUN_ID_RE.search(_norm(job.get(key)))
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def index_successful_jobs_by_check_run_id(
+    workflow_jobs: Any,
+) -> dict[int, Mapping[str, Any]]:
+    """Map check-run id → successful completed Actions job for membership proofs."""
+    indexed: dict[int, Mapping[str, Any]] = {}
+    for item in _as_workflow_job_list(workflow_jobs):
+        if not isinstance(item, Mapping):
+            continue
+        status = _lower(item.get("status"))
+        if status and status != "completed":
+            continue
+        if _lower(item.get("conclusion")) != "success":
+            continue
+        check_id = check_run_id_from_job(item)
+        if check_id is None:
+            continue
+        indexed[check_id] = item
+    return indexed
+
+
+def producer_run_is_successful(workflow_run: Mapping[str, Any]) -> bool:
+    status = _lower(workflow_run.get("status"))
+    conclusion = _lower(workflow_run.get("conclusion"))
+    if status and status != "completed":
+        return False
+    return conclusion == "success"
+
+
+def check_output_is_successful(check_run: Mapping[str, Any]) -> bool:
+    return _lower(check_run.get("conclusion")) == "success"
 
 
 def workflow_file_shas_for_path(
@@ -483,18 +582,48 @@ def resolve_authenticated_workflow_run_for_check(
     check_run: Mapping[str, Any],
     *,
     workflow_runs: Any,
+    workflow_jobs: Any = None,
     default_branch: str,
     allowed_paths: frozenset[str],
     workflow_file_shas: Mapping[str, Any] | None,
 ) -> Mapping[str, Any] | None:
-    """Bind a check run to a default-branch-authenticated workflow run, or None."""
-    run_id = workflow_run_id_from_check_run(check_run)
-    if run_id is None:
+    """Bind a check run to its authenticated producer run via suite + job identity.
+
+    Rejects borrowed ``details_url`` pointers: membership is proven by GitHub-assigned
+    ``check_suite.id`` matching ``workflow_run.check_suite_id`` and by a successful
+    Actions job whose ``check_run_url`` owns this check-run id. URL fields, when
+    present, must agree with that bound run id.
+    """
+    suite_id = check_suite_id_from_check_run(check_run)
+    check_id = check_run_numeric_id(check_run)
+    if suite_id is None or check_id is None:
         return None
-    indexed = index_workflow_runs_by_id(workflow_runs)
-    workflow_run = indexed.get(run_id)
+    if not check_output_is_successful(check_run):
+        return None
+
+    by_suite = index_workflow_runs_by_check_suite_id(workflow_runs)
+    workflow_run = by_suite.get(suite_id)
     if workflow_run is None:
         return None
+    run_id = _as_int(workflow_run.get("id"))
+    if run_id is None:
+        return None
+    if not producer_run_is_successful(workflow_run):
+        return None
+
+    # Borrowed/free details_url pointing at a different run is never accepted.
+    url_run_id = workflow_run_id_from_check_run(check_run)
+    if url_run_id is not None and url_run_id != run_id:
+        return None
+
+    jobs_by_check = index_successful_jobs_by_check_run_id(workflow_jobs)
+    job = jobs_by_check.get(check_id)
+    if job is None:
+        return None
+    job_run_id = _as_int(job.get("run_id") or job.get("runId"))
+    if job_run_id is not None and job_run_id != run_id:
+        return None
+
     path = _norm(workflow_run.get("path"))
     run_commit = _norm(workflow_run.get("head_sha") or workflow_run.get("headSha")).lower()
     default_sha, head_sha = workflow_file_shas_for_path(
@@ -579,12 +708,71 @@ def _gh_contents_blob_sha(repository: str, path: str, ref: str) -> str:
     return _norm(proc.stdout).lower()
 
 
+def build_workflow_jobs_payload(
+    *,
+    repository: str,
+    workflow_runs: Any,
+    jobs_lookup: Any | None = None,
+) -> dict[str, Any]:
+    """Fetch Actions jobs for workflow runs (check-run membership proofs).
+
+    ``jobs_lookup(run_id) -> list[job]`` is injectable for tests; CLI uses ``gh api``.
+    """
+    repo = _norm(repository)
+    if not repo:
+        raise ReviewGateError("invalid_workflow_jobs", "repository required")
+    lookup = jobs_lookup
+    if lookup is None:
+        def lookup(run_id: int) -> list[Any]:  # type: ignore[misc]
+            return _gh_workflow_jobs(repo, run_id)
+
+    jobs: list[Any] = []
+    seen_runs: set[int] = set()
+    for run in _as_workflow_run_list(workflow_runs):
+        if not isinstance(run, Mapping):
+            continue
+        run_id = _as_int(run.get("id"))
+        if run_id is None or run_id in seen_runs:
+            continue
+        seen_runs.add(run_id)
+        batch = lookup(run_id)
+        if not isinstance(batch, list):
+            raise ReviewGateError("invalid_workflow_jobs", "jobs_lookup must return a list")
+        jobs.extend(batch)
+    return {"jobs": jobs}
+
+
+def _gh_workflow_jobs(repository: str, run_id: int) -> list[Any]:
+    import subprocess
+
+    proc = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"repos/{repository}/actions/runs/{run_id}/jobs?per_page=100",
+            "--jq",
+            ".jobs",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        return []
+    try:
+        payload = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError:
+        return []
+    return payload if isinstance(payload, list) else []
+
+
 def extract_trusted_provider_evidence_from_check_runs(
     check_runs: Any,
     *,
     head_sha: str,
     default_branch: str = "",
     workflow_runs: Any = None,
+    workflow_jobs: Any = None,
     workflow_file_shas: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Load provider-unavailability evidence only from default-branch-bound checks."""
@@ -602,16 +790,20 @@ def extract_trusted_provider_evidence_from_check_runs(
         if slug not in TRUSTED_CHECK_APP_SLUGS:
             continue
         item_head = _norm(item.get("head_sha") or item.get("headSha")).lower()
-        if item_head and item_head != head:
+        if item_head != head:
             continue
         workflow_run = resolve_authenticated_workflow_run_for_check(
             item,
             workflow_runs=workflow_runs,
+            workflow_jobs=workflow_jobs,
             default_branch=default_branch,
             allowed_paths=TRUSTED_PROVIDER_UNAVAILABILITY_WORKFLOW_PATHS,
             workflow_file_shas=workflow_file_shas,
         )
         if workflow_run is None:
+            continue
+        run_head = _norm(workflow_run.get("head_sha") or workflow_run.get("headSha")).lower()
+        if run_head != head:
             continue
         summary = _norm(
             item.get("outputSummary")
@@ -638,6 +830,10 @@ def extract_trusted_provider_evidence_from_check_runs(
                 "evidenceChannel": EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
                 "workflowPath": _norm(workflow_run.get("path")),
                 "workflowRunId": int(workflow_run.get("id")),
+                "checkRunId": int(item.get("id")),
+                "checkSuiteId": int(
+                    check_suite_id_from_check_run(item) or 0
+                ),
             }
     return None
 
@@ -648,6 +844,7 @@ def extract_trusted_full_receipt_from_check_runs(
     head_sha: str,
     default_branch: str = "",
     workflow_runs: Any = None,
+    workflow_jobs: Any = None,
     workflow_file_shas: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Load Full Suite success evidence only from default-branch-bound checks."""
@@ -665,11 +862,12 @@ def extract_trusted_full_receipt_from_check_runs(
         if slug not in TRUSTED_CHECK_APP_SLUGS:
             continue
         item_head = _norm(item.get("head_sha") or item.get("headSha")).lower()
-        if item_head and item_head != head:
+        if item_head != head:
             continue
         workflow_run = resolve_authenticated_workflow_run_for_check(
             item,
             workflow_runs=workflow_runs,
+            workflow_jobs=workflow_jobs,
             default_branch=default_branch,
             allowed_paths=TRUSTED_FULL_SUITE_WORKFLOW_PATHS,
             workflow_file_shas=workflow_file_shas,
@@ -678,7 +876,7 @@ def extract_trusted_full_receipt_from_check_runs(
             continue
         # Full suite producer must evaluate the exact candidate head.
         run_head = _norm(workflow_run.get("head_sha") or workflow_run.get("headSha")).lower()
-        if run_head and run_head != head:
+        if run_head != head:
             continue
         raw = {
             "name": name or FULL_SUITE_CONTEXT,
@@ -707,6 +905,8 @@ def extract_trusted_full_receipt_from_check_runs(
             "evidenceChannel": EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
             "workflowPath": _norm(workflow_run.get("path")),
             "workflowRunId": int(workflow_run.get("id")),
+            "checkRunId": int(item.get("id")),
+            "checkSuiteId": int(check_suite_id_from_check_run(item) or 0),
         }
     return None
 
@@ -1329,6 +1529,7 @@ def main(argv: list[str] | None = None) -> int:
     ep.add_argument("--check-runs-json", required=True, help="JSON, file path, or '-' for stdin")
     ep.add_argument("--default-branch", required=True)
     ep.add_argument("--workflow-runs-json", required=True, help="JSON, file path, or '-' for stdin")
+    ep.add_argument("--workflow-jobs-json", required=True, help="JSON, file path, or '-' for stdin")
     ep.add_argument(
         "--workflow-file-shas-json",
         required=True,
@@ -1343,6 +1544,7 @@ def main(argv: list[str] | None = None) -> int:
     ef.add_argument("--check-runs-json", required=True, help="JSON, file path, or '-' for stdin")
     ef.add_argument("--default-branch", required=True)
     ef.add_argument("--workflow-runs-json", required=True, help="JSON, file path, or '-' for stdin")
+    ef.add_argument("--workflow-jobs-json", required=True, help="JSON, file path, or '-' for stdin")
     ef.add_argument(
         "--workflow-file-shas-json",
         required=True,
@@ -1357,6 +1559,18 @@ def main(argv: list[str] | None = None) -> int:
     rw.add_argument("--default-branch", required=True)
     rw.add_argument("--workflow-runs-json", required=True, help="JSON, file path, or '-' for stdin")
     rw.add_argument(
+        "--output",
+        default="-",
+        help="Write JSON to path, or '-' for stdout (default)",
+    )
+
+    rj = sub.add_parser(
+        "resolve-workflow-jobs",
+        help="Resolve Actions jobs for workflow runs (check-run membership proofs)",
+    )
+    rj.add_argument("--repository", required=True)
+    rj.add_argument("--workflow-runs-json", required=True, help="JSON, file path, or '-' for stdin")
+    rj.add_argument(
         "--output",
         default="-",
         help="Write JSON to path, or '-' for stdout (default)",
@@ -1505,6 +1719,7 @@ def main(argv: list[str] | None = None) -> int:
                 head_sha=args.head_sha,
                 default_branch=args.default_branch,
                 workflow_runs=_load_json_arg(args.workflow_runs_json),
+                workflow_jobs=_load_json_arg(args.workflow_jobs_json),
                 workflow_file_shas=shas,
             )
             print(json.dumps(payload, indent=2, sort_keys=True))
@@ -1518,6 +1733,7 @@ def main(argv: list[str] | None = None) -> int:
                 head_sha=args.head_sha,
                 default_branch=args.default_branch,
                 workflow_runs=_load_json_arg(args.workflow_runs_json),
+                workflow_jobs=_load_json_arg(args.workflow_jobs_json),
                 workflow_file_shas=shas,
             )
             print(json.dumps(payload, indent=2, sort_keys=True))
@@ -1526,6 +1742,18 @@ def main(argv: list[str] | None = None) -> int:
             payload = build_workflow_file_shas_payload(
                 repository=args.repository,
                 default_branch=args.default_branch,
+                workflow_runs=_load_json_arg(args.workflow_runs_json),
+            )
+            text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+            if args.output == "-":
+                sys.stdout.write(text)
+            else:
+                with open(args.output, "w", encoding="utf-8") as handle:
+                    handle.write(text)
+            return 0
+        if args.command == "resolve-workflow-jobs":
+            payload = build_workflow_jobs_payload(
+                repository=args.repository,
                 workflow_runs=_load_json_arg(args.workflow_runs_json),
             )
             text = json.dumps(payload, indent=2, sort_keys=True) + "\n"

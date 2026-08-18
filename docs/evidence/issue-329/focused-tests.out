@@ -5,6 +5,8 @@ actionlint_exit=0
 test_all_classified_outcomes (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
 test_candidate_planted_allowlisted_provider_evidence_never_authorizes_success (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
 P2: every allowlisted source planted via candidate file must not yield advisory success. ... ok
+test_details_url_hijack_and_producer_membership_binding (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
+P1: borrowed details_url + forged summary cannot authorize Full/provider success. ... ok
 test_durable_founder_alert_dedupe_and_fail_closed (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
 test_fail_closed_missing_malformed_forged_wrong_head (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
 test_failure_never_becomes_advisory_via_heuristic (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
@@ -24,6 +26,8 @@ Two+ pages must flatten to one JSON list; alert/marker counts stay exact. ... ok
 test_pr_cannot_rewrite_classifier_or_self_approve (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
 Negative: PR head must not supply executable classifier scripts. ... ok
 test_protection_and_consumer_defaults_migrated (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... skipped 'bootstrap scope: deferred to sealed product candidate / later ruleset migration; do not copy verifier repair onto PR #326'
+test_provider_extractor_requires_exact_item_and_run_head (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
+P2: provider extraction requires exact check head and workflow_run head. ... ok
 test_raw_bugbot_required_contexts_rejected (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
 test_same_account_comment_not_github_approval (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
 test_same_app_check_name_collision_requires_default_branch_workflow_identity (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
@@ -44,6 +48,6 @@ test_required_cursor_materialization_sources_are_packaged (scripts.ide_developme
 test_version_alignment_helpers (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
 
 ----------------------------------------------------------------------
-Ran 33 tests in 0.275s
+Ran 35 tests in 0.330s
 
 OK (skipped=3)

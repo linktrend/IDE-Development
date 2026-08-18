@@ -20,6 +20,8 @@
 
 ## Independent-review repairs (this tip)
 
+- P1: Bind accepted Full/provider check payloads to producer run/job/check-suite identity (reject borrowed details_url + forged summary); require successful producer run/output.
+- P2: Provider extractor requires exact check head_sha and workflow_run.head_sha (parity with Full).
 - P1: Bind trusted Full Suite / provider-unavailability check evidence to authenticated default-branch workflow/run identity (Actions run id from check URL + allowlisted `workflow_run.path` + Contents API default-branch blob match). Same-app/name collisions fail closed.
 - P1: Authenticated evidence channels — candidate `.linktrend` provider-error/Full files cannot authorize success; GitHub Checks / privileged channels only.
 - P2: Adversarial tests cover all allowlisted planted sources and forged Full receipt provenance.

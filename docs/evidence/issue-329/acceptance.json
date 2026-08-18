@@ -29,7 +29,7 @@
     },
     "originalBeforeAfterRollbackPreserved": true
   },
-  "acceptance": "AC-U05-06/14 trusted Review Gate with default-branch scripts and default-branch workflow/run identity binding for Full+provider check evidence; candidate-planted allowlisted provider/Full evidence cannot authorize success; same-app check-name collisions fail closed; structured findings wired; founder step-1 imported; PR #326 unchanged; HOLD",
+  "acceptance": "AC-U05-06/14 trusted Review Gate with producer run/job/check-suite identity binding for Full+provider checks; details_url hijacks fail closed; provider exact head parity with Full; PR #326 unchanged; HOLD",
   "covered": [
     "AC-U05-06",
     "AC-U05-14",
@@ -40,7 +40,10 @@
     "default-branch-trust-boundary-workflow-present",
     "bootstrap-step1-source-policy-applied-verified-imported",
     "default-branch-workflow-run-identity-binding",
-    "same-app-check-name-collision-fail-closed"
+    "same-app-check-name-collision-fail-closed",
+    "producer-run-job-check-suite-identity-binding",
+    "details-url-hijack-fail-closed",
+    "provider-exact-head-parity-with-full"
   ],
   "exclusions": [
     "additional live ruleset apply from Issue #329",
@@ -62,11 +65,11 @@
     "Step-1 rollback evidence preserved under bootstrap-step1-source-policy/sanitized/step1-apply-plan.json (HOLD unless founder-authorized)"
   ],
   "exactRuntimeBlobs": {
-    ".github/workflows/linktrend-review-gate.yml": "49ffb0ceb294313866d725f60b0893345789d5f0",
-    "core/github/managed-workflows/linktrend-review-gate.yml": "49ffb0ceb294313866d725f60b0893345789d5f0",
-    "scripts/gitops/linktrend_review_gate.py": "4daf39941027fd4e69e3e2818a31bce9c220fd07",
+    ".github/workflows/linktrend-review-gate.yml": "e907157614cbf481c3631833b1904e2cff4fb81e",
+    "core/github/managed-workflows/linktrend-review-gate.yml": "e907157614cbf481c3631833b1904e2cff4fb81e",
+    "scripts/gitops/linktrend_review_gate.py": "bbf55c6106c754b228a2db24123e8c31a1ed8afb",
     "core/managed-core/schemas/linktrend-review-gate.schema.json": "5e2cfe41332e6f9b20983eb6fd0a8bc4f0059e46",
-    "docs/contracts/LINKTREND-REVIEW-GATE.md": "5ef0eec1a5273585137ae856d4f5150a13758907"
+    "docs/contracts/LINKTREND-REVIEW-GATE.md": "86c9c2cd45c04f61cd7b8f5b65d13a9bfd8ae8bd"
   },
   "commands": [
     {
@@ -77,7 +80,7 @@
     {
       "command": "python3 -m unittest scripts.tests.test_linktrend_review_gate scripts.ide_development_tests.test_build_manifest -v",
       "exitCode": 0,
-      "testsRan": 33,
+      "testsRan": 35,
       "skipped": 3,
       "evidencePath": "docs/evidence/issue-329/focused-tests.out"
     },
@@ -115,6 +118,7 @@
     "Negative tests: PR cannot rewrite classifier; default-branch scripts required",
     "P1 authenticated evidence channels: reject candidate-file provider-error/Full receipt for success authorization",
     "P2 adversarial tests for all allowlisted planted sources and forged Full receipt provenance",
-    "P1 bind trusted Full/provider check evidence to default-branch workflow/run identity (details_url\u2192run id, allowlisted path, Contents API blob match or default-branch head); same-app/name collisions fail closed"
+    "P1 bind trusted Full/provider check evidence to default-branch workflow/run identity (details_url\u2192run id, allowlisted path, Contents API blob match or default-branch head); same-app/name collisions fail closed",
+    "P1 bind accepted check+payload to producer run/job/check-suite identity (reject borrowed details_url); require successful producer run/output; P2 provider exact item+run head_sha"
   ]
 }

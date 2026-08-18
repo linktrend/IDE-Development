@@ -9,9 +9,9 @@ bootstrap_step1_status=APPLIED_VERIFIED_HOLD
 cursor_bugbot_remained_required_on_development=yes
 bootstrap_step1_evidence=docs/evidence/issue-329/bootstrap-step1-source-policy
 exact_runtime_blobs:
-  .github/workflows/linktrend-review-gate.yml=49ffb0ceb294313866d725f60b0893345789d5f0
-  core/github/managed-workflows/linktrend-review-gate.yml=49ffb0ceb294313866d725f60b0893345789d5f0
-  scripts/gitops/linktrend_review_gate.py=4daf39941027fd4e69e3e2818a31bce9c220fd07
+  .github/workflows/linktrend-review-gate.yml=e907157614cbf481c3631833b1904e2cff4fb81e
+  core/github/managed-workflows/linktrend-review-gate.yml=e907157614cbf481c3631833b1904e2cff4fb81e
+  scripts/gitops/linktrend_review_gate.py=bbf55c6106c754b228a2db24123e8c31a1ed8afb
   core/managed-core/schemas/linktrend-review-gate.schema.json=5e2cfe41332e6f9b20983eb6fd0a8bc4f0059e46
-  docs/contracts/LINKTREND-REVIEW-GATE.md=5ef0eec1a5273585137ae856d4f5150a13758907
-repair=P1-default-branch-workflow-run-identity-binding
+  docs/contracts/LINKTREND-REVIEW-GATE.md=86c9c2cd45c04f61cd7b8f5b65d13a9bfd8ae8bd
+repair=P1-producer-suite-job-binding-P2-provider-exact-head

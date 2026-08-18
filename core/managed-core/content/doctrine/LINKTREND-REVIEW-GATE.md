@@ -60,14 +60,22 @@ when they plant an allowlisted source string. Free-text heuristics must not
 convert `conclusion=failure` / `neutral` into gate success.
 
 When the channel is `github_check_run`, trust requires an independently
-authenticated default-branch workflow identity: the check's Actions run must
-resolve via GitHub API (`details_url` / `html_url` → workflow run id), the run
-`path` must be the allowlisted producer
-(`.github/workflows/linktrend-repair-observer.yml`), and either the run executed
-on the repository default branch or the Contents API blob SHA of that workflow
-file at the run head equals the default-branch blob. App slug
-(`github-actions`) plus check name alone are not provenance — a candidate branch
-can mint a colliding job under the same app. Fail closed when run identity or
+authenticated producer identity that candidate code cannot forge:
+
+1. GitHub-assigned `check_suite.id` must equal the allowlisted workflow run's
+   `check_suite_id` (URL fields alone are not membership).
+2. A successful Actions job for that run must own the check via
+   `check_run_url` / check-run id (rejects borrowed `details_url` with a forged
+   summary on a different check object).
+3. The producer workflow `path` must be allowlisted
+   (`.github/workflows/linktrend-repair-observer.yml`), and either the run
+   executed on the repository default branch or the Contents API blob SHA of
+   that workflow file at the run head equals the default-branch blob.
+4. The producer workflow run and check conclusions must be `success`.
+5. Exact `head_sha` is required on both the check and the workflow run.
+
+App slug (`github-actions`) plus check name alone are not provenance. Fail
+closed when suite/job membership, successful producer output, run identity, or
 default-branch blob identity cannot be established.
 
 ## Structured findings (no free-text pass)
@@ -92,15 +100,16 @@ Publishing a successful `Linktrend Review Gate` status requires an exact-head
 Full Suite success receipt/check from a **trusted GitHub check run**
 (`evidence_channel=github_check_run`) bound to the allowlisted Full producer
 workflow (`.github/workflows/linktrend-integrator-merge.yml`) via the same
-default-branch workflow identity rule as provider checks (run id from check URL
-fields, allowlisted `path`, default-branch execution or matching Contents API
-workflow blob SHA). Candidate-controlled `.linktrend/full-suite-receipt.json`
-files never authorize success. App slug plus check name
-(`Linktrend Full Suite` / `full` / `full-gate`) alone are not enough. The
-receipt-provided `gitTree` is preserved and compared independently to the live
-exact tree; never overwrite receipt tree with live `TREE`. Missing, wrong-head,
-wrong-tree, untrusted channel, unbound workflow identity, or non-success Full
-evidence fails closed.
+producer run/job/check-suite identity rule as provider checks (suite id match,
+successful job ownership of the check-run id, allowlisted `path`, default-branch
+execution or matching Contents API workflow blob SHA, successful run/check
+conclusions, exact head on check and run). Candidate-controlled
+`.linktrend/full-suite-receipt.json` files never authorize success. App slug
+plus check name (`Linktrend Full Suite` / `full` / `full-gate`) and borrowed
+`details_url` values alone are not enough. The receipt-provided `gitTree` is
+preserved and compared independently to the live exact tree; never overwrite
+receipt tree with live `TREE`. Missing, wrong-head, wrong-tree, untrusted
+channel, unbound producer identity, or non-success Full evidence fails closed.
 
 ## Infrastructure attempt accounting
 
