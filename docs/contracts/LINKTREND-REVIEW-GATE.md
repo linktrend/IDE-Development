@@ -108,9 +108,14 @@ receipt only through `extract-trusted-full-receipt` (fail-closed producer
 binding). Empty or null extract emits `full_receipt_missing_trusted_check` and
 fails closed — there is no unbound name-only Checks fallback
 (`select(.name=="Linktrend Full Suite")` / `FULL_RAW`) and no dual-accept
-“producer-bound else provenance-stamped Checks” path. Provenance stamping and
-`--evidence-channel` apply only on the producer-bound extract path. Candidate-
-controlled `.linktrend/full-suite-receipt.json` files never authorize success.
+“producer-bound else provenance-stamped Checks” path. After producer binding,
+the managed workflow overlays the retained FullSuiteReceipt artifact from that
+exact workflow run (`overlay-retained-full-receipt`) so schemaVersion 2
+`candidateIdentity.gitTree` (and legacy `gitTreeSha`) is recovered when the job
+check has an empty `output.summary`. Provenance stamping
+(`github.actions.artifact`) and `--evidence-channel` apply only on that
+producer-bound extract path. Candidate-controlled
+`.linktrend/full-suite-receipt.json` files never authorize success.
 App slug plus check name (`Linktrend Full Suite` / `full` / `full-gate`) and
 borrowed `details_url` values alone are not enough. The receipt-provided
 `gitTree` is preserved and compared independently to the live exact tree; never
