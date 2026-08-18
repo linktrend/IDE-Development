@@ -22,8 +22,8 @@ REPO_SLUG_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$")
 TAG_RE = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$")
 
-DEFAULT_VERSION = "2.3.8"
-DEFAULT_TAG = "v2.3.8"
+DEFAULT_VERSION = "2.4.0"
+DEFAULT_TAG = "v2.4.0"
 ACTIONS = frozenset({"publish", "verify-only"})
 
 
@@ -223,15 +223,15 @@ def _self_test() -> int:
                 failures.append(f"expected {code}, got {e.code} for {kwargs!r}")
 
     good_sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    ok = expect_ok(source_sha=good_sha, version="2.3.8", tag="v2.3.8", dry_run=False)
+    ok = expect_ok(source_sha=good_sha, version="2.4.0", tag="v2.4.0", dry_run=False)
     if ok:
-        assert ok.tag == "v2.3.8"
+        assert ok.tag == "v2.4.0"
         assert ok.dry_run is False
 
     expect_ok(source_sha=good_sha.upper(), action="verify-only", dry_run="true")
     expect_err("source_sha_invalid", source_sha="abc")
     expect_err("version_not_authorized", source_sha=good_sha, version="2.0.0")
-    expect_err("tag_version_mismatch", source_sha=good_sha, version="2.3.8", tag="v9.9.9")
+    expect_err("tag_version_mismatch", source_sha=good_sha, version="2.4.0", tag="v9.9.9")
     expect_err("action_invalid", source_sha=good_sha, action="delete")
     expect_err("dry_run_invalid", source_sha=good_sha, dry_run="maybe")
 
