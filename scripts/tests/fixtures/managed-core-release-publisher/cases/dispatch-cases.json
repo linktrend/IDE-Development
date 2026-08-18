@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "cases": [
     {
-      "id": "ok-default-v230",
+      "id": "ok-default-v240",
       "expect": "ok",
       "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "version": "2.4.0",
