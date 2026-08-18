@@ -69,7 +69,7 @@
       "id": "bugbot.check_name",
       "status": "ok",
       "observed": "default",
-      "detail": "LINKTREND_BUGBOT_CHECK_NAME unset; default 'Cursor Bugbot' applies"
+      "detail": "LINKTREND_BUGBOT_CHECK_NAME unset; default 'Linktrend Review Gate' applies"
     },
     {
       "id": "carlos.user_token_boundary",
@@ -81,7 +81,7 @@
       "id": "protection.development_ruleset",
       "status": "ok",
       "observed": "active_with_required_checks",
-      "detail": "ruleset active; checks include Cursor Bugbot, Enforce allowed PR source branches"
+      "detail": "ruleset active; checks include Linktrend Review Gate, Linktrend Branch Source Policy"
     },
     {
       "id": "protection.staging_ruleset",

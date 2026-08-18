@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "issue": 323,
+  "workPackage": "WP-U06",
+  "branch": "issue/323-wp-u06-from-integrated-core",
+  "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
+  "docsAuthorityTree": "6b9f73f1e78ae4abda3b78b939adc190b6d0842a",
+  "identityModel": "content-head/evidence-head/final-bind-tip",
+  "findingReviewedTip": "0b4905f066a8248c39058d198d074b036a50d816",
+  "findingReviewedNote": "Tip reviewed for remaining P1 metadata/body field cross-check; not claimed as current packet tip.",
+  "startSha": "194078a4186da110e42f514aed860683b0bdbe23",
+  "startTree": "9fb4583be84b1fe2bd9bf70fd5e15e65cf674117",
+  "predecessorPhase": "phase/v240-core-through-u01",
+  "predecessorVerifiedClean": true,
+  "holdBranchPreserved": "issue/323-implement-ide-development-v2-4-0-wp-u06",
+  "holdBranchTip": "867009f0f33a9a6426c6680a8e95fbec66dc9b02",
+  "contentHeadSha": "54e8e8ce0905988aa62116a5032e206c7454b1fe",
+  "contentTree": "c01ccf93215c1e5e49c2f5e9db41881f73d7a4ff",
+  "implementationHeadSha": "54e8e8ce0905988aa62116a5032e206c7454b1fe",
+  "implementationTree": "c01ccf93215c1e5e49c2f5e9db41881f73d7a4ff",
+  "headSha": "54e8e8ce0905988aa62116a5032e206c7454b1fe",
+  "tree": "c01ccf93215c1e5e49c2f5e9db41881f73d7a4ff",
+  "repair": [
+    "R1: trusted FullSuiteReceipt body parse; schemaVersion 2 + digest; Integrator eligible CLI receipt gate",
+    "R2: exhaustive metadata/body cross-check for repository, head/tree, run/attempt, conclusion, schemaVersion, digests, gate; body-only expected identity; specific mismatch codes"
+  ],
+  "acceptance": "AC-U06-01..10; R2 P1 metadata/body field cross-check repaired; focused adversarial tests OK; manifest verify OK; diff --check OK",
+  "covered": [
+    "AC-U06-01",
+    "AC-U06-02",
+    "AC-U06-03",
+    "AC-U06-04",
+    "AC-U06-05",
+    "AC-U06-06",
+    "AC-U06-07",
+    "AC-U06-08",
+    "AC-U06-09",
+    "AC-U06-10"
+  ],
+  "exclusions": [
+    "Full suite",
+    "PR",
+    "merge",
+    "promotion",
+    "publication",
+    "rollout",
+    "consumer install",
+    "WP-U02",
+    "WP-U05",
+    "review-ready publish"
+  ],
+  "rollback": [
+    "Do not invent empty commits or empty PRs",
+    "Do not weaken FullSuiteReceipt schemaVersion 2 identity format",
+    "Leave issue branch unmerged; no prefer-incoming",
+    "Preserve HOLD branch issue/323-implement-ide-development-v2-4-0-wp-u06 unchanged"
+  ],
+  "commands": [
+    {
+      "command": "python3 -m unittest scripts.tests.test_receipt_seal_and_recovery scripts.tests.test_phase_batch_lifecycle scripts.tests.test_gate_receipts scripts.tests.test_promotion_receipt_gate scripts.ide_development_tests.test_build_manifest",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-323/wp-u06-focused-tests.out",
+      "testsRan": 37,
+      "againstHead": "54e8e8ce0905988aa62116a5032e206c7454b1fe",
+      "againstTree": "c01ccf93215c1e5e49c2f5e9db41881f73d7a4ff"
+    },
+    {
+      "command": "python3 -m scripts.ide_development.build_manifest --verify",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "hold": [
+    "No Full / PR / review-ready / promotion / rollout / consumer install in this packet",
+    "WP-U02 and WP-U05 explicitly out of scope"
+  ],
+  "finalTipBinding": {
+    "mode": "non-self-reference-boundary",
+    "note": "Bind-metadata commit becomes the branch tip. It records content and evidence heads/trees only. It does not embed its own commit SHA."
+  },
+  "sanitized": true,
+  "at": "2026-08-17T16:28:21Z",
+  "evidenceHeadSha": "293ce7d1e01e41681290313ae6e0f59cb7961d36",
+  "evidenceTree": "aa4c56173496e4aff7552a8b279a0bb90d31d9ef",
+  "packetBindRepairNote": "PACKET.md restored after shell backtick expansion emptied fields; content/evidence heads unchanged"
+}

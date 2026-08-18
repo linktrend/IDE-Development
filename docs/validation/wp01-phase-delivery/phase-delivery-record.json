@@ -30,7 +30,7 @@
         "state": "SUCCESS"
       },
       {
-        "name": "Enforce allowed PR source branches",
+        "name": "Linktrend Branch Source Policy",
         "state": "SUCCESS"
       }
     ]

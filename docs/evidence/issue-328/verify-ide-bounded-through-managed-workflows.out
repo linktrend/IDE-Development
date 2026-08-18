@@ -1,0 +1,35 @@
+PASS: Symlinks: 21 total, 0 broken
+PASS: Wire-checklist required files present
+PASS: Wire-checklist required directories present
+PASS: core/ → .cursor/ symlinks for workflows and checklists
+PASS: No 00-linkdev-bootstrap in core/prompts/execution/ (excluding adoption-backups)
+PASS: Hybrid skills registry present
+PASS: All 8 sunset skills removed from core/skills/
+PASS: Hybrid command entrypoints present
+PASS: Operations manual present
+PASS: Workspace operator guide retired (file absent)
+PASS: Active docs free of Layer 1/2/3 and three.layer terminology
+PASS: No linkdev-*.md at core/commands/ root
+PASS: Archive index present
+PASS: In-repo archive tree present (docs/archive + README)
+PASS: Active docs have no LiNKdev references (excluding docs/archive, adoption-backups, workspace-reports, ARCHIVE-INDEX)
+PASS: No 00-linkdev-bootstrap in core/prompts/ or .cursor/prompts/ (excluding adoption-backups)
+PASS: No dangling core/pilots/hybrid-smoke references in active docs
+PASS: SKILLS_CATALOG.md path list matches core/skills/ on disk
+PASS: Application pipeline schema/order fixtures present
+PASS: No active absolute hybrid sibling paths
+MANIFEST verify OK
+PASS: Managed-core manifest hashes and doctrine sync
+PASS: verify-vendored-skills (73 files)
+=== GATE-STOP-001 negative scenario ===
+module gate rejected OK
+PASS: orchestrator refuse continue-anyway (validator non-zero, state unchanged)
+waiver rejected OK
+PASS: negative scenario
+=== GATE-STOP-001 positive control ===
+PASS: positive control
+GATE-STOP-001: ALL CHECKS PASSED
+ok
+PASS: Integrator/packager/promote/observer managed templates match live (after name render)
+BOUNDED_VERIFY_OK: managed workflow drift closed
+exit:0

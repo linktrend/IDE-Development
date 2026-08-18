@@ -34,8 +34,10 @@
     "SHA must be full 40-char hex; reject abbreviated SHAs and mutable refs.",
     "Evidence headSha must equal requested sha; schemaVersion>=1; commands exitCode 0.",
     "repository must match GITHUB_REPOSITORY when provided (no cross-repo publish).",
-    "Privileged publish uses LINKTREND_AUTOMATION_TOKEN only; no GITHUB_TOKEN or BUGBOT_USER_TOKEN human fallback.",
+    "Privileged publish uses documented AUTOMATION_TOKEN in a trusted publisher context; GH_TOKEN/GITHUB_TOKEN are aliases with AUTOMATION_TOKEN precedence. No human-token fallback.",
+    "LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER=1 belongs only on the publish/withdraw step.",
     "GitHub App IDs, private keys, and token-mint actions are forbidden.",
-    "Fail closed with automation_credentials_blocked when the normal token is missing."
+    "Fail closed when the trusted flag, token, permission, immutable identity, or evidence is absent or wrong.",
+    "One-time v2.3.8 bootstrap must not call the defective predecessor publisher."
   ]
 }

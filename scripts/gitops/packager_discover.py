@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Packager discovery: ready tips → draft PRs. Preserves existing PR title/body.
 
+This retained helper is **not** the Update 3 Phase Packager/Coordinator.
+It discovers Review-Ready tips into ordinary draft PRs, requires a human user
+token for PR creation, and does not assemble one ``phase/*`` candidate. Use
+``scripts/gitops/packager_coordinator.py`` for Phase assembly.
+
 Eligibility is the successful GitHub commit status ``Linktrend Review Ready`` on
 the **exact** branch tip SHA (same contract whether published by the local gate
 or the normal-token publisher). Later tips without that status are not eligible.
@@ -45,6 +50,9 @@ from delivery_modes import (  # noqa: E402
 )
 from readiness_status import is_sha_review_ready  # noqa: E402
 from write_outcome import write_outcome  # noqa: E402
+
+COMPONENT_KIND = "review_ready_draft_discovery"
+IS_PHASE_PACKAGER = False
 
 BEGIN = "<!-- linktrend-packager:begin -->"
 END = "<!-- linktrend-packager:end -->"
@@ -281,7 +289,7 @@ def ensure_draft_pr(app_token: str, branch: str, sha: str) -> dict:
                 "title_preserved": True,
                 "body_untouched": True,
                 "author": author_detail,
-                "author_token": "preexisting",
+                "author_token": "PREEXISTING",
             }
         new_body = merge_body(pr.get("body") or "", sha, branch)
         if new_body != (pr.get("body") or ""):
@@ -298,7 +306,7 @@ def ensure_draft_pr(app_token: str, branch: str, sha: str) -> dict:
             "created": False,
             "title_preserved": True,
             "author": author_detail,
-            "author_token": "preexisting",
+            "author_token": "PREEXISTING",
         }
 
     # Create path — Carlos user token only. Never normal automation or GITHUB_TOKEN.
@@ -347,7 +355,7 @@ def ensure_draft_pr(app_token: str, branch: str, sha: str) -> dict:
         "created": True,
         "title_preserved": True,
         "author": author_detail,
-        "author_token": "bugbot_user",
+        "author_token": "BUGBOT_USER",
     }
 
 

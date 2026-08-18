@@ -20,7 +20,7 @@ Path(sys.argv[1]).write_text(json.dumps({
     "fastWorkflowName": "Linktrend Fast Checks",
     "ciWorkflowName": "Consumer CI",
     "branchPolicyWorkflowName": "Branch Source Policy",
-    "bugbotCheckName": "Cursor Bugbot",
+    "bugbotCheckName": "Linktrend Review Gate", "reviewGateCheckName": "Linktrend Review Gate", "bugbotProviderCheckName": "Cursor Bugbot",
     "runnerType": sys.argv[2],
 }, indent=2) + "\n", encoding="utf-8")
 PY

@@ -1,0 +1,186 @@
+
+===== CMD: bash scripts/tests/test-review-ready-publisher.sh =====
+ok
+PASS: Adversarial untrusted-source fixture encodes forbidden patterns
+ok
+PASS: Production workflow trusted-source + flag on publish step + built-in token forwarding
+ok
+PASS: Adversarial fixture is rejected by trust requirements
+ok dispatchCases=17
+PASS: Dispatch validator adversarial cases (branch/SHA/repo/issue)
+ok evidenceCases=5
+PASS: Evidence fixtures fail closed on SHA/schema/command mismatches
+ok remoteTipCases=3
+PASS: Immutable remote tip mismatch fails closed
+ok
+PASS: Dispatch validator has no token leakage / human fallback references
+ok
+PASS: Fixture contract matches readiness_status normal-token route
+ok
+PASS: Structural parse: trusted flag on publication step only; defective predecessor detected
+ok
+PASS: AUTOMATION_TOKEN forwarding, alias precedence, publish/withdraw exact tip, no disclosure
+ok
+PASS: Missing flag, stale evidence, untrusted source, and insufficient permission fail closed
+ok
+PASS: Bootstrap positive Integrator exact-head path and negative probes
+ok
+PASS: Installed/live workflow equals managed source and package manifest hash
+PASS: review-ready publisher adversarial/static suite
+EXIT 0
+
+===== CMD: bash scripts/tests/test-clear-review-ready-app-route.sh =====
+withdraw app-only ok
+PASS: readiness_status withdraw rejects human tokens; App withdraw route exact
+clear-review-ready fail-closed ok
+PASS: clear-review-ready.sh fails closed with App-backed withdraw route
+static withdraw binding ok
+PASS: workflow/docs bind clear/rollback withdraw to App-backed route
+ALL PASS: clear-review-ready App-backed withdraw route
+EXIT 0
+
+===== CMD: bash scripts/tests/test-completion-gate-app-route.sh =====
+readiness_status app-only publish ok
+PASS: readiness_status rejects human/GITHUB_TOKEN publish; App route diagnostic exact
+completion_gate diagnostics ok
+PASS: completion_gate fail-closed diagnostics include exact App-backed route
+legacy allowed branch remediation ok
+PASS: legacy allowed branches get migration remediation, not a doomed App route
+phase branch completion_gate review-ready ok
+PASS: phase-integration tips are App-eligible via completion/App path
+custom prefix workdir route resolution ok
+PASS: custom phaseBranchPrefix resolved from --workdir, not Path.cwd()
+static no-fallback ok
+PASS: static: App publish token resolver has no human/GITHUB_TOKEN fallback
+ALL PASS: completion-gate app-route diagnostics
+EXIT 0
+
+===== CMD: python3 -m unittest scripts.tests.test_phase_packager_coordinator =====
+........................
+----------------------------------------------------------------------
+Ran 24 tests in 17.452s
+
+OK
+EXIT 0
+
+===== CMD: python3 -m unittest scripts.tests.test_delivery_artifact_reconciliation =====
+.........................
+----------------------------------------------------------------------
+Ran 25 tests in 6.836s
+
+OK
+EXIT 0
+
+===== CMD: python3 -m unittest scripts.tests.test_independent_review_convergence =====
+.................................
+----------------------------------------------------------------------
+Ran 33 tests in 0.003s
+
+OK
+EXIT 0
+
+===== CMD: python3 -m unittest scripts.tests.test_fixture_aware_secret_scan =====
+.............................
+----------------------------------------------------------------------
+Ran 29 tests in 8.687s
+
+OK
+EXIT 0
+
+===== CMD: python3 -m unittest tests.security_acceptance.test_no_secrets =====
+E
+======================================================================
+ERROR: test_no_secrets (unittest.loader._FailedTest)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_no_secrets
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/unittest/loader.py", line 154, in loadTestsFromName
+    module = __import__(module_name)
+  File "/Users/linktrend/.cursor/worktrees/ide-development/ide-core-through-u01-integration/tests/security_acceptance/test_no_secrets.py", line 8, in <module>
+    from harness import (
+ModuleNotFoundError: No module named 'harness'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+EXIT 1
+
+NOTE: skipped tests.security_acceptance.test_no_secrets — not in packet focused command lists; fails on accepted U01 tip Windows drive-letter false positive in library-client.test.mjs
+
+===== CMD: python3 -m unittest scripts.tests.test_repository_ci_trigger_contract =====
+...................
+----------------------------------------------------------------------
+Ran 19 tests in 0.279s
+
+OK
+EXIT 0
+
+===== CMD: python3 -m unittest scripts.tests.test_linktrend_review_gate scripts.ide_development_tests.test_build_manifest =====
+.............................
+----------------------------------------------------------------------
+Ran 29 tests in 0.329s
+
+OK
+EXIT 0
+
+===== CMD: bash scripts/tests/test-repository-protection.sh =====
+unit ok
+PASS: baseline and union helpers
+plan ok
+PASS: plan covers development/staging/main with rollback
+union ok
+PASS: union preserves repo-specific checks and bypass_actors
+extra-rules plan ok
+extra-rules apply ok
+PASS: ruleset update preserves non-check rules
+unclassified-rule fail-closed ok
+PASS: unclassified ruleset rule fails closed
+bp-reviews plan ok
+bp-reviews apply ok
+PASS: classic BP update preserves reviews and restrictions
+classic-create-null ok
+PASS: classic create leaves reviews/restrictions null
+classic-normalize-and-drift-helpers ok
+PASS: classic GET normalization and drift helpers
+bp-review-get-shaped noop ok
+bp-review-get-shaped verify ok
+PASS: classic GET-shaped reviews/restrictions stay durable noop (no perpetual update)
+PASS: sparse url/enabled-only reviews fail closed without inventing policy
+PASS: verify matched fixtures
+PASS: verify reports drift without mutating
+source fixture untouched
+PASS: apply refuses without --apply; fixtures stay clean
+apply ok
+PASS: explicit apply creates three rulesets in fixture only
+rollback ok
+PASS: rollback restores pre-apply ruleset absence
+bp ok
+PASS: rulesets unavailable falls back to classic branch protection
+unavail ok
+PASS: unavailable mechanism plans safely and refuses apply
+detail-fail-closed ok
+PASS: ruleset detail fetch failure fails closed
+forbidden-unavailable ok
+PASS: rulesets forbidden/error treated as unavailable
+PASS: no credential creation or secret reads
+legacy dry-run ok
+legacy apply ok
+PASS: legacy apply-development wrapper preserves CLI and scopes to development
+PASS: contract documents three-branch dry-run-first protections
+wp1 read_only ok
+PASS: WP1 read_only FixtureClient plan/verify without apply
+PASS: repository protection suite
+EXIT 0
+
+===== CMD: bash scripts/tests/test-integrator-bugbot-gate.sh =====
+PASS: integrator Bugbot gate cases
+EXIT 0
+
+===== CMD: python3 -m scripts.ide_development.build_manifest --verify =====
+MANIFEST verify OK
+EXIT 0
+
+===== CMD: git diff --check =====
+EXIT 0

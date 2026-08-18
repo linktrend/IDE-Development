@@ -76,7 +76,7 @@ Configured check names (in order):
 
 1. Explicit `--release-gate-checks` / env `LINKTREND_RELEASE_GATE_CHECKS` / `RELEASE_GATE_CHECKS`, else
 2. GitHub Actions variable `LINKTREND_RELEASE_GATE_CHECKS` via `gh api`, else
-3. Default: `Verify IDE Development,Enforce allowed PR source branches`
+3. Default: `Verify IDE Development,Linktrend Branch Source Policy`
 
 **Variable resolution fail-closed:** defaults are used **only** when the repository variable is positively confirmed absent (`404` / Not Found) or empty. Authentication, rate-limit, network, permission, malformed-response, or other API failures **stop** package discovery with `available: false` and `error=release_gate_config_failed:…`.
 

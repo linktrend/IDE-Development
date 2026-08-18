@@ -1,0 +1,36 @@
+{
+  "development": {
+    "id": 19728531,
+    "name": "development-autonomous-merge",
+    "enforcement": "active",
+    "requiredChecks": [
+      "Cursor Bugbot",
+      "Verify IDE Development",
+      "Linktrend Branch Source Policy"
+    ],
+    "strict": true,
+    "bypassActors": []
+  },
+  "staging": {
+    "id": 20218450,
+    "name": "staging-autonomous-promote",
+    "enforcement": "active",
+    "requiredChecks": [
+      "Verify IDE Development",
+      "Linktrend Branch Source Policy"
+    ],
+    "strict": true,
+    "bypassActors": []
+  },
+  "main": {
+    "id": 20218451,
+    "name": "main-autonomous-release",
+    "enforcement": "active",
+    "requiredChecks": [
+      "Verify IDE Development",
+      "Linktrend Branch Source Policy"
+    ],
+    "strict": true,
+    "bypassActors": []
+  }
+}
