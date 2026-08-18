@@ -10,7 +10,26 @@
     "fullRun": "32071094022",
     "unchanged": true
   },
-  "acceptance": "AC-U05-06/14 separate trusted Review Gate source package from exact WP-U01 blobs; Update 1 classifier/receipt/advisory invariants preserved; no live ruleset/PR/promote/publish/rollout/Full",
+  "bootstrapStep1": {
+    "importedEvidencePath": "docs/evidence/issue-329/bootstrap-step1-source-policy",
+    "sourceIssue": 328,
+    "sourcePacketName": "issue-328-bootstrap-step1-source-policy",
+    "status": "APPLIED_VERIFIED_HOLD",
+    "cursorBugbotRemainedRequiredOnDevelopment": true,
+    "developmentRequiredChecksAfter": [
+      "Cursor Bugbot",
+      "Verify IDE Development",
+      "Linktrend Branch Source Policy"
+    ],
+    "pr326Unchanged": true,
+    "secretScan": {
+      "independentPreImportPass": true,
+      "findingsCount": 0,
+      "secretValuesRedacted": 0
+    },
+    "originalBeforeAfterRollbackPreserved": true
+  },
+  "acceptance": "AC-U05-06/14 separate trusted Review Gate source package from exact WP-U01 blobs; Update 1 classifier/receipt/advisory invariants preserved; founder-authorized live bootstrap step 1 imported as APPLIED+VERIFIED with Cursor Bugbot still required and PR #326 unchanged; no further live ruleset/PR/promote/publish/rollout/Full from this branch",
   "covered": [
     "AC-U05-06",
     "AC-U05-14",
@@ -18,23 +37,27 @@
     "Update1-exact-head-full-receipt-binding",
     "Update1-verified-unavailability-fallback",
     "Update1-no-missing-as-pass",
-    "default-branch-trust-boundary-workflow-present"
+    "default-branch-trust-boundary-workflow-present",
+    "bootstrap-step1-source-policy-applied-verified-imported"
   ],
   "exclusions": [
-    "live ruleset apply",
+    "additional live ruleset apply from Issue #329",
+    "Bugbot to Review Gate cutover",
     "AC-U05-17 consumer verification",
     "Full suite",
     "PR open/merge",
     "promotion",
     "publication",
     "rollout",
-    "unrelated v2.4.0 product surface migrations"
+    "unrelated v2.4.0 product surface migrations",
+    "bootstrap runtime source changes (not required for evidence metadata)"
   ],
   "rollback": [
     "Leave issue branch unmerged; no prefer-incoming",
     "Do not alter PR #326 sealed head/tree/receipt",
-    "Do not mutate live rulesets from this packet",
-    "Failed trusted install leaves sealed candidate unchanged (trusted_gate_version_unavailable semantics)"
+    "Do not mutate live rulesets further from this packet",
+    "Failed trusted install leaves sealed candidate unchanged (trusted_gate_version_unavailable semantics)",
+    "Step-1 rollback evidence preserved under bootstrap-step1-source-policy/sanitized/step1-apply-plan.json (HOLD unless founder-authorized)"
   ],
   "exactRuntimeBlobs": {
     ".github/workflows/linktrend-review-gate.yml": "3cd823626dc072e552723e4326fc46616c6a4af0",
@@ -73,11 +96,19 @@
     {
       "command": "git diff --check",
       "exitCode": 0
+    },
+    {
+      "command": "independent pre-import secret scan of issue-328-bootstrap-step1-source-policy",
+      "exitCode": 0,
+      "findings": 0,
+      "secretValuesRedacted": 0,
+      "evidencePath": "docs/evidence/issue-329/bootstrap-step1-source-policy/IMPORT-ATTESTATION.json"
     }
   ],
   "hold": [
     "Independent review / Packager only",
-    "No Full / PR / merge / promote / publish / rollout / live ruleset apply",
+    "No Full / PR / merge / promote / publish / rollout / additional live ruleset apply",
+    "No Bugbot to Review Gate cutover",
     "PR #326 sealed product candidate must remain unchanged until trusted verifier is installed via protected migration"
   ],
   "sanitized": true
