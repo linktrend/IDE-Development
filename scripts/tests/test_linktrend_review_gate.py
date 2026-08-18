@@ -266,6 +266,19 @@ class LinktrendReviewGateTests(unittest.TestCase):
         self.assertIn("advisory_must_not_claim_bugbot_pass", live)
         self.assertIn("require-full-receipt", live)
         self.assertNotIn(".gitTree=$t", live)
+        doctrine = DOCTRINE.read_text(encoding="utf-8")
+        packaged = (
+            ROOT / "core/managed-core/content/doctrine/LINKTREND-REVIEW-GATE.md"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(doctrine, packaged)
+        self.assertIn("full_receipt_missing_trusted_check", doctrine)
+        self.assertRegex(doctrine, r"fail-closed producer\s+binding")
+        self.assertIn("unbound name-only Checks fallback", doctrine)
+        self.assertNotIn(
+            "Prefer producer-bound Checks extraction (#329); else provenance-stamped Checks (#330).",
+            doctrine,
+        )
+        self.assertIn("`FULL_RAW`", doctrine)  # named only as the forbidden bypass
 
     def _classify(self, **kwargs):
         base = dict(
@@ -623,6 +636,23 @@ class LinktrendReviewGateTests(unittest.TestCase):
             self.assertIn("HOLD: workflow_file_shas_unreadable", text)
             self.assertIn("--provider-evidence-channel", text)
             self.assertIn("--evidence-channel", text)
+            # Full Suite: fail-closed producer binding only — no unbound name-only fallback.
+            self.assertIn("full_receipt_missing_trusted_check", text)
+            self.assertIn("Fail-closed producer binding", text)
+            self.assertIn(
+                'producer-bound-checks:${HEAD_SHA}:Linktrend Full Suite',
+                text,
+            )
+            self.assertNotIn("FULL_RAW", text)
+            self.assertNotIn('select(.name=="Linktrend Full Suite")', text)
+            self.assertNotIn(
+                '--provenance-evidence-ref "checks:${HEAD_SHA}:Linktrend Full Suite"',
+                text,
+            )
+            self.assertNotIn(
+                "Prefer producer-bound Checks extraction (#329); else provenance-stamped Checks (#330).",
+                text,
+            )
             # U01-R3: never overwrite receipt tree with live TREE.
             self.assertNotIn(".gitTree=$t", text)
             self.assertNotIn("gitTree:$t", text)

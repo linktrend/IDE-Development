@@ -103,13 +103,20 @@ workflow (`.github/workflows/linktrend-integrator-merge.yml`) via the same
 producer run/job/check-suite identity rule as provider checks (suite id match,
 successful job ownership of the check-run id, allowlisted `path`, default-branch
 execution or matching Contents API workflow blob SHA, successful run/check
-conclusions, exact head on check and run). Candidate-controlled
-`.linktrend/full-suite-receipt.json` files never authorize success. App slug
-plus check name (`Linktrend Full Suite` / `full` / `full-gate`) and borrowed
-`details_url` values alone are not enough. The receipt-provided `gitTree` is
-preserved and compared independently to the live exact tree; never overwrite
-receipt tree with live `TREE`. Missing, wrong-head, wrong-tree, untrusted
-channel, unbound producer identity, or non-success Full evidence fails closed.
+conclusions, exact head on check and run). The managed workflow must obtain that
+receipt only through `extract-trusted-full-receipt` (fail-closed producer
+binding). Empty or null extract emits `full_receipt_missing_trusted_check` and
+fails closed — there is no unbound name-only Checks fallback
+(`select(.name=="Linktrend Full Suite")` / `FULL_RAW`) and no dual-accept
+“producer-bound else provenance-stamped Checks” path. Provenance stamping and
+`--evidence-channel` apply only on the producer-bound extract path. Candidate-
+controlled `.linktrend/full-suite-receipt.json` files never authorize success.
+App slug plus check name (`Linktrend Full Suite` / `full` / `full-gate`) and
+borrowed `details_url` values alone are not enough. The receipt-provided
+`gitTree` is preserved and compared independently to the live exact tree; never
+overwrite receipt tree with live `TREE`. Missing trusted producer-bound check,
+wrong-head, wrong-tree, untrusted channel, unbound producer identity, or
+non-success Full evidence fails closed.
 
 ## Infrastructure attempt accounting
 
@@ -124,7 +131,7 @@ attempts). Do not swallow marker publication failures with `|| true`. Shell
 
 Integrated Phase candidate preserves both accepted security packages:
 
-1. **Producer / default-branch workflow identity (#329):** Full Suite and provider-unavailability Checks must bind to authenticated producer run/job/check-suite identity and byte-identical default-branch workflow blobs. `details_url` alone is forgeable and must fail closed.
+1. **Producer / default-branch workflow identity (#329):** Full Suite and provider-unavailability Checks must bind to authenticated producer run/job/check-suite identity and byte-identical default-branch workflow blobs. `details_url` alone is forgeable and must fail closed. Full success evidence is fail-closed on that producer binding only (`extract-trusted-full-receipt`); empty extract → `full_receipt_missing_trusted_check`; unbound name-only Full Checks fallback is forbidden.
 2. **Default-branch execution + candidate-as-data (#330):** Workflows check out the protected default branch for scripts; the candidate SHA is fetched only into a detached data worktree and is never executed.
-3. **Authenticated success evidence (#329 channel + #330 provenance):** Gate success requires either a trusted loader `evidence_channel` or authenticated `provenance` (`github.repository_variable`, `github.repair_task.api`, `github.actions.trusted_env`, `provider_status_api.authenticated` for provider errors; `github.check_runs.api` / `github.actions.artifact` for Full receipts). Candidate `.linktrend/*.json` files never authorize success.
+3. **Authenticated success evidence (#329 channel + #330 provenance):** Provider unavailability may use trusted loader `evidence_channel` or authenticated provenance routes (`github.repository_variable`, `github.repair_task.api`, `github.actions.trusted_env`, `provider_status_api.authenticated`). Full receipts require producer-bound extract first; `#330` provenance (`github.check_runs.api` / `github.actions.artifact`) and evidence-channel apply only on that bound path — never as a name-only Checks dual-accept bypass. Candidate `.linktrend/*.json` files never authorize success.
 4. **Findings-present (#330 detect-findings + #329 structured annotations):** Event title/details/annotations drive `review-findings` via `detect-findings`; structured `annotations_count` / `action_required` remain authoritative classifier inputs.

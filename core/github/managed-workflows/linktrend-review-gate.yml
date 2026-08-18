@@ -246,8 +246,11 @@ jobs:
           fi
 
           # Exact Full receipt/check required before publishing a successful gate.
-          # Prefer producer-bound Checks extraction (#329); else provenance-stamped Checks (#330).
-          # Never candidate full-suite-receipt.json. Preserve receipt gitTree; never overwrite with live TREE.
+          # Fail-closed producer binding (#329): only extract-trusted-full-receipt authorizes Full
+          # evidence. Empty/null extract → full_receipt_missing_trusted_check (no name-only Checks
+          # fallback). #330 GATE_PY/default-branch/candidate-as-data/provenance applies only on the
+          # producer-bound path with evidence-channel. Never candidate full-suite-receipt.json.
+          # Preserve receipt gitTree; never overwrite with live TREE.
           if [ "${GATE_SUCCESS}" = "true" ]; then
             if [ -f "${CANDIDATE_DIR}/.linktrend/full-suite-receipt.json" ]; then
               echo "note: ignoring_candidate_full_suite_receipt_file"
@@ -262,42 +265,22 @@ jobs:
                 --workflow-file-shas-json "${WORKFLOW_FILE_SHAS_FILE}"
             )" \
               || { echo "full_receipt_check_lookup_failed"; exit 1; }
-            if [ -n "${FULL_EXTRACT}" ] && [ "${FULL_EXTRACT}" != "null" ]; then
-              FULL_JSON="$(jq -c '.receipt' <<<"${FULL_EXTRACT}")"
-              FULL_CHANNEL="$(jq -r '.evidenceChannel' <<<"${FULL_EXTRACT}")"
-              FULL_JSON="$(python3 "${GATE_PY}" normalize-full-receipt \
-                --receipt-json "${FULL_JSON}" \
-                --provenance-kind github.check_runs.api \
-                --provenance-head-sha "${HEAD_SHA}" \
-                --provenance-evidence-ref "producer-bound-checks:${HEAD_SHA}:Linktrend Full Suite")"
-              python3 "${GATE_PY}" require-full-receipt \
-                --gate-success \
-                --full-receipt-json "${FULL_JSON}" \
-                --head-sha "${HEAD_SHA}" \
-                --git-tree "${TREE}" \
-                --evidence-channel "${FULL_CHANNEL}"
-            else
-              FULL_RAW="$(jq -c '
-                [.check_runs[]?
-                  | select(.name=="Linktrend Full Suite")
-                  | {
-                      name:.name,
-                      headSha:.head_sha,
-                      status:(.conclusion // .status),
-                      outputSummary:(.output.summary // "")
-                    }
-                ] | .[0] // null' "${CHECK_RUNS_FILE}")"
-              FULL_JSON="$(python3 "${GATE_PY}" normalize-full-receipt \
-                --receipt-json "${FULL_RAW:-null}" \
-                --provenance-kind github.check_runs.api \
-                --provenance-head-sha "${HEAD_SHA}" \
-                --provenance-evidence-ref "checks:${HEAD_SHA}:Linktrend Full Suite")"
-              python3 "${GATE_PY}" require-full-receipt \
-                --gate-success \
-                --full-receipt-json "${FULL_JSON}" \
-                --head-sha "${HEAD_SHA}" \
-                --git-tree "${TREE}"
+            if [ -z "${FULL_EXTRACT}" ] || [ "${FULL_EXTRACT}" = "null" ]; then
+              echo "full_receipt_missing_trusted_check"; exit 1
             fi
+            FULL_JSON="$(jq -c '.receipt' <<<"${FULL_EXTRACT}")"
+            FULL_CHANNEL="$(jq -r '.evidenceChannel' <<<"${FULL_EXTRACT}")"
+            FULL_JSON="$(python3 "${GATE_PY}" normalize-full-receipt \
+              --receipt-json "${FULL_JSON}" \
+              --provenance-kind github.check_runs.api \
+              --provenance-head-sha "${HEAD_SHA}" \
+              --provenance-evidence-ref "producer-bound-checks:${HEAD_SHA}:Linktrend Full Suite")"
+            python3 "${GATE_PY}" require-full-receipt \
+              --gate-success \
+              --full-receipt-json "${FULL_JSON}" \
+              --head-sha "${HEAD_SHA}" \
+              --git-tree "${TREE}" \
+              --evidence-channel "${FULL_CHANNEL}"
           fi
 
           # Durable founder alert (deduped via prior alert ISSUE BODIES) — fail closed.
