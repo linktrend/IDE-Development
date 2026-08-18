@@ -251,6 +251,8 @@ jobs:
           # fallback). #330 GATE_PY/default-branch/candidate-as-data/provenance applies only on the
           # producer-bound path with evidence-channel. Never candidate full-suite-receipt.json.
           # Preserve receipt gitTree; never overwrite with live TREE.
+          # Job checks often lack output.summary; overlay the producer-bound retained
+          # FullSuiteReceipt artifact (candidateIdentity.gitTree) after extract binding.
           if [ "${GATE_SUCCESS}" = "true" ]; then
             if [ -f "${CANDIDATE_DIR}/.linktrend/full-suite-receipt.json" ]; then
               echo "note: ignoring_candidate_full_suite_receipt_file"
@@ -268,13 +270,41 @@ jobs:
             if [ -z "${FULL_EXTRACT}" ] || [ "${FULL_EXTRACT}" = "null" ]; then
               echo "full_receipt_missing_trusted_check"; exit 1
             fi
+            FULL_RUN_ID="$(jq -r '.workflowRunId // empty' <<<"${FULL_EXTRACT}")"
+            test -n "${FULL_RUN_ID}" || { echo "full_receipt_missing_workflow_run_id"; exit 1; }
+            RETAINED_DIR="$(mktemp -d)"
+            ARTIFACTS_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${FULL_RUN_ID}/artifacts?per_page=100")" \
+              || { echo "full_receipt_artifacts_unreadable"; exit 1; }
+            ARTIFACT_NAME="$(jq -r --arg suffix "-${FULL_RUN_ID}" '
+              [.artifacts[] | select(.expired == false)
+                | select(.name | startswith("linktrend-full-suite-receipt-"))
+                | select(.name | endswith($suffix))]
+              | if length == 1 then .[0].name else empty end
+            ' <<<"${ARTIFACTS_JSON}")"
+            test -n "${ARTIFACT_NAME}" || { echo "full_receipt_artifact_not_unique_or_missing=${FULL_RUN_ID}"; exit 1; }
+            ARTIFACT_ID="$(jq -r --arg name "${ARTIFACT_NAME}" '
+              .artifacts[] | select(.name == $name) | .id
+            ' <<<"${ARTIFACTS_JSON}")"
+            test -n "${ARTIFACT_ID}" || { echo "full_receipt_artifact_id_missing"; exit 1; }
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > "${RETAINED_DIR}/receipt.zip" \
+              || { echo "full_receipt_artifact_download_failed"; exit 1; }
+            unzip -qo "${RETAINED_DIR}/receipt.zip" -d "${RETAINED_DIR}" \
+              || { echo "full_receipt_artifact_unzip_failed"; exit 1; }
+            test -f "${RETAINED_DIR}/full-suite-receipt.json" \
+              || { echo "full_receipt_artifact_missing_json"; exit 1; }
+            FULL_EXTRACT="$(
+              python3 "${GATE_PY}" overlay-retained-full-receipt \
+                --extract-json "${FULL_EXTRACT}" \
+                --retained-receipt-json "$(cat "${RETAINED_DIR}/full-suite-receipt.json")"
+            )" \
+              || { echo "full_receipt_retained_overlay_failed"; exit 1; }
             FULL_JSON="$(jq -c '.receipt' <<<"${FULL_EXTRACT}")"
             FULL_CHANNEL="$(jq -r '.evidenceChannel' <<<"${FULL_EXTRACT}")"
             FULL_JSON="$(python3 "${GATE_PY}" normalize-full-receipt \
               --receipt-json "${FULL_JSON}" \
-              --provenance-kind github.check_runs.api \
+              --provenance-kind github.actions.artifact \
               --provenance-head-sha "${HEAD_SHA}" \
-              --provenance-evidence-ref "producer-bound-checks:${HEAD_SHA}:Linktrend Full Suite")"
+              --provenance-evidence-ref "producer-bound-artifact:${FULL_RUN_ID}:${ARTIFACT_NAME}")"
             python3 "${GATE_PY}" require-full-receipt \
               --gate-success \
               --full-receipt-json "${FULL_JSON}" \

@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "cases": [
     {
-      "id": "ok-default-v230",
+      "id": "ok-default-v240",
       "expect": "ok",
       "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "version": "2.3.8",
-      "tag": "v2.3.8",
+      "version": "2.4.0",
+      "tag": "v2.4.0",
       "action": "publish",
       "dry_run": false,
       "default_branch": "main"
@@ -15,8 +15,8 @@
       "id": "reject-short-sha",
       "expect": "source_sha_invalid",
       "source_sha": "abc",
-      "version": "2.3.8",
-      "tag": "v2.3.8",
+      "version": "2.4.0",
+      "tag": "v2.4.0",
       "action": "publish",
       "dry_run": false,
       "default_branch": "main"
@@ -35,7 +35,7 @@
       "id": "reject-tag-mismatch",
       "expect": "tag_version_mismatch",
       "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "version": "2.3.8",
+      "version": "2.4.0",
       "tag": "v9.9.9",
       "action": "publish",
       "dry_run": false,
@@ -45,8 +45,8 @@
       "id": "reject-non-main-default-branch",
       "expect": "default_branch_not_main",
       "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "version": "2.3.8",
-      "tag": "v2.3.8",
+      "version": "2.4.0",
+      "tag": "v2.4.0",
       "action": "publish",
       "dry_run": false,
       "default_branch": "development"
@@ -55,8 +55,8 @@
       "id": "ok-verify-only-dry-run",
       "expect": "ok",
       "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "version": "2.3.8",
-      "tag": "v2.3.8",
+      "version": "2.4.0",
+      "tag": "v2.4.0",
       "action": "verify-only",
       "dry_run": true,
       "default_branch": "main"
