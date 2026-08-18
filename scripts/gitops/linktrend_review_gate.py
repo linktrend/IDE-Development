@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from dataclasses import asdict, dataclass
@@ -60,6 +61,86 @@ TRUSTED_PROVIDER_SOURCES = frozenset(
     }
 )
 
+# Authenticated provenance kinds that may authorize advisory-unavailable success.
+# Claiming an allowlisted source name inside a candidate worktree file is never enough.
+TRUSTED_PROVIDER_PROVENANCE_KINDS = frozenset(
+    {
+        "github.repository_variable",
+        "github.repair_task.api",
+        "github.actions.trusted_env",
+        "provider_status_api.authenticated",
+    }
+)
+
+# Full receipt / check evidence must come from authenticated GitHub surfaces.
+TRUSTED_FULL_RECEIPT_PROVENANCE_KINDS = frozenset(
+    {
+        "github.check_runs.api",
+        "github.actions.artifact",
+    }
+)
+
+# Structured findings evidence may only come from GitHub check_run event fields
+# or verified provider findings payloads — never from candidate-controlled scripts.
+TRUSTED_FINDINGS_SOURCES = frozenset(
+    {
+        "github.check_run.annotations",
+        "github.check_run.output",
+        "cursor_bugbot.check_run",
+        "operator_verified_findings",
+    }
+)
+
+# Provider-authored check output with an explicit positive findings count.
+_FINDINGS_COUNT_RE = re.compile(
+    r"(?i)\b(?:found|reported|detected)\s+(\d+)\s+(?:potential\s+)?"
+    r"(?:issue|finding|problem)s?\b"
+    r"|\b(\d+)\s+(?:unresolved\s+)?(?:issue|finding)s?\b"
+)
+
+# Evidence channels are assigned by the trusted workflow loader — never by candidate JSON.
+EVIDENCE_CHANNEL_GITHUB_CHECK_RUN = "github_check_run"
+EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD = "repair_observer_record"
+EVIDENCE_CHANNEL_OPERATOR_PRIVILEGED = "operator_privileged_input"
+EVIDENCE_CHANNEL_PROVIDER_STATUS_API = "provider_status_api"
+EVIDENCE_CHANNEL_CANDIDATE_FILE = "candidate_repository_file"
+
+TRUSTED_EVIDENCE_CHANNELS = frozenset(
+    {
+        EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+        EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD,
+        EVIDENCE_CHANNEL_OPERATOR_PRIVILEGED,
+        EVIDENCE_CHANNEL_PROVIDER_STATUS_API,
+    }
+)
+
+PROVIDER_SOURCE_TRUSTED_CHANNELS: dict[str, frozenset[str]] = {
+    "repair_observer.usage_limit": frozenset(
+        {
+            EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD,
+            EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+        }
+    ),
+    "operator_verified_provider_error": frozenset({EVIDENCE_CHANNEL_OPERATOR_PRIVILEGED}),
+    "provider_status_api": frozenset({EVIDENCE_CHANNEL_PROVIDER_STATUS_API}),
+}
+
+TRUSTED_FULL_RECEIPT_CHANNELS = frozenset({EVIDENCE_CHANNEL_GITHUB_CHECK_RUN})
+TRUSTED_CHECK_APP_SLUGS = frozenset({"github-actions"})
+TRUSTED_PROVIDER_UNAVAILABILITY_CHECK_NAMES = frozenset(
+    {"Linktrend Provider Unavailability"}
+)
+# Workflow paths are the authenticated producer identity (default-branch files).
+# Candidate branches cannot forge these paths' default-branch blob identity.
+TRUSTED_FULL_SUITE_WORKFLOW_PATHS = frozenset(
+    {".github/workflows/linktrend-integrator-merge.yml"}
+)
+TRUSTED_PROVIDER_UNAVAILABILITY_WORKFLOW_PATHS = frozenset(
+    {".github/workflows/linktrend-repair-observer.yml"}
+)
+_ACTIONS_RUN_ID_RE = re.compile(r"/actions/runs/(\d+)")
+_CHECK_RUN_ID_RE = re.compile(r"/check-runs/(\d+)")
+
 _SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -85,6 +166,38 @@ def _norm(value: Any) -> str:
 
 def _lower(value: Any) -> str:
     return _norm(value).lower()
+
+
+def structured_bugbot_findings_present(
+    *,
+    annotations_count: int | None = None,
+    bugbot_conclusion: str | None = None,
+    findings_present: bool = False,
+) -> bool:
+    """Return True only for trustworthy structured Bugbot finding signals.
+
+    Accepts explicit classifier flags, GitHub check ``annotations_count > 0``,
+    or ``conclusion=action_required``. Never interprets free-text summaries,
+    candidate prose, missing output, or neutral-alone as findings or as pass.
+    """
+    if findings_present:
+        return True
+    if annotations_count is not None:
+        try:
+            count = int(annotations_count)
+        except (TypeError, ValueError) as exc:
+            raise ReviewGateError(
+                "invalid_annotations_count",
+                "annotations_count must be an integer",
+            ) from exc
+        if count < 0:
+            raise ReviewGateError(
+                "invalid_annotations_count",
+                "annotations_count must be >= 0",
+            )
+        if count > 0:
+            return True
+    return _lower(bugbot_conclusion) == "action_required"
 
 
 @dataclass(frozen=True)
@@ -256,23 +369,808 @@ def _provider_class(raw: Mapping[str, Any] | None) -> str | None:
     return None
 
 
-def verified_provider_unavailability(raw: Mapping[str, Any] | None) -> str | None:
+def evidence_channel_is_trusted(channel: str) -> bool:
+    return _norm(channel) in TRUSTED_EVIDENCE_CHANNELS
+
+
+def _provenance_mapping(raw: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
+    if not raw:
+        return None
+    provenance = raw.get("provenance")
+    return provenance if isinstance(provenance, Mapping) else None
+
+def verified_provider_unavailability(
+    raw: Mapping[str, Any] | None,
+    *,
+    evidence_channel: str = "",
+) -> str | None:
     """Return an approved unavailable class only for trusted verified evidence.
 
-    Free-text heuristics and unverified payloads must not produce
-    ``advisory-unavailable`` or gate success.
+    Trust is established by either:
+    - a loader-assigned ``evidence_channel`` (#329 producer/Checks / privileged routes), or
+    - authenticated ``provenance`` stamped by trusted workflow helpers (#330).
+
+    Candidate-controlled repository files never authorize advisory success, even
+    when they plant an allowlisted ``source`` string. Free-text heuristics and
+    unverified payloads must not produce ``advisory-unavailable`` or gate success.
     """
     if not raw:
         return None
     if raw.get("verified") is not True:
         return None
     source = _norm(raw.get("source") or raw.get("evidenceSource"))
-    if source and source not in TRUSTED_PROVIDER_SOURCES:
+    if source not in TRUSTED_PROVIDER_SOURCES:
         return None
-    if not source:
-        # verified:true without an explicit trusted source is not enough.
+
+    channel = _norm(evidence_channel)
+    # Explicit candidate-file channel always fails closed (even if JSON plants provenance).
+    if channel == EVIDENCE_CHANNEL_CANDIDATE_FILE:
+        return None
+
+    channel_ok = False
+    if channel:
+        if channel not in TRUSTED_EVIDENCE_CHANNELS:
+            channel_ok = False
+        else:
+            allowed_channels = PROVIDER_SOURCE_TRUSTED_CHANNELS.get(source, frozenset())
+            channel_ok = channel in allowed_channels
+
+    provenance = _provenance_mapping(raw)
+    provenance_ok = False
+    if provenance is not None:
+        kind = _norm(provenance.get("kind"))
+        if kind in {"candidate.worktree_file", "candidate.committed_artifact"}:
+            provenance_ok = False
+        else:
+            provenance_ok = (
+                kind in TRUSTED_PROVIDER_PROVENANCE_KINDS
+                and provenance.get("authenticated") is True
+            )
+
+    if not channel_ok and not provenance_ok:
         return None
     return _provider_class(raw)
+
+
+def authenticate_provider_unavailability_evidence(
+    raw: Mapping[str, Any] | None,
+    *,
+    provenance_kind: str,
+    head_sha: str,
+    evidence_ref: str = "",
+) -> dict[str, Any]:
+    """Stamp authenticated provenance onto verified provider-unavailability evidence.
+
+    Candidate worktree files must never call this helper. Only trusted workflow
+    routes (repository variable, repair-task API, trusted env, authenticated
+    provider status API) may authenticate success-authorizing evidence.
+    """
+    head = require_sha40(head_sha, "head_sha")
+    kind = _norm(provenance_kind)
+    if kind not in TRUSTED_PROVIDER_PROVENANCE_KINDS:
+        raise ReviewGateError("provider_error_untrusted_provenance", kind or "missing")
+    if not isinstance(raw, Mapping):
+        raise ReviewGateError("provider_error_missing", "provider error must be an object")
+    existing = _provenance_mapping(raw)
+    if existing is not None:
+        existing_kind = _norm(existing.get("kind"))
+        if existing_kind in {"candidate.worktree_file", "candidate.committed_artifact"}:
+            raise ReviewGateError(
+                "provider_error_candidate_controlled",
+                existing_kind,
+            )
+        if existing_kind and existing_kind not in TRUSTED_PROVIDER_PROVENANCE_KINDS:
+            raise ReviewGateError("provider_error_untrusted_provenance", existing_kind)
+    bound_raw = _norm(
+        raw.get("headSha") or (existing.get("headSha") if existing is not None else "")
+    )
+    if bound_raw:
+        bound = require_sha40(bound_raw, "provider_error.headSha")
+        if bound != head:
+            raise ReviewGateError("provider_error_wrong_head", f"evidence={bound} live={head}")
+    if raw.get("verified") is not True:
+        raise ReviewGateError("provider_error_unverified", "verified must be true")
+    source = _norm(raw.get("source") or raw.get("evidenceSource"))
+    if source not in TRUSTED_PROVIDER_SOURCES:
+        raise ReviewGateError("provider_error_untrusted_source", source or "missing")
+    provider_class = _provider_class(raw)
+    if provider_class is None:
+        raise ReviewGateError("provider_error_invalid_class", "class missing or unsupported")
+    out = dict(raw)
+    out["verified"] = True
+    out["source"] = source
+    out["class"] = provider_class
+    out["headSha"] = head
+    out["provenance"] = {
+        "kind": kind,
+        "headSha": head,
+        "authenticated": True,
+        "evidenceRef": _norm(evidence_ref) or None,
+    }
+    return out
+
+
+def provider_error_from_usage_limit_repair_issues(
+    issues: Sequence[Any] | None,
+    *,
+    head_sha: str,
+) -> dict[str, Any] | None:
+    """Build authenticated provider-error from open usage_limit repair issues.
+
+    Trusted route for ``repair_observer.usage_limit``: GitHub Issues created by
+    the repair observer, never candidate-committed JSON files.
+    """
+    head = require_sha40(head_sha, "head_sha")
+    for raw_issue in issues or []:
+        if not isinstance(raw_issue, Mapping):
+            continue
+        body = _norm(raw_issue.get("body"))
+        labels = raw_issue.get("labels") or []
+        label_names = {
+            _norm(item.get("name") if isinstance(item, Mapping) else item) for item in labels
+        }
+        has_usage = (
+            "linktrend-repair-usage-limit" in label_names
+            or "failureType: `usage_limit`" in body
+            or "failureType:`usage_limit`" in body
+            or "- failureType: `usage_limit`" in body
+        )
+        if not has_usage:
+            continue
+        if f"headSha: `{head}`" not in body and f"headSha:`{head}`" not in body:
+            continue
+        if (
+            "resolutionState: **resolved**" in body
+            or "resolutionState:**resolved**" in body
+            or "- resolutionState: **resolved**" in body
+        ):
+            continue
+        issue_number = raw_issue.get("number")
+        return authenticate_provider_unavailability_evidence(
+            {
+                "verified": True,
+                "class": "quota",
+                "source": "repair_observer.usage_limit",
+                "headSha": head,
+            },
+            provenance_kind="github.repair_task.api",
+            head_sha=head,
+            evidence_ref=f"issue:{issue_number}" if issue_number is not None else "repair_task",
+        )
+    return None
+
+
+def stamp_full_receipt_provenance(
+    receipt: Mapping[str, Any] | None,
+    *,
+    provenance_kind: str,
+    head_sha: str,
+    evidence_ref: str = "",
+) -> dict[str, Any] | None:
+    """Attach authenticated Full receipt provenance; reject candidate-controlled kinds."""
+    if receipt is None:
+        return None
+    if not isinstance(receipt, Mapping):
+        raise ReviewGateError("invalid_full_receipt", "full receipt must be an object")
+    kind = _norm(provenance_kind)
+    if kind not in TRUSTED_FULL_RECEIPT_PROVENANCE_KINDS:
+        raise ReviewGateError("full_receipt_untrusted_provenance", kind or "missing")
+    head = require_sha40(head_sha, "head_sha")
+    existing = _provenance_mapping(receipt)
+    if existing is not None:
+        existing_kind = _norm(existing.get("kind"))
+        if existing_kind in {"candidate.worktree_file", "candidate.committed_artifact"}:
+            raise ReviewGateError("full_receipt_candidate_controlled", existing_kind)
+    out = dict(receipt)
+    out["provenance"] = {
+        "kind": kind,
+        "headSha": head,
+        "authenticated": True,
+        "evidenceRef": _norm(evidence_ref) or None,
+    }
+    return out
+
+
+def _positive_int(value: Any) -> int | None:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def findings_present_from_event_evidence(
+    *,
+    annotations_count: Any = None,
+    check_title: str = "",
+    check_details: str = "",
+    bugbot_conclusion: str = "",
+    provider_findings: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Decide findings-present from trustworthy GitHub/Bugbot event evidence.
+
+    Candidate-controlled scripts cannot supply this decision. Free-text alone
+    never converts provider failure into gate success; this helper only sets
+    ``review-findings`` when structured event/provider evidence shows genuine
+    unresolved findings.
+    """
+    del bugbot_conclusion  # conclusion alone never authorizes findings-present
+    reasons: list[str] = []
+
+    count = _positive_int(annotations_count)
+    if count is not None:
+        reasons.append(f"annotations_count:{count}")
+
+    if provider_findings and isinstance(provider_findings, Mapping):
+        if provider_findings.get("verified") is True:
+            source = _norm(
+                provider_findings.get("source") or provider_findings.get("evidenceSource")
+            )
+            if source in TRUSTED_FINDINGS_SOURCES:
+                if provider_findings.get("findingsPresent") is True:
+                    reasons.append(f"verified_provider_findings:{source}")
+                findings_count = _positive_int(provider_findings.get("findingsCount"))
+                if findings_count is not None:
+                    reasons.append(f"verified_provider_findings_count:{findings_count}")
+
+    for label, text in (("title", check_title), ("details", check_details)):
+        match = _FINDINGS_COUNT_RE.search(_norm(text))
+        if not match:
+            continue
+        raw_count = match.group(1) or match.group(2)
+        findings_count = _positive_int(raw_count)
+        if findings_count is not None:
+            reasons.append(f"check_run.output.{label}_count:{findings_count}")
+
+    present = bool(reasons)
+    return {
+        "findingsPresent": present,
+        "evidenceSource": "github.check_run.event" if present else None,
+        "reasons": reasons,
+    }
+
+def _as_check_run_list(check_runs: Any) -> list[Any]:
+    if check_runs is None:
+        return []
+    if isinstance(check_runs, Mapping):
+        runs = check_runs.get("check_runs")
+        if runs is None:
+            return [check_runs]
+        if not isinstance(runs, list):
+            raise ReviewGateError("invalid_check_runs", "check_runs must be a list")
+        return runs
+    if isinstance(check_runs, list):
+        return check_runs
+    raise ReviewGateError("invalid_check_runs", "check_runs must be list or object")
+
+
+def _as_workflow_run_list(workflow_runs: Any) -> list[Any]:
+    if workflow_runs is None:
+        return []
+    if isinstance(workflow_runs, Mapping):
+        runs = workflow_runs.get("workflow_runs")
+        if runs is None:
+            return [workflow_runs]
+        if not isinstance(runs, list):
+            raise ReviewGateError("invalid_workflow_runs", "workflow_runs must be a list")
+        return runs
+    if isinstance(workflow_runs, list):
+        return workflow_runs
+    raise ReviewGateError("invalid_workflow_runs", "workflow_runs must be list or object")
+
+
+def _as_int(value: Any) -> int | None:
+    try:
+        if value is None or value == "":
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def check_suite_id_from_check_run(check_run: Mapping[str, Any]) -> int | None:
+    """Return the GitHub-assigned check_suite id (not attacker-settable on create)."""
+    suite = check_run.get("check_suite") if isinstance(check_run.get("check_suite"), Mapping) else {}
+    suite_id = _as_int((suite or {}).get("id"))
+    if suite_id is not None:
+        return suite_id
+    return _as_int(check_run.get("check_suite_id") or check_run.get("checkSuiteId"))
+
+
+def check_run_numeric_id(check_run: Mapping[str, Any]) -> int | None:
+    return _as_int(check_run.get("id"))
+
+
+def workflow_run_id_from_check_run(check_run: Mapping[str, Any]) -> int | None:
+    """Parse an Actions workflow run id from check URL fields (advisory only).
+
+    ``details_url`` / attacker-influenced ``html_url`` fragments are controllable on
+    Checks API creates and must never be the sole membership proof.
+    """
+    for key in ("details_url", "html_url"):
+        match = _ACTIONS_RUN_ID_RE.search(_norm(check_run.get(key)))
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def index_workflow_runs_by_id(workflow_runs: Any) -> dict[int, Mapping[str, Any]]:
+    indexed: dict[int, Mapping[str, Any]] = {}
+    for item in _as_workflow_run_list(workflow_runs):
+        if not isinstance(item, Mapping):
+            continue
+        run_id = _as_int(item.get("id"))
+        if run_id is None:
+            continue
+        indexed[run_id] = item
+    return indexed
+
+
+def index_workflow_runs_by_check_suite_id(
+    workflow_runs: Any,
+) -> dict[int, Mapping[str, Any]]:
+    indexed: dict[int, Mapping[str, Any]] = {}
+    for item in _as_workflow_run_list(workflow_runs):
+        if not isinstance(item, Mapping):
+            continue
+        suite_id = _as_int(item.get("check_suite_id") or item.get("checkSuiteId"))
+        if suite_id is None:
+            continue
+        indexed.setdefault(suite_id, item)
+    return indexed
+
+
+def _as_workflow_job_list(workflow_jobs: Any) -> list[Any]:
+    if workflow_jobs is None:
+        return []
+    if isinstance(workflow_jobs, Mapping):
+        jobs = workflow_jobs.get("jobs")
+        if jobs is None:
+            return [workflow_jobs]
+        if not isinstance(jobs, list):
+            raise ReviewGateError("invalid_workflow_jobs", "jobs must be a list")
+        return jobs
+    if isinstance(workflow_jobs, list):
+        return workflow_jobs
+    raise ReviewGateError("invalid_workflow_jobs", "workflow_jobs must be list or object")
+
+
+def check_run_id_from_job(job: Mapping[str, Any]) -> int | None:
+    """Extract the check-run id owned by an Actions job (API-authenticated)."""
+    direct = _as_int(job.get("check_run_id") or job.get("checkRunId"))
+    if direct is not None:
+        return direct
+    for key in ("check_run_url", "checkRunUrl", "html_url", "url"):
+        match = _CHECK_RUN_ID_RE.search(_norm(job.get(key)))
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def index_successful_jobs_by_check_run_id(
+    workflow_jobs: Any,
+) -> dict[int, Mapping[str, Any]]:
+    """Map check-run id → successful completed Actions job for membership proofs."""
+    indexed: dict[int, Mapping[str, Any]] = {}
+    for item in _as_workflow_job_list(workflow_jobs):
+        if not isinstance(item, Mapping):
+            continue
+        status = _lower(item.get("status"))
+        if status and status != "completed":
+            continue
+        if _lower(item.get("conclusion")) != "success":
+            continue
+        check_id = check_run_id_from_job(item)
+        if check_id is None:
+            continue
+        indexed[check_id] = item
+    return indexed
+
+
+def producer_run_is_successful(workflow_run: Mapping[str, Any]) -> bool:
+    status = _lower(workflow_run.get("status"))
+    conclusion = _lower(workflow_run.get("conclusion"))
+    if status and status != "completed":
+        return False
+    return conclusion == "success"
+
+
+def check_output_is_successful(check_run: Mapping[str, Any]) -> bool:
+    return _lower(check_run.get("conclusion")) == "success"
+
+
+def workflow_file_shas_for_path(
+    workflow_file_shas: Mapping[str, Any] | None,
+    path: str,
+    *,
+    run_head_sha: str = "",
+) -> tuple[str, str]:
+    """Return (default_branch_blob_sha, run_head_blob_sha) for a workflow path.
+
+    ``workflow_file_shas[path]`` may include:
+    - ``default`` / ``defaultBranch``: Contents API blob SHA on the default branch
+    - ``head`` / ``runHead``: single run-head blob SHA (tests / single-run callers)
+    - ``byHead`` / ``by_head``: map of commit SHA → workflow blob SHA at that commit
+    """
+    if not isinstance(workflow_file_shas, Mapping):
+        return ("", "")
+    entry = workflow_file_shas.get(path)
+    if not isinstance(entry, Mapping):
+        return ("", "")
+    default_sha = _norm(entry.get("default") or entry.get("defaultBranch") or "").lower()
+    run_head = _norm(run_head_sha).lower()
+    by_head = entry.get("byHead") if "byHead" in entry else entry.get("by_head")
+    head_sha = ""
+    if run_head and isinstance(by_head, Mapping):
+        head_sha = _norm(by_head.get(run_head) or "").lower()
+    if not head_sha:
+        head_sha = _norm(
+            entry.get("head") or entry.get("runHead") or entry.get("headSha") or ""
+        ).lower()
+    return (default_sha, head_sha)
+
+
+def trusted_default_branch_workflow_binding(
+    *,
+    workflow_run: Mapping[str, Any],
+    default_branch: str,
+    allowed_paths: frozenset[str],
+    workflow_file_sha_at_default: str,
+    workflow_file_sha_at_run_head: str,
+) -> bool:
+    """True when the workflow run is bound to an authenticated default-branch producer.
+
+    Candidate code cannot forge this: either the run executed on the protected
+    default branch, or the allowlisted workflow file blob at the run head is
+    byte-identical to the default-branch blob (PR did not rewrite the producer).
+    """
+    path = _norm(workflow_run.get("path"))
+    if path not in allowed_paths:
+        return False
+    branch = _norm(default_branch)
+    if not branch:
+        return False
+    default_sha = _norm(workflow_file_sha_at_default).lower()
+    if not default_sha:
+        return False
+    head_branch = _norm(workflow_run.get("head_branch") or workflow_run.get("headBranch"))
+    if head_branch == branch:
+        return True
+    run_head_sha = _norm(workflow_file_sha_at_run_head).lower()
+    return bool(run_head_sha) and run_head_sha == default_sha
+
+
+def resolve_authenticated_workflow_run_for_check(
+    check_run: Mapping[str, Any],
+    *,
+    workflow_runs: Any,
+    workflow_jobs: Any = None,
+    default_branch: str,
+    allowed_paths: frozenset[str],
+    workflow_file_shas: Mapping[str, Any] | None,
+) -> Mapping[str, Any] | None:
+    """Bind a check run to its authenticated producer run via suite + job identity.
+
+    Rejects borrowed ``details_url`` pointers: membership is proven by GitHub-assigned
+    ``check_suite.id`` matching ``workflow_run.check_suite_id`` and by a successful
+    Actions job whose ``check_run_url`` owns this check-run id. URL fields, when
+    present, must agree with that bound run id.
+    """
+    suite_id = check_suite_id_from_check_run(check_run)
+    check_id = check_run_numeric_id(check_run)
+    if suite_id is None or check_id is None:
+        return None
+    if not check_output_is_successful(check_run):
+        return None
+
+    by_suite = index_workflow_runs_by_check_suite_id(workflow_runs)
+    workflow_run = by_suite.get(suite_id)
+    if workflow_run is None:
+        return None
+    run_id = _as_int(workflow_run.get("id"))
+    if run_id is None:
+        return None
+    if not producer_run_is_successful(workflow_run):
+        return None
+
+    # Borrowed/free details_url pointing at a different run is never accepted.
+    url_run_id = workflow_run_id_from_check_run(check_run)
+    if url_run_id is not None and url_run_id != run_id:
+        return None
+
+    jobs_by_check = index_successful_jobs_by_check_run_id(workflow_jobs)
+    job = jobs_by_check.get(check_id)
+    if job is None:
+        return None
+    job_run_id = _as_int(job.get("run_id") or job.get("runId"))
+    if job_run_id is not None and job_run_id != run_id:
+        return None
+
+    path = _norm(workflow_run.get("path"))
+    run_commit = _norm(workflow_run.get("head_sha") or workflow_run.get("headSha")).lower()
+    default_sha, head_sha = workflow_file_shas_for_path(
+        workflow_file_shas,
+        path,
+        run_head_sha=run_commit,
+    )
+    if not trusted_default_branch_workflow_binding(
+        workflow_run=workflow_run,
+        default_branch=default_branch,
+        allowed_paths=allowed_paths,
+        workflow_file_sha_at_default=default_sha,
+        workflow_file_sha_at_run_head=head_sha,
+    ):
+        return None
+    return workflow_run
+
+
+def build_workflow_file_shas_payload(
+    *,
+    repository: str,
+    default_branch: str,
+    workflow_runs: Any,
+    trusted_paths: Sequence[str] | None = None,
+    contents_sha_lookup: Any | None = None,
+) -> dict[str, Any]:
+    """Build Contents-API blob SHA map for allowlisted workflow producers.
+
+    ``contents_sha_lookup(path, ref) -> sha`` is injectable for tests; the CLI
+    defaults to ``gh api repos/.../contents/...``.
+    """
+    repo = _norm(repository)
+    branch = _norm(default_branch)
+    if not repo or not branch:
+        raise ReviewGateError("invalid_workflow_file_shas", "repository and default_branch required")
+    paths = tuple(trusted_paths or (
+        *sorted(TRUSTED_FULL_SUITE_WORKFLOW_PATHS),
+        *sorted(TRUSTED_PROVIDER_UNAVAILABILITY_WORKFLOW_PATHS),
+    ))
+    lookup = contents_sha_lookup
+    if lookup is None:
+        def lookup(path: str, ref: str) -> str:  # type: ignore[misc]
+            return _gh_contents_blob_sha(repo, path, ref)
+
+    runs = _as_workflow_run_list(workflow_runs)
+    out: dict[str, Any] = {}
+    for path in paths:
+        default_sha = _norm(lookup(path, branch)).lower()
+        by_head: dict[str, str] = {}
+        for run in runs:
+            if not isinstance(run, Mapping):
+                continue
+            if _norm(run.get("path")) != path:
+                continue
+            head = _norm(run.get("head_sha") or run.get("headSha")).lower()
+            if not head or head in by_head:
+                continue
+            by_head[head] = _norm(lookup(path, head)).lower()
+        out[path] = {"default": default_sha, "byHead": by_head}
+    return out
+
+
+def _gh_contents_blob_sha(repository: str, path: str, ref: str) -> str:
+    import subprocess
+    import urllib.parse
+
+    if not path or not ref:
+        return ""
+    encoded = urllib.parse.quote(path, safe="/")
+    url = (
+        f"repos/{repository}/contents/{encoded}"
+        f"?ref={urllib.parse.quote(ref, safe='')}"
+    )
+    proc = subprocess.run(
+        ["gh", "api", url, "--jq", ".sha"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        return ""
+    return _norm(proc.stdout).lower()
+
+
+def build_workflow_jobs_payload(
+    *,
+    repository: str,
+    workflow_runs: Any,
+    jobs_lookup: Any | None = None,
+) -> dict[str, Any]:
+    """Fetch Actions jobs for workflow runs (check-run membership proofs).
+
+    ``jobs_lookup(run_id) -> list[job]`` is injectable for tests; CLI uses ``gh api``.
+    """
+    repo = _norm(repository)
+    if not repo:
+        raise ReviewGateError("invalid_workflow_jobs", "repository required")
+    lookup = jobs_lookup
+    if lookup is None:
+        def lookup(run_id: int) -> list[Any]:  # type: ignore[misc]
+            return _gh_workflow_jobs(repo, run_id)
+
+    jobs: list[Any] = []
+    seen_runs: set[int] = set()
+    for run in _as_workflow_run_list(workflow_runs):
+        if not isinstance(run, Mapping):
+            continue
+        run_id = _as_int(run.get("id"))
+        if run_id is None or run_id in seen_runs:
+            continue
+        seen_runs.add(run_id)
+        batch = lookup(run_id)
+        if not isinstance(batch, list):
+            raise ReviewGateError("invalid_workflow_jobs", "jobs_lookup must return a list")
+        jobs.extend(batch)
+    return {"jobs": jobs}
+
+
+def _gh_workflow_jobs(repository: str, run_id: int) -> list[Any]:
+    import subprocess
+
+    proc = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"repos/{repository}/actions/runs/{run_id}/jobs?per_page=100",
+            "--jq",
+            ".jobs",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        return []
+    try:
+        payload = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError:
+        return []
+    return payload if isinstance(payload, list) else []
+
+
+def extract_trusted_provider_evidence_from_check_runs(
+    check_runs: Any,
+    *,
+    head_sha: str,
+    default_branch: str = "",
+    workflow_runs: Any = None,
+    workflow_jobs: Any = None,
+    workflow_file_shas: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Load provider-unavailability evidence only from default-branch-bound checks."""
+    head = require_sha40(head_sha, "head_sha")
+    if not _norm(default_branch):
+        return None
+    for item in _as_check_run_list(check_runs):
+        if not isinstance(item, Mapping):
+            continue
+        name = _norm(item.get("name"))
+        if name not in TRUSTED_PROVIDER_UNAVAILABILITY_CHECK_NAMES:
+            continue
+        app = item.get("app") if isinstance(item.get("app"), Mapping) else {}
+        slug = _lower((app or {}).get("slug"))
+        if slug not in TRUSTED_CHECK_APP_SLUGS:
+            continue
+        item_head = _norm(item.get("head_sha") or item.get("headSha")).lower()
+        if item_head != head:
+            continue
+        workflow_run = resolve_authenticated_workflow_run_for_check(
+            item,
+            workflow_runs=workflow_runs,
+            workflow_jobs=workflow_jobs,
+            default_branch=default_branch,
+            allowed_paths=TRUSTED_PROVIDER_UNAVAILABILITY_WORKFLOW_PATHS,
+            workflow_file_shas=workflow_file_shas,
+        )
+        if workflow_run is None:
+            continue
+        run_head = _norm(workflow_run.get("head_sha") or workflow_run.get("headSha")).lower()
+        if run_head != head:
+            continue
+        summary = _norm(
+            item.get("outputSummary")
+            or ((item.get("output") or {}) if isinstance(item.get("output"), Mapping) else {}).get(
+                "summary"
+            )
+            or item.get("summary")
+            or ""
+        )
+        if not summary:
+            continue
+        try:
+            payload = json.loads(summary)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, Mapping):
+            continue
+        if verified_provider_unavailability(
+            payload,
+            evidence_channel=EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+        ):
+            return {
+                "providerError": dict(payload),
+                "evidenceChannel": EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+                "workflowPath": _norm(workflow_run.get("path")),
+                "workflowRunId": int(workflow_run.get("id")),
+                "checkRunId": int(item.get("id")),
+                "checkSuiteId": int(
+                    check_suite_id_from_check_run(item) or 0
+                ),
+            }
+    return None
+
+
+def extract_trusted_full_receipt_from_check_runs(
+    check_runs: Any,
+    *,
+    head_sha: str,
+    default_branch: str = "",
+    workflow_runs: Any = None,
+    workflow_jobs: Any = None,
+    workflow_file_shas: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Load Full Suite success evidence only from default-branch-bound checks."""
+    head = require_sha40(head_sha, "head_sha")
+    if not _norm(default_branch):
+        return None
+    for item in _as_check_run_list(check_runs):
+        if not isinstance(item, Mapping):
+            continue
+        name = _norm(item.get("name") or item.get("context"))
+        if name not in {FULL_SUITE_CONTEXT, "full", "full-gate"}:
+            continue
+        app = item.get("app") if isinstance(item.get("app"), Mapping) else {}
+        slug = _lower((app or {}).get("slug")) if app else ""
+        if slug not in TRUSTED_CHECK_APP_SLUGS:
+            continue
+        item_head = _norm(item.get("head_sha") or item.get("headSha")).lower()
+        if item_head != head:
+            continue
+        workflow_run = resolve_authenticated_workflow_run_for_check(
+            item,
+            workflow_runs=workflow_runs,
+            workflow_jobs=workflow_jobs,
+            default_branch=default_branch,
+            allowed_paths=TRUSTED_FULL_SUITE_WORKFLOW_PATHS,
+            workflow_file_shas=workflow_file_shas,
+        )
+        if workflow_run is None:
+            continue
+        # Full suite producer must evaluate the exact candidate head.
+        run_head = _norm(workflow_run.get("head_sha") or workflow_run.get("headSha")).lower()
+        if run_head != head:
+            continue
+        raw = {
+            "name": name or FULL_SUITE_CONTEXT,
+            "headSha": item.get("head_sha") or item.get("headSha") or "",
+            "status": item.get("conclusion") or item.get("status") or "",
+            "outputSummary": (
+                item.get("outputSummary")
+                or (
+                    (item.get("output") or {}).get("summary")
+                    if isinstance(item.get("output"), Mapping)
+                    else ""
+                )
+                or item.get("summary")
+                or ""
+            ),
+            "gitTree": item.get("gitTree") or item.get("gitTreeSha") or "",
+        }
+        normalized = normalize_full_receipt_payload(raw)
+        if not normalized:
+            continue
+        receipt_head = _norm(normalized.get("headSha")).lower()
+        if receipt_head and receipt_head != head:
+            continue
+        return {
+            "receipt": normalized,
+            "evidenceChannel": EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+            "workflowPath": _norm(workflow_run.get("path")),
+            "workflowRunId": int(workflow_run.get("id")),
+            "checkRunId": int(item.get("id")),
+            "checkSuiteId": int(check_suite_id_from_check_run(item) or 0),
+        }
+    return None
 
 
 def count_infrastructure_attempts(markers: Sequence[str] | None, *, head_sha: str) -> int:
@@ -474,12 +1372,16 @@ def normalize_full_receipt_payload(raw: Any) -> dict[str, Any] | None:
             head = match.group(1)
     status = _norm(raw.get("status") or raw.get("conclusion") or "")
     name = _norm(raw.get("name") or raw.get("context") or FULL_SUITE_CONTEXT)
-    return {
+    provenance = _provenance_mapping(raw)
+    payload: dict[str, Any] = {
         "name": name or FULL_SUITE_CONTEXT,
         "headSha": head,
         "gitTree": tree,
         "status": status,
     }
+    if provenance is not None:
+        payload["provenance"] = dict(provenance)
+    return payload
 
 
 def require_full_receipt_for_gate_success(
@@ -488,11 +1390,15 @@ def require_full_receipt_for_gate_success(
     full_receipt: Mapping[str, Any] | None,
     head_sha: str,
     git_tree: str,
+    evidence_channel: str = "",
 ) -> None:
     """Successful managed gate publish requires an exact-head Full receipt/check.
 
     The receipt-provided ``gitTree`` is preserved and compared independently to
     the live exact tree. Callers must never overwrite receipt tree with live TREE.
+    Trust is established by either a loader-assigned ``evidence_channel``
+    (``github_check_run``) or authenticated Full receipt ``provenance``.
+    Candidate-controlled repository files never authorize success.
     """
     if not gate_success:
         return
@@ -501,6 +1407,29 @@ def require_full_receipt_for_gate_success(
     normalized = normalize_full_receipt_payload(full_receipt)
     if not normalized:
         raise ReviewGateError("full_receipt_missing", "successful gate requires Full receipt")
+
+    channel = _norm(evidence_channel)
+    channel_ok = channel in TRUSTED_FULL_RECEIPT_CHANNELS
+    provenance = _provenance_mapping(normalized)
+    provenance_ok = False
+    if provenance is not None:
+        provenance_kind = _norm(provenance.get("kind"))
+        provenance_ok = (
+            provenance_kind in TRUSTED_FULL_RECEIPT_PROVENANCE_KINDS
+            and provenance.get("authenticated") is True
+        )
+    if not channel_ok and not provenance_ok:
+        if channel:
+            raise ReviewGateError(
+                "full_receipt_untrusted_channel",
+                f"channel={channel}; provenance missing/unauthenticated; "
+                "candidate files cannot authorize success",
+            )
+        raise ReviewGateError(
+            "full_receipt_untrusted_provenance",
+            "successful gate requires authenticated Full receipt provenance",
+        )
+
     receipt_head_raw = _norm(normalized.get("headSha"))
     receipt_tree_raw = _norm(normalized.get("gitTree"))
     if not receipt_head_raw:
@@ -554,7 +1483,9 @@ def classify_bugbot_result(
     bugbot_state: str,
     bugbot_conclusion: str | None = None,
     findings_present: bool = False,
+    annotations_count: int | None = None,
     provider_error: Mapping[str, Any] | None = None,
+    provider_evidence_channel: str = "",
     infrastructure_attempts: int = 1,
     result_head_sha: str | None = None,
     malformed: bool = False,
@@ -569,6 +1500,11 @@ def classify_bugbot_result(
     tree = require_sha40(git_tree, "git_tree")
     if infrastructure_attempts < 0:
         raise ReviewGateError("invalid_attempts", "attempts must be >= 0")
+    has_findings = structured_bugbot_findings_present(
+        annotations_count=annotations_count,
+        bugbot_conclusion=bugbot_conclusion,
+        findings_present=findings_present,
+    )
 
     if missing or malformed or forged:
         return Classification(
@@ -606,27 +1542,16 @@ def classify_bugbot_result(
 
     state = _lower(bugbot_state)
     conclusion = _lower(bugbot_conclusion) if bugbot_conclusion is not None else ""
-    # Unverified / heuristic provider payloads never authorize advisory success.
-    provider = verified_provider_unavailability(provider_error)
-    if provider_error and provider is None and provider_error.get("verified") is not True:
-        # Explicitly ignore free-text/untrusted hints; continue fail-closed on conclusion.
+    # Unverified / heuristic / candidate-file provider payloads never authorize advisory success.
+    # Channel/provenance are assigned by the trusted loader — ignore channel keys inside JSON.
+    # Untrusted verified claims are ignored so real Bugbot failure/neutral conclusions stand
+    # (#330 planted-source adversarial); they never rewrite outcomes into advisory success.
+    provider = verified_provider_unavailability(
+        provider_error,
+        evidence_channel=provider_evidence_channel,
+    )
+    if provider_error and provider is None:
         provider = None
-    elif provider_error and provider is None:
-        # verified claimed but source/class untrusted → fail closed as unknown.
-        return Classification(
-            outcome=OUTCOME_UNKNOWN,
-            gateSuccess=False,
-            bugbotPassedClaim=False,
-            alertFounder=False,
-            detail="untrusted_or_incomplete_provider_unavailability_evidence",
-            headSha=head,
-            gitTree=tree,
-            repository=repo,
-            pullRequest=pull_request,
-            infrastructureAttempts=infrastructure_attempts,
-            providerClass=None,
-            sanitizedAlert=None,
-        )
 
     if state in {"pending", "queued", "in_progress"}:
         return Classification(
@@ -644,7 +1569,7 @@ def classify_bugbot_result(
             sanitizedAlert=None,
         )
 
-    if findings_present:
+    if has_findings:
         return Classification(
             outcome=OUTCOME_FINDINGS,
             gateSuccess=False,
@@ -719,9 +1644,9 @@ def classify_bugbot_result(
         "failure",
         "cancelled",
         "timed_out",
-        "action_required",
     }:
         # conclusion=failure never becomes gate success without verified unavailability above.
+        # action_required is handled as structured findings above (never a pass).
         return Classification(
             outcome=OUTCOME_FAILED,
             gateSuccess=False,
@@ -784,6 +1709,10 @@ def migrated_required_contexts(contexts: Sequence[str]) -> list[str]:
 def _load_json_arg(raw: str) -> Any:
     if raw == "-":
         return json.load(sys.stdin)
+    # Prefer existing file paths over inline JSON (workflow ARG_MAX safety).
+    if raw and os.path.isfile(raw):
+        with open(raw, encoding="utf-8") as handle:
+            return json.load(handle)
     return json.loads(raw)
 
 
@@ -799,12 +1728,34 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--bugbot-state", required=True)
     c.add_argument("--bugbot-conclusion", default="")
     c.add_argument("--findings-present", action="store_true")
+    c.add_argument(
+        "--annotations-count",
+        type=int,
+        default=None,
+        help="GitHub check_run.output.annotations_count (structured findings only)",
+    )
     c.add_argument("--provider-error-json", default="")
+    c.add_argument(
+        "--provider-evidence-channel",
+        default="",
+        help="Trusted loader channel (never candidate_repository_file)",
+    )
     c.add_argument("--infrastructure-attempts", type=int, default=1)
     c.add_argument("--result-head-sha", default="")
     c.add_argument("--missing", action="store_true")
     c.add_argument("--malformed", action="store_true")
     c.add_argument("--forged", action="store_true")
+
+
+    df = sub.add_parser(
+        "detect-findings",
+        help="Decide findings-present from trustworthy check_run event evidence",
+    )
+    df.add_argument("--annotations-count", default="0")
+    df.add_argument("--check-title", default="")
+    df.add_argument("--check-details", default="")
+    df.add_argument("--bugbot-conclusion", default="")
+    df.add_argument("--provider-findings-json", default="")
 
     r = sub.add_parser("require-contexts", help="Validate migrated required contexts")
     r.add_argument("--contexts-json", required=True)
@@ -838,12 +1789,99 @@ def main(argv: list[str] | None = None) -> int:
     fr.add_argument("--full-receipt-json", required=True)
     fr.add_argument("--head-sha", required=True)
     fr.add_argument("--git-tree", required=True)
+    fr.add_argument(
+        "--evidence-channel",
+        default="",
+        help="Trusted Full receipt channel (github_check_run only)",
+    )
 
     nr = sub.add_parser(
         "normalize-full-receipt",
         help="Normalize Full receipt/check JSON without injecting live TREE",
     )
     nr.add_argument("--receipt-json", required=True)
+    nr.add_argument(
+        "--provenance-kind",
+        default="",
+        help="Authenticated provenance kind (github.check_runs.api | github.actions.artifact)",
+    )
+    nr.add_argument("--provenance-head-sha", default="")
+    nr.add_argument("--provenance-evidence-ref", default="")
+
+    ape = sub.add_parser(
+        "authenticate-provider-error",
+        help="Stamp trusted provenance onto verified provider-unavailability evidence",
+    )
+    ape.add_argument("--provider-error-json", required=True)
+    ape.add_argument("--provenance-kind", required=True)
+    ape.add_argument("--head-sha", required=True)
+    ape.add_argument("--evidence-ref", default="")
+
+    rpe = sub.add_parser(
+        "resolve-usage-limit-provider-error",
+        help="Resolve authenticated repair_observer.usage_limit evidence from open repair issues",
+    )
+    rpe.add_argument("--head-sha", required=True)
+    rpe.add_argument(
+        "--slurp-json",
+        required=True,
+        help="Paginated issue slurp JSON, or '-' to read stdin",
+    )
+
+    ep = sub.add_parser(
+        "extract-trusted-provider-evidence",
+        help="Extract provider-unavailability evidence from default-branch-bound checks only",
+    )
+    ep.add_argument("--head-sha", required=True)
+    ep.add_argument("--check-runs-json", required=True, help="JSON, file path, or '-' for stdin")
+    ep.add_argument("--default-branch", required=True)
+    ep.add_argument("--workflow-runs-json", required=True, help="JSON, file path, or '-' for stdin")
+    ep.add_argument("--workflow-jobs-json", required=True, help="JSON, file path, or '-' for stdin")
+    ep.add_argument(
+        "--workflow-file-shas-json",
+        required=True,
+        help='JSON map path->{default,byHead}, file path, or "-" for stdin',
+    )
+
+    ef = sub.add_parser(
+        "extract-trusted-full-receipt",
+        help="Extract Full Suite receipt from default-branch-bound checks only",
+    )
+    ef.add_argument("--head-sha", required=True)
+    ef.add_argument("--check-runs-json", required=True, help="JSON, file path, or '-' for stdin")
+    ef.add_argument("--default-branch", required=True)
+    ef.add_argument("--workflow-runs-json", required=True, help="JSON, file path, or '-' for stdin")
+    ef.add_argument("--workflow-jobs-json", required=True, help="JSON, file path, or '-' for stdin")
+    ef.add_argument(
+        "--workflow-file-shas-json",
+        required=True,
+        help='JSON map path->{default,byHead}, file path, or "-" for stdin',
+    )
+
+    rw = sub.add_parser(
+        "resolve-workflow-file-shas",
+        help="Resolve Contents API blob SHAs for allowlisted workflow producers",
+    )
+    rw.add_argument("--repository", required=True)
+    rw.add_argument("--default-branch", required=True)
+    rw.add_argument("--workflow-runs-json", required=True, help="JSON, file path, or '-' for stdin")
+    rw.add_argument(
+        "--output",
+        default="-",
+        help="Write JSON to path, or '-' for stdout (default)",
+    )
+
+    rj = sub.add_parser(
+        "resolve-workflow-jobs",
+        help="Resolve Actions jobs for workflow runs (check-run membership proofs)",
+    )
+    rj.add_argument("--repository", required=True)
+    rj.add_argument("--workflow-runs-json", required=True, help="JSON, file path, or '-' for stdin")
+    rj.add_argument(
+        "--output",
+        default="-",
+        help="Write JSON to path, or '-' for stdout (default)",
+    )
 
     fa = sub.add_parser("founder-alert", help="Build durable founder-alert payload")
     fa.add_argument("--classification-json", required=True)
@@ -902,7 +1940,9 @@ def main(argv: list[str] | None = None) -> int:
                 bugbot_state=args.bugbot_state,
                 bugbot_conclusion=args.bugbot_conclusion or None,
                 findings_present=args.findings_present,
+                annotations_count=args.annotations_count,
                 provider_error=provider,
+                provider_evidence_channel=args.provider_evidence_channel,
                 infrastructure_attempts=args.infrastructure_attempts,
                 result_head_sha=args.result_head_sha or None,
                 malformed=args.malformed,
@@ -919,6 +1959,38 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             }
             print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "detect-findings":
+            provider_findings = (
+                json.loads(args.provider_findings_json) if args.provider_findings_json else None
+            )
+            decision = findings_present_from_event_evidence(
+                annotations_count=args.annotations_count,
+                check_title=args.check_title,
+                check_details=args.check_details,
+                bugbot_conclusion=args.bugbot_conclusion,
+                provider_findings=provider_findings,
+            )
+            print(json.dumps(decision, indent=2, sort_keys=True))
+            return 0
+        if args.command == "authenticate-provider-error":
+            raw = json.loads(args.provider_error_json)
+            stamped = authenticate_provider_unavailability_evidence(
+                raw,
+                provenance_kind=args.provenance_kind,
+                head_sha=args.head_sha,
+                evidence_ref=args.evidence_ref,
+            )
+            print(json.dumps(stamped, separators=(",", ":"), sort_keys=True))
+            return 0
+        if args.command == "resolve-usage-limit-provider-error":
+            pages = _load_json_arg(args.slurp_json)
+            issues = flatten_gh_slurp_pages(pages)
+            resolved = provider_error_from_usage_limit_repair_issues(
+                issues,
+                head_sha=args.head_sha,
+            )
+            print(json.dumps(resolved, separators=(",", ":"), sort_keys=True))
             return 0
         if args.command == "require-contexts":
             contexts = _load_json_arg(args.contexts_json)
@@ -969,12 +2041,73 @@ def main(argv: list[str] | None = None) -> int:
                 full_receipt=receipt,
                 head_sha=args.head_sha,
                 git_tree=args.git_tree,
+                evidence_channel=args.evidence_channel,
             )
             print(json.dumps({"ok": True}, indent=2, sort_keys=True))
             return 0
         if args.command == "normalize-full-receipt":
             normalized = normalize_full_receipt_payload(_load_json_arg(args.receipt_json))
+            if args.provenance_kind:
+                normalized = stamp_full_receipt_provenance(
+                    normalized,
+                    provenance_kind=args.provenance_kind,
+                    head_sha=args.provenance_head_sha or (normalized or {}).get("headSha") or "",
+                    evidence_ref=args.provenance_evidence_ref,
+                )
             print(json.dumps(normalized, indent=2, sort_keys=True))
+            return 0
+        if args.command == "extract-trusted-provider-evidence":
+            shas = _load_json_arg(args.workflow_file_shas_json)
+            if not isinstance(shas, dict):
+                raise ReviewGateError("invalid_workflow_file_shas", "must be object")
+            payload = extract_trusted_provider_evidence_from_check_runs(
+                _load_json_arg(args.check_runs_json),
+                head_sha=args.head_sha,
+                default_branch=args.default_branch,
+                workflow_runs=_load_json_arg(args.workflow_runs_json),
+                workflow_jobs=_load_json_arg(args.workflow_jobs_json),
+                workflow_file_shas=shas,
+            )
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "extract-trusted-full-receipt":
+            shas = _load_json_arg(args.workflow_file_shas_json)
+            if not isinstance(shas, dict):
+                raise ReviewGateError("invalid_workflow_file_shas", "must be object")
+            payload = extract_trusted_full_receipt_from_check_runs(
+                _load_json_arg(args.check_runs_json),
+                head_sha=args.head_sha,
+                default_branch=args.default_branch,
+                workflow_runs=_load_json_arg(args.workflow_runs_json),
+                workflow_jobs=_load_json_arg(args.workflow_jobs_json),
+                workflow_file_shas=shas,
+            )
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "resolve-workflow-file-shas":
+            payload = build_workflow_file_shas_payload(
+                repository=args.repository,
+                default_branch=args.default_branch,
+                workflow_runs=_load_json_arg(args.workflow_runs_json),
+            )
+            text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+            if args.output == "-":
+                sys.stdout.write(text)
+            else:
+                with open(args.output, "w", encoding="utf-8") as handle:
+                    handle.write(text)
+            return 0
+        if args.command == "resolve-workflow-jobs":
+            payload = build_workflow_jobs_payload(
+                repository=args.repository,
+                workflow_runs=_load_json_arg(args.workflow_runs_json),
+            )
+            text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+            if args.output == "-":
+                sys.stdout.write(text)
+            else:
+                with open(args.output, "w", encoding="utf-8") as handle:
+                    handle.write(text)
             return 0
         if args.command == "founder-alert":
             raw = _load_json_arg(args.classification_json)

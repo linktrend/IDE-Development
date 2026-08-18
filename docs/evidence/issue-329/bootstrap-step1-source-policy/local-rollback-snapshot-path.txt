@@ -1,0 +1,4 @@
+historical_rollbackCommand_preserved_in_OPERATOR-RESULT_and_PACKET
+local_usable_snapshot=docs/evidence/issue-329/bootstrap-step1-source-policy/sanitized/step1-apply-plan.json
+example_local_rollback=./scripts/manage-repository-protections.sh --repo linktrend/IDE-Development rollback --snapshot docs/evidence/issue-329/bootstrap-step1-source-policy/sanitized/step1-apply-plan.json --apply
+NOTE=HOLD — do not execute rollback unless founder-authorized; this file only documents path mapping after import.
