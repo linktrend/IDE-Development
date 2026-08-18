@@ -1156,6 +1156,13 @@ def extract_trusted_full_receipt_from_check_runs(
             ),
             "gitTree": item.get("gitTree") or item.get("gitTreeSha") or "",
         }
+        # Preserve nested candidateIdentity when a check/output embeds a FullSuiteReceipt.
+        if isinstance(item.get("candidateIdentity"), Mapping):
+            raw["candidateIdentity"] = dict(item["candidateIdentity"])
+        elif isinstance(item.get("output"), Mapping) and isinstance(
+            item["output"].get("candidateIdentity"), Mapping
+        ):
+            raw["candidateIdentity"] = dict(item["output"]["candidateIdentity"])
         normalized = normalize_full_receipt_payload(raw)
         if not normalized:
             continue
@@ -1333,7 +1340,9 @@ def normalize_full_receipt_payload(raw: Any) -> dict[str, Any] | None:
     """Normalize Full check/receipt JSON without injecting the live tree.
 
     Receipt ``gitTree`` must come from the Full receipt/check itself (flat
-    fields, ``candidateIdentity.gitTreeSha``, or embedded summary text).
+    fields, ``candidateIdentity.gitTree`` / legacy ``gitTreeSha``, or embedded
+    summary text). SchemaVersion 2 FullSuiteReceipt uses ``gitTree``; older
+    callers may still emit ``gitTreeSha``. Never invent tree from live TREE.
     """
     if raw is None or raw == "" or raw == "null":
         return None
@@ -1352,10 +1361,12 @@ def normalize_full_receipt_payload(raw: Any) -> dict[str, Any] | None:
     candidate = raw.get("candidateIdentity")
     head = _norm(raw.get("headSha") or raw.get("head") or "")
     # Never accept a caller-supplied live tree overwrite here — only receipt fields.
+    # Top-level: prefer canonical gitTree, then legacy gitTreeSha / tree aliases.
     tree = _norm(raw.get("gitTree") or raw.get("gitTreeSha") or raw.get("tree") or "")
     if isinstance(candidate, Mapping):
         head = head or _norm(candidate.get("sourceSha") or candidate.get("headCommit") or "")
-        tree = tree or _norm(candidate.get("gitTreeSha") or candidate.get("gitTree") or "")
+        # candidateIdentity: prefer schema-canonical gitTree, then legacy gitTreeSha.
+        tree = tree or _norm(candidate.get("gitTree") or candidate.get("gitTreeSha") or "")
     summary = _norm(
         raw.get("outputSummary")
         or raw.get("summary")
@@ -1382,6 +1393,62 @@ def normalize_full_receipt_payload(raw: Any) -> dict[str, Any] | None:
     if provenance is not None:
         payload["provenance"] = dict(provenance)
     return payload
+
+
+def overlay_retained_full_suite_receipt(
+    extracted: Mapping[str, Any] | None,
+    retained_receipt: Any,
+) -> dict[str, Any] | None:
+    """Fill producer-bound extract tree/head from a retained FullSuiteReceipt.
+
+    GitHub Actions job checks often have empty ``output.summary``, so extract
+    alone cannot recover ``gitTree``. The retained artifact from the same
+    producer-bound workflow run carries schemaVersion 2
+    ``candidateIdentity.gitTree``. Candidate worktree files must never be
+    passed here. Live TREE is never injected.
+    """
+    if extracted is None:
+        return None
+    if not isinstance(extracted, Mapping):
+        raise ReviewGateError("invalid_full_receipt", "extract payload must be an object")
+    bound_receipt = extracted.get("receipt")
+    if not isinstance(bound_receipt, Mapping):
+        raise ReviewGateError("invalid_full_receipt", "extract receipt missing")
+    retained = normalize_full_receipt_payload(retained_receipt)
+    if not retained:
+        raise ReviewGateError("full_receipt_missing", "retained Full receipt required")
+    bound_head = _norm(bound_receipt.get("headSha")).lower()
+    retained_head = _norm(retained.get("headSha")).lower()
+    if bound_head and retained_head and bound_head != retained_head:
+        raise ReviewGateError(
+            "full_receipt_wrong_head",
+            f"retained={retained_head} extract={bound_head}",
+        )
+    retained_tree = _norm(retained.get("gitTree"))
+    if not retained_tree:
+        raise ReviewGateError(
+            "full_receipt_missing_tree",
+            "retained receipt gitTree must come from Full receipt, not live TREE",
+        )
+    # Prefer non-empty extract fields; fill gaps from retained schema v2 receipt.
+    merged = dict(bound_receipt)
+    merged["headSha"] = bound_head or retained_head
+    extract_tree = _norm(bound_receipt.get("gitTree"))
+    if extract_tree and retained_tree and extract_tree.lower() != retained_tree.lower():
+        raise ReviewGateError(
+            "full_receipt_wrong_tree",
+            f"retained={retained_tree} extract={extract_tree}",
+        )
+    merged["gitTree"] = extract_tree or retained_tree
+    merged["status"] = _norm(bound_receipt.get("status")) or _norm(retained.get("status"))
+    merged["name"] = _norm(bound_receipt.get("name")) or _norm(retained.get("name")) or FULL_SUITE_CONTEXT
+    if "provenance" in bound_receipt and isinstance(bound_receipt.get("provenance"), Mapping):
+        merged["provenance"] = dict(bound_receipt["provenance"])
+    elif isinstance(retained.get("provenance"), Mapping):
+        merged["provenance"] = dict(retained["provenance"])
+    out = dict(extracted)
+    out["receipt"] = merged
+    return out
 
 
 def require_full_receipt_for_gate_success(
@@ -1857,6 +1924,18 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         help='JSON map path->{default,byHead}, file path, or "-" for stdin',
     )
+    ef.add_argument(
+        "--retained-receipt-json",
+        default="",
+        help="Optional producer-bound FullSuiteReceipt JSON (artifact); fills gitTree",
+    )
+
+    br = sub.add_parser(
+        "overlay-retained-full-receipt",
+        help="Overlay retained FullSuiteReceipt onto producer-bound extract (no live TREE)",
+    )
+    br.add_argument("--extract-json", required=True)
+    br.add_argument("--retained-receipt-json", required=True)
 
     rw = sub.add_parser(
         "resolve-workflow-file-shas",
@@ -2081,6 +2160,19 @@ def main(argv: list[str] | None = None) -> int:
                 workflow_runs=_load_json_arg(args.workflow_runs_json),
                 workflow_jobs=_load_json_arg(args.workflow_jobs_json),
                 workflow_file_shas=shas,
+            )
+            retained_raw = _norm(getattr(args, "retained_receipt_json", "") or "")
+            if payload is not None and retained_raw:
+                payload = overlay_retained_full_suite_receipt(
+                    payload,
+                    _load_json_arg(retained_raw),
+                )
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "overlay-retained-full-receipt":
+            payload = overlay_retained_full_suite_receipt(
+                _load_json_arg(args.extract_json),
+                _load_json_arg(args.retained_receipt_json),
             )
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
