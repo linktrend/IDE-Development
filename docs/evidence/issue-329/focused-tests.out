@@ -3,10 +3,14 @@ actionlint_exit=0
 
 === classifier positive/negative + build_manifest tests ===
 test_all_classified_outcomes (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_candidate_planted_allowlisted_provider_evidence_never_authorizes_success (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
+P2: every allowlisted source planted via candidate file must not yield advisory success. ... ok
 test_durable_founder_alert_dedupe_and_fail_closed (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
 test_fail_closed_missing_malformed_forged_wrong_head (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
 test_failure_never_becomes_advisory_via_heuristic (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
 test_fallback_reviewer_rules_and_comment (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_forged_full_receipt_authorship_and_candidate_file_provenance (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
+P2: forged Full receipt without trusted GitHub check provenance cannot authorize success. ... ok
 test_full_failure_blocks_bugbot_request (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
 test_full_receipt_required_before_successful_gate_publish (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
 test_infrastructure_attempts_count_only_infra_markers (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
@@ -38,7 +42,7 @@ test_required_cursor_materialization_sources_are_packaged (scripts.ide_developme
 test_version_alignment_helpers (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
 
 ----------------------------------------------------------------------
-Ran 30 tests in 1.183s
+Ran 32 tests in 0.274s
 
 OK (skipped=3)
 unittest_exit=0

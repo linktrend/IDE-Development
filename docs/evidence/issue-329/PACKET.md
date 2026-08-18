@@ -20,6 +20,9 @@
 
 ## Independent-review repairs (this tip)
 
+- P1: Authenticated evidence channels — candidate `.linktrend` provider-error/Full files cannot authorize success; GitHub Checks / privileged channels only.
+- P2: Adversarial tests cover all allowlisted planted sources and forged Full receipt provenance.
+
 - P1: Workflow checkouts protected `default_branch` for scripts only; candidate head/tree/receipt/provider evidence are API data only (never execute candidate scripts).
 - P2: Structured Bugbot findings via `annotations_count` / `action_required` → `review-findings`; removed dead free-text `CHECK_DETAILS` path.
 - P2: Verify evidence host paths sanitized; changed-path secret scan claims truthful.

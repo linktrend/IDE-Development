@@ -54,18 +54,24 @@ jobs:
           PR_NUMBER="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/pulls" \
             --jq '.[0].number // empty' || true)"
 
-          # Trusted verified unavailability only — candidate file as DATA via Contents API.
-          # Never read provider evidence from the trusted default-branch working tree.
-          # Never execute candidate scripts.
+          # Trusted provider-unavailability evidence: GitHub Checks only.
+          # Never read candidate-controlled .linktrend/*.json (forgeable allowlisted sources).
+          CHECK_RUNS_JSON="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100")" \
+            || { echo "HOLD: check_runs_unreadable"; exit 1; }
+          PROVIDER_EXTRACT="$(printf '%s' "${CHECK_RUNS_JSON}" \
+            | python3 scripts/gitops/linktrend_review_gate.py extract-trusted-provider-evidence \
+                --head-sha "${HEAD_SHA}" --check-runs-json -)" || {
+            echo "HOLD: provider_evidence_extract_failed"; exit 1
+          }
           PROVIDER_JSON=""
-          PROVIDER_B64="$(gh api \
-            "repos/${GITHUB_REPOSITORY}/contents/.linktrend/review-gate-provider-error.json?ref=${HEAD_SHA}" \
-            --jq '.content // empty' 2>/dev/null || true)"
-          if [ -n "${PROVIDER_B64}" ]; then
-            PROVIDER_JSON="$(printf '%s' "${PROVIDER_B64}" | tr -d '\n' | base64 --decode 2>/dev/null || true)"
-            if [ -n "${PROVIDER_JSON}" ]; then
-              echo "${PROVIDER_JSON}" | jq -e '.verified == true and (.source|type=="string")' >/dev/null \
-                || { echo "untrusted_provider_error_file"; PROVIDER_JSON=""; }
+          PROVIDER_CHANNEL=""
+          if [ -n "${PROVIDER_EXTRACT}" ] && [ "${PROVIDER_EXTRACT}" != "null" ]; then
+            PROVIDER_JSON="$(jq -c '.providerError // empty' <<<"${PROVIDER_EXTRACT}")"
+            PROVIDER_CHANNEL="$(jq -r '.evidenceChannel // empty' <<<"${PROVIDER_EXTRACT}")"
+            if [ -z "${PROVIDER_JSON}" ] || [ "${PROVIDER_JSON}" = "null" ]; then
+              PROVIDER_JSON=""
+              PROVIDER_CHANNEL=""
             fi
           fi
 
@@ -112,6 +118,7 @@ jobs:
           fi
           if [ -n "${PROVIDER_JSON}" ]; then
             ARGS+=(--provider-error-json "${PROVIDER_JSON}")
+            ARGS+=(--provider-evidence-channel "${PROVIDER_CHANNEL}")
           fi
           OUT="$("${ARGS[@]}")"
           echo "${OUT}"
@@ -128,36 +135,23 @@ jobs:
 
           # Exact Full receipt/check required before publishing a successful gate.
           # Preserve receipt-provided gitTree; never overwrite with live TREE.
-          # Candidate receipt is data via API only — never from default-branch working tree.
+          # Full evidence must come from trusted GitHub Checks — never candidate files.
           if [ "${GATE_SUCCESS}" = "true" ]; then
-            FULL_RAW=""
-            RECEIPT_B64="$(gh api \
-              "repos/${GITHUB_REPOSITORY}/contents/.linktrend/full-suite-receipt.json?ref=${HEAD_SHA}" \
-              --jq '.content // empty' 2>/dev/null || true)"
-            if [ -n "${RECEIPT_B64}" ]; then
-              FULL_RAW="$(printf '%s' "${RECEIPT_B64}" | tr -d '\n' | base64 --decode 2>/dev/null || true)"
+            FULL_EXTRACT="$(printf '%s' "${CHECK_RUNS_JSON}" \
+              | python3 scripts/gitops/linktrend_review_gate.py extract-trusted-full-receipt \
+                  --head-sha "${HEAD_SHA}" --check-runs-json -)" \
+              || { echo "full_receipt_check_lookup_failed"; exit 1; }
+            if [ -z "${FULL_EXTRACT}" ] || [ "${FULL_EXTRACT}" = "null" ]; then
+              echo "full_receipt_missing_trusted_check"; exit 1
             fi
-            if [ -z "${FULL_RAW}" ]; then
-              FULL_RAW="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs" \
-                --jq '
-                  [.check_runs[]
-                    | select(.name=="Linktrend Full Suite")
-                    | {
-                        name:.name,
-                        headSha:.head_sha,
-                        status:(.conclusion // .status),
-                        outputSummary:(.output.summary // "")
-                      }
-                  ] | .[0] // empty')" \
-                || { echo "full_receipt_check_lookup_failed"; exit 1; }
-            fi
-            FULL_JSON="$(python3 scripts/gitops/linktrend_review_gate.py normalize-full-receipt \
-              --receipt-json "${FULL_RAW:-null}")"
+            FULL_JSON="$(jq -c '.receipt' <<<"${FULL_EXTRACT}")"
+            FULL_CHANNEL="$(jq -r '.evidenceChannel' <<<"${FULL_EXTRACT}")"
             python3 scripts/gitops/linktrend_review_gate.py require-full-receipt \
               --gate-success \
               --full-receipt-json "${FULL_JSON}" \
               --head-sha "${HEAD_SHA}" \
-              --git-tree "${TREE}"
+              --git-tree "${TREE}" \
+              --evidence-channel "${FULL_CHANNEL}"
           fi
 
           # Durable founder alert (deduped via prior alert ISSUE BODIES) — fail closed.

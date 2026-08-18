@@ -29,7 +29,7 @@
     },
     "originalBeforeAfterRollbackPreserved": true
   },
-  "acceptance": "AC-U05-06/14 trusted Review Gate bootstrap with default-branch script trust boundary; structured findings wired; founder step-1 evidence imported APPLIED+VERIFIED with Bugbot still required and PR #326 unchanged; no Full/PR/merge/promote/publish/rollout/additional live ruleset mutate",
+  "acceptance": "AC-U05-06/14 trusted Review Gate with default-branch scripts and authenticated evidence channels; candidate-planted allowlisted provider/Full evidence cannot authorize success; structured findings wired; founder step-1 imported; PR #326 unchanged; HOLD",
   "covered": [
     "AC-U05-06",
     "AC-U05-14",
@@ -60,22 +60,22 @@
     "Step-1 rollback evidence preserved under bootstrap-step1-source-policy/sanitized/step1-apply-plan.json (HOLD unless founder-authorized)"
   ],
   "exactRuntimeBlobs": {
-    ".github/workflows/linktrend-review-gate.yml": "119f272deb78a6ccba6e8d3bdc4bdbf34f6de242",
-    "core/github/managed-workflows/linktrend-review-gate.yml": "119f272deb78a6ccba6e8d3bdc4bdbf34f6de242",
-    "scripts/gitops/linktrend_review_gate.py": "7b5c9987b927d1eb522c6acab5bb02e6fc67d4e7",
+    ".github/workflows/linktrend-review-gate.yml": "91f8108d25a528e42a1661d07dce90ceb805a6f2",
+    "core/github/managed-workflows/linktrend-review-gate.yml": "91f8108d25a528e42a1661d07dce90ceb805a6f2",
+    "scripts/gitops/linktrend_review_gate.py": "598dba754eb09131d8fb28701889f4688e2bc664",
     "core/managed-core/schemas/linktrend-review-gate.schema.json": "5e2cfe41332e6f9b20983eb6fd0a8bc4f0059e46",
-    "docs/contracts/LINKTREND-REVIEW-GATE.md": "d65f5ec8c39de2a14cc4bb2651714451c8cf6b47"
+    "docs/contracts/LINKTREND-REVIEW-GATE.md": "44f6485996bc176ded52325bb4eb602fa499236f"
   },
   "commands": [
     {
-      "command": "actionlint .github/workflows/linktrend-review-gate.yml core/github/managed-workflows/linktrend-review-gate.yml",
+      "command": "actionlint workflows",
       "exitCode": 0,
       "evidencePath": "docs/evidence/issue-329/focused-tests.out"
     },
     {
       "command": "python3 -m unittest scripts.tests.test_linktrend_review_gate scripts.ide_development_tests.test_build_manifest -v",
       "exitCode": 0,
-      "testsRan": 30,
+      "testsRan": 32,
       "skipped": 3,
       "evidencePath": "docs/evidence/issue-329/focused-tests.out"
     },
@@ -84,14 +84,9 @@
       "exitCode": 0
     },
     {
-      "command": "changed-path secret scan (security harness)",
+      "command": "changed-path secret scan",
       "exitCode": 0,
       "evidencePath": "docs/evidence/issue-329/secret-scan.out"
-    },
-    {
-      "command": "bash scripts/verify-ide-development.sh (sanitized evidence)",
-      "exitCode": 0,
-      "evidencePath": "docs/evidence/issue-329/verify-secret-diff.out"
     },
     {
       "command": "git diff --check",
@@ -110,6 +105,8 @@
     "P2 structured Bugbot findings via annotations_count/action_required (removed dead CHECK_DETAILS)",
     "P2 sanitized verify evidence host paths; truthful changed-path scan claims",
     "P2 import attestation includes local-rollback-snapshot-path.txt in fileCount/hashes",
-    "Negative tests: PR cannot rewrite classifier; default-branch scripts required"
+    "Negative tests: PR cannot rewrite classifier; default-branch scripts required",
+    "P1 authenticated evidence channels: reject candidate-file provider-error/Full receipt for success authorization",
+    "P2 adversarial tests for all allowlisted planted sources and forged Full receipt provenance"
   ]
 }

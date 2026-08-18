@@ -20,6 +20,11 @@ from pathlib import Path
 from jsonschema import Draft202012Validator
 
 from scripts.gitops.linktrend_review_gate import (
+    EVIDENCE_CHANNEL_CANDIDATE_FILE,
+    EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+    EVIDENCE_CHANNEL_OPERATOR_PRIVILEGED,
+    EVIDENCE_CHANNEL_PROVIDER_STATUS_API,
+    EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD,
     FULL_SUITE_CONTEXT,
     MAX_INFRASTRUCTURE_ATTEMPTS,
     OUTCOME_ADVISORY,
@@ -29,6 +34,7 @@ from scripts.gitops.linktrend_review_gate import (
     OUTCOME_UNKNOWN,
     RAW_BUGBOT_CONTEXT,
     REVIEW_GATE_CONTEXT,
+    TRUSTED_PROVIDER_SOURCES,
     ReviewGateError,
     assert_full_suite_allows_bugbot,
     build_durable_founder_alert,
@@ -39,6 +45,8 @@ from scripts.gitops.linktrend_review_gate import (
     decide_founder_alert_publish,
     evaluate_fallback_review,
     evaluate_github_approval,
+    extract_trusted_full_receipt_from_check_runs,
+    extract_trusted_provider_evidence_from_check_runs,
     flatten_gh_slurp_pages,
     founder_alert_already_recorded,
     founder_alert_marker,
@@ -146,6 +154,7 @@ class LinktrendReviewGateTests(unittest.TestCase):
             bugbot_state="completed",
             bugbot_conclusion="neutral",
             provider_error=_verified_quota(),
+            provider_evidence_channel=EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD,
             infrastructure_attempts=1,
         )
         self.assertEqual(advisory.outcome, OUTCOME_ADVISORY)
@@ -177,8 +186,22 @@ class LinktrendReviewGateTests(unittest.TestCase):
         self.assertIsNone(verified_provider_unavailability({"class": "quota"}))
         self.assertIsNone(
             verified_provider_unavailability(
-                {"verified": True, "class": "quota", "source": "grep-heuristic"}
+                {"verified": True, "class": "quota", "source": "grep-heuristic"},
+                evidence_channel=EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD,
             )
+        )
+        self.assertIsNone(
+            verified_provider_unavailability(
+                _verified_quota(),
+                evidence_channel=EVIDENCE_CHANNEL_CANDIDATE_FILE,
+            )
+        )
+        self.assertEqual(
+            verified_provider_unavailability(
+                _verified_quota(),
+                evidence_channel=EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD,
+            ),
+            "quota",
         )
 
     def test_fail_closed_missing_malformed_forged_wrong_head(self) -> None:
@@ -205,15 +228,38 @@ class LinktrendReviewGateTests(unittest.TestCase):
             "gitTree": TREE,
             "status": "success",
         }
+        channel = EVIDENCE_CHANNEL_GITHUB_CHECK_RUN
         require_full_receipt_for_gate_success(
-            gate_success=True, full_receipt=good, head_sha=HEAD, git_tree=TREE
+            gate_success=True,
+            full_receipt=good,
+            head_sha=HEAD,
+            git_tree=TREE,
+            evidence_channel=channel,
         )
         require_full_receipt_for_gate_success(
             gate_success=False, full_receipt=None, head_sha=HEAD, git_tree=TREE
         )
+        with self.assertRaises(ReviewGateError) as untrusted:
+            require_full_receipt_for_gate_success(
+                gate_success=True,
+                full_receipt=good,
+                head_sha=HEAD,
+                git_tree=TREE,
+                evidence_channel=EVIDENCE_CHANNEL_CANDIDATE_FILE,
+            )
+        self.assertEqual(untrusted.exception.code, "full_receipt_untrusted_channel")
+        with self.assertRaises(ReviewGateError) as missing_channel:
+            require_full_receipt_for_gate_success(
+                gate_success=True, full_receipt=good, head_sha=HEAD, git_tree=TREE
+            )
+        self.assertEqual(missing_channel.exception.code, "full_receipt_untrusted_channel")
         with self.assertRaises(ReviewGateError) as missing:
             require_full_receipt_for_gate_success(
-                gate_success=True, full_receipt=None, head_sha=HEAD, git_tree=TREE
+                gate_success=True,
+                full_receipt=None,
+                head_sha=HEAD,
+                git_tree=TREE,
+                evidence_channel=channel,
             )
         self.assertEqual(missing.exception.code, "full_receipt_missing")
         with self.assertRaises(ReviewGateError) as wrong_head:
@@ -222,6 +268,7 @@ class LinktrendReviewGateTests(unittest.TestCase):
                 full_receipt={**good, "headSha": "c" * 40},
                 head_sha=HEAD,
                 git_tree=TREE,
+                evidence_channel=channel,
             )
         self.assertEqual(wrong_head.exception.code, "full_receipt_wrong_head")
         with self.assertRaises(ReviewGateError) as wrong_tree:
@@ -230,6 +277,7 @@ class LinktrendReviewGateTests(unittest.TestCase):
                 full_receipt={**good, "gitTree": "d" * 40},
                 head_sha=HEAD,
                 git_tree=TREE,
+                evidence_channel=channel,
             )
         self.assertEqual(wrong_tree.exception.code, "full_receipt_wrong_tree")
         with self.assertRaises(ReviewGateError) as stale:
@@ -238,6 +286,7 @@ class LinktrendReviewGateTests(unittest.TestCase):
                 full_receipt={**good, "status": "failure"},
                 head_sha=HEAD,
                 git_tree=TREE,
+                evidence_channel=channel,
             )
         self.assertEqual(stale.exception.code, "full_receipt_not_success")
         with self.assertRaises(ReviewGateError) as missing_tree:
@@ -246,6 +295,7 @@ class LinktrendReviewGateTests(unittest.TestCase):
                 full_receipt={"name": FULL_SUITE_CONTEXT, "headSha": HEAD, "status": "success"},
                 head_sha=HEAD,
                 git_tree=TREE,
+                evidence_channel=channel,
             )
         self.assertEqual(missing_tree.exception.code, "full_receipt_missing_tree")
         # FullSuiteReceipt v2 candidateIdentity.gitTreeSha is preserved.
@@ -255,7 +305,11 @@ class LinktrendReviewGateTests(unittest.TestCase):
             "conclusion": "success",
         }
         require_full_receipt_for_gate_success(
-            gate_success=True, full_receipt=v2, head_sha=HEAD, git_tree=TREE
+            gate_success=True,
+            full_receipt=v2,
+            head_sha=HEAD,
+            git_tree=TREE,
+            evidence_channel=channel,
         )
 
     def test_normalize_full_receipt_never_injects_live_tree(self) -> None:
@@ -294,6 +348,7 @@ class LinktrendReviewGateTests(unittest.TestCase):
         with self.assertRaises(ReviewGateError):
             self._classify(
                 provider_error=_verified_quota(),
+                provider_evidence_channel=EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD,
                 bugbot_conclusion="neutral",
                 infrastructure_attempts=3,
             )
@@ -384,10 +439,16 @@ class LinktrendReviewGateTests(unittest.TestCase):
             self.assertIn("founder-alert-dedupe", text)
             self.assertIn("fallback", text)
             self.assertIn("require-full-receipt", text)
-            self.assertIn("normalize-full-receipt", text)
+            self.assertIn("extract-trusted-full-receipt", text)
             self.assertIn("count-infra-attempts", text)
             self.assertIn("issues: write", text)
-            self.assertIn("review-gate-provider-error.json", text)
+            self.assertNotIn("contents/.linktrend/", text)
+            self.assertNotIn("review-gate-provider-error.json", text)
+            self.assertNotIn("full-suite-receipt.json", text)
+            self.assertIn("extract-trusted-provider-evidence", text)
+            self.assertIn("extract-trusted-full-receipt", text)
+            self.assertIn("--provider-evidence-channel", text)
+            self.assertIn("--evidence-channel", text)
             # U01-R3: never overwrite receipt tree with live TREE.
             self.assertNotIn(".gitTree=$t", text)
             self.assertNotIn("gitTree:$t", text)
@@ -418,7 +479,7 @@ class LinktrendReviewGateTests(unittest.TestCase):
             self.assertIn("CHECK_ANNOTATIONS_COUNT", text)
             self.assertIn("--annotations-count", text)
             self.assertIn("python3 scripts/gitops/linktrend_review_gate.py", text)
-            self.assertIn("contents/.linktrend/review-gate-provider-error.json?ref=", text)
+            self.assertIn("extract-trusted-provider-evidence", text)
             self.assertIn("statuses: write", text)
             # U01-R4: infra marker publication is fail-closed.
             self.assertIn("infra_attempt_marker_persist_failed", text)
@@ -484,6 +545,7 @@ class LinktrendReviewGateTests(unittest.TestCase):
         advisory = self._classify(
             bugbot_conclusion="neutral",
             provider_error=_verified_quota(),
+            provider_evidence_channel=EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD,
             infrastructure_attempts=1,
         )
         alert = build_durable_founder_alert(advisory)
@@ -542,10 +604,194 @@ class LinktrendReviewGateTests(unittest.TestCase):
                 full_receipt=normalized,
                 head_sha=HEAD,
                 git_tree=TREE,
+                evidence_channel=EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
             )
         self.assertEqual(ctx.exception.code, "full_receipt_wrong_tree")
         # Old buggy overwrite path would have masked this — prove inject is absent.
         self.assertNotIn('.gitTree=$t', WORKFLOW.read_text())
+
+    def test_candidate_planted_allowlisted_provider_evidence_never_authorizes_success(self) -> None:
+        """P2: every allowlisted source planted via candidate file must not yield advisory success."""
+        for source in sorted(TRUSTED_PROVIDER_SOURCES):
+            planted = {
+                "verified": True,
+                "class": "quota",
+                "source": source,
+                # Candidate may also plant a fake channel claim inside JSON — ignored.
+                "evidenceChannel": EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+            }
+            for conclusion, state in (
+                ("failure", "failure"),
+                ("neutral", "completed"),
+            ):
+                for channel in (
+                    "",
+                    EVIDENCE_CHANNEL_CANDIDATE_FILE,
+                    # Wrong channel for source (operator source with repair channel, etc.)
+                    EVIDENCE_CHANNEL_OPERATOR_PRIVILEGED
+                    if source != "operator_verified_provider_error"
+                    else EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD,
+                ):
+                    result = self._classify(
+                        bugbot_state=state,
+                        bugbot_conclusion=conclusion,
+                        provider_error=planted,
+                        provider_evidence_channel=channel,
+                        infrastructure_attempts=1,
+                    )
+                    self.assertNotEqual(
+                        result.outcome,
+                        OUTCOME_ADVISORY,
+                        msg=f"source={source} conclusion={conclusion} channel={channel!r}",
+                    )
+                    self.assertFalse(
+                        result.gateSuccess,
+                        msg=f"source={source} conclusion={conclusion} channel={channel!r}",
+                    )
+                    self.assertFalse(result.bugbotPassedClaim)
+
+            # Findings still take precedence over planted allowlisted evidence on a trusted channel.
+            trusted_channel = {
+                "repair_observer.usage_limit": EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD,
+                "operator_verified_provider_error": EVIDENCE_CHANNEL_OPERATOR_PRIVILEGED,
+                "provider_status_api": EVIDENCE_CHANNEL_PROVIDER_STATUS_API,
+            }[source]
+            findings = self._classify(
+                bugbot_state="completed",
+                bugbot_conclusion="success",
+                annotations_count=1,
+                provider_error=planted,
+                provider_evidence_channel=trusted_channel,
+            )
+            self.assertEqual(findings.outcome, OUTCOME_FINDINGS)
+            self.assertFalse(findings.gateSuccess)
+
+        # Legitimate trusted-channel advisory still works for repair_observer source.
+        ok = self._classify(
+            bugbot_state="completed",
+            bugbot_conclusion="neutral",
+            provider_error=_verified_quota(),
+            provider_evidence_channel=EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD,
+            infrastructure_attempts=1,
+        )
+        self.assertEqual(ok.outcome, OUTCOME_ADVISORY)
+        self.assertTrue(ok.gateSuccess)
+        self.assertFalse(ok.bugbotPassedClaim)
+
+    def test_forged_full_receipt_authorship_and_candidate_file_provenance(self) -> None:
+        """P2: forged Full receipt without trusted GitHub check provenance cannot authorize success."""
+        forged = {
+            "name": FULL_SUITE_CONTEXT,
+            "headSha": HEAD,
+            "gitTree": TREE,
+            "status": "success",
+        }
+        for channel in ("", EVIDENCE_CHANNEL_CANDIDATE_FILE, "operator_privileged_input"):
+            with self.assertRaises(ReviewGateError) as ctx:
+                require_full_receipt_for_gate_success(
+                    gate_success=True,
+                    full_receipt=forged,
+                    head_sha=HEAD,
+                    git_tree=TREE,
+                    evidence_channel=channel,
+                )
+            self.assertEqual(ctx.exception.code, "full_receipt_untrusted_channel")
+
+        # Candidate-authored check (non github-actions) must not extract as trusted Full.
+        planted_checks = {
+            "check_runs": [
+                {
+                    "name": FULL_SUITE_CONTEXT,
+                    "head_sha": HEAD,
+                    "conclusion": "success",
+                    "app": {"slug": "cursor"},
+                    "output": {"summary": f"head={HEAD}\ngitTree={TREE}\n"},
+                }
+            ]
+        }
+        self.assertIsNone(
+            extract_trusted_full_receipt_from_check_runs(planted_checks, head_sha=HEAD)
+        )
+
+        # Trusted github-actions Full check extracts with github_check_run channel.
+        trusted_checks = {
+            "check_runs": [
+                {
+                    "name": FULL_SUITE_CONTEXT,
+                    "head_sha": HEAD,
+                    "conclusion": "success",
+                    "app": {"slug": "github-actions"},
+                    "output": {"summary": f"head={HEAD}\ngitTree={TREE}\n"},
+                }
+            ]
+        }
+        extracted = extract_trusted_full_receipt_from_check_runs(trusted_checks, head_sha=HEAD)
+        assert extracted is not None
+        self.assertEqual(extracted["evidenceChannel"], EVIDENCE_CHANNEL_GITHUB_CHECK_RUN)
+        require_full_receipt_for_gate_success(
+            gate_success=True,
+            full_receipt=extracted["receipt"],
+            head_sha=HEAD,
+            git_tree=TREE,
+            evidence_channel=extracted["evidenceChannel"],
+        )
+
+        # Planted provider-unavailability check from non-actions app is ignored.
+        planted_provider = {
+            "check_runs": [
+                {
+                    "name": "Linktrend Provider Unavailability",
+                    "head_sha": HEAD,
+                    "conclusion": "success",
+                    "app": {"slug": "dependabot"},
+                    "output": {
+                        "summary": json.dumps(
+                            {
+                                "verified": True,
+                                "class": "quota",
+                                "source": "repair_observer.usage_limit",
+                            }
+                        )
+                    },
+                }
+            ]
+        }
+        self.assertIsNone(
+            extract_trusted_provider_evidence_from_check_runs(planted_provider, head_sha=HEAD)
+        )
+
+        trusted_provider = {
+            "check_runs": [
+                {
+                    "name": "Linktrend Provider Unavailability",
+                    "head_sha": HEAD,
+                    "conclusion": "success",
+                    "app": {"slug": "github-actions"},
+                    "output": {
+                        "summary": json.dumps(
+                            {
+                                "verified": True,
+                                "class": "quota",
+                                "source": "repair_observer.usage_limit",
+                            }
+                        )
+                    },
+                }
+            ]
+        }
+        provider = extract_trusted_provider_evidence_from_check_runs(
+            trusted_provider, head_sha=HEAD
+        )
+        assert provider is not None
+        self.assertEqual(provider["evidenceChannel"], EVIDENCE_CHANNEL_GITHUB_CHECK_RUN)
+        classified = self._classify(
+            bugbot_state="completed",
+            bugbot_conclusion="neutral",
+            provider_error=provider["providerError"],
+            provider_evidence_channel=provider["evidenceChannel"],
+            infrastructure_attempts=1,
+        )
+        self.assertEqual(classified.outcome, OUTCOME_ADVISORY)
 
     def test_paginated_slurp_flatten_multi_page_bodies_and_dedupe(self) -> None:
         """Two+ pages must flatten to one JSON list; alert/marker counts stay exact."""

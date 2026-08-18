@@ -50,8 +50,14 @@ fail-closed.
 ## Trusted unavailability evidence
 
 `advisory-unavailable` requires structured verified provider evidence
-(`verified: true` plus a trusted `source`). Free-text heuristics must not
-convert `conclusion=failure` into gate success.
+(`verified: true` plus a trusted `source`) **and** a trusted evidence channel
+assigned by the workflow loader — never by candidate-controlled JSON.
+Trusted channels: `github_check_run`, `repair_observer_record`,
+`operator_privileged_input`, `provider_status_api`.
+Candidate repository files (`.linktrend/review-gate-provider-error.json`) and
+`candidate_repository_file` provenance never authorize advisory success, even
+when they plant an allowlisted source string. Free-text heuristics must not
+convert `conclusion=failure` / `neutral` into gate success.
 
 ## Structured findings (no free-text pass)
 
@@ -59,23 +65,25 @@ Genuine `review-findings` require trustworthy structured signals only:
 GitHub check `annotations_count > 0`, `conclusion=action_required`, or an
 explicit classifier `--findings-present` flag. Free-text check summaries and
 candidate prose must never authorize pass, findings, or advisory success.
-Missing or neutral-alone remain `review-unknown` (blocking).
+Missing or neutral-alone remain `review-unknown` (blocking). Findings take
+precedence over provider-unavailability evidence.
 
 ## Default-branch script trust boundary
 
 The managed `check_run` workflow must checkout and execute classifier scripts
-only from the protected repository default branch. Candidate head, tree,
-receipts, and provider-error files are data (API) only — never a checkout
-source for executable scripts. A PR cannot rewrite the classifier or
-self-approve by changing candidate scripts.
+only from the protected repository default branch. Candidate head/tree are data
+(API) only — never a checkout source for executable scripts. A PR cannot rewrite
+the classifier or self-approve by changing candidate scripts.
 
 ## Full receipt before success
 
 Publishing a successful `Linktrend Review Gate` status requires an exact-head
-Full Suite success receipt/check. The receipt-provided `gitTree` is preserved
-and compared independently to the live exact tree; never overwrite receipt tree
-with live `TREE`. Missing, wrong-head, wrong-tree, or non-success Full evidence
-fails closed.
+Full Suite success receipt/check from a **trusted GitHub check run**
+(`evidence_channel=github_check_run`, app `github-actions`). Candidate-controlled
+`.linktrend/full-suite-receipt.json` files never authorize success. The
+receipt-provided `gitTree` is preserved and compared independently to the live
+exact tree; never overwrite receipt tree with live `TREE`. Missing, wrong-head,
+wrong-tree, untrusted channel, or non-success Full evidence fails closed.
 
 ## Infrastructure attempt accounting
 

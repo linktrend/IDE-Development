@@ -60,6 +60,39 @@ TRUSTED_PROVIDER_SOURCES = frozenset(
     }
 )
 
+# Evidence channels are assigned by the trusted workflow loader — never by candidate JSON.
+EVIDENCE_CHANNEL_GITHUB_CHECK_RUN = "github_check_run"
+EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD = "repair_observer_record"
+EVIDENCE_CHANNEL_OPERATOR_PRIVILEGED = "operator_privileged_input"
+EVIDENCE_CHANNEL_PROVIDER_STATUS_API = "provider_status_api"
+EVIDENCE_CHANNEL_CANDIDATE_FILE = "candidate_repository_file"
+
+TRUSTED_EVIDENCE_CHANNELS = frozenset(
+    {
+        EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+        EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD,
+        EVIDENCE_CHANNEL_OPERATOR_PRIVILEGED,
+        EVIDENCE_CHANNEL_PROVIDER_STATUS_API,
+    }
+)
+
+PROVIDER_SOURCE_TRUSTED_CHANNELS: dict[str, frozenset[str]] = {
+    "repair_observer.usage_limit": frozenset(
+        {
+            EVIDENCE_CHANNEL_REPAIR_OBSERVER_RECORD,
+            EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+        }
+    ),
+    "operator_verified_provider_error": frozenset({EVIDENCE_CHANNEL_OPERATOR_PRIVILEGED}),
+    "provider_status_api": frozenset({EVIDENCE_CHANNEL_PROVIDER_STATUS_API}),
+}
+
+TRUSTED_FULL_RECEIPT_CHANNELS = frozenset({EVIDENCE_CHANNEL_GITHUB_CHECK_RUN})
+TRUSTED_CHECK_APP_SLUGS = frozenset({"github-actions"})
+TRUSTED_PROVIDER_UNAVAILABILITY_CHECK_NAMES = frozenset(
+    {"Linktrend Provider Unavailability"}
+)
+
 _SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -288,23 +321,159 @@ def _provider_class(raw: Mapping[str, Any] | None) -> str | None:
     return None
 
 
-def verified_provider_unavailability(raw: Mapping[str, Any] | None) -> str | None:
+def evidence_channel_is_trusted(channel: str) -> bool:
+    return _norm(channel) in TRUSTED_EVIDENCE_CHANNELS
+
+
+def verified_provider_unavailability(
+    raw: Mapping[str, Any] | None,
+    *,
+    evidence_channel: str = "",
+) -> str | None:
     """Return an approved unavailable class only for trusted verified evidence.
 
+    ``evidence_channel`` must be supplied by the trusted workflow loader (GitHub
+    Checks / repair-observer record / operator privileged input / provider status
+    API). Candidate-controlled repository files never authorize advisory success,
+    even when they plant an allowlisted ``source`` string.
     Free-text heuristics and unverified payloads must not produce
     ``advisory-unavailable`` or gate success.
     """
     if not raw:
         return None
+    channel = _norm(evidence_channel)
+    # Never trust a channel claimed inside candidate-controlled JSON.
+    if channel not in TRUSTED_EVIDENCE_CHANNELS:
+        return None
     if raw.get("verified") is not True:
         return None
     source = _norm(raw.get("source") or raw.get("evidenceSource"))
-    if source and source not in TRUSTED_PROVIDER_SOURCES:
+    if source not in TRUSTED_PROVIDER_SOURCES:
         return None
-    if not source:
-        # verified:true without an explicit trusted source is not enough.
+    allowed_channels = PROVIDER_SOURCE_TRUSTED_CHANNELS.get(source, frozenset())
+    if channel not in allowed_channels:
         return None
     return _provider_class(raw)
+
+
+def extract_trusted_provider_evidence_from_check_runs(
+    check_runs: Any,
+    *,
+    head_sha: str,
+) -> dict[str, Any] | None:
+    """Load provider-unavailability evidence only from trusted GitHub check runs."""
+    head = require_sha40(head_sha, "head_sha")
+    if check_runs is None:
+        return None
+    if isinstance(check_runs, Mapping):
+        runs = check_runs.get("check_runs")
+        if runs is None:
+            runs = [check_runs]
+    elif isinstance(check_runs, list):
+        runs = check_runs
+    else:
+        raise ReviewGateError("invalid_check_runs", "check_runs must be list or object")
+    if not isinstance(runs, list):
+        raise ReviewGateError("invalid_check_runs", "check_runs must be a list")
+
+    for item in runs:
+        if not isinstance(item, Mapping):
+            continue
+        name = _norm(item.get("name"))
+        if name not in TRUSTED_PROVIDER_UNAVAILABILITY_CHECK_NAMES:
+            continue
+        app = item.get("app") if isinstance(item.get("app"), Mapping) else {}
+        slug = _lower((app or {}).get("slug"))
+        if slug not in TRUSTED_CHECK_APP_SLUGS:
+            continue
+        item_head = _norm(item.get("head_sha") or item.get("headSha")).lower()
+        if item_head and item_head != head:
+            continue
+        summary = _norm(
+            item.get("outputSummary")
+            or ((item.get("output") or {}) if isinstance(item.get("output"), Mapping) else {}).get(
+                "summary"
+            )
+            or item.get("summary")
+            or ""
+        )
+        if not summary:
+            continue
+        try:
+            payload = json.loads(summary)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, Mapping):
+            continue
+        if verified_provider_unavailability(
+            payload,
+            evidence_channel=EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+        ):
+            return {
+                "providerError": dict(payload),
+                "evidenceChannel": EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+            }
+    return None
+
+
+def extract_trusted_full_receipt_from_check_runs(
+    check_runs: Any,
+    *,
+    head_sha: str,
+) -> dict[str, Any] | None:
+    """Load Full Suite success evidence only from trusted GitHub check runs."""
+    head = require_sha40(head_sha, "head_sha")
+    if check_runs is None:
+        return None
+    if isinstance(check_runs, Mapping):
+        runs = check_runs.get("check_runs")
+        if runs is None:
+            runs = [check_runs]
+    elif isinstance(check_runs, list):
+        runs = check_runs
+    else:
+        raise ReviewGateError("invalid_check_runs", "check_runs must be list or object")
+    if not isinstance(runs, list):
+        raise ReviewGateError("invalid_check_runs", "check_runs must be a list")
+
+    for item in runs:
+        if not isinstance(item, Mapping):
+            continue
+        name = _norm(item.get("name") or item.get("context"))
+        if name not in {FULL_SUITE_CONTEXT, "full", "full-gate"}:
+            continue
+        app = item.get("app") if isinstance(item.get("app"), Mapping) else {}
+        slug = _lower((app or {}).get("slug")) if app else ""
+        # Full suite is authored by GitHub Actions (or missing app on normalized fixtures).
+        if slug and slug not in TRUSTED_CHECK_APP_SLUGS:
+            continue
+        raw = {
+            "name": name or FULL_SUITE_CONTEXT,
+            "headSha": item.get("head_sha") or item.get("headSha") or "",
+            "status": item.get("conclusion") or item.get("status") or "",
+            "outputSummary": (
+                item.get("outputSummary")
+                or (
+                    (item.get("output") or {}).get("summary")
+                    if isinstance(item.get("output"), Mapping)
+                    else ""
+                )
+                or item.get("summary")
+                or ""
+            ),
+            "gitTree": item.get("gitTree") or item.get("gitTreeSha") or "",
+        }
+        normalized = normalize_full_receipt_payload(raw)
+        if not normalized:
+            continue
+        receipt_head = _norm(normalized.get("headSha")).lower()
+        if receipt_head and receipt_head != head:
+            continue
+        return {
+            "receipt": normalized,
+            "evidenceChannel": EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+        }
+    return None
 
 
 def count_infrastructure_attempts(markers: Sequence[str] | None, *, head_sha: str) -> int:
@@ -520,14 +689,23 @@ def require_full_receipt_for_gate_success(
     full_receipt: Mapping[str, Any] | None,
     head_sha: str,
     git_tree: str,
+    evidence_channel: str = "",
 ) -> None:
     """Successful managed gate publish requires an exact-head Full receipt/check.
 
     The receipt-provided ``gitTree`` is preserved and compared independently to
     the live exact tree. Callers must never overwrite receipt tree with live TREE.
+    Candidate-controlled repository files never authorize success — only a trusted
+    ``evidence_channel`` (GitHub check run) may.
     """
     if not gate_success:
         return
+    channel = _norm(evidence_channel)
+    if channel not in TRUSTED_FULL_RECEIPT_CHANNELS:
+        raise ReviewGateError(
+            "full_receipt_untrusted_channel",
+            f"channel={channel or 'missing'}; candidate files cannot authorize success",
+        )
     head = require_sha40(head_sha, "head_sha")
     live_tree = require_sha40(git_tree, "git_tree")
     normalized = normalize_full_receipt_payload(full_receipt)
@@ -588,6 +766,7 @@ def classify_bugbot_result(
     findings_present: bool = False,
     annotations_count: int | None = None,
     provider_error: Mapping[str, Any] | None = None,
+    provider_evidence_channel: str = "",
     infrastructure_attempts: int = 1,
     result_head_sha: str | None = None,
     malformed: bool = False,
@@ -644,13 +823,17 @@ def classify_bugbot_result(
 
     state = _lower(bugbot_state)
     conclusion = _lower(bugbot_conclusion) if bugbot_conclusion is not None else ""
-    # Unverified / heuristic provider payloads never authorize advisory success.
-    provider = verified_provider_unavailability(provider_error)
+    # Unverified / heuristic / candidate-file provider payloads never authorize advisory success.
+    # Channel is assigned by the trusted loader — ignore any channel key inside provider_error.
+    provider = verified_provider_unavailability(
+        provider_error,
+        evidence_channel=provider_evidence_channel,
+    )
     if provider_error and provider is None and provider_error.get("verified") is not True:
         # Explicitly ignore free-text/untrusted hints; continue fail-closed on conclusion.
         provider = None
     elif provider_error and provider is None:
-        # verified claimed but source/class untrusted → fail closed as unknown.
+        # verified claimed but source/class/channel untrusted → fail closed as unknown.
         return Classification(
             outcome=OUTCOME_UNKNOWN,
             gateSuccess=False,
@@ -844,6 +1027,11 @@ def main(argv: list[str] | None = None) -> int:
         help="GitHub check_run.output.annotations_count (structured findings only)",
     )
     c.add_argument("--provider-error-json", default="")
+    c.add_argument(
+        "--provider-evidence-channel",
+        default="",
+        help="Trusted loader channel (never candidate_repository_file)",
+    )
     c.add_argument("--infrastructure-attempts", type=int, default=1)
     c.add_argument("--result-head-sha", default="")
     c.add_argument("--missing", action="store_true")
@@ -882,12 +1070,31 @@ def main(argv: list[str] | None = None) -> int:
     fr.add_argument("--full-receipt-json", required=True)
     fr.add_argument("--head-sha", required=True)
     fr.add_argument("--git-tree", required=True)
+    fr.add_argument(
+        "--evidence-channel",
+        default="",
+        help="Trusted Full receipt channel (github_check_run only)",
+    )
 
     nr = sub.add_parser(
         "normalize-full-receipt",
         help="Normalize Full receipt/check JSON without injecting live TREE",
     )
     nr.add_argument("--receipt-json", required=True)
+
+    ep = sub.add_parser(
+        "extract-trusted-provider-evidence",
+        help="Extract provider-unavailability evidence from trusted GitHub check runs only",
+    )
+    ep.add_argument("--head-sha", required=True)
+    ep.add_argument("--check-runs-json", required=True, help="JSON or '-' for stdin")
+
+    ef = sub.add_parser(
+        "extract-trusted-full-receipt",
+        help="Extract Full Suite receipt from trusted GitHub check runs only",
+    )
+    ef.add_argument("--head-sha", required=True)
+    ef.add_argument("--check-runs-json", required=True, help="JSON or '-' for stdin")
 
     fa = sub.add_parser("founder-alert", help="Build durable founder-alert payload")
     fa.add_argument("--classification-json", required=True)
@@ -948,6 +1155,7 @@ def main(argv: list[str] | None = None) -> int:
                 findings_present=args.findings_present,
                 annotations_count=args.annotations_count,
                 provider_error=provider,
+                provider_evidence_channel=args.provider_evidence_channel,
                 infrastructure_attempts=args.infrastructure_attempts,
                 result_head_sha=args.result_head_sha or None,
                 malformed=args.malformed,
@@ -1014,12 +1222,27 @@ def main(argv: list[str] | None = None) -> int:
                 full_receipt=receipt,
                 head_sha=args.head_sha,
                 git_tree=args.git_tree,
+                evidence_channel=args.evidence_channel,
             )
             print(json.dumps({"ok": True}, indent=2, sort_keys=True))
             return 0
         if args.command == "normalize-full-receipt":
             normalized = normalize_full_receipt_payload(_load_json_arg(args.receipt_json))
             print(json.dumps(normalized, indent=2, sort_keys=True))
+            return 0
+        if args.command == "extract-trusted-provider-evidence":
+            payload = extract_trusted_provider_evidence_from_check_runs(
+                _load_json_arg(args.check_runs_json),
+                head_sha=args.head_sha,
+            )
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "extract-trusted-full-receipt":
+            payload = extract_trusted_full_receipt_from_check_runs(
+                _load_json_arg(args.check_runs_json),
+                head_sha=args.head_sha,
+            )
+            print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
         if args.command == "founder-alert":
             raw = _load_json_arg(args.classification_json)
