@@ -496,18 +496,18 @@ from packager_logic import should_request_bugbot, fast_gate_status, build_bugbot
 
 sha = "cccccccccccccccccccccccccccccccccccccccc"
 required = parse_required_checks(
-    "Verify IDE Development,Enforce allowed PR source branches"
+    "Verify IDE Development,Linktrend Branch Source Policy"
 )
-assert required == ["Verify IDE Development", "Enforce allowed PR source branches"]
+assert required == ["Verify IDE Development", "Linktrend Branch Source Policy"]
 comma_name = "Install, typecheck, test, build"
 json_required = parse_required_checks(
-    '["Install, typecheck, test, build", "Enforce allowed PR source branches"]'
+    '["Install, typecheck, test, build", "Linktrend Branch Source Policy"]'
 )
-assert json_required == [comma_name, "Enforce allowed PR source branches"]
+assert json_required == [comma_name, "Linktrend Branch Source Policy"]
 semicolon_required = parse_required_checks(
-    "Install, typecheck, test, build;Enforce allowed PR source branches"
+    "Install, typecheck, test, build;Linktrend Branch Source Policy"
 )
-assert semicolon_required == [comma_name, "Enforce allowed PR source branches"]
+assert semicolon_required == [comma_name, "Linktrend Branch Source Policy"]
 assert parse_required_checks('["unterminated"') == []
 assert parse_required_checks('{"not": "a list"}') == [
     '{"not": "a list"}'
@@ -515,7 +515,7 @@ assert parse_required_checks('{"not": "a list"}') == [
 
 comma_checks = [
     {"name": comma_name, "state": "SUCCESS", "completedAt": "t1"},
-    {"name": "Enforce allowed PR source branches", "state": "SUCCESS", "completedAt": "t2"},
+    {"name": "Linktrend Branch Source Policy", "state": "SUCCESS", "completedAt": "t2"},
 ]
 comma_status, comma_detail = fast_gate_status(comma_checks, json_required)
 assert comma_status == "success", (comma_status, comma_detail)
@@ -523,7 +523,7 @@ assert comma_status == "success", (comma_status, comma_detail)
 # 1-2) PR/head ready; CI completes; Branch Source Policy still pending
 checks_after_ci = [
     {"name": "Verify IDE Development", "state": "SUCCESS", "completedAt": "t1"},
-    {"name": "Enforce allowed PR source branches", "state": "PENDING", "completedAt": ""},
+    {"name": "Linktrend Branch Source Policy", "state": "PENDING", "completedAt": ""},
 ]
 st, detail = fast_gate_status(checks_after_ci, required)
 assert st == "pending", (st, detail)
@@ -536,7 +536,7 @@ assert eval1_status == "waiting"
 # 5-6) Branch Source Policy then completes → evaluation wakes again
 checks_both = [
     {"name": "Verify IDE Development", "state": "SUCCESS", "completedAt": "t1"},
-    {"name": "Enforce allowed PR source branches", "state": "SUCCESS", "completedAt": "t2"},
+    {"name": "Linktrend Branch Source Policy", "state": "SUCCESS", "completedAt": "t2"},
 ]
 st2, _ = fast_gate_status(checks_both, required)
 assert st2 == "success"
@@ -580,11 +580,11 @@ def run(env_extra):
     return subprocess.run(["bash", script], capture_output=True, text=True, env=env)
 
 # Real workflow shape: normal repository secret
-r = run({"LINKTREND_AUTOMATION_TOKEN": "ghs_test_normal_token_value"})
+r = run({"LINKTREND_AUTOMATION_TOKEN": "ltfx.gitops.normal_automation_token.v1"})
 assert r.returncode == 0, (r.returncode, r.stderr, r.stdout)
 assert "AUTOMATION_TOKEN_SOURCE=github_token" in r.stdout, r.stdout
-assert "ghs_test_normal_token_value" not in r.stdout  # never print token
-assert "ghs_test_normal_token_value" not in r.stderr
+assert "ltfx.gitops.normal_automation_token.v1" not in r.stdout  # never print token
+assert "ltfx.gitops.normal_automation_token.v1" not in r.stderr
 
 # Missing token → blocked
 r = run({})
@@ -592,7 +592,7 @@ assert r.returncode != 0, (r.returncode, r.stderr, r.stdout)
 assert "automation_credentials_blocked" in (r.stderr + r.stdout)
 
 # GITHUB_TOKEN alone must not grant autonomy
-r = run({"GITHUB_TOKEN": "ghs_workflow_token_only", "GH_TOKEN": "ghs_workflow_token_only"})
+r = run({"GITHUB_TOKEN": "ltfx.gitops.workflow_token_only.v1", "GH_TOKEN": "ltfx.gitops.workflow_token_only.v1"})
 assert r.returncode != 0, (r.returncode, r.stderr, r.stdout)
 assert "automation_credentials_blocked" in (r.stderr + r.stdout)
 
@@ -652,12 +652,12 @@ except BugbotUserCredentialsError as e:
     assert "bugbot_user_credentials_blocked" in str(e) or "missing" in str(e)
 
 # Configured unique user token (resolved export)
-os.environ["BUGBOT_USER_TOKEN"] = "user_pat_unique_value_abc"
-os.environ["AUTOMATION_TOKEN"] = "app_token_different_value_xyz"
+os.environ["BUGBOT_USER_TOKEN"] = "ltfx.gitops.user_pat_unique.v1"
+os.environ["AUTOMATION_TOKEN"] = "ltfx.gitops.app_token_different.v1"
 tok, src, st = resolve_bugbot_user_token()
-assert tok == "user_pat_unique_value_abc" and src == "user_secret" and st == "configured"
-assert require_bugbot_user_token("pr_create") == "user_pat_unique_value_abc"
-assert require_bugbot_user_token("bugbot_comment") == "user_pat_unique_value_abc"
+assert tok == "ltfx.gitops.user_pat_unique.v1" and src == "user_secret" and st == "configured"
+assert require_bugbot_user_token("pr_create") == "ltfx.gitops.user_pat_unique.v1"
+assert require_bugbot_user_token("bugbot_comment") == "ltfx.gitops.user_pat_unique.v1"
 
 # Disallowed operations
 for op in ("merge", "promote", "repair", "status", "cleanup", "branch_push", "pr_ready", "freeze_comment"):
@@ -668,15 +668,15 @@ for op in ("merge", "promote", "repair", "status", "cleanup", "branch_push", "pr
         pass
 
 # A single normal GitHub identity may supply both trusted automation and Bugbot.
-os.environ["BUGBOT_USER_TOKEN"] = "same_secret_value"
-os.environ["AUTOMATION_TOKEN"] = "same_secret_value"
+os.environ["BUGBOT_USER_TOKEN"] = "ltfx.gitops.same_secret_value.v1"
+os.environ["AUTOMATION_TOKEN"] = "ltfx.gitops.same_secret_value.v1"
 tok, src, st = resolve_bugbot_user_token()
-assert tok == "same_secret_value" and st == "configured"
+assert tok == "ltfx.gitops.same_secret_value.v1" and st == "configured"
 clear_env(os.environ)
-os.environ["LINKTREND_BUGBOT_USER_TOKEN"] = "same_gh"
-os.environ["GITHUB_TOKEN"] = "same_gh"
+os.environ["LINKTREND_BUGBOT_USER_TOKEN"] = "ltfx.gitops.same_gh.v1"
+os.environ["GITHUB_TOKEN"] = "ltfx.gitops.same_gh.v1"
 tok, src, st = resolve_bugbot_user_token()
-assert tok == "same_gh" and st == "configured"
+assert tok == "ltfx.gitops.same_gh.v1" and st == "configured"
 
 # Shell accepts ONLY LINKTREND_BUGBOT_USER_TOKEN (no BUGBOT_USER_TOKEN input fallback)
 script = str(root / "scripts/gitops/resolve_bugbot_user_token.sh")
@@ -686,17 +686,17 @@ def run_shell(extra):
     env.update(extra)
     return subprocess.run(["bash", script], capture_output=True, text=True, env=env)
 
-secret = "user_pat_shell_secret_do_not_echo"
-r = run_shell({"LINKTREND_BUGBOT_USER_TOKEN": secret, "AUTOMATION_TOKEN": "app_other"})
+secret = "ltfx.gitops.user_pat_shell.v1"
+r = run_shell({"LINKTREND_BUGBOT_USER_TOKEN": secret, "AUTOMATION_TOKEN": "ltfx.gitops.app_other.v1"})
 assert r.returncode == 0, (r.returncode, r.stderr, r.stdout)
 assert "BUGBOT_USER_TOKEN_SOURCE=user_secret" in r.stdout
 assert secret not in r.stdout and secret not in r.stderr
 
-r = run_shell({"BUGBOT_USER_TOKEN": secret, "AUTOMATION_TOKEN": "app_other"})
+r = run_shell({"BUGBOT_USER_TOKEN": secret, "AUTOMATION_TOKEN": "ltfx.gitops.app_other.v1"})
 assert r.returncode != 0, "shell must not accept BUGBOT_USER_TOKEN as secret input"
 assert "bugbot_user_credentials_blocked" in (r.stderr + r.stdout)
 
-r = run_shell({"AUTOMATION_TOKEN": "app_only"})
+r = run_shell({"AUTOMATION_TOKEN": "ltfx.gitops.app_only.v1"})
 assert r.returncode != 0
 assert "bugbot_user_credentials_blocked" in (r.stderr + r.stdout)
 
@@ -1096,13 +1096,13 @@ root = Path(sys.argv[1])
 sys.path.insert(0, str(root / "scripts" / "gitops"))
 import readiness_status as rs
 
-token = "ghs_discovery_app_token_SECRET"
+token = "ltfx.gitops.discovery_app_token.v1"
 tmpdir = tempfile.mkdtemp()
 os.environ["LINKTREND_STATUS_BACKEND"] = "file"
 os.environ["LINKTREND_STATUS_DIR"] = tmpdir
 # Workflow shape after resolve: AUTOMATION_TOKEN set; workflow GITHUB_TOKEN may also exist
 os.environ["AUTOMATION_TOKEN"] = token
-os.environ["GITHUB_TOKEN"] = "ghs_workflow_token_MUST_NOT_WIN"
+os.environ["GITHUB_TOKEN"] = "ltfx.gitops.workflow_must_not_win.v1"
 os.environ.pop("GH_TOKEN", None)
 os.environ.pop("LINKTREND_APP_TOKEN", None)
 
@@ -1129,7 +1129,7 @@ assert r.returncode != 0
 out = r.stdout + r.stderr
 assert "automation_credentials_blocked" in out
 assert token not in out
-assert "ghs_workflow_token_MUST_NOT_WIN" not in out
+assert "ltfx.gitops.workflow_must_not_win.v1" not in out
 print("discovery readiness token ok")
 PY
 pass "discovery readiness prefers AUTOMATION_TOKEN; fail closed without App"
@@ -1328,11 +1328,15 @@ for name in (
 ):
     managed = (Path(sys.argv[1]) / "core/github/managed-workflows" / name).read_text()
     live = (Path(sys.argv[1]) / ".github/workflows" / name).read_text()
-    rendered = managed.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
-    rendered = rendered.replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
-    rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
-    rendered = rendered.replace("__LINKTREND_UNTRUSTED_RUNS_ON__", untrusted_runner)
-    rendered = rendered.replace("__LINKTREND_RUNS_ON__", privileged_runner)
+    rendered = (
+        managed.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
+        .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
+        .replace("__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__", "Cursor Bugbot")
+        .replace("__LINKTREND_REVIEW_GATE_CHECK_NAME__", "Linktrend Review Gate")
+        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Linktrend Review Gate")
+        .replace("__LINKTREND_UNTRUSTED_RUNS_ON__", untrusted_runner)
+        .replace("__LINKTREND_RUNS_ON__", privileged_runner)
+    )
     assert rendered == live, name
 
 print("resolver matrix rows", len(rows))
@@ -1642,7 +1646,9 @@ def render(text: str) -> str:
     return (
         text.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
         .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
-        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+        .replace("__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__", "Cursor Bugbot")
+        .replace("__LINKTREND_REVIEW_GATE_CHECK_NAME__", "Linktrend Review Gate")
+        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Linktrend Review Gate")
         .replace("__LINKTREND_UNTRUSTED_RUNS_ON__", untrusted_runner)
         .replace("__LINKTREND_RUNS_ON__", privileged_runner)
     )
@@ -1911,7 +1917,7 @@ def run(args, checks=None, body=BODY, extra=None):
             "--main-tip", MAIN,
             "--now", "2026-08-03T10:00:00+08:00",
             "--release-gate-checks",
-            "Verify IDE Development,Enforce allowed PR source branches",
+            "Verify IDE Development,Linktrend Branch Source Policy",
         ]
         if checks is not None:
             cf = td / "checks.json"
@@ -1929,7 +1935,7 @@ def run(args, checks=None, body=BODY, extra=None):
 
 ok_checks = [
     {"name": "Verify IDE Development", "state": "SUCCESS"},
-    {"name": "Enforce allowed PR source branches", "state": "SUCCESS"},
+    {"name": "Linktrend Branch Source Policy", "state": "SUCCESS"},
 ]
 
 # all gates successful
@@ -1951,14 +1957,14 @@ assert d["items"][0]["gateEvidence"]["status"] == "missing"
 # pending gate
 rc, d = run([], checks=[
     {"name": "Verify IDE Development", "state": "SUCCESS"},
-    {"name": "Enforce allowed PR source branches", "state": "PENDING"},
+    {"name": "Linktrend Branch Source Policy", "state": "PENDING"},
 ])
 assert d["items"][0]["gateResult"] == "Issues" and d["items"][0]["gateEvidence"]["status"] == "pending"
 
 # failed gate
 rc, d = run([], checks=[
     {"name": "Verify IDE Development", "state": "FAILURE"},
-    {"name": "Enforce allowed PR source branches", "state": "SUCCESS"},
+    {"name": "Linktrend Branch Source Policy", "state": "SUCCESS"},
 ])
 assert d["items"][0]["gateResult"] == "Issues" and d["items"][0]["gateEvidence"]["status"] == "failed"
 
@@ -2041,7 +2047,7 @@ with tempfile.TemporaryDirectory() as td:
         "--checks-json", str(cf),
         "--now", "2026-08-03T10:00:00+08:00",
         "--release-gate-checks",
-        "Verify IDE Development,Enforce allowed PR source branches",
+        "Verify IDE Development,Linktrend Branch Source Policy",
     ], capture_output=True, text=True)
     d = json.loads(p.stdout)
     assert d["itemCount"] == 0, d
@@ -2093,7 +2099,7 @@ assert out == {"action": "reuse", "pr": 7}, out
 main_sh = (root / "scripts/gitops/promote_main.sh").read_text()
 assert "main_approve_package_reuse.py" in main_sh
 assert "requires repackage" in main_sh
-assert "Verify IDE Development,Enforce allowed PR source branches" in main_sh
+assert "Verify IDE Development,Linktrend Branch Source Policy" in main_sh
 
 print("main approve store behavioral ok")
 PY
@@ -2143,9 +2149,9 @@ LOG="${FAKE_GH_LOG:-/dev/null}"
 printf '%s\n' "$*" >>"$LOG"
 ARGS=("$@")
 
-ok_checks='[{"name":"Verify IDE Development","state":"SUCCESS"},{"name":"Enforce allowed PR source branches","state":"SUCCESS"}]'
-pending_checks='[{"name":"Verify IDE Development","state":"SUCCESS"},{"name":"Enforce allowed PR source branches","state":"PENDING"}]'
-failed_checks='[{"name":"Verify IDE Development","state":"FAILURE"},{"name":"Enforce allowed PR source branches","state":"SUCCESS"}]'
+ok_checks='[{"name":"Verify IDE Development","state":"SUCCESS"},{"name":"Linktrend Branch Source Policy","state":"SUCCESS"}]'
+pending_checks='[{"name":"Verify IDE Development","state":"SUCCESS"},{"name":"Linktrend Branch Source Policy","state":"PENDING"}]'
+failed_checks='[{"name":"Verify IDE Development","state":"FAILURE"},{"name":"Linktrend Branch Source Policy","state":"SUCCESS"}]'
 
 if [[ "${1:-}" == "pr" && "${2:-}" == "checks" ]]; then
   COUNT_FILE="${FAKE_GH_CHECKS_COUNT:-}"
@@ -2206,7 +2212,7 @@ if [[ "${1:-}" == "api" ]]; then
         exit 0
         ;;
       value)
-        printf '%s\n' "Verify IDE Development,Enforce allowed PR source branches"
+        printf '%s\n' "Verify IDE Development,Linktrend Branch Source Policy"
         exit 0
         ;;
       auth)
@@ -2471,7 +2477,9 @@ for name in wf_names:
     rendered = (
         managed.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
         .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
-        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+        .replace("__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__", "Cursor Bugbot")
+        .replace("__LINKTREND_REVIEW_GATE_CHECK_NAME__", "Linktrend Review Gate")
+        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Linktrend Review Gate")
         .replace("__LINKTREND_UNTRUSTED_RUNS_ON__", untrusted_runner)
         .replace("__LINKTREND_RUNS_ON__", privileged_runner)
     )
@@ -2536,7 +2544,8 @@ for rel in (
     block = text[idx : idx + 500]
     assert "write_outcome" in block or "write_out" in block or "automation_credentials_blocked" in block
     assert "repair_task" not in block, rel
-    assert 'GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN' not in text, rel
+    needle = "GH_" + "TOKEN=" + '"${' + "GH_TOKEN:-${" + "GITHUB_TOKEN"
+    assert needle not in text, rel
 
 # Behavioral: promote/integrator App-missing with ambient tokens → local only, exit 0, no gh
 fake_bin = tmp / "fake-bin-zero-mut"

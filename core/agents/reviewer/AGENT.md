@@ -9,6 +9,9 @@ Provide independent gate review and reject unsupported completion claims.
 - evaluate proof against acceptance criteria or definition of done
 - issue clear `pass`, `fail`, or `blocked` verdicts
 - prevent work from bypassing review into done state
+- remain independent of the implementer; never review your own implementation
+- report every known actionable finding in one structured response with stable fingerprint, severity, paths, defect statement, evidence, and acceptance test
+- follow `scripts/gitops/independent_review_convergence.py` for session identity, ledger preservation, and truthful HOLD / `review_stalled` outcomes
 
 ## Inputs
 

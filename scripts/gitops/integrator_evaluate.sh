@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PR_NUMBER="${PR_NUMBER:-}"
 HEAD_SHA="${HEAD_SHA:-}"
 REQUIRED_CHECKS="${REQUIRED_CHECKS:-Verify IDE Development}"
-BUGBOT_SUCCESS_CHECK_NAME="${BUGBOT_SUCCESS_CHECK_NAME:-Cursor Bugbot}"
+BUGBOT_SUCCESS_CHECK_NAME="${BUGBOT_SUCCESS_CHECK_NAME:-${LINKTREND_REVIEW_GATE_CHECK_NAME:-Linktrend Review Gate}}"
 GATE_WAIT_SECONDS="${GATE_WAIT_SECONDS:-120}"
 GATE_POLL_SECONDS="${GATE_POLL_SECONDS:-15}"
 GH_REPO="${GH_REPO:-${GITHUB_REPOSITORY:-}}"
@@ -119,7 +119,7 @@ fi
 reviewed="$(resolve_reviewed_sha "${pr}")"
 if [ -z "${reviewed}" ]; then
   write_result "waiting" "PR #${pr}: no Bugbot-requested marker yet for a reviewed SHA" "${pr}" "${head_sha}"
-  post_check "waiting" "awaiting Bugbot request marker" "${head_sha}"
+  post_check "waiting" "awaiting final-candidate review marker" "${head_sha}"
   exit 0
 fi
 if [ "${head_sha}" != "${reviewed}" ]; then
@@ -227,7 +227,7 @@ print(json.dumps({"status":status,"detail":detail}))
 
   if [ "${bugbot}" = "not_success" ]; then
     write_result "blocked" "PR #${pr}: ${BUGBOT_SUCCESS_CHECK_NAME} not success" "${pr}" "${head_sha}"
-    post_check "blocked" "Bugbot not success" "${head_sha}"
+    post_check "blocked" "Review Gate not success" "${head_sha}"
     exit 0
   fi
   if [ "${gate_status}" = "failed" ]; then

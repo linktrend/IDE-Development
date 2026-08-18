@@ -37,7 +37,7 @@ For each Issue (when the target repo uses GitHub):
 2. Implement and collect non-vacuous proof on that branch.
 3. Independent review (not the author).
 4. When finished: mark review-ready (completion gate). **Review Packager** opens the PR; wait for CI/Bugbot. CI failure is a gate rejection — enter repair via Lisa ACP Repair Dispatcher (budget 3). Implementers do not open PRs.
-5. When merge-ready, Integrator merges into `development`.
+5. When merge-ready, the delivery controller merges into `development`.
 
 Do **not** auto-promote `development` → `staging` → `main`. Principal Release OK remains Module 6.
 

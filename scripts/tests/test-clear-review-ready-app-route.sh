@@ -66,7 +66,8 @@ with mock.patch.object(rs, "_api", side_effect=fake_api):
 
 assert posted == [], f"no API status writes allowed, got {posted}"
 
-# App token present → withdraw posts failure with App token only.
+# Documented AUTOMATION_TOKEN in a trusted publisher context precedes aliases.
+os.environ["LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER"] = "1"
 os.environ["AUTOMATION_TOKEN"] = "ghs_NORMAL_WITHDRAW_TOKEN_ONLY"
 posted.clear()
 with mock.patch.object(rs, "_api", side_effect=fake_api):

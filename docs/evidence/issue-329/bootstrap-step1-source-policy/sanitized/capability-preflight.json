@@ -1,0 +1,44 @@
+{
+  "probe": {
+    "httpStatus": 200,
+    "administrator": true,
+    "missingPermission": null,
+    "mechanism": "rulesets",
+    "organizationRulesPresent": false,
+    "organizationRulesVisible": true,
+    "branches": {
+      "development": {
+        "protected": true,
+        "rulesetVisible": true,
+        "organizationRulesPresent": false,
+        "rulesetId": 19728531
+      },
+      "staging": {
+        "protected": true,
+        "rulesetVisible": true,
+        "organizationRulesPresent": false,
+        "rulesetId": 20218450
+      },
+      "main": {
+        "protected": true,
+        "rulesetVisible": true,
+        "organizationRulesPresent": false,
+        "rulesetId": 20218451
+      }
+    }
+  },
+  "report": {
+    "ok": true,
+    "code": "",
+    "detail": "",
+    "assurance": "protected",
+    "findings": []
+  },
+  "detectMechanism": {
+    "mechanism": "rulesets",
+    "rulesets": true,
+    "branchProtection": "unknown",
+    "rulesetsError": "",
+    "branchProtectionError": null
+  }
+}

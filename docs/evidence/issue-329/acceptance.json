@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "issue": 329,
+  "workPackage": "trusted-review-gate-bootstrap",
+  "branch": "issue/329-bootstrap-trusted-linktrend-review-gate-for-ide",
+  "sealedProductCandidate": {
+    "pr": 326,
+    "head": "2f204781e093acad694b084e7c4ba0652fd17721",
+    "tree": "4556fb197c575c64cb1a152c00738c8651a3cb74",
+    "fullRun": "32071094022",
+    "unchanged": true
+  },
+  "bootstrapStep1": {
+    "importedEvidencePath": "docs/evidence/issue-329/bootstrap-step1-source-policy",
+    "sourceIssue": 328,
+    "sourcePacketName": "issue-328-bootstrap-step1-source-policy",
+    "status": "APPLIED_VERIFIED_HOLD",
+    "cursorBugbotRemainedRequiredOnDevelopment": true,
+    "developmentRequiredChecksAfter": [
+      "Cursor Bugbot",
+      "Verify IDE Development",
+      "Linktrend Branch Source Policy"
+    ],
+    "pr326Unchanged": true,
+    "secretScan": {
+      "independentPreImportPass": true,
+      "findingsCount": 0,
+      "secretValuesRedacted": 0
+    },
+    "originalBeforeAfterRollbackPreserved": true
+  },
+  "acceptance": "AC-U05-06/14 trusted Review Gate with producer run/job/check-suite identity binding for Full+provider checks; details_url hijacks fail closed; provider exact head parity with Full; PR #326 unchanged; HOLD",
+  "covered": [
+    "AC-U05-06",
+    "AC-U05-14",
+    "Update1-classifier-outcomes",
+    "Update1-exact-head-full-receipt-binding",
+    "Update1-verified-unavailability-fallback",
+    "Update1-no-missing-as-pass",
+    "default-branch-trust-boundary-workflow-present",
+    "bootstrap-step1-source-policy-applied-verified-imported",
+    "default-branch-workflow-run-identity-binding",
+    "same-app-check-name-collision-fail-closed",
+    "producer-run-job-check-suite-identity-binding",
+    "details-url-hijack-fail-closed",
+    "provider-exact-head-parity-with-full"
+  ],
+  "exclusions": [
+    "additional live ruleset apply from Issue #329",
+    "Bugbot to Review Gate cutover",
+    "AC-U05-17 consumer verification",
+    "Full suite",
+    "PR open/merge",
+    "promotion",
+    "publication",
+    "rollout",
+    "unrelated v2.4.0 product surface migrations",
+    "bootstrap runtime source changes (not required for evidence metadata)"
+  ],
+  "rollback": [
+    "Leave issue branch unmerged; no prefer-incoming",
+    "Do not alter PR #326 sealed head/tree/receipt",
+    "Do not mutate live rulesets further from this packet",
+    "Failed trusted install leaves sealed candidate unchanged (trusted_gate_version_unavailable semantics)",
+    "Step-1 rollback evidence preserved under bootstrap-step1-source-policy/sanitized/step1-apply-plan.json (HOLD unless founder-authorized)"
+  ],
+  "exactRuntimeBlobs": {
+    ".github/workflows/linktrend-review-gate.yml": "e907157614cbf481c3631833b1904e2cff4fb81e",
+    "core/github/managed-workflows/linktrend-review-gate.yml": "e907157614cbf481c3631833b1904e2cff4fb81e",
+    "scripts/gitops/linktrend_review_gate.py": "bbf55c6106c754b228a2db24123e8c31a1ed8afb",
+    "core/managed-core/schemas/linktrend-review-gate.schema.json": "5e2cfe41332e6f9b20983eb6fd0a8bc4f0059e46",
+    "docs/contracts/LINKTREND-REVIEW-GATE.md": "86c9c2cd45c04f61cd7b8f5b65d13a9bfd8ae8bd"
+  },
+  "commands": [
+    {
+      "command": "actionlint .github/workflows/linktrend-review-gate.yml core/github/managed-workflows/linktrend-review-gate.yml",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-329/focused-tests.out"
+    },
+    {
+      "command": "python3 -m unittest scripts.tests.test_linktrend_review_gate scripts.ide_development_tests.test_build_manifest -v",
+      "exitCode": 0,
+      "testsRan": 35,
+      "skipped": 3,
+      "evidencePath": "docs/evidence/issue-329/focused-tests.out"
+    },
+    {
+      "command": "python3 -m scripts.ide_development.build_manifest --verify",
+      "exitCode": 0
+    },
+    {
+      "command": "changed-path secret scan (security harness)",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-329/secret-scan.out"
+    },
+    {
+      "command": "bash scripts/verify-ide-development.sh (sanitized evidence)",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-329/verify-secret-diff.out"
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "hold": [
+    "Independent review / Packager only",
+    "No Full / PR / merge / promote / publish / rollout / additional live ruleset apply",
+    "No Bugbot to Review Gate cutover",
+    "PR #326 sealed product candidate must remain unchanged"
+  ],
+  "sanitized": true,
+  "repairs": [
+    "P1 default-branch script trust boundary (candidate head/tree/receipt as data only)",
+    "P2 structured Bugbot findings via annotations_count/action_required (removed dead CHECK_DETAILS)",
+    "P2 sanitized verify evidence host paths; truthful changed-path scan claims",
+    "P2 import attestation includes local-rollback-snapshot-path.txt in fileCount/hashes",
+    "Negative tests: PR cannot rewrite classifier; default-branch scripts required",
+    "P1 authenticated evidence channels: reject candidate-file provider-error/Full receipt for success authorization",
+    "P2 adversarial tests for all allowlisted planted sources and forged Full receipt provenance",
+    "P1 bind trusted Full/provider check evidence to default-branch workflow/run identity (details_url\u2192run id, allowlisted path, Contents API blob match or default-branch head); same-app/name collisions fail closed",
+    "P1 bind accepted check+payload to producer run/job/check-suite identity (reject borrowed details_url); require successful producer run/output; P2 provider exact item+run head_sha"
+  ]
+}

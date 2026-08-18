@@ -37,27 +37,27 @@ class RequireAutomationTokenTests(unittest.TestCase):
 
     def test_accepts_scoped_builtin_token(self) -> None:
         token = pub.require_automation_token(
-            token="ghs_scoped_builtin_token",
+            token="ltfx.publish.scoped_builtin.v1",
             token_source="builtin_github_token",
         )
-        self.assertEqual(token, "ghs_scoped_builtin_token")
+        self.assertEqual(token, "ltfx.publish.scoped_builtin.v1")
 
     def test_uses_builtin_token_without_app_or_pat_env(self) -> None:
         env = {
             "AUTOMATION_TOKEN_SOURCE": "builtin_github_token",
-            "GH_TOKEN": "ghs_scoped_builtin_token",
-            "LINKTREND_AUTOMATION_TOKEN": "retired-token-must-not-be-used",
+            "GH_TOKEN": "ltfx.publish.scoped_builtin.v1",
+            "LINKTREND_AUTOMATION_TOKEN": "ltfx.publish.retired.v1",
         }
         with mock.patch.dict(os.environ, env, clear=False):
             token = pub.require_automation_token()
-        self.assertEqual(token, "ghs_scoped_builtin_token")
+        self.assertEqual(token, "ltfx.publish.scoped_builtin.v1")
 
     def test_accepts_builtin_token(self) -> None:
         token = pub.require_automation_token(
-            token="ghs_scoped_builtin_token",
+            token="ltfx.publish.scoped_builtin.v1",
             token_source="builtin_github_token",
         )
-        self.assertEqual(token, "ghs_scoped_builtin_token")
+        self.assertEqual(token, "ltfx.publish.scoped_builtin.v1")
 
 
 class ResolveTagObjectShaUrlTests(unittest.TestCase):

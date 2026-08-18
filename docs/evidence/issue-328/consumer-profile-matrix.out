@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKplatform/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKplatform/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKplatform CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKbrain/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKbrain/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKbrain CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKsites/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKsites/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKsites CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKdeveloper/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKdeveloper/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKdeveloper CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKskills/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKskills/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKskills CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/openclaw_prime/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/openclaw_prime/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+openclaw_prime CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKlibraries/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKlibraries/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKlibraries CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKautowork/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKautowork/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKautowork CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKtrading-codebase/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.1zAFDD/LiNKtrading-codebase/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKtrading-codebase CI
+PASS: installed nine-consumer Fast/Full profile and exact CI matrix
+exit:0

@@ -1,0 +1,63 @@
+{
+  "development": {
+    "id": 19728531,
+    "name": "development-autonomous-merge",
+    "enforcement": "active",
+    "requiredChecks": [
+      "Cursor Bugbot",
+      "Verify IDE Development",
+      "Enforce allowed PR source branches"
+    ],
+    "strict": true,
+    "otherRuleTypes": [],
+    "bypassActors": [],
+    "conditions": {
+      "ref_name": {
+        "exclude": [],
+        "include": [
+          "refs/heads/development"
+        ]
+      }
+    }
+  },
+  "staging": {
+    "id": 20218450,
+    "name": "staging-autonomous-promote",
+    "enforcement": "active",
+    "requiredChecks": [
+      "Verify IDE Development",
+      "Enforce allowed PR source branches"
+    ],
+    "strict": true,
+    "otherRuleTypes": [],
+    "bypassActors": [],
+    "conditions": {
+      "ref_name": {
+        "exclude": [],
+        "include": [
+          "refs/heads/staging"
+        ]
+      }
+    }
+  },
+  "main": {
+    "id": 20218451,
+    "name": "main-autonomous-release",
+    "enforcement": "active",
+    "requiredChecks": [
+      "Verify IDE Development",
+      "Enforce allowed PR source branches"
+    ],
+    "strict": true,
+    "otherRuleTypes": [],
+    "bypassActors": [],
+    "conditions": {
+      "ref_name": {
+        "exclude": [],
+        "include": [
+          "refs/heads/main"
+        ]
+      }
+    }
+  }
+}

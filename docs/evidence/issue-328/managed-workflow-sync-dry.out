@@ -1,0 +1,21 @@
+System repository: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val
+Target repository: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val
+Template source: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val/core/github/managed-workflows
+Consumer config: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val/.github/linktrend-gitops-consumer.json
+Orchestration profile: github-actions
+PASS: unchanged branch-source-policy.yml
+PASS: unchanged linktrend-review-packager.yml
+PASS: unchanged linktrend-review-ready-publisher.yml
+PASS: unchanged linktrend-development-to-staging.yml
+PASS: unchanged linktrend-staging-to-main.yml
+PASS: unchanged linktrend-integrator-merge.yml
+PASS: unchanged linktrend-cleanup-merged.yml
+PASS: unchanged linktrend-repair-observer.yml
+
+Managed workflow sync: SUCCESS
+Target: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val
+Synced/updated: 0
+Already matched: 8
+Next: complete core/checklists/BUGBOT-INHERITANCE.md for this repo
+Next: ensure Cursor Automations exist (docs/CURSOR-AUTOMATIONS-SETUP.md)
+exit:0

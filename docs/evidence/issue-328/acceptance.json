@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "issue": 328,
+  "workPackage": "combined-phase-validation-repair",
+  "branch": "issue/328-repair-ide-development-v2-4-0-combined-phase-val",
+  "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
+  "identityModel": "content-head/evidence-head",
+  "startSha": "70acec9871cd23598b1db264946b4f0c00291ac3",
+  "startTree": "cc1f666dccce26545884f87dc065f7cfcd86a235",
+  "priorTip": "3d394a50540502da596b20e051451232a871cee0",
+  "priorTree": "fe99a7fbb835035dd533ce6ac14f86e0dd9d1084",
+  "contentHeadSha": "9f82a35cb82bc662e39944ddd997345138a03532",
+  "contentTree": "6b4f40c0a5e4ad35e5e99a1c7f78c4dae6dd3965",
+  "implementationHeadSha": "9f82a35cb82bc662e39944ddd997345138a03532",
+  "implementationTree": "6b4f40c0a5e4ad35e5e99a1c7f78c4dae6dd3965",
+  "headSha": "9f82a35cb82bc662e39944ddd997345138a03532",
+  "tree": "6b4f40c0a5e4ad35e5e99a1c7f78c4dae6dd3965",
+  "acceptance": "Preserved A\u2013E; closed Verify IDE nine-consumer profile portability: installer loads repository_ci_contract with package_root on sys.path; managed-core Fast/Full delivery.json is package-portable (py_compile + secret_scan only). Narrow local matrix/install/bounded-verify/manifest/diff/secret-scan OK. Does not claim hosted CI pass after F.",
+  "covered": [
+    "A-secret-scan-fixture-binding-and-publisher-literal",
+    "B-vendored-skills-hash-inventory",
+    "C-package-v2-repository-ci-contract-stub",
+    "D-repair-observer-managed-workflow-render-sync",
+    "E-behavioral-heredoc-indentation-review-gate-chain",
+    "F-nine-consumer-fast-full-profile-portability"
+  ],
+  "githubFailures": {
+    "fast": "32058396059",
+    "verifyIde": "32058396209",
+    "crossPlatformMatrix": "32056985170",
+    "verifyIdeRepairObserverDrift": "32060954525",
+    "verifyIdeBehavioralIndentation": "32063802001",
+    "verifyIdeConsumerProfileMatrix": "32066562328"
+  },
+  "hostedCiClaim": false,
+  "exclusions": [
+    "Full suite",
+    "phase branch/PR update",
+    "implementer PR",
+    "merge",
+    "promotion",
+    "publication",
+    "deploy",
+    "rollout",
+    "protection changes",
+    "GitHub CI re-run",
+    "self-review",
+    "review-ready publish",
+    "hosted CI pass claim for tip after F",
+    "suppressing installer errors",
+    "weakening nine-consumer checks",
+    "skipping consumers",
+    "live consumer rollout"
+  ],
+  "rollback": [
+    "Leave issue branch unmerged; no prefer-incoming",
+    "Do not weaken secret-scan fail-closed policy",
+    "Do not disable vendored-skills verification",
+    "Do not weaken managed-workflow render checks",
+    "Do not remove Review Gate behavioral substitutions",
+    "Do not weaken or skip nine-consumer Fast/Full profile matrix checks"
+  ],
+  "changedFiles": [
+    ".github/linktrend-secret-scan-fixtures.json",
+    ".github/workflows/linktrend-repair-observer.yml",
+    "core/managed-core/MANIFEST.json",
+    "core/managed-core/config/delivery.json",
+    "core/runtime/skills/VENDOR-MANIFEST.json",
+    "scripts/ide_development/engine.py",
+    "scripts/ide_development_tests/fixtures/package_v2/scripts/gitops/repository_ci_contract.py",
+    "scripts/ide_development_tests/test_build_manifest.py",
+    "scripts/tests/test-gitops-behavioral.sh",
+    "scripts/tests/test-review-ready-publisher.sh"
+  ],
+  "priorCommandsRetained": true,
+  "commands": [
+    {
+      "command": "visible LiNKplatform ide-development.py install --json",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-328/linkplatform-install-visible.json",
+      "againstHead": "9f82a35cb82bc662e39944ddd997345138a03532",
+      "againstTree": "6b4f40c0a5e4ad35e5e99a1c7f78c4dae6dd3965"
+    },
+    {
+      "command": "bash scripts/tests/test-consumer-profile-matrix.sh",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-328/consumer-profile-matrix.out",
+      "againstHead": "9f82a35cb82bc662e39944ddd997345138a03532",
+      "againstTree": "6b4f40c0a5e4ad35e5e99a1c7f78c4dae6dd3965"
+    },
+    {
+      "command": "python3 -m unittest scripts.ide_development_tests.test_build_manifest",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-328/build-manifest-tests.out",
+      "againstHead": "9f82a35cb82bc662e39944ddd997345138a03532",
+      "againstTree": "6b4f40c0a5e4ad35e5e99a1c7f78c4dae6dd3965"
+    },
+    {
+      "command": "python3 -m unittest scripts.ide_development_tests.test_cli",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-328/cli-tests-after-loader-fix.out",
+      "againstHead": "9f82a35cb82bc662e39944ddd997345138a03532",
+      "againstTree": "6b4f40c0a5e4ad35e5e99a1c7f78c4dae6dd3965"
+    },
+    {
+      "command": "bounded verify-ide-development.sh through and past consumer-profile-matrix",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-328/verify-ide-bounded-past-consumer-matrix.out",
+      "againstHead": "9f82a35cb82bc662e39944ddd997345138a03532",
+      "againstTree": "6b4f40c0a5e4ad35e5e99a1c7f78c4dae6dd3965"
+    },
+    {
+      "command": "python3 -m scripts.ide_development.build_manifest --verify",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-328/manifest-verify-consumer-matrix.out"
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-328/diff-check-consumer-matrix.out"
+    },
+    {
+      "command": "python3 scripts/gitops/secret_scan.py",
+      "exitCode": 0,
+      "notes": "candidateTree refreshed with content and evidence commits"
+    }
+  ],
+  "evidenceHeadSha": "c067af7e9ee433bdebdb68aa71280110594c410a",
+  "evidenceTree": "b499e7f003136a051f7f95d57dc62f167508149a"
+}

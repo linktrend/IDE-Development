@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "operation": "bootstrap-step1-source-policy-only",
+  "status": "APPLIED_VERIFIED_HOLD",
+  "completedAtUtc": "2026-08-17T23:46:04Z",
+  "actor": "linktrend",
+  "repo": "linktrend/IDE-Development",
+  "candidateTooling": {
+    "head": "2f204781e093acad694b084e7c4ba0652fd17721",
+    "tree": "4556fb197c575c64cb1a152c00738c8651a3cb74"
+  },
+  "rulesetIds": {
+    "development": 19728531,
+    "staging": 20218450,
+    "main": 20218451
+  },
+  "beforeContexts": {
+    "development": [
+      "Cursor Bugbot",
+      "Verify IDE Development",
+      "Enforce allowed PR source branches"
+    ],
+    "staging": [
+      "Verify IDE Development",
+      "Enforce allowed PR source branches"
+    ],
+    "main": [
+      "Verify IDE Development",
+      "Enforce allowed PR source branches"
+    ]
+  },
+  "afterContexts": {
+    "development": [
+      "Cursor Bugbot",
+      "Verify IDE Development",
+      "Linktrend Branch Source Policy"
+    ],
+    "staging": [
+      "Verify IDE Development",
+      "Linktrend Branch Source Policy"
+    ],
+    "main": [
+      "Verify IDE Development",
+      "Linktrend Branch Source Policy"
+    ]
+  },
+  "preserved": {
+    "Cursor Bugbot": true,
+    "Verify IDE Development": true,
+    "strict_required_status_checks_policy": true,
+    "bypass_actors": true,
+    "allow_auto_merge_unchanged": true
+  },
+  "notDone": [
+    "Cursor Bugbot -> Linktrend Review Gate cutover",
+    "source changes",
+    "PR open/update/merge",
+    "Full suite",
+    "promotion",
+    "publication",
+    "consumer rollout",
+    "default manage-repository-protections.sh apply (would cut over Bugbot)"
+  ],
+  "commands": [
+    "gh auth status / gh api user / gh api repos/linktrend/IDE-Development",
+    "gh api repos/linktrend/IDE-Development/rulesets (+ per-id GET archive)",
+    "python3 scripts/gitops/atomic_workflow_ruleset_migration.py capability via capability_preflight()",
+    "python3: repository_protection.GitHubClient + ruleset_body + apply_plan (step1-only desired checks)",
+    "post-verify: get_ruleset x3 + gh api pulls/326"
+  ],
+  "rollbackCommand": "./scripts/manage-repository-protections.sh --repo linktrend/IDE-Development rollback --snapshot docs/evidence/issue-328-bootstrap-step1-source-policy/sanitized/step1-apply-plan.json --apply",
+  "pr326": {
+    "pr": 326,
+    "head": "2f204781e093acad694b084e7c4ba0652fd17721",
+    "tree": "4556fb197c575c64cb1a152c00738c8651a3cb74",
+    "expectedHead": "2f204781e093acad694b084e7c4ba0652fd17721",
+    "expectedTree": "4556fb197c575c64cb1a152c00738c8651a3cb74",
+    "unchanged": true
+  },
+  "preflight": {
+    "ok": true,
+    "code": "",
+    "detail": "",
+    "assurance": "protected",
+    "findings": []
+  },
+  "tokenRedactions": [],
+  "HOLD": "Stop after bootstrap step 1. Do not cut over review gate, merge, promote, publish, or roll out consumers."
+}

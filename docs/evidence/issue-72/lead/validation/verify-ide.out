@@ -71,7 +71,7 @@ OUTCOME_DETAIL=discover packaged_or_refreshed=1
     "pr": 44,
     "pr_url": "https://example.test/pr/44",
     "author": "linktrend",
-    "author_token": "bugbot_user"
+    "author_token": "BUGBOT_USER"
   },
   {
     "branch": "issue/99-not-ready-yet",

@@ -423,7 +423,7 @@ def evaluate_pr(pr: int, app_token: str) -> dict:
     result["detail"] = f"requested_for_{sha3}"
     result["headSha"] = sha3
     result["author"] = author_detail
-    result["bugbot_comment_token"] = "bugbot_user"
+    result["bugbot_comment_token"] = "BUGBOT_USER"
     # Freeze comment remains automation-authored (not a Bugbot trigger).
     post_comment(
         app_token,

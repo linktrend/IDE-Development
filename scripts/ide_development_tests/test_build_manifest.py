@@ -98,7 +98,10 @@ class BuildManifestPackagingTests(unittest.TestCase):
         self.assertEqual(config["compute"]["provider"], "github-hosted")
         self.assertEqual(config["compute"]["runner"], "ubuntu-24.04-arm")
         self.assertFalse(config["compute"]["checkpointCI"])
-        expected = [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py"]]
+        expected = [
+            ["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"],
+            ["python3", "scripts/gitops/secret_scan.py"],
+        ]
         self.assertEqual(config["profiles"]["fast"]["commands"], expected)
         self.assertEqual(config["profiles"]["full"]["commands"], expected)
         self.assertTrue(config["profiles"]["full"]["required"])
@@ -117,6 +120,11 @@ class BuildManifestPackagingTests(unittest.TestCase):
         self.assertIn("core/managed-core/config/delivery.json", sources)
         self.assertIn("core/managed-core/migrations/external-cleanup-plan.json", sources)
         self.assertNotIn("scripts/gitops/resolve_automation_token.sh", sources)
+        self.assertIn("scripts/gitops/packager_coordinator.py", sources)
+        self.assertIn("scripts/gitops/independent_review_convergence.py", sources)
+        self.assertIn("scripts/gitops/secret_scan.py", sources)
+        self.assertIn("scripts/gitops/secret_scan_migrate.py", sources)
+        self.assertIn("scripts/gitops/repository_ci_contract.py", sources)
         self.assertNotIn("scripts/gitops/packager_discover.py", sources)
 
 

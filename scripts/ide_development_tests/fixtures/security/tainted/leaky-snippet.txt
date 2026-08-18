@@ -1,7 +1,0 @@
-# Intentional tainted fixture for Lane E scanner positive control.
-# Do not ship in release packages.
-api_key=ABCDEFGHIJKLMNOPQRSTUVWX123456
-token=ghp_abcdefghijklmnopqrstuvwxyz0123456789
------BEGIN RSA PRIVATE KEY-----
-MIIEowIBAAKFAKE_FOR_SCANNER_ONLY
------END RSA PRIVATE KEY-----

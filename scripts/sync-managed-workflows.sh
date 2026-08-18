@@ -252,7 +252,13 @@ rendered = rendered.replace(
     "__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__",
     str(cfg["branchPolicyWorkflowName"]).strip(),
 )
-rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", str(cfg["bugbotCheckName"]).strip())
+provider_name = str(cfg.get("bugbotProviderCheckName") or "Cursor Bugbot").strip()
+review_gate_name = str(cfg.get("reviewGateCheckName") or cfg.get("bugbotCheckName") or "Linktrend Review Gate").strip()
+if review_gate_name == "Cursor Bugbot":
+    raise SystemExit("consumer config bugbotCheckName/reviewGateCheckName must not remain Cursor Bugbot")
+rendered = rendered.replace("__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__", provider_name)
+rendered = rendered.replace("__LINKTREND_REVIEW_GATE_CHECK_NAME__", review_gate_name)
+rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", review_gate_name)  # legacy alias -> managed gate
 rendered = rendered.replace(
     "__LINKTREND_UNTRUSTED_RUNS_ON__", runner_types[runner_type]["untrusted"]
 )
@@ -321,7 +327,7 @@ if profile == "local-coordinator" and src.name in {
         "# Manual recovery remains available; the local coordinator publishes these frozen contexts:\n"
         "# Linktrend Fast Gate | Linktrend Full Suite | Linktrend Phase Ready\n"
         "# Linktrend Staging Gate | Linktrend Release Gate | Linktrend Coordinator\n"
-        "# Cursor Bugbot remains an external unchanged context.\n"
+        "# Cursor Bugbot remains the provider observation name; required context is Linktrend Review Gate.\n"
         + rendered
     )
 out.write_text(rendered, encoding="utf-8")

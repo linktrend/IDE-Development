@@ -1,0 +1,95 @@
+=== WP-U05 focused validation against content head ===
+date_utc=2026-08-17T18:49:56Z
+contentHead=75d4cb07dd330b5aef89fa96421a7bdf91e95941
+contentTree=6ec7ba3174f774393d5ebd1c18b5f952185bbd05
+docsAuthority=3a5d15231d65b8549d64971960b2aeb617b58838
+docsAuthorityTree=6b9f73f1e78ae4abda3b78b939adc190b6d0842a
+startSha=ccaeae212e448e1c49369cf1fabfc28341476b62
+startTree=6d296378923a1e5b8ecd7b0ca6b5064ed644b3c4
+
+--- python3 -m unittest scripts.tests.test_atomic_workflow_ruleset_migration scripts.ide_development_tests.test_build_manifest ---
+test_http_403_and_protected_false_stop_before_mutation (scripts.tests.test_atomic_workflow_ruleset_migration.CapabilityPreflightTests) ... ok
+test_invisible_org_rules_and_missing_permission (scripts.tests.test_atomic_workflow_ruleset_migration.CapabilityPreflightTests) ... ok
+test_reduced_assurance_requires_founder_approval (scripts.tests.test_atomic_workflow_ruleset_migration.CapabilityPreflightTests) ... ok
+test_active_contract_derives_source_policy_not_obsolete_step (scripts.tests.test_atomic_workflow_ruleset_migration.CheckContractTests) ... ok
+test_protection_baseline_uses_active_source_policy (scripts.tests.test_atomic_workflow_ruleset_migration.CheckContractTests) ... ok
+test_detects_missing_misspelled_duplicate_stale_skipped_wrong_event (scripts.tests.test_atomic_workflow_ruleset_migration.ContextDefectTests) ... ok
+test_replaces_stale_defaults_and_repository_variables (scripts.tests.test_atomic_workflow_ruleset_migration.EvaluatorMigrationTests) ... ok
+test_obsolete_required_check_blocks_completion (scripts.tests.test_atomic_workflow_ruleset_migration.InstallationCompletenessTests) ... ok
+test_conflicting_metadata_and_wrong_name_fail_closed (scripts.tests.test_atomic_workflow_ruleset_migration.LabelTests) ... ok
+test_creates_exact_full_suite_label_when_missing (scripts.tests.test_atomic_workflow_ruleset_migration.LabelTests) ... ok
+test_label_application_rejects_stale_or_ineligible_pr (scripts.tests.test_atomic_workflow_ruleset_migration.LabelTests) ... ok
+test_union_preserves_repo_owned_and_replaces_obsolete_managed (scripts.tests.test_atomic_workflow_ruleset_migration.PreserveRepoOwnedTests) ... ok
+test_apply_failure_after_one_branch_rolls_back (scripts.tests.test_atomic_workflow_ruleset_migration.ThreeBranchRenameTests) ... ok
+test_missing_branch_is_incomplete_not_success (scripts.tests.test_atomic_workflow_ruleset_migration.ThreeBranchRenameTests) ... ok
+test_rename_migrates_all_three_branches_together (scripts.tests.test_atomic_workflow_ruleset_migration.ThreeBranchRenameTests) ... ok
+test_candidate_only_verifier_refuses_and_keeps_sealed_identity (scripts.tests.test_atomic_workflow_ruleset_migration.TrustedVerifierTests) ... ok
+test_failed_trusted_install_reports_unavailable_without_candidate_mutation (scripts.tests.test_atomic_workflow_ruleset_migration.TrustedVerifierTests) ... ok
+test_separate_trusted_install_resumes_unchanged_candidate (scripts.tests.test_atomic_workflow_ruleset_migration.TrustedVerifierTests) ... ok
+test_content_doctrine_covers_required_contracts (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_content_doctrine_sources_exist (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_hosted_defaults_and_redacted_cleanup_inventory_are_packaged (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_library_vendor_rename_has_exact_removal_migrations (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_manifest_package_version_identity (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_required_cursor_materialization_sources_are_packaged (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+test_version_alignment_helpers (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.045s
+
+OK
+
+--- bash scripts/tests/test-repository-protection.sh ---
+unit ok
+PASS: baseline and union helpers
+plan ok
+PASS: plan covers development/staging/main with rollback
+union ok
+PASS: union preserves repo-specific checks and bypass_actors
+extra-rules plan ok
+extra-rules apply ok
+PASS: ruleset update preserves non-check rules
+unclassified-rule fail-closed ok
+PASS: unclassified ruleset rule fails closed
+bp-reviews plan ok
+bp-reviews apply ok
+PASS: classic BP update preserves reviews and restrictions
+classic-create-null ok
+PASS: classic create leaves reviews/restrictions null
+classic-normalize-and-drift-helpers ok
+PASS: classic GET normalization and drift helpers
+bp-review-get-shaped noop ok
+bp-review-get-shaped verify ok
+PASS: classic GET-shaped reviews/restrictions stay durable noop (no perpetual update)
+PASS: sparse url/enabled-only reviews fail closed without inventing policy
+PASS: verify matched fixtures
+PASS: verify reports drift without mutating
+source fixture untouched
+PASS: apply refuses without --apply; fixtures stay clean
+apply ok
+PASS: explicit apply creates three rulesets in fixture only
+rollback ok
+PASS: rollback restores pre-apply ruleset absence
+bp ok
+PASS: rulesets unavailable falls back to classic branch protection
+unavail ok
+PASS: unavailable mechanism plans safely and refuses apply
+detail-fail-closed ok
+PASS: ruleset detail fetch failure fails closed
+forbidden-unavailable ok
+PASS: rulesets forbidden/error treated as unavailable
+PASS: no credential creation or secret reads
+legacy dry-run ok
+legacy apply ok
+PASS: legacy apply-development wrapper preserves CLI and scopes to development
+PASS: contract documents three-branch dry-run-first protections
+wp1 read_only ok
+PASS: WP1 read_only FixtureClient plan/verify without apply
+PASS: repository protection suite
+
+--- python3 -m scripts.ide_development.build_manifest --verify ---
+MANIFEST verify OK
+
+--- git diff --check ---
+
+ALL_FOCUSED_OK

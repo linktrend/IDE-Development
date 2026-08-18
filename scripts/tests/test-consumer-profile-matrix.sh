@@ -15,7 +15,7 @@ for name in "${consumers[@]}"; do
   mkdir -p "$repo/.github"
   git -C "$repo" init -q -b development
   cat >"$repo/.github/linktrend-gitops-consumer.json" <<JSON
-{"schemaVersion":1,"fastWorkflowName":"Linktrend Fast Checks","ciWorkflowName":"${name} CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Cursor Bugbot","runnerType":"github-hosted"}
+{"schemaVersion":1,"fastWorkflowName":"Linktrend Fast Checks","ciWorkflowName":"${name} CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Linktrend Review Gate","reviewGateCheckName":"Linktrend Review Gate","bugbotProviderCheckName":"Cursor Bugbot","runnerType":"github-hosted"}
 JSON
 
   # Exercise the candidate package as an installed consumer, rather than
@@ -55,7 +55,7 @@ done
 # or wrong explicit names remain fail-closed when exact workflow discovery runs.
 legacy="$TMP/legacy-fast-omitted"; mkdir -p "$legacy/.github"
 git -C "$legacy" init -q -b development
-printf '%s\n' '{"schemaVersion":1,"ciWorkflowName":"Legacy CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Cursor Bugbot","runnerType":"github-hosted"}' >"$legacy/.github/linktrend-gitops-consumer.json"
+printf '%s\n' '{"schemaVersion":1,"ciWorkflowName":"Legacy CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Linktrend Review Gate","reviewGateCheckName":"Linktrend Review Gate","bugbotProviderCheckName":"Cursor Bugbot","runnerType":"github-hosted"}' >"$legacy/.github/linktrend-gitops-consumer.json"
 python3 "$ROOT/scripts/ide-development.py" install --package "$ROOT" --target "$legacy" --json >/dev/null
 python3 - "$legacy/.github/linktrend-gitops-consumer.json" <<'PY'
 import json, sys
@@ -69,7 +69,7 @@ PY
 # key, while arbitrary runner values remain rejected below.
 private_legacy="$TMP/legacy-private-runner"; mkdir -p "$private_legacy/.github"
 git -C "$private_legacy" init -q -b development
-printf '%s\n' '{"schemaVersion":1,"ciWorkflowName":"Legacy CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Cursor Bugbot","runnerType":"linktrend-private-macos-arm64"}' >"$private_legacy/.github/linktrend-gitops-consumer.json"
+printf '%s\n' '{"schemaVersion":1,"ciWorkflowName":"Legacy CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Linktrend Review Gate","reviewGateCheckName":"Linktrend Review Gate","bugbotProviderCheckName":"Cursor Bugbot","runnerType":"linktrend-private-macos-arm64"}' >"$private_legacy/.github/linktrend-gitops-consumer.json"
 python3 "$ROOT/scripts/ide-development.py" install --package "$ROOT" --target "$private_legacy" --json >/dev/null
 python3 - "$private_legacy/.github/linktrend-gitops-consumer.json" <<'PY'
 import json, sys
@@ -89,7 +89,7 @@ for legacy_ref in cea9660bb507dec665d020dcf105ac1df67d8edc 2c81d37c0a7ab948dc9d9
   upgrade_repo="$TMP/upgrade-${legacy_ref:0:7}"
   mkdir -p "$upgrade_repo/.github"
   git -C "$upgrade_repo" init -q -b development
-  printf '%s\n' '{"schemaVersion":1,"ciWorkflowName":"Upgrade CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Cursor Bugbot","runnerType":"github-hosted"}' >"$upgrade_repo/.github/linktrend-gitops-consumer.json"
+  printf '%s\n' '{"schemaVersion":1,"ciWorkflowName":"Upgrade CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Linktrend Review Gate","reviewGateCheckName":"Linktrend Review Gate","bugbotProviderCheckName":"Cursor Bugbot","runnerType":"github-hosted"}' >"$upgrade_repo/.github/linktrend-gitops-consumer.json"
   python3 "$legacy_source/scripts/ide-development.py" install --package "$legacy_source" --target "$upgrade_repo" --json >/dev/null
   python3 "$ROOT/scripts/ide-development.py" update --package "$ROOT" --target "$upgrade_repo" --json >/dev/null
   python3 - "$upgrade_repo/.github/linktrend-gitops-consumer.json" <<'PY'
@@ -118,9 +118,9 @@ fi
 # The installer must reject explicit bad workflow declarations rather than
 # overwrite them during an upgrade.
 for invalid in \
-  '{"schemaVersion":1,"fastWorkflowName":"","ciWorkflowName":"CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Cursor Bugbot","runnerType":"github-hosted"}' \
-  '{"schemaVersion":1,"fastWorkflowName":"Other Fast","ciWorkflowName":"CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Cursor Bugbot","runnerType":"github-hosted"}' \
-  '{"schemaVersion":1,"fastWorkflowName":"Linktrend Fast Checks","ciWorkflowName":"","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Cursor Bugbot","runnerType":"github-hosted"}'; do
+  '{"schemaVersion":1,"fastWorkflowName":"","ciWorkflowName":"CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Linktrend Review Gate","reviewGateCheckName":"Linktrend Review Gate","bugbotProviderCheckName":"Cursor Bugbot","runnerType":"github-hosted"}' \
+  '{"schemaVersion":1,"fastWorkflowName":"Other Fast","ciWorkflowName":"CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Linktrend Review Gate","reviewGateCheckName":"Linktrend Review Gate","bugbotProviderCheckName":"Cursor Bugbot","runnerType":"github-hosted"}' \
+  '{"schemaVersion":1,"fastWorkflowName":"Linktrend Fast Checks","ciWorkflowName":"","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Linktrend Review Gate","reviewGateCheckName":"Linktrend Review Gate","bugbotProviderCheckName":"Cursor Bugbot","runnerType":"github-hosted"}'; do
   invalid_repo="$TMP/invalid-${RANDOM}"; mkdir -p "$invalid_repo/.github"
   git -C "$invalid_repo" init -q -b development
   printf '%s\n' "$invalid" >"$invalid_repo/.github/linktrend-gitops-consumer.json"
