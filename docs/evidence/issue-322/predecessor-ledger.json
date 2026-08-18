@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "issue": 322,
+  "workPackage": "WP-U01",
+  "branch": "issue/322-implement-ide-development-v2-4-0-wp-u01",
+  "docsAuthority": "3a5d15231d65b8549d64971960b2aeb617b58838",
+  "docsAuthorityTree": "6b9f73f1e78ae4abda3b78b939adc190b6d0842a",
+  "startSha": "741e58922e7413c1097f4a58ea25e94a934af903",
+  "startTree": "1affbab9035df799fdb7d723d8518e54fa6a1c00",
+  "matrixDependsOn": [
+    "WP-U07",
+    "WP-U09",
+    "WP-U10"
+  ],
+  "acceptedPredecessors": [
+    {
+      "packet": "WP-U07",
+      "role": "required_independent_clean_predecessor",
+      "tipSha": "a926794d7e549a97579f2e1816aca7a893993ccd",
+      "tree": "53af75c63ad2dc48403ba0c2f3be5adb71d79bd2",
+      "verifiedTree": "53af75c63ad2dc48403ba0c2f3be5adb71d79bd2",
+      "integratedAs": "dependency_context_tip"
+    },
+    {
+      "packet": "WP-U09",
+      "role": "matrix_dependency_content_preserved_in_U07_tip",
+      "tipSha": "36231634601e5580c83d4339acaeef651769ea93",
+      "tree": "259bc414e753e3d8f9a5b193f8e5bee7c9fa1a75",
+      "verifiedTree": "259bc414e753e3d8f9a5b193f8e5bee7c9fa1a75",
+      "layeredEquivalentSha": "254a7cbdbeb01268441b9de5fa02e6c7b3bbd428",
+      "tipPatchId": "ea3d0103caca09f4ab060b98c62be67a7f9e2448",
+      "layeredPatchId": "ea3d0103caca09f4ab060b98c62be67a7f9e2448"
+    },
+    {
+      "packet": "WP-U10",
+      "role": "matrix_dependency_content_preserved_in_U07_tip",
+      "tipSha": "f738a94f3db6888968692d617b0b2bcd85024684",
+      "tree": "1c73c8747ab73ff0c9cc5671740aa1c7c9ec061f",
+      "verifiedTree": "1c73c8747ab73ff0c9cc5671740aa1c7c9ec061f",
+      "layeredEquivalentSha": "152d39130746dde16cc00a343e949e518db58ef2",
+      "tipPatchId": "71d990ff28e831c238f1dd3683f0c1e81135a195",
+      "layeredPatchId": "71d990ff28e831c238f1dd3683f0c1e81135a195"
+    }
+  ],
+  "verifiedAlsoAcceptedNotLayeredForU01": [
+    {
+      "packet": "WP-U04",
+      "tipSha": "e2aab836ddf7efb67c6299f82a1b239f1470f383",
+      "tree": "accf5727d0c9901cac8ae60e8360f0058201e8ea"
+    },
+    {
+      "packet": "WP-U03",
+      "tipSha": "3147d10a96805c1169f737fd350fc6f9a58d5f6f",
+      "tree": "21463af488c3ff6aa256b16adaf97eab9d412eba"
+    },
+    {
+      "packet": "WP-U08",
+      "tipSha": "03100dcaecfc9132672fe0592fa37bd126caaf3a",
+      "tree": "19696d9e86638d65c815ba2e3db17f9aa69825ec"
+    }
+  ],
+  "dependencyContextSha": "a926794d7e549a97579f2e1816aca7a893993ccd",
+  "dependencyContextTree": "53af75c63ad2dc48403ba0c2f3be5adb71d79bd2",
+  "integrationMethod": "reset_issue_branch_onto_verified_U07_CLEAN_tip_after_agentsetup_from_origin_development; U09/U10 tip patch-ids equal layered equivalents inside that tip; do not re-integrate U04/U03/U08 as U01 matrix dependencies",
+  "exclusions": [
+    "AC-U01-07 nine-consumer install",
+    "Full",
+    "PR",
+    "merge",
+    "promotion",
+    "publication",
+    "rollout",
+    "later packets"
+  ]
+}

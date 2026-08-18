@@ -1,0 +1,46 @@
+{
+  "id": 20218451,
+  "name": "main-autonomous-release",
+  "target": "branch",
+  "source_type": "Repository",
+  "source": "linktrend/IDE-Development",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "exclude": [],
+      "include": [
+        "refs/heads/main"
+      ]
+    }
+  },
+  "rules": [
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "Verify IDE Development"
+          },
+          {
+            "context": "Linktrend Branch Source Policy"
+          }
+        ]
+      }
+    }
+  ],
+  "node_id": "RRS_lACqUmVwb3NpdG9yec5Lr0lxzgE0glM",
+  "created_at": "2026-08-02T11:38:40.928+08:00",
+  "updated_at": "2026-08-18T07:45:36.546+08:00",
+  "bypass_actors": [],
+  "current_user_can_bypass": "never",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/linktrend/IDE-Development/rulesets/20218451"
+    },
+    "html": {
+      "href": "https://github.com/linktrend/IDE-Development/rules/20218451"
+    }
+  }
+}

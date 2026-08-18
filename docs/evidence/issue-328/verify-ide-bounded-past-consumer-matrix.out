@@ -1,0 +1,674 @@
+PASS: Symlinks: 21 total, 0 broken
+PASS: Wire-checklist required files present
+PASS: Wire-checklist required directories present
+PASS: core/ → .cursor/ symlinks for workflows and checklists
+PASS: No 00-linkdev-bootstrap in core/prompts/execution/ (excluding adoption-backups)
+PASS: Hybrid skills registry present
+PASS: All 8 sunset skills removed from core/skills/
+PASS: Hybrid command entrypoints present
+PASS: Operations manual present
+PASS: Workspace operator guide retired (file absent)
+PASS: Active docs free of Layer 1/2/3 and three.layer terminology
+PASS: No linkdev-*.md at core/commands/ root
+PASS: Archive index present
+PASS: In-repo archive tree present (docs/archive + README)
+PASS: Active docs have no LiNKdev references (excluding docs/archive, adoption-backups, workspace-reports, ARCHIVE-INDEX)
+PASS: No 00-linkdev-bootstrap in core/prompts/ or .cursor/prompts/ (excluding adoption-backups)
+PASS: No dangling core/pilots/hybrid-smoke references in active docs
+PASS: SKILLS_CATALOG.md path list matches core/skills/ on disk
+PASS: Application pipeline schema/order fixtures present
+PASS: No active absolute hybrid sibling paths
+MANIFEST verify OK
+PASS: Managed-core manifest hashes and doctrine sync
+PASS: verify-vendored-skills (73 files)
+=== GATE-STOP-001 negative scenario ===
+module gate rejected OK
+PASS: orchestrator refuse continue-anyway (validator non-zero, state unchanged)
+waiver rejected OK
+PASS: negative scenario
+=== GATE-STOP-001 positive control ===
+PASS: positive control
+GATE-STOP-001: ALL CHECKS PASSED
+ok
+PASS: Integrator/packager/promote/observer managed templates match live (after name render)
+PASS: managed runner routing is explicit, deterministic, and fail closed
+PASS: integrator Bugbot gate cases
+PASS: Workflow phases use PR/explicit promotion triggers without cascades
+ok
+PASS: Managed workflows match live copies (after consumer-name render)
+PASS: Readiness status + Bugbot command
+PASS: No direct push; receipt-gated promotion
+PASS: Trust boundary: trusted checkout + least-privilege token; CI unprivileged
+PASS: No indefinite self-trigger via event cascades
+PASS: Doctrine Ship 05/Pull 07 + status readiness
+PASS: Activation + mention-only + normal credential docs
+PASS: Executable modes + obsolete readiness file artifacts removed
+no authoritative positive JSON readiness dependency
+PASS: No authoritative positive dependency on deleted JSON readiness
+outcomes ok
+PASS: Honest outcome vocabulary present
+ok
+ok
+PASS: Normal token same-job only; no job-output secret transport
+PASS: Uniform SHA concurrency + resolve-before-mint; test-only helpers removed
+PASS: actionlint managed workflows (expression-safe)
+OUTCOME_STATUS=skipped
+OUTCOME_DETAIL=discover packaged_or_refreshed=0 deliveryMode=phase-integration
+[
+  {
+    "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+    "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ready": true,
+    "detail": "issue=44; normal_token_publish",
+    "deliveryMode": "phase-integration",
+    "prDecision": "skipped_phase_mode_issue_without_exception",
+    "action": "skipped_phase_mode_issue_without_exception"
+  },
+  {
+    "branch": "issue/99-not-ready-yet",
+    "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "ready": false,
+    "detail": "no_ready_status",
+    "deliveryMode": "phase-integration",
+    "action": "skipped_not_ready"
+  },
+  {
+    "branch": "issue/77-head-will-drift",
+    "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ready": true,
+    "detail": "issue=44; normal_token_publish",
+    "deliveryMode": "phase-integration",
+    "prDecision": "skipped_phase_mode_issue_without_exception",
+    "action": "skipped_phase_mode_issue_without_exception"
+  }
+]
+exact-SHA normal-token publisher packager compatibility ok
+PASS: Exact-SHA normal-token publisher compatibility (discover + evaluate)
+PASS: gitops static redesign + trust-boundary checks
+PASS: readiness status exact SHA; later commit invalidates; concurrent branches no shared file
+packager policy ok
+packager phases ok
+PASS: Packager discovery without Bugbot; gate/head abort; idempotent request policy
+PASS: multiple candidates not blocked by serial discover wait
+reevaluate clean
+PASS: promotion reevaluate does not rebuild; head stable across events
+PASS: durable conflict attempts persist and stop at three
+PASS: main approval requires both expected SHAs
+Preparing worktree (detached HEAD 0ff1dd8)
+Switched to and reset branch 'issue/unfinished'
+PASS: Pull preserves caller checkout; skips frozen; updates unfinished
+Preparing worktree (checking out 'issue/dirty')
+PASS: cleanup squash/session/promote/dirty safety (dry-run)
+PASS: no direct push to staging/main
+PASS: activation + mention-only docs + explicit Phase triggers
+body preserve ok
+PASS: existing PR content survives outside managed section
+exact candidate ok
+PASS: exact-candidate promote binding + advancement fail-closed
+explicit-wake+final-bugbot scenarios ok
+PASS: wake path + Bugbot request scenarios
+built-in token and no-App credential boundary ok
+PASS: Built-in least-privilege token; custom App and PAT automation retired
+resolver ok
+PASS: trusted event PR/SHA resolver
+discovery uses built-in read-only workflow authority
+PASS: Discovery uses built-in read-only workflow authority; no App token
+sha concurrency + serialized idempotency ok
+PASS: uniform SHA concurrency + production-path Bugbot idempotency
+resolver matrix rows 15
+resolver matrix ok
+PASS: actual resolver event matrix (incl. empty PR arrays)
+hosted workflows have no App or private-runner authority
+PASS: Hosted workflows use least-privilege built-in authority; no custom App
+main approve store behavioral ok
+PASS: Main Approve store gates/freshness/trust/expiry/schema/reuse
+live gh subprocess path ok
+PASS: Main Approve live gh checks/reread/variable fail-closed
+built-in token identity boundary ok
+PASS: Built-in token identity is explicit; retired App identity absent
+
+PASS: behavioral gitops tests (22 groups)
+PASS: historical MERGED + OPEN PR → KEEP
+Preparing worktree (checking out 'issue/99-merged-clean-wt')
+PASS: clean attached worktree → KEEP
+PASS: explicit preserve overlay issue/44-* → KEEP
+PASS: eligible merged → WOULD_DELETE dry-run only
+PASS: cleanup_stale_records inventory keep/candidate + apply refused
+PASS: cleanup_controls OPEN → KEEP unauthorized
+PASS: show-preserve: defaults:false omits 43/44/51 and PR 49
+PASS: plan-completed-repairs: preserve + open-PR KEEP; eligible WOULD_DELETE
+PASS: apply-completed-repairs: preserve/open-PR kept; eligible DELETED
+PASS: shell dry-run: defaults:false → issue/44 WOULD_DELETE (not preserve KEEP)
+PASS: shell uses cleanup_controls; no hardcoded 43/44/51; policy parity
+PASS: export-preserve: CLOSED + MERGED preservePrNumbers heads in branches/prHeads
+PASS: shell dry-run: MERGED preservePrNumbers-only head → KEEP via preserve
+PASS: Python ISSUE_BRANCH_RE + preserve_reason accept issue/51 and issue/51-slug
+PASS: shell/Python issue regex + export issueNumbers:[51] preserve parity
+KEEP: local:issue/51 — preserve policy
+KEEP: local:issue/51-some-slug — preserve policy
+PASS: shell dry-run: issue/51 + issue/51-slug KEEP preserve; issue/99 WOULD_DELETE
+PASS: export-preserve: gh unavailable → 903 unresolved, preserveResolutionOk false
+PASS: shell dry-run: gh fail on preserve PR → no WOULD_DELETE (fail-closed)
+PASS: export-preserve: empty headRefName → 904 unresolved, preserveResolutionOk false
+PASS: shell dry-run: empty preserve head → no WOULD_DELETE (fail-closed)
+PASS: export-preserve: --repo linktrend/IDE-Development resolves PR 905 head
+PASS: export-preserve: ambiguous origin+upstream → 906 unresolved, preserveResolutionOk false
+PASS: shell dry-run: ambiguous remotes → no WOULD_DELETE/DELETED (fail-closed)
+PASS: export-preserve: GITHUB_REPOSITORY authoritative despite ambiguous remotes
+PASS: export-preserve: --repo authoritative despite ambiguous remotes
+PASS: shell dry-run: resolved CLEANUP_REPO → pr list --repo + WOULD_DELETE (scoped MERGED only)
+PASS: shell dry-run: ambiguous remotes → no implicit pr list; trap MERGED cannot WOULD_DELETE
+PASS: shell dry-run: ambiguous remotes → no WOULD_DELETE/DELETED (Issue #59/#61 fail-closed)
+PASS: shell dry-run: GITHUB_REPOSITORY despite ambiguous remotes → --repo + WOULD_DELETE
+PASS: shell dry-run: explicit --repo despite ambiguous remotes → --repo + WOULD_DELETE
+PASS: shell: empty/invalid explicit --repo → FAIL, no implicit gh, no WOULD_DELETE
+PASS: repair_task plan-cleanup-completed: --repo scopes pr view → WOULD_DELETE_FILE
+PASS: cleanup_stale_records --file-backend: --repo scopes pr view → WOULD_DELETE_FILE
+PASS: wrong implicit gh MERGED cannot authorize apply / WOULD_DELETE_FILE
+PASS: cleanup_stale_records: empty --repo file-backend apply fail-closed (no gh, no delete)
+PASS: GitHub remote parser requires exact trusted host
+OK: 36 assertions passed
+PASS: No job-level env context in promote workflows
+PASS: managed templates render to live IDE workflow names
+PASS: agentcomply has no Open or update PR
+PASS: branching rule has 10:00 not staging 08:00
+PASS: no prefer-incoming in active promote docs
+PASS: SESSION-END owned-path staging + review-ready ordering
+PASS: .linktrend/ gitignored
+PASS: create_issue_branch idempotent reuse (title+label)
+PASS: create_issue_branch rejects closed issue
+PASS: create_issue_branch auth fail closed
+PASS: completion_gate missing evidence fails closed without success status
+PASS: completion_gate failed evidence fails closed without success status
+PASS: completion_gate stale evidence fails closed without success status
+PASS: completion_gate valid evidence publishes success status for exact SHA
+PASS: later commit is unready until gate succeeds for new SHA
+PASS: failed gate leaves branch ineligible
+PASS: completion_gate fails closed when git fetch origin fails
+PASS: completion_gate rejects disallowed work branch
+PASS: completion_gate blocked writes local cache and durable repair task
+PASS: blocked resolves repository from gh repo view without env
+PASS: blocked resolves sanitized origin remote; credentials never printed
+PASS: blocked rejects non-GitHub and ambiguous origin remotes
+PASS: blocked accepts exact GitHub certificate-authority SSH origin
+PASS: blocked rejects ambiguous origin+upstream (local cache only)
+PASS: blocked reports LOCAL_CACHE_ONLY when repository unresolved
+PASS: blocked durable-write failure keeps local cache and warns LOCAL_CACHE_ONLY
+PASS: repair_task dispatch-attempt increments; re-upsert does not; 3rd → Issues
+PASS: cleanup script dry-run safe
+PASS: Required entrypoints and contracts present
+PASS: Platform docs: Review Ready present; no implementer Open-PR instruction
+PASS: Repair dispatcher language; no prefer-incoming instruction
+System repository: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val
+Consumer repository: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.kkJKFn/consumer
+PASS: wrote consumer config /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.kkJKFn/consumer/.github/linktrend-gitops-consumer.json
+
+=== Layer A: physical .cursor tree (no IDE Development symlink) ===
+
+=== Layer B: sync managed GitHub workflows (rendered names) ===
+System repository: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val
+Target repository: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.kkJKFn/consumer
+Template source: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val/core/github/managed-workflows
+Consumer config: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.kkJKFn/consumer/.github/linktrend-gitops-consumer.json
+Orchestration profile: github-actions
+PASS: synced branch-source-policy.yml
+PASS: synced linktrend-review-packager.yml
+PASS: synced linktrend-review-ready-publisher.yml
+PASS: synced linktrend-development-to-staging.yml
+PASS: synced linktrend-staging-to-main.yml
+PASS: synced linktrend-integrator-merge.yml
+PASS: synced linktrend-cleanup-merged.yml
+PASS: synced linktrend-repair-observer.yml
+
+Managed workflow sync: SUCCESS
+Target: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.kkJKFn/consumer
+Synced/updated: 8
+Already matched: 0
+Next: complete core/checklists/BUGBOT-INHERITANCE.md for this repo
+Next: ensure Cursor Automations exist (docs/CURSOR-AUTOMATIONS-SETUP.md)
+
+=== Layer C: sync managed runtime scripts + Cursor entrypoints ===
+System: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val
+Target: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.kkJKFn/consumer
+PASS: synced scripts/gitops/completion_gate.py
+PASS: synced scripts/cleanup-merged-branches.sh
+PASS: synced scripts/gitops/cleanup_controls.py
+PASS: synced scripts/gitops/conflict_task.py
+PASS: synced scripts/gitops/create_issue_branch.py
+PASS: synced scripts/gitops/delivery_artifact_reconciliation.py
+PASS: synced scripts/gitops/delivery_modes.py
+PASS: synced scripts/gitops/coordinator/__init__.py
+PASS: synced scripts/gitops/coordinator/config.py
+PASS: synced scripts/gitops/coordinator/receipts.py
+PASS: synced scripts/gitops/coordinator/state.py
+PASS: synced scripts/gitops/gate_receipt.py
+PASS: synced scripts/gitops/independent_review_convergence.py
+PASS: synced scripts/gitops/secret_scan.py
+PASS: synced scripts/gitops/secret_scan_migrate.py
+PASS: synced scripts/gitops/repository_ci_contract.py
+PASS: synced scripts/gitops/linktrend_review_gate.py
+PASS: synced scripts/gitops/verify_reconciled_tree.py
+PASS: synced scripts/gitops/verify_reconciled_fast_dispatch.py
+PASS: synced scripts/gitops/main_approve_package_discover.py
+PASS: synced scripts/gitops/main_approve_package_reuse.py
+PASS: synced scripts/gitops/packager_logic.py
+PASS: synced scripts/gitops/packager_coordinator.py
+PASS: synced scripts/gitops/delivery_controller.py
+PASS: synced scripts/gitops/phase_integrator.py
+PASS: synced scripts/gitops/promotion_receipt_gate.py
+PASS: synced scripts/gitops/receipt_seal.py
+PASS: synced scripts/gitops/atomic_workflow_ruleset_migration.py
+PASS: synced scripts/gitops/repository_protection.py
+PASS: synced scripts/gitops/promote_staging.sh
+PASS: synced scripts/gitops/promote_main.sh
+PASS: synced scripts/gitops/ruleset_plan.py
+PASS: synced scripts/gitops/external_state_audit.py
+PASS: synced scripts/gitops/resolve_event_pr.py
+PASS: synced scripts/gitops/readiness_status.py
+PASS: synced scripts/gitops/run_delivery_profile.py
+PASS: synced scripts/gitops/require_exact_ci_success.py
+PASS: synced scripts/gitops/resolve_bugbot_user_token.sh
+PASS: synced scripts/gitops/bugbot_user_credentials.py
+PASS: synced scripts/gitops/repair_observer.py
+PASS: synced scripts/gitops/repair_task.py
+PASS: synced scripts/gitops/review_ready_dispatch.py
+PASS: synced scripts/gitops/review_ready_publisher_bootstrap.py
+PASS: synced scripts/gitops/wait_named_gate.py
+PASS: synced scripts/gitops/write_outcome.py
+PASS: synced scripts/gitops/work-branch-allowlist.sh
+PASS: synced scripts/tests/test-gitops-phase-delivery.sh
+PASS: synced .cursor/rules/cursor-gitops-bootstrap.mdc
+PASS: synced .cursor/rules/linktrend-git-branching.mdc
+PASS: synced .cursor/commands/agentsetup.md
+PASS: synced .cursor/commands/agentcomply.md
+PASS: synced .cursor/skills/agentsetup/SKILL.md
+PASS: synced .cursor/skills/agentcomply/SKILL.md
+
+Managed runtime sync: SUCCESS
+Synced/updated: 53
+Already matched: 0
+PASS: managed agentsetup/agentcomply Cursor entrypoints installed
+
+=== Layer D: AGENTS.md managed section ===
+PASS: upserted managed section into /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.kkJKFn/consumer/AGENTS.md
+AGENTS managed section sync: SUCCESS
+
+Wire summary: SUCCESS
+Consumer: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.kkJKFn/consumer
+Cursor: physical managed entrypoints under .cursor/ (not a symlink to IDE Development)
+Config: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.kkJKFn/consumer/.github/linktrend-gitops-consumer.json
+Managed workflows + runtime + agentsetup/agentcomply + AGENTS section: synced
+Next: complete Bugbot checklist — core/checklists/BUGBOT-INHERITANCE.md
+Next: Cursor Automations — docs/CURSOR-AUTOMATIONS-SETUP.md
+Next: commit .github/linktrend-gitops-consumer.json and managed .cursor entrypoints
+ok
+PASS: Non-default Consumer CI rendered into installed workflows
+System repository: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val
+Target repository: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.kkJKFn/upgrade-consumer
+Template source: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val/core/github/managed-workflows
+Consumer config: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.kkJKFn/upgrade-consumer/.github/linktrend-gitops-consumer.json
+Orchestration profile: github-actions
+PASS: normalized required fastWorkflowName in /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.kkJKFn/upgrade-consumer/.github/linktrend-gitops-consumer.json
+PASS: synced branch-source-policy.yml
+PASS: synced linktrend-review-packager.yml
+PASS: synced linktrend-review-ready-publisher.yml
+PASS: synced linktrend-development-to-staging.yml
+PASS: synced linktrend-staging-to-main.yml
+PASS: synced linktrend-integrator-merge.yml
+PASS: synced linktrend-cleanup-merged.yml
+PASS: synced linktrend-repair-observer.yml
+
+Managed workflow sync: SUCCESS
+Target: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.kkJKFn/upgrade-consumer
+Synced/updated: 8
+Already matched: 0
+Next: complete core/checklists/BUGBOT-INHERITANCE.md for this repo
+Next: ensure Cursor Automations exist (docs/CURSOR-AUTOMATIONS-SETUP.md)
+ok
+PASS: Upgrade normalizes missing Fast name while preserving declared CI
+ok
+PASS: Unsafe consumer workflow names rejected
+PASS: All scripts/ paths from linktrend-*.yml exist in consumer
+ok
+PASS: agentsetup/agentcomply installed; AGENTS equivalent; consumer-owned preserved
+ok
+PASS: Installed entrypoints independent of IDE Development path
+PASS: AGENTS.md has IDE markers and preserves consumer text
+PASS: actionlint on installed workflows (SC2129 ignored)
+PASS: Second wire-repo.sh idempotent; consumer-owned files preserved
+verify-platform-adoption: OK
+PASS: platform adoption entrypoints + temp consumer
+PASS: git diff --check origin/development clean for candidate tree
+PASS: Main Approve package/store contract + discover CLI
+test-gitops-lifecycle: OK
+phase-delivery unit fixtures ok
+PASS: phase delivery unit fixtures (checkpoint/phase/risk/gates)
+PASS: work-branch allowlist includes phase/*
+PASS: work-branch allowlist honors custom phaseBranchPrefix
+PASS: delivery-mode contract and schema present
+test-gitops-phase-delivery: OK (4 checks)
+PASS: Required entrypoints and contracts present
+PASS: Platform docs: Review Ready present; no implementer Open-PR instruction
+PASS: Repair dispatcher language; no prefer-incoming instruction
+System repository: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val
+Consumer repository: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.HYdydx/consumer
+PASS: wrote consumer config /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.HYdydx/consumer/.github/linktrend-gitops-consumer.json
+
+=== Layer A: physical .cursor tree (no IDE Development symlink) ===
+
+=== Layer B: sync managed GitHub workflows (rendered names) ===
+System repository: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val
+Target repository: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.HYdydx/consumer
+Template source: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val/core/github/managed-workflows
+Consumer config: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.HYdydx/consumer/.github/linktrend-gitops-consumer.json
+Orchestration profile: github-actions
+PASS: synced branch-source-policy.yml
+PASS: synced linktrend-review-packager.yml
+PASS: synced linktrend-review-ready-publisher.yml
+PASS: synced linktrend-development-to-staging.yml
+PASS: synced linktrend-staging-to-main.yml
+PASS: synced linktrend-integrator-merge.yml
+PASS: synced linktrend-cleanup-merged.yml
+PASS: synced linktrend-repair-observer.yml
+
+Managed workflow sync: SUCCESS
+Target: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.HYdydx/consumer
+Synced/updated: 8
+Already matched: 0
+Next: complete core/checklists/BUGBOT-INHERITANCE.md for this repo
+Next: ensure Cursor Automations exist (docs/CURSOR-AUTOMATIONS-SETUP.md)
+
+=== Layer C: sync managed runtime scripts + Cursor entrypoints ===
+System: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val
+Target: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.HYdydx/consumer
+PASS: synced scripts/gitops/completion_gate.py
+PASS: synced scripts/cleanup-merged-branches.sh
+PASS: synced scripts/gitops/cleanup_controls.py
+PASS: synced scripts/gitops/conflict_task.py
+PASS: synced scripts/gitops/create_issue_branch.py
+PASS: synced scripts/gitops/delivery_artifact_reconciliation.py
+PASS: synced scripts/gitops/delivery_modes.py
+PASS: synced scripts/gitops/coordinator/__init__.py
+PASS: synced scripts/gitops/coordinator/config.py
+PASS: synced scripts/gitops/coordinator/receipts.py
+PASS: synced scripts/gitops/coordinator/state.py
+PASS: synced scripts/gitops/gate_receipt.py
+PASS: synced scripts/gitops/independent_review_convergence.py
+PASS: synced scripts/gitops/secret_scan.py
+PASS: synced scripts/gitops/secret_scan_migrate.py
+PASS: synced scripts/gitops/repository_ci_contract.py
+PASS: synced scripts/gitops/linktrend_review_gate.py
+PASS: synced scripts/gitops/verify_reconciled_tree.py
+PASS: synced scripts/gitops/verify_reconciled_fast_dispatch.py
+PASS: synced scripts/gitops/main_approve_package_discover.py
+PASS: synced scripts/gitops/main_approve_package_reuse.py
+PASS: synced scripts/gitops/packager_logic.py
+PASS: synced scripts/gitops/packager_coordinator.py
+PASS: synced scripts/gitops/delivery_controller.py
+PASS: synced scripts/gitops/phase_integrator.py
+PASS: synced scripts/gitops/promotion_receipt_gate.py
+PASS: synced scripts/gitops/receipt_seal.py
+PASS: synced scripts/gitops/atomic_workflow_ruleset_migration.py
+PASS: synced scripts/gitops/repository_protection.py
+PASS: synced scripts/gitops/promote_staging.sh
+PASS: synced scripts/gitops/promote_main.sh
+PASS: synced scripts/gitops/ruleset_plan.py
+PASS: synced scripts/gitops/external_state_audit.py
+PASS: synced scripts/gitops/resolve_event_pr.py
+PASS: synced scripts/gitops/readiness_status.py
+PASS: synced scripts/gitops/run_delivery_profile.py
+PASS: synced scripts/gitops/require_exact_ci_success.py
+PASS: synced scripts/gitops/resolve_bugbot_user_token.sh
+PASS: synced scripts/gitops/bugbot_user_credentials.py
+PASS: synced scripts/gitops/repair_observer.py
+PASS: synced scripts/gitops/repair_task.py
+PASS: synced scripts/gitops/review_ready_dispatch.py
+PASS: synced scripts/gitops/review_ready_publisher_bootstrap.py
+PASS: synced scripts/gitops/wait_named_gate.py
+PASS: synced scripts/gitops/write_outcome.py
+PASS: synced scripts/gitops/work-branch-allowlist.sh
+PASS: synced scripts/tests/test-gitops-phase-delivery.sh
+PASS: synced .cursor/rules/cursor-gitops-bootstrap.mdc
+PASS: synced .cursor/rules/linktrend-git-branching.mdc
+PASS: synced .cursor/commands/agentsetup.md
+PASS: synced .cursor/commands/agentcomply.md
+PASS: synced .cursor/skills/agentsetup/SKILL.md
+PASS: synced .cursor/skills/agentcomply/SKILL.md
+
+Managed runtime sync: SUCCESS
+Synced/updated: 53
+Already matched: 0
+PASS: managed agentsetup/agentcomply Cursor entrypoints installed
+
+=== Layer D: AGENTS.md managed section ===
+PASS: upserted managed section into /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.HYdydx/consumer/AGENTS.md
+AGENTS managed section sync: SUCCESS
+
+Wire summary: SUCCESS
+Consumer: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.HYdydx/consumer
+Cursor: physical managed entrypoints under .cursor/ (not a symlink to IDE Development)
+Config: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.HYdydx/consumer/.github/linktrend-gitops-consumer.json
+Managed workflows + runtime + agentsetup/agentcomply + AGENTS section: synced
+Next: complete Bugbot checklist — core/checklists/BUGBOT-INHERITANCE.md
+Next: Cursor Automations — docs/CURSOR-AUTOMATIONS-SETUP.md
+Next: commit .github/linktrend-gitops-consumer.json and managed .cursor entrypoints
+ok
+PASS: Non-default Consumer CI rendered into installed workflows
+System repository: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val
+Target repository: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.HYdydx/upgrade-consumer
+Template source: /Users/linktrend/Projects/IDE Development/.git/linktrend-worktrees/issue-328-repair-ide-development-v2-4-0-combined-phase-val/core/github/managed-workflows
+Consumer config: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.HYdydx/upgrade-consumer/.github/linktrend-gitops-consumer.json
+Orchestration profile: github-actions
+PASS: normalized required fastWorkflowName in /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.HYdydx/upgrade-consumer/.github/linktrend-gitops-consumer.json
+PASS: synced branch-source-policy.yml
+PASS: synced linktrend-review-packager.yml
+PASS: synced linktrend-review-ready-publisher.yml
+PASS: synced linktrend-development-to-staging.yml
+PASS: synced linktrend-staging-to-main.yml
+PASS: synced linktrend-integrator-merge.yml
+PASS: synced linktrend-cleanup-merged.yml
+PASS: synced linktrend-repair-observer.yml
+
+Managed workflow sync: SUCCESS
+Target: /private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/verify-platform-adoption.HYdydx/upgrade-consumer
+Synced/updated: 8
+Already matched: 0
+Next: complete core/checklists/BUGBOT-INHERITANCE.md for this repo
+Next: ensure Cursor Automations exist (docs/CURSOR-AUTOMATIONS-SETUP.md)
+ok
+PASS: Upgrade normalizes missing Fast name while preserving declared CI
+ok
+PASS: Unsafe consumer workflow names rejected
+PASS: All scripts/ paths from linktrend-*.yml exist in consumer
+ok
+PASS: agentsetup/agentcomply installed; AGENTS equivalent; consumer-owned preserved
+ok
+PASS: Installed entrypoints independent of IDE Development path
+PASS: AGENTS.md has IDE markers and preserves consumer text
+PASS: actionlint on installed workflows (SC2129 ignored)
+PASS: Second wire-repo.sh idempotent; consumer-owned files preserved
+verify-platform-adoption: OK
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKplatform/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKplatform/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKplatform CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKbrain/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKbrain/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKbrain CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKsites/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKsites/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKsites CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKdeveloper/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKdeveloper/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKdeveloper CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKskills/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKskills/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKskills CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/openclaw_prime/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/openclaw_prime/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+openclaw_prime CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKlibraries/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKlibraries/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKlibraries CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKautowork/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKautowork/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKautowork CI
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKtrading-codebase/.ide-development/config/delivery.json", "profile": "fast"}
+{
+  "schemaVersion": 1,
+  "kind": "secret-scan-result",
+  "scannerPolicyVersion": "secret-scan-policy/v1",
+  "candidateTree": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+  "ok": true,
+  "findings": []
+}
+{"commands": [["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"], ["python3", "scripts/gitops/secret_scan.py"]], "config": "/private/var/folders/wk/0t_2fmld5jx8xlwh2fwsjzmh0000gp/T/consumer-profile-matrix.gLwixy/LiNKtrading-codebase/.ide-development/config/delivery.json", "profile": "full"}
+Linktrend Fast Checks
+LiNKtrading-codebase CI
+PASS: installed nine-consumer Fast/Full profile and exact CI matrix
+PASS: bounded verify past nine-consumer profile matrix
+BOUNDED_VERIFY_OK: past consumer-profile-matrix
+exit:0

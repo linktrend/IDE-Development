@@ -1331,7 +1331,7 @@ $B snapshot -i -a -o "$REPORT_DIR/screenshots/issue-002.png"
    ```json
    {
      "date": "YYYY-MM-DD",
-     "url": "<target>",
+     "url": "TARGET_PLACEHOLDER",
      "healthScore": N,
      "issues": [{ "id": "ISSUE-001", "title": "...", "severity": "...", "category": "..." }],
      "categoryScores": { "console": N, "links": N, ... }

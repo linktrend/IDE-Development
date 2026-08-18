@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "issue": 330,
+  "workPackage": "trusted-review-gate-default-branch-execution-repair",
+  "branch": "issue/330-repair-v2-4-0-trusted-review-gate-default-branch",
+  "sealedProductCandidate": {
+    "pr": 326,
+    "head": "2f204781e093acad694b084e7c4ba0652fd17721",
+    "tree": "4556fb197c575c64cb1a152c00738c8651a3cb74",
+    "fullRun": "32071094022",
+    "unchanged": true
+  },
+  "prerequisiteLayer": {
+    "commit": "c5de34d6e91cf633e998192d8b4ef5e5c2ec31a5",
+    "role": "exact runtime blobs from sealed candidate onto origin/development",
+    "exactRuntimeBlobsFromSealedHead": true
+  },
+  "contentHead": "bdbdf7fdf8e2911525380aba7526723f6d099f8a",
+  "contentTree": "91ef31f3f372e9fc1e0c9879c0fc955c7eae736e",
+  "novelCommitRange": "c5de34d6e91cf633e998192d8b4ef5e5c2ec31a5..bdbdf7fdf8e2911525380aba7526723f6d099f8a",
+  "acceptance": "Post-Full P1/P2/P3 closed: Review Gate executes protected default-branch scripts with candidate-as-data only; CHECK_DETAILS/title/annotations wire findings-present into review-findings; success evidence requires authenticated provenance so planted allowlisted provider-error and forged Full receipts cannot authorize gateSuccess; trusted operator/repair-task/Checks API routes preserved; adversarial negatives cover each allowlisted planted source and forged receipt; findings precedence, A-F invariants, manifests, and evidence truthfulness preserved",
+  "covered": [
+    "P1-default-branch-script-execution",
+    "P1-candidate-as-data-only",
+    "P2-findings-present-wired-from-event-evidence",
+    "P2-review-findings-classification",
+    "P3-authenticated-provider-error-provenance",
+    "P3-authenticated-full-receipt-provenance",
+    "P3-candidate-provider-error-files-ignored",
+    "P3-candidate-full-receipt-files-ignored",
+    "negative-candidate-cannot-replace-classifier",
+    "negative-candidate-cannot-self-approve",
+    "negative-each-allowlisted-planted-provider-source",
+    "negative-forged-full-receipt-rejected",
+    "findings-precedence-over-planted-provider-error",
+    "trusted-route-operator-variable",
+    "trusted-route-repair-task-usage-limit",
+    "trusted-route-github-check-runs-api",
+    "exact-head-full-receipt-binding",
+    "verified-unavailability-fallback",
+    "no-missing-as-pass",
+    "least-privilege-permissions",
+    "prior-A-F-repairs-preserved",
+    "live-equals-managed-template",
+    "manifest-verify"
+  ],
+  "exclusions": [
+    "Full suite",
+    "PR open/merge",
+    "ruleset mutation",
+    "promotion",
+    "publication",
+    "rollout",
+    "phase branch or PR #326 modification",
+    "Bugbot to Review Gate cutover",
+    "unrelated v2.4.0 product surface migrations"
+  ],
+  "rollback": [
+    "Leave issue branch unmerged; no prefer-incoming",
+    "Do not alter PR #326 sealed head/tree/receipt",
+    "Packager integrates novel range onto sealed candidate when authorized"
+  ],
+  "commands": [
+    {
+      "command": "actionlint .github/workflows/linktrend-review-gate.yml core/github/managed-workflows/linktrend-review-gate.yml",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-330/focused-tests.out"
+    },
+    {
+      "command": "python3 -m unittest scripts.tests.test_linktrend_review_gate scripts.ide_development_tests.test_build_manifest -v",
+      "exitCode": 0,
+      "testsRan": 32,
+      "skipped": 3,
+      "evidencePath": "docs/evidence/issue-330/focused-tests.out"
+    },
+    {
+      "command": "python3 -m scripts.ide_development.build_manifest --verify",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-330/focused-tests.out"
+    },
+    {
+      "command": "changed-path secret scan",
+      "exitCode": 0,
+      "findingsCount": 0,
+      "evidencePath": "docs/evidence/issue-330/secret-scan.out"
+    },
+    {
+      "command": "bash scripts/verify-ide-development.sh",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-330/verify-ide-subset.out"
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-330/focused-tests.out"
+    }
+  ],
+  "hold": true,
+  "holdReason": "Independent review only; no PR/Full/merge/promote/publish/rollout/ruleset mutation"
+}

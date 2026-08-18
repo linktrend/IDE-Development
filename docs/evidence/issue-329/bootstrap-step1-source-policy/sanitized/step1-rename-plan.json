@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "complete": true,
+  "code": "",
+  "branches": {
+    "development": {
+      "action": "update",
+      "before": [
+        "Cursor Bugbot",
+        "Verify IDE Development",
+        "Enforce allowed PR source branches"
+      ],
+      "after": [
+        "Linktrend Review Gate",
+        "Verify IDE Development",
+        "Linktrend Branch Source Policy"
+      ],
+      "removed": [
+        "Cursor Bugbot",
+        "Enforce allowed PR source branches"
+      ],
+      "added": [
+        "Linktrend Review Gate",
+        "Linktrend Branch Source Policy"
+      ]
+    },
+    "staging": {
+      "action": "update",
+      "before": [
+        "Verify IDE Development",
+        "Enforce allowed PR source branches"
+      ],
+      "after": [
+        "Verify IDE Development",
+        "Linktrend Branch Source Policy"
+      ],
+      "removed": [
+        "Enforce allowed PR source branches"
+      ],
+      "added": [
+        "Linktrend Branch Source Policy"
+      ]
+    },
+    "main": {
+      "action": "update",
+      "before": [
+        "Verify IDE Development",
+        "Enforce allowed PR source branches"
+      ],
+      "after": [
+        "Verify IDE Development",
+        "Linktrend Branch Source Policy"
+      ],
+      "removed": [
+        "Enforce allowed PR source branches"
+      ],
+      "added": [
+        "Linktrend Branch Source Policy"
+      ]
+    }
+  },
+  "actions": [
+    "development:update",
+    "staging:update",
+    "main:update"
+  ],
+  "renameMap": {
+    "Enforce allowed PR source branches": "Linktrend Branch Source Policy"
+  }
+}

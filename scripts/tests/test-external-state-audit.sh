@@ -168,7 +168,7 @@ p = json.loads(Path("${TMP}/drift-out.json").read_text())
 by = {c["id"]: c for c in p["checks"]}
 assert by["bugbot.check_name"]["status"] == "drift"
 assert by["protection.development_ruleset"]["status"] == "drift"
-assert "Cursor Bugbot" in by["protection.development_ruleset"]["detail"]
+assert "Linktrend Review Gate" in by["protection.development_ruleset"]["detail"]
 assert p["mutations"] == []
 print("drift ok")
 PY
@@ -219,7 +219,7 @@ from pathlib import Path
 text = Path("${TMP}/leak-warn.json").read_text()
 assert "pem-material-MUST-NOT-LEAK-into-json-output" not in text
 p = json.loads(text)
-assert any("LINKTREND_AUTOMATION_TOKEN=present_in_process_env" in w for w in p["warnings"])
+assert any(("LINKTREND_AUTOMATION_TOKEN" in w and "present_in_process_env" in w) for w in p["warnings"])
 print("env warn ok")
 PY
 unset LINKTREND_AUTOMATION_TOKEN

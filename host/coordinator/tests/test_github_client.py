@@ -67,7 +67,7 @@ class GitHubClientTests(unittest.TestCase):
     def test_cursor_bugbot_context_cannot_be_forged(self):
         client = GitHubClient("test-secret", transport=FakeTransport([]))
         with self.assertRaises(GitHubError):
-            client.publish_status("owner/repo", "a" * 40, "Cursor Bugbot", "success", "forged", "https://example.invalid/evidence")
+            client.publish_status("owner/repo", "a" * 40, "Linktrend Review Gate", "success", "forged", "https://example.invalid/evidence")
 
 
 if __name__ == "__main__":

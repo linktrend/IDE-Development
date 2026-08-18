@@ -97,7 +97,7 @@ chmod +x "$ROOT/scripts/wire-repo.sh"
 bash "$ROOT/scripts/wire-repo.sh" "$CONSUMER" \
   --ci-workflow-name "Consumer CI" \
   --branch-policy-workflow-name "Branch Source Policy" \
-  --bugbot-check-name "Cursor Bugbot"
+  --bugbot-check-name "Linktrend Review Gate"
 
 # Config committed path
 [ -f "${CONSUMER}/.github/linktrend-gitops-consumer.json" ] || fail "missing consumer gitops config"
@@ -127,7 +127,7 @@ pass "Non-default Consumer CI rendered into installed workflows"
 UPGRADE="${TMP}/upgrade-consumer"
 mkdir -p "${UPGRADE}/.github"
 cat >"${UPGRADE}/.github/linktrend-gitops-consumer.json" <<'JSON'
-{"schemaVersion":1,"ciWorkflowName":"Upgrade CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Cursor Bugbot","runnerType":"github-hosted"}
+{"schemaVersion":1,"ciWorkflowName":"Upgrade CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Linktrend Review Gate","reviewGateCheckName":"Linktrend Review Gate","bugbotProviderCheckName":"Cursor Bugbot","runnerType":"github-hosted"}
 JSON
 bash "$ROOT/scripts/sync-managed-workflows.sh" "$UPGRADE"
 python3 - "${UPGRADE}/.github/linktrend-gitops-consumer.json" <<'PY'

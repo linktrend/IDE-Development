@@ -13,15 +13,15 @@ Consumer-specific guidance may live **outside** these markers.
 
 ### Lifecycle
 
-- Work on `issue/<n>-<slug>` (or `dev/*`) → push → Packager opens draft PR → Integrator merges to `development`.
+- Work on `issue/<n>-<slug>` (or `dev/*`) → push → Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the draft Phase PR → delivery controller (`scripts/gitops/delivery_controller.py`) merges to `development` through GitHub protection. Retained `packager_discover.py` is not the Phase Packager. Review Ready does not itself trigger a merge.
 - Promote: `development` → `staging` → `main` via temporary `promote/*` PRs only.
 
 ### Agent rules
 
-- Ship = checkpoint (commit+push). Packager opens PRs. Max 3 ordinary repairs.
+- Ship = checkpoint (commit+push). The Phase Packager/Coordinator opens Phase PRs. Max 3 ordinary repairs.
 - Completion: `python3 scripts/gitops/completion_gate.py` (checkpoint | review-ready | blocked | status | write-evidence).
 - Finished work runs appropriate tests/checks, auto-repairs ordinary failures with at most 3 bounded repair cycles, writes machine-readable evidence with `completion_gate.py write-evidence`, then calls `completion_gate.py review-ready`.
-- `review-ready` is the authoritative fail-closed gate. Production publish and withdraw use the trusted `linktrend-review-ready-publisher` workflow with scoped built-in `GITHUB_TOKEN` permissions and immutable branch/SHA validation; custom App/PAT automation is retired. Do not call `mark-review-ready.sh` as a pre-gate publisher; it is only a compatibility wrapper that requires evidence and delegates to the gate.
+- `review-ready` is the authoritative fail-closed gate. Production publish and withdraw use the trusted `linktrend-review-ready-publisher` workflow with scoped built-in `GITHUB_TOKEN` permissions, `LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER=1` on the publish/withdraw step, and documented `AUTOMATION_TOKEN` forwarding (aliases `GH_TOKEN` / `GITHUB_TOKEN`; `AUTOMATION_TOKEN` precedes). Custom App/PAT automation is retired. Do not call `mark-review-ready.sh` as a pre-gate publisher; it is only a compatibility wrapper that requires evidence and delegates to the gate.
 - Do **not** create or use `.linktrend/review-ready.json` (commit status only — see `core/github/REVIEW-READY.md`).
 - If completion cannot pass, call `completion_gate.py blocked`. `.linktrend/completion-blocker.json` is only a **local cache**. The durable cross-machine record is the GitHub repair issue created/updated by the gate (when authenticated repo resolution succeeds). Do not claim durable registration if the command reports `durableRecord=false`.
 - Repair tasks: `python3 scripts/gitops/repair_task.py` (upsert | dispatch-attempt | resolve | list).

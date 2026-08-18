@@ -1,0 +1,65 @@
+{
+  "ok": true,
+  "problems": [],
+  "after": {
+    "development": {
+      "id": 19728531,
+      "name": "development-autonomous-merge",
+      "enforcement": "active",
+      "requiredChecks": [
+        "Cursor Bugbot",
+        "Verify IDE Development",
+        "Linktrend Branch Source Policy"
+      ],
+      "strict": true,
+      "bypassActors": []
+    },
+    "staging": {
+      "id": 20218450,
+      "name": "staging-autonomous-promote",
+      "enforcement": "active",
+      "requiredChecks": [
+        "Verify IDE Development",
+        "Linktrend Branch Source Policy"
+      ],
+      "strict": true,
+      "bypassActors": []
+    },
+    "main": {
+      "id": 20218451,
+      "name": "main-autonomous-release",
+      "enforcement": "active",
+      "requiredChecks": [
+        "Verify IDE Development",
+        "Linktrend Branch Source Policy"
+      ],
+      "strict": true,
+      "bypassActors": []
+    }
+  },
+  "pr326": {
+    "pr": 326,
+    "head": "2f204781e093acad694b084e7c4ba0652fd17721",
+    "tree": "4556fb197c575c64cb1a152c00738c8651a3cb74",
+    "expectedHead": "2f204781e093acad694b084e7c4ba0652fd17721",
+    "expectedTree": "4556fb197c575c64cb1a152c00738c8651a3cb74",
+    "unchanged": true
+  },
+  "mutations": [
+    {
+      "op": "update_ruleset",
+      "branch": "development",
+      "id": 19728531
+    },
+    {
+      "op": "update_ruleset",
+      "branch": "staging",
+      "id": 20218450
+    },
+    {
+      "op": "update_ruleset",
+      "branch": "main",
+      "id": 20218451
+    }
+  ]
+}

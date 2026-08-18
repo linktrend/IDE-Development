@@ -63,7 +63,9 @@ def render(text: str) -> str:
     return (
         text.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
         .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
-        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Cursor Bugbot")
+        .replace("__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__", "Cursor Bugbot")
+        .replace("__LINKTREND_REVIEW_GATE_CHECK_NAME__", "Linktrend Review Gate")
+        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Linktrend Review Gate")
         .replace("__LINKTREND_UNTRUSTED_RUNS_ON__", untrusted_runner)
         .replace("__LINKTREND_RUNS_ON__", privileged_runner)
     )
@@ -422,7 +424,7 @@ pass "blocked resolves repository from gh repo view without env"
 # Origin remote resolution when gh fails; strip credentials; never print secrets
 export GH_REPO_VIEW_FAIL=1
 git -C "$WT" remote remove origin 2>/dev/null || true
-git -C "$WT" remote add origin "https://x-access-token:ghs_NOT_A_REAL_SECRET@github.com/fixture/from-origin.git"
+git -C "$WT" remote add origin "https://example:not-a-secret@github.com/fixture/from-origin.git"
 export LINKTREND_REPAIR_DIR="$TMP/repair-blocked-origin"
 mkdir -p "$LINKTREND_REPAIR_DIR"
 set +e
@@ -663,7 +665,7 @@ CHECKS="$TMP/main-approve-checks.json"
 cat >"$CHECKS" <<'EOF'
 [
   {"name":"Verify IDE Development","state":"SUCCESS"},
-  {"name":"Enforce allowed PR source branches","state":"SUCCESS"}
+  {"name":"Linktrend Branch Source Policy","state":"SUCCESS"}
 ]
 EOF
 disc="$(python3 "$ROOT/scripts/gitops/main_approve_package_discover.py" \
