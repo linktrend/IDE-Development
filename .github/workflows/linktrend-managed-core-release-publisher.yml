@@ -3,7 +3,7 @@
 # System-repository only (IDE Development). Not synced to consumers via
 # scripts/sync-managed-workflows.sh — consumers must not publish managed-core.
 #
-# Privileged tag + GitHub Release publication for managed-core v2.3.8.
+# Privileged tag + GitHub Release publication for managed-core v2.4.0.
 # Workflow YAML and publish scripts come from the protected default branch only.
 # The requested source SHA is checked out as data only — never execute untrusted
 # tip code with write credentials.
@@ -27,15 +27,15 @@ on:
         required: true
         type: string
       version:
-        description: "Package semver (authorized: 2.3.8)"
+        description: "Package semver (authorized: 2.4.0)"
         required: false
         type: string
-        default: "2.3.8"
+        default: "2.4.0"
       tag:
         description: "Immutable release tag (must be v<version>)"
         required: false
         type: string
-        default: "v2.3.8"
+        default: "v2.4.0"
       action:
         description: "publish (default) or verify-only"
         required: false
