@@ -1,0 +1,27 @@
+{
+  "claim": {
+    "claimContractVersion": "platform.auth-claims/1.1.0",
+    "actorId": "actor-ide-dev-s1",
+    "actorKind": "adapter",
+    "runtimeBindingId": "bind-ide-dev-s1",
+    "credentialId": "cred-synthetic-s1",
+    "orgId": "org-synthetic-s1",
+    "internal": true,
+    "serviceScopes": ["linkplatform"],
+    "permittedOperations": ["read"],
+    "issuedAt": "2026-08-17T00:00:00.000Z",
+    "expiresAt": "2026-12-31T00:00:00.000Z",
+    "issuer": "linkplatform-issuer",
+    "audience": ["ide-development"],
+    "correlationId": "corr-unavailable-service"
+  },
+  "context": {
+    "expectedAudience": "ide-development",
+    "requiredService": "linkplatform",
+    "requiredCapability": "read",
+    "expectedOrgId": "org-synthetic-s1",
+    "expectedRuntimeBindingId": "bind-ide-dev-s1",
+    "now": "2026-08-17T08:00:00.000Z",
+    "identityServiceStatus": "unavailable"
+  }
+}

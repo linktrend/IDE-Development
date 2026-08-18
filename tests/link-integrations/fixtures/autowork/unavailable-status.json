@@ -1,0 +1,11 @@
+{
+  "request_id": "00000000-0000-4000-8000-000000000010",
+  "state": "unavailable",
+  "attempt_count": 0,
+  "automation": {
+    "automation_id": "ide-repository-status",
+    "version": "1.0.0",
+    "definition_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "configuration_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  }
+}

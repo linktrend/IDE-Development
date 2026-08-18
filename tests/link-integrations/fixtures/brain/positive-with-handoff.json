@@ -1,0 +1,17 @@
+{
+  "projection": {
+    "contractVersion": "2.0.0",
+    "authority": "advisory",
+    "executionAuthority": "none",
+    "projectionRef": "projection-ide-dev-s3-handoff",
+    "summary": "Bounded advisory handoff reference only.",
+    "handoffRef": "handoff-ide-dev-s3"
+  },
+  "context": {
+    "providerStatus": "available",
+    "providerPin": {
+      "commit": "77af7d02a76e6a8877d59fbd3d3e917ac6e830c5",
+      "tree": "0cae42d612342f5e52c7e2e0e76cb6fc2f6d81f3"
+    }
+  }
+}

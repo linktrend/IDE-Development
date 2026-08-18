@@ -1,0 +1,16 @@
+{
+  "projection": {
+    "contractVersion": "2.0.0",
+    "authority": "advisory",
+    "executionAuthority": "none",
+    "projectionRef": "projection-ide-dev-s3-stale-pin",
+    "summary": "Well-formed projection bound to an obsolete pin."
+  },
+  "context": {
+    "providerStatus": "available",
+    "providerPin": {
+      "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "tree": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  }
+}

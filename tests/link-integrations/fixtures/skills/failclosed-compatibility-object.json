@@ -1,0 +1,19 @@
+{
+  "contractVersion": "skills.api.v0.2",
+  "providerCommit": "0d6bf34546f89c9beb7f05483a3ed4deeb3a5a67",
+  "providerTree": "6c36e6c98f90e55d957fba781327b1b0ef90860a",
+  "skillId": "synthetic-skill",
+  "version": "1.0.0",
+  "releaseHash": "sha256:7c1e3a9b0d4f28e6a1c5b8d0e3f6a9c2d5e8f1a4b7c0d3e6f9a2b5c8d1e4f70a",
+  "bundleHash": "sha256:1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809",
+  "manifestHash": "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+  "lifecycle": "published",
+  "qualification": "qualified",
+  "availability": "available",
+  "fragmentLevel": 2,
+  "addressing": "validation",
+  "operation": "skills_release_verify",
+  "compatibility": {
+    "payload": "<skill body>"
+  }
+}

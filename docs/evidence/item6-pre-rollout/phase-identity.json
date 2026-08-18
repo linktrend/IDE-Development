@@ -1,0 +1,39 @@
+{
+  "branch": "phase/item6-consumer-integration-pre-rollout",
+  "baseDevelopment": {
+    "sha": "741e58922e7413c1097f4a58ea25e94a934af903",
+    "tree": "1affbab9035df799fdb7d723d8518e54fa6a1c00"
+  },
+  "acceptedItem6": {
+    "branch": "issue/321-item-6-s6-cross-cutting-integration",
+    "issue": 321,
+    "sha": "b07f8eb23220915093d7cff873e9837db6b9f504",
+    "tree": "982831f544bb65d25e883c04d2bbdbe47b9468a1",
+    "ownedPathTrees": {
+      "core/link-integrations": "96b0eb492d6849b7210db82d69d5faec6c0153f8",
+      "tests/link-integrations": "d60216ae716f2424d63ceac0d3e55fab26d62ba1"
+    }
+  },
+  "docsAuthority": {
+    "branch": "issue/311-item-6-connect-ide-development-five-provider-con",
+    "issue": 311,
+    "sha": "128f5f2abd004f71a09f2ff630369326cb370150",
+    "tree": "e45fae62967b10bd212d909f4bf442f5f8996f6c"
+  },
+  "evidenceCommit": "1c7ed1ad8a20e1c3225257cc5450b3c4825f07ba",
+  "postV24Gates": [
+    {
+      "packet": "WP-I6-MANIFEST",
+      "status": "blocked_until_v2.4.0"
+    },
+    {
+      "packet": "WP-I6-INTEGRATE",
+      "status": "blocked_until_v2.4.0"
+    },
+    {
+      "packet": "WP-I6-HOSTED",
+      "status": "blocked_until_v2.4.0"
+    }
+  ],
+  "phaseTipResolution": "git rev-parse origin/phase/item6-consumer-integration-pre-rollout origin/phase/item6-consumer-integration-pre-rollout^{tree}"
+}

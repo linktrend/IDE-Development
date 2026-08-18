@@ -1,0 +1,30 @@
+{
+  "contract_version": "2026-08-13.v1",
+  "request_id": "00000000-0000-4000-8000-000000000010",
+  "receipt_id": "00000000-0000-4000-8000-000000000011",
+  "state": "succeeded",
+  "accepted_at": "2026-08-17T00:00:00.000Z",
+  "updated_at": "2026-08-17T00:01:00.000Z",
+  "attempt_count": 1,
+  "request_fingerprint": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "automation": {
+    "automation_id": "ide-repository-status",
+    "version": "1.0.0",
+    "definition_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "configuration_ref": {
+      "ref": "autowork://config/ide-repository-status/1.0.0",
+      "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "observed_at": "2026-08-17T00:00:00.000Z"
+    }
+  },
+  "result_refs": [
+    {
+      "ref": "autowork://results/precheck/one",
+      "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "classification": "internal"
+    }
+  ],
+  "freshness_at": "2027-01-01T00:00:00.000Z",
+  "evidence_refs": [],
+  "uncertain_outcome": false
+}
