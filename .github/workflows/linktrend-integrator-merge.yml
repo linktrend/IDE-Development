@@ -236,6 +236,7 @@ jobs:
               "workflow=Linktrend Full Suite\n"
               f"repository={os.environ['GITHUB_REPOSITORY']}\n"
               f"head={identity.head_commit}\n"
+              f"gitTree={identity.git_tree}\n"
               "runner=ubuntu-24.04-arm\n",
               encoding="utf-8",
           )
@@ -443,6 +444,7 @@ jobs:
               "workflow=Linktrend Recovery Receipt\n"
               f"repository={os.environ['GITHUB_REPOSITORY']}\n"
               f"head={identity.head_commit}\n"
+              f"gitTree={identity.git_tree}\n"
               "runner=ubuntu-24.04-arm\n"
               "mode=recovery\n",
               encoding="utf-8",

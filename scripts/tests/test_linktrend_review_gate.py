@@ -50,6 +50,7 @@ from scripts.gitops.linktrend_review_gate import (
     issue_bodies_from_slurp,
     migrated_required_contexts,
     normalize_full_receipt_payload,
+    overlay_retained_full_suite_receipt,
     reject_third_infrastructure_attempt,
     reject_undocumented_task_hold,
     require_full_receipt_for_gate_success,
@@ -258,6 +259,12 @@ class LinktrendReviewGateTests(unittest.TestCase):
         self.assertTrue(WORKFLOW.is_file())
         self.assertTrue(MANAGED_WORKFLOW.is_file())
         self.assertIn("needs: full", (ROOT / ".github/workflows/linktrend-integrator-merge.yml").read_text())
+        integrator = (ROOT / ".github/workflows/linktrend-integrator-merge.yml").read_text()
+        self.assertIn("gitTree={identity.git_tree}", integrator)
+        self.assertEqual(
+            integrator,
+            (ROOT / "core/github/managed-workflows/linktrend-integrator-merge.yml").read_text(),
+        )
         # Default-branch trust boundary: live workflow == managed template bytes.
         live = WORKFLOW.read_text(encoding="utf-8")
         self.assertEqual(live, MANAGED_WORKFLOW.read_text(encoding="utf-8"))
@@ -468,15 +475,36 @@ class LinktrendReviewGateTests(unittest.TestCase):
                 evidence_channel=channel,
             )
         self.assertEqual(missing_tree.exception.code, "full_receipt_missing_tree")
-        # FullSuiteReceipt v2 candidateIdentity.gitTreeSha is preserved.
-        v2 = {
+        # FullSuiteReceipt v2 candidateIdentity.gitTreeSha (legacy) is preserved.
+        v2_legacy = {
             "name": FULL_SUITE_CONTEXT,
             "candidateIdentity": {"sourceSha": HEAD, "gitTreeSha": TREE},
             "conclusion": "success",
         }
         require_full_receipt_for_gate_success(
             gate_success=True,
-            full_receipt=v2,
+            full_receipt=v2_legacy,
+            head_sha=HEAD,
+            git_tree=TREE,
+            evidence_channel=channel,
+        )
+        # SchemaVersion 2 producer shape: candidateIdentity.gitTree + headCommit.
+        v2_canonical = {
+            "schemaVersion": 2,
+            "candidateIdentity": {
+                "repository": REPO,
+                "sourceBranch": "phase/example",
+                "headCommit": HEAD,
+                "gitTree": TREE,
+                "dependencyDigest": "sha256:" + ("1" * 64),
+                "profileDigest": "sha256:" + ("2" * 64),
+                "workflowDigest": "sha256:" + ("3" * 64),
+            },
+            "conclusion": "success",
+        }
+        require_full_receipt_for_gate_success(
+            gate_success=True,
+            full_receipt=v2_canonical,
             head_sha=HEAD,
             git_tree=TREE,
             evidence_channel=channel,
@@ -499,6 +527,65 @@ class LinktrendReviewGateTests(unittest.TestCase):
         )
         assert empty is not None
         self.assertEqual(empty["gitTree"], "")
+        # Prefer candidateIdentity.gitTree over legacy gitTreeSha when both differ.
+        both = normalize_full_receipt_payload(
+            {
+                "candidateIdentity": {
+                    "headCommit": HEAD,
+                    "gitTree": "c" * 40,
+                    "gitTreeSha": "d" * 40,
+                },
+                "conclusion": "success",
+            }
+        )
+        assert both is not None
+        self.assertEqual(both["gitTree"], "c" * 40)
+        self.assertEqual(both["headSha"], HEAD)
+
+    def test_overlay_retained_full_suite_receipt_fills_git_tree(self) -> None:
+        """Producer-bound extract with empty tree gains gitTree from retained v2 receipt."""
+        extracted = {
+            "receipt": {
+                "name": FULL_SUITE_CONTEXT,
+                "headSha": HEAD,
+                "gitTree": "",
+                "status": "success",
+            },
+            "evidenceChannel": EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+            "workflowRunId": 32111296118,
+            "checkRunId": 1,
+            "checkSuiteId": 2,
+            "workflowPath": FULL_WF_PATH,
+        }
+        retained = {
+            "schemaVersion": 2,
+            "candidateIdentity": {
+                "headCommit": HEAD,
+                "gitTree": TREE,
+            },
+            "conclusion": "success",
+        }
+        merged = overlay_retained_full_suite_receipt(extracted, retained)
+        assert merged is not None
+        self.assertEqual(merged["receipt"]["gitTree"], TREE)
+        self.assertEqual(merged["receipt"]["headSha"], HEAD)
+        self.assertEqual(merged["evidenceChannel"], EVIDENCE_CHANNEL_GITHUB_CHECK_RUN)
+        # Never invent tree from the live TREE argument — retained must carry it.
+        with self.assertRaises(ReviewGateError) as missing:
+            overlay_retained_full_suite_receipt(
+                extracted,
+                {"candidateIdentity": {"headCommit": HEAD}, "conclusion": "success"},
+            )
+        self.assertEqual(missing.exception.code, "full_receipt_missing_tree")
+        with self.assertRaises(ReviewGateError) as wrong_head:
+            overlay_retained_full_suite_receipt(
+                extracted,
+                {
+                    "candidateIdentity": {"headCommit": "c" * 40, "gitTree": TREE},
+                    "conclusion": "success",
+                },
+            )
+        self.assertEqual(wrong_head.exception.code, "full_receipt_wrong_head")
 
     def test_infrastructure_attempts_count_only_infra_markers(self) -> None:
         markers = [
@@ -608,6 +695,9 @@ class LinktrendReviewGateTests(unittest.TestCase):
             self.assertIn("fallback", text)
             self.assertIn("require-full-receipt", text)
             self.assertIn("extract-trusted-full-receipt", text)
+            self.assertIn("overlay-retained-full-receipt", text)
+            self.assertIn("linktrend-full-suite-receipt-", text)
+            self.assertIn("full_receipt_artifact_not_unique_or_missing", text)
             self.assertIn("count-infra-attempts", text)
             self.assertIn("issues: write", text)
             self.assertNotIn("contents/.linktrend/", text)
@@ -640,11 +730,15 @@ class LinktrendReviewGateTests(unittest.TestCase):
             self.assertIn("full_receipt_missing_trusted_check", text)
             self.assertIn("Fail-closed producer binding", text)
             self.assertIn(
-                'producer-bound-checks:${HEAD_SHA}:Linktrend Full Suite',
+                'producer-bound-artifact:${FULL_RUN_ID}:${ARTIFACT_NAME}',
                 text,
             )
             self.assertNotIn("FULL_RAW", text)
             self.assertNotIn('select(.name=="Linktrend Full Suite")', text)
+            self.assertNotIn(
+                'producer-bound-checks:${HEAD_SHA}:Linktrend Full Suite',
+                text,
+            )
             self.assertNotIn(
                 '--provenance-evidence-ref "checks:${HEAD_SHA}:Linktrend Full Suite"',
                 text,
@@ -1918,7 +2012,8 @@ print("ok")
             self.assertIn("ignoring_candidate_provider_error_file", live)
             self.assertIn("ignoring_candidate_full_suite_receipt_file", live)
             self.assertIn("authenticate-provider-error", live)
-            self.assertIn("--provenance-kind github.check_runs.api", live)
+            self.assertIn("overlay-retained-full-receipt", live)
+            self.assertIn("--provenance-kind github.actions.artifact", live)
             # Never cat candidate success-evidence files.
             self.assertNotRegex(
                 live,
