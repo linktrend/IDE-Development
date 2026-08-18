@@ -54,14 +54,35 @@ jobs:
           PR_NUMBER="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/pulls" \
             --jq '.[0].number // empty' || true)"
 
-          # Trusted provider-unavailability evidence: GitHub Checks only.
-          # Never read candidate-controlled .linktrend/*.json (forgeable allowlisted sources).
-          CHECK_RUNS_JSON="$(gh api \
-            "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100")" \
+          # Trusted provider/Full evidence: GitHub Checks bound to default-branch
+          # workflow identity (path + Contents API blob SHA). App slug + check name
+          # alone are forgeable by a colliding Actions job on the candidate branch.
+          # Never read candidate-controlled .linktrend/*.json.
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+          CHECK_RUNS_FILE="$(mktemp)"
+          WORKFLOW_RUNS_FILE="$(mktemp)"
+          WORKFLOW_FILE_SHAS_FILE="$(mktemp)"
+          trap 'rm -f "${CHECK_RUNS_FILE}" "${WORKFLOW_RUNS_FILE}" "${WORKFLOW_FILE_SHAS_FILE}"' EXIT
+          gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100" \
+            >"${CHECK_RUNS_FILE}" \
             || { echo "HOLD: check_runs_unreadable"; exit 1; }
-          PROVIDER_EXTRACT="$(printf '%s' "${CHECK_RUNS_JSON}" \
-            | python3 scripts/gitops/linktrend_review_gate.py extract-trusted-provider-evidence \
-                --head-sha "${HEAD_SHA}" --check-runs-json -)" || {
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${HEAD_SHA}&per_page=100" \
+            >"${WORKFLOW_RUNS_FILE}" \
+            || { echo "HOLD: workflow_runs_unreadable"; exit 1; }
+          python3 scripts/gitops/linktrend_review_gate.py resolve-workflow-file-shas \
+            --repository "${GITHUB_REPOSITORY}" \
+            --default-branch "${DEFAULT_BRANCH}" \
+            --workflow-runs-json "${WORKFLOW_RUNS_FILE}" \
+            --output "${WORKFLOW_FILE_SHAS_FILE}" \
+            || { echo "HOLD: workflow_file_shas_unreadable"; exit 1; }
+          PROVIDER_EXTRACT="$(
+            python3 scripts/gitops/linktrend_review_gate.py extract-trusted-provider-evidence \
+              --head-sha "${HEAD_SHA}" \
+              --default-branch "${DEFAULT_BRANCH}" \
+              --check-runs-json "${CHECK_RUNS_FILE}" \
+              --workflow-runs-json "${WORKFLOW_RUNS_FILE}" \
+              --workflow-file-shas-json "${WORKFLOW_FILE_SHAS_FILE}"
+          )" || {
             echo "HOLD: provider_evidence_extract_failed"; exit 1
           }
           PROVIDER_JSON=""
@@ -137,9 +158,14 @@ jobs:
           # Preserve receipt-provided gitTree; never overwrite with live TREE.
           # Full evidence must come from trusted GitHub Checks — never candidate files.
           if [ "${GATE_SUCCESS}" = "true" ]; then
-            FULL_EXTRACT="$(printf '%s' "${CHECK_RUNS_JSON}" \
-              | python3 scripts/gitops/linktrend_review_gate.py extract-trusted-full-receipt \
-                  --head-sha "${HEAD_SHA}" --check-runs-json -)" \
+            FULL_EXTRACT="$(
+              python3 scripts/gitops/linktrend_review_gate.py extract-trusted-full-receipt \
+                --head-sha "${HEAD_SHA}" \
+                --default-branch "${DEFAULT_BRANCH}" \
+                --check-runs-json "${CHECK_RUNS_FILE}" \
+                --workflow-runs-json "${WORKFLOW_RUNS_FILE}" \
+                --workflow-file-shas-json "${WORKFLOW_FILE_SHAS_FILE}"
+            )" \
               || { echo "full_receipt_check_lookup_failed"; exit 1; }
             if [ -z "${FULL_EXTRACT}" ] || [ "${FULL_EXTRACT}" = "null" ]; then
               echo "full_receipt_missing_trusted_check"; exit 1

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from dataclasses import asdict, dataclass
@@ -92,6 +93,15 @@ TRUSTED_CHECK_APP_SLUGS = frozenset({"github-actions"})
 TRUSTED_PROVIDER_UNAVAILABILITY_CHECK_NAMES = frozenset(
     {"Linktrend Provider Unavailability"}
 )
+# Workflow paths are the authenticated producer identity (default-branch files).
+# Candidate branches cannot forge these paths' default-branch blob identity.
+TRUSTED_FULL_SUITE_WORKFLOW_PATHS = frozenset(
+    {".github/workflows/linktrend-integrator-merge.yml"}
+)
+TRUSTED_PROVIDER_UNAVAILABILITY_WORKFLOW_PATHS = frozenset(
+    {".github/workflows/linktrend-repair-observer.yml"}
+)
+_ACTIONS_RUN_ID_RE = re.compile(r"/actions/runs/(\d+)")
 
 _SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
@@ -356,27 +366,232 @@ def verified_provider_unavailability(
     return _provider_class(raw)
 
 
+def _as_check_run_list(check_runs: Any) -> list[Any]:
+    if check_runs is None:
+        return []
+    if isinstance(check_runs, Mapping):
+        runs = check_runs.get("check_runs")
+        if runs is None:
+            return [check_runs]
+        if not isinstance(runs, list):
+            raise ReviewGateError("invalid_check_runs", "check_runs must be a list")
+        return runs
+    if isinstance(check_runs, list):
+        return check_runs
+    raise ReviewGateError("invalid_check_runs", "check_runs must be list or object")
+
+
+def _as_workflow_run_list(workflow_runs: Any) -> list[Any]:
+    if workflow_runs is None:
+        return []
+    if isinstance(workflow_runs, Mapping):
+        runs = workflow_runs.get("workflow_runs")
+        if runs is None:
+            return [workflow_runs]
+        if not isinstance(runs, list):
+            raise ReviewGateError("invalid_workflow_runs", "workflow_runs must be a list")
+        return runs
+    if isinstance(workflow_runs, list):
+        return workflow_runs
+    raise ReviewGateError("invalid_workflow_runs", "workflow_runs must be list or object")
+
+
+def workflow_run_id_from_check_run(check_run: Mapping[str, Any]) -> int | None:
+    """Parse the Actions workflow run id from authenticated check-run URL fields."""
+    for key in ("details_url", "html_url"):
+        match = _ACTIONS_RUN_ID_RE.search(_norm(check_run.get(key)))
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def index_workflow_runs_by_id(workflow_runs: Any) -> dict[int, Mapping[str, Any]]:
+    indexed: dict[int, Mapping[str, Any]] = {}
+    for item in _as_workflow_run_list(workflow_runs):
+        if not isinstance(item, Mapping):
+            continue
+        try:
+            run_id = int(item.get("id"))
+        except (TypeError, ValueError):
+            continue
+        indexed[run_id] = item
+    return indexed
+
+
+def workflow_file_shas_for_path(
+    workflow_file_shas: Mapping[str, Any] | None,
+    path: str,
+    *,
+    run_head_sha: str = "",
+) -> tuple[str, str]:
+    """Return (default_branch_blob_sha, run_head_blob_sha) for a workflow path.
+
+    ``workflow_file_shas[path]`` may include:
+    - ``default`` / ``defaultBranch``: Contents API blob SHA on the default branch
+    - ``head`` / ``runHead``: single run-head blob SHA (tests / single-run callers)
+    - ``byHead`` / ``by_head``: map of commit SHA → workflow blob SHA at that commit
+    """
+    if not isinstance(workflow_file_shas, Mapping):
+        return ("", "")
+    entry = workflow_file_shas.get(path)
+    if not isinstance(entry, Mapping):
+        return ("", "")
+    default_sha = _norm(entry.get("default") or entry.get("defaultBranch") or "").lower()
+    run_head = _norm(run_head_sha).lower()
+    by_head = entry.get("byHead") if "byHead" in entry else entry.get("by_head")
+    head_sha = ""
+    if run_head and isinstance(by_head, Mapping):
+        head_sha = _norm(by_head.get(run_head) or "").lower()
+    if not head_sha:
+        head_sha = _norm(
+            entry.get("head") or entry.get("runHead") or entry.get("headSha") or ""
+        ).lower()
+    return (default_sha, head_sha)
+
+
+def trusted_default_branch_workflow_binding(
+    *,
+    workflow_run: Mapping[str, Any],
+    default_branch: str,
+    allowed_paths: frozenset[str],
+    workflow_file_sha_at_default: str,
+    workflow_file_sha_at_run_head: str,
+) -> bool:
+    """True when the workflow run is bound to an authenticated default-branch producer.
+
+    Candidate code cannot forge this: either the run executed on the protected
+    default branch, or the allowlisted workflow file blob at the run head is
+    byte-identical to the default-branch blob (PR did not rewrite the producer).
+    """
+    path = _norm(workflow_run.get("path"))
+    if path not in allowed_paths:
+        return False
+    branch = _norm(default_branch)
+    if not branch:
+        return False
+    default_sha = _norm(workflow_file_sha_at_default).lower()
+    if not default_sha:
+        return False
+    head_branch = _norm(workflow_run.get("head_branch") or workflow_run.get("headBranch"))
+    if head_branch == branch:
+        return True
+    run_head_sha = _norm(workflow_file_sha_at_run_head).lower()
+    return bool(run_head_sha) and run_head_sha == default_sha
+
+
+def resolve_authenticated_workflow_run_for_check(
+    check_run: Mapping[str, Any],
+    *,
+    workflow_runs: Any,
+    default_branch: str,
+    allowed_paths: frozenset[str],
+    workflow_file_shas: Mapping[str, Any] | None,
+) -> Mapping[str, Any] | None:
+    """Bind a check run to a default-branch-authenticated workflow run, or None."""
+    run_id = workflow_run_id_from_check_run(check_run)
+    if run_id is None:
+        return None
+    indexed = index_workflow_runs_by_id(workflow_runs)
+    workflow_run = indexed.get(run_id)
+    if workflow_run is None:
+        return None
+    path = _norm(workflow_run.get("path"))
+    run_commit = _norm(workflow_run.get("head_sha") or workflow_run.get("headSha")).lower()
+    default_sha, head_sha = workflow_file_shas_for_path(
+        workflow_file_shas,
+        path,
+        run_head_sha=run_commit,
+    )
+    if not trusted_default_branch_workflow_binding(
+        workflow_run=workflow_run,
+        default_branch=default_branch,
+        allowed_paths=allowed_paths,
+        workflow_file_sha_at_default=default_sha,
+        workflow_file_sha_at_run_head=head_sha,
+    ):
+        return None
+    return workflow_run
+
+
+def build_workflow_file_shas_payload(
+    *,
+    repository: str,
+    default_branch: str,
+    workflow_runs: Any,
+    trusted_paths: Sequence[str] | None = None,
+    contents_sha_lookup: Any | None = None,
+) -> dict[str, Any]:
+    """Build Contents-API blob SHA map for allowlisted workflow producers.
+
+    ``contents_sha_lookup(path, ref) -> sha`` is injectable for tests; the CLI
+    defaults to ``gh api repos/.../contents/...``.
+    """
+    repo = _norm(repository)
+    branch = _norm(default_branch)
+    if not repo or not branch:
+        raise ReviewGateError("invalid_workflow_file_shas", "repository and default_branch required")
+    paths = tuple(trusted_paths or (
+        *sorted(TRUSTED_FULL_SUITE_WORKFLOW_PATHS),
+        *sorted(TRUSTED_PROVIDER_UNAVAILABILITY_WORKFLOW_PATHS),
+    ))
+    lookup = contents_sha_lookup
+    if lookup is None:
+        def lookup(path: str, ref: str) -> str:  # type: ignore[misc]
+            return _gh_contents_blob_sha(repo, path, ref)
+
+    runs = _as_workflow_run_list(workflow_runs)
+    out: dict[str, Any] = {}
+    for path in paths:
+        default_sha = _norm(lookup(path, branch)).lower()
+        by_head: dict[str, str] = {}
+        for run in runs:
+            if not isinstance(run, Mapping):
+                continue
+            if _norm(run.get("path")) != path:
+                continue
+            head = _norm(run.get("head_sha") or run.get("headSha")).lower()
+            if not head or head in by_head:
+                continue
+            by_head[head] = _norm(lookup(path, head)).lower()
+        out[path] = {"default": default_sha, "byHead": by_head}
+    return out
+
+
+def _gh_contents_blob_sha(repository: str, path: str, ref: str) -> str:
+    import subprocess
+    import urllib.parse
+
+    if not path or not ref:
+        return ""
+    encoded = urllib.parse.quote(path, safe="/")
+    url = (
+        f"repos/{repository}/contents/{encoded}"
+        f"?ref={urllib.parse.quote(ref, safe='')}"
+    )
+    proc = subprocess.run(
+        ["gh", "api", url, "--jq", ".sha"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        return ""
+    return _norm(proc.stdout).lower()
+
+
 def extract_trusted_provider_evidence_from_check_runs(
     check_runs: Any,
     *,
     head_sha: str,
+    default_branch: str = "",
+    workflow_runs: Any = None,
+    workflow_file_shas: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """Load provider-unavailability evidence only from trusted GitHub check runs."""
+    """Load provider-unavailability evidence only from default-branch-bound checks."""
     head = require_sha40(head_sha, "head_sha")
-    if check_runs is None:
+    if not _norm(default_branch):
         return None
-    if isinstance(check_runs, Mapping):
-        runs = check_runs.get("check_runs")
-        if runs is None:
-            runs = [check_runs]
-    elif isinstance(check_runs, list):
-        runs = check_runs
-    else:
-        raise ReviewGateError("invalid_check_runs", "check_runs must be list or object")
-    if not isinstance(runs, list):
-        raise ReviewGateError("invalid_check_runs", "check_runs must be a list")
-
-    for item in runs:
+    for item in _as_check_run_list(check_runs):
         if not isinstance(item, Mapping):
             continue
         name = _norm(item.get("name"))
@@ -388,6 +603,15 @@ def extract_trusted_provider_evidence_from_check_runs(
             continue
         item_head = _norm(item.get("head_sha") or item.get("headSha")).lower()
         if item_head and item_head != head:
+            continue
+        workflow_run = resolve_authenticated_workflow_run_for_check(
+            item,
+            workflow_runs=workflow_runs,
+            default_branch=default_branch,
+            allowed_paths=TRUSTED_PROVIDER_UNAVAILABILITY_WORKFLOW_PATHS,
+            workflow_file_shas=workflow_file_shas,
+        )
+        if workflow_run is None:
             continue
         summary = _norm(
             item.get("outputSummary")
@@ -412,6 +636,8 @@ def extract_trusted_provider_evidence_from_check_runs(
             return {
                 "providerError": dict(payload),
                 "evidenceChannel": EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+                "workflowPath": _norm(workflow_run.get("path")),
+                "workflowRunId": int(workflow_run.get("id")),
             }
     return None
 
@@ -420,23 +646,15 @@ def extract_trusted_full_receipt_from_check_runs(
     check_runs: Any,
     *,
     head_sha: str,
+    default_branch: str = "",
+    workflow_runs: Any = None,
+    workflow_file_shas: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """Load Full Suite success evidence only from trusted GitHub check runs."""
+    """Load Full Suite success evidence only from default-branch-bound checks."""
     head = require_sha40(head_sha, "head_sha")
-    if check_runs is None:
+    if not _norm(default_branch):
         return None
-    if isinstance(check_runs, Mapping):
-        runs = check_runs.get("check_runs")
-        if runs is None:
-            runs = [check_runs]
-    elif isinstance(check_runs, list):
-        runs = check_runs
-    else:
-        raise ReviewGateError("invalid_check_runs", "check_runs must be list or object")
-    if not isinstance(runs, list):
-        raise ReviewGateError("invalid_check_runs", "check_runs must be a list")
-
-    for item in runs:
+    for item in _as_check_run_list(check_runs):
         if not isinstance(item, Mapping):
             continue
         name = _norm(item.get("name") or item.get("context"))
@@ -444,8 +662,23 @@ def extract_trusted_full_receipt_from_check_runs(
             continue
         app = item.get("app") if isinstance(item.get("app"), Mapping) else {}
         slug = _lower((app or {}).get("slug")) if app else ""
-        # Full suite is authored by GitHub Actions (or missing app on normalized fixtures).
-        if slug and slug not in TRUSTED_CHECK_APP_SLUGS:
+        if slug not in TRUSTED_CHECK_APP_SLUGS:
+            continue
+        item_head = _norm(item.get("head_sha") or item.get("headSha")).lower()
+        if item_head and item_head != head:
+            continue
+        workflow_run = resolve_authenticated_workflow_run_for_check(
+            item,
+            workflow_runs=workflow_runs,
+            default_branch=default_branch,
+            allowed_paths=TRUSTED_FULL_SUITE_WORKFLOW_PATHS,
+            workflow_file_shas=workflow_file_shas,
+        )
+        if workflow_run is None:
+            continue
+        # Full suite producer must evaluate the exact candidate head.
+        run_head = _norm(workflow_run.get("head_sha") or workflow_run.get("headSha")).lower()
+        if run_head and run_head != head:
             continue
         raw = {
             "name": name or FULL_SUITE_CONTEXT,
@@ -472,6 +705,8 @@ def extract_trusted_full_receipt_from_check_runs(
         return {
             "receipt": normalized,
             "evidenceChannel": EVIDENCE_CHANNEL_GITHUB_CHECK_RUN,
+            "workflowPath": _norm(workflow_run.get("path")),
+            "workflowRunId": int(workflow_run.get("id")),
         }
     return None
 
@@ -1005,6 +1240,10 @@ def migrated_required_contexts(contexts: Sequence[str]) -> list[str]:
 def _load_json_arg(raw: str) -> Any:
     if raw == "-":
         return json.load(sys.stdin)
+    # Prefer existing file paths over inline JSON (workflow ARG_MAX safety).
+    if raw and os.path.isfile(raw):
+        with open(raw, encoding="utf-8") as handle:
+            return json.load(handle)
     return json.loads(raw)
 
 
@@ -1084,17 +1323,44 @@ def main(argv: list[str] | None = None) -> int:
 
     ep = sub.add_parser(
         "extract-trusted-provider-evidence",
-        help="Extract provider-unavailability evidence from trusted GitHub check runs only",
+        help="Extract provider-unavailability evidence from default-branch-bound checks only",
     )
     ep.add_argument("--head-sha", required=True)
-    ep.add_argument("--check-runs-json", required=True, help="JSON or '-' for stdin")
+    ep.add_argument("--check-runs-json", required=True, help="JSON, file path, or '-' for stdin")
+    ep.add_argument("--default-branch", required=True)
+    ep.add_argument("--workflow-runs-json", required=True, help="JSON, file path, or '-' for stdin")
+    ep.add_argument(
+        "--workflow-file-shas-json",
+        required=True,
+        help='JSON map path->{default,byHead}, file path, or "-" for stdin',
+    )
 
     ef = sub.add_parser(
         "extract-trusted-full-receipt",
-        help="Extract Full Suite receipt from trusted GitHub check runs only",
+        help="Extract Full Suite receipt from default-branch-bound checks only",
     )
     ef.add_argument("--head-sha", required=True)
-    ef.add_argument("--check-runs-json", required=True, help="JSON or '-' for stdin")
+    ef.add_argument("--check-runs-json", required=True, help="JSON, file path, or '-' for stdin")
+    ef.add_argument("--default-branch", required=True)
+    ef.add_argument("--workflow-runs-json", required=True, help="JSON, file path, or '-' for stdin")
+    ef.add_argument(
+        "--workflow-file-shas-json",
+        required=True,
+        help='JSON map path->{default,byHead}, file path, or "-" for stdin',
+    )
+
+    rw = sub.add_parser(
+        "resolve-workflow-file-shas",
+        help="Resolve Contents API blob SHAs for allowlisted workflow producers",
+    )
+    rw.add_argument("--repository", required=True)
+    rw.add_argument("--default-branch", required=True)
+    rw.add_argument("--workflow-runs-json", required=True, help="JSON, file path, or '-' for stdin")
+    rw.add_argument(
+        "--output",
+        default="-",
+        help="Write JSON to path, or '-' for stdout (default)",
+    )
 
     fa = sub.add_parser("founder-alert", help="Build durable founder-alert payload")
     fa.add_argument("--classification-json", required=True)
@@ -1231,18 +1497,43 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(normalized, indent=2, sort_keys=True))
             return 0
         if args.command == "extract-trusted-provider-evidence":
+            shas = _load_json_arg(args.workflow_file_shas_json)
+            if not isinstance(shas, dict):
+                raise ReviewGateError("invalid_workflow_file_shas", "must be object")
             payload = extract_trusted_provider_evidence_from_check_runs(
                 _load_json_arg(args.check_runs_json),
                 head_sha=args.head_sha,
+                default_branch=args.default_branch,
+                workflow_runs=_load_json_arg(args.workflow_runs_json),
+                workflow_file_shas=shas,
             )
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
         if args.command == "extract-trusted-full-receipt":
+            shas = _load_json_arg(args.workflow_file_shas_json)
+            if not isinstance(shas, dict):
+                raise ReviewGateError("invalid_workflow_file_shas", "must be object")
             payload = extract_trusted_full_receipt_from_check_runs(
                 _load_json_arg(args.check_runs_json),
                 head_sha=args.head_sha,
+                default_branch=args.default_branch,
+                workflow_runs=_load_json_arg(args.workflow_runs_json),
+                workflow_file_shas=shas,
             )
             print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "resolve-workflow-file-shas":
+            payload = build_workflow_file_shas_payload(
+                repository=args.repository,
+                default_branch=args.default_branch,
+                workflow_runs=_load_json_arg(args.workflow_runs_json),
+            )
+            text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+            if args.output == "-":
+                sys.stdout.write(text)
+            else:
+                with open(args.output, "w", encoding="utf-8") as handle:
+                    handle.write(text)
             return 0
         if args.command == "founder-alert":
             raw = _load_json_arg(args.classification_json)

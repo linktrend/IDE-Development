@@ -59,6 +59,17 @@ Candidate repository files (`.linktrend/review-gate-provider-error.json`) and
 when they plant an allowlisted source string. Free-text heuristics must not
 convert `conclusion=failure` / `neutral` into gate success.
 
+When the channel is `github_check_run`, trust requires an independently
+authenticated default-branch workflow identity: the check's Actions run must
+resolve via GitHub API (`details_url` / `html_url` → workflow run id), the run
+`path` must be the allowlisted producer
+(`.github/workflows/linktrend-repair-observer.yml`), and either the run executed
+on the repository default branch or the Contents API blob SHA of that workflow
+file at the run head equals the default-branch blob. App slug
+(`github-actions`) plus check name alone are not provenance — a candidate branch
+can mint a colliding job under the same app. Fail closed when run identity or
+default-branch blob identity cannot be established.
+
 ## Structured findings (no free-text pass)
 
 Genuine `review-findings` require trustworthy structured signals only:
@@ -79,11 +90,17 @@ the classifier or self-approve by changing candidate scripts.
 
 Publishing a successful `Linktrend Review Gate` status requires an exact-head
 Full Suite success receipt/check from a **trusted GitHub check run**
-(`evidence_channel=github_check_run`, app `github-actions`). Candidate-controlled
-`.linktrend/full-suite-receipt.json` files never authorize success. The
+(`evidence_channel=github_check_run`) bound to the allowlisted Full producer
+workflow (`.github/workflows/linktrend-integrator-merge.yml`) via the same
+default-branch workflow identity rule as provider checks (run id from check URL
+fields, allowlisted `path`, default-branch execution or matching Contents API
+workflow blob SHA). Candidate-controlled `.linktrend/full-suite-receipt.json`
+files never authorize success. App slug plus check name
+(`Linktrend Full Suite` / `full` / `full-gate`) alone are not enough. The
 receipt-provided `gitTree` is preserved and compared independently to the live
 exact tree; never overwrite receipt tree with live `TREE`. Missing, wrong-head,
-wrong-tree, untrusted channel, or non-success Full evidence fails closed.
+wrong-tree, untrusted channel, unbound workflow identity, or non-success Full
+evidence fails closed.
 
 ## Infrastructure attempt accounting
 

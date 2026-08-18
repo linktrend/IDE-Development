@@ -29,7 +29,7 @@
     },
     "originalBeforeAfterRollbackPreserved": true
   },
-  "acceptance": "AC-U05-06/14 trusted Review Gate with default-branch scripts and authenticated evidence channels; candidate-planted allowlisted provider/Full evidence cannot authorize success; structured findings wired; founder step-1 imported; PR #326 unchanged; HOLD",
+  "acceptance": "AC-U05-06/14 trusted Review Gate with default-branch scripts and default-branch workflow/run identity binding for Full+provider check evidence; candidate-planted allowlisted provider/Full evidence cannot authorize success; same-app check-name collisions fail closed; structured findings wired; founder step-1 imported; PR #326 unchanged; HOLD",
   "covered": [
     "AC-U05-06",
     "AC-U05-14",
@@ -38,7 +38,9 @@
     "Update1-verified-unavailability-fallback",
     "Update1-no-missing-as-pass",
     "default-branch-trust-boundary-workflow-present",
-    "bootstrap-step1-source-policy-applied-verified-imported"
+    "bootstrap-step1-source-policy-applied-verified-imported",
+    "default-branch-workflow-run-identity-binding",
+    "same-app-check-name-collision-fail-closed"
   ],
   "exclusions": [
     "additional live ruleset apply from Issue #329",
@@ -60,22 +62,22 @@
     "Step-1 rollback evidence preserved under bootstrap-step1-source-policy/sanitized/step1-apply-plan.json (HOLD unless founder-authorized)"
   ],
   "exactRuntimeBlobs": {
-    ".github/workflows/linktrend-review-gate.yml": "91f8108d25a528e42a1661d07dce90ceb805a6f2",
-    "core/github/managed-workflows/linktrend-review-gate.yml": "91f8108d25a528e42a1661d07dce90ceb805a6f2",
-    "scripts/gitops/linktrend_review_gate.py": "598dba754eb09131d8fb28701889f4688e2bc664",
+    ".github/workflows/linktrend-review-gate.yml": "49ffb0ceb294313866d725f60b0893345789d5f0",
+    "core/github/managed-workflows/linktrend-review-gate.yml": "49ffb0ceb294313866d725f60b0893345789d5f0",
+    "scripts/gitops/linktrend_review_gate.py": "4daf39941027fd4e69e3e2818a31bce9c220fd07",
     "core/managed-core/schemas/linktrend-review-gate.schema.json": "5e2cfe41332e6f9b20983eb6fd0a8bc4f0059e46",
-    "docs/contracts/LINKTREND-REVIEW-GATE.md": "44f6485996bc176ded52325bb4eb602fa499236f"
+    "docs/contracts/LINKTREND-REVIEW-GATE.md": "5ef0eec1a5273585137ae856d4f5150a13758907"
   },
   "commands": [
     {
-      "command": "actionlint workflows",
+      "command": "actionlint .github/workflows/linktrend-review-gate.yml core/github/managed-workflows/linktrend-review-gate.yml",
       "exitCode": 0,
       "evidencePath": "docs/evidence/issue-329/focused-tests.out"
     },
     {
       "command": "python3 -m unittest scripts.tests.test_linktrend_review_gate scripts.ide_development_tests.test_build_manifest -v",
       "exitCode": 0,
-      "testsRan": 32,
+      "testsRan": 33,
       "skipped": 3,
       "evidencePath": "docs/evidence/issue-329/focused-tests.out"
     },
@@ -84,9 +86,14 @@
       "exitCode": 0
     },
     {
-      "command": "changed-path secret scan",
+      "command": "changed-path secret scan (security harness)",
       "exitCode": 0,
       "evidencePath": "docs/evidence/issue-329/secret-scan.out"
+    },
+    {
+      "command": "bash scripts/verify-ide-development.sh (sanitized evidence)",
+      "exitCode": 0,
+      "evidencePath": "docs/evidence/issue-329/verify-secret-diff.out"
     },
     {
       "command": "git diff --check",
@@ -107,6 +114,7 @@
     "P2 import attestation includes local-rollback-snapshot-path.txt in fileCount/hashes",
     "Negative tests: PR cannot rewrite classifier; default-branch scripts required",
     "P1 authenticated evidence channels: reject candidate-file provider-error/Full receipt for success authorization",
-    "P2 adversarial tests for all allowlisted planted sources and forged Full receipt provenance"
+    "P2 adversarial tests for all allowlisted planted sources and forged Full receipt provenance",
+    "P1 bind trusted Full/provider check evidence to default-branch workflow/run identity (details_url\u2192run id, allowlisted path, Contents API blob match or default-branch head); same-app/name collisions fail closed"
   ]
 }

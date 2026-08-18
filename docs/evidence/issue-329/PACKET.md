@@ -20,6 +20,7 @@
 
 ## Independent-review repairs (this tip)
 
+- P1: Bind trusted Full Suite / provider-unavailability check evidence to authenticated default-branch workflow/run identity (Actions run id from check URL + allowlisted `workflow_run.path` + Contents API default-branch blob match). Same-app/name collisions fail closed.
 - P1: Authenticated evidence channels — candidate `.linktrend` provider-error/Full files cannot authorize success; GitHub Checks / privileged channels only.
 - P2: Adversarial tests cover all allowlisted planted sources and forged Full receipt provenance.
 
@@ -53,6 +54,7 @@ Imported under `docs/evidence/issue-329/bootstrap-step1-source-policy/` from Iss
 - Verified-unavailability fallback only (`verified: true` + trusted source)
 - No missing-as-pass / no advisory labeled as Bugbot pass
 - Default-branch trust boundary: scripts from protected default path; live == managed template
+- Default-branch workflow/run identity binding for trusted Full/provider GitHub Checks
 - Live development ruleset still requires `Cursor Bugbot` (no Review Gate cutover from this packet)
 
 ## Rollback

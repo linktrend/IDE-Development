@@ -26,6 +26,8 @@ Negative: PR head must not supply executable classifier scripts. ... ok
 test_protection_and_consumer_defaults_migrated (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... skipped 'bootstrap scope: deferred to sealed product candidate / later ruleset migration; do not copy verifier repair onto PR #326'
 test_raw_bugbot_required_contexts_rejected (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
 test_same_account_comment_not_github_approval (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
+test_same_app_check_name_collision_requires_default_branch_workflow_identity (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
+P1: github-actions + matching check name is not enough without workflow binding. ... ok
 test_slurp_json_stdin_handles_arg_max_and_pipefail_hold (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
 Workflow path: stdin --slurp-json - survives ARG_MAX; upstream fail stays HOLD. ... ok
 test_undocumented_task_hold_rejected (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
@@ -42,7 +44,6 @@ test_required_cursor_materialization_sources_are_packaged (scripts.ide_developme
 test_version_alignment_helpers (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
 
 ----------------------------------------------------------------------
-Ran 32 tests in 0.274s
+Ran 33 tests in 0.275s
 
 OK (skipped=3)
-unittest_exit=0

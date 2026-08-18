@@ -2,13 +2,16 @@ sealed_product_candidate_pr=326
 sealed_head=2f204781e093acad694b084e7c4ba0652fd17721
 sealed_tree=4556fb197c575c64cb1a152c00738c8651a3cb74
 full_run=32071094022
+pr326_head_now=2f204781e093acad694b084e7c4ba0652fd17721
+pr326_tree_now=4556fb197c575c64cb1a152c00738c8651a3cb74
 pr326_unchanged=yes
-trust_boundary=default_branch_scripts_candidate_data_only
-evidence_channels=github_check_run|repair_observer_record|operator_privileged_input|provider_status_api
-candidate_file_success_authorization=rejected
+bootstrap_step1_status=APPLIED_VERIFIED_HOLD
+cursor_bugbot_remained_required_on_development=yes
+bootstrap_step1_evidence=docs/evidence/issue-329/bootstrap-step1-source-policy
 exact_runtime_blobs:
-  .github/workflows/linktrend-review-gate.yml=91f8108d25a528e42a1661d07dce90ceb805a6f2 exact=yes
-  core/github/managed-workflows/linktrend-review-gate.yml=91f8108d25a528e42a1661d07dce90ceb805a6f2 exact=yes
-  scripts/gitops/linktrend_review_gate.py=598dba754eb09131d8fb28701889f4688e2bc664 exact=yes
-  core/managed-core/schemas/linktrend-review-gate.schema.json=5e2cfe41332e6f9b20983eb6fd0a8bc4f0059e46 exact=yes
-  docs/contracts/LINKTREND-REVIEW-GATE.md=44f6485996bc176ded52325bb4eb602fa499236f exact=yes
+  .github/workflows/linktrend-review-gate.yml=49ffb0ceb294313866d725f60b0893345789d5f0
+  core/github/managed-workflows/linktrend-review-gate.yml=49ffb0ceb294313866d725f60b0893345789d5f0
+  scripts/gitops/linktrend_review_gate.py=4daf39941027fd4e69e3e2818a31bce9c220fd07
+  core/managed-core/schemas/linktrend-review-gate.schema.json=5e2cfe41332e6f9b20983eb6fd0a8bc4f0059e46
+  docs/contracts/LINKTREND-REVIEW-GATE.md=5ef0eec1a5273585137ae856d4f5150a13758907
+repair=P1-default-branch-workflow-run-identity-binding
