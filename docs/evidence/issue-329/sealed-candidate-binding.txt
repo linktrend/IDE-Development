@@ -8,15 +8,11 @@ pr326_unchanged=yes
 bootstrap_step1_status=APPLIED_VERIFIED_HOLD
 cursor_bugbot_remained_required_on_development=yes
 bootstrap_step1_evidence=docs/evidence/issue-329/bootstrap-step1-source-policy
+trust_boundary=default_branch_scripts_candidate_data_only
+structured_findings=annotations_count_or_action_required
 exact_runtime_blobs:
-  .github/workflows/linktrend-review-gate.yml=3cd823626dc072e552723e4326fc46616c6a4af0 exact=yes
-  core/github/managed-workflows/linktrend-review-gate.yml=3cd823626dc072e552723e4326fc46616c6a4af0 exact=yes
-  scripts/gitops/linktrend_review_gate.py=e456c949d9bb8cc2a25f34e3994b42e7352ab45a exact=yes
+  .github/workflows/linktrend-review-gate.yml=119f272deb78a6ccba6e8d3bdc4bdbf34f6de242 exact=yes
+  core/github/managed-workflows/linktrend-review-gate.yml=119f272deb78a6ccba6e8d3bdc4bdbf34f6de242 exact=yes
+  scripts/gitops/linktrend_review_gate.py=7b5c9987b927d1eb522c6acab5bb02e6fc67d4e7 exact=yes
   core/managed-core/schemas/linktrend-review-gate.schema.json=5e2cfe41332e6f9b20983eb6fd0a8bc4f0059e46 exact=yes
-  docs/contracts/LINKTREND-REVIEW-GATE.md=f2684c54379b067f33891a2d496b016157a99fa5 exact=yes
-changed_paths_vs_prior_tip:
-  docs/evidence/issue-329/PACKET.md
-  docs/evidence/issue-329/acceptance.json
-  docs/evidence/issue-329/sealed-candidate-binding.txt
-  docs/evidence/issue-329/secret-scan.out
-  docs/evidence/issue-329/bootstrap-step1-source-policy/**
+  docs/contracts/LINKTREND-REVIEW-GATE.md=d65f5ec8c39de2a14cc4bb2651714451c8cf6b47 exact=yes

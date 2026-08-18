@@ -87,6 +87,38 @@ def _lower(value: Any) -> str:
     return _norm(value).lower()
 
 
+def structured_bugbot_findings_present(
+    *,
+    annotations_count: int | None = None,
+    bugbot_conclusion: str | None = None,
+    findings_present: bool = False,
+) -> bool:
+    """Return True only for trustworthy structured Bugbot finding signals.
+
+    Accepts explicit classifier flags, GitHub check ``annotations_count > 0``,
+    or ``conclusion=action_required``. Never interprets free-text summaries,
+    candidate prose, missing output, or neutral-alone as findings or as pass.
+    """
+    if findings_present:
+        return True
+    if annotations_count is not None:
+        try:
+            count = int(annotations_count)
+        except (TypeError, ValueError) as exc:
+            raise ReviewGateError(
+                "invalid_annotations_count",
+                "annotations_count must be an integer",
+            ) from exc
+        if count < 0:
+            raise ReviewGateError(
+                "invalid_annotations_count",
+                "annotations_count must be >= 0",
+            )
+        if count > 0:
+            return True
+    return _lower(bugbot_conclusion) == "action_required"
+
+
 @dataclass(frozen=True)
 class Classification:
     """One exact-candidate managed review classification."""
@@ -554,6 +586,7 @@ def classify_bugbot_result(
     bugbot_state: str,
     bugbot_conclusion: str | None = None,
     findings_present: bool = False,
+    annotations_count: int | None = None,
     provider_error: Mapping[str, Any] | None = None,
     infrastructure_attempts: int = 1,
     result_head_sha: str | None = None,
@@ -569,6 +602,11 @@ def classify_bugbot_result(
     tree = require_sha40(git_tree, "git_tree")
     if infrastructure_attempts < 0:
         raise ReviewGateError("invalid_attempts", "attempts must be >= 0")
+    has_findings = structured_bugbot_findings_present(
+        annotations_count=annotations_count,
+        bugbot_conclusion=bugbot_conclusion,
+        findings_present=findings_present,
+    )
 
     if missing or malformed or forged:
         return Classification(
@@ -644,7 +682,7 @@ def classify_bugbot_result(
             sanitizedAlert=None,
         )
 
-    if findings_present:
+    if has_findings:
         return Classification(
             outcome=OUTCOME_FINDINGS,
             gateSuccess=False,
@@ -719,9 +757,9 @@ def classify_bugbot_result(
         "failure",
         "cancelled",
         "timed_out",
-        "action_required",
     }:
         # conclusion=failure never becomes gate success without verified unavailability above.
+        # action_required is handled as structured findings above (never a pass).
         return Classification(
             outcome=OUTCOME_FAILED,
             gateSuccess=False,
@@ -799,6 +837,12 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--bugbot-state", required=True)
     c.add_argument("--bugbot-conclusion", default="")
     c.add_argument("--findings-present", action="store_true")
+    c.add_argument(
+        "--annotations-count",
+        type=int,
+        default=None,
+        help="GitHub check_run.output.annotations_count (structured findings only)",
+    )
     c.add_argument("--provider-error-json", default="")
     c.add_argument("--infrastructure-attempts", type=int, default=1)
     c.add_argument("--result-head-sha", default="")
@@ -902,6 +946,7 @@ def main(argv: list[str] | None = None) -> int:
                 bugbot_state=args.bugbot_state,
                 bugbot_conclusion=args.bugbot_conclusion or None,
                 findings_present=args.findings_present,
+                annotations_count=args.annotations_count,
                 provider_error=provider,
                 infrastructure_attempts=args.infrastructure_attempts,
                 result_head_sha=args.result_head_sha or None,

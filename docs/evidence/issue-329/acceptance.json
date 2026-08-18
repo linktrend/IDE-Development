@@ -29,7 +29,7 @@
     },
     "originalBeforeAfterRollbackPreserved": true
   },
-  "acceptance": "AC-U05-06/14 separate trusted Review Gate source package from exact WP-U01 blobs; Update 1 classifier/receipt/advisory invariants preserved; founder-authorized live bootstrap step 1 imported as APPLIED+VERIFIED with Cursor Bugbot still required and PR #326 unchanged; no further live ruleset/PR/promote/publish/rollout/Full from this branch",
+  "acceptance": "AC-U05-06/14 trusted Review Gate bootstrap with default-branch script trust boundary; structured findings wired; founder step-1 evidence imported APPLIED+VERIFIED with Bugbot still required and PR #326 unchanged; no Full/PR/merge/promote/publish/rollout/additional live ruleset mutate",
   "covered": [
     "AC-U05-06",
     "AC-U05-14",
@@ -60,11 +60,11 @@
     "Step-1 rollback evidence preserved under bootstrap-step1-source-policy/sanitized/step1-apply-plan.json (HOLD unless founder-authorized)"
   ],
   "exactRuntimeBlobs": {
-    ".github/workflows/linktrend-review-gate.yml": "3cd823626dc072e552723e4326fc46616c6a4af0",
-    "core/github/managed-workflows/linktrend-review-gate.yml": "3cd823626dc072e552723e4326fc46616c6a4af0",
-    "scripts/gitops/linktrend_review_gate.py": "e456c949d9bb8cc2a25f34e3994b42e7352ab45a",
+    ".github/workflows/linktrend-review-gate.yml": "119f272deb78a6ccba6e8d3bdc4bdbf34f6de242",
+    "core/github/managed-workflows/linktrend-review-gate.yml": "119f272deb78a6ccba6e8d3bdc4bdbf34f6de242",
+    "scripts/gitops/linktrend_review_gate.py": "7b5c9987b927d1eb522c6acab5bb02e6fc67d4e7",
     "core/managed-core/schemas/linktrend-review-gate.schema.json": "5e2cfe41332e6f9b20983eb6fd0a8bc4f0059e46",
-    "docs/contracts/LINKTREND-REVIEW-GATE.md": "f2684c54379b067f33891a2d496b016157a99fa5"
+    "docs/contracts/LINKTREND-REVIEW-GATE.md": "d65f5ec8c39de2a14cc4bb2651714451c8cf6b47"
   },
   "commands": [
     {
@@ -75,7 +75,7 @@
     {
       "command": "python3 -m unittest scripts.tests.test_linktrend_review_gate scripts.ide_development_tests.test_build_manifest -v",
       "exitCode": 0,
-      "testsRan": 29,
+      "testsRan": 30,
       "skipped": 3,
       "evidencePath": "docs/evidence/issue-329/focused-tests.out"
     },
@@ -89,27 +89,27 @@
       "evidencePath": "docs/evidence/issue-329/secret-scan.out"
     },
     {
-      "command": "bash scripts/verify-ide-development.sh",
+      "command": "bash scripts/verify-ide-development.sh (sanitized evidence)",
       "exitCode": 0,
       "evidencePath": "docs/evidence/issue-329/verify-secret-diff.out"
     },
     {
       "command": "git diff --check",
       "exitCode": 0
-    },
-    {
-      "command": "independent pre-import secret scan of issue-328-bootstrap-step1-source-policy",
-      "exitCode": 0,
-      "findings": 0,
-      "secretValuesRedacted": 0,
-      "evidencePath": "docs/evidence/issue-329/bootstrap-step1-source-policy/IMPORT-ATTESTATION.json"
     }
   ],
   "hold": [
     "Independent review / Packager only",
     "No Full / PR / merge / promote / publish / rollout / additional live ruleset apply",
     "No Bugbot to Review Gate cutover",
-    "PR #326 sealed product candidate must remain unchanged until trusted verifier is installed via protected migration"
+    "PR #326 sealed product candidate must remain unchanged"
   ],
-  "sanitized": true
+  "sanitized": true,
+  "repairs": [
+    "P1 default-branch script trust boundary (candidate head/tree/receipt as data only)",
+    "P2 structured Bugbot findings via annotations_count/action_required (removed dead CHECK_DETAILS)",
+    "P2 sanitized verify evidence host paths; truthful changed-path scan claims",
+    "P2 import attestation includes local-rollback-snapshot-path.txt in fileCount/hashes",
+    "Negative tests: PR cannot rewrite classifier; default-branch scripts required"
+  ]
 }

@@ -3,6 +3,10 @@ name: Linktrend Review Gate
 # Classifies exact-head Cursor Bugbot provider results into the managed
 # Linktrend Review Gate commit status (WP-U01). Never labels advisory
 # unavailability as a Bugbot pass. Free-text provider heuristics are forbidden.
+#
+# Trust boundary: checkout and execute scripts only from the protected
+# repository default branch. Candidate head/tree/receipt/provider evidence are
+# data only (API), never a script execution source.
 
 on:
   check_run:
@@ -24,10 +28,10 @@ jobs:
       checks: read
       actions: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Checkout trusted default branch (scripts only)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.check_run.head_sha }}
-          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
       - name: Classify, alert, fallback, and publish managed gate
         env:
@@ -35,22 +39,34 @@ jobs:
           HEAD_SHA: ${{ github.event.check_run.head_sha }}
           CHECK_CONCLUSION: ${{ github.event.check_run.conclusion }}
           CHECK_STATUS: ${{ github.event.check_run.status }}
-          CHECK_DETAILS: ${{ github.event.check_run.output.summary }}
+          CHECK_ANNOTATIONS_COUNT: ${{ github.event.check_run.output.annotations_count }}
           FALLBACK_REVIEWER: ${{ vars.LINKTREND_REVIEW_GATE_FALLBACK_REVIEWER }}
           FALLBACK_IMPLEMENTER: ${{ vars.LINKTREND_REVIEW_GATE_IMPLEMENTER }}
           INDEPENDENT_REVIEW_CONFIGURED: ${{ vars.LINKTREND_INDEPENDENT_REVIEW_CONFIGURED }}
         run: |
           set -euo pipefail
-          TREE="$(git rev-parse "${HEAD_SHA}^{tree}")"
+          # Candidate identity as data only — never checkout/execute candidate scripts.
+          TREE="$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${HEAD_SHA}" --jq .tree.sha \
+            | tr '[:upper:]' '[:lower:]')"
+          if ! printf '%s' "${TREE}" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "HOLD: candidate_tree_unreadable"; exit 1
+          fi
           PR_NUMBER="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/pulls" \
             --jq '.[0].number // empty' || true)"
 
-          # Trusted verified unavailability only — never free-text heuristics.
+          # Trusted verified unavailability only — candidate file as DATA via Contents API.
+          # Never read provider evidence from the trusted default-branch working tree.
+          # Never execute candidate scripts.
           PROVIDER_JSON=""
-          if [ -f .linktrend/review-gate-provider-error.json ]; then
-            PROVIDER_JSON="$(cat .linktrend/review-gate-provider-error.json)"
-            echo "${PROVIDER_JSON}" | jq -e '.verified == true and (.source|type=="string")' >/dev/null \
-              || { echo "untrusted_provider_error_file"; PROVIDER_JSON=""; }
+          PROVIDER_B64="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/contents/.linktrend/review-gate-provider-error.json?ref=${HEAD_SHA}" \
+            --jq '.content // empty' 2>/dev/null || true)"
+          if [ -n "${PROVIDER_B64}" ]; then
+            PROVIDER_JSON="$(printf '%s' "${PROVIDER_B64}" | tr -d '\n' | base64 --decode 2>/dev/null || true)"
+            if [ -n "${PROVIDER_JSON}" ]; then
+              echo "${PROVIDER_JSON}" | jq -e '.verified == true and (.source|type=="string")' >/dev/null \
+                || { echo "untrusted_provider_error_file"; PROVIDER_JSON=""; }
+            fi
           fi
 
           # Infrastructure markers: paginated slurp via stdin (never argv / ARG_MAX).
@@ -73,6 +89,8 @@ jobs:
             ATTEMPTS=$((ATTEMPTS + 1))
           fi
 
+          # Structured findings only (annotations_count / action_required via classifier).
+          # Never pass free-text check summaries into classification.
           ARGS=(
             python3 scripts/gitops/linktrend_review_gate.py classify
             --repository "${GITHUB_REPOSITORY}"
@@ -83,6 +101,12 @@ jobs:
             --infrastructure-attempts "${ATTEMPTS}"
             --result-head-sha "${HEAD_SHA}"
           )
+          if [ -n "${CHECK_ANNOTATIONS_COUNT}" ]; then
+            case "${CHECK_ANNOTATIONS_COUNT}" in
+              ''|*[!0-9]*) echo "HOLD: annotations_count_invalid"; exit 1 ;;
+              *) ARGS+=(--annotations-count "${CHECK_ANNOTATIONS_COUNT}") ;;
+            esac
+          fi
           if [ -n "${PR_NUMBER}" ]; then
             ARGS+=(--pull-request "${PR_NUMBER}")
           fi
@@ -104,11 +128,16 @@ jobs:
 
           # Exact Full receipt/check required before publishing a successful gate.
           # Preserve receipt-provided gitTree; never overwrite with live TREE.
+          # Candidate receipt is data via API only — never from default-branch working tree.
           if [ "${GATE_SUCCESS}" = "true" ]; then
             FULL_RAW=""
-            if [ -f .linktrend/full-suite-receipt.json ]; then
-              FULL_RAW="$(cat .linktrend/full-suite-receipt.json)"
-            else
+            RECEIPT_B64="$(gh api \
+              "repos/${GITHUB_REPOSITORY}/contents/.linktrend/full-suite-receipt.json?ref=${HEAD_SHA}" \
+              --jq '.content // empty' 2>/dev/null || true)"
+            if [ -n "${RECEIPT_B64}" ]; then
+              FULL_RAW="$(printf '%s' "${RECEIPT_B64}" | tr -d '\n' | base64 --decode 2>/dev/null || true)"
+            fi
+            if [ -z "${FULL_RAW}" ]; then
               FULL_RAW="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs" \
                 --jq '
                   [.check_runs[]

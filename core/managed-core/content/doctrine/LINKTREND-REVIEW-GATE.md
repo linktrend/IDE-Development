@@ -53,6 +53,22 @@ fail-closed.
 (`verified: true` plus a trusted `source`). Free-text heuristics must not
 convert `conclusion=failure` into gate success.
 
+## Structured findings (no free-text pass)
+
+Genuine `review-findings` require trustworthy structured signals only:
+GitHub check `annotations_count > 0`, `conclusion=action_required`, or an
+explicit classifier `--findings-present` flag. Free-text check summaries and
+candidate prose must never authorize pass, findings, or advisory success.
+Missing or neutral-alone remain `review-unknown` (blocking).
+
+## Default-branch script trust boundary
+
+The managed `check_run` workflow must checkout and execute classifier scripts
+only from the protected repository default branch. Candidate head, tree,
+receipts, and provider-error files are data (API) only — never a checkout
+source for executable scripts. A PR cannot rewrite the classifier or
+self-approve by changing candidate scripts.
+
 ## Full receipt before success
 
 Publishing a successful `Linktrend Review Gate` status requires an exact-head

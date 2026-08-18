@@ -17,6 +17,8 @@ test_observer_rejects_raw_bugbot_as_managed_gate (scripts.tests.test_linktrend_r
 test_packaged_surfaces_exist (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
 test_paginated_slurp_flatten_multi_page_bodies_and_dedupe (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
 Two+ pages must flatten to one JSON list; alert/marker counts stay exact. ... ok
+test_pr_cannot_rewrite_classifier_or_self_approve (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests)
+Negative: PR head must not supply executable classifier scripts. ... ok
 test_protection_and_consumer_defaults_migrated (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... skipped 'bootstrap scope: deferred to sealed product candidate / later ruleset migration; do not copy verifier repair onto PR #326'
 test_raw_bugbot_required_contexts_rejected (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
 test_same_account_comment_not_github_approval (scripts.tests.test_linktrend_review_gate.LinktrendReviewGateTests) ... ok
@@ -36,7 +38,7 @@ test_required_cursor_materialization_sources_are_packaged (scripts.ide_developme
 test_version_alignment_helpers (scripts.ide_development_tests.test_build_manifest.BuildManifestPackagingTests) ... ok
 
 ----------------------------------------------------------------------
-Ran 29 tests in 0.256s
+Ran 30 tests in 1.183s
 
 OK (skipped=3)
 unittest_exit=0

@@ -54,6 +54,7 @@ from scripts.gitops.linktrend_review_gate import (
     require_no_raw_bugbot_required,
     require_review_gate_on_development,
     simulate_repeated_founder_alert_events,
+    structured_bugbot_findings_present,
     verified_provider_unavailability,
 )
 
@@ -124,6 +125,18 @@ class LinktrendReviewGateTests(unittest.TestCase):
         findings = self._classify(findings_present=True)
         self.assertEqual(findings.outcome, OUTCOME_FINDINGS)
         self.assertFalse(findings.gateSuccess)
+
+        annotated = self._classify(annotations_count=2, bugbot_conclusion="success")
+        self.assertEqual(annotated.outcome, OUTCOME_FINDINGS)
+        self.assertFalse(annotated.gateSuccess)
+        self.assertFalse(annotated.bugbotPassedClaim)
+
+        action_required = self._classify(
+            bugbot_state="completed",
+            bugbot_conclusion="action_required",
+        )
+        self.assertEqual(action_required.outcome, OUTCOME_FINDINGS)
+        self.assertFalse(action_required.gateSuccess)
 
         failed = self._classify(bugbot_state="failure", bugbot_conclusion="failure")
         self.assertEqual(failed.outcome, OUTCOME_FAILED)
@@ -397,9 +410,75 @@ class LinktrendReviewGateTests(unittest.TestCase):
             self.assertIn("flatten-comment-bodies", text)
             self.assertIn("HOLD: infra_marker_read_failed", text)
             self.assertIn("set -euo pipefail", text)
+            # Trust boundary: default-branch scripts; candidate is data only.
+            self.assertIn("github.event.repository.default_branch", text)
+            self.assertIn("Checkout trusted default branch (scripts only)", text)
+            self.assertNotIn("ref: ${{ github.event.check_run.head_sha }}", text)
+            self.assertNotIn("CHECK_DETAILS", text)
+            self.assertIn("CHECK_ANNOTATIONS_COUNT", text)
+            self.assertIn("--annotations-count", text)
+            self.assertIn("python3 scripts/gitops/linktrend_review_gate.py", text)
+            self.assertIn("contents/.linktrend/review-gate-provider-error.json?ref=", text)
+            self.assertIn("statuses: write", text)
             # U01-R4: infra marker publication is fail-closed.
             self.assertIn("infra_attempt_marker_persist_failed", text)
             self.assertNotIn('-f body="${INFRA_MARKER}" >/dev/null || true', text)
+
+    def test_pr_cannot_rewrite_classifier_or_self_approve(self) -> None:
+        """Negative: PR head must not supply executable classifier scripts."""
+        live = WORKFLOW.read_text(encoding="utf-8")
+        managed = MANAGED_WORKFLOW.read_text(encoding="utf-8")
+        self.assertEqual(live, managed)
+        for text in (live, managed):
+            self.assertIn("ref: ${{ github.event.repository.default_branch }}", text)
+            self.assertNotIn("ref: ${{ github.event.check_run.head_sha }}", text)
+            self.assertNotIn("ref: ${{ github.event.pull_request.head.sha }}", text)
+            self.assertNotIn("untrusted-source-data/scripts", text)
+            # Scripts execute from trusted checkout root only.
+            self.assertIn("python3 scripts/gitops/linktrend_review_gate.py classify", text)
+            # Free-text Bugbot check summaries must not drive classification.
+            self.assertNotIn("CHECK_DETAILS", text)
+            self.assertNotIn("github.event.check_run.output.summary", text)
+            self.assertNotIn("check_run.output.summary", text)
+
+        # Missing / neutral / free-text provider hints never become pass.
+        self.assertEqual(self._classify(missing=True).outcome, OUTCOME_UNKNOWN)
+        self.assertFalse(self._classify(missing=True).gateSuccess)
+        neutral = self._classify(bugbot_conclusion="neutral")
+        self.assertEqual(neutral.outcome, OUTCOME_UNKNOWN)
+        self.assertFalse(neutral.gateSuccess)
+        heuristic = self._classify(
+            bugbot_state="completed",
+            bugbot_conclusion="success",
+            provider_error={
+                "verified": False,
+                "class": "quota",
+                "source": "candidate-free-text-says-clean",
+            },
+        )
+        # Unverified provider error is ignored; clean success remains success.
+        self.assertEqual(heuristic.outcome, OUTCOME_PASSED)
+        # Candidate prose / untrusted source cannot force advisory success:
+        forged_advisory = self._classify(
+            bugbot_state="completed",
+            bugbot_conclusion="neutral",
+            provider_error={
+                "verified": True,
+                "class": "quota",
+                "source": "grep-heuristic",
+            },
+        )
+        self.assertEqual(forged_advisory.outcome, OUTCOME_UNKNOWN)
+        self.assertFalse(forged_advisory.gateSuccess)
+
+        # Structured annotations force review-findings even if conclusion looks clean.
+        self.assertTrue(structured_bugbot_findings_present(annotations_count=1))
+        self.assertFalse(structured_bugbot_findings_present(annotations_count=0))
+        self.assertFalse(structured_bugbot_findings_present(annotations_count=None))
+        blocked = self._classify(annotations_count=1, bugbot_conclusion="success")
+        self.assertEqual(blocked.outcome, OUTCOME_FINDINGS)
+        self.assertFalse(blocked.gateSuccess)
+        self.assertFalse(blocked.bugbotPassedClaim)
 
     def test_durable_founder_alert_dedupe_and_fail_closed(self) -> None:
         advisory = self._classify(

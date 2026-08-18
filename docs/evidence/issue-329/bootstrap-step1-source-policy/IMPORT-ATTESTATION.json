@@ -36,10 +36,11 @@
     "rollback": "sanitized/step1-apply-plan.json (historical rollbackCommand path names original packet; local usable snapshot is this imported file)"
   },
   "localRollbackSnapshot": "docs/evidence/issue-329/bootstrap-step1-source-policy/sanitized/step1-apply-plan.json",
-  "fileCount": 32,
+  "fileCount": 33,
   "fileSha256": {
-    "PACKET.md": "de71d4e6445792d933ea5cd0572c01da56fc3759aa413f4ffd220647d7e271b6",
+    "PACKET.md": "61876e5fe052062b772718c01717fa8be6572ff8d93658576ab0234c0bff14b8",
     "identity.txt": "8dc66c8251ed00754da58ba3ff78141103b4c26059cfaeaf50ad48e1f29748f8",
+    "local-rollback-snapshot-path.txt": "3f8d6f4e027e2b526963b11cf6943142f1b4ae682caf763962bbdc3e1d200ec0",
     "raw/branch-development.json": "bed7595fbf14cca39ba953cd7d662a4f01501cebce2868ca123283bd805153c4",
     "raw/branch-main.json": "e9b7f8fbb1e7da3d54d080b00a9e0698e9f05a5aa62700af3e40eab5c2ab8772",
     "raw/branch-source-policy-runs.json": "47615025286e923a6022f154898bf635ee5b3b18bdb6a5acbff6f240a04fa7ea",
@@ -83,38 +84,9 @@
   "postImportNormalizations": [
     "trailing whitespace stripped from PACKET.md only so git diff --check passes; before/after/rollback JSON bodies unchanged"
   ],
-  "fileSha256AfterWhitespaceNormalize": {
-    "PACKET.md": "61876e5fe052062b772718c01717fa8be6572ff8d93658576ab0234c0bff14b8",
-    "identity.txt": "8dc66c8251ed00754da58ba3ff78141103b4c26059cfaeaf50ad48e1f29748f8",
-    "raw/branch-development.json": "bed7595fbf14cca39ba953cd7d662a4f01501cebce2868ca123283bd805153c4",
-    "raw/branch-main.json": "e9b7f8fbb1e7da3d54d080b00a9e0698e9f05a5aa62700af3e40eab5c2ab8772",
-    "raw/branch-source-policy-runs.json": "47615025286e923a6022f154898bf635ee5b3b18bdb6a5acbff6f240a04fa7ea",
-    "raw/branch-staging.json": "3f4df940e0caf5e1abdfb1e077db41e72fb877dcf4fc1de06703fec770f8cfee",
-    "raw/candidate-tree.txt": "1c574dea8486cb08cfc3aba4367bcdda39fbb1db56ead8987ea604360aff481b",
-    "raw/pr-326.json": "c2af7c3a3bc8f0827ecbabffb0163c8ed1e55181276bc97c22958d8d96434244",
-    "raw/ruleset-19728531-after.json": "8adf7f82c99b37804ae26350021ce0a060e8ca098c61e83b1955099aba48bfd0",
-    "raw/ruleset-19728531.json": "c03c1514184d60c75796aee460dde0b430817461e1c35179663b0b6dddfe89f1",
-    "raw/ruleset-20218450-after.json": "b3ef568a97fd81ccfef22b240629dd8fe74ba3d887bd4442aec2e90983156d0f",
-    "raw/ruleset-20218450.json": "0575f01b75abe931236c16c9698edc116e2b86d278a201cab195087f4659bf8e",
-    "raw/ruleset-20218451-after.json": "dbd9e4ca7e57e3233a8561d2abf16de7c5923713a396b8b4af9e668721224645",
-    "raw/ruleset-20218451.json": "7c165346a30a386e40fb4e1cc03f1a5170622a1b3f936f2b0e92397e56375e2e",
-    "raw/rulesets-list.json": "960ba9df603333f289bd7cccef933ec1a0466331c7d9e4b388e4c8391684e6af",
-    "raw/rulesets-summary.json": "7523f0c898d89205b0ea633710258f7e71ee165dc876d06abebbaf98e66a1349",
-    "raw/workflow-branch-source-policy.json": "e22a31a8daf924d9a550a6ee38a92f7a63d676f200df02fa042b26036d5e23bb",
-    "sanitized/OPERATOR-RESULT.json": "9ac64fc9e00cfe702e8963589f4e69c780007003979b5a261cc4b7500f33a958",
-    "sanitized/after-contexts.json": "c170de2b2cff0162110f75e23ff7978be075b1fc44e563f82537bda23bfb64b6",
-    "sanitized/before-contexts.json": "fbd6338c82ecf0b46bcbcedaebd39a70a2183358d5bac614d0563d008d84bd82",
-    "sanitized/capability-preflight.json": "097b407aa043b700665884ee297fcdcfe5ee73325bdd5284087d573435acc79d",
-    "sanitized/default-protection-plan-NOT-APPLIED.json": "68af5442264e85c4d5b4ae228cf219ceb09d29c6d10ebbe1ff66d8c16885da28",
-    "sanitized/full-rename-plan-NOT-APPLIED.json": "85ab04f824267889c29a7575d168180ca6220fa24bbfd38beae78f9f8180ea8a",
-    "sanitized/pr-326-post.json": "f00a7ea80dbc7c7d9ac1684dcdece7c3e8694f4eb5579246857e601375cbf3ba",
-    "sanitized/pr-326-pre.json": "f00a7ea80dbc7c7d9ac1684dcdece7c3e8694f4eb5579246857e601375cbf3ba",
-    "sanitized/producer-check.json": "75fc0a0498564621f91145c17099efa581b9dee490c6c38f3b56aef250edcb39",
-    "sanitized/step1-apply-plan.json": "5ee8e6b8dccaa56c2ed07bee5a51397688be3ce974ece7b61e4675e36f605765",
-    "sanitized/step1-apply-result.json": "8638d4377566f6d7ccbefbe838fa7cf77c19864f3395cb32493e4696289a791b",
-    "sanitized/step1-post-verify.json": "a38852be9033221ac5f2255e5cf921daa05b1ea0262babc4219c498627303c90",
-    "sanitized/step1-rename-plan.json": "8444134a61eaa0e21126f0df4456658144f254edf78874ac696b6fb99c0e73b7",
-    "sanitized/step1-summary-pre-apply.json": "53d62a2da98b9f966a959f3c15893ceed7e7c666c3802659f0f0b64f021cba61",
-    "started_at_utc.txt": "19cdacf924dc78bec3520fc595185a6c04d3c9c82859638f571458dfef22f04a"
+  "attestationCompleteness": {
+    "includesLocalRollbackSnapshotPathTxt": true,
+    "excludesSelfImportAttestation": true,
+    "updatedAtUtc": "2026-08-18T00:32:54Z"
   }
 }
