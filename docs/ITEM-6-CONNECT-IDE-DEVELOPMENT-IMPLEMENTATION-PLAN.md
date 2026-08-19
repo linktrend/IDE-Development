@@ -245,7 +245,7 @@ Execution in Item 6 means **addressing an immutable release for the requesting a
 | Fail-closed | unknown field; `secret` in result; malformed opaque id; unknown status string |
 | Do not | Open Autowork jobs against production; edit LiNKautowork |
 
-Re-verify the receipt `contractVersion` string against LiNKautowork `9caab9aa33de5f96e33d67d880f2934dc6fd9fef` (or newer `development` at S0 freeze). Do not copy Issue 244's `provider-contract/v1` unless that file still says so.
+Re-verify the receipt `contractVersion` string against LiNKautowork `79ee98eb3bd1ae0cce9d34872e90fe7101a9f353` (or newer `development` at S0 freeze). Do not copy Issue 244's `provider-contract/v1` unless that file still says so.
 
 ### WP-I6-S6 — obsolete references, MCP/OKF, barrel, self-install guard
 

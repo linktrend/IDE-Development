@@ -90,13 +90,13 @@ That branch is **not** based on current `v2.3.8`. It must not be merged as the I
 
 Issue 244 frozen pins (obsolete versus current provider `development` tips):
 
-| Provider | Issue 244 commit / tree | Current `origin/development` commit / tree (2026-08-17) |
+| Provider | Issue 244 commit / tree | Current `origin/development` commit / tree (2026-08-19) |
 |---|---|---|
-| LiNKplatform | `6a7114674c23fc6b9ba9ae2b3277b8aec7a3fb15` / `91d565a988150da39a13b66c4bcd51f7bc47c9be` | `2d5f37ef6b8e40ad47305adab47613d915967c1b` / `90b51726f7a77e4620151a463a10cfc3d2007c88` |
-| LiNKlibraries | `b2d2bbb035c6e6a3f859480ce57f12e0882dd3f0` / `2701e6a190468f437102946425a64e890eed6690` | `5901d111309543ed0839938d7217475e5d4b8ac4` / `185d7cf714777d60a2d01a4881bf1a11bc5018d9` |
-| LiNKbrain | `43887ffc3b51ef2e54c30820d41cab67f54d5d0f` / `40c7acfcd7b204f19a1278e6801033c4ee64b369` | `77af7d02a76e6a8877d59fbd3d3e917ac6e830c5` / `0cae42d612342f5e52c7e2e0e76cb6fc2f6d81f3` |
-| LiNKskills | `93ec4b9df2ebe2a9d9b412fb8b3bcde2aa8e97f3` / `1845b996a7ec4d217a57e6f66574d6c5d676bb67` | `0d6bf34546f89c9beb7f05483a3ed4deeb3a5a67` / `6c36e6c98f90e55d957fba781327b1b0ef90860a` |
-| LiNKautowork | `10f75a8d840160a10d131371e94a338dfd1ebb4a` / `c433907818f2cd4adbfdd61549f9f91396e31819` | `9caab9aa33de5f96e33d67d880f2934dc6fd9fef` / `5f306d674780a5a26048017f916da6048d71e7a5` |
+| LiNKplatform | `6a7114674c23fc6b9ba9ae2b3277b8aec7a3fb15` / `91d565a988150da39a13b66c4bcd51f7bc47c9be` | `adbabf7d399cbfe5c1056d275c3d98eb480397cc` / `b76993f458b6dbed5d2c3e09c2c5e8ad87c6a45d` |
+| LiNKlibraries | `b2d2bbb035c6e6a3f859480ce57f12e0882dd3f0` / `2701e6a190468f437102946425a64e890eed6690` | `4cbe7fb174aba4b159d6c37ba1ef65fd3221510f` / `60e582fbd1ce988538b650c99878e700c6cfa0d2` |
+| LiNKbrain | `43887ffc3b51ef2e54c30820d41cab67f54d5d0f` / `40c7acfcd7b204f19a1278e6801033c4ee64b369` | `9042e668dd0c7cef232cb427ffc9c76f06a7a446` / `303a15936932fb5a54b208c934a6d511045cc8e4` |
+| LiNKskills | `93ec4b9df2ebe2a9d9b412fb8b3bcde2aa8e97f3` / `1845b996a7ec4d217a57e6f66574d6c5d676bb67` | `e3d80fd22a05a4f68207e130c50b772b5acffda4` / `69a131b46a73a4ef724694bfe240b1a11652bcc9` |
+| LiNKautowork | `10f75a8d840160a10d131371e94a338dfd1ebb4a` / `c433907818f2cd4adbfdd61549f9f91396e31819` | `79ee98eb3bd1ae0cce9d34872e90fe7101a9f353` / `deb37e4f3a29339b35613ee799d461c74bb7b585` |
 
 Issue 244 also materializes the consumer module into `.ide-development/providers/` for **other** repositories. That destination is valid for the nine consumers after an authorized install. It is **not** a license to install `.ide-development/` into IDE Development.
 
@@ -110,7 +110,7 @@ These shapes were observed in sibling provider checkouts / GitHub `development` 
 | LiNKlibraries | Revision-2 schemas and materialization receipts; canonical remote `https://github.com/linktrend/LiNKlibraries.git` | Consume immutable commit/tree/digest references; Wave-1 `indexes/catalog.json` client remains the installed dual-homed client until a later managed migration |
 | LiNKbrain | `contractVersion` `2.0.0`; `authority: advisory`; MCP `2026-07-28` sessionless | Advisory projections only; no execution authority; session `initialize` forbidden at the modern boundary |
 | LiNKskills | Provider v0.2 / `skills.api.v0.2`; MCP `2026-07-28`; immutable release URIs; restricted tools; `skills_run_*` not on v0.2 | Discover/validate/address exact releases; requesting agent executes; no local full catalogue/pack |
-| LiNKautowork | Deterministic provider plane present on `origin/development` `9caab9aa33de5f96e33d67d880f2934dc6fd9fef` | Consume request/status/handoff/receipt objects; no provider-side mutation from this repo |
+| LiNKautowork | Deterministic provider plane present on `origin/development` `79ee98eb3bd1ae0cce9d34872e90fe7101a9f353` | Consume request/status/handoff/receipt objects; no provider-side mutation from this repo |
 
 Local sibling clones for LiNKlibraries, LiNKbrain, and LiNKautowork were **ahead of** their `origin/development` at inspection. Item 6 pins **GitHub `development` tips**, not unpushed local HEADs.
 
@@ -119,7 +119,7 @@ Local sibling clones for LiNKlibraries, LiNKbrain, and LiNKautowork were **ahead
 | ID | Assumption | Required verification before implementation freeze |
 |---|---|---|
 | A-01 | Issue 244 validator field sets still match current provider schemas | Diff each provider contract at the chosen pin SHA against `consumer-contracts.mjs` provenance |
-| A-02 | `provider-contract/v1` remains the Autowork receipt contract id | Confirm on LiNKautowork `9caab9aa…` (or newer `development` tip at freeze time) |
+| A-02 | `provider-contract/v1` remains the Autowork receipt contract id | Confirm on LiNKautowork `79ee98eb…` (or newer `development` tip at freeze time) |
 | A-03 | OKF `0.2` remains optional mapping, never a second source of truth | Confirm against current LiNKskills and LiNKbrain docs at pin time |
 | A-04 | Wave-1 `library-client.mjs` can coexist with a revision-2 reference validator under `core/link-integrations/` until post-`v2.4.0` managed migration | Confirm no MANIFEST destination collision and no dual-authority catalog behaviour |
 | A-05 | PR 245 can remain open as frozen provenance without being merged | Codex/founder disposition; this PRD recommends do-not-merge |

@@ -564,8 +564,8 @@ test('validator has no transport, skill execution, catalogue, or credential APIs
 
 test('S0 pins remain frozen and MANIFEST is not a pre-rollout write', () => {
   assert.equal(FROZEN_PROVIDERS.skills.repository, 'linktrend/LiNKskills')
-  assert.equal(FROZEN_PROVIDERS.skills.commit, '0d6bf34546f89c9beb7f05483a3ed4deeb3a5a67')
-  assert.equal(FROZEN_PROVIDERS.skills.tree, '6c36e6c98f90e55d957fba781327b1b0ef90860a')
+  assert.equal(FROZEN_PROVIDERS.skills.commit, 'e3d80fd22a05a4f68207e130c50b772b5acffda4')
+  assert.equal(FROZEN_PROVIDERS.skills.tree, '69a131b46a73a4ef724694bfe240b1a11652bcc9')
   assert.equal(MANIFEST_SOURCE.includes('core/link-integrations/skills.mjs'), false)
   assert.equal(MANIFEST_SOURCE.includes('.ide-development/providers/'), false)
   assert.equal(existsSync(join(ROOT, '.ide-development')), false)

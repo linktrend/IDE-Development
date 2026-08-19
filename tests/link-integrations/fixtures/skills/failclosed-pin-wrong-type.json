@@ -1,7 +1,7 @@
 {
   "contractVersion": "skills.api.v0.2",
   "providerCommit": 1,
-  "providerTree": "6c36e6c98f90e55d957fba781327b1b0ef90860a",
+  "providerTree": "69a131b46a73a4ef724694bfe240b1a11652bcc9",
   "skillId": "synthetic-skill",
   "version": "1.0.0",
   "releaseHash": "sha256:7c1e3a9b0d4f28e6a1c5b8d0e3f6a9c2d5e8f1a4b7c0d3e6f9a2b5c8d1e4f70a",

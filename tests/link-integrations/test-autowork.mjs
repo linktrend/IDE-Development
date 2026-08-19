@@ -57,8 +57,8 @@ test('AC-I6-POS-autowork: pin-time contract identity is 2026-08-13.v1 with exact
   assert.equal(AUTOWORK_EXECUTION_AUTHORITY, 'none')
   assert.equal(AUTOWORK_PIN, FROZEN_PROVIDERS.autowork)
   assert.equal(AUTOWORK_PIN.repository, 'linktrend/LiNKautowork')
-  assert.equal(AUTOWORK_PIN.commit, '9caab9aa33de5f96e33d67d880f2934dc6fd9fef')
-  assert.equal(AUTOWORK_PIN.tree, '5f306d674780a5a26048017f916da6048d71e7a5')
+  assert.equal(AUTOWORK_PIN.commit, '79ee98eb3bd1ae0cce9d34872e90fe7101a9f353')
+  assert.equal(AUTOWORK_PIN.tree, 'deb37e4f3a29339b35613ee799d461c74bb7b585')
   assert.notEqual(AUTOWORK_PIN.commit, '10f75a8d840160a10d131371e94a338dfd1ebb4a')
   assert.equal(SOURCE.includes('provider-contract/v1'), false)
   assert.equal(SOURCE.includes('10f75a8d840160a10d131371e94a338dfd1ebb4a'), false)
@@ -362,8 +362,8 @@ test('consumer module has no transport, credentials, Git write, Ledger, or Gate 
 
 test('S0 pins remain frozen and MANIFEST is not a pre-rollout write', () => {
   assert.equal(FROZEN_PROVIDERS.autowork.repository, 'linktrend/LiNKautowork')
-  assert.equal(FROZEN_PROVIDERS.autowork.commit, '9caab9aa33de5f96e33d67d880f2934dc6fd9fef')
-  assert.equal(FROZEN_PROVIDERS.autowork.tree, '5f306d674780a5a26048017f916da6048d71e7a5')
+  assert.equal(FROZEN_PROVIDERS.autowork.commit, '79ee98eb3bd1ae0cce9d34872e90fe7101a9f353')
+  assert.equal(FROZEN_PROVIDERS.autowork.tree, 'deb37e4f3a29339b35613ee799d461c74bb7b585')
   assert.equal(MANIFEST_SOURCE.includes('core/link-integrations/autowork.mjs'), false)
   assert.equal(MANIFEST_SOURCE.includes('.ide-development/providers/'), false)
   assert.equal(existsSync(join(ROOT, '.ide-development')), false)

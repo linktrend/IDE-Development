@@ -27,8 +27,8 @@
     "actorLifecycleState": "active",
     "bindingState": "active",
     "providerPin": {
-      "commit": "2d5f37ef6b8e40ad47305adab47613d915967c1b",
-      "tree": "90b51726f7a77e4620151a463a10cfc3d2007c88"
+      "commit": "adbabf7d399cbfe5c1056d275c3d98eb480397cc",
+      "tree": "b76993f458b6dbed5d2c3e09c2c5e8ad87c6a45d"
     }
   }
 }

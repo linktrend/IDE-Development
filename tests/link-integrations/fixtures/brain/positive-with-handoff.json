@@ -10,8 +10,8 @@
   "context": {
     "providerStatus": "available",
     "providerPin": {
-      "commit": "77af7d02a76e6a8877d59fbd3d3e917ac6e830c5",
-      "tree": "0cae42d612342f5e52c7e2e0e76cb6fc2f6d81f3"
+      "commit": "9042e668dd0c7cef232cb427ffc9c76f06a7a446",
+      "tree": "303a15936932fb5a54b208c934a6d511045cc8e4"
     }
   }
 }
