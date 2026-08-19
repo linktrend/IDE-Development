@@ -65,6 +65,12 @@ From an installed consumer, Codex and Cursor must be able to:
 - report use through the supported bounded telemetry surface when required;
 - reject unpublished, unqualified, incompatible, or mutable aliases.
 
+IDE Development v2.5 must not ship its own workflow skills. Existing IDE Development skills—including setup, compliance, delivery, review, repair, promotion, and rollout skills—must be migrated to LiNKskills as qualified, immutable releases. Managed core may retain only the minimal provider loader and discovery instructions needed to authenticate to LiNKskills and retrieve the first approved skill; that loader is infrastructure, not a workflow skill.
+
+Codex and Cursor must resolve IDE workflow skills exclusively from an IDE-owned, version-pinned LiNKskills namespace and allowlist. They must not silently select similarly named global, repository-local, marketplace, cached, stale, or model-invented skills. Retrieved releases must be verified before use, caches must be digest-bound and disposable, and provider unavailability must fail clearly rather than falling back to an unapproved copy.
+
+Migration must avoid a bootstrap deadlock: the v2.5 installer first installs and proves the minimal LiNKskills loader, then retrieves and verifies the required v2.5 workflow-skill set, and only then removes the old physical IDE workflow skills. Rollback restores the prior complete package and skill set atomically.
+
 ### 3.5 LiNKplatform
 
 The installed application adapters must use LiNKplatform for the identity, organization, permission, and capability decisions required by provider access. A direct Supabase development connector is not a substitute for the supported IDE application path.
@@ -167,6 +173,26 @@ Tests installed in consumers must be self-contained. A managed test must not ref
 - GitHub-hosted compute may run independent repository work in parallel, but parallelism must not duplicate validation of the same tree.
 - Usage/cost reporting remains available, while cost controls must not silently block an authorized release.
 
+### 6.1 GitHub App authentication cutover
+
+Replacing a long-lived automation token with GitHub App authentication must not create a new delivery blockage. Before cutover, v2.5 must inventory every operation performed by the existing credential and prove permission parity for repository contents, pull requests, checks/statuses, Actions dispatch/read, issues, metadata, and any required administration surface.
+
+The cutover must account for:
+
+- App installation on IDE Development and every intended consumer repository;
+- repository-selection drift when a new consumer is added or an installation is narrowed;
+- one-hour installation-token expiry, including refresh before long operations and safe retry after an authentication expiry;
+- least-privilege token minting for the exact repository and operation;
+- GitHub primary and secondary rate limits, bounded backoff, request consolidation, and a clear rate-limit hold rather than a retry storm;
+- workflow-trigger differences between the built-in workflow token and an App installation token;
+- required-check and ruleset recognition of statuses/checks published by the App identity;
+- fork/untrusted-event rules where protected credentials must not be exposed;
+- App suspension, removal, permission changes, private-key rotation, webhook/configuration drift, and GitHub outages;
+- token-format changes: code must not assume a fixed token length or persist a minted installation token;
+- audit logs that identify the App, repository, exact operation, and sanitized failure without exposing credentials.
+
+Migration uses a canary repository and an atomic cutover. The existing route remains recoverable until the App path proves bootstrap, Review Ready publication, Phase PR creation/update, required-check production, merge, and promotion for an exact test tree. Rollback restores the former route without changing product code or weakening protection. After acceptance, the old long-lived credential is revoked and its repository references are removed so two competing authentication routes cannot remain active.
+
 ## 7. Bootstrap, publication, and rollout
 
 ### 7.1 Bootstrap
@@ -207,6 +233,10 @@ A repository is not counted as rolled out merely because `.ide-development/` exi
 The release must provide a supported non-interactive acceptance harness for the Codex and Cursor macOS applications. It must be able to select the canary repository, start an isolated test session, invoke the named read and handoff tools, capture sanitized results, and terminate the session without depending on coordinate clicking or an already-focused window.
 
 If application automation is unavailable, the app canary fails. The release may not replace it with inspection of configuration files, a direct provider call outside the app, or a statement that the connector appears installed.
+
+The harness must use a narrow tool allowlist and per-operation read/write policy. It must not require Cursor's blanket `--force` permission in ordinary use. A read-only canary may approve only the named provider discovery/read tools; a handoff canary may additionally approve only the isolated test-namespace handoff operations.
+
+Baseline finding on 2026-08-19: Cursor CLI in the real LiNKplatform repository reported the Supabase MCP server ready. `--approve-mcps` still rejected `supabase-list_projects`, while a separately authorized read-only run with `--force` successfully queried `linkplatform-prod` (`sedmbicfstnntmkczpvd`): `platform.capabilities` and `platform.organizations` existed with row counts 2 and 1. Therefore Cursor-to-Platform application access is proven, but the current approval mechanism is too broad for the v2.5 production harness and must be replaced by the narrow policy above.
 
 ## 8. Required acceptance evidence
 
