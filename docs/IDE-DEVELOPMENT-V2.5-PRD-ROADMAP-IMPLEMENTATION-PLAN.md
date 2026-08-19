@@ -10,7 +10,7 @@
 
 ## 1. How to use this document
 
-This document is the complete product definition and execution plan for IDE Development v2.5.0. A future orchestrator may use it to create issues, delegate bounded work packets, verify results, integrate the exact release tree, publish the package, and roll it out after receiving the required execution and promotion approvals.
+This document is the complete product definition and execution plan for IDE Development v2.5.0. One executing agent can use it to create issues, run or delegate bounded work packets, obtain independent reviews, verify results, integrate the exact release tree, publish the package, and roll it out after receiving the required execution and promotion approvals.
 
 No task history, chat transcript, prior PRD, or unstated decision is required to understand the intended result. Repository files named below are implementation surfaces to inspect and change; they are not external sources of missing requirements. When a current file conflicts with this document for the v2.5 implementation, this document defines the target state, while repository safety instructions and explicit founder approvals continue to govern whether a live action may occur.
 
@@ -23,6 +23,52 @@ The executor must:
 5. Request explicit authorization at the gates identified in §19 when it was not already supplied by the execution task.
 6. Preserve independent implementer/reviewer separation and exact-head/tree evidence.
 7. Never claim that configuration, fixtures, source code, package presence, health endpoints, or version files prove live application functionality.
+
+### 1.1 Sole-specification execution contract
+
+This document is designed to be the sole **technical and product specification** supplied to one executing agent. The instruction may be only: **“Implement IDE Development v2.5.0 end to end using this document.”** It does not need to repeat architecture, requirements, repository names, sequencing, tests, rollout order, exclusions, or completion criteria.
+
+The executing agent may be **Luna High, Grok 4.5 Medium, Grok 4.6 Medium, or an equivalently capable agent**. It owns the whole program from intake through closure. Where this document requires implementer/reviewer separation, the executing agent creates and coordinates separate bounded agent sessions with distinct identities; the founder does not need to provide separate prompts or technical context to those sessions.
+
+Before doing any mutation, the executing agent must prove it can:
+
+1. read this entire document and the applicable repository instructions;
+2. maintain the requirement, packet, repository, branch, commit, tree, review, test, and approval ledgers defined here;
+3. use isolated branches/worktrees without disturbing unrelated work;
+4. distinguish read-only discovery from GitHub, provider, application, runtime, or repository mutation;
+5. stop at an authorization gate instead of treating this specification as permission;
+6. preserve implementer/reviewer separation; and
+7. emit exact machine-readable evidence rather than narrative-only claims.
+
+If any capability is unavailable, the executing agent must replace that internal lane with a capable session or record a blocked result. It must not simplify or reinterpret requirements to fit the model, and it must not ask the founder to restate information already contained here.
+
+### 1.2 What “no other information” does and does not mean
+
+No additional design decision, chat history, task transcript, architectural explanation, repository list, rollout order, testing policy, or product requirement should be requested from the founder. The executor discovers current technical state through the repositories and authenticated read APIs, using the deterministic rules in this document.
+
+The following are **external authority or access**, not missing specification information:
+
+- authenticated access to the named repositories and selected Codex/Cursor environments;
+- protected GitHub App/private-key bindings and provider/runtime credentials already approved for the operation;
+- permission to mutate another repository, GitHub rulesets/secrets/settings, a live provider, a runtime/VPS, or protected branches;
+- explicit founder approval for a reserved main/publish/deploy gate when not already recorded for the exact operation.
+
+The agent must not ask the founder to redesign the solution when one of those is absent. It must complete every safe authorized predecessor, emit one exact blocked-gate record identifying the missing authority/access by name without exposing a secret, and stop only the dependent path. A later authorization resumes from the recorded exact state; it does not require a new technical brief.
+
+### 1.3 Default decision rules
+
+When implementation details admit more than one reasonable choice, apply these defaults in order:
+
+1. preserve the provider/consumer ownership table in §7;
+2. reuse a current repository abstraction only when it meets the v2.5 target and has tests;
+3. prefer one canonical generator/schema/controller over duplicated implementations;
+4. prefer transactional, idempotent, reversible changes over direct mutation;
+5. prefer GitHub-hosted compute for hosted validation and Cursor Cloud for newly delegated Cursor work when both are authorized and suitable;
+6. never use local application state as a substitute for a required Cloud/API or real-application proof;
+7. use the smallest test profile that proves the changed risk, and never omit a declared required test merely to meet a runtime target;
+8. stop and create a narrow design finding when a choice would change ownership, public contracts, security boundaries, production behavior, or an acceptance criterion.
+
+Routine file naming, internal function decomposition, and test fixture organization do not require founder input when they follow existing repository conventions and the path ownership ledger.
 
 ## 2. Executive outcome
 
@@ -60,6 +106,32 @@ The executor begins from the current protected `development` line and re-verifie
   9. `linktrend/LiNKtrading-codebase`
 
 The baseline contains valuable transactional installation, hash verification, rollback, exact-tree receipts, source-policy, and fail-closed behavior. v2.5 must preserve those protections while removing duplicate mechanisms and incomplete product surfaces.
+
+### 3.1 Repository and execution-environment registry
+
+The executing agent must use this registry as the starting scope. It must verify each `origin` before mutation and may discover a relocated local checkout by exact remote URL. It must not create a second clone merely because the preferred local path is absent. All repositories have protected `development`, `staging`, and `main` branches as of the prepared baseline; WP25-00 must reverify them.
+
+| Role | GitHub repository | Preferred local checkout | Cursor environment | v2.5 scope |
+|---|---|---|---|---|
+| System source | `linktrend/IDE-Development` | `/Users/linktrend/Projects/IDE Development` | `LiNKdevelopment IDE` | Complete v2.5 implementation, release, publication |
+| Consumer/provider | `linktrend/openclaw_prime` | `/Users/linktrend/Projects/openclaw_prime` | `LiNKdevelopment IDE` | IDE rollout and canaries; no unrelated Lisa/runtime deployment |
+| First real canary/provider | `linktrend/LiNKplatform` | `/Users/linktrend/Projects/LiNKplatform` | `LiNKdevelopment IDE` | Provider compatibility plus first consumer rollout |
+| Provider/consumer | `linktrend/LiNKskills` | `/Users/linktrend/Projects/LiNKskills` | `LiNKdevelopment IDE` | Qualified IDE skill releases plus consumer rollout |
+| Provider/consumer | `linktrend/LiNKbrain` | `/Users/linktrend/Projects/LiNKbrain` | `LiNKdevelopment IDE` | Provider compatibility plus consumer rollout |
+| Consumer | `linktrend/LiNKsites` | `/Users/linktrend/Projects/LiNKsites` | `LiNKdevelopment IDE` | IDE rollout and canaries; no unrelated product change |
+| Consumer | `linktrend/LiNKdeveloper` | `/Users/linktrend/Projects/LiNKdeveloper` | `LiNKdevelopment IDE` | IDE rollout and canaries; no unrelated product change |
+| Provider/consumer | `linktrend/LiNKlibraries` | `/Users/linktrend/Projects/LiNKlibraries` | `LiNKdevelopment IDE` | Provider compatibility plus consumer rollout; no runtime deployment implied |
+| Provider/consumer | `linktrend/LiNKautowork` | `/Users/linktrend/Projects/LiNKautowork` | `LiNKdevelopment IDE` | Provider compatibility plus consumer rollout; no VPS deployment implied |
+| IDE-only consumer | `linktrend/LiNKtrading-codebase` | `/Users/linktrend/Projects/LiNKtrading-codebase` | `LiNKtrading-codebase` | IDE v2.5 rollout only; never merge unrelated trading work |
+
+Repository discovery algorithm:
+
+1. Test the preferred path with `git -C <path> remote get-url origin`.
+2. Normalize HTTPS and SSH GitHub forms and require the expected `linktrend/<repository>` identity.
+3. If absent/mismatched, search only approved workspace roots for a checkout with that exact origin.
+4. If multiple matches exist, select a clean checkout or create an isolated worktree from the verified repository; never guess between dirty copies.
+5. Fetch read-only remote references and record the protected branch commits/trees before creating work.
+6. Treat any unrelated repository, agent, task, or Cursor environment as out of scope.
 
 ## 4. Problems v2.5 must solve
 
@@ -401,46 +473,56 @@ Every transition records repository, branch, commit, tree, dependency/profile id
 
 ### 10.1 Performance
 
-- Fast target: under 5 minutes normal GitHub capacity.
-- Provider read canary target: under 60 seconds per provider/app after authentication.
-- Package plan/drift target: under 60 seconds per normal repository.
-- Installer update target: under 3 minutes excluding Git/network operations.
-- Promotion gate target: under 2 minutes because it verifies evidence and policy only.
-- No unbounded polling; all waits have a timeout and progressive, non-spam status.
+| ID | Requirement |
+|---|---|
+| NFR-PERF-01 | Fast target: under 5 minutes under normal GitHub capacity |
+| NFR-PERF-02 | Provider read canary target: under 60 seconds per provider/app after authentication |
+| NFR-PERF-03 | Package plan/drift target: under 60 seconds per normal repository |
+| NFR-PERF-04 | Installer update target: under 3 minutes excluding Git/network operations |
+| NFR-PERF-05 | Promotion gate target: under 2 minutes because it verifies evidence and policy only |
+| NFR-PERF-06 | No unbounded polling; all waits have a timeout and progressive, non-spam status |
 
 ### 10.2 Security and privacy
 
-- Deny unknown provider fields at trust boundaries unless the published contract explicitly allows extensions.
-- Bound payload depth, key count, string length, result count, and total response size.
-- Reject/log-redact keys matching credential, token, authorization, password, private key, prompt, transcript, raw body, or full content categories.
-- Use least-privilege per-operation tool allowlists.
-- Do not expose protected credentials to untrusted fork events or candidate code.
-- Pin third-party GitHub Actions by immutable commit.
-- Do not execute candidate-controlled code in a privileged workflow context.
+| ID | Requirement |
+|---|---|
+| NFR-SEC-01 | Deny unknown provider fields at trust boundaries unless the published contract explicitly allows extensions |
+| NFR-SEC-02 | Bound payload depth, key count, string length, result count, and total response size |
+| NFR-SEC-03 | Reject/log-redact keys matching credential, token, authorization, password, private key, prompt, transcript, raw body, or full content categories |
+| NFR-SEC-04 | Use least-privilege per-operation tool allowlists |
+| NFR-SEC-05 | Do not expose protected credentials to untrusted fork events or candidate code |
+| NFR-SEC-06 | Pin third-party GitHub Actions by immutable commit |
+| NFR-SEC-07 | Do not execute candidate-controlled code in a privileged workflow context |
 
 ### 10.3 Reliability
 
-- Deterministic/idempotent plan and verify operations.
-- Atomic installation and external-state migration with before-state archive.
-- At most two infrastructure retries per exact candidate.
-- At most three ordinary source repair cycles per packet.
-- No silent fallback from live provider to fixtures, cache, or local copies.
-- No silent fallback from App authentication to a human token.
+| ID | Requirement |
+|---|---|
+| NFR-REL-01 | Deterministic/idempotent plan and verify operations |
+| NFR-REL-02 | Atomic installation and external-state migration with before-state archive |
+| NFR-REL-03 | At most two infrastructure retries per exact candidate |
+| NFR-REL-04 | At most three ordinary source repair cycles per packet |
+| NFR-REL-05 | No silent fallback from live provider to fixtures, cache, or local copies |
+| NFR-REL-06 | No silent fallback from App authentication to a human token |
 
 ### 10.4 Portability
 
-- Python 3.11+ stdlib installer remains the portable mutation engine unless explicitly approved otherwise.
-- Installer unit/migration coverage on Ubuntu, macOS, and Windows.
-- Shell workflows explicitly invoke Bash where Bash semantics are required.
-- Normalize legitimate macOS aliases such as `/var` and `/private/var` without weakening traversal checks.
-- No external checkout symlinks for Codex/Cursor discovery.
+| ID | Requirement |
+|---|---|
+| NFR-PORT-01 | Python 3.11+ stdlib installer remains the portable mutation engine unless explicitly approved otherwise |
+| NFR-PORT-02 | Installer unit/migration coverage runs on Ubuntu, macOS, and Windows |
+| NFR-PORT-03 | Shell workflows explicitly invoke Bash where Bash semantics are required |
+| NFR-PORT-04 | Normalize legitimate macOS aliases such as `/var` and `/private/var` without weakening traversal checks |
+| NFR-PORT-05 | No external checkout symlinks for Codex/Cursor discovery |
 
 ### 10.5 Maintainability
 
-- One canonical source for generated mirrors, manifest entries, workflow/check contract, provider registry, and skill-set lock.
-- Every generated file carries provenance or is reproducibly regenerable.
-- Retired v2.4 components are removed or clearly archived; they do not remain active alongside replacements.
-- User/operator messages are plain English first, with exact evidence available underneath.
+| ID | Requirement |
+|---|---|
+| NFR-MAINT-01 | One canonical source exists for generated mirrors, manifest entries, workflow/check contract, provider registry, and skill-set lock |
+| NFR-MAINT-02 | Every generated file carries provenance or is reproducibly regenerable |
+| NFR-MAINT-03 | Retired v2.4 components are removed or clearly archived; they do not remain active alongside replacements |
+| NFR-MAINT-04 | User/operator messages are plain English first, with exact evidence available underneath |
 
 ## 11. Required schemas and durable records
 
@@ -458,6 +540,72 @@ The implementation must add or revise machine-readable schemas for:
 10. `test-inventory` — required test components and profile membership.
 
 Each schema requires positive, negative, unknown-field, version-mismatch, and round-trip tests.
+
+### 11.1 Program-control and evidence layout
+
+The executing agent creates one sanitized program ledger and updates it after every state transition. This prevents a long-running implementation from depending on conversational memory.
+
+| Record | Required path in IDE Development | Required contents |
+|---|---|---|
+| Program ledger | `docs/evidence/v2.5/program-ledger.json` | schema version, program state, active packet, repositories, exact protected refs, packet states, approvals by reference, blockers, next dependency |
+| Requirement trace | `docs/evidence/v2.5/requirement-trace.json` | every `G-*`, `FR-*`, `NFR-*`, and `AC-*`; owning packet/component/test/evidence; current state |
+| Collision ledger | `docs/evidence/v2.5/path-ownership.json` | repository, path/pattern, exclusive packet owner, generated/manual classification, release point |
+| Packet evidence | `docs/evidence/v2.5/packets/WP25-XX.json` | issue, branch, implementer identity, commits/trees, changed paths, commands/results, review identity/result, remote equality, residual holds |
+| External-state inventory | `docs/evidence/v2.5/external-state.json` | GitHub App installation/permission names, workflow/check/ruleset names, provider pins, app/environment identifiers; never secret values |
+| Release record | `docs/evidence/v2.5/release.json` | exact candidate/main/tag/artifact identities, Fast/Full/review receipts, approvals, publication checksums |
+| Consumer rollout records | `docs/evidence/v2.5/rollout/<repository>.json` | before/after branches/trees, installed manifest, PRs, checks, app canaries, rollback/re-update, cleanup |
+
+The ledger files are generated or schema-validated, deterministic, free of credentials/private bodies, and committed only when they are intended release evidence. Volatile logs and sensitive API responses remain under `.git/ide-development/v2.5-program/` and are summarized safely. If a repository convention supplies a stricter evidence location, the packet may use it but must record the resolved path in the program ledger.
+
+### 11.2 Required packet state and output contract
+
+Every WP25 packet uses exactly these states:
+
+```text
+not_started -> preflighted -> implementing -> checkpointed -> review_pending
+-> accepted | repair_required | blocked | superseded
+```
+
+`accepted` requires all of the following:
+
+- named issue and correct short-lived branch/worktree;
+- exact base/head commit and tree;
+- bounded changed-path list matching collision ownership;
+- required focused commands with exit status and evidence path;
+- clean Git status and pushed remote equality;
+- independent exact-head review when required;
+- no unresolved in-scope finding;
+- next dependency identified.
+
+`superseded` requires the replacement packet/commit and proof that no unique accepted work is being deleted. `blocked` requires the exact failed gate, evidence, attempted bounded recovery, owner, and resume action. Narrative statements such as “done,” “looks good,” or “tests passed” without these fields do not transition state.
+
+### 11.3 Minimum schema field contracts
+
+The packet implementing each schema may add fields but must not omit these minimums or weaken their meanings:
+
+| Schema | Minimum required fields and constraints |
+|---|---|
+| `provider-registry` | `schemaVersion`, `providers[]`; each provider has immutable `id`, `ownerRepository`, `contractId`, `contractVersion`, `providerCommit`, `providerTree`, `capabilities[]`, `tools[]`, `transport`, `timeouts`, `retryPolicy`, `redactionPolicy`; no secret value or mutable `latest` |
+| `provider-runtime-config` | `schemaVersion`, `consumerRepository`, `environment`, `providers`; each binding has provider `id`, non-secret endpoint/binding reference, credential reference name, enabled capabilities; secret values forbidden |
+| `ide-skill-set-lock` | `schemaVersion`, IDE version, LiNKskills commit/tree, namespace, `skills[]`; each skill has exact identifier/version/release digest/fragments/qualification/publication/availability; no alias |
+| `delivery-contract` | `schemaVersion`, contract version, supported branches/source patterns, one development context, one promotion context, profiles, path-risk rules, consumer product command mapping, review policy, repair/retry limits |
+| `delivery-state` | repository, issue/Phase PR, base/head commits/trees, dependency/profile/workflow identities, current state, prior state, actor/identity, timestamp, review/check/receipt references, reason |
+| `promotion-package` | repository, source branch, target branch, exact source/head/tree, accepted receipt and workflow identity, approval reference, marker schema/version, creation/expiry, rollback reference |
+| `bootstrap-plan/result` | repository, before-state digest, desired App installation/permissions/repository scope, secret/variable/check/workflow/ruleset names, operations, canary plan/results, rollback operations, after-state digest; no credential value |
+| `application-canary-result` | repository/tree, installed IDE version/manifest digest, app/id/version/session, profile, allowlisted tools, provider contract/pin, sanitized request class/result state, latency, cleanup result, evidence digest, timestamps |
+| `rollout-record` | repository, before refs/trees/installed state, rollout issue/branch/PR, package/tag/archive/manifest identity, check/review receipts, after refs/trees, app canaries, rollback/re-update identities, cleanup, exclusions |
+| `test-inventory` | schema/profile version, components[] with stable ID/owner/command/working directory/platform/risk paths/timeout/required flag/evidence parser; execution records exact selected and completed IDs |
+
+Global schema rules:
+
+- reject unknown top-level or trust-boundary fields unless the schema version explicitly marks an extension point;
+- use explicit enums for states and proof levels;
+- use UTC ISO-8601 timestamps and full 40-character Git commits/trees;
+- store digests with named algorithm (minimum SHA-256 for file/archive payloads);
+- distinguish absent, unavailable, denied, failed, empty-success, and passed;
+- validate paths as repository-relative where committed and reject traversal/absolute consumer destinations;
+- redact credential/prompt/transcript/private-body classes before persistence;
+- provide one canonical generator/validator and checked fixtures for every schema.
 
 ## 12. Permanent Codex/Cursor application-canary harness
 
@@ -589,6 +737,58 @@ At minimum prove:
 - provider unavailable, denied, incompatible, malformed, and empty-success;
 - unapproved local/global skill presented instead of LiNKskills release.
 
+### 13.5 Deterministic WP25-00 command recipe
+
+The executing agent adapts quoting only; it does not substitute narrative inspection for these facts.
+
+For every repository in §3.1:
+
+```bash
+git -C "<repo-path>" remote get-url origin
+git -C "<repo-path>" status --short --branch
+git -C "<repo-path>" worktree list --porcelain
+git -C "<repo-path>" fetch origin --prune
+git -C "<repo-path>" rev-parse origin/development origin/development^{tree}
+git -C "<repo-path>" rev-parse origin/staging origin/staging^{tree}
+git -C "<repo-path>" rev-parse origin/main origin/main^{tree}
+git -C "<repo-path>" branch -vv
+```
+
+For every GitHub repository, using authenticated `gh` or the equivalent connected GitHub API:
+
+```bash
+gh repo view linktrend/<repository> --json nameWithOwner,defaultBranchRef
+gh pr list --repo linktrend/<repository> --state open --limit 100 --json number,headRefName,baseRefName,headRefOid,isDraft,url
+gh workflow list --repo linktrend/<repository> --all
+gh api repos/linktrend/<repository>/rulesets
+gh api repos/linktrend/<repository>/branches/development/protection
+gh api repos/linktrend/<repository>/branches/staging/protection
+gh api repos/linktrend/<repository>/branches/main/protection
+gh variable list --repo linktrend/<repository>
+gh secret list --repo linktrend/<repository>
+```
+
+An unavailable ruleset/protection endpoint is recorded with HTTP status and plan/permission diagnosis; it is not interpreted as no protection. Secret listing records names and update timestamps only, never values.
+
+Application/provider preflight:
+
+1. enumerate the selected `LiNKdevelopment IDE` Cursor Cloud environment and close only completed/abandoned runs belonging to this program;
+2. enumerate `LiNKtrading-codebase` separately and never touch unrelated trading work;
+3. verify Codex and Cursor non-interactive entrypoints/version/help without starting a mutating session;
+4. enumerate configured provider tools/bindings and credential reference names without calling a write tool;
+5. check live provider health only through an approved read-only operation and do not infer application integration from health;
+6. record exact command/API response class and timestamp in external-state evidence.
+
+### 13.6 Command-result rules
+
+- Every command records working directory, exact command, start/end time, exit status, and bounded output/evidence path.
+- Pipelines use pipe-failure behavior; an earlier failed command cannot be hidden by a later successful formatter.
+- `skipped`, missing executable, unavailable service, timeout, killed process, or partial output is not PASS.
+- Do not rerun an unchanged expensive command. Diagnose first; rerun only after identity change or an authorized bounded infrastructure retry.
+- A command discovered to be obsolete is replaced in the test inventory with documented equivalent coverage before removal.
+- Hosted GitHub proof is tied to repository, run ID/attempt, workflow commit, head commit/tree, and conclusion.
+- Local proof is tied to repository/worktree, head commit/tree, dependency lock, command, and platform identity.
+
 ## 14. Migration design
 
 ### 14.1 Skill migration
@@ -704,6 +904,105 @@ Gate W5: nine consumers have verified v2.5 installs; repository-specific evidenc
 ## 16. Detailed work packets
 
 Every packet follows the same completion rule: focused validation, exact diff review, commit, push, clean status, remote equality, machine-readable evidence, and independent review where identified. Implementers do not open/merge their own delivery PRs.
+
+### 16.1 One-agent end-to-end operating loop
+
+The single executing agent performs this loop without waiting for the founder to supply packet prompts:
+
+1. **Intake:** read this document completely; locate/verify repositories using §3.1; read applicable `AGENTS.md`; create the §11.1 ledgers.
+2. **Preflight:** run WP25-00 read-only; verify protected refs, current branches/worktrees/agents/PRs, GitHub/provider/application access, credentials by name only, and approvals already present in the execution task or durable evidence.
+3. **Freeze:** record exact commits/trees/contracts/pins and assign collision ownership. If the live baseline differs, update only the inventory/technical approach needed to reach the unchanged requirements; do not silently change a requirement.
+4. **Issue setup:** for each packet, use the repository's `agentsetup` entrypoint to create/reuse an issue and `issue/*` worktree from current `development`. Record issue/branch/base.
+5. **Implement:** execute only owned paths and requirements. Run focused tests, repair ordinary source failures within the declared limit, commit, push, verify clean status/remote equality, and write packet evidence.
+6. **Review:** create a separate agent session with a distinct identity and read-only exact-head review prompt. The reviewer inspects scope, requirements, code, generated outputs, security, tests, and truthful evidence. It does not implement the reviewed packet.
+7. **Repair:** send each accepted finding to the original implementation lane or a new repair lane; change only the narrow cause; rerun affected focused tests; push; invalidate the old review; obtain one new exact-head review.
+8. **Integrate:** after dependency gates, Packager serially integrates accepted packet commits into one Phase tree. The executing agent resolves conflicts deliberately from ownership/requirements, never with blanket incoming/ours selection.
+9. **Validate/release:** run the single Phase Fast, independent combined review, and one exact-tree Full when required; then use the protected delivery/promotion/publication sequence and approvals in §§18–19.
+10. **Canary/rollout:** upgrade LiNKplatform first, prove rollback/re-update and both real app paths, then process the remaining eight in the declared order/parallelism without introducing systemic fixes in consumer branches.
+11. **Close:** reconcile all permanent refs, PRs, temporary branches/worktrees/sessions, credentials/routes, managed files, canaries, and evidence; complete every checklist item and publish one consolidated report.
+
+At every loop boundary the executing agent persists the program ledger. Context loss, task restart, or agent replacement therefore resumes from repository/evidence truth rather than requiring a founder briefing.
+
+### 16.2 Internal packet and review prompts
+
+When the executing agent delegates a packet, it generates the prompt below from this document and the live ledger. The founder does not prepare it.
+
+```text
+Implement WP25-XX from docs/IDE-DEVELOPMENT-V2.5-PRD-ROADMAP-IMPLEMENTATION-PLAN.md.
+Repository: <exact repository and verified worktree>
+Base: development <commit> / tree <tree>
+Issue/branch: <issue> / <issue branch>
+Owned paths: <collision-ledger paths only>
+Requirements/acceptance: <exact G/FR/NFR/AC IDs and packet acceptance>
+Dependencies: <accepted packet commits/trees/provider pins>
+Required focused commands: <commands from inventory>
+Exclusions: <repository and packet exclusions>
+Finish at: commit + push + clean remote-equal checkpoint + packet evidence. Do not open/merge/promote/publish/deploy. Stop on an ownership, authorization, or contract conflict.
+```
+
+Independent review prompt:
+
+```text
+Independently review WP25-XX at exact commit <sha> / tree <tree> against the complete v2.5 document and packet evidence. You are not the implementer. Verify scope, owned paths, requirement coverage, code/generated parity, security/privacy, tests, failure states, and evidence truthfulness. Return PASS only when there are no actionable findings; otherwise return numbered findings with severity, exact path/line, violated requirement, and required correction. Make no source changes.
+```
+
+### 16.3 Exclusive source ownership before WP25-18
+
+WP25-00 refines this table to exact files after live inventory. Until then these patterns prevent parallel collision:
+
+| Packet | Exclusive implementation surface |
+|---|---|
+| WP25-01 | new schemas/examples and schema-test harness |
+| WP25-02 | GitHub App authentication/bootstrap modules and their focused tests |
+| WP25-03 | delivery contract, test inventory, risk/state definitions |
+| WP25-04 | provider registry, shared transport, Platform client/tests |
+| WP25-05 | LiNKskills provider issues/releases; IDE skill inventory and lock generator only |
+| WP25-06 | installer manifest/state/transaction/migration engine, not generated managed-core output |
+| WP25-07 | Brain and handoff client modules/tests |
+| WP25-08 | Skills client/loader/cache/telemetry modules/tests |
+| WP25-09 | Libraries and Autowork client modules/tests |
+| WP25-10 | Codex application adapter/tests |
+| WP25-11 | Cursor application adapter/tests |
+| WP25-12 | application-canary CLI/runner/evidence/cleanup tests |
+| WP25-13 | Packager, Delivery Controller, completion/evidence interaction |
+| WP25-14 | managed workflow sources and external workflow/check/ruleset migration tooling |
+| WP25-15 | risk selection, Fast/Full inventory execution, evidence reuse/cache policy |
+| WP25-16 | generated `core/managed-core/`, manifest, combined migrations, installer integration |
+| WP25-17 | active operator/product docs, CLI help, archive/retirement map |
+
+Generated files are changed only by their owning generator packet or WP25-16 final generation. Cross-cutting changes that touch another packet's exclusive path wait for that owner or become a recorded narrow dependency; two agents never edit the same path concurrently.
+
+### 16.4 Packet dependency and independent-review matrix
+
+| Packet | Must wait for | May run with | Required independent acceptance |
+|---|---|---|---|
+| 00 | none | none | executing-agent baseline audit; no implementation review |
+| 01 | 00 | 02, 03, 05 inventory, 06 design | architecture/schema review |
+| 02 | 00 | 01, 03, 05 inventory, 06 design | security/authentication review plus harmless authenticated canary |
+| 03 | 00 | 01, 02, 05 inventory, 06 design | delivery/test-contract review |
+| 04 | 01 | 05 provider work, 06 | provider-boundary/security review |
+| 05 | 00 and provider instructions; lock waits for 01 | 01–04, 06 | LiNKskills provider review and IDE lock review by identities other than implementers |
+| 06 | 01 design | 02–05 | installer/migration review |
+| 07 | 04 | 08, 09 | Brain/handoff boundary review |
+| 08 | accepted LiNKskills releases from 05 and transport from 04 | 07, 09 | skill authority/cache/privacy review |
+| 09 | 04 | 07, 08 | Libraries/Autowork contract review |
+| 10 | 04, 07, 08 and applicable 09 interfaces | 11 | Codex adapter review and isolated app fixture |
+| 11 | 04, 07, 08 and applicable 09 interfaces | 10 | Cursor adapter review and isolated app fixture |
+| 12 | 10, 11 | 13–15 if paths do not collide | canary security/truthfulness review |
+| 13 | 01–03; auth canary from 02 before live publication | 12, 14 design, 15 design | delivery-controller review and simulated lifecycle |
+| 14 | 02, 03, 13 | 12, 15 | workflow/security review and atomic migration simulation |
+| 15 | 03, 13, 14 contract identities | 12 | test-coverage/evidence review and hosted timing proof |
+| 16 | 05–12, 14, 15 | 17 documentation after interfaces freeze | generated package/installer exact-tree review |
+| 17 | stable interfaces from 13–16 | late 16 generation | operator/documentation review |
+| 18 | accepted 01–17 | none | Phase integration checks; not a substitute for packet reviews |
+| 19 | 18 exact tree | none | distinct combined reviewer; no source mutation |
+| 20 | clean 19 exact tree | none | receipt/inventory verification distinct from implementers |
+| 21 | 20 and required approvals | none | protected GitHub checks/reviews and publication identity verification |
+| 22 | 21 published artifact and canary authorization | none | real Codex/Cursor canary evidence plus rollback/re-update verification |
+| 23 | accepted 22 | repository lanes may run in parallel after per-repo preflight | per-repository review/check/canary evidence |
+| 24 | 23 | none | independent reconciliation of repositories, GitHub, worktrees, sessions, and evidence |
+
+“May run with” permits concurrency only when the collision ledger proves disjoint paths and repositories. The executing agent remains responsible for sequencing and context; it does not require the founder to coordinate these lanes.
 
 ### WP25-00 — baseline, freeze, and collision map
 
@@ -887,6 +1186,47 @@ Every packet follows the same completion rule: focused validation, exact diff re
 
 No acceptance row may be marked passed by a packet owner alone when independent review or live application proof is required.
 
+### 17.1 Complete requirement-family trace
+
+The machine-readable requirement trace expands every individual ID. This table supplies the deterministic initial mapping; no ID may remain without component, test, evidence, and final state.
+
+| Requirement IDs | Primary packets | Minimum proof/evidence |
+|---|---|---|
+| G-01–G-02 | 04, 05, 07–12, 16, 22 | installed adapters, exact skill lock, real Codex/Cursor provider and handoff canaries |
+| G-03–G-07 | 02, 03, 13–15, 18–21 | App bootstrap, workflow/check contract, Phase lifecycle, Fast/Full/review/promotion receipts |
+| G-08–G-10 | 00, 16, 20–24 | canary-first rollout, rollback/re-update, negative recovery, nine rollout records |
+| FR-PKG-01–08 | 01, 06, 16, 20, 21 | schema/installer/migration/archive/manifest tests and reproducible release artifact |
+| FR-PLAT-01–04 | 04, 10–12, 22 | contract negatives, authorization/redaction, live app capability canaries |
+| FR-BRAIN-01–05 | 07, 10–12, 22 | advisory read tests and isolated real handoff lifecycle/cleanup |
+| FR-SKILL-01–09 | 05, 08, 10–12, 16, 22 | qualified releases/lock, no-fallback negatives, telemetry/redaction, absence of IDE-owned skills |
+| FR-LIB-01–05 | 09, 12, 22 | exact identity/profile/release/receipt contract tests and applicable app canary |
+| FR-AUTO-01–05 | 09, 12, 22 | request/status/ordering/expiry/idempotency/redaction tests and live canary or truthful hold |
+| FR-APP-01–06 | 10–12, 16, 22 | equivalent Codex/Cursor discovery, narrow permissions, nested-directory, error taxonomy, cleanup |
+| FR-AUTH-01–10 | 02, 14, 22 | App permission/install/token/refresh/trigger/rate-limit/removal/rollback canaries and single-route proof |
+| FR-DEL-01–13 | 03, 13–15, 18–21 | versioned delivery state, Phase PR, exact review, real controllers, receipt reuse, promotion policy |
+| FR-TEST-01–10 | 03, 12, 15, 18, 20–23 | profile inventory, under-five-minute Fast, one sealed Full, self-contained tests, evidence taxonomy |
+| FR-OPS-01–07 | 00, 02, 13, 15, 16, 20, 23, 24 | dispatch/host/path/mutation/stall negatives, clean session/worktree closure |
+| FR-ROL-01–09 | 16, 21–24 | exact release identity, first canary, nine repository records, rollback and cleanup |
+| NFR-PERF-01–06 | 12, 15, 18, 20–23 | hosted/app/install/promotion timing receipts and bounded-wait tests |
+| NFR-SEC-01–07 | 01, 02, 04, 07–12, 14, 20 | boundary fuzz/limits/redaction, tool allowlists, immutable Actions, privileged-context review |
+| NFR-REL-01–06 | 02, 06, 13–16, 20–23 | deterministic/idempotent and rollback tests, bounded retry/repair, no-fallback negatives |
+| NFR-PORT-01–05 | 06, 11, 16, 20 | Python/Bash/path/symlink tests and Ubuntu/macOS/Windows matrix |
+| NFR-MAINT-01–04 | 01, 03, 16, 17, 24 | canonical generators/provenance, inactive legacy surfaces, operator-message review |
+| AC-01–20 | owning packets in §17 | exact acceptance evidence referenced from program and packet ledgers |
+
+### 17.2 Acceptance decision algorithm
+
+For each requirement ID, the executing agent must record:
+
+1. `implementedBy`: exact repository/path/component and commit/tree;
+2. `verifiedBy`: named command/canary/review and immutable result;
+3. `evidence`: committed sanitized evidence path or hosted receipt coordinates;
+4. `proofLevel`: one of `source`, `package`, `installed`, `hosted`, `application`, `stage`, `VPS`, `E2E`, `production`;
+5. `state`: `passed`, `failed`, `blocked`, `not_applicable`, or `deferred`;
+6. `rationale`: mandatory for `not_applicable`/`deferred`, with owner and later gate.
+
+An acceptance criterion passes only when every required constituent ID has the required proof level. A stronger-sounding narrative cannot substitute for a missing level; for example, installed hashes cannot pass an application canary, and a direct provider call cannot pass a Codex/Cursor application requirement.
+
 ## 18. Failure and recovery policy
 
 ### 18.1 Source defects
@@ -923,7 +1263,7 @@ No acceptance row may be marked passed by a packet owner alone when independent 
 
 ## 19. Approval gates
 
-This document does not grant these approvals. The execution task must provide them or the orchestrator stops at the gate with evidence:
+This document does not grant these approvals. The execution task must provide them or the executing agent stops at the gate with evidence:
 
 | Gate | Approval required |
 |---|---|
@@ -940,7 +1280,7 @@ This document does not grant these approvals. The execution task must provide th
 
 ## 20. Executor handoff checklist
 
-Before declaring v2.5 ready, the lead orchestrator must answer **yes** with evidence to every item:
+Before declaring v2.5 ready, the executing agent must answer **yes** with evidence to every item:
 
 - [ ] Requirements and packet path ownership frozen.
 - [ ] All implementation branches clean, pushed, and either integrated or explicitly retired.
