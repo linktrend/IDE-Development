@@ -19,7 +19,7 @@ The release is complete only when the package, installed consumer experience, de
 Before v2.5 is published or rolled out:
 
 - IDE Development is promoted through `development`, `staging`, and `main` using the v2.5 workflow itself.
-- The published package is installed into a disposable representative consumer repository.
+- The published package is installed first into one designated repository from the existing nine consumers. That repository is the rollout canary; a separate disposable repository is not required.
 - Both the Codex macOS app and Cursor macOS app can discover and call the approved LiNKbrain and LiNKskills read surfaces from that installed repository.
 - Both apps can create and read a bounded LiNKbrain handoff in an isolated test namespace.
 - Both apps can perform a read-only LiNKplatform capability/identity canary through the supported application adapter.
@@ -73,12 +73,30 @@ The installed application adapters must use LiNKplatform for the identity, organ
 
 LiNKlibraries and LiNKautowork must retain their approved consumer contracts. Where a live service is available, v2.5 acceptance must include a real read-only application canary. Where a provider is not deployed, the release must prove a faithful local or staged adapter and record the live test as an explicit post-deployment hold rather than claiming production interoperability.
 
-### 3.7 Credentials and configuration
+### 3.7 Complete agent-facing capability set
+
+The installed adapters must expose the complete previously defined provider functionality, not merely generic connectivity:
+
+| Provider | Required Codex and Cursor capabilities |
+|---|---|
+| LiNKplatform | Resolve the acting identity, organization, audience, service scope, permissions, and capabilities; refuse expired, forged, wrong-audience, wrong-organization, or insufficient-capability claims; never mint identity inside IDE Development |
+| LiNKlibraries | Discover and retrieve verified revision-2 entries by exact immutable commit, tree, release digest, and receipt; refuse quarantined, metadata-only, superseded, mutable, or unpinned material; never execute a library payload merely because it was retrieved |
+| LiNKbrain | Search/read advisory projections; use coordination references; create, read, accept, and track bounded handoffs; never expose raw prompts/transcripts or grant Brain execution authority |
+| LiNKskills | Search/discover approved skills; validate and retrieve exact published, qualified, available releases; load progressive-disclosure fragments; let the requesting agent execute locally; report bounded use telemetry; refuse `latest`, unpublished, unqualified, unavailable, or incompatible releases |
+| LiNKautowork | Submit an authorized bounded request; read status; exchange handoffs; read receipts and results; distinguish accepted, completed, failed, denied, and unavailable; never let a receipt grant Git, Ledger, Gate, or deployment authority |
+
+All advertised modern provider connections must use the accepted sessionless MCP boundary and refuse silent downgrade to an obsolete protocol. The public agent-facing tools, names, inputs, result shapes, error codes, timeouts, and redaction rules must be documented and equivalent across Codex and Cursor.
+
+### 3.8 Credentials and configuration
 
 - Secret values remain outside Git.
 - Required secret names, app installations, endpoints, scopes, and repository/environment placement are declared in a machine-readable preflight specification.
 - Preflight runs before expensive tests and before promotion begins.
 - Missing or invalid credentials fail immediately with one actionable diagnosis.
+- The supported bootstrap must create, install, rotate, or restore every IDE-owned automation credential and repository/environment binding that can be provisioned through the authorized GitHub App or operator identity. Merely detecting that an IDE-owned credential is missing is not an acceptable steady state.
+- Credentials that require a one-time founder or external-provider authorization must be requested once through a documented setup step, stored in the correct protected scope, and then maintained by the system. Routine releases must not repeatedly ask for the same credential.
+- The Review Ready publisher must have one durable supported authentication route. Bootstrap must prove that route with a harmless write/read/delete canary before any work relies on it, and must repair missing repository bindings or installation permissions automatically when authorized.
+- Review Ready publication failure must not be discovered only after implementation and testing are complete. If the credential cannot be provisioned or repaired, the release must stop at bootstrap with the exact external action genuinely required.
 - The normal supported path must not depend on a credential that the installer, bootstrap, or release procedure failed to provision or verify.
 - No built-in token may be silently substituted where a privileged application credential is required.
 - Configuration migrations must remove or reject obsolete settings before runtime activation.
@@ -162,6 +180,8 @@ Bootstrap is a declared, repeatable operation that installs and verifies:
 - managed workflows and controller configuration;
 - Codex and Cursor provider adapters.
 
+Bootstrap owns the lifecycle of IDE-managed credentials and bindings; it does not merely inventory them. Its report must distinguish `present`, `provisioned`, `repaired`, `externally blocked`, and `invalid`, and must prove the Review Ready publisher path before accepting implementation work.
+
 Bootstrap must be idempotent and produce a concise pass/fail report before release work continues.
 
 ### 7.2 Publication
@@ -170,7 +190,7 @@ Publication must bind the version, source commit, Git tree, manifest, package di
 
 ### 7.3 Consumer rollout
 
-Rollout must support all configured consumer repositories in parallel with repository-scoped isolation. For every consumer it must:
+Rollout must support all configured consumer repositories with repository-scoped isolation. It starts with one real canary repository selected from the existing nine; no separate disposable repository is required. The remaining eight begin only after the canary repository passes installation, app discovery, provider access, failure, and rollback checks. For every consumer it must:
 
 1. install the exact published package;
 2. apply configuration migrations;
@@ -182,6 +202,12 @@ Rollout must support all configured consumer repositories in parallel with repos
 
 A repository is not counted as rolled out merely because `.ide-development/` exists or its version file says `2.5.0`.
 
+### 7.4 Repeatable macOS application canaries
+
+The release must provide a supported non-interactive acceptance harness for the Codex and Cursor macOS applications. It must be able to select the canary repository, start an isolated test session, invoke the named read and handoff tools, capture sanitized results, and terminate the session without depending on coordinate clicking or an already-focused window.
+
+If application automation is unavailable, the app canary fails. The release may not replace it with inspection of configuration files, a direct provider call outside the app, or a statement that the connector appears installed.
+
 ## 8. Required acceptance evidence
 
 v2.5 cannot be released until one concise acceptance matrix proves:
@@ -189,7 +215,7 @@ v2.5 cannot be released until one concise acceptance matrix proves:
 | Area | Required proof |
 |---|---|
 | Package | Manifest and installed files match the published artifact |
-| Codex | Real Brain read, Skills discovery/retrieval, Brain handoff, and Platform capability canaries from a disposable installed consumer |
+| Codex | Real Brain read, Skills discovery/retrieval, Brain handoff, and Platform capability canaries from the first upgraded repository among the nine consumers |
 | Cursor | The same real canaries from the Cursor macOS app in that consumer |
 | Failure | Denied, unavailable, expired identity, missing credential, incompatible provider, and obsolete configuration fail clearly and safely |
 | Workflow | Checkpoint does not start expensive CI; one Phase PR; Fast under five minutes; one final exact-tree Full when required |
@@ -226,10 +252,10 @@ This requirements document does not authorize:
 4. Implement the reduced Fast/conditional-Full topology and exact-tree evidence reuse.
 5. Remove or migrate redundant workflows, publishers, checks, and obsolete configuration.
 6. Run focused source and contract validation.
-7. Install into a disposable consumer and complete the Codex, Cursor, failure, handoff, and Platform live canaries.
+7. Install into one selected repository among the nine consumers and complete the Codex, Cursor, failure, handoff, and Platform live canaries.
 8. Run one final combined Full on the exact release tree if required by the accepted risk profile.
 9. Promote and publish the identical artifact.
-10. Roll out to consumers and prove installed functionality, not merely installed files.
+10. After that real repository passes, roll out to the remaining eight consumers and prove installed functionality, not merely installed files.
 
 ## 12. Definition of done
 
