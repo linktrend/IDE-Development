@@ -12,7 +12,7 @@ IDE Development v2.5 must correct the two material shortcomings exposed during t
 1. The installed product must give supported Codex and Cursor sessions real, authenticated access to the LiNK providers they are meant to use. Shipping validators without the transport and application adapters is not a complete deployment.
 2. The development and promotion system must be materially simpler, faster, and cheaper. It must retain meaningful protection without repeating equivalent tests, checks, reviews, publications, or promotion work.
 
-The release is complete only when the package, installed consumer experience, delivery workflow, tests, documentation, rollback, and live acceptance evidence all work together. Source code that has not been materialized, configured, and proven in a disposable consumer is not a deployed feature.
+The release is complete only when the package, installed consumer experience, delivery workflow, tests, documentation, rollback, and live acceptance evidence all work together. Source code that has not been materialized, configured, and proven in the first designated canary repository from the existing nine consumers is not a deployed feature.
 
 ## 2. Required release outcome
 
