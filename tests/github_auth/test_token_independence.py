@@ -33,7 +33,7 @@ class TokenIndependenceTests(unittest.TestCase):
 
     def test_automation_token_is_waived_legacy_and_never_pass(self) -> None:
         present = github_auth.classify_legacy_publisher_token(
-            {"AUTOMATION_TOKEN": "ghs_not_canonical", "AUTOMATION_TOKEN_SOURCE": "github_token"}
+            {"AUTOMATION_TOKEN": "ltfx.not_canonical.v1", "AUTOMATION_TOKEN_SOURCE": "github_token"}
         )
         missing = github_auth.classify_legacy_publisher_token({})
         for row in (present, missing):
@@ -43,11 +43,11 @@ class TokenIndependenceTests(unittest.TestCase):
             self.assertEqual(row["canonicalForV25"], "none")
 
     def test_phase_api_uses_gh_token_not_automation_token(self) -> None:
-        token, source = github_auth.resolve_phase_api_token({"GH_TOKEN": "ghs_phase", "GITHUB_TOKEN": "ghs_other"})
-        self.assertEqual(token, "ghs_phase")
+        token, source = github_auth.resolve_phase_api_token({"GH_TOKEN": "ltfx.phase.v1", "GITHUB_TOKEN": "ltfx.other.v1"})
+        self.assertEqual(token, "ltfx.phase.v1")
         self.assertEqual(source, "GH_TOKEN")
         with self.assertRaises(github_auth.GitHubAuthError) as raised:
-            github_auth.resolve_phase_api_token({"AUTOMATION_TOKEN": "ghs_publisher"})
+            github_auth.resolve_phase_api_token({"AUTOMATION_TOKEN": "ltfx.publisher.v1"})
         self.assertEqual(raised.exception.code, "legacy_publisher_token_not_canonical")
         with self.assertRaises(github_auth.GitHubAuthError) as missing:
             github_auth.resolve_phase_api_token({})

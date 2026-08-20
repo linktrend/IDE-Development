@@ -119,7 +119,7 @@ test('timeouts and provider failures are bounded and redacted', async () => {
       },
       platform: {
         resolveIdentity: async () => {
-          throw new Error('token=do-not-leak')
+          throw new Error('token=ltfx.adapter_token.v1')
         },
       },
     }),

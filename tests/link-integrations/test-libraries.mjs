@@ -159,7 +159,7 @@ test('AC-I6-FC-libraries: unknown field, execute receipt, unpinned/malformed ide
   throws(() => validateLibraryReference({ ...facts, receiptType: 'execute' }), 'library_receipt_invalid')
   throws(() => validateLibraryReference({ ...facts, entryId: 'NOT VALID' }), 'library_identity_invalid')
   throws(() => validateLibraryReference({ ...facts, sourceCommitSha: '0123456789abcdef0123456789abcdef0123456' }), 'library_git_identity_invalid')
-  throws(() => validateLibraryReference({ ...facts, secret: 'redacted' }), 'sensitive_field')
+  throws(() => validateLibraryReference({ ...facts, secret: 'ltfx.redacted.v1' }), 'sensitive_field')
   throws(() => validateLibraryReference({ ...facts, payloadSha256: 'not-a-digest' }), 'library_digest_invalid')
   throws(() => validateLibraryReference({ ...facts, catalogueSha256: 'not-a-digest' }), 'library_digest_invalid')
   const { catalogueSha256, ...missingCatalogue } = facts

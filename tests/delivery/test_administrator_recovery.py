@@ -211,7 +211,7 @@ class AdministratorRecoveryTests(unittest.TestCase):
 
         github = controller.LiveGitHub(
             repository="owner/name",
-            automation_token="ghs_phase_api",
+            automation_token="ltfx.phase_api.v1",
             transport=transport,
         )
         completed = mock.Mock(returncode=0, stdout="merged", stderr="")

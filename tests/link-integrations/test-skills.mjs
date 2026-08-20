@@ -313,7 +313,7 @@ test('AC-I6-FC-skills: legacy run/tool names, cross-operation fields, raw/privat
     'fail_closed',
   )
   classify(
-    () => validateSkillsRelease({ ...load('positive-validation.json'), secret: 'redacted' }),
+    () => validateSkillsRelease({ ...load('positive-validation.json'), secret: 'ltfx.redacted.v1' }),
     'sensitive_field',
     'fail_closed',
   )
