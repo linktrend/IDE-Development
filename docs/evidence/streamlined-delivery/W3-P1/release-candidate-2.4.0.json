@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "ide-development-release-candidate",
+  "packageName": "ide-development-managed-core",
+  "packageVersion": "2.4.0",
+  "sourceCommit": "a650ce1bcb194eff94790bc7f0480453f1bfd416",
+  "manifestHash": "sha256:4bdf6ffcf4a34c37b7fe9ee11732cb1c23140b39bdb2542b4961097fdcc09f7c",
+  "archives": [
+    {
+      "format": "tar.gz",
+      "path": "build/release-candidate/ide-development-managed-core-2.4.0.tar.gz",
+      "sha256": "sha256:8e2a71fc7d4d6819c222ed67234c1e05ba284482fd690882cc8e382b696e77e4",
+      "bytes": 549699
+    },
+    {
+      "format": "zip",
+      "path": "build/release-candidate/ide-development-managed-core-2.4.0.zip",
+      "sha256": "sha256:039bd7e28823fd97d7a129c5fa977546598c22a6b9e870f103525c5474206c08",
+      "bytes": 670618
+    }
+  ],
+  "supportedPlatforms": ["darwin", "linux", "windows"],
+  "acceptanceEvidence": [
+    "scripts/ide_development_tests/test_release_candidate.py",
+    "scripts/ide_development_tests/test_package_reproducibility.py",
+    "tests/execution_protocol/test_continuous_utilization.py"
+  ],
+  "provenance": {
+    "identities": [
+      "core/execution/protocol.py",
+      "core/execution/scheduler.py",
+      "core/managed-core/content/config/continuous-utilization.json",
+      "core/managed-core/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md",
+      "core/managed-core/examples/continuous-utilization.example.json",
+      "core/managed-core/schemas/continuous-utilization.schema.json"
+    ],
+    "exclusions": [
+      "credentials-and-secret-values",
+      "git-metadata",
+      "absolute-host-paths",
+      "external-symlinks",
+      "caches-and-temp-files",
+      "consumer-data",
+      "claude-surfaces",
+      "build-artifacts"
+    ],
+    "toolchain": {
+      "python": "3.12.3",
+      "archiveEpochUtc": "2026-08-01T00:00:00Z"
+    }
+  },
+  "installInstructions": "Extract the archive outside the consumer repository and run the packaged installer against the consumer target.",
+  "rollbackInstructions": "Run the packaged rollback command from the consumer repository; do not overwrite consumer-owned files.",
+  "createdAt": "2026-08-01T00:00:00Z",
+  "notes": "Reproducible local candidate only; no tag, release, protected-branch merge, staging promotion, or main promotion was performed."
+}
