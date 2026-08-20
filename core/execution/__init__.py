@@ -62,6 +62,23 @@ from core.execution.scheduler import (
     WorkItem,
     load_continuous_utilization_config,
 )
+from core.execution.verification_liveness import (
+    ReconciliationResult,
+    VerificationValidationResult,
+    VERIFICATION_AMENDMENT,
+    VERIFICATION_PROFILE,
+    VERIFICATION_STATES,
+    deterministic_artifact_paths,
+    ensure_no_duplicate_full_execution,
+    heartbeat_verification_run,
+    load_verification_liveness_config,
+    load_verification_schema,
+    reconcile_verification_run,
+    restart_orphaned_verification,
+    start_verification_run,
+    validate_verification_run,
+    verification_command_digest,
+)
 
 __all__ = [
     "AMENDMENT_ID",
@@ -120,4 +137,19 @@ __all__ = [
     "ContinuousUtilizationScheduler",
     "WorkItem",
     "load_continuous_utilization_config",
+    "ReconciliationResult",
+    "VerificationValidationResult",
+    "VERIFICATION_AMENDMENT",
+    "VERIFICATION_PROFILE",
+    "VERIFICATION_STATES",
+    "deterministic_artifact_paths",
+    "ensure_no_duplicate_full_execution",
+    "heartbeat_verification_run",
+    "load_verification_liveness_config",
+    "load_verification_schema",
+    "reconcile_verification_run",
+    "restart_orphaned_verification",
+    "start_verification_run",
+    "validate_verification_run",
+    "verification_command_digest",
 ]
