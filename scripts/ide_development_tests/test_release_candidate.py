@@ -72,6 +72,15 @@ class ReleaseCandidateGateTests(unittest.TestCase):
 
 
 class ReleaseCandidateArchiveTests(unittest.TestCase):
+    def test_host_path_scan_ignores_documentation_path_component(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rc._scan_bytes_for_host_paths(
+                "skill.md",
+                b"See linktrend/LiNKtrend-System/docs/workspace/MVO-UI-POLICY.md.\n",
+                repo_root=Path("/workspace"),
+            )
+
     def test_tar_and_zip_reproducible(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             staging = Path(tmp) / "stage"

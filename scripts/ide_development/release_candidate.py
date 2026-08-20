@@ -338,7 +338,7 @@ def _scan_bytes_for_host_paths(rel: str, data: bytes, *, repo_root: Path) -> Non
         return
     abs_root = str(repo_root.resolve())
     # Only refuse when the absolute checkout path appears (host leakage).
-    if abs_root in text:
+    if re.search(rf"(?<![A-Za-z0-9_]){re.escape(abs_root)}(?:[/\\]|$)", text):
         raise ReleaseCandidateError(
             f"Refusing host absolute path in package content: {rel}",
             details={"path": rel},
