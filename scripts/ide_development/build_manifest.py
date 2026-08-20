@@ -21,14 +21,27 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
 
-from .constants import (
-    DEFAULT_MARKER_BEGIN,
-    DEFAULT_MARKER_END,
-    PACKAGE_NAME,
-    PACKAGE_VERSION_TARGET,
-    SCHEMA_VERSION,
-)
-from .hashing import sha256_file
+try:
+    from .constants import (
+        DEFAULT_MARKER_BEGIN,
+        DEFAULT_MARKER_END,
+        PACKAGE_NAME,
+        PACKAGE_VERSION_TARGET,
+        SCHEMA_VERSION,
+    )
+    from .hashing import sha256_file
+except ImportError:  # pragma: no cover - direct script entrypoint
+    parent = Path(__file__).resolve().parent.parent
+    if str(parent) not in sys.path:
+        sys.path.insert(0, str(parent))
+    from ide_development.constants import (  # type: ignore
+        DEFAULT_MARKER_BEGIN,
+        DEFAULT_MARKER_END,
+        PACKAGE_NAME,
+        PACKAGE_VERSION_TARGET,
+        SCHEMA_VERSION,
+    )
+    from ide_development.hashing import sha256_file  # type: ignore
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
