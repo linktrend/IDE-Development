@@ -154,6 +154,66 @@ class PackageMaterializationTests(unittest.TestCase):
             )
             self.assertIn("V25_PKT08_REVISION_60_FINAL_CONTROLS", proc.stdout)
 
+    def test_extracted_closure_requires_named_remote_target_without_origin(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="package-baseline-cleanroom-") as tmp:
+            extract = Path(tmp) / "extract"
+            materialize_isolated_rc_extract(extract, source=PACKAGE_FIXTURE)
+            script = r"""
+import subprocess
+from pathlib import Path
+
+from scripts.gitops.generated_output_closure import ClosureError, resolve_candidate_baseline
+
+root = Path.cwd()
+def git(*args):
+    result = subprocess.run(
+        ["git", *args],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    return result.stdout.strip()
+
+git("init", "-q", "-b", "development")
+git("config", "user.email", "cleanroom@example.invalid")
+git("config", "user.name", "Cleanroom")
+git("add", "-A")
+git("commit", "-qm", "cleanroom baseline")
+baseline = git("rev-parse", "HEAD")
+git("remote", "add", "fixture", str(root / "fixture.git"))
+git("update-ref", "refs/remotes/fixture/development", baseline)
+git("commit", "--allow-empty", "-qm", "cleanroom candidate")
+assert subprocess.run(
+    ["git", "rev-parse", "--verify", "origin/development^{commit}"],
+    cwd=root,
+    capture_output=True,
+    check=False,
+).returncode != 0
+assert resolve_candidate_baseline(
+    root,
+    environ={
+        "LINKTREND_TARGET_BASELINE_SHA": baseline,
+        "LINKTREND_TARGET_BASELINE_REF": "fixture/development",
+    },
+) == baseline
+try:
+    resolve_candidate_baseline(root, environ={})
+except ClosureError as error:
+    assert error.code == "candidate_baseline_missing"
+else:
+    raise AssertionError("missing runtime baseline was accepted")
+"""
+            proc = subprocess.run(
+                [sys.executable, "-c", script],
+                cwd=extract,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

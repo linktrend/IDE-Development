@@ -178,6 +178,20 @@ class BuildManifestPackagingTests(unittest.TestCase):
         ):
             self.assertIn(rel, sources)
 
+    def test_hosted_portability_regression_inputs_are_packaged(self) -> None:
+        manifest = bm.build_manifest_object()
+        destinations = {
+            row["source"]: row["destination"]
+            for row in manifest["files"]
+            if isinstance(row.get("source"), str)
+        }
+        self.assertEqual(
+            destinations.get("scripts/tests/test_candidate_baseline_resolution.py"),
+            ".ide-development/tests/test_candidate_baseline_resolution.py",
+        )
+        self.assertIn("scripts/gitops/generated_output_closure.py", destinations)
+        self.assertIn("scripts/gitops/secret_scan.py", destinations)
+
     def test_pkt08_revision_60_final_controls_are_packaged(self) -> None:
         manifest = bm.build_manifest_object()
         sources = {row["source"] for row in manifest["files"]}

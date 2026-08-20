@@ -20,11 +20,19 @@ from ide_development.errors import InstallerError
 from ide_development.hashing import sha256_file
 
 
-def runtime_baseline_environment() -> dict[str, str]:
-    sha = subprocess.check_output(["git", "rev-parse", "origin/development"], text=True).strip()
+def runtime_baseline_environment(
+    *,
+    baseline_ref: str,
+    repo_root: Path = rc.REPO_ROOT,
+) -> dict[str, str]:
+    sha = subprocess.check_output(
+        ["git", "rev-parse", f"{baseline_ref}^{{commit}}"],
+        cwd=repo_root,
+        text=True,
+    ).strip()
     return {
         "LINKTREND_TARGET_BASELINE_SHA": sha,
-        "LINKTREND_TARGET_BASELINE_REF": "origin/development",
+        "LINKTREND_TARGET_BASELINE_REF": baseline_ref,
     }
 
 
@@ -42,7 +50,7 @@ class ReleaseCandidateGateTests(unittest.TestCase):
         # Concurrent WP1 lanes leave the worktree dirty; production create must refuse.
         if not rc.worktree_is_dirty():
             self.skipTest("worktree currently clean; dirty refusal covered when dirty")
-        with mock.patch.dict(os.environ, runtime_baseline_environment()):
+        with mock.patch.dict(os.environ, runtime_baseline_environment(baseline_ref="origin/development")):
             with self.assertRaises(InstallerError) as ctx:
                 rc.create_release_candidate(
                     allow_dirty=False,
@@ -61,7 +69,7 @@ class ReleaseCandidateGateTests(unittest.TestCase):
                 details={"missing": ["tests/packaging/LANE_D_RESULT.md"]},
             ),
         ):
-            with mock.patch.dict(os.environ, runtime_baseline_environment()):
+            with mock.patch.dict(os.environ, runtime_baseline_environment(baseline_ref="origin/development")):
                 with self.assertRaises(InstallerError) as ctx:
                     rc.create_release_candidate(
                         allow_dirty=True,
@@ -69,6 +77,44 @@ class ReleaseCandidateGateTests(unittest.TestCase):
                         skip_evidence=False,
                     )
             self.assertIn("evidence", ctx.exception.message.lower())
+
+    def test_fixture_environment_accepts_named_remote_without_origin_target(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="release-candidate-baseline-") as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q", "-b", "development"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "release-candidate@example.invalid"],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Release Candidate Tests"],
+                cwd=root,
+                check=True,
+            )
+            (root / "README.md").write_text("baseline\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README.md"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "fixture baseline"], cwd=root, check=True)
+            baseline = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"],
+                cwd=root,
+                text=True,
+            ).strip()
+            subprocess.run(["git", "remote", "add", "fixture", str(root / "fixture.git")], cwd=root, check=True)
+            subprocess.run(
+                ["git", "update-ref", "refs/remotes/fixture/development", baseline],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(["git", "commit", "--allow-empty", "-qm", "fixture candidate"], cwd=root, check=True)
+
+            environment = runtime_baseline_environment(
+                repo_root=root,
+                baseline_ref="fixture/development",
+            )
+
+            self.assertEqual(environment["LINKTREND_TARGET_BASELINE_SHA"], baseline)
+            self.assertEqual(environment["LINKTREND_TARGET_BASELINE_REF"], "fixture/development")
 
     def test_version_inconsistency_refusal(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
