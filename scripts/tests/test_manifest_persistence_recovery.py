@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import copy
+import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 
 from core.execution.manifest_persistence import (
     AuthorityFailure,
     DurableManifestStore,
     ManifestPersistenceError,
+    canonical_manifest_digest,
     persist_manifest,
     reconcile_manifest_heartbeat,
 )
@@ -52,10 +58,11 @@ class RecoveryStore(DurableManifestStore):
         current_digest = None if current is None else current["digest"]
         if self.collide_once:
             self.collide_once = False
+            competing_manifest = {**(current["manifest"] if current else manifest()), "competing": True}
             self.record = {
                 "revision": current_revision + 1,
-                "digest": current_digest or "sha256:" + "0" * 64,
-                "manifest": current["manifest"] if current else manifest(),
+                "digest": canonical_manifest_digest(competing_manifest),
+                "manifest": competing_manifest,
             }
             raise ManifestPersistenceError("revision_conflict", "simulated collision")
         if current_revision != expected_revision or current_digest != expected_digest:
@@ -85,6 +92,34 @@ class Authority:
 
 
 class ManifestPersistenceTests(unittest.TestCase):
+    def test_extracted_runtime_loads_config_without_checkout_imports(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory(prefix="pkt08-cleanroom-") as temp:
+            extract = Path(temp)
+            (extract / "core" / "execution").mkdir(parents=True)
+            (extract / "core" / "execution" / "__init__.py").write_text("", encoding="utf-8")
+            shutil.copy2(
+                root / "core/execution/manifest_persistence.py",
+                extract / "core/execution/manifest_persistence.py",
+            )
+            config = extract / "core/managed-core/content/config/manifest-persistence.json"
+            config.parent.mkdir(parents=True)
+            shutil.copy2(root / "core/managed-core/content/config/manifest-persistence.json", config)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "from core.execution.manifest_persistence import load_manifest_persistence_config; "
+                    "print(load_manifest_persistence_config('.')['amendment'])",
+                ],
+                cwd=extract,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("V25_PKT08_MANIFEST_PERSISTENCE_RECOVERY", proc.stdout)
+
     def test_compare_and_retry_uses_fresh_revision_after_write_collision(self) -> None:
         store = RecoveryStore()
         store.collide_once = True

@@ -3,6 +3,27 @@
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
+GENERATED_OUTPUT_CLOSURE=""
+for candidate in \
+  "$ROOT/scripts/gitops/generated_output_closure.py" \
+  "$ROOT/.ide-development/scripts/gitops/generated_output_closure.py"
+do
+  if [[ -f "$candidate" ]]; then
+    GENERATED_OUTPUT_CLOSURE="$candidate"
+    break
+  fi
+done
+
+if [[ -n "$GENERATED_OUTPUT_CLOSURE" ]]; then
+  if ! python3 "$GENERATED_OUTPUT_CLOSURE" --verify; then
+    echo "pre-push: REJECT stale or invalid generated output closure" >&2
+    exit 1
+  fi
+else
+  echo "pre-push: REJECT — generated-output closure runtime is missing" >&2
+  exit 1
+fi
+
 VALIDATOR=""
 for candidate in \
   "$ROOT/core/runtime/validate-application-pipeline.mjs" \

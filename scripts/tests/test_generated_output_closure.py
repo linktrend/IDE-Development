@@ -54,8 +54,8 @@ def commit(root: Path, message: str) -> None:
 
 
 def graph(
-    *,
     outputs: list[dict[str, object]],
+    *,
     max_passes: int = 3,
 ) -> dict[str, object]:
     return {
@@ -101,13 +101,15 @@ class GeneratedOutputGraphTests(unittest.TestCase):
             root,
             "first.py",
             "from pathlib import Path\n"
-            "Path('order.txt').write_text('first\\n', encoding='utf-8')\n",
+            "Path('order.txt').write_text('first\\n', encoding='utf-8')\n"
+            "Path('first.out').write_text('first\\n', encoding='utf-8')\n",
         )
         second = script(
             root,
             "second.py",
             "from pathlib import Path\n"
-            "p=Path('order.txt'); p.write_text(p.read_text()+'second\\n', encoding='utf-8')\n",
+            "p=Path('order.txt'); p.write_text(p.read_text()+'second\\n', encoding='utf-8')\n"
+            "Path('second.out').write_text('second\\n', encoding='utf-8')\n",
         )
         write(root, "source.txt", "source\n")
         write_graph(
@@ -172,6 +174,9 @@ class GeneratedOutputGraphTests(unittest.TestCase):
                 graph_path="closure.json",
                 post_generation_hook=lambda: write(root, "source.txt", "mutated\n"),
             )
+        commit(root, "stable generated output after source rejection")
+        write(root, "source.txt", "source\n")
+        commit(root, "restore source")
         with self.assertRaisesRegex(ClosureError, "post_generation_mutation"):
             close_generated_outputs(
                 root,
@@ -194,6 +199,8 @@ class GeneratedOutputGraphTests(unittest.TestCase):
         with self.assertRaisesRegex(ClosureError, "non_convergence"):
             close_generated_outputs(root, graph_path="closure.json")
 
+        git(root, "add", "-A")
+        git(root, "commit", "-qm", "record non-converged output")
         failing = script(
             root,
             "failing.py",

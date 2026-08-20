@@ -79,6 +79,16 @@ from core.execution.verification_liveness import (
     validate_verification_run,
     verification_command_digest,
 )
+from core.execution.manifest_persistence import (
+    AuthorityFailure,
+    DurableManifestStore,
+    ManifestPersistenceError,
+    ManifestRead,
+    canonical_manifest_digest,
+    load_manifest_persistence_config,
+    persist_manifest,
+    reconcile_manifest_heartbeat,
+)
 
 __all__ = [
     "AMENDMENT_ID",
@@ -152,4 +162,12 @@ __all__ = [
     "start_verification_run",
     "validate_verification_run",
     "verification_command_digest",
+    "AuthorityFailure",
+    "DurableManifestStore",
+    "ManifestPersistenceError",
+    "ManifestRead",
+    "canonical_manifest_digest",
+    "load_manifest_persistence_config",
+    "persist_manifest",
+    "reconcile_manifest_heartbeat",
 ]

@@ -1244,7 +1244,7 @@
       "id": "core-index-yaml",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/INDEX.yaml",
-      "sourceHash": "sha256:0849d9c976491d5a9420c08fb2f13a33003d399d819bb6da1572814e317f041e",
+      "sourceHash": "sha256:e30652e64011e1251cba82bd29247dca89d7ed3c8468808012d2c1c076b2f4d5",
       "destination": ".ide-development/INDEX.yaml",
       "mode": "0644",
       "platform": "all",
@@ -1285,6 +1285,17 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "core-config-generated-output-closure-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/config/generated-output-closure.json",
+      "sourceHash": "sha256:13c75618c3bc22baf3bf4fb4d20e688025a918d19b5d04639f77528fe4cc8472",
+      "destination": ".ide-development/config/generated-output-closure.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "core-content-readme-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/README.md",
@@ -1306,6 +1317,17 @@
       "os": "all",
       "mergeStrategy": "replace",
       "notes": "PKT-01 packaged continuous-utilization contract."
+    },
+    {
+      "id": "core-content-config-manifest-persistence-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/config/manifest-persistence.json",
+      "sourceHash": "sha256:a76c9bb3260d4db7db94c16b79f3b59c7181c51f60e4008d8f5b2ea109cffa62",
+      "destination": ".ide-development/content/config/manifest-persistence.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
     },
     {
       "id": "verification-liveness-verification-liveness-json",
@@ -1409,6 +1431,17 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "doctrine-generated-output-closure-md",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/doctrine/GENERATED-OUTPUT-CLOSURE.md",
+      "sourceHash": "sha256:f1352493e887c29d01d63635717229c80ab269decdd8856c61cc9b4cb81d0744",
+      "destination": ".ide-development/content/doctrine/GENERATED-OUTPUT-CLOSURE.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "doctrine-hosted-capacity-scheduler-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md",
@@ -1437,6 +1470,17 @@
       "source": "core/managed-core/content/doctrine/MANAGED-CORE-V2.md",
       "sourceHash": "sha256:197619dee8e8651158cd9253e9d86bd90fae6301f495fa0e33f39b0c23ab6002",
       "destination": ".ide-development/content/doctrine/MANAGED-CORE-V2.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
+      "id": "doctrine-manifest-persistence-recovery-md",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/doctrine/MANIFEST-PERSISTENCE-RECOVERY.md",
+      "sourceHash": "sha256:d75731a511ea10b87c2fc4859bcccc1e6a05c78efab719d5005e49957e82b82a",
+      "destination": ".ide-development/content/doctrine/MANIFEST-PERSISTENCE-RECOVERY.md",
       "mode": "0644",
       "platform": "all",
       "os": "all",
@@ -1573,7 +1617,7 @@
       "id": "execution-runtime-init-py",
       "ownershipClass": "managed-core",
       "source": "core/execution/__init__.py",
-      "sourceHash": "sha256:23fa2342d002e4c9dc95a922b1f6c397222d136583fae48c7b8c6b9e7fdc6f59",
+      "sourceHash": "sha256:0e7c742c70f875c5a1da2c5ebeb7582420a797e6591ca6e92b21eebf6a431a4c",
       "destination": ".ide-development/execution/__init__.py",
       "mode": "0644",
       "platform": "all",
@@ -1599,6 +1643,18 @@
       "source": "core/execution/lifecycle.py",
       "sourceHash": "sha256:3189cdf9e039c8edb96f8eafabae781af1ca1ccadfbb8fc0cf1ff4b3769054e3",
       "destination": ".ide-development/execution/lifecycle.py",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-01 deterministic execution admission runtime."
+    },
+    {
+      "id": "execution-runtime-manifest-persistence-py",
+      "ownershipClass": "managed-core",
+      "source": "core/execution/manifest_persistence.py",
+      "sourceHash": "sha256:bc3bb54bba370fbbf78c259d80288a095f567be9ad91471f1a9a780a75c9a2f2",
+      "destination": ".ide-development/execution/manifest_persistence.py",
       "mode": "0644",
       "platform": "all",
       "os": "all",
@@ -2237,6 +2293,17 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "core-schemas-generated-output-closure-schema-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/schemas/generated-output-closure.schema.json",
+      "sourceHash": "sha256:09026f3c4503c72c173e637ecd17863d0d500716c94cc01a8b07be52df137214",
+      "destination": ".ide-development/schemas/generated-output-closure.schema.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "core-schemas-installed-state-schema-json",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/schemas/installed-state.schema.json",
@@ -2264,6 +2331,17 @@
       "source": "core/managed-core/schemas/managed-core-release.schema.json",
       "sourceHash": "sha256:3d14f7c14a33a7fa10165703f5408e54c7f5842f4be3e70440f229f21412cca5",
       "destination": ".ide-development/schemas/managed-core-release.schema.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
+      "id": "core-schemas-manifest-persistence-schema-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/schemas/manifest-persistence.schema.json",
+      "sourceHash": "sha256:7d890429fcf5baefc55534633f8bd58e6d493b36af6e2372021d91343f4ea319",
+      "destination": ".ide-development/schemas/manifest-persistence.schema.json",
       "mode": "0644",
       "platform": "all",
       "os": "all",
@@ -2937,6 +3015,18 @@
       "notes": "Hosted lifecycle/receipt validation input."
     },
     {
+      "id": "test-test-generated-output-closure-py",
+      "ownershipClass": "managed-core",
+      "source": "scripts/tests/test_generated_output_closure.py",
+      "sourceHash": "sha256:1153fd0f79bdebc5d4f48d3b899ca290bcebff8ba37876f74d0a006d1b961002",
+      "destination": ".ide-development/tests/test_generated_output_closure.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Hosted lifecycle/receipt validation input."
+    },
+    {
       "id": "test-test-independent-review-convergence-py",
       "ownershipClass": "managed-core",
       "source": "scripts/tests/test_independent_review_convergence.py",
@@ -2954,6 +3044,18 @@
       "source": "scripts/tests/test_linktrend_review_gate.py",
       "sourceHash": "sha256:94dfd6a2f7e13eee84caaed0e86f4505d895ab753270bbdd66cc3a00194e9260",
       "destination": ".ide-development/tests/test_linktrend_review_gate.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Hosted lifecycle/receipt validation input."
+    },
+    {
+      "id": "test-test-manifest-persistence-recovery-py",
+      "ownershipClass": "managed-core",
+      "source": "scripts/tests/test_manifest_persistence_recovery.py",
+      "sourceHash": "sha256:c01ae4d2a2ce63e493e997ff8abe16b11aa97e97eb965c3745ba5a664ee94f46",
+      "destination": ".ide-development/tests/test_manifest_persistence_recovery.py",
       "mode": "0644",
       "platform": "github",
       "os": "all",
@@ -3335,6 +3437,18 @@
       "notes": "Managed GitOps script; never overwrites consumer ci.yml."
     },
     {
+      "id": "gitops-scripts-gitops-generated-output-closure-py",
+      "ownershipClass": "managed",
+      "source": "scripts/gitops/generated_output_closure.py",
+      "sourceHash": "sha256:e2a040fb180606c36358b6de93118551159b1e330866a8904be15cb925562013",
+      "destination": "scripts/gitops/generated_output_closure.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
       "id": "gitops-scripts-gitops-github-auth-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/github_auth.py",
@@ -3638,7 +3752,7 @@
       "id": "gitops-scripts-gitops-secret-scan-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/secret_scan.py",
-      "sourceHash": "sha256:6a81b9a1edeabb07c54d697bcdadb913cafa4ac4bbe3980c92a04f7537f0df3b",
+      "sourceHash": "sha256:016b0368225d01b0bba916b6e42daf65ed605bc6c67d4b2d50ce165e7d05e31c",
       "destination": "scripts/gitops/secret_scan.py",
       "mode": "0644",
       "platform": "github",
@@ -3755,7 +3869,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:5bc995fd7c83cf81a3a3654fc78ee773949fc52f627a327f1b651c151c4b3e80",
+      "sourceHash": "sha256:9b04ead4b82187fffcddebe8df7f36295c4bc094172135e20cd433ece2a24d7b",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",
@@ -3777,7 +3891,7 @@
       "id": "installer-scripts-ide-development-constants-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/constants.py",
-      "sourceHash": "sha256:235fce8b827e88f512c0ec6175ceb3c004f3a1fa507b4135881cf609299be8ad",
+      "sourceHash": "sha256:b575b65927d0bbdf1701fcc5800504cfcaa0aa212d112148f26ae35f181a1556",
       "destination": "scripts/ide_development/constants.py",
       "mode": "0644",
       "platform": "all",
@@ -3887,7 +4001,7 @@
       "id": "installer-scripts-ide-development-release-candidate-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/release_candidate.py",
-      "sourceHash": "sha256:c0056a13a6d4334c170af4fa7a95cadb2bf608359b4e4768868e017068f6d5d1",
+      "sourceHash": "sha256:8db0f4cacc745e143216d11338e2c634e8c23a53b6944935367eb3f507f27ab9",
       "destination": "scripts/ide_development/release_candidate.py",
       "mode": "0644",
       "platform": "all",

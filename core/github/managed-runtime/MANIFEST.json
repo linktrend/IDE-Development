@@ -15,6 +15,7 @@
     "scripts/gitops/coordinator/receipts.py",
     "scripts/gitops/coordinator/state.py",
     "scripts/gitops/gate_receipt.py",
+    "scripts/gitops/generated_output_closure.py",
     "scripts/gitops/independent_review_convergence.py",
     "scripts/gitops/secret_scan.py",
     "scripts/gitops/secret_scan_migrate.py",

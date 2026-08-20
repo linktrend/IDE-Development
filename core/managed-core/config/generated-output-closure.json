@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "kind": "generated-output-closure",
+  "maxPasses": 3,
+  "outputs": [
+    {
+      "id": "secret-scan-fixtures",
+      "output": ".github/linktrend-secret-scan-fixtures.json",
+      "generator": [
+        "python3",
+        "scripts/gitops/generated_output_closure.py",
+        "--generate-fixtures"
+      ],
+      "invalidatingSources": [
+        "**"
+      ],
+      "dependsOn": []
+    },
+    {
+      "id": "managed-core-manifest",
+      "output": "core/managed-core/MANIFEST.json",
+      "generator": [
+        "python3",
+        "scripts/ide_development/build_manifest.py",
+        "--write"
+      ],
+      "invalidatingSources": [
+        "core/**",
+        "scripts/**",
+        ".cursor/**",
+        ".github/**",
+        "VERSION"
+      ],
+      "dependsOn": [
+        "secret-scan-fixtures"
+      ]
+    }
+  ]
+}

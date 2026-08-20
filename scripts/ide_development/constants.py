@@ -40,6 +40,8 @@ RC_REQUIRED_SCHEMA_RELS = (
     "core/managed-core/schemas/finding-ledger.schema.json",
     "core/managed-core/schemas/secret-scan-fixtures.schema.json",
     "core/managed-core/schemas/secret-scan-result.schema.json",
+    "core/managed-core/schemas/generated-output-closure.schema.json",
+    "core/managed-core/schemas/manifest-persistence.schema.json",
     "core/managed-core/schemas/repository-ci-contract.schema.json",
     "core/managed-core/schemas/ci-component-manifest.schema.json",
     "core/managed-core/schemas/ci-evidence.schema.json",

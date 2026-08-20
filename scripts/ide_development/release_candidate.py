@@ -52,6 +52,11 @@ from .constants import (
 from .errors import InstallerError, InvalidPackageError
 from .hashing import sha256_bytes, sha256_file
 
+try:
+    from scripts.gitops.generated_output_closure import ClosureError, verify_generated_outputs
+except ModuleNotFoundError:  # pragma: no cover - package-style execution
+    from gitops.generated_output_closure import ClosureError, verify_generated_outputs  # type: ignore
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
 
@@ -628,6 +633,13 @@ def create_release_candidate(
     skip_evidence: bool = False,
 ) -> dict[str, Any]:
     """Create deterministic RC archives + metadata under build/."""
+    try:
+        verify_generated_outputs(repo_root)
+    except ClosureError as exc:
+        raise ReleaseCandidateError(
+            "Generated-output closure failed before candidate construction",
+            details={"code": exc.code, **exc.diagnostics, "detail": exc.detail},
+        ) from exc
     if not allow_dirty and worktree_is_dirty(repo_root):
         raise ReleaseCandidateError(
             "Refusing release-candidate creation: worktree is dirty",

@@ -161,6 +161,21 @@ class BuildManifestPackagingTests(unittest.TestCase):
         self.assertIn("scripts/gitops/repository_ci_contract.py", sources)
         self.assertNotIn("scripts/gitops/packager_discover.py", sources)
 
+    def test_pkt08_closure_and_persistence_contracts_are_packaged(self) -> None:
+        manifest = bm.build_manifest_object()
+        sources = {row["source"] for row in manifest["files"]}
+        for rel in (
+            "core/managed-core/config/generated-output-closure.json",
+            "core/managed-core/content/config/manifest-persistence.json",
+            "core/managed-core/schemas/generated-output-closure.schema.json",
+            "core/managed-core/schemas/manifest-persistence.schema.json",
+            "core/execution/manifest_persistence.py",
+            "scripts/gitops/generated_output_closure.py",
+            "scripts/tests/test_generated_output_closure.py",
+            "scripts/tests/test_manifest_persistence_recovery.py",
+        ):
+            self.assertIn(rel, sources)
+
 
 if __name__ == "__main__":
     unittest.main()

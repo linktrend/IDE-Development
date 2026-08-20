@@ -83,6 +83,11 @@ CONTENT_DOCTRINE = (
     ("docs/contracts/REPOSITORY-PROTECTION.md", "content/doctrine/REPOSITORY-PROTECTION.md"),
     ("docs/contracts/STREAMLINED-DELIVERY.md", "content/doctrine/STREAMLINED-DELIVERY.md"),
     ("docs/contracts/SECRET-SCAN-FIXTURES.md", "content/doctrine/SECRET-SCAN-FIXTURES.md"),
+    ("core/contracts/GENERATED-OUTPUT-CLOSURE.md", "content/doctrine/GENERATED-OUTPUT-CLOSURE.md"),
+    (
+        "core/contracts/MANIFEST-PERSISTENCE-RECOVERY.md",
+        "content/doctrine/MANIFEST-PERSISTENCE-RECOVERY.md",
+    ),
     ("docs/contracts/REPOSITORY-CI-TRIGGER.md", "content/doctrine/REPOSITORY-CI-TRIGGER.md"),
     ("docs/contracts/LINKTREND-REVIEW-GATE.md", "content/doctrine/LINKTREND-REVIEW-GATE.md"),
     ("docs/contracts/RECEIPT-SEAL-AND-RECOVERY.md", "content/doctrine/RECEIPT-SEAL-AND-RECOVERY.md"),
@@ -120,6 +125,8 @@ HOSTED_TEST_FILES = (
     "scripts/tests/test_phase_packager_coordinator.py",
     "scripts/tests/test_independent_review_convergence.py",
     "scripts/tests/test_fixture_aware_secret_scan.py",
+    "scripts/tests/test_generated_output_closure.py",
+    "scripts/tests/test_manifest_persistence_recovery.py",
     "scripts/tests/test_repository_ci_trigger_contract.py",
     "scripts/tests/test_linktrend_review_gate.py",
     "scripts/tests/test_promotion_receipt_gate.py",
@@ -347,6 +354,14 @@ def build_entries() -> list[dict[str, Any]]:
         ("INDEX.yaml", ".ide-development/INDEX.yaml"),
         ("content/README.md", ".ide-development/content/README.md"),
         ("config/delivery.json", ".ide-development/config/delivery.json"),
+        (
+            "config/generated-output-closure.json",
+            ".ide-development/config/generated-output-closure.json",
+        ),
+        (
+            "content/config/manifest-persistence.json",
+            ".ide-development/content/config/manifest-persistence.json",
+        ),
         ("migrations/catalog.json", ".ide-development/migrations/catalog.json"),
         (
             "migrations/external-cleanup-plan.json",
@@ -416,6 +431,14 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "schemas/secret-scan-fixtures.schema.json",
             ".ide-development/schemas/secret-scan-fixtures.schema.json",
+        ),
+        (
+            "schemas/generated-output-closure.schema.json",
+            ".ide-development/schemas/generated-output-closure.schema.json",
+        ),
+        (
+            "schemas/manifest-persistence.schema.json",
+            ".ide-development/schemas/manifest-persistence.schema.json",
         ),
         (
             "schemas/secret-scan-result.schema.json",
@@ -496,6 +519,10 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "core/execution/verification_liveness.py",
             ".ide-development/execution/verification_liveness.py",
+        ),
+        (
+            "core/execution/manifest_persistence.py",
+            ".ide-development/execution/manifest_persistence.py",
         ),
         (
             "core/execution/examples/verification-run.example.json",

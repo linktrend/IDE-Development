@@ -22,6 +22,8 @@ schemas:
   - schemas/finding-ledger.schema.json
   - schemas/secret-scan-fixtures.schema.json
   - schemas/secret-scan-result.schema.json
+  - schemas/generated-output-closure.schema.json
+  - schemas/manifest-persistence.schema.json
   - schemas/repository-ci-contract.schema.json
   - schemas/ci-component-manifest.schema.json
   - schemas/ci-evidence.schema.json
