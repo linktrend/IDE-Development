@@ -493,6 +493,14 @@ def build_entries() -> list[dict[str, Any]]:
         ("core/execution/lifecycle.py", ".ide-development/execution/lifecycle.py"),
         ("core/execution/protocol.py", ".ide-development/execution/protocol.py"),
         ("core/execution/scheduler.py", ".ide-development/execution/scheduler.py"),
+        (
+            "core/execution/verification_liveness.py",
+            ".ide-development/execution/verification_liveness.py",
+        ),
+        (
+            "core/execution/examples/verification-run.example.json",
+            ".ide-development/execution/examples/verification-run.example.json",
+        ),
     )
     for source, destination in execution_runtime_files:
         entries.append(
@@ -506,6 +514,51 @@ def build_entries() -> list[dict[str, Any]]:
                 merge="replace",
                 source_hash=_hash_rel(source),
                 notes="PKT-01 deterministic execution admission runtime.",
+            )
+        )
+
+    verification_liveness_files = (
+        (
+            "core/contracts/VERIFICATION-LIVENESS-CONTRACT.md",
+            ".ide-development/contracts/VERIFICATION-LIVENESS-CONTRACT.md",
+        ),
+        (
+            "core/contracts/VERIFICATION-RUN.schema.json",
+            ".ide-development/contracts/VERIFICATION-RUN.schema.json",
+        ),
+        (
+            "core/managed-core/content/config/verification-liveness.json",
+            ".ide-development/content/config/verification-liveness.json",
+        ),
+        (
+            "core/managed-core/content/doctrine/VERIFICATION-LIVENESS.md",
+            ".ide-development/content/doctrine/VERIFICATION-LIVENESS.md",
+        ),
+        (
+            "core/managed-core/schemas/verification-liveness.schema.json",
+            ".ide-development/schemas/verification-liveness.schema.json",
+        ),
+        (
+            "core/managed-core/schemas/verification-run.schema.json",
+            ".ide-development/schemas/verification-run.schema.json",
+        ),
+        (
+            "core/managed-core/examples/verification-run.example.json",
+            ".ide-development/examples/verification-run.example.json",
+        ),
+    )
+    for source, destination in verification_liveness_files:
+        entries.append(
+            _entry(
+                entry_id=f"verification-liveness-{_slug(Path(source).name)}",
+                ownership="managed-core",
+                source=source,
+                destination=destination,
+                mode="0644",
+                platform="all",
+                merge="replace",
+                source_hash=_hash_rel(source),
+                notes="PKT-08 durable verification-liveness contract.",
             )
         )
 
