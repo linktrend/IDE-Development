@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from scripts.gitops import secret_scan as secret_scan_mod
 from scripts.gitops.secret_scan import (
+    DECLARATION_REL,
     KIND_APPROVED,
     KIND_CREDENTIAL,
     KIND_SCOPE,
@@ -579,6 +580,49 @@ class AcU1008BindingTests(unittest.TestCase):
         payload["candidateTree"] = candidate_content_tree(root)
         write_declaration(root, payload)
         commit(root, "intentional refresh")
+        refreshed = scan_repository(root)
+        self.assertTrue(refreshed["ok"], refreshed)
+        self.assertEqual(kinds(refreshed), [KIND_APPROVED])
+
+    def test_changed_package_source_refreshes_binding_without_oscillation(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        value = synthetic_value()
+        package_source = "core/managed-core/MANIFEST.json"
+        write_tracked(root, package_source, '{"sourceHash":"before"}\n')
+        write_tracked(root, "tests/security/test_integrity.py", f'secret = "{value}"\n')
+        commit(root, "package source and fixture")
+        payload = declaration(
+            candidate_tree=candidate_content_tree(root),
+            fixtures=[
+                fixture(
+                    fixture_id="integrity-secret-property",
+                    path="tests/security/test_integrity.py",
+                    line=1,
+                    field="secret",
+                    rule="assignment.secret",
+                    value=value,
+                )
+            ],
+        )
+        write_declaration(root, payload)
+        commit(root, "bind package source")
+
+        write_tracked(root, package_source, '{"sourceHash":"after"}\n')
+        changed_tree = candidate_content_tree(root)
+        self.assertNotEqual(payload["candidateTree"], changed_tree)
+        stale = scan_repository(root)
+        self.assertFalse(stale["ok"])
+        self.assertTrue(any(row["kind"] == KIND_STALE for row in stale["findings"]))
+
+        payload["candidateTree"] = changed_tree
+        write_declaration(root, payload)
+        refreshed_bytes = (root / DECLARATION_REL).read_bytes()
+        payload["candidateTree"] = candidate_content_tree(root)
+        write_declaration(root, payload)
+        self.assertEqual(refreshed_bytes, (root / DECLARATION_REL).read_bytes())
+        commit(root, "refresh final package binding")
+
         refreshed = scan_repository(root)
         self.assertTrue(refreshed["ok"], refreshed)
         self.assertEqual(kinds(refreshed), [KIND_APPROVED])
