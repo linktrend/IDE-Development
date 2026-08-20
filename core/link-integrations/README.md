@@ -6,6 +6,9 @@ providers: LiNKplatform, LiNKlibraries, LiNKbrain, LiNKskills, and LiNKautowork.
 | Module | Role |
 |---|---|
 | `pins.mjs` / `errors.mjs` | Frozen GitHub `development` tips and typed `ConsumerContractError` |
+| `registry.mjs` / `config.mjs` | One pinned provider registry and non-secret runtime bindings |
+| `transport.mjs` / `redaction.mjs` | Authenticated HTTPS JSON transport, bounded retries/timeouts, and safe diagnostics |
+| `clients.mjs` | Bounded operation adapters composed with the validators |
 | `platform.mjs` | Identity / permissions / capabilities (`AuthClaims 1.1.0`) |
 | `libraries.mjs` | Revision-2 immutable library references |
 | `brain.mjs` | Advisory knowledge / coordination projections |
@@ -14,9 +17,16 @@ providers: LiNKplatform, LiNKlibraries, LiNKbrain, LiNKskills, and LiNKautowork.
 | `mcp.mjs` | Shared MCP `2026-07-28` modern negotiation and optional OKF `0.2` mapping |
 | `index.mjs` | Public barrel after S1–S5 validators exist |
 
-This module has **no** transport, credentials, Git write, Ledger, Gate mutation,
-or nested self-install APIs. It does not call live provider runtimes. Provider
-repositories are not modified by this work.
+The validator modules do not mint credentials or grant authority. The runtime
+foundation can call only registry-allowlisted HTTPS JSON operations using a
+caller-supplied external credential resolver; it never stores or logs the
+credential. Requests have bounded timeouts/retries and responses/errors are
+bounded and redacted. No module has Git write, Ledger, Gate mutation, or nested
+self-install APIs. Provider repositories are not modified by this work.
+
+Autowork is explicitly availability-gated. If its configured runtime is absent,
+the client returns a `HOLD` with `reason: live_runtime_unavailable`; it never
+converts that condition into an accepted or successful result.
 
 IDE Development is the system source. It must never receive a nested
 `.ide-development/` install of itself. Do not run
@@ -55,6 +65,10 @@ mapping is field mapping only: it cannot override Brain
 
 Export: `FROZEN_PROVIDERS` from `pins.mjs` (also re-exported from `index.mjs`).
 Typed failures use `ConsumerContractError` with a stable `code` from `errors.mjs`.
+
+Runtime configuration uses `provider-runtime-config/v1` and contains endpoint
+URLs, credential-reference names, enabled capabilities, and provider
+availability only. Secret values remain outside Git and outside this package.
 
 The installed Wave-1 `core/library/library-client.mjs` stays in place. This
 directory does not replace it.

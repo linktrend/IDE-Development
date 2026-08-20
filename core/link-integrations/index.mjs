@@ -21,6 +21,7 @@ export { validateLibraryReference } from './libraries.mjs'
 export {
   BRAIN_CONTRACT_VERSION,
   BRAIN_PIN,
+  validateBrainHandoff,
   validateBrainProjection,
 } from './brain.mjs'
 export {
@@ -48,3 +49,30 @@ export {
   negotiateMcp,
   validateOkfMapping,
 } from './mcp.mjs'
+export {
+  PROVIDER_RUNTIME_CONFIG_VERSION,
+  validateProviderRuntimeConfig,
+  validateRuntimeConfig,
+} from './config.mjs'
+export {
+  PROVIDER_REGISTRY,
+  PROVIDER_REGISTRY_VERSION,
+  getProviderDefinition,
+  getProviderTool,
+  validateProviderRegistry,
+} from './registry.mjs'
+export { REDACTION_LIMITS, redact, redactError } from './redaction.mjs'
+export {
+  ProviderTransportError,
+  createAuthenticatedTransport,
+  createProviderTransport,
+  createTransports,
+} from './transport.mjs'
+export {
+  createAutoworkClient,
+  createBrainClient,
+  createLibrariesClient,
+  createPlatformClient,
+  createProviderClients,
+  createSkillsClient,
+} from './clients.mjs'
