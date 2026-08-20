@@ -1,37 +1,41 @@
 # Hosted-capacity scheduler (Coding Execution Protocol)
 
 **Status:** Canonical for Coding Execution Protocol 1.0.1 amendment `V25_BOOTSTRAP_LEAN`  
-**Authority:** PKT-01 follow-on hosted-capacity scheduler doctrine  
+**Authority:** PKT-01 packaged continuous-utilization contract  
+**Runtime:** `core/execution/scheduler.py`  
+**Config:** `core/managed-core/content/config/continuous-utilization.json`  
+**Schema:** `core/managed-core/schemas/continuous-utilization.schema.json`  
 **Does not:** dispatch GitHub Actions, paid models, Fast gates, Full Suite, or provider-live jobs
 
-This doctrine governs **whether** hosted work may be scheduled. It does not implement a worker runtime, queue, or CI workflow.
+This doctrine is implemented by a **deterministic admission runtime**. Doctrine without that runtime is not the packaged contract.
 
-## Snapshot first
+## Hosted concurrency authority
 
-A hosted slot is diagnosed only from a **complete** resource snapshot:
+`hostedConcurrencyAuthority` is `execution-protocol`. GitHub Actions, paid-model brokers, and Fast gates are not admission authorities.
 
-- `cpu_percent`
-- `memory_percent`
-- `free_disk_gib`
-- `docker_available`
+## Slots
 
-Missing snapshot fields remain `resource_uncertain`. Uncertainty is blocking. Interactive-use pressure refuses admission.
+Canonical maxima:
 
-## Busy is not a diagnosis
+- local: **1**
+- hosted: **2** (tests may use a third hosted slot only as unused capacity under the same authority)
 
-An allocator or worker registry reporting `busy` or `exhausted` is **not** a final capacity diagnosis while the snapshot is incomplete. That combination stays `resource_uncertain`.
+Admission is deterministic: higher `priority`, then earlier `submitted_at`, then `item_id`. Unmet dependencies and conflict groups block a job without delaying unrelated admitted work.
 
-`capacity_exhausted` is allowed only after the snapshot is complete and available slots are known and non-positive.
+## Unknown probe and 10-minute backstop
 
-## Schedule rule
+An incomplete snapshot starts an unknown probe. The probe does not occupy a slot. After **600 seconds** the runtime emits `probe_timeout` / timer recovery and recomputes. Busy or exhausted allocator hints are not `capacity_exhausted` while the snapshot is incomplete.
 
-| Snapshot | Slots | Allocator hint | Decision |
-|---|---|---|---|
-| incomplete / unknown | any | any, including busy/exhausted | `resource_uncertain`, not scheduled |
-| complete | unknown | busy/exhausted | `allocator_busy_not_diagnosis`, not scheduled |
-| complete | `<= 0` | any | `capacity_exhausted`, not scheduled |
-| complete | `> 0` | eligible | `scheduled` |
+## UTILIZATION_GAP and event recomputation
+
+If a lane has free slots and waiting runnable work, the runtime emits `UTILIZATION_GAP` and does not invent paid fallback. Repair recomputes on `utilization_gap_repair` after a complete snapshot. Recompute also runs on `admission`, `completion`, `invalidation`, `probe_timeout`, and `api_rejection`.
+
+Invalidation delays **only** the invalidated identity. Completion unlocks the slot for the next eligible job.
+
+## API rejection
+
+Hosted API rejection is `hosted_api_rejected`. Requesting paid/Fast fallback is `paid_fallback_forbidden`.
 
 ## Proof limits
 
-A `scheduled` verdict is not hosted CI proof, not Fast/Full success, and not authorization to publish Review Ready or mutate providers. Implementers on PKT-01 must not start paid or Fast runs from this doctrine.
+A scheduled or admitted verdict is not hosted CI proof and does not authorize Review Ready, Fast, or provider mutation.

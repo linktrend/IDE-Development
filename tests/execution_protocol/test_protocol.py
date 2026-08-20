@@ -68,6 +68,9 @@ class DiscoveryTests(unittest.TestCase):
         self.assertTrue(discovered.schema_path.is_file())
         self.assertTrue(discovered.doctrine_path.is_file())
         self.assertTrue(discovered.hosted_capacity_doctrine.is_file())
+        self.assertTrue(discovered.continuous_utilization_config.is_file())
+        self.assertTrue(discovered.continuous_utilization_schema.is_file())
+        self.assertTrue(discovered.continuous_utilization_example.is_file())
         self.assertIsNotNone(discovered.example_manifest)
 
     def test_protocol_and_doctrine_share_version_1_0_1(self) -> None:

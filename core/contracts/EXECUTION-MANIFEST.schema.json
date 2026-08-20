@@ -546,11 +546,64 @@
         "hostedCapacityScheduler": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["requireCompleteSnapshot", "busyIsNotDiagnosis"],
+          "required": [
+            "requireCompleteSnapshot",
+            "busyIsNotDiagnosis",
+            "hostedConcurrencyAuthority",
+            "maxAdmittedSlots",
+            "unknownProbeSeconds",
+            "backstopSeconds",
+            "prioritization",
+            "utilizationGapEvent",
+            "recomputeOnEvents"
+          ],
           "properties": {
             "requireCompleteSnapshot": { "type": "boolean", "const": true },
             "busyIsNotDiagnosis": { "type": "boolean", "const": true },
-            "unknownIsBlocking": { "type": "boolean", "const": true }
+            "unknownIsBlocking": { "type": "boolean", "const": true },
+            "hostedConcurrencyAuthority": {
+              "type": "string",
+              "const": "execution-protocol"
+            },
+            "maxAdmittedSlots": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["local", "hosted"],
+              "properties": {
+                "local": { "type": "integer", "const": 1 },
+                "hosted": { "type": "integer", "minimum": 1, "maximum": 8 }
+              }
+            },
+            "unknownProbeSeconds": { "type": "integer", "const": 600 },
+            "backstopSeconds": { "type": "integer", "const": 600 },
+            "prioritization": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "string",
+                "enum": ["priority", "fifo", "dependencyReady"]
+              }
+            },
+            "utilizationGapEvent": {
+              "type": "string",
+              "const": "UTILIZATION_GAP"
+            },
+            "recomputeOnEvents": {
+              "type": "array",
+              "minItems": 5,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "admission",
+                  "completion",
+                  "invalidation",
+                  "probe_timeout",
+                  "api_rejection",
+                  "utilization_gap_repair"
+                ]
+              }
+            }
           }
         }
       }

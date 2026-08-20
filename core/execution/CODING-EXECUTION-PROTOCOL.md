@@ -26,6 +26,9 @@ Runtimes must discover these surfaces from the repository root and fail closed i
 - `core/contracts/EXECUTION-MANIFEST.schema.json`
 - `core/managed-core/content/doctrine/CODING-EXECUTION-PROTOCOL.md`
 - `core/managed-core/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md`
+- `core/managed-core/content/config/continuous-utilization.json`
+- `core/managed-core/schemas/continuous-utilization.schema.json`
+- `core/managed-core/examples/continuous-utilization.example.json`
 
 Discovery is read-only. Discovering the protocol is not authorization to merge, publish, deploy, or mutate providers.
 
@@ -54,7 +57,7 @@ The control contract is authoritative. Summary that tests and runtimes must enfo
 | Durable heartbeat write/readback | Packet mutation requires a persisted heartbeat that is read back and bound to the checkout identity. A write without matching readback is not durable and does not admit work. |
 | Checkout-bound verification receipts | Verification receipts bind to the exact checkout `repository + commit + tree`. Merge-ref identity (`refs/pull/<n>/merge`) is never promotable. |
 | Retry-exhaustion diagnosis/recovery | Exhaustion must be diagnosed before recovery. Silent retry on the same identity is forbidden. Ordinary and code-failure exhaustion recover on a new identity; infrastructure exhaustion holds unless a named exception exists. |
-| Hosted-capacity scheduler | Hosted work is scheduled only from a complete resource snapshot plus known slots. A busy or exhausted allocator is not a capacity diagnosis until that snapshot is complete. This protocol does not authorize paid or Fast hosted runs. |
+| Hosted-capacity scheduler | Deterministic admission runtime (`core/execution/scheduler.py`) using packaged continuous-utilization config. Authority is `execution-protocol`. Local max 1, hosted max 2. Unknown probes use a 600s backstop. Free slots plus waiting work emit `UTILIZATION_GAP` and recompute; paid/Fast fallback is forbidden. |
 | Automatic approval | Checkpoints are automatic. Staging promotion may be automatic when receipt identity holds. Main, publish, deploy, protection changes, and live provider mutation require recorded founder approval. Self-review, self-merge, and prefer-incoming are forbidden. |
 | Repository/Git authority | Implementers work on `issue/<n>-<slug>` and must not push protected refs, open or merge their own delivery PRs, or install a nested `.ide-development` copy of this system repository. Packager opens PRs. Delivery controller merges. |
 | v2.5 Issue checkpoint (`V25_BOOTSTRAP_LEAN`) | Exact pushed commit/tree + scoped diff + focused tests + independent Terra verification + manifest evidence accepts the Issue checkpoint. Review Ready and publisher tokens are not required. |

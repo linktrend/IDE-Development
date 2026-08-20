@@ -44,6 +44,15 @@ DOCTRINE_RELATIVE_PATH = (
 HOSTED_CAPACITY_DOCTRINE_RELATIVE_PATH = (
     "core/managed-core/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md"
 )
+CONTINUOUS_UTILIZATION_CONFIG_RELATIVE_PATH = (
+    "core/managed-core/content/config/continuous-utilization.json"
+)
+CONTINUOUS_UTILIZATION_SCHEMA_RELATIVE_PATH = (
+    "core/managed-core/schemas/continuous-utilization.schema.json"
+)
+CONTINUOUS_UTILIZATION_EXAMPLE_RELATIVE_PATH = (
+    "core/managed-core/examples/continuous-utilization.example.json"
+)
 EXAMPLE_MANIFEST_RELATIVE_PATH = (
     "core/execution/examples/execution-manifest.example.json"
 )
@@ -92,6 +101,9 @@ REQUIRED_DISCOVERY_PATHS = (
     SCHEMA_RELATIVE_PATH,
     DOCTRINE_RELATIVE_PATH,
     HOSTED_CAPACITY_DOCTRINE_RELATIVE_PATH,
+    CONTINUOUS_UTILIZATION_CONFIG_RELATIVE_PATH,
+    CONTINUOUS_UTILIZATION_SCHEMA_RELATIVE_PATH,
+    CONTINUOUS_UTILIZATION_EXAMPLE_RELATIVE_PATH,
 )
 
 
@@ -105,6 +117,9 @@ class ProtocolDiscovery:
     schema_path: Path
     doctrine_path: Path
     hosted_capacity_doctrine: Path
+    continuous_utilization_config: Path
+    continuous_utilization_schema: Path
+    continuous_utilization_example: Path
     example_manifest: Path | None
 
 
@@ -274,6 +289,9 @@ def discover_runtime(repo_root: Path | str) -> ProtocolDiscovery:
         schema_path=root / SCHEMA_RELATIVE_PATH,
         doctrine_path=root / DOCTRINE_RELATIVE_PATH,
         hosted_capacity_doctrine=root / HOSTED_CAPACITY_DOCTRINE_RELATIVE_PATH,
+        continuous_utilization_config=root / CONTINUOUS_UTILIZATION_CONFIG_RELATIVE_PATH,
+        continuous_utilization_schema=root / CONTINUOUS_UTILIZATION_SCHEMA_RELATIVE_PATH,
+        continuous_utilization_example=root / CONTINUOUS_UTILIZATION_EXAMPLE_RELATIVE_PATH,
         example_manifest=example if example.is_file() else None,
     )
 

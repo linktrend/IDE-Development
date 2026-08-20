@@ -77,11 +77,15 @@ Silent retry on the same repository/commit/tree after exhaustion is forbidden (`
 
 ## Hosted-capacity scheduler
 
-Hosted scheduling is a control decision, not a workflow dispatch:
+Hosted scheduling is a **deterministic runtime** (`core/execution/scheduler.py`) bound to the packaged continuous-utilization config:
 
+- `hostedConcurrencyAuthority` is `execution-protocol` (not GitHub, paid models, or Fast).
+- Canonical slot maxima are local `1` and hosted `2`.
 - Incomplete snapshots stay `resource_uncertain`. Allocator `busy` / `exhausted` in that state is not `capacity_exhausted`.
-- Complete snapshots with `available_slots <= 0` are `capacity_exhausted`.
-- Complete snapshots with known positive slots may be `scheduled`.
+- Unknown probes do not occupy slots. After 600 seconds the runtime recovers and recomputes.
+- Free slots with waiting runnable work emit `UTILIZATION_GAP`; repair recomputes after a complete snapshot.
+- Completion unlocks a slot. Invalidation delays only that identity.
+- Hosted API rejection must not fall back to paid/Fast (`paid_fallback_forbidden`).
 - This contract does not start paid models, Fast gates, or hosted CI.
 
 ## Automatic approval rules

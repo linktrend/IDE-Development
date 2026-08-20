@@ -53,6 +53,15 @@ from core.execution.lifecycle import (
     validate_execution_lifecycle,
     validate_plan_or_runtime,
 )
+from core.execution.scheduler import (
+    BACKSTOP_SECONDS,
+    COMPLETE_SNAPSHOT,
+    HOSTED_CONCURRENCY_AUTHORITY,
+    UTILIZATION_GAP,
+    ContinuousUtilizationScheduler,
+    WorkItem,
+    load_continuous_utilization_config,
+)
 
 __all__ = [
     "AMENDMENT_ID",
@@ -104,4 +113,11 @@ __all__ = [
     "validate_execution_manifest",
     "validate_lease",
     "validate_plan_or_runtime",
+    "BACKSTOP_SECONDS",
+    "COMPLETE_SNAPSHOT",
+    "HOSTED_CONCURRENCY_AUTHORITY",
+    "UTILIZATION_GAP",
+    "ContinuousUtilizationScheduler",
+    "WorkItem",
+    "load_continuous_utilization_config",
 ]
