@@ -12,14 +12,28 @@ from jsonschema import Draft202012Validator
 
 PROTOCOL_ID = "coding-execution-protocol"
 PROTOCOL_VERSION = "1.0.1"
-CANONICAL_PUBLISHER = "linktrend-review-ready-publisher"
+AMENDMENT_ID = "V25_BOOTSTRAP_LEAN"
+CANONICAL_PUBLISHER = None
+WAIVED_LEGACY_GATE = "WAIVED_LEGACY_GATE"
 LEGACY_PUBLISHERS = frozenset(
     {
+        "linktrend-review-ready-publisher",
         "mark-review-ready.sh-as-publisher",
         "review-ready.json",
         "user-pat-publisher",
     }
 )
+ISSUE_CHECKPOINT_EVIDENCE = (
+    "exact_pushed_commit_tree",
+    "scoped_diff",
+    "focused_tests",
+    "independent_terra_verification",
+    "manifest_evidence",
+)
+ADMIN_RECOVERY_OPERATIONS = frozenset(
+    {"protection_snapshot", "restore", "readback"}
+)
+_SHA40 = frozenset("0123456789abcdef")
 
 PROTOCOL_DOCUMENT_RELATIVE_PATH = "core/execution/CODING-EXECUTION-PROTOCOL.md"
 CONTROL_CONTRACT_RELATIVE_PATH = "core/contracts/EXECUTION-CONTROL-CONTRACT.md"
@@ -132,6 +146,28 @@ class AutoworkDiscoveryDecision:
     reason: str
 
 
+@dataclass(frozen=True)
+class IssueCheckpointDecision:
+    accepted: bool
+    requires_review_ready: bool
+    requires_token: bool
+    reason: str
+
+
+@dataclass(frozen=True)
+class LegacyGateResult:
+    classification: str
+    is_pass: bool
+    is_implementation_failure: bool
+    reason: str
+
+
+@dataclass(frozen=True)
+class AdministratorRecoveryDecision:
+    allowed: bool
+    reason: str
+
+
 def _as_root(repo_root: Path | str) -> Path:
     return Path(repo_root).resolve()
 
@@ -184,6 +220,17 @@ def validate_execution_manifest(
         return ValidationResult(
             ok=False,
             errors=("protocol identity must be coding-execution-protocol 1.0.1",),
+        )
+    if protocol.get("amendment") != AMENDMENT_ID:
+        return ValidationResult(
+            ok=False,
+            errors=("protocol amendment must be V25_BOOTSTRAP_LEAN",),
+        )
+    publisher = (document.get("controls") or {}).get("publisherAuthority") or {}
+    if publisher.get("canonicalForV25") not in (None, "none"):
+        return ValidationResult(
+            ok=False,
+            errors=("v2.5 forbids a singular canonical legacy publisher",),
         )
     return ValidationResult(ok=True)
 
@@ -348,10 +395,107 @@ def git_authority_allows(
     return False
 
 
-def publisher_is_canonical(name: str) -> bool:
-    if name in LEGACY_PUBLISHERS:
-        return False
-    return name == CANONICAL_PUBLISHER
+def _is_sha40(value: str) -> bool:
+    return len(value) == 40 and all(char in _SHA40 for char in value)
+
+
+def publisher_is_canonical(name: str | None) -> bool:
+    del name
+    return False
+
+
+def classify_legacy_publisher_gate(
+    *,
+    publisher: str,
+    state: str,
+) -> LegacyGateResult:
+    if publisher not in LEGACY_PUBLISHERS:
+        return LegacyGateResult(
+            "unknown_publisher",
+            False,
+            True,
+            "unknown_publisher",
+        )
+    if state in {"missing", "failed"}:
+        return LegacyGateResult(
+            WAIVED_LEGACY_GATE,
+            False,
+            False,
+            "legacy_publisher_waived",
+        )
+    if state == "success":
+        return LegacyGateResult(
+            "LEGACY_NON_CANONICAL",
+            False,
+            False,
+            "legacy_publisher_not_canonical_for_v25",
+        )
+    return LegacyGateResult(
+        "unknown_legacy_state",
+        False,
+        True,
+        "unknown_legacy_state",
+    )
+
+
+def evaluate_issue_checkpoint(
+    *,
+    pushed: bool,
+    commit: str,
+    tree: str,
+    scoped_diff: bool,
+    focused_tests_passed: bool,
+    independent_terra_verified: bool,
+    manifest_evidence: bool,
+    review_ready: bool = False,
+    automation_token_present: bool = False,
+) -> IssueCheckpointDecision:
+    del review_ready, automation_token_present
+    if not pushed or not _is_sha40(commit) or not _is_sha40(tree):
+        return IssueCheckpointDecision(
+            False, False, False, "exact_pushed_commit_tree_required"
+        )
+    if not scoped_diff:
+        return IssueCheckpointDecision(False, False, False, "scoped_diff_required")
+    if not focused_tests_passed:
+        return IssueCheckpointDecision(False, False, False, "focused_tests_required")
+    if not independent_terra_verified:
+        return IssueCheckpointDecision(
+            False, False, False, "independent_terra_verification_required"
+        )
+    if not manifest_evidence:
+        return IssueCheckpointDecision(
+            False, False, False, "manifest_evidence_required"
+        )
+    return IssueCheckpointDecision(
+        True,
+        False,
+        False,
+        "v25_bootstrap_lean_issue_checkpoint",
+    )
+
+
+def administrator_recovery(
+    *,
+    named_exception: str,
+    exact_head: str,
+    replacement_proof: bool,
+    operations: tuple[str, ...] | list[str],
+) -> AdministratorRecoveryDecision:
+    if not named_exception.strip():
+        return AdministratorRecoveryDecision(False, "named_exception_required")
+    if not replacement_proof:
+        return AdministratorRecoveryDecision(False, "replacement_proof_required")
+    if not _is_sha40(exact_head):
+        return AdministratorRecoveryDecision(False, "exact_head_required")
+    ops = tuple(operations)
+    if not ops:
+        return AdministratorRecoveryDecision(False, "recovery_operations_required")
+    if any(op not in ADMIN_RECOVERY_OPERATIONS for op in ops):
+        return AdministratorRecoveryDecision(
+            False, "operations_limited_to_snapshot_restore_readback"
+        )
+    return AdministratorRecoveryDecision(True, "named_exact_head_recovery")
 
 
 def autowork_discovery_decision(

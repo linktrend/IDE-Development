@@ -170,4 +170,15 @@ Factual correction for Update 9:
 
 ## Amendment — 2026-08-20 (singular Review Ready publisher authority)
 
-Coding Execution Protocol 1.0.1 control contract: Review Ready publication authority is solely the trusted workflow **`linktrend-review-ready-publisher`** with documented `AUTOMATION_TOKEN`. `scripts/mark-review-ready.sh` is not a publisher. `.linktrend/review-ready.json` and user-PAT publication are not publishers. Duplicate legacy publisher claims earlier in this ADR, including the 2026-07-28 item that named `mark-review-ready.sh` as a publish path, are non-authoritative in this control layer. Delivery and workflow YAML remain owned elsewhere.
+Superseded by `V25_BOOTSTRAP_LEAN` below. The earlier claim that `linktrend-review-ready-publisher` is the sole canonical Review Ready publisher is non-authoritative for v2.5.
+
+## Amendment — 2026-08-20 (`V25_BOOTSTRAP_LEAN`)
+
+Founder-approved Coding Execution Protocol 1.0.1 amendment `V25_BOOTSTRAP_LEAN`:
+
+1. A v2.5 Issue checkpoint is accepted from exact pushed commit/tree, scoped diff, focused tests, independent Terra verification, and manifest evidence. Review Ready and publisher tokens are not required.
+2. No singular legacy publisher is canonical for v2.5, including `linktrend-review-ready-publisher`.
+3. A failed or missing legacy publisher is `WAIVED_LEGACY_GATE`, never PASS and never an implementation failure.
+4. A later exact-head administrator recovery is only a named exception after substantive replacement proof, limited to protection snapshot, restore, and readback.
+
+Delivery and workflow YAML remain owned elsewhere.

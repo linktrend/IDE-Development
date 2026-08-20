@@ -21,7 +21,7 @@
     "protocol": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "version"],
+      "required": ["id", "version", "amendment"],
       "properties": {
         "id": {
           "type": "string",
@@ -30,6 +30,10 @@
         "version": {
           "type": "string",
           "const": "1.0.1"
+        },
+        "amendment": {
+          "type": "string",
+          "const": "V25_BOOTSTRAP_LEAN"
         }
       }
     },
@@ -144,7 +148,9 @@
         "automaticApproval",
         "gitAuthority",
         "publisherAuthority",
-        "autoworkDiscovery"
+        "autoworkDiscovery",
+        "issueCheckpoint",
+        "administratorRecovery"
       ],
       "properties": {
         "exactCandidateInvalidation": {
@@ -289,24 +295,33 @@
         "publisherAuthority": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["canonical", "legacyDuplicatesForbidden"],
+          "required": [
+            "canonicalForV25",
+            "legacyPublishers",
+            "missingOrFailedClassification"
+          ],
           "properties": {
-            "canonical": {
+            "canonicalForV25": {
               "type": "string",
-              "const": "linktrend-review-ready-publisher"
+              "const": "none"
             },
-            "legacyDuplicatesForbidden": {
+            "legacyPublishers": {
               "type": "array",
-              "minItems": 1,
+              "minItems": 4,
               "uniqueItems": true,
               "items": {
                 "type": "string",
                 "enum": [
+                  "linktrend-review-ready-publisher",
                   "mark-review-ready.sh-as-publisher",
                   "review-ready.json",
                   "user-pat-publisher"
                 ]
               }
+            },
+            "missingOrFailedClassification": {
+              "type": "string",
+              "const": "WAIVED_LEGACY_GATE"
             }
           }
         },
@@ -317,6 +332,58 @@
           "properties": {
             "requiredWhenCallable": { "type": "boolean", "const": true },
             "unavailableIsHold": { "type": "boolean", "const": true }
+          }
+        },
+        "issueCheckpoint": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "acceptWithoutReviewReady",
+            "acceptWithoutToken",
+            "requiredEvidence"
+          ],
+          "properties": {
+            "acceptWithoutReviewReady": { "type": "boolean", "const": true },
+            "acceptWithoutToken": { "type": "boolean", "const": true },
+            "requiredEvidence": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "exact_pushed_commit_tree",
+                  "scoped_diff",
+                  "focused_tests",
+                  "independent_terra_verification",
+                  "manifest_evidence"
+                ]
+              }
+            }
+          }
+        },
+        "administratorRecovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "namedExceptionOnly",
+            "afterReplacementProof",
+            "allowedOperations"
+          ],
+          "properties": {
+            "namedExceptionOnly": { "type": "boolean", "const": true },
+            "afterReplacementProof": { "type": "boolean", "const": true },
+            "allowedOperations": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": ["protection_snapshot", "restore", "readback"]
+              }
+            }
           }
         }
       }

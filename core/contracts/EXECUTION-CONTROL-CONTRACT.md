@@ -1,6 +1,6 @@
 # Execution Control Contract
 
-**Status:** Canonical for Coding Execution Protocol 1.0.1  
+**Status:** Canonical for Coding Execution Protocol 1.0.1 amendment `V25_BOOTSTRAP_LEAN`
 **Consumes:** `core/execution/CODING-EXECUTION-PROTOCOL.md`  
 **Schema:** `core/contracts/EXECUTION-MANIFEST.schema.json`
 
@@ -67,17 +67,35 @@ Absence of a recorded founder approval is not a request to invent one.
 
 This contract does not change workflow files. It forbids claiming Git authority the workflows have not granted.
 
-## Publisher authority (singular)
+## v2.5 Issue checkpoint (`V25_BOOTSTRAP_LEAN`)
 
-Canonical Review Ready publisher: **`linktrend-review-ready-publisher`**.
+A v2.5 Issue checkpoint is accepted when all of the following are present:
 
-Legacy duplicates are non-authoritative in this control layer and must not be advertised as publishers:
+1. exact pushed commit and tree
+2. scoped diff
+3. focused tests
+4. independent Terra verification
+5. manifest evidence
 
-- `mark-review-ready.sh-as-publisher`
-- `review-ready.json`
-- `user-pat-publisher`
+Review Ready publication and publisher tokens are **not** required and must not block that acceptance.
 
-Delivery and workflow implementation remain owned by other packets. This packet only removes duplicate **control-contract** publisher authority.
+## Publisher authority (no singular legacy canonical)
+
+`canonicalForV25` is `none`. No singular legacy publisher is canonical for v2.5, including `linktrend-review-ready-publisher`, `mark-review-ready.sh-as-publisher`, `.linktrend/review-ready.json`, and user-PAT publication.
+
+A failed or missing legacy publisher is classified **`WAIVED_LEGACY_GATE`**. That classification is never PASS and never an implementation failure.
+
+Delivery and workflow implementation remain owned by other packets.
+
+## Administrator recovery
+
+A later exact-head administrator recovery is allowed only as a **named** exception, only after substantive replacement proof, and only for:
+
+- `protection_snapshot`
+- `restore`
+- `readback`
+
+Unnamed recovery, recovery without replacement proof, or any other operation is forbidden by this control contract.
 
 ## LiNKautowork automation discovery
 

@@ -14,15 +14,20 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.execution.protocol import (  # noqa: E402
+    AMENDMENT_ID,
     CANONICAL_PUBLISHER,
     LEGACY_PUBLISHERS,
     PROTOCOL_ID,
     PROTOCOL_VERSION,
+    WAIVED_LEGACY_GATE,
     acquire_orchestration_lease,
+    administrator_recovery,
     admit_resources,
     autowork_discovery_decision,
     candidate_identity,
+    classify_legacy_publisher_gate,
     discover_runtime,
+    evaluate_issue_checkpoint,
     git_authority_allows,
     invalidate_candidate,
     load_execution_schema,
@@ -63,6 +68,7 @@ class DiscoveryTests(unittest.TestCase):
         doctrine_text = discovered.doctrine_path.read_text(encoding="utf-8")
         self.assertEqual(protocol_document_version(protocol_text), "1.0.1")
         self.assertEqual(protocol_document_version(doctrine_text), "1.0.1")
+        self.assertIn("V25_BOOTSTRAP_LEAN", protocol_text)
         self.assertEqual(protocol_text, doctrine_text)
 
     def test_missing_surface_fails_closed(self) -> None:
@@ -99,6 +105,16 @@ class ManifestSchemaTests(unittest.TestCase):
     def test_schema_loader_matches_discovery(self) -> None:
         schema = load_execution_schema(ROOT)
         self.assertEqual(schema["properties"]["protocol"]["properties"]["version"]["const"], "1.0.1")
+        self.assertEqual(
+            schema["properties"]["protocol"]["properties"]["amendment"]["const"],
+            "V25_BOOTSTRAP_LEAN",
+        )
+
+    def test_missing_amendment_is_rejected(self) -> None:
+        document = example_manifest()
+        del document["protocol"]["amendment"]
+        result = validate_execution_manifest(document, repo_root=ROOT)
+        self.assertFalse(result.ok)
 
 
 class ExactCandidateTests(unittest.TestCase):
@@ -329,16 +345,99 @@ class GitAuthorityTests(unittest.TestCase):
 
 
 class PublisherAuthorityTests(unittest.TestCase):
-    def test_canonical_publisher_is_singular(self) -> None:
-        self.assertEqual(CANONICAL_PUBLISHER, "linktrend-review-ready-publisher")
-        self.assertTrue(publisher_is_canonical(CANONICAL_PUBLISHER))
+    def test_no_singular_legacy_publisher_is_canonical_for_v25(self) -> None:
+        self.assertIsNone(CANONICAL_PUBLISHER)
+        self.assertEqual(AMENDMENT_ID, "V25_BOOTSTRAP_LEAN")
+        self.assertIn("linktrend-review-ready-publisher", LEGACY_PUBLISHERS)
         for name in LEGACY_PUBLISHERS:
             self.assertFalse(publisher_is_canonical(name))
         doctrine = (
             ROOT / "core/managed-core/content/doctrine/0003-autonomous-ship-pull-promote.md"
         ).read_text(encoding="utf-8")
-        self.assertIn("singular Review Ready publisher authority", doctrine)
-        self.assertIn("mark-review-ready.sh` is not a publisher", doctrine)
+        self.assertIn("V25_BOOTSTRAP_LEAN", doctrine)
+        self.assertIn("WAIVED_LEGACY_GATE", doctrine)
+
+    def test_failed_or_missing_legacy_publisher_is_waived_not_pass(self) -> None:
+        for state in ("missing", "failed"):
+            result = classify_legacy_publisher_gate(
+                publisher="linktrend-review-ready-publisher",
+                state=state,
+            )
+            self.assertEqual(result.classification, WAIVED_LEGACY_GATE)
+            self.assertFalse(result.is_pass)
+            self.assertFalse(result.is_implementation_failure)
+        success = classify_legacy_publisher_gate(
+            publisher="linktrend-review-ready-publisher",
+            state="success",
+        )
+        self.assertFalse(success.is_pass)
+        self.assertNotEqual(success.classification, WAIVED_LEGACY_GATE)
+
+
+class IssueCheckpointTests(unittest.TestCase):
+    def test_complete_evidence_accepts_without_review_ready_or_token(self) -> None:
+        decision = evaluate_issue_checkpoint(
+            pushed=True,
+            commit=COMMIT_A,
+            tree=TREE_A,
+            scoped_diff=True,
+            focused_tests_passed=True,
+            independent_terra_verified=True,
+            manifest_evidence=True,
+            review_ready=False,
+            automation_token_present=False,
+        )
+        self.assertTrue(decision.accepted)
+        self.assertFalse(decision.requires_review_ready)
+        self.assertFalse(decision.requires_token)
+        self.assertEqual(decision.reason, "v25_bootstrap_lean_issue_checkpoint")
+
+    def test_missing_terra_verification_is_not_accepted(self) -> None:
+        decision = evaluate_issue_checkpoint(
+            pushed=True,
+            commit=COMMIT_A,
+            tree=TREE_A,
+            scoped_diff=True,
+            focused_tests_passed=True,
+            independent_terra_verified=False,
+            manifest_evidence=True,
+        )
+        self.assertFalse(decision.accepted)
+        self.assertEqual(decision.reason, "independent_terra_verification_required")
+
+
+class AdministratorRecoveryTests(unittest.TestCase):
+    def test_named_exact_head_recovery_after_replacement_proof(self) -> None:
+        decision = administrator_recovery(
+            named_exception="v25-protection-readback",
+            exact_head=COMMIT_A,
+            replacement_proof=True,
+            operations=("protection_snapshot", "restore", "readback"),
+        )
+        self.assertTrue(decision.allowed)
+
+    def test_unnamed_or_extra_operations_are_denied(self) -> None:
+        unnamed = administrator_recovery(
+            named_exception=" ",
+            exact_head=COMMIT_A,
+            replacement_proof=True,
+            operations=("readback",),
+        )
+        self.assertFalse(unnamed.allowed)
+        extra = administrator_recovery(
+            named_exception="v25-protection-readback",
+            exact_head=COMMIT_A,
+            replacement_proof=True,
+            operations=("protection_snapshot", "workflow_edit"),
+        )
+        self.assertFalse(extra.allowed)
+        no_proof = administrator_recovery(
+            named_exception="v25-protection-readback",
+            exact_head=COMMIT_A,
+            replacement_proof=False,
+            operations=("readback",),
+        )
+        self.assertFalse(no_proof.allowed)
 
 
 class AutoworkDiscoveryTests(unittest.TestCase):

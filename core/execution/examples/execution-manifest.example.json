@@ -2,7 +2,8 @@
   "schemaVersion": 1,
   "protocol": {
     "id": "coding-execution-protocol",
-    "version": "1.0.1"
+    "version": "1.0.1",
+    "amendment": "V25_BOOTSTRAP_LEAN"
   },
   "program": {
     "id": "ide-development-v2.5",
@@ -93,16 +94,34 @@
       "nestedSelfInstall": false
     },
     "publisherAuthority": {
-      "canonical": "linktrend-review-ready-publisher",
-      "legacyDuplicatesForbidden": [
+      "canonicalForV25": "none",
+      "legacyPublishers": [
+        "linktrend-review-ready-publisher",
         "mark-review-ready.sh-as-publisher",
         "review-ready.json",
         "user-pat-publisher"
-      ]
+      ],
+      "missingOrFailedClassification": "WAIVED_LEGACY_GATE"
     },
     "autoworkDiscovery": {
       "requiredWhenCallable": true,
       "unavailableIsHold": true
+    },
+    "issueCheckpoint": {
+      "acceptWithoutReviewReady": true,
+      "acceptWithoutToken": true,
+      "requiredEvidence": [
+        "exact_pushed_commit_tree",
+        "scoped_diff",
+        "focused_tests",
+        "independent_terra_verification",
+        "manifest_evidence"
+      ]
+    },
+    "administratorRecovery": {
+      "namedExceptionOnly": true,
+      "afterReplacementProof": true,
+      "allowedOperations": ["protection_snapshot", "restore", "readback"]
     }
   }
 }
