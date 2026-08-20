@@ -209,6 +209,12 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn(live, managed["profiles"]["fast"]["commands"])
         self.assertIn(live, managed["profiles"]["full"]["commands"])
 
+    def test_checked_in_fixture_declaration_binds_current_candidate_tree(self) -> None:
+        declaration_path = ROOT / ".github/linktrend-secret-scan-fixtures.json"
+        payload = json.loads(declaration_path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["scannerPolicyVersion"], SCANNER_POLICY_VERSION)
+        self.assertEqual(payload["candidateTree"], candidate_content_tree(ROOT))
+
     def test_doctrine_and_installer_docs_name_fixture_contract(self) -> None:
         contract = (ROOT / "docs/contracts/SECRET-SCAN-FIXTURES.md").read_text(encoding="utf-8")
         delivery = (ROOT / "docs/contracts/DELIVERY-MODES.md").read_text(encoding="utf-8")
