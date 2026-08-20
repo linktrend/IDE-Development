@@ -1,0 +1,325 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://linktrend.local/contracts/execution-manifest.schema.json",
+  "title": "Coding Execution Protocol execution-manifest",
+  "description": "Schema-valid execution program manifest for Coding Execution Protocol 1.0.1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "protocol",
+    "program",
+    "baseline",
+    "packets",
+    "controls"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "const": "coding-execution-protocol"
+        },
+        "version": {
+          "type": "string",
+          "const": "1.0.1"
+        }
+      }
+    },
+    "program": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "targetRelease": { "type": "string", "minLength": 1, "maxLength": 64 }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit", "tree"],
+      "properties": {
+        "repository": { "$ref": "#/$defs/repository" },
+        "commit": { "$ref": "#/$defs/sha40" },
+        "tree": { "$ref": "#/$defs/sha40" },
+        "ref": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "packets": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/packet" }
+    },
+    "issues": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/issue" }
+    },
+    "controls": {
+      "$ref": "#/$defs/controls"
+    }
+  },
+  "$defs": {
+    "sha40": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "repository": {
+      "type": "string",
+      "pattern": "^[^/\\s]+/[^/\\s]+$"
+    },
+    "packetId": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*-[0-9]{2,}$"
+    },
+    "issueId": {
+      "type": "string",
+      "pattern": "^ISS-[0-9]{2,}$"
+    },
+    "packet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "ownedPaths", "verificationCommands"],
+      "properties": {
+        "id": { "$ref": "#/$defs/packetId" },
+        "title": { "type": "string", "minLength": 1 },
+        "issues": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/issueId" },
+          "uniqueItems": true
+        },
+        "ownedPaths": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "prohibitedPaths": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "verificationCommands": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/packetId" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "packetId", "title"],
+      "properties": {
+        "id": { "$ref": "#/$defs/issueId" },
+        "packetId": { "$ref": "#/$defs/packetId" },
+        "title": { "type": "string", "minLength": 1 }
+      }
+    },
+    "controls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exactCandidateInvalidation",
+        "boundedRetry",
+        "orchestrationLease",
+        "resourceUncertainty",
+        "automaticApproval",
+        "gitAuthority",
+        "publisherAuthority",
+        "autoworkDiscovery"
+      ],
+      "properties": {
+        "exactCandidateInvalidation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "identityFields"],
+          "properties": {
+            "enabled": { "type": "boolean", "const": true },
+            "identityFields": {
+              "type": "array",
+              "minItems": 3,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "repository",
+                  "commit",
+                  "tree",
+                  "workflowDigest",
+                  "profileDigest"
+                ]
+              }
+            }
+          }
+        },
+        "boundedRetry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ordinarySourceRepairs",
+            "infrastructureAttemptsPerCandidate",
+            "codeFailureRetries"
+          ],
+          "properties": {
+            "ordinarySourceRepairs": {
+              "type": "integer",
+              "const": 3
+            },
+            "infrastructureAttemptsPerCandidate": {
+              "type": "integer",
+              "const": 2
+            },
+            "codeFailureRetries": {
+              "type": "integer",
+              "const": 0
+            }
+          }
+        },
+        "orchestrationLease": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["required", "scope"],
+          "properties": {
+            "required": { "type": "boolean", "const": true },
+            "scope": {
+              "type": "string",
+              "enum": ["packet-repository"]
+            },
+            "ttlSeconds": {
+              "type": "integer",
+              "minimum": 60,
+              "maximum": 86400
+            }
+          }
+        },
+        "resourceUncertainty": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["failClosed"],
+          "properties": {
+            "failClosed": { "type": "boolean", "const": true },
+            "unknownIsBlocking": { "type": "boolean", "const": true }
+          }
+        },
+        "automaticApproval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["checkpoint", "reservedActions"],
+          "properties": {
+            "checkpoint": {
+              "type": "string",
+              "enum": ["automatic"]
+            },
+            "stagingPromote": {
+              "type": "string",
+              "enum": ["automatic-on-receipt-identity"]
+            },
+            "reservedActions": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "main_promote",
+                  "publish_release",
+                  "deploy_production",
+                  "github_protection_change",
+                  "provider_live_mutation"
+                ]
+              }
+            },
+            "forbiddenActors": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": ["self_review", "self_merge", "prefer_incoming"]
+              }
+            }
+          }
+        },
+        "gitAuthority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "workBranchPattern",
+            "protectedRefs",
+            "implementerMayOpenPr",
+            "implementerMayMerge",
+            "nestedSelfInstall"
+          ],
+          "properties": {
+            "workBranchPattern": {
+              "type": "string",
+              "const": "issue/<n>-<slug>"
+            },
+            "protectedRefs": {
+              "type": "array",
+              "minItems": 3,
+              "items": {
+                "type": "string",
+                "enum": ["development", "staging", "main"]
+              },
+              "uniqueItems": true
+            },
+            "implementerMayOpenPr": { "type": "boolean", "const": false },
+            "implementerMayMerge": { "type": "boolean", "const": false },
+            "nestedSelfInstall": { "type": "boolean", "const": false }
+          }
+        },
+        "publisherAuthority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["canonical", "legacyDuplicatesForbidden"],
+          "properties": {
+            "canonical": {
+              "type": "string",
+              "const": "linktrend-review-ready-publisher"
+            },
+            "legacyDuplicatesForbidden": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "mark-review-ready.sh-as-publisher",
+                  "review-ready.json",
+                  "user-pat-publisher"
+                ]
+              }
+            }
+          }
+        },
+        "autoworkDiscovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requiredWhenCallable"],
+          "properties": {
+            "requiredWhenCallable": { "type": "boolean", "const": true },
+            "unavailableIsHold": { "type": "boolean", "const": true }
+          }
+        }
+      }
+    }
+  }
+}

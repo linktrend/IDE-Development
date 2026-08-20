@@ -95,3 +95,22 @@ entries:
       - execution
       - application-pipeline
       - modules
+
+  - id: coding-execution-protocol
+    path: core/execution/CODING-EXECUTION-PROTOCOL.md
+    purpose: Canonical Coding Execution Protocol 1.0.1 semantics, discovery, and proof limits.
+    when_to_read:
+      - when validating an execution-manifest
+      - when starting a bounded implementer packet
+      - when judging exact-candidate, retry, lease, approval, or Git authority rules
+    dependencies: []
+    consumers:
+      - human operators
+      - AI runtimes
+      - orchestrators
+      - reviewers
+    status: active
+    tags:
+      - execution
+      - protocol
+      - contracts
