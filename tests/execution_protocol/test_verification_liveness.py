@@ -105,6 +105,7 @@ class VerificationLivenessContractTests(unittest.TestCase):
         })
         self.assertEqual(run["canonicalCheckout"], str(self.checkout.resolve()))
         self.assertEqual(run["cwd"], str(self.checkout.resolve()))
+        self.assertEqual(run["repository"], "linktrend/IDE-Development")
         self.assertEqual(run["commit"], COMMIT)
         self.assertEqual(run["tree"], TREE)
         self.assertEqual(
@@ -282,6 +283,26 @@ class VerificationLivenessContractTests(unittest.TestCase):
         )
         self.assertFalse(result.ok)
         self.assertEqual(result.reason, "canonical_checkout_mismatch")
+
+    def test_repository_mismatch_and_timeout_are_rejected(self) -> None:
+        run = _run(self.checkout)
+        mismatch = reconcile_verification_run(
+            run,
+            now=NOW,
+            observation=_running_observation(run, repository="other/repository"),
+        )
+        self.assertFalse(mismatch.ok)
+        self.assertEqual(mismatch.reason, "repository_mismatch")
+
+        timed = _run(self.checkout, started_at=NOW - timedelta(seconds=3601))
+        timeout = reconcile_verification_run(
+            timed,
+            now=NOW,
+            observation=_running_observation(timed),
+        )
+        self.assertFalse(timeout.ok)
+        self.assertEqual(timeout.state, "TIMED_OUT")
+        self.assertEqual(timeout.reason, "verification_timeout")
 
     def test_duplicate_same_tree_full_execution_is_rejected(self) -> None:
         first = _run(self.checkout)
