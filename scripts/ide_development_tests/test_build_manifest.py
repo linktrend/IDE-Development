@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ide_development import build_manifest as bm
+from ide_development import release_candidate as rc
 
 REQUIRED_DOCTRINE = {
     "AGENT-COMPLETION.md",
@@ -66,6 +69,37 @@ class BuildManifestPackagingTests(unittest.TestCase):
                 missing_cursor.append(cursor_destination)
         self.assertEqual(missing, [])
         self.assertEqual(missing_cursor, [])
+
+    def test_runtime_manifest_missing_source_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-manifest-") as tmp:
+            root = Path(tmp)
+            runtime_manifest = root / "core" / "github" / "managed-runtime" / "MANIFEST.json"
+            runtime_manifest.parent.mkdir(parents=True)
+            runtime_manifest.write_text(
+                json.dumps(
+                    {
+                        "files": list(bm.REQUIRED_RUNTIME_PACKAGE_SOURCES),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.object(bm, "REPO_ROOT", root):
+                with self.assertRaises(FileNotFoundError):
+                    bm._gitops_script_sources()
+
+    def test_runtime_manifest_declares_contract_dependencies(self) -> None:
+        sources = set(bm._gitops_script_sources())
+        self.assertTrue(
+            set(bm.REQUIRED_RUNTIME_PACKAGE_SOURCES).issubset(sources),
+            "runtime manifest must export the CI contract and its package dependency",
+        )
+
+    def test_release_candidate_exports_contract_dependencies(self) -> None:
+        package_paths = set(rc.collect_package_paths())
+        self.assertTrue(
+            set(bm.REQUIRED_RUNTIME_PACKAGE_SOURCES).issubset(package_paths),
+            "release-candidate package paths must include the CI contract dependency closure",
+        )
 
     def test_library_vendor_rename_has_exact_removal_migrations(self) -> None:
         catalog = json.loads(

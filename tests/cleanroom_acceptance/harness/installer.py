@@ -94,6 +94,15 @@ def materialize_package_copy(dest: Path, *, source: Path | None = None) -> Path:
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(src, dest)
+    runtime_manifest = REPO_ROOT / "core" / "github" / "managed-runtime" / "MANIFEST.json"
+    runtime_sources = json.loads(runtime_manifest.read_text(encoding="utf-8")).get("files") or []
+    for rel in runtime_sources:
+        runtime_source = REPO_ROOT / rel
+        if not runtime_source.is_file() or runtime_source.is_symlink():
+            raise FileNotFoundError(f"missing physical runtime package source: {rel}")
+        runtime_destination = dest / rel
+        runtime_destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(runtime_source, runtime_destination)
     return dest
 
 
@@ -105,9 +114,7 @@ def materialize_isolated_rc_extract(dest: Path, *, source: Path | None = None) -
     """
     materialize_package_copy(dest, source=source)
     scripts = dest / "scripts"
-    if scripts.exists():
-        shutil.rmtree(scripts)
-    scripts.mkdir(parents=True)
+    scripts.mkdir(parents=True, exist_ok=True)
     if not INSTALLER_ENTRY.is_file():
         raise FileNotFoundError(f"missing installer entrypoint: {INSTALLER_ENTRY}")
     if not INSTALLER_PACKAGE_DIR.is_dir():
@@ -116,6 +123,7 @@ def materialize_isolated_rc_extract(dest: Path, *, source: Path | None = None) -
     shutil.copytree(
         INSTALLER_PACKAGE_DIR,
         scripts / "ide_development",
+        dirs_exist_ok=True,
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo", ".DS_Store"),
     )
     return dest
