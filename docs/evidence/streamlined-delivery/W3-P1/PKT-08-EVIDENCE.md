@@ -5,9 +5,9 @@
 - Requested phase head: `f7fae3b09ce4d3196a6967b60f8422779ff82a13`
 - Requested phase tree: `5d8016dfee4c27d6b63aa601d4ca4748a29fdb47`
 - Governed repair checkpoint: `b5cf7d08fb17e4deceec235cf99aa56350ab5196`
-- Artifact source checkpoint: `5d3adc78e12bf62d1c48052d90b8c46a56a27895`
+- Artifact source checkpoint: `ea2be525c67d676ff8f2d1b153631833f6b61e32`
 - Managed package: `2.4.0`
-- Manifest SHA-256: `sha256:dcac9d44a1867a8627501e8385a4c385db8c6d29d4ad213d315d421a6785c3c4`
+- Manifest SHA-256: `sha256:0416e1a69ff8fb8c6170a86e1dbc832f928eb9294a6f540f8635fb8f3f6b6c34`
 
 The requested phase checkout was kept isolated. Its proof checkout carried only
 the bounded PKT-08 repairs needed to make the phase checks executable and
@@ -55,6 +55,15 @@ after verification. The required checks included:
 These are local exact-checkout results, not hosted CI, protected-branch, or
 production proof.
 
+The follow-up exact-identity repair was validated at source checkpoint
+`ea2be525c67d676ff8f2d1b153631833f6b61e32` with:
+
+```text
+python3 -m unittest scripts.tests.test_gate_receipts scripts.tests.test_promotion_receipt_gate scripts.tests.test_streamlined_delivery_config scripts.tests.test_delivery_profile_runner scripts.tests.test_linktrend_review_gate
+```
+
+The targeted suite exited `0` with 67 tests passing.
+
 ## Phase and review boundary
 
 Draft Phase PR [#343](https://github.com/linktrend/IDE-Development/pull/343)
@@ -69,7 +78,7 @@ claimed here. Conditional Full remains governed by the exact final Phase head.
 ## Release artifact boundary
 
 The official release-candidate CLI was run from a clean alternate checkout of
-`5d3adc78e12bf62d1c48052d90b8c46a56a27895`. It produced reproducible tar.gz
+`ea2be525c67d676ff8f2d1b153631833f6b61e32`. It produced reproducible tar.gz
 and zip archives, passed disposable install verification, and wrote the
 machine-readable metadata in:
 
@@ -82,8 +91,8 @@ Archive receipts:
 
 | Format | Bytes | SHA-256 |
 |---|---:|---|
-| tar.gz | 533734 | `sha256:e133bdb396c73edfd0efe67b42a621f978ea90fe1594b52f3eb7fc1e812ce19e` |
-| zip | 649919 | `sha256:b47f6f0885b30c35df7a3239a2658a1ee3087c4d1f9fe9a0227398c09ffed4f2` |
+| tar.gz | 533825 | `sha256:6357956f979513d5b044462e7d55b92e464d12dbfefe913bb410e49a37ce7c4c` |
+| zip | 650025 | `sha256:877a953d2ffad033074c944034899c9fcd1722a975f41bb9db84be40c389f61c` |
 
 No tag, GitHub Release, protected-branch merge, staging promotion, or main
 promotion was performed. `v2.4.0` is therefore a pending governed publication,
