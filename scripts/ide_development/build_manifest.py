@@ -146,6 +146,7 @@ HOSTED_TEST_FILES = (
     "scripts/tests/test_phase_packager_coordinator.py",
     "scripts/tests/test_independent_review_convergence.py",
     "scripts/tests/test_fixture_aware_secret_scan.py",
+    "scripts/tests/test_candidate_baseline_resolution.py",
     "scripts/tests/test_generated_output_closure.py",
     "scripts/tests/test_manifest_persistence_recovery.py",
     "scripts/tests/test_repository_ci_trigger_contract.py",

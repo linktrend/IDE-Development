@@ -15,8 +15,8 @@ do
 done
 
 if [[ -n "$GENERATED_OUTPUT_CLOSURE" ]]; then
-  if ! python3 "$GENERATED_OUTPUT_CLOSURE" --verify; then
-    echo "pre-push: REJECT stale or invalid generated output closure" >&2
+  if ! python3 "$GENERATED_OUTPUT_CLOSURE" --finalize; then
+    echo "pre-push: REJECT candidate finalization (runtime baseline, closure, or whitespace)" >&2
     exit 1
   fi
 else

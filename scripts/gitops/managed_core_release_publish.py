@@ -289,6 +289,8 @@ def rebuild_from_source(
     output_dir: Path | None = None,
     allow_dirty: bool = False,
     skip_install_verify: bool = False,
+    baseline_sha: str | None = None,
+    baseline_ref: str | None = None,
 ) -> Binding:
     """Rebuild archives from source_root using trusted packaging code."""
     root = source_root.resolve()
@@ -303,6 +305,8 @@ def rebuild_from_source(
         allow_dirty=allow_dirty,
         skip_install_verify=skip_install_verify,
         skip_evidence=False,
+        candidate_baseline_sha=baseline_sha,
+        candidate_baseline_ref=baseline_ref,
     )
     version = str(result.get("packageVersion") or "")
     source_commit = str(result.get("sourceCommit") or "").lower()
@@ -713,6 +717,8 @@ def run_publish(
     allow_dirty: bool = False,
     skip_install_verify: bool = False,
     skip_remote_checks: bool = False,
+    baseline_sha: str | None = None,
+    baseline_ref: str | None = None,
     api: ApiFn | None = None,
 ) -> dict[str, Any]:
     if version != PACKAGE_VERSION_TARGET:
@@ -750,6 +756,8 @@ def run_publish(
         output_dir=output_dir,
         allow_dirty=allow_dirty,
         skip_install_verify=skip_install_verify,
+        baseline_sha=baseline_sha,
+        baseline_ref=baseline_ref,
     )
     if binding.tag != tag:
         _reject("tag_binding_failed", f"binding tag {binding.tag} != requested {tag}")
@@ -841,6 +849,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output-dir", type=Path, default=None)
     p.add_argument("--allow-dirty", action="store_true")
     p.add_argument("--skip-install-verify", action="store_true")
+    p.add_argument("--baseline-sha", help="Runtime-supplied exact target baseline SHA")
+    p.add_argument("--baseline-ref", help="Runtime-supplied authoritative target baseline ref")
     p.add_argument(
         "--skip-remote-checks",
         action="store_true",
@@ -868,6 +878,8 @@ def main(argv: list[str] | None = None) -> int:
             allow_dirty=args.allow_dirty,
             skip_install_verify=args.skip_install_verify,
             skip_remote_checks=args.skip_remote_checks,
+            baseline_sha=args.baseline_sha,
+            baseline_ref=args.baseline_ref,
         )
     except ReleasePublishError as e:
         payload = {"ok": False, "status": e.code, "error": e.code, "detail": e.message}

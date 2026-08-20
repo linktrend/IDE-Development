@@ -53,9 +53,9 @@ from .errors import InstallerError, InvalidPackageError
 from .hashing import sha256_bytes, sha256_file
 
 try:
-    from scripts.gitops.generated_output_closure import ClosureError, verify_generated_outputs
+    from scripts.gitops.generated_output_closure import ClosureError, finalize_candidate
 except ModuleNotFoundError:  # pragma: no cover - package-style execution
-    from gitops.generated_output_closure import ClosureError, verify_generated_outputs  # type: ignore
+    from gitops.generated_output_closure import ClosureError, finalize_candidate  # type: ignore
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
@@ -631,10 +631,16 @@ def create_release_candidate(
     allow_dirty: bool = False,
     skip_install_verify: bool = False,
     skip_evidence: bool = False,
+    candidate_baseline_sha: str | None = None,
+    candidate_baseline_ref: str | None = None,
 ) -> dict[str, Any]:
     """Create deterministic RC archives + metadata under build/."""
     try:
-        verify_generated_outputs(repo_root)
+        finalize_candidate(
+            repo_root,
+            baseline_sha=candidate_baseline_sha,
+            baseline_ref=candidate_baseline_ref,
+        )
     except ClosureError as exc:
         raise ReleaseCandidateError(
             "Generated-output closure failed before candidate construction",
@@ -862,6 +868,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip lane evidence path checks (still requires packaging unit tests)",
     )
+    create.add_argument("--baseline-sha", help="Runtime-supplied exact target baseline SHA")
+    create.add_argument("--baseline-ref", help="Runtime-supplied authoritative target baseline ref")
 
     verify = sub.add_parser("verify", help="Extract archive and install into a clean temp repo")
     verify.add_argument(
@@ -889,6 +897,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 allow_dirty=bool(args.allow_dirty),
                 skip_install_verify=bool(args.skip_install_verify),
                 skip_evidence=bool(args.skip_evidence),
+                candidate_baseline_sha=args.baseline_sha,
+                candidate_baseline_ref=args.baseline_ref,
             )
         elif args.action == "verify":
             payload = verify_release_candidate_archive(

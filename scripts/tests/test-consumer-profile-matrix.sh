@@ -36,15 +36,26 @@ assert config["ciWorkflowName"] == ci and config["runnerType"] == "github-hosted
 assert not (root / "scripts/tests/test_candidate_lifecycle.py").exists()
 PY
 
+  git -C "$repo" config user.email "consumer-matrix@example.invalid"
+  git -C "$repo" config user.name "Consumer matrix"
+  git -C "$repo" add -A
+  git -C "$repo" commit -qm "runtime candidate baseline"
+  baseline_ref="refs/heads/development"
+  baseline_sha="$(git -C "$repo" rev-parse --verify "${baseline_ref}^{commit}")"
+
   # Exact hosted Fast command after checkout: profile is argv-only and never
   # imports IDE-source-only modules from a system path.
-  (cd "$repo" && git diff --check && python3 scripts/gitops/run_delivery_profile.py fast)
+  (cd "$repo" && LINKTREND_TARGET_BASELINE_SHA="$baseline_sha" LINKTREND_TARGET_BASELINE_REF="$baseline_ref" \
+    python3 -c 'import os; from pathlib import Path; from scripts.gitops.generated_output_closure import candidate_diff_check; candidate_diff_check(Path.cwd(), environ=os.environ)' && \
+    python3 scripts/gitops/run_delivery_profile.py fast)
 
   # Exact hosted Full command after checkout: the declared repository-owned
   # CI must have succeeded for this exact head. The fixture injects only the
   # GitHub API response, so the same managed discovery code is exercised.
   runs="{\"workflow_runs\":[{\"name\":\"Linktrend Fast Checks\",\"head_sha\":\"${head}\",\"conclusion\":\"success\"},{\"name\":\"${name} CI\",\"head_sha\":\"${head}\",\"conclusion\":\"success\"}]}"
-  (cd "$repo" && git diff --check && python3 scripts/gitops/run_delivery_profile.py full && \
+  (cd "$repo" && LINKTREND_TARGET_BASELINE_SHA="$baseline_sha" LINKTREND_TARGET_BASELINE_REF="$baseline_ref" \
+    python3 -c 'import os; from pathlib import Path; from scripts.gitops.generated_output_closure import candidate_diff_check; candidate_diff_check(Path.cwd(), environ=os.environ)' && \
+    python3 scripts/gitops/run_delivery_profile.py full && \
     LINKTREND_ACTIONS_RUNS_JSON="$runs" python3 scripts/gitops/require_exact_ci_success.py \
       --repository "linktrend/${name}" --head "$head" --config-key fastWorkflowName && \
     LINKTREND_ACTIONS_RUNS_JSON="$runs" python3 scripts/gitops/require_exact_ci_success.py \

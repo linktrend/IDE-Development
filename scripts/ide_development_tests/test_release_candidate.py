@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +18,15 @@ from ide_development.constants import (
 )
 from ide_development.errors import InstallerError
 from ide_development.hashing import sha256_file
+
+
+def runtime_baseline_environment() -> dict[str, str]:
+    sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    branch = subprocess.check_output(["git", "branch", "--show-current"], text=True).strip()
+    return {
+        "LINKTREND_TARGET_BASELINE_SHA": sha,
+        "LINKTREND_TARGET_BASELINE_REF": f"refs/heads/{branch}",
+    }
 
 
 class ReleaseCandidateGateTests(unittest.TestCase):
@@ -33,12 +43,13 @@ class ReleaseCandidateGateTests(unittest.TestCase):
         # Concurrent WP1 lanes leave the worktree dirty; production create must refuse.
         if not rc.worktree_is_dirty():
             self.skipTest("worktree currently clean; dirty refusal covered when dirty")
-        with self.assertRaises(InstallerError) as ctx:
-            rc.create_release_candidate(
-                allow_dirty=False,
-                skip_install_verify=True,
-                skip_evidence=True,
-            )
+        with mock.patch.dict(os.environ, runtime_baseline_environment()):
+            with self.assertRaises(InstallerError) as ctx:
+                rc.create_release_candidate(
+                    allow_dirty=False,
+                    skip_install_verify=True,
+                    skip_evidence=True,
+                )
         self.assertEqual(ctx.exception.exit_code, EXIT_INVALID_PACKAGE)
         self.assertIn("dirty", ctx.exception.message.lower())
 
@@ -51,12 +62,13 @@ class ReleaseCandidateGateTests(unittest.TestCase):
                 details={"missing": ["tests/packaging/LANE_D_RESULT.md"]},
             ),
         ):
-            with self.assertRaises(InstallerError) as ctx:
-                rc.create_release_candidate(
-                    allow_dirty=True,
-                    skip_install_verify=True,
-                    skip_evidence=False,
-                )
+            with mock.patch.dict(os.environ, runtime_baseline_environment()):
+                with self.assertRaises(InstallerError) as ctx:
+                    rc.create_release_candidate(
+                        allow_dirty=True,
+                        skip_install_verify=True,
+                        skip_evidence=False,
+                    )
             self.assertIn("evidence", ctx.exception.message.lower())
 
     def test_version_inconsistency_refusal(self) -> None:

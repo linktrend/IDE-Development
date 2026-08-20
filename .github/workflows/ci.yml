@@ -35,6 +35,15 @@ jobs:
           git fetch --no-tags origin "development:refs/remotes/origin/development"
           git rev-parse --verify origin/development
 
+      - name: Candidate finalization against runtime target baseline
+        run: |
+          set -euo pipefail
+          baseline_ref="origin/development"
+          baseline_sha="$(git rev-parse --verify "${baseline_ref}^{commit}")"
+          test "${baseline_sha}" = "$(git rev-parse --verify "${baseline_sha}^{commit}")"
+          python3 scripts/gitops/generated_output_closure.py \
+            --finalize --baseline-sha "${baseline_sha}" --baseline-ref "${baseline_ref}"
+
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:

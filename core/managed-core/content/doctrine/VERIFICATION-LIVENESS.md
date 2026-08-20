@@ -1,9 +1,9 @@
 # PKT-08 verification liveness
 
-**Status:** Founder-authorized v2.5 amendment  
-**Amendment:** `V25_PKT08_VERIFICATION_LIVENESS`  
-**Runtime:** `core/execution/verification_liveness.py`  
-**Config:** `core/managed-core/content/config/verification-liveness.json`  
+**Status:** Founder-authorized v2.5 amendment
+**Amendment:** `V25_PKT08_VERIFICATION_LIVENESS`
+**Runtime:** `core/execution/verification_liveness.py`
+**Config:** `core/managed-core/content/config/verification-liveness.json`
 **Schema:** `core/managed-core/schemas/verification-run.schema.json`
 
 Long `Full` verification is admitted only as a durable, exact-candidate-bound
