@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.gitops import run_delivery_profile as runner
 
@@ -49,6 +51,25 @@ class DeliveryProfileRunnerTests(unittest.TestCase):
         path, commands = runner.load_profile(root, "fast")
         self.assertEqual(path, root / ".github/linktrend-delivery-mode.json")
         self.assertTrue(any("scripts.tests.test_candidate_lifecycle" in command for command in commands))
+
+    def test_local_checkout_head_precedes_merge_ref_environment_sha(self) -> None:
+        def fake_git(_root: Path, *args: str) -> str:
+            if args == ("rev-parse", "HEAD"):
+                return "a" * 40
+            return ""
+
+        with patch.dict(os.environ, {"GITHUB_SHA": "b" * 40}, clear=False):
+            with patch.object(runner, "_run_git", side_effect=fake_git):
+                result = runner.build_identity(
+                    Path(tempfile.mkdtemp()),
+                    repository="linktrend/IDE-Development",
+                    git_tree="c" * 40,
+                    dependency_digest="sha256:" + ("1" * 64),
+                    profile_digest="sha256:" + ("2" * 64),
+                    workflow_digest="sha256:" + ("3" * 64),
+                )
+        self.assertIsNotNone(result)
+        self.assertEqual(result["headCommit"], "a" * 40)
 
     def test_consumer_without_ide_modules_uses_declared_managed_profile(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -2,6 +2,7 @@
 # GitOps lifecycle invariants (Batches 2–8 + repair control / managed runtime).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 cd "$ROOT"
 fail() { echo "FAIL: $1" >&2; exit 1; }
 pass() { echo "PASS: $1"; }
@@ -262,6 +263,17 @@ run_review_ready_expect() {
   ec=$?
   set -e
   [ "$ec" -eq "$expected" ] || fail "completion_gate expected exit $expected, got $ec ($(cat "$out" "$err"))"
+  if [ "$expected" -eq 0 ]; then
+    python3 - "$out" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+assert payload.get("state") == "waived_legacy_gate", payload
+assert payload.get("published") is False, payload
+assert payload.get("classification") == "WAIVED_LEGACY_GATE", payload
+PY
+  fi
 }
 
 write_completion_evidence() {
@@ -299,8 +311,8 @@ pass "completion_gate stale evidence fails closed without success status"
 
 write_completion_evidence ".linktrend/valid-evidence.json" 0
 run_review_ready_expect 0 ".linktrend/valid-evidence.json"
-assert_success_status "$advanced_sha"
-pass "completion_gate valid evidence publishes success status for exact SHA"
+assert_no_success_status "$advanced_sha"
+pass "completion_gate valid evidence waives legacy Review Ready for exact SHA"
 
 (
   cd "$WT"

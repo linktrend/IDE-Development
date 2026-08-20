@@ -149,6 +149,11 @@ def tree_clean(workdir: Path) -> bool:
     return p.returncode == 0 and not (p.stdout or "").strip()
 
 
+def head_sha(workdir: Path) -> str:
+    p = run(["git", "rev-parse", "HEAD"], cwd=workdir)
+    return (p.stdout or "").strip() if p.returncode == 0 else ""
+
+
 def head_tree(workdir: Path) -> str:
     p = run(["git", "rev-parse", "HEAD^{tree}"], cwd=workdir)
     return (p.stdout or "").strip() if p.returncode == 0 else ""

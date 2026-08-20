@@ -34,6 +34,7 @@
     "reuseExactReceipt": true,
     "identity": [
       "repository",
+      "headCommit",
       "gitTree",
       "dependencyDigest",
       "profileDigest",

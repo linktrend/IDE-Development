@@ -1,10 +1,10 @@
 # Hosted-capacity scheduler (Coding Execution Protocol)
 
-**Status:** Canonical for Coding Execution Protocol 1.0.1 amendment `V25_BOOTSTRAP_LEAN`  
-**Authority:** PKT-01 packaged continuous-utilization contract  
-**Runtime:** `core/execution/scheduler.py`  
-**Config:** `core/managed-core/content/config/continuous-utilization.json`  
-**Schema:** `core/managed-core/schemas/continuous-utilization.schema.json`  
+**Status:** Canonical for Coding Execution Protocol 1.0.1 amendment `V25_BOOTSTRAP_LEAN`
+**Authority:** PKT-01 packaged continuous-utilization contract
+**Runtime:** `core/execution/scheduler.py`
+**Config:** `core/managed-core/content/config/continuous-utilization.json`
+**Schema:** `core/managed-core/schemas/continuous-utilization.schema.json`
 **Does not:** dispatch GitHub Actions, paid models, Fast gates, Full Suite, or provider-live jobs
 
 This doctrine is implemented by a **deterministic admission runtime**. Doctrine without that runtime is not the packaged contract.

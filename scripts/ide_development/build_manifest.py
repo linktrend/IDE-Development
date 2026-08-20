@@ -488,6 +488,69 @@ def build_entries() -> list[dict[str, Any]]:
             )
         )
 
+    execution_runtime_files = (
+        ("core/execution/__init__.py", ".ide-development/execution/__init__.py"),
+        ("core/execution/lifecycle.py", ".ide-development/execution/lifecycle.py"),
+        ("core/execution/protocol.py", ".ide-development/execution/protocol.py"),
+        ("core/execution/scheduler.py", ".ide-development/execution/scheduler.py"),
+    )
+    for source, destination in execution_runtime_files:
+        entries.append(
+            _entry(
+                entry_id=f"execution-runtime-{_slug(Path(source).name)}",
+                ownership="managed-core",
+                source=source,
+                destination=destination,
+                mode="0644",
+                platform="all",
+                merge="replace",
+                source_hash=_hash_rel(source),
+                notes="PKT-01 deterministic execution admission runtime.",
+            )
+        )
+
+    continuous_utilization_files = (
+        (
+            "core/managed-core/content/config/continuous-utilization.json",
+            ".ide-development/content/config/continuous-utilization.json",
+            "config-continuous-utilization-json",
+        ),
+        (
+            "core/managed-core/schemas/continuous-utilization.schema.json",
+            ".ide-development/schemas/continuous-utilization.schema.json",
+            "schema-continuous-utilization-schema-json",
+        ),
+        (
+            "core/managed-core/examples/continuous-utilization.example.json",
+            ".ide-development/examples/continuous-utilization.example.json",
+            "example-continuous-utilization-example-json",
+        ),
+        (
+            "core/managed-core/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md",
+            ".ide-development/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md",
+            "doctrine-hosted-capacity-scheduler-md",
+        ),
+        (
+            "core/managed-core/content/doctrine/CODING-EXECUTION-PROTOCOL.md",
+            ".ide-development/content/doctrine/CODING-EXECUTION-PROTOCOL.md",
+            "doctrine-coding-execution-protocol-md",
+        ),
+    )
+    for source, destination, entry_id in continuous_utilization_files:
+        entries.append(
+            _entry(
+                entry_id=entry_id,
+                ownership="managed-core",
+                source=source,
+                destination=destination,
+                mode="0644",
+                platform="all",
+                merge="replace",
+                source_hash=_hash_rel(source),
+                notes="PKT-01 packaged continuous-utilization contract.",
+            )
+        )
+
     for src_rel, dest_rel in CONTENT_DOCTRINE:
         source = f"core/managed-core/{dest_rel}"
         entries.append(

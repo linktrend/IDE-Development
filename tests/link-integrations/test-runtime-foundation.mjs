@@ -184,8 +184,8 @@ test('runtime config accepts non-secret bindings and rejects values that could c
 
 test('redaction removes credentials and raw provider bodies while bounding output', () => {
   const safe = redact({
-    authorization: 'Bearer secret-token',
-    nested: { password: 'secret-password', answer: 'kept' },
+    authorization: 'Bearer ltfx.auth_token.v1',
+    nested: { password: 'ltfx.password.v1', answer: 'kept' },
     body: 'raw provider body',
     list: ['kept', { token: 'hidden' }],
   })
@@ -208,7 +208,7 @@ test('authenticated transport sends bearer credentials and maps denied responses
     getAccessToken: async () => 'secret-token',
     fetchImpl: async (url, options) => {
       calls.push({ url, options })
-      return response(403, { error: 'forbidden', token: 'response-secret' })
+      return response(403, { error: 'forbidden', token: 'ltfx.response_secret.v1' })
     },
   })
   await assert.rejects(

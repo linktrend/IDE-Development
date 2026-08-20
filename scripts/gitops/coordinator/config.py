@@ -25,6 +25,7 @@ HOSTED_RUNNER = "ubuntu-24.04-arm"
 MAX_TIMEOUT_MINUTES = 60
 RECEIPT_IDENTITY_FIELDS = (
     "repository",
+    "headCommit",
     "gitTree",
     "dependencyDigest",
     "profileDigest",
@@ -433,7 +434,7 @@ def _promotion(value: Any) -> PromotionConfig:
     ):
         _fail(
             "incomplete_receipt_identity",
-            "identity must contain repository, gitTree, dependencyDigest, profileDigest, and workflowDigest",
+            "identity must contain repository, headCommit, gitTree, dependencyDigest, profileDigest, and workflowDigest",
             "promotion.identity",
         )
     return PromotionConfig(identity=RECEIPT_IDENTITY_FIELDS)

@@ -45,6 +45,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install CI Python dependencies
+        run: python3 -m pip install --disable-pip-version-check --no-input "jsonschema==4.26.0"
+
       - name: Stage 1 verification
         # Runs verify-ide-development.sh, which also invokes:
         #   scripts/verify-vendored-skills.sh
