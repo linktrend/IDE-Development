@@ -20,21 +20,28 @@ from core.execution.protocol import (  # noqa: E402
     PROTOCOL_ID,
     PROTOCOL_VERSION,
     WAIVED_LEGACY_GATE,
+    DurableHeartbeatStore,
     acquire_orchestration_lease,
     administrator_recovery,
     admit_resources,
     autowork_discovery_decision,
     candidate_identity,
     classify_legacy_publisher_gate,
+    diagnose_retry_exhaustion,
     discover_runtime,
+    evaluate_exhaustion_recovery,
+    evaluate_heartbeat_gate,
     evaluate_issue_checkpoint,
+    evaluate_verification_receipt,
     git_authority_allows,
     invalidate_candidate,
     load_execution_schema,
+    persist_heartbeat,
     protocol_document_version,
     publisher_is_canonical,
     required_approval,
     retry_decision,
+    schedule_hosted_capacity,
     validate_execution_manifest,
     validate_lease,
 )
@@ -60,6 +67,10 @@ class DiscoveryTests(unittest.TestCase):
         self.assertTrue(discovered.control_contract.is_file())
         self.assertTrue(discovered.schema_path.is_file())
         self.assertTrue(discovered.doctrine_path.is_file())
+        self.assertTrue(discovered.hosted_capacity_doctrine.is_file())
+        self.assertTrue(discovered.continuous_utilization_config.is_file())
+        self.assertTrue(discovered.continuous_utilization_schema.is_file())
+        self.assertTrue(discovered.continuous_utilization_example.is_file())
         self.assertIsNotNone(discovered.example_manifest)
 
     def test_protocol_and_doctrine_share_version_1_0_1(self) -> None:
@@ -460,6 +471,177 @@ class AutoworkDiscoveryTests(unittest.TestCase):
         )
         self.assertFalse(claimed.ok)
         self.assertEqual(claimed.reason, "cannot_claim_live_pass_when_not_callable")
+
+
+class DurableHeartbeatGateTests(unittest.TestCase):
+    def _record(self) -> dict:
+        return {
+            "packet_id": "PKT-01",
+            "attempt_id": "ATT-02",
+            "sequence": 1,
+            "repository": "linktrend/IDE-Development",
+            "commit": COMMIT_A,
+            "tree": TREE_A,
+            "payload_digest": "sha256:hb-1",
+        }
+
+    def test_write_and_readback_admits(self) -> None:
+        result = persist_heartbeat(DurableHeartbeatStore(), self._record())
+        self.assertTrue(result.ok)
+        self.assertEqual(result.reason, "heartbeat_durable")
+
+    def test_missing_readback_is_rejected(self) -> None:
+        checkout = candidate_identity(
+            repository="linktrend/IDE-Development",
+            commit=COMMIT_A,
+            tree=TREE_A,
+        )
+        result = evaluate_heartbeat_gate(
+            written=self._record(),
+            readback=None,
+            checkout=checkout,
+        )
+        self.assertFalse(result.ok)
+        self.assertEqual(result.reason, "heartbeat_readback_missing")
+
+    def test_mutated_readback_is_rejected(self) -> None:
+        written = self._record()
+        readback = dict(written)
+        readback["payload_digest"] = "sha256:tampered"
+        result = evaluate_heartbeat_gate(
+            written=written,
+            readback=readback,
+            checkout=candidate_identity(
+                repository="linktrend/IDE-Development",
+                commit=COMMIT_A,
+                tree=TREE_A,
+            ),
+        )
+        self.assertFalse(result.ok)
+        self.assertEqual(result.reason, "heartbeat_readback_mismatch")
+
+
+class CheckoutBoundReceiptTests(unittest.TestCase):
+    def test_exact_checkout_receipt_is_promotable(self) -> None:
+        decision = evaluate_verification_receipt(
+            {
+                "checkoutRef": "issue/349-pkt-01",
+                "commit": COMMIT_A,
+                "tree": TREE_A,
+                "promotableIdentity": True,
+            },
+            checkout=candidate_identity(
+                repository="linktrend/IDE-Development",
+                commit=COMMIT_A,
+                tree=TREE_A,
+            ),
+        )
+        self.assertTrue(decision.accepted)
+        self.assertTrue(decision.promotable)
+
+    def test_merge_ref_identity_is_forbidden(self) -> None:
+        decision = evaluate_verification_receipt(
+            {
+                "checkoutRef": "refs/pull/343/merge",
+                "commit": COMMIT_A,
+                "tree": TREE_A,
+                "promotableIdentity": True,
+            },
+            checkout=candidate_identity(
+                repository="linktrend/IDE-Development",
+                commit=COMMIT_A,
+                tree=TREE_A,
+            ),
+        )
+        self.assertFalse(decision.accepted)
+        self.assertEqual(decision.reason, "merge_ref_identity_forbidden")
+
+
+class RetryExhaustionRecoveryTests(unittest.TestCase):
+    def test_ordinary_exhaustion_requires_new_identity(self) -> None:
+        diagnosis = diagnose_retry_exhaustion("ordinary_source", 4)
+        self.assertTrue(diagnosis.exhausted)
+        self.assertEqual(diagnosis.recovery, "new_identity")
+        previous = candidate_identity(
+            repository="linktrend/IDE-Development",
+            commit=COMMIT_A,
+            tree=TREE_A,
+        )
+        silent = evaluate_exhaustion_recovery(
+            diagnosis, previous=previous, current=previous
+        )
+        self.assertFalse(silent.allowed)
+        self.assertEqual(silent.reason, "silent_retry_after_exhaustion")
+        recovered = evaluate_exhaustion_recovery(
+            diagnosis,
+            previous=previous,
+            current=candidate_identity(
+                repository="linktrend/IDE-Development",
+                commit=COMMIT_B,
+                tree=TREE_B,
+            ),
+        )
+        self.assertTrue(recovered.allowed)
+
+    def test_infrastructure_hold_allows_named_exception(self) -> None:
+        diagnosis = diagnose_retry_exhaustion("infrastructure", 2)
+        self.assertEqual(diagnosis.recovery, "hold")
+        identity = candidate_identity(
+            repository="linktrend/IDE-Development",
+            commit=COMMIT_A,
+            tree=TREE_A,
+        )
+        self.assertFalse(
+            evaluate_exhaustion_recovery(
+                diagnosis, previous=identity, current=identity
+            ).allowed
+        )
+        named = evaluate_exhaustion_recovery(
+            diagnosis,
+            previous=identity,
+            current=identity,
+            named_exception=True,
+        )
+        self.assertTrue(named.allowed)
+        self.assertEqual(named.reason, "named_exception_recovery")
+
+
+class HostedCapacitySchedulerTests(unittest.TestCase):
+    def test_busy_allocator_without_snapshot_is_uncertain(self) -> None:
+        verdict = schedule_hosted_capacity(
+            None, allocator_status="exhausted", available_slots=0
+        )
+        self.assertFalse(verdict.scheduled)
+        self.assertTrue(verdict.uncertain)
+        self.assertEqual(verdict.reason, "resource_uncertain")
+        self.assertNotEqual(verdict.diagnosis, "capacity_exhausted")
+
+    def test_complete_snapshot_with_no_slots_is_exhausted(self) -> None:
+        verdict = schedule_hosted_capacity(
+            {
+                "cpu_percent": 10,
+                "memory_percent": 10,
+                "free_disk_gib": 40,
+                "docker_available": True,
+            },
+            allocator_status="exhausted",
+            available_slots=0,
+        )
+        self.assertFalse(verdict.scheduled)
+        self.assertEqual(verdict.diagnosis, "capacity_exhausted")
+
+    def test_complete_snapshot_with_slots_schedules(self) -> None:
+        verdict = schedule_hosted_capacity(
+            {
+                "cpu_percent": 10,
+                "memory_percent": 10,
+                "free_disk_gib": 40,
+                "docker_available": True,
+            },
+            available_slots=1,
+        )
+        self.assertTrue(verdict.scheduled)
+        self.assertEqual(verdict.reason, "scheduled")
 
 
 if __name__ == "__main__":

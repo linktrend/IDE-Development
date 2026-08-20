@@ -77,6 +77,15 @@
         "expiresAt": "2026-08-20T09:00:00Z",
         "packetId": "PKT-01",
         "repository": "linktrend/IDE-Development"
+      },
+      "heartbeat": {
+        "sequence": 1,
+        "writtenAt": "2026-08-20T08:30:00Z",
+        "readback": true,
+        "payloadDigest": "sha256:heartbeat-att-02",
+        "commit": "004bd5faa1e14ee100a018e16dcb049f0fb2d8eb",
+        "tree": "6c55220132cc7e9a1baef06f8c147ee9ac9431e7",
+        "attemptId": "ATT-02"
       }
     }
   ],
@@ -154,6 +163,43 @@
       "namedExceptionOnly": true,
       "afterReplacementProof": true,
       "allowedOperations": ["protection_snapshot", "restore", "readback"]
+    },
+    "durableHeartbeat": {
+      "writeReadbackRequired": true,
+      "persistBeforeMutation": true
+    },
+    "checkoutBoundVerification": {
+      "bindToCheckout": true,
+      "forbidMergeRefIdentity": true
+    },
+    "retryExhaustion": {
+      "diagnoseBeforeRecovery": true,
+      "forbidSilentRetry": true,
+      "ordinaryRecovery": "new_identity",
+      "infrastructureRecovery": "hold",
+      "codeFailureRecovery": "new_identity"
+    },
+    "hostedCapacityScheduler": {
+      "requireCompleteSnapshot": true,
+      "busyIsNotDiagnosis": true,
+      "unknownIsBlocking": true,
+      "hostedConcurrencyAuthority": "execution-protocol",
+      "maxAdmittedSlots": {
+        "local": 1,
+        "hosted": 2
+      },
+      "unknownProbeSeconds": 600,
+      "backstopSeconds": 600,
+      "prioritization": ["priority", "dependencyReady", "fifo"],
+      "utilizationGapEvent": "UTILIZATION_GAP",
+      "recomputeOnEvents": [
+        "admission",
+        "completion",
+        "invalidation",
+        "probe_timeout",
+        "api_rejection",
+        "utilization_gap_repair"
+      ]
     }
   }
 }

@@ -10,7 +10,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from core.execution.protocol import ValidationResult, validate_execution_manifest
+from core.execution.protocol import (
+    EXHAUSTION_REASONS,
+    ValidationResult,
+    evaluate_verification_receipt,
+    candidate_identity,
+    validate_execution_manifest,
+)
 
 _SHA40 = frozenset("0123456789abcdef")
 
@@ -84,6 +90,86 @@ def _lock_active(packet: Mapping[str, Any]) -> bool:
     return isinstance(lock, dict) and lock.get("active") is True
 
 
+def _heartbeat_ok(
+    packet: Mapping[str, Any],
+    diagnostics: list[LifecycleDiagnostic],
+    *,
+    attempt_id: str,
+) -> None:
+    packet_id = str(packet.get("id") or "-")
+    heartbeat = packet.get("heartbeat")
+    if not isinstance(heartbeat, dict):
+        diagnostics.append(
+            _diag(packet_id, "heartbeat_write_missing", attempt_id=attempt_id)
+        )
+        return
+    if heartbeat.get("readback") is not True:
+        diagnostics.append(
+            _diag(packet_id, "heartbeat_readback_missing", attempt_id=attempt_id)
+        )
+        return
+    if not _is_sha40(str(heartbeat.get("commit") or "")) or not _is_sha40(
+        str(heartbeat.get("tree") or "")
+    ):
+        diagnostics.append(
+            _diag(packet_id, "heartbeat_identity_unbound", attempt_id=attempt_id)
+        )
+
+
+def _verification_receipt_ok(
+    packet: Mapping[str, Any],
+    diagnostics: list[LifecycleDiagnostic],
+) -> None:
+    packet_id = str(packet.get("id") or "-")
+    receipt = packet.get("verificationReceipt")
+    if not isinstance(receipt, dict):
+        diagnostics.append(_diag(packet_id, "missing_checkout_bound_receipt"))
+        return
+    lease = packet.get("orchestrationLease")
+    repository = ""
+    if isinstance(lease, dict):
+        repository = str(lease.get("repository") or "")
+    decision = evaluate_verification_receipt(
+        receipt,
+        checkout=candidate_identity(
+            repository=repository,
+            commit=str(packet.get("acceptedCommit") or ""),
+            tree=str(packet.get("acceptedTree") or ""),
+        ),
+    )
+    if not decision.accepted:
+        diagnostics.append(_diag(packet_id, decision.reason))
+
+
+def _retry_exhaustion_ok(
+    packet: Mapping[str, Any],
+    diagnostics: list[LifecycleDiagnostic],
+    *,
+    running: bool,
+) -> None:
+    packet_id = str(packet.get("id") or "-")
+    attempts = _attempts(packet)
+    exhausted_attempts = [
+        attempt
+        for attempt in attempts
+        if str(attempt.get("reason") or "") in EXHAUSTION_REASONS
+    ]
+    record = packet.get("retryExhaustion")
+    if not exhausted_attempts:
+        return
+    latest = exhausted_attempts[-1]
+    attempt_id = str(latest.get("id") or "-")
+    if not isinstance(record, dict) or record.get("exhausted") is not True:
+        diagnostics.append(
+            _diag(packet_id, "retry_exhaustion_undiagnosed", attempt_id=attempt_id)
+        )
+        return
+    if running and record.get("recovery") == "continue":
+        diagnostics.append(
+            _diag(packet_id, "silent_retry_after_exhaustion", attempt_id=attempt_id)
+        )
+
+
 def _completion_evidence_ok(packet: Mapping[str, Any], diagnostics: list[LifecycleDiagnostic]) -> None:
     packet_id = str(packet.get("id") or "-")
     evidence = packet.get("completionEvidence")
@@ -131,6 +217,8 @@ def _validate_completed_packet(
 ) -> None:
     packet_id = str(packet.get("id") or "-")
     _completion_evidence_ok(packet, diagnostics)
+    _verification_receipt_ok(packet, diagnostics)
+    _retry_exhaustion_ok(packet, diagnostics, running=False)
     if packet.get("executionState") == "ARCHIVE_CONFIRMED":
         _archive_evidence_ok(packet, diagnostics)
     if _lock_active(packet):
@@ -214,6 +302,8 @@ def _validate_running_packet(
         diagnostics.append(
             _diag(packet_id, "running_packet_missing_orchestration_lease", attempt_id=current_id)
         )
+    _heartbeat_ok(packet, diagnostics, attempt_id=current_id)
+    _retry_exhaustion_ok(packet, diagnostics, running=True)
 
 
 def validate_execution_lifecycle(document: Mapping[str, Any]) -> ValidationResult:

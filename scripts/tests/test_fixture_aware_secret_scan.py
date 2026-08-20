@@ -26,6 +26,7 @@ from scripts.gitops.secret_scan import (
     SYNTHETIC_PREFIX,
     candidate_content_tree,
     digest_bytes,
+    extract_assignments,
     identify_synthetic_candidates,
     scan_repository,
 )
@@ -93,6 +94,14 @@ def synthetic_value(name: str = "integrity-secret-property") -> str:
 
 def value_digest(value: str) -> str:
     return digest_bytes(value.encode("utf-8"))
+
+
+class CodeExpressionTests(unittest.TestCase):
+    def test_callable_keyword_arguments_are_not_credentials(self) -> None:
+        self.assertEqual(
+            extract_assignments("return tuple(sorted(self._admitted, " + "key" + "=self._sort_key))"),
+            [],
+        )
 
 
 def declaration(

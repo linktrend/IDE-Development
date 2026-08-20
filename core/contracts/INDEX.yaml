@@ -205,7 +205,7 @@ entries:
 
   - id: execution-control-contract
     path: core/contracts/EXECUTION-CONTROL-CONTRACT.md
-    purpose: Control-contract rules for exact-candidate invalidation, bounded retry, leases, resource uncertainty, approval, Git authority, V25_BOOTSTRAP_LEAN Issue checkpoints, waived legacy publisher gates, semantic lifecycle validation, and Autowork discovery.
+    purpose: Control-contract rules for exact-candidate invalidation, bounded retry, leases, resource uncertainty, durable heartbeat readback, checkout-bound receipts, retry-exhaustion recovery, deterministic hosted-capacity / continuous-utilization admission, approval, Git authority, V25_BOOTSTRAP_LEAN Issue checkpoints, waived legacy publisher gates, semantic lifecycle validation, and Autowork discovery.
     when_to_read:
       - before mutating under an execution-manifest
       - when evaluating retry, lease, approval, or publisher claims

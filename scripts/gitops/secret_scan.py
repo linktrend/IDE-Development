@@ -378,6 +378,8 @@ def _is_code_expression(value: str) -> bool:
         return True
     if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", stripped) and "." in stripped:
         return True
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*(?:\([^)]*\)|\))+", stripped):
+        return True
     return False
 
 

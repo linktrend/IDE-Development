@@ -41,9 +41,42 @@ SCHEMA_RELATIVE_PATH = "core/contracts/EXECUTION-MANIFEST.schema.json"
 DOCTRINE_RELATIVE_PATH = (
     "core/managed-core/content/doctrine/CODING-EXECUTION-PROTOCOL.md"
 )
+HOSTED_CAPACITY_DOCTRINE_RELATIVE_PATH = (
+    "core/managed-core/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md"
+)
+CONTINUOUS_UTILIZATION_CONFIG_RELATIVE_PATH = (
+    "core/managed-core/content/config/continuous-utilization.json"
+)
+CONTINUOUS_UTILIZATION_SCHEMA_RELATIVE_PATH = (
+    "core/managed-core/schemas/continuous-utilization.schema.json"
+)
+CONTINUOUS_UTILIZATION_EXAMPLE_RELATIVE_PATH = (
+    "core/managed-core/examples/continuous-utilization.example.json"
+)
 EXAMPLE_MANIFEST_RELATIVE_PATH = (
     "core/execution/examples/execution-manifest.example.json"
 )
+HEARTBEAT_COMPARE_FIELDS = (
+    "packet_id",
+    "attempt_id",
+    "sequence",
+    "repository",
+    "commit",
+    "tree",
+    "payload_digest",
+)
+EXHAUSTION_REASONS = frozenset(
+    {
+        "ordinary_source_exhausted",
+        "infrastructure_stopped",
+        "code_failure_no_retry",
+    }
+)
+EXHAUSTION_RECOVERY = {
+    "ordinary_source_exhausted": "new_identity",
+    "infrastructure_stopped": "hold",
+    "code_failure_no_retry": "new_identity",
+}
 
 ORDINARY_SOURCE_REPAIR_LIMIT = 3
 INFRASTRUCTURE_ATTEMPT_LIMIT = 2
@@ -67,6 +100,10 @@ REQUIRED_DISCOVERY_PATHS = (
     CONTROL_CONTRACT_RELATIVE_PATH,
     SCHEMA_RELATIVE_PATH,
     DOCTRINE_RELATIVE_PATH,
+    HOSTED_CAPACITY_DOCTRINE_RELATIVE_PATH,
+    CONTINUOUS_UTILIZATION_CONFIG_RELATIVE_PATH,
+    CONTINUOUS_UTILIZATION_SCHEMA_RELATIVE_PATH,
+    CONTINUOUS_UTILIZATION_EXAMPLE_RELATIVE_PATH,
 )
 
 
@@ -79,6 +116,10 @@ class ProtocolDiscovery:
     control_contract: Path
     schema_path: Path
     doctrine_path: Path
+    hosted_capacity_doctrine: Path
+    continuous_utilization_config: Path
+    continuous_utilization_schema: Path
+    continuous_utilization_example: Path
     example_manifest: Path | None
 
 
@@ -168,6 +209,65 @@ class AdministratorRecoveryDecision:
     reason: str
 
 
+@dataclass(frozen=True)
+class HeartbeatGateResult:
+    ok: bool
+    reason: str
+
+
+@dataclass(frozen=True)
+class VerificationReceiptDecision:
+    accepted: bool
+    promotable: bool
+    reason: str
+
+
+@dataclass(frozen=True)
+class ExhaustionDiagnosis:
+    kind: str
+    exhausted: bool
+    recovery: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class RecoveryDecision:
+    allowed: bool
+    reason: str
+
+
+@dataclass(frozen=True)
+class SchedulerVerdict:
+    scheduled: bool
+    reason: str
+    diagnosis: str
+    uncertain: bool = False
+
+
+class DurableHeartbeatStore:
+    """In-process durable store used by protocol tests. Not a hosted runtime."""
+
+    def __init__(self) -> None:
+        self._records: dict[str, dict[str, Any]] = {}
+
+    @staticmethod
+    def key(record: Mapping[str, Any]) -> str:
+        return ":".join(
+            (
+                str(record.get("packet_id") or ""),
+                str(record.get("attempt_id") or ""),
+                str(record.get("sequence") or ""),
+            )
+        )
+
+    def write(self, record: Mapping[str, Any]) -> None:
+        self._records[self.key(record)] = dict(record)
+
+    def read(self, record: Mapping[str, Any]) -> dict[str, Any] | None:
+        stored = self._records.get(self.key(record))
+        return dict(stored) if stored is not None else None
+
+
 def _as_root(repo_root: Path | str) -> Path:
     return Path(repo_root).resolve()
 
@@ -188,6 +288,10 @@ def discover_runtime(repo_root: Path | str) -> ProtocolDiscovery:
         control_contract=root / CONTROL_CONTRACT_RELATIVE_PATH,
         schema_path=root / SCHEMA_RELATIVE_PATH,
         doctrine_path=root / DOCTRINE_RELATIVE_PATH,
+        hosted_capacity_doctrine=root / HOSTED_CAPACITY_DOCTRINE_RELATIVE_PATH,
+        continuous_utilization_config=root / CONTINUOUS_UTILIZATION_CONFIG_RELATIVE_PATH,
+        continuous_utilization_schema=root / CONTINUOUS_UTILIZATION_SCHEMA_RELATIVE_PATH,
+        continuous_utilization_example=root / CONTINUOUS_UTILIZATION_EXAMPLE_RELATIVE_PATH,
         example_manifest=example if example.is_file() else None,
     )
 
@@ -521,6 +625,162 @@ def autowork_discovery_decision(
             "cannot_claim_live_pass_when_not_callable",
         )
     return AutoworkDiscoveryDecision(False, True, "hold", "unavailable_hold")
+
+
+def _heartbeat_identity(record: Mapping[str, Any]) -> CandidateIdentity:
+    return candidate_identity(
+        repository=str(record.get("repository") or ""),
+        commit=str(record.get("commit") or ""),
+        tree=str(record.get("tree") or ""),
+    )
+
+
+def _records_match(written: Mapping[str, Any], readback: Mapping[str, Any]) -> bool:
+    for field in HEARTBEAT_COMPARE_FIELDS:
+        if written.get(field) != readback.get(field):
+            return False
+    return True
+
+
+def evaluate_heartbeat_gate(
+    *,
+    written: Mapping[str, Any] | None,
+    readback: Mapping[str, Any] | None,
+    checkout: CandidateIdentity,
+) -> HeartbeatGateResult:
+    if written is None:
+        return HeartbeatGateResult(False, "heartbeat_write_missing")
+    if not _is_sha40(checkout.commit) or not _is_sha40(checkout.tree):
+        return HeartbeatGateResult(False, "heartbeat_identity_unbound")
+    if str(written.get("commit") or "") != checkout.commit or str(
+        written.get("tree") or ""
+    ) != checkout.tree:
+        return HeartbeatGateResult(False, "heartbeat_identity_unbound")
+    if str(written.get("repository") or "") != checkout.repository:
+        return HeartbeatGateResult(False, "heartbeat_identity_unbound")
+    if readback is None:
+        return HeartbeatGateResult(False, "heartbeat_readback_missing")
+    if not _records_match(written, readback):
+        return HeartbeatGateResult(False, "heartbeat_readback_mismatch")
+    return HeartbeatGateResult(True, "heartbeat_durable")
+
+
+def persist_heartbeat(
+    store: DurableHeartbeatStore,
+    record: Mapping[str, Any],
+) -> HeartbeatGateResult:
+    checkout = _heartbeat_identity(record)
+    if not _is_sha40(checkout.commit) or not _is_sha40(checkout.tree):
+        return HeartbeatGateResult(False, "heartbeat_identity_unbound")
+    store.write(record)
+    return evaluate_heartbeat_gate(
+        written=dict(record),
+        readback=store.read(record),
+        checkout=checkout,
+    )
+
+
+def _is_merge_ref(checkout_ref: str) -> bool:
+    ref = checkout_ref.strip()
+    if "refs/pull/" not in ref:
+        return False
+    return ref.rstrip("/").endswith("/merge")
+
+
+def evaluate_verification_receipt(
+    receipt: Mapping[str, Any],
+    *,
+    checkout: CandidateIdentity,
+) -> VerificationReceiptDecision:
+    ref = str(receipt.get("checkoutRef") or "")
+    commit = str(receipt.get("commit") or "")
+    tree = str(receipt.get("tree") or "")
+    merge_evidence = receipt.get("mergeRefEvidence")
+    if _is_merge_ref(ref):
+        return VerificationReceiptDecision(
+            False, False, "merge_ref_identity_forbidden"
+        )
+    if merge_evidence not in (None, {}, False) and receipt.get("promotableIdentity") is True:
+        return VerificationReceiptDecision(False, False, "merge_ref_not_promotable")
+    if commit != checkout.commit or tree != checkout.tree:
+        return VerificationReceiptDecision(
+            False, False, "checkout_identity_mismatch"
+        )
+    if checkout.repository and receipt.get("repository") not in (
+        None,
+        checkout.repository,
+    ):
+        return VerificationReceiptDecision(
+            False, False, "checkout_identity_mismatch"
+        )
+    if receipt.get("promotableIdentity") is not True:
+        return VerificationReceiptDecision(
+            False, False, "receipt_not_promotable"
+        )
+    if not _is_sha40(commit) or not _is_sha40(tree):
+        return VerificationReceiptDecision(
+            False, False, "checkout_identity_mismatch"
+        )
+    return VerificationReceiptDecision(True, True, "checkout_bound_receipt")
+
+
+def diagnose_retry_exhaustion(kind: str, attempt: int) -> ExhaustionDiagnosis:
+    decision = retry_decision(kind, attempt)
+    if decision.retry:
+        return ExhaustionDiagnosis(kind, False, "continue", decision.reason)
+    recovery = EXHAUSTION_RECOVERY.get(decision.reason, "hold")
+    return ExhaustionDiagnosis(kind, True, recovery, decision.reason)
+
+
+def evaluate_exhaustion_recovery(
+    diagnosis: ExhaustionDiagnosis,
+    *,
+    previous: CandidateIdentity,
+    current: CandidateIdentity,
+    named_exception: bool = False,
+) -> RecoveryDecision:
+    if not diagnosis.exhausted:
+        return RecoveryDecision(True, "not_exhausted")
+    same_identity = (
+        previous.repository == current.repository
+        and previous.commit == current.commit
+        and previous.tree == current.tree
+    )
+    if same_identity and named_exception and diagnosis.recovery == "hold":
+        return RecoveryDecision(True, "named_exception_recovery")
+    if same_identity:
+        return RecoveryDecision(False, "silent_retry_after_exhaustion")
+    if diagnosis.recovery in {"new_identity", "hold"}:
+        return RecoveryDecision(True, "new_identity_recovery")
+    return RecoveryDecision(False, "silent_retry_after_exhaustion")
+
+
+def schedule_hosted_capacity(
+    snapshot: Mapping[str, Any] | None,
+    *,
+    allocator_status: str | None = None,
+    available_slots: int | None = None,
+) -> SchedulerVerdict:
+    admitted = admit_resources(snapshot)
+    busy = allocator_status in {"busy", "exhausted"}
+    if admitted.uncertain or not admitted.admitted:
+        reason = "resource_uncertain" if admitted.uncertain else admitted.reason
+        return SchedulerVerdict(
+            False,
+            reason,
+            "uncertain" if admitted.uncertain else admitted.reason,
+            admitted.uncertain,
+        )
+    if available_slots is not None and available_slots <= 0:
+        return SchedulerVerdict(False, "capacity_exhausted", "capacity_exhausted", False)
+    if busy and available_slots is None:
+        return SchedulerVerdict(
+            False,
+            "allocator_busy_not_diagnosis",
+            "not_diagnosed",
+            True,
+        )
+    return SchedulerVerdict(True, "scheduled", "admitted", False)
 
 
 def protocol_document_version(text: str) -> str | None:
