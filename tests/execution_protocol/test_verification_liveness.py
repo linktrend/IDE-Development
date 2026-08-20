@@ -22,6 +22,7 @@ from jsonschema import Draft202012Validator  # noqa: E402
 from core.execution.protocol import discover_runtime  # noqa: E402
 from core.execution.verification_liveness import (  # noqa: E402
     VERIFICATION_STATES,
+    deterministic_artifact_paths,
     ensure_no_duplicate_full_execution,
     heartbeat_verification_run,
     load_verification_liveness_config,
@@ -301,6 +302,20 @@ class VerificationLivenessContractTests(unittest.TestCase):
             durable_handle={"kind": "local_pid", "id": "pid-alias"},
         )
         self.assertEqual(run["canonicalCheckout"], str(self.checkout.resolve()))
+        self.assertEqual(
+            deterministic_artifact_paths(alias, "PKT-08-FULL-ALIAS"),
+            (run["logPath"], run["receiptPath"]),
+        )
+        alias_document = dict(run)
+        alias_document["canonicalCheckout"] = str(alias)
+        alias_document["cwd"] = str(alias)
+        alias_document["logPath"] = str(
+            alias / ".linktrend/verification/PKT-08-FULL-ALIAS.log"
+        )
+        alias_document["receiptPath"] = str(
+            alias / ".linktrend/verification/PKT-08-FULL-ALIAS.receipt.json"
+        )
+        self.assertTrue(validate_verification_run(alias_document, repo_root=ROOT).ok)
         equivalent = reconcile_verification_run(
             run,
             now=NOW,
