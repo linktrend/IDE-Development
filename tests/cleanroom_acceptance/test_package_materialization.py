@@ -44,6 +44,7 @@ class PackageMaterializationTests(unittest.TestCase):
                 "scripts/gitops/generated_output_closure.py",
                 "scripts/gitops/coordinator/state.py",
                 "scripts/ide-development.py",
+                "scripts/ide_development/build_manifest.py",
                 "core/execution/scheduler.py",
                 "core/execution/verification_liveness.py",
                 "core/managed-core/config/generated-output-closure.json",
@@ -61,7 +62,8 @@ class PackageMaterializationTests(unittest.TestCase):
                     (
                         "from scripts.gitops.generated_output_closure import "
                         "audit_dogfood_improvement_closure; "
-                        "print(audit_dogfood_improvement_closure('.'))"
+                        "import json; "
+                        "print(json.dumps(audit_dogfood_improvement_closure('.')))"
                     ),
                 ],
                 cwd=package,
@@ -72,7 +74,7 @@ class PackageMaterializationTests(unittest.TestCase):
             )
             self.assertEqual(proc.returncode, 0, proc.stderr)
             result = json.loads(proc.stdout)
-            self.assertEqual(result["dogfoodImprovementClosure"]["status"], "audited")
+            self.assertEqual(result["status"], "audited")
 
     def test_extracted_package_runs_dogfood_closure_and_lean_design_audit(self) -> None:
         with tempfile.TemporaryDirectory(prefix="package-closure-audit-") as tmp:
