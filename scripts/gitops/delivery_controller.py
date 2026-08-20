@@ -21,6 +21,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -38,6 +39,8 @@ try:
         verify_receipt_payload,
     )
     from scripts.gitops.coordinator.receipts import compute_receipt_digest
+    from scripts.gitops.github_auth import GitHubAuthError, resolve_phase_api_token
+    from scripts.gitops.administrator_recovery import MemoryProtection, recover_phase_merge
 except ModuleNotFoundError:  # pragma: no cover - script-style execution
     from delivery_modes import is_phase_branch, is_valid_sha, normalize_sha  # type: ignore
     from packager_coordinator import consume_handoff  # type: ignore
@@ -48,6 +51,8 @@ except ModuleNotFoundError:  # pragma: no cover - script-style execution
         verify_receipt_payload,
     )
     from coordinator.receipts import compute_receipt_digest  # type: ignore
+    from github_auth import GitHubAuthError, resolve_phase_api_token  # type: ignore
+    from administrator_recovery import MemoryProtection, recover_phase_merge  # type: ignore
 
 COMPONENT_KIND = "delivery_controller"
 IS_DELIVERY_CONTROLLER = True
@@ -109,6 +114,8 @@ class GitHubPort(Protocol):
         number: int,
         expected_head: str,
         method: str = "merge",
+        admin: bool = False,
+        match_head_commit: bool = True,
     ) -> dict[str, Any]:
         ...
 
@@ -143,6 +150,7 @@ class MemoryGitHub:
     protected_push_attempts: list[dict[str, str]] = field(default_factory=list)
     merge_rejections: dict[int, str] = field(default_factory=dict)
     next_number: int = 1
+    require_admin_bypass: bool = False
 
     def get_pull_request(self, *, repository: str, number: int) -> dict[str, Any]:
         if repository != self.repository:
@@ -159,6 +167,8 @@ class MemoryGitHub:
         number: int,
         expected_head: str,
         method: str = "merge",
+        admin: bool = False,
+        match_head_commit: bool = True,
     ) -> dict[str, Any]:
         if repository != self.repository:
             raise ControllerError("wrong_repository", repository)
@@ -166,8 +176,10 @@ class MemoryGitHub:
             raise ControllerError("protected_merge_rejected", self.merge_rejections[number])
         pr = self.get_pull_request(repository=repository, number=number)
         head = normalize_sha(str(pr.get("headSha") or ""))
-        if head != normalize_sha(expected_head):
+        if match_head_commit and head != normalize_sha(expected_head):
             raise ControllerError("stale_pr_head", f"live={head}:expected={expected_head}")
+        if self.require_admin_bypass and not admin:
+            raise ControllerError("protected_merge_rejected", "admin_bypass_required")
         if bool(pr.get("isDraft")):
             raise ControllerError("draft_pr", str(number))
         if str(pr.get("state") or "").lower() not in {"open", ""}:
@@ -187,6 +199,8 @@ class MemoryGitHub:
             "base": base,
             "baseBefore": base_before,
             "directPush": False,
+            "admin": bool(admin),
+            "matchHeadCommit": bool(match_head_commit),
         }
         self.merges.append(record)
         return dict(record)
@@ -322,15 +336,25 @@ class LiveGitHub:
         number: int,
         expected_head: str,
         method: str = "merge",
+        admin: bool = False,
+        match_head_commit: bool = True,
     ) -> dict[str, Any]:
         live = self.get_pull_request(repository=repository, number=number)
         head = normalize_sha(str(live.get("headSha") or ""))
-        if head != normalize_sha(expected_head):
+        if match_head_commit and head != normalize_sha(expected_head):
             raise ControllerError("stale_pr_head", f"live={head}:expected={expected_head}")
         if bool(live.get("isDraft")):
             raise ControllerError("draft_pr", str(number))
         if str(live.get("state") or "").lower() != "open":
             raise ControllerError("pr_not_open", str(number))
+        if admin:
+            return self._merge_with_gh_admin(
+                repository=repository,
+                number=number,
+                expected_head=expected_head,
+                method=method,
+                live=live,
+            )
         payload = self._request(
             "PUT",
             f"https://api.github.com/repos/{repository}/pulls/{number}/merge",
@@ -346,8 +370,58 @@ class LiveGitHub:
             "method": method,
             "headSha": normalize_sha(expected_head),
             "mergeCommitSha": normalize_sha(str(payload.get("sha") or "")),
+            "directPush": False,
+            "admin": False,
+            "matchHeadCommit": bool(match_head_commit),
+            "base": str(live.get("base") or ""),
+        }
+
+    def _merge_with_gh_admin(
+        self,
+        *,
+        repository: str,
+        number: int,
+        expected_head: str,
+        method: str,
+        live: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Named recovery path: ``gh pr merge --admin --match-head-commit`` first."""
+
+        flags = {"merge": "--merge", "squash": "--squash", "rebase": "--rebase"}
+        method_flag = flags.get(method, "--merge")
+        env = os.environ.copy()
+        env["GH_TOKEN"] = self.automation_token
+        env["GITHUB_TOKEN"] = self.automation_token
+        completed = subprocess.run(
+            [
+                "gh",
+                "pr",
+                "merge",
+                str(number),
+                "--repo",
+                repository,
+                "--admin",
+                "--match-head-commit",
+                normalize_sha(expected_head),
+                method_flag,
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
+        )
+        if completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout or "gh pr merge --admin failed").strip()[:240]
+            raise ControllerError("protected_merge_rejected", detail)
+        return {
+            "number": number,
+            "method": method,
+            "headSha": normalize_sha(expected_head),
+            "mergeCommitSha": normalize_sha(str(live.get("mergeCommitSha") or "")),
             "base": str(live.get("base") or ""),
             "directPush": False,
+            "admin": True,
+            "matchHeadCommit": True,
         }
 
     def create_pull_request(
@@ -441,17 +515,18 @@ class LiveGitHub:
 
 
 def resolve_production_github(repository: str) -> LiveGitHub:
-    """Fail closed unless a trusted normal automation token is configured."""
+    """Fail closed unless a GitHub API token is configured for Phase operations.
+
+    Does not require AUTOMATION_TOKEN or AUTOMATION_TOKEN_SOURCE. Those names are
+    waived legacy publisher credentials, not the v2.5 Phase delivery contract.
+    """
 
     if not repository or repository.count("/") != 1:
         raise ControllerError("missing_repository", "delivery requires --repository owner/name")
-    token = (os.environ.get("AUTOMATION_TOKEN") or "").strip()
-    source = (os.environ.get("AUTOMATION_TOKEN_SOURCE") or "").strip()
-    if not token or source != "github_token":
-        raise ControllerError(
-            "missing_github_credentials",
-            "delivery requires AUTOMATION_TOKEN with AUTOMATION_TOKEN_SOURCE=github_token",
-        )
+    try:
+        token, _source = resolve_phase_api_token()
+    except GitHubAuthError as exc:
+        raise ControllerError(exc.code, exc.detail) from exc
     return LiveGitHub(repository=repository, automation_token=token)
 
 
@@ -676,6 +751,8 @@ def merge_to_development(
             number=pr_number,
             expected_head=expected_head,
             method="merge",
+            admin=False,
+            match_head_commit=True,
         )
     )
     return {
@@ -755,6 +832,9 @@ def promote_to_staging(
             repository=repository,
             number=int(pr["number"]),
             expected_head=candidate_sha,
+            method="merge",
+            admin=False,
+            match_head_commit=True,
         )
     )
     return {
@@ -882,6 +962,9 @@ def complete_main_promotion(
             repository=repository,
             number=pr_number,
             expected_head=expected_head,
+            method="merge",
+            admin=False,
+            match_head_commit=True,
         )
     )
     return {
@@ -1073,6 +1156,53 @@ def deliver_phase_to_development(
     return record
 
 
+def recover_phase_to_development(
+    *,
+    github: GitHubPort,
+    protections: Any,
+    repository: str,
+    handoff: Mapping[str, Any],
+    pr: Mapping[str, Any],
+    live_head: str,
+    live_tree: str,
+    named_exception: str,
+    replacement_proof: bool,
+    allow_temporary_exception: bool = False,
+    obsolete_status_state: str = "missing",
+    role: str,
+) -> dict[str, Any]:
+    """Named exact-head administrator recovery after replacement proof."""
+
+    require_controller_role(role)
+    accepted = accept_phase_pr(
+        pr,
+        handoff,
+        repository=repository,
+        live_head=live_head,
+        live_tree=live_tree,
+    )
+    try:
+        return recover_phase_merge(
+            github=github,
+            protections=protections,
+            repository=repository,
+            pr_number=int(accepted["number"]),
+            phase_branch=str(accepted["head"]),
+            expected_head=live_head,
+            expected_tree=live_tree,
+            live_head=live_head,
+            live_tree=live_tree,
+            named_exception=named_exception,
+            replacement_proof=replacement_proof,
+            allow_temporary_exception=allow_temporary_exception,
+            obsolete_status_state=obsolete_status_state,
+        )
+    except Exception as exc:
+        if hasattr(exc, "code"):
+            raise ControllerError(str(getattr(exc, "code")), str(getattr(exc, "detail", exc))) from exc
+        raise
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Agent-agnostic delivery controller (WP-U02)")
     parser.add_argument(
@@ -1085,6 +1215,7 @@ def main(argv: list[str] | None = None) -> int:
             "complete-main",
             "cleanup",
             "agent-identical",
+            "recover-phase",
         ],
     )
     parser.add_argument("--repository", default="")
@@ -1109,6 +1240,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--branches", default="")
     parser.add_argument("--payload-json", default="")
     parser.add_argument("--out", default="")
+    parser.add_argument("--named-exception", default="")
+    parser.add_argument("--replacement-proof", action="store_true")
+    parser.add_argument("--allow-temporary-exception", action="store_true")
+    parser.add_argument("--obsolete-status-state", default="missing")
     args = parser.parse_args(argv)
 
     def load(path: str) -> Any:
@@ -1201,6 +1336,26 @@ def main(argv: list[str] | None = None) -> int:
                     branches=branches,
                     merge_succeeded=True,
                     controller_owned=owned,
+                )
+            elif args.command == "recover-phase":
+                if os.environ.get("LINKTREND_STATUS_BACKEND") != "file":
+                    raise ControllerError(
+                        "recovery_requires_injected_protection_port",
+                        "live administrator recovery requires an injected ProtectionPort",
+                    )
+                result = recover_phase_to_development(
+                    github=github,
+                    protections=MemoryProtection(repository=args.repository),
+                    repository=args.repository,
+                    handoff=load(args.handoff),
+                    pr=load(args.pr_json),
+                    live_head=args.live_head,
+                    live_tree=args.live_tree,
+                    named_exception=args.named_exception,
+                    replacement_proof=bool(args.replacement_proof),
+                    allow_temporary_exception=bool(args.allow_temporary_exception),
+                    obsolete_status_state=args.obsolete_status_state,
+                    role=args.role,
                 )
             else:  # pragma: no cover
                 raise ControllerError("unknown_command", args.command)

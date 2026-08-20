@@ -168,10 +168,6 @@ Factual correction for Update 9:
 4. Distinct nonempty fingerprints never fuzzy-merge; only wording variants of the same identity may match. First-seen findings on repair-touched paths are `introduced_by_repair` and remain blocking; first-seen findings on untouched paths are `newly_discovered_in_unchanged_scope`.
 5. Review ingest requires exact `headSha` and `gitTree`, and `paths` as a nonempty list of nonempty strings. Malformed or non-object findings are `malformed_reviewer_output` with truthful HOLD and no cycle consumption. Repair cancels or invalidates any live reviewer. Implementer and reviewer actors stay separate. Reviewer silence or timeout is never clean and cannot authorize Full or repair until a valid exact-bound review transition explicitly clears the stop. A later source change invalidates prior review and Full evidence. Full never runs while HOLD or `review_stalled`.
 
-## Amendment — 2026-08-20 (singular Review Ready publisher authority)
-
-Superseded by `V25_BOOTSTRAP_LEAN` below. The earlier claim that `linktrend-review-ready-publisher` is the sole canonical Review Ready publisher is non-authoritative for v2.5.
-
 ## Amendment — 2026-08-20 (`V25_BOOTSTRAP_LEAN`)
 
 Founder-approved Coding Execution Protocol 1.0.1 amendment `V25_BOOTSTRAP_LEAN`:
@@ -181,4 +177,11 @@ Founder-approved Coding Execution Protocol 1.0.1 amendment `V25_BOOTSTRAP_LEAN`:
 3. A failed or missing legacy publisher is `WAIVED_LEGACY_GATE`, never PASS and never an implementation failure.
 4. A later exact-head administrator recovery is only a named exception after substantive replacement proof, limited to protection snapshot, restore, and readback.
 
-Delivery and workflow YAML remain owned elsewhere.
+## Amendment — 2026-08-20 (PKT-05 lean Issue checkpoint and Phase recovery)
+
+GitOps implementation of `V25_BOOTSTRAP_LEAN`:
+
+1. Issue checkpoints are token-independent. Review Ready / `AUTOMATION_TOKEN` / Issue PR / hosted completion status are nonrequirements.
+2. Legacy publisher/status outcomes are `WAIVED_LEGACY_GATE`, never PASS.
+3. Phase delivery remains one protected Phase PR/gate, exact review, conditional Full, and founder gate for `main`.
+4. Administrator recovery is a named exact-head exception: freeze, protection snapshot, `gh pr merge --admin --match-head-commit` first, minimum temporary exception only if needed, exact authorized merge, immediate restore/readback.
