@@ -12,6 +12,8 @@ import unittest
 from pathlib import Path
 
 from scripts.gitops.generated_output_closure import (
+    BASELINE_REF_ENV,
+    BASELINE_SHA_ENV,
     ClosureError,
     candidate_source_tree,
     close_generated_outputs,
@@ -40,6 +42,7 @@ def init_repo() -> tuple[tempfile.TemporaryDirectory[str], Path]:
     git(root, "init", "-q", "-b", "development")
     git(root, "config", "user.email", "pkt08@example.invalid")
     git(root, "config", "user.name", "PKT-08 tests")
+    git(root, "remote", "add", "origin", str(root / "origin.git"))
     return tmp, root
 
 
@@ -272,25 +275,39 @@ class GeneratedOutputGraphTests(unittest.TestCase):
         packaged_graph.parent.mkdir(parents=True)
         shutil.copy2(root / "closure.json", packaged_graph)
         commit(root, "installed closure gate")
+        baseline = git(root, "rev-parse", "HEAD")
+        git(root, "update-ref", "refs/remotes/origin/development", baseline)
+        write(root, "candidate.txt", "candidate\n")
+        commit(root, "candidate tip")
         git(root, "config", "core.hooksPath", ".githooks")
         passing = subprocess.run(
             [str(hook)],
             cwd=root,
+            env={
+                **os.environ,
+                BASELINE_SHA_ENV: baseline,
+                BASELINE_REF_ENV: "origin/development",
+            },
             text=True,
             capture_output=True,
             check=False,
         )
         self.assertEqual(passing.returncode, 0, passing.stderr)
-        write(root, "source.txt", "two\n")
+        write(root, "source.txt", "two \n")
         rejected = subprocess.run(
             [str(hook)],
             cwd=root,
+            env={
+                **os.environ,
+                BASELINE_SHA_ENV: baseline,
+                BASELINE_REF_ENV: "origin/development",
+            },
             text=True,
             capture_output=True,
             check=False,
         )
         self.assertNotEqual(rejected.returncode, 0)
-        self.assertIn("stale", (rejected.stderr + rejected.stdout).lower())
+        self.assertIn("candidate", (rejected.stderr + rejected.stdout).lower())
 
     def test_extracted_closure_runtime_operates_without_ide_checkout(self) -> None:
         tmp, root = init_repo()
@@ -312,8 +329,20 @@ class GeneratedOutputGraphTests(unittest.TestCase):
         packaged_graph.parent.mkdir(parents=True)
         shutil.copy2(root / "closure.json", packaged_graph)
         commit(root, "extracted closure runtime")
+        baseline = git(root, "rev-parse", "HEAD")
+        git(root, "update-ref", "refs/remotes/origin/development", baseline)
+        write(root, "candidate.txt", "candidate\n")
+        commit(root, "candidate tip")
         proc = subprocess.run(
-            [sys.executable, str(runtime), "--verify"],
+            [
+                sys.executable,
+                str(runtime),
+                "--finalize",
+                "--baseline-sha",
+                baseline,
+                "--baseline-ref",
+                "origin/development",
+            ],
             cwd=root,
             text=True,
             capture_output=True,

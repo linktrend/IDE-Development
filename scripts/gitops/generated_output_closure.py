@@ -8,6 +8,7 @@ import fnmatch
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -20,6 +21,9 @@ GRAPH_RELATIVE_PATH = "core/managed-core/config/generated-output-closure.json"
 PACKAGED_GRAPH_RELATIVE_PATH = ".ide-development/config/generated-output-closure.json"
 DEFAULT_GRAPH_EXCLUSIONS = frozenset({".github/linktrend-secret-scan-fixtures.json"})
 DEFAULT_MAX_PASSES = 3
+BASELINE_SHA_ENV = "LINKTREND_TARGET_BASELINE_SHA"
+BASELINE_REF_ENV = "LINKTREND_TARGET_BASELINE_REF"
+SHA40 = r"[0-9a-f]{40}"
 
 
 class ClosureError(ValueError):
@@ -436,6 +440,194 @@ def close_generated_outputs(
     )
 
 
+def _resolve_commit(root: Path, value: str) -> str | None:
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", "--end-of-options", f"{value}^{{commit}}"],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        return None
+    return result.stdout.strip()
+
+
+def _remote_target_ref(root: Path, ref: str) -> str | None:
+    if ref.startswith("refs/remotes/"):
+        candidate = ref[len("refs/remotes/") :]
+    else:
+        candidate = ref
+    parts = candidate.split("/")
+    if len(parts) < 2 or any(not part for part in parts):
+        return None
+    remote = parts[0]
+    remotes = subprocess.run(
+        ["git", "remote"],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if remotes.returncode or remote not in remotes.stdout.splitlines():
+        return None
+    return f"refs/remotes/{candidate}"
+
+
+def resolve_candidate_baseline(
+    repo_root: Path | str,
+    *,
+    baseline_sha: str | None = None,
+    baseline_ref: str | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> str:
+    """Resolve a distinct candidate baseline from a named remote target ref."""
+    root = Path(repo_root).resolve()
+    runtime = os.environ if environ is None else environ
+    sha = baseline_sha or runtime.get(BASELINE_SHA_ENV)
+    ref = baseline_ref or runtime.get(BASELINE_REF_ENV)
+    if not sha or not ref:
+        raise ClosureError(
+            "candidate_baseline_missing",
+            "exact baseline SHA and authoritative remote ref are required at runtime",
+            shaProvided=bool(sha),
+            refProvided=bool(ref),
+        )
+    if not isinstance(sha, str) or not re.fullmatch(SHA40, sha):
+        raise ClosureError(
+            "candidate_baseline_invalid",
+            "baseline SHA must be exactly 40 lowercase hexadecimal characters",
+        )
+    if (
+        not isinstance(ref, str)
+        or not ref.strip()
+        or ref.startswith("-")
+        or re.fullmatch(SHA40, ref)
+        or any(character.isspace() for character in ref)
+    ):
+        raise ClosureError(
+            "candidate_baseline_ref_invalid",
+            "authoritative baseline must be a named configured remote ref",
+        )
+    remote_ref = _remote_target_ref(root, ref)
+    if remote_ref is None:
+        raise ClosureError(
+            "candidate_baseline_ref_invalid",
+            "authoritative baseline must identify a configured remote target",
+            ref=ref,
+        )
+    resolved_sha = _resolve_commit(root, sha)
+    if resolved_sha != sha:
+        raise ClosureError(
+            "candidate_baseline_invalid",
+            "baseline SHA does not resolve to an available commit",
+        )
+    resolved_ref = _resolve_commit(root, remote_ref)
+    if resolved_ref is None:
+        raise ClosureError(
+            "candidate_baseline_invalid",
+            "authoritative remote target ref does not resolve to a commit",
+            ref=ref,
+        )
+    if resolved_ref != sha:
+        raise ClosureError(
+            "candidate_baseline_stale",
+            "runtime baseline SHA does not match the authoritative remote target tip",
+            ref=ref,
+            expected=resolved_ref,
+            supplied=sha,
+        )
+    head = _resolve_commit(root, "HEAD")
+    if head is None:
+        raise ClosureError("candidate_baseline_invalid", "candidate HEAD does not resolve to a commit")
+    if head == sha:
+        raise ClosureError(
+            "candidate_baseline_equal_head",
+            "candidate HEAD must be a distinct commit from the target baseline",
+            baseline=sha,
+            head=head,
+        )
+    ancestor = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", sha, head],
+        cwd=root,
+        check=False,
+    )
+    if ancestor.returncode:
+        raise ClosureError(
+            "candidate_baseline_stale",
+            "authoritative baseline is not an ancestor of the candidate HEAD",
+            baseline=sha,
+            head=head,
+        )
+    return sha
+
+
+def candidate_diff_check(
+    repo_root: Path | str,
+    *,
+    baseline_sha: str | None = None,
+    baseline_ref: str | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Reject whitespace errors in the candidate delta from an exact baseline."""
+    root = Path(repo_root).resolve()
+    baseline = resolve_candidate_baseline(
+        root,
+        baseline_sha=baseline_sha,
+        baseline_ref=baseline_ref,
+        environ=environ,
+    )
+    checked = subprocess.run(
+        ["git", "diff", "--check", "--no-ext-diff", baseline, "--"],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    output = (checked.stdout + checked.stderr).strip()
+    if checked.returncode:
+        raise ClosureError(
+            "candidate_whitespace",
+            "candidate diff contains trailing whitespace",
+            baseline=baseline,
+            diagnostics=output[-4000:],
+        )
+    return {"ok": True, "baseline": baseline, "diagnostics": output}
+
+
+def finalize_candidate(
+    repo_root: Path | str,
+    *,
+    baseline_sha: str | None = None,
+    baseline_ref: str | None = None,
+    environ: Mapping[str, str] | None = None,
+    graph_path: str = GRAPH_RELATIVE_PATH,
+) -> dict[str, Any]:
+    """Close generated outputs before the exact runtime-baseline whitespace gate."""
+    baseline = resolve_candidate_baseline(
+        repo_root,
+        baseline_sha=baseline_sha,
+        baseline_ref=baseline_ref,
+        environ=environ,
+    )
+    closure = close_generated_outputs(
+        repo_root,
+        graph_path=graph_path,
+        _require_clean_outputs=False,
+    )
+    whitespace = candidate_diff_check(
+        repo_root,
+        baseline_sha=baseline,
+        baseline_ref=baseline_ref,
+        environ=environ,
+    )
+    return {
+        "ok": True,
+        "generatedOutputClosure": closure,
+        "candidateDiffCheck": whitespace,
+    }
+
+
 def _copy_for_verify(source: Path, destination: Path) -> None:
     def ignore(_directory: str, names: list[str]) -> set[str]:
         return {name for name in names if name in {"build", "__pycache__"}}
@@ -499,6 +691,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--graph", default=GRAPH_RELATIVE_PATH)
     parser.add_argument("--close", action="store_true")
+    parser.add_argument(
+        "--finalize",
+        action="store_true",
+        help="close generated outputs, then run the runtime exact-baseline diff gate",
+    )
+    parser.add_argument("--baseline-sha", help="runtime-supplied exact baseline SHA")
+    parser.add_argument("--baseline-ref", help="runtime-supplied authoritative remote ref")
     parser.add_argument("--verify", action="store_true")
     parser.add_argument("--generate-fixtures", action="store_true")
     args = parser.parse_args(argv)
@@ -506,7 +705,17 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.generate_fixtures:
             return _generate_secret_scan_fixtures(root)
-        result = verify_generated_outputs(root, graph_path=args.graph) if not args.close else close_generated_outputs(root, graph_path=args.graph)
+        if args.finalize:
+            result = finalize_candidate(
+                root,
+                baseline_sha=args.baseline_sha,
+                baseline_ref=args.baseline_ref,
+                graph_path=args.graph,
+            )
+        elif args.close:
+            result = close_generated_outputs(root, graph_path=args.graph)
+        else:
+            result = verify_generated_outputs(root, graph_path=args.graph)
     except ClosureError as exc:
         print(json.dumps({"ok": False, "code": exc.code, "detail": exc.detail, **exc.diagnostics}, sort_keys=True), file=sys.stderr)
         return 1

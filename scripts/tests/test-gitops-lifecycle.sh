@@ -612,7 +612,7 @@ pass "cleanup script dry-run safe"
 bash "$ROOT/scripts/verify-platform-adoption.sh"
 pass "platform adoption entrypoints + temp consumer"
 
-# ---- git diff --check (required range + working-tree gate) ----
+# ---- candidate finalization (runtime exact baseline + working-tree gate) ----
 # PR CI checkouts often lack refs/remotes/origin/development even when the
 # remote exists. Fetch the ref when missing; still fail closed if unavailable.
 if ! git rev-parse --verify origin/development >/dev/null 2>&1; then
@@ -624,15 +624,17 @@ fi
 if ! git rev-parse --verify origin/development >/dev/null 2>&1; then
   fail "origin/development missing — cannot run git diff --check"
 fi
-set +e
-git diff --check origin/development >/tmp/diffcheck-candidate.out 2>/tmp/diffcheck-candidate.err
-candidate_ec=$?
-set -e
-if [ "$candidate_ec" -ne 0 ]; then
-  cat /tmp/diffcheck-candidate.out /tmp/diffcheck-candidate.err >&2
-  fail "git diff --check origin/development failed for candidate tree"
-fi
-pass "git diff --check origin/development clean for candidate tree"
+candidate_baseline_ref="${LINKTREND_TARGET_BASELINE_REF:-origin/development}"
+candidate_baseline_sha="${LINKTREND_TARGET_BASELINE_SHA:-$(git rev-parse --verify "${candidate_baseline_ref}^{commit}")}"
+LINKTREND_TARGET_BASELINE_REF="$candidate_baseline_ref" \
+LINKTREND_TARGET_BASELINE_SHA="$candidate_baseline_sha" \
+  python3 "$ROOT/scripts/gitops/generated_output_closure.py" --finalize \
+  >/tmp/candidate-finalization.out 2>/tmp/candidate-finalization.err \
+  || {
+    cat /tmp/candidate-finalization.out /tmp/candidate-finalization.err >&2
+    fail "candidate finalization failed for runtime target baseline"
+  }
+pass "candidate finalization clean for runtime target baseline"
 
 # ---- Main Approve package/store interface (Lisa) ----
 grep -q 'github_promote_pr_marker\|Package store' docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md \
