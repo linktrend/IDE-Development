@@ -10,7 +10,7 @@
 - Managed package: `2.4.0`
 - Manifest SHA-256: `sha256:4bdf6ffcf4a34c37b7fe9ee11732cb1c23140b39bdb2542b4961097fdcc09f7c`
 
-The branch contains the exact Phase head as the first parent of the deliberate
+The branch contains the exact Phase head as the second parent of the deliberate
 reconciliation commit `9017683`. PKT-08 bounded repairs were retained; stale
 pre-PKT-01 release evidence was replaced. The package source checkpoint
 precedes this evidence-only commit.
