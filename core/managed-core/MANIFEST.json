@@ -1352,7 +1352,7 @@
       "mergeStrategy": "replace"
     },
     {
-      "id": "verification-liveness-verification-liveness-json",
+      "id": "verification-liveness-ide-development-content-config-verification-liveness-json",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/config/verification-liveness.json",
       "sourceHash": "sha256:4841771d363d1c89427715b01e72b72b45b7a962319b918982428f28a3646b54",
@@ -1564,7 +1564,7 @@
       "mergeStrategy": "replace"
     },
     {
-      "id": "verification-liveness-verification-liveness-md",
+      "id": "verification-liveness-ide-development-content-doctrine-verification-liveness-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/VERIFICATION-LIVENESS.md",
       "sourceHash": "sha256:d7c6b06231c2426e28dc56ee24961c5a7295992e0669eff6200c3a9c8fdae2b9",
@@ -1588,7 +1588,7 @@
       "notes": "Hosted GitHub gate contract for offline consumer reference."
     },
     {
-      "id": "verification-liveness-verification-liveness-contract-md",
+      "id": "verification-liveness-ide-development-contracts-verification-liveness-contract-md",
       "ownershipClass": "managed-core",
       "source": "core/contracts/VERIFICATION-LIVENESS-CONTRACT.md",
       "sourceHash": "sha256:7eaef7d903f0fc1ba5de8a380fbb4ff61e165a891fb309447958b7e94d21d2c9",
@@ -1600,7 +1600,7 @@
       "notes": "PKT-08 durable verification-liveness contract."
     },
     {
-      "id": "verification-liveness-verification-run-schema-json",
+      "id": "verification-liveness-ide-development-contracts-verification-run-schema-json",
       "ownershipClass": "managed-core",
       "source": "core/contracts/VERIFICATION-RUN.schema.json",
       "sourceHash": "sha256:d1b0aa2c0a32bc540323b79df1ebb249fa3527ac3ce5e1f313a8eefe9a5bbcd4",
@@ -1624,7 +1624,7 @@
       "notes": "PKT-01 packaged continuous-utilization contract."
     },
     {
-      "id": "verification-liveness-verification-run-example-json",
+      "id": "verification-liveness-ide-development-examples-verification-run-example-json",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/examples/verification-run.example.json",
       "sourceHash": "sha256:37739ef2cc64a0ab22ae24b7ceb5d9cf09068ff54acd2b98f84ca106453dc1c6",
@@ -2480,7 +2480,7 @@
       "mergeStrategy": "replace"
     },
     {
-      "id": "verification-liveness-verification-liveness-schema-json",
+      "id": "verification-liveness-ide-development-schemas-verification-liveness-schema-json",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/schemas/verification-liveness.schema.json",
       "sourceHash": "sha256:ed40b6dc12a4ffa22950d64ef9472289da9fe4d79933eb3606888038fbb8456e",
@@ -2492,7 +2492,7 @@
       "notes": "PKT-08 durable verification-liveness contract."
     },
     {
-      "id": "verification-liveness-verification-run-schema-json",
+      "id": "verification-liveness-ide-development-schemas-verification-run-schema-json",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/schemas/verification-run.schema.json",
       "sourceHash": "sha256:d1b0aa2c0a32bc540323b79df1ebb249fa3527ac3ce5e1f313a8eefe9a5bbcd4",
@@ -3891,7 +3891,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:c1ef2d612aadec716786f6a4117f22f1024899f053ea5a28b6525e2b54eba062",
+      "sourceHash": "sha256:facf165492265413c2f537d2d05e879435d13019f3bef9b28d0790d4ef1be57d",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",
