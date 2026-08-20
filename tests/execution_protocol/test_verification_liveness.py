@@ -420,6 +420,7 @@ class VerificationLivenessContractTests(unittest.TestCase):
             "core/execution/manifest_persistence.py",
             "core/execution/protocol.py",
             "core/execution/scheduler.py",
+            "core/execution/transactional_dispatch.py",
             "core/execution/verification_liveness.py",
             "core/managed-core/schemas/verification-run.schema.json",
             "core/managed-core/schemas/verification-liveness.schema.json",

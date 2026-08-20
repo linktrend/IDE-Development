@@ -178,6 +178,18 @@ class BuildManifestPackagingTests(unittest.TestCase):
         ):
             self.assertIn(rel, sources)
 
+    def test_pkt08_revision_60_final_controls_are_packaged(self) -> None:
+        manifest = bm.build_manifest_object()
+        sources = {row["source"] for row in manifest["files"]}
+        for rel in (
+            "core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md",
+            "core/execution/transactional_dispatch.py",
+            "core/managed-core/content/config/transactional-dispatch.json",
+            "core/managed-core/content/doctrine/PKT08-REVISION-60-FINAL-CONTROLS.md",
+            "core/managed-core/schemas/transactional-dispatch.schema.json",
+        ):
+            self.assertIn(rel, sources)
+
 
 if __name__ == "__main__":
     unittest.main()

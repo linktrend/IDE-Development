@@ -157,3 +157,25 @@ Unnamed recovery, recovery without replacement proof, or any other operation is 
 When Autowork discovery is callable, it is required. Skipping a callable discovery is a control violation.
 
 When discovery is not callable, the truthful result is an unavailable hold. That hold is not hosted, provider-live, application, consumer, staging, VPS, E2E, or production proof.
+
+## PKT-08 revision-60 final controls
+
+The paired contract
+`PKT08-REVISION-60-FINAL-CONTROLS.md` and schema
+`core/managed-core/schemas/transactional-dispatch.schema.json` are mandatory
+for the permanent final controls.
+
+- External dispatch derives a deterministic request-bound idempotency key and
+  durably writes `PREPARED` before any API call.
+- HTTP `201` response interruption is recovered only by authoritative lookup
+  using that key. The runtime CAS-commits and reads back the committed intent
+  in the same turn, bounded to three attempts, and never redispatches after a
+  collision or duplicate wake.
+- A live packet-repository lease and sufficient deadline budget are required
+  before any write or external call. Stale leases and insufficient budgets
+  fail closed.
+- Only an `APPROVED` manifest design record bound to a manifest digest is
+  authoritative. Conversation text cannot grant design approval.
+- Approved manifests suppress redundant executor design approvals. One
+  unsolicited terminal `design-only` result may automatically resume through a
+  deterministic durable marker; later wakes are suppressed.

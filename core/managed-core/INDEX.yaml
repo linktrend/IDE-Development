@@ -24,6 +24,7 @@ schemas:
   - schemas/secret-scan-result.schema.json
   - schemas/generated-output-closure.schema.json
   - schemas/manifest-persistence.schema.json
+  - schemas/transactional-dispatch.schema.json
   - schemas/repository-ci-contract.schema.json
   - schemas/ci-component-manifest.schema.json
   - schemas/ci-evidence.schema.json
@@ -38,6 +39,7 @@ examples:
   - examples/installed-state.example.json
   - examples/transaction.example.json
   - examples/verification-run.example.json
+  - content/config/transactional-dispatch.json
 directories:
   config: versioned GitHub-hosted delivery defaults
   content: managed content payload
@@ -49,6 +51,10 @@ verification_liveness:
   contract: ../contracts/VERIFICATION-LIVENESS-CONTRACT.md
   config: content/config/verification-liveness.json
   states: [STARTED, LIVE, TERMINAL, ORPHANED, TIMED_OUT, RESTARTED]
+revision_60_final_controls:
+  runtime: ../execution/transactional_dispatch.py
+  contract: ../contracts/PKT08-REVISION-60-FINAL-CONTROLS.md
+  config: content/config/transactional-dispatch.json
   MANIFEST.json: live package manifest (deterministic builder)
 out_of_scope:
   - claude

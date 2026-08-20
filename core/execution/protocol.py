@@ -78,6 +78,18 @@ VERIFICATION_RUN_EXAMPLE_RELATIVE_PATH = (
 VERIFICATION_RUN_MANAGED_EXAMPLE_RELATIVE_PATH = (
     "core/managed-core/examples/verification-run.example.json"
 )
+TRANSACTIONAL_DISPATCH_CONTRACT_RELATIVE_PATH = (
+    "core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md"
+)
+TRANSACTIONAL_DISPATCH_CONFIG_RELATIVE_PATH = (
+    "core/managed-core/content/config/transactional-dispatch.json"
+)
+TRANSACTIONAL_DISPATCH_SCHEMA_RELATIVE_PATH = (
+    "core/managed-core/schemas/transactional-dispatch.schema.json"
+)
+TRANSACTIONAL_DISPATCH_DOCTRINE_RELATIVE_PATH = (
+    "core/managed-core/content/doctrine/PKT08-REVISION-60-FINAL-CONTROLS.md"
+)
 HEARTBEAT_COMPARE_FIELDS = (
     "packet_id",
     "attempt_id",
@@ -134,6 +146,10 @@ REQUIRED_DISCOVERY_PATHS = (
     VERIFICATION_RUN_MANAGED_SCHEMA_RELATIVE_PATH,
     VERIFICATION_RUN_EXAMPLE_RELATIVE_PATH,
     VERIFICATION_RUN_MANAGED_EXAMPLE_RELATIVE_PATH,
+    TRANSACTIONAL_DISPATCH_CONTRACT_RELATIVE_PATH,
+    TRANSACTIONAL_DISPATCH_CONFIG_RELATIVE_PATH,
+    TRANSACTIONAL_DISPATCH_SCHEMA_RELATIVE_PATH,
+    TRANSACTIONAL_DISPATCH_DOCTRINE_RELATIVE_PATH,
 )
 
 
@@ -159,6 +175,10 @@ class ProtocolDiscovery:
     verification_run_managed_schema: Path
     verification_run_example: Path
     verification_run_managed_example: Path
+    transactional_dispatch_contract: Path
+    transactional_dispatch_config: Path
+    transactional_dispatch_schema: Path
+    transactional_dispatch_doctrine: Path
 
 
 @dataclass(frozen=True)
@@ -339,6 +359,10 @@ def discover_runtime(repo_root: Path | str) -> ProtocolDiscovery:
         verification_run_managed_schema=root / VERIFICATION_RUN_MANAGED_SCHEMA_RELATIVE_PATH,
         verification_run_example=root / VERIFICATION_RUN_EXAMPLE_RELATIVE_PATH,
         verification_run_managed_example=root / VERIFICATION_RUN_MANAGED_EXAMPLE_RELATIVE_PATH,
+        transactional_dispatch_contract=root / TRANSACTIONAL_DISPATCH_CONTRACT_RELATIVE_PATH,
+        transactional_dispatch_config=root / TRANSACTIONAL_DISPATCH_CONFIG_RELATIVE_PATH,
+        transactional_dispatch_schema=root / TRANSACTIONAL_DISPATCH_SCHEMA_RELATIVE_PATH,
+        transactional_dispatch_doctrine=root / TRANSACTIONAL_DISPATCH_DOCTRINE_RELATIVE_PATH,
     )
 
 

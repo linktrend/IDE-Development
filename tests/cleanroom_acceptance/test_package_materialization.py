@@ -84,6 +84,57 @@ class PackageMaterializationTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertIn("3", proc.stdout)
 
+    def test_extracted_package_contains_revision_60_final_controls(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="package-final-controls-") as tmp:
+            source = Path(tmp) / "source"
+            extract = Path(tmp) / "extract"
+            final_sources = (
+                "core/execution/__init__.py",
+                "core/execution/protocol.py",
+                "core/execution/lifecycle.py",
+                "core/execution/scheduler.py",
+                "core/execution/verification_liveness.py",
+                "core/execution/manifest_persistence.py",
+                "core/execution/transactional_dispatch.py",
+                "core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md",
+                "core/managed-core/content/config/transactional-dispatch.json",
+                "core/managed-core/content/doctrine/PKT08-REVISION-60-FINAL-CONTROLS.md",
+                "core/managed-core/schemas/transactional-dispatch.schema.json",
+            )
+            for rel in final_sources:
+                destination = source / rel
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(REPO_ROOT / rel, destination)
+
+            materialize_isolated_rc_extract(extract, source=source)
+            for rel in final_sources:
+                self.assertTrue((extract / rel).is_file(), rel)
+
+            env = os.environ.copy()
+            env.pop("PYTHONPATH", None)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "from core.execution import ("
+                    "CONTROL_IDEMPOTENCY_KEY, load_transactional_dispatch_config); "
+                    "print(CONTROL_IDEMPOTENCY_KEY); "
+                    "print(load_transactional_dispatch_config('.')["
+                    "'amendment'])",
+                ],
+                cwd=extract,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn(
+                "pkt08-b44060-transactional-dispatch-and-approved-design-authority-v1",
+                proc.stdout,
+            )
+            self.assertIn("V25_PKT08_REVISION_60_FINAL_CONTROLS", proc.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

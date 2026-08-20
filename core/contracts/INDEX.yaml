@@ -221,3 +221,21 @@ entries:
       - contracts
       - execution
       - control
+
+  - id: pkt08-revision-60-final-controls
+    path: core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md
+    purpose: Permanent PKT-08 write-ahead dispatch and approved-manifest design authority controls.
+    when_to_read:
+      - before external dispatch mutation
+      - when evaluating API-201 recovery, CAS commit/readback, deadline budget, or design authority
+    dependencies:
+      - execution-control-contract
+    consumers:
+      - AI runtimes
+      - orchestrators
+      - reviewers
+    status: active
+    tags:
+      - contracts
+      - execution
+      - pkt08

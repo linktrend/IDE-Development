@@ -91,6 +91,29 @@ amendment.
 Durable path equality uses physical canonical paths (`realpath`), so platform
 aliases are equivalent only when they resolve to the same target.
 
+## 4B. PKT-08 revision-60 final controls
+
+Founder-authorized amendment `V25_PKT08_REVISION_60_FINAL_CONTROLS` governs the
+permanent external-dispatch and design-authority controls. The runtime,
+configuration, schema, and doctrine are defined by:
+
+- `core/execution/transactional_dispatch.py`
+- `core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md`
+- `core/managed-core/content/config/transactional-dispatch.json`
+- `core/managed-core/schemas/transactional-dispatch.schema.json`
+- `core/managed-core/content/doctrine/PKT08-REVISION-60-FINAL-CONTROLS.md`
+
+External dispatch writes a deterministic `PREPARED` intent before the API,
+recovers an interrupted accepted HTTP `201` through authoritative idempotency
+lookup, and CAS-commits with same-turn readback. The deadline-budget guard and
+live packet-repository lease fail closed before mutation. Repeated wakes
+return the committed intent and never redispatch.
+
+An `APPROVED` manifest record, bound to its manifest digest, is the only design
+authority. Conversation text cannot approve design. Redundant executor design
+approval is suppressed, and one unsolicited terminal `design-only` result
+automatically resumes exactly once through a durable deterministic marker.
+
 ## 5. Proof limits
 
 This protocol authorizes local schema, unit, discovery, and Issue-checkpoint-contract proof only. It does not by itself prove hosted CI, provider-live calls, application canaries, consumer rollout, staging, VPS, E2E, or production behavior.

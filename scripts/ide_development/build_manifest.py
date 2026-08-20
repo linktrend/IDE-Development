@@ -101,6 +101,14 @@ CONTENT_DOCTRINE = (
         "core/contracts/MANIFEST-PERSISTENCE-RECOVERY.md",
         "content/doctrine/MANIFEST-PERSISTENCE-RECOVERY.md",
     ),
+    (
+        "core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md",
+        "content/doctrine/PKT08-REVISION-60-FINAL-CONTROLS.md",
+    ),
+    (
+        "core/execution/CODING-EXECUTION-PROTOCOL.md",
+        "content/doctrine/CODING-EXECUTION-PROTOCOL.md",
+    ),
     ("docs/contracts/REPOSITORY-CI-TRIGGER.md", "content/doctrine/REPOSITORY-CI-TRIGGER.md"),
     ("docs/contracts/LINKTREND-REVIEW-GATE.md", "content/doctrine/LINKTREND-REVIEW-GATE.md"),
     ("docs/contracts/RECEIPT-SEAL-AND-RECOVERY.md", "content/doctrine/RECEIPT-SEAL-AND-RECOVERY.md"),
@@ -375,6 +383,10 @@ def build_entries() -> list[dict[str, Any]]:
             "content/config/manifest-persistence.json",
             ".ide-development/content/config/manifest-persistence.json",
         ),
+        (
+            "content/config/transactional-dispatch.json",
+            ".ide-development/content/config/transactional-dispatch.json",
+        ),
         ("migrations/catalog.json", ".ide-development/migrations/catalog.json"),
         (
             "migrations/external-cleanup-plan.json",
@@ -452,6 +464,10 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "schemas/manifest-persistence.schema.json",
             ".ide-development/schemas/manifest-persistence.schema.json",
+        ),
+        (
+            "schemas/transactional-dispatch.schema.json",
+            ".ide-development/schemas/transactional-dispatch.schema.json",
         ),
         (
             "schemas/secret-scan-result.schema.json",
@@ -538,6 +554,10 @@ def build_entries() -> list[dict[str, Any]]:
             ".ide-development/execution/manifest_persistence.py",
         ),
         (
+            "core/execution/transactional_dispatch.py",
+            ".ide-development/execution/transactional_dispatch.py",
+        ),
+        (
             "core/execution/examples/verification-run.example.json",
             ".ide-development/execution/examples/verification-run.example.json",
         ),
@@ -554,6 +574,31 @@ def build_entries() -> list[dict[str, Any]]:
                 merge="replace",
                 source_hash=_hash_rel(source),
                 notes="PKT-01 deterministic execution admission runtime.",
+            )
+        )
+
+    transactional_dispatch_files = (
+        (
+            "core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md",
+            ".ide-development/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md",
+        ),
+        (
+            "core/managed-core/content/doctrine/PKT08-REVISION-60-FINAL-CONTROLS.md",
+            ".ide-development/content/doctrine/PKT08-REVISION-60-FINAL-CONTROLS.md",
+        ),
+    )
+    for source, destination in transactional_dispatch_files:
+        entries.append(
+            _entry(
+                entry_id=f"revision-60-final-controls-{_slug(destination)}",
+                ownership="managed-core",
+                source=source,
+                destination=destination,
+                mode="0644",
+                platform="all",
+                merge="replace",
+                source_hash=_hash_rel(source),
+                notes="PKT-08 revision-60 final controls.",
             )
         )
 
