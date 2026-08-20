@@ -3230,7 +3230,7 @@
       "id": "gitops-scripts-gitops-promote-main-sh",
       "ownershipClass": "managed",
       "source": "scripts/gitops/promote_main.sh",
-      "sourceHash": "sha256:aab7ef9dd67d35d3616c8c0f89265666f51f95f8e061c8a6e87e94e345338d4f",
+      "sourceHash": "sha256:1f387376d2a6a9fef8c06cbb2cab437da8b980d01ae3e88fbfefb2126cec6ec4",
       "destination": "scripts/gitops/promote_main.sh",
       "mode": "0755",
       "platform": "github",
