@@ -84,7 +84,7 @@ class CandidateBaselineResolutionTests(unittest.TestCase):
     def test_shallow_matrix_checkout_uses_explicit_fixture_remote_without_origin_target(self) -> None:
         tmp, root, baseline, candidate = init_repo()
         self.addCleanup(tmp.cleanup)
-        git(root, "delete-ref", "refs/remotes/origin/development")
+        git(root, "update-ref", "-d", "refs/remotes/origin/development")
         git(root, "remote", "add", "fixture", str(root / "fixture.git"))
         git(root, "update-ref", "refs/remotes/fixture/development", baseline)
         git(root, "checkout", "-q", "--detach", candidate)
