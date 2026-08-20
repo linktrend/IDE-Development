@@ -2808,7 +2808,7 @@
       "id": "test-test-fixture-aware-secret-scan-py",
       "ownershipClass": "managed-core",
       "source": "scripts/tests/test_fixture_aware_secret_scan.py",
-      "sourceHash": "sha256:2fb2b66bf02682a4d95a6cd0c7c1d8008a47c06d170fc4307898912fa070cf12",
+      "sourceHash": "sha256:efe9871991f42f588cb31248d9d88ddfb3b507887758e9ecb2c237a48a39b151",
       "destination": ".ide-development/tests/test_fixture_aware_secret_scan.py",
       "mode": "0644",
       "platform": "github",
