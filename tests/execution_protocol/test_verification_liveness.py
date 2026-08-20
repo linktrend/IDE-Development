@@ -118,14 +118,11 @@ class VerificationLivenessContractTests(unittest.TestCase):
                 ).encode()
             ).hexdigest(),
         )
-        self.assertEqual(
-            run["logPath"],
-            str(self.checkout / ".linktrend" / "verification" / "PKT-08-FULL-01.log"),
+        expected_log, expected_receipt = deterministic_artifact_paths(
+            self.checkout, "PKT-08-FULL-01"
         )
-        self.assertEqual(
-            run["receiptPath"],
-            str(self.checkout / ".linktrend" / "verification" / "PKT-08-FULL-01.receipt.json"),
-        )
+        self.assertEqual(run["logPath"], expected_log)
+        self.assertEqual(run["receiptPath"], expected_receipt)
         self.assertEqual(run["startedAt"], "2026-08-20T12:00:00Z")
         self.assertEqual(run["timeoutSeconds"], 3600)
         self.assertEqual(run["durableHandle"]["id"], "pid-01")
