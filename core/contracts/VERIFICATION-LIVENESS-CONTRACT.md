@@ -27,7 +27,10 @@ Every run records:
 
 The canonical checkout and cwd must resolve to the same directory. A
 reconciliation input that changes command, artifact paths, repository, commit,
-or tree is rejected; no field is silently repaired.
+or tree is rejected; no field is silently repaired. Path equality uses the
+physical canonical path (`realpath`), so platform aliases such as macOS
+`/var` and `/private/var` are equivalent only when they resolve to the same
+target.
 
 ## Heartbeat reconciliation
 

@@ -88,6 +88,8 @@ hosted, mismatched, and duplicate same-tree `Full` executions fail closed.
 Only incomplete orphaned commands may restart, and only within the bounded
 configured policy. Paid/Fast fallback and Review Ready are outside this
 amendment.
+Durable path equality uses physical canonical paths (`realpath`), so platform
+aliases are equivalent only when they resolve to the same target.
 
 ## 5. Proof limits
 

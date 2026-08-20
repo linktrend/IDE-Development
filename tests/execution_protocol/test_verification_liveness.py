@@ -284,6 +284,52 @@ class VerificationLivenessContractTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.reason, "canonical_checkout_mismatch")
 
+    def test_equivalent_physical_paths_pass_and_different_paths_fail(self) -> None:
+        alias = Path(self.tmp.name) / "checkout-alias"
+        alias.symlink_to(self.checkout, target_is_directory=True)
+        run = start_verification_run(
+            run_id="PKT-08-FULL-ALIAS",
+            packet_id="PKT-08",
+            repository="linktrend/IDE-Development",
+            canonical_checkout=alias,
+            cwd=self.checkout,
+            commit=COMMIT,
+            tree=TREE,
+            command=("python3", "-m", "unittest"),
+            started_at=NOW,
+            timeout_seconds=3600,
+            durable_handle={"kind": "local_pid", "id": "pid-alias"},
+        )
+        self.assertEqual(run["canonicalCheckout"], str(self.checkout.resolve()))
+        equivalent = reconcile_verification_run(
+            run,
+            now=NOW,
+            observation=_running_observation(
+                run,
+                canonicalCheckout=str(alias),
+                cwd=str(alias),
+                logPath=str(alias / ".linktrend/verification/PKT-08-FULL-ALIAS.log"),
+                receiptPath=str(
+                    alias / ".linktrend/verification/PKT-08-FULL-ALIAS.receipt.json"
+                ),
+            ),
+        )
+        self.assertTrue(equivalent.ok)
+        self.assertEqual(equivalent.state, "LIVE")
+
+        other = Path(self.tmp.name) / "other-checkout"
+        other.mkdir()
+        different = reconcile_verification_run(
+            run,
+            now=NOW,
+            observation=_running_observation(
+                run,
+                canonicalCheckout=str(other),
+            ),
+        )
+        self.assertFalse(different.ok)
+        self.assertEqual(different.reason, "canonical_checkout_mismatch")
+
     def test_repository_mismatch_and_timeout_are_rejected(self) -> None:
         run = _run(self.checkout)
         mismatch = reconcile_verification_run(

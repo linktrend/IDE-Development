@@ -18,6 +18,11 @@ Heartbeat reconciliation rejects stale `RUNNING`, missing or dead handles,
 completed hosted checks still recorded as running, command/log/receipt/
 repository/commit/tree mismatches, and duplicate same-tree `Full` runs.
 
+Checkout, cwd, log, and receipt equality is based on the physical canonical
+path (`realpath`), allowing platform aliases such as macOS `/var` and
+`/private/var` only when they resolve to the same target. Different physical
+targets remain mismatches.
+
 An incomplete orphan may be restarted automatically once. A terminal or
 timed-out run, or an orphan that has exhausted its restart budget, is held.
 The restart retains the same identity and deterministic artifact paths while

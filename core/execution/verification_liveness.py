@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -49,8 +50,17 @@ class ReconciliationResult:
 
 def _repo_root(repo_root: Path | str | None) -> Path:
     if repo_root is not None:
-        return Path(repo_root).resolve()
-    return Path(__file__).resolve().parents[2]
+        return Path(_canonical_path(repo_root))
+    return Path(_canonical_path(Path(__file__).resolve().parents[2]))
+
+
+def _canonical_path(value: Path | str) -> str:
+    """Return the physical absolute path used for durable identity binding."""
+    return os.path.realpath(os.path.abspath(os.path.expanduser(os.fspath(value))))
+
+
+def _paths_equivalent(left: Path | str, right: Path | str) -> bool:
+    return _canonical_path(left) == _canonical_path(right)
 
 
 def load_verification_schema(repo_root: Path | str | None = None) -> dict[str, Any]:
@@ -95,7 +105,7 @@ def deterministic_artifact_paths(
 ) -> tuple[str, str]:
     if not _RUN_ID.fullmatch(run_id):
         raise ValueError("invalid_verification_run_id")
-    root = Path(canonical_checkout).resolve()
+    root = Path(_canonical_path(canonical_checkout))
     base = root / ".linktrend" / "verification"
     return str(base / f"{run_id}.log"), str(base / f"{run_id}.receipt.json")
 
@@ -136,9 +146,9 @@ def start_verification_run(
     profile: str = VERIFICATION_PROFILE,
     active_runs: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
-    root = Path(canonical_checkout).resolve()
-    working = Path(cwd).resolve()
-    if root != working:
+    root = Path(_canonical_path(canonical_checkout))
+    working = Path(_canonical_path(cwd))
+    if not _paths_equivalent(root, working):
         raise ValueError("canonical_checkout_cwd_mismatch")
     if profile != VERIFICATION_PROFILE:
         raise ValueError("verification_profile_must_be_Full")
@@ -189,6 +199,12 @@ def _binding_error(run: Mapping[str, Any], observation: Mapping[str, Any]) -> st
         ("tree", "tree_mismatch"),
     )
     for field, reason in fields:
+        if field in {"logPath", "receiptPath", "canonicalCheckout", "cwd"}:
+            if field in observation and not _paths_equivalent(
+                str(observation[field]), str(run.get(field))
+            ):
+                return reason
+            continue
         if field in observation and observation[field] != run.get(field):
             return reason
     return None
@@ -325,13 +341,13 @@ def validate_verification_run(
         str(document["canonicalCheckout"]), str(document["runId"])
     )
     semantic_errors: list[str] = []
-    if Path(document["cwd"]).resolve() != Path(document["canonicalCheckout"]).resolve():
+    if not _paths_equivalent(document["cwd"], document["canonicalCheckout"]):
         semantic_errors.append("canonical_checkout_cwd_mismatch")
     if document["commandDigest"] != verification_command_digest(document["command"]):
         semantic_errors.append("command_digest_mismatch")
-    if document["logPath"] != expected_log:
+    if not _paths_equivalent(document["logPath"], expected_log):
         semantic_errors.append("log_path_mismatch")
-    if document["receiptPath"] != expected_receipt:
+    if not _paths_equivalent(document["receiptPath"], expected_receipt):
         semantic_errors.append("receipt_path_mismatch")
     if not _SHA256.fullmatch(document["commandDigest"]):
         semantic_errors.append("command_digest_invalid")
