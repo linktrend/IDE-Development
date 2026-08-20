@@ -1241,6 +1241,28 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "tooling-githooks-pre-commit",
+      "ownershipClass": "managed",
+      "source": ".githooks/pre-commit",
+      "sourceHash": "sha256:971141008e674f445575ba8f2a5f39f2e3ceca49925b281771472c1f79b8a619",
+      "destination": ".githooks/pre-commit",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
+      "id": "tooling-githooks-pre-push",
+      "ownershipClass": "managed",
+      "source": ".githooks/pre-push",
+      "sourceHash": "sha256:2f51984dcb66ef593d353a049bf20577ea92ebbc400364f9349e1b706963e53c",
+      "destination": ".githooks/pre-push",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "core-index-yaml",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/INDEX.yaml",
@@ -3018,7 +3040,7 @@
       "id": "test-test-generated-output-closure-py",
       "ownershipClass": "managed-core",
       "source": "scripts/tests/test_generated_output_closure.py",
-      "sourceHash": "sha256:1153fd0f79bdebc5d4f48d3b899ca290bcebff8ba37876f74d0a006d1b961002",
+      "sourceHash": "sha256:33f88c00eca4bcedd8c934249124aebf7face8824330155fe9dc42e2ba44516d",
       "destination": ".ide-development/tests/test_generated_output_closure.py",
       "mode": "0644",
       "platform": "github",
@@ -3869,7 +3891,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:b5064fa06e9334ab0b9554a16a99c2e630fb11c01f7886470d11cf793e6de347",
+      "sourceHash": "sha256:c1ef2d612aadec716786f6a4117f22f1024899f053ea5a28b6525e2b54eba062",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",
@@ -4037,6 +4059,17 @@
       "sourceHash": "sha256:71a121a21d588576fc0e8c86103c906834b7335e98ff3357083b3bb61f98872c",
       "destination": "scripts/ide_development/transaction.py",
       "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
+      "id": "tooling-scripts-install-git-hooks-sh",
+      "ownershipClass": "managed",
+      "source": "scripts/install-git-hooks.sh",
+      "sourceHash": "sha256:474ae9de384d11fcb05bf04639cc02e8375628c3d3ff528efbe8d2c1b2d57877",
+      "destination": "scripts/install-git-hooks.sh",
+      "mode": "0755",
       "platform": "all",
       "os": "all",
       "mergeStrategy": "replace"
