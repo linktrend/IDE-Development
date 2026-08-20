@@ -35,6 +35,8 @@ REPO_ROOT = SCRIPT_DIR.parents[1]
 MANAGED = REPO_ROOT / "core" / "managed-core"
 MANIFEST_PATH = MANAGED / "MANIFEST.json"
 VERSION_PATH = MANAGED / "VERSION"
+CLEANROOM_FIXTURE_ROOT = REPO_ROOT / "tests/cleanroom_acceptance/fixtures/extracted-rc-package"
+CI_CONTRACT_SOURCE = "scripts/gitops/repository_ci_contract.py"
 
 
 def _apply_repo_root(root: Path) -> None:
@@ -324,6 +326,64 @@ def _gitops_script_sources() -> list[str]:
         )
     )
     return list(manifest.get("files") or [])
+
+
+def package_source_rels_for_extract() -> list[str]:
+    """Repository-relative sources required in extracted release / clean-room packages."""
+    rels = set(_gitops_script_sources())
+    rels.add("scripts/manage-repository-protections.sh")
+    return sorted(rels)
+
+
+def sync_cleanroom_extract_package_sources() -> None:
+    """Materialize packaged GitOps sources into the clean-room extracted fixture."""
+    if not CLEANROOM_FIXTURE_ROOT.is_dir():
+        return
+    synced: set[str] = set()
+    for rel in package_source_rels_for_extract():
+        src = REPO_ROOT / rel
+        if not src.is_file() or src.is_symlink():
+            continue
+        dest = CLEANROOM_FIXTURE_ROOT / rel
+        _sync_file(src, dest)
+        synced.add(rel)
+    for root_rel in ("scripts/gitops", "scripts/tests"):
+        root = CLEANROOM_FIXTURE_ROOT / root_rel
+        if not root.is_dir():
+            continue
+        for path in sorted(root.rglob("*"), reverse=True):
+            if not path.is_file():
+                continue
+            rel = path.relative_to(CLEANROOM_FIXTURE_ROOT).as_posix()
+            if rel not in synced:
+                path.unlink()
+        # Drop empty directories left after pruning.
+        for path in sorted(root.rglob("*"), reverse=True):
+            if path.is_dir() and not any(path.iterdir()):
+                path.rmdir()
+
+
+def _cleanroom_fixture_errors() -> list[str]:
+    """Ensure the clean-room extracted fixture ships installer audit dependencies."""
+    errors: list[str] = []
+    if not CLEANROOM_FIXTURE_ROOT.is_dir():
+        return errors
+    contract = CLEANROOM_FIXTURE_ROOT / CI_CONTRACT_SOURCE
+    if not contract.is_file():
+        errors.append(f"cleanroom fixture missing {CI_CONTRACT_SOURCE}")
+        return errors
+    for rel in package_source_rels_for_extract():
+        if not rel.startswith("scripts/"):
+            continue
+        src = REPO_ROOT / rel
+        dest = CLEANROOM_FIXTURE_ROOT / rel
+        if not src.is_file():
+            continue
+        if not dest.is_file():
+            errors.append(f"cleanroom fixture missing packaged source: {rel}")
+        elif sha256_file(src) != sha256_file(dest):
+            errors.append(f"cleanroom fixture drift: {rel}")
+    return errors
 
 
 def build_entries() -> list[dict[str, Any]]:
@@ -913,6 +973,7 @@ def build_manifest_object() -> dict[str, Any]:
 def write_manifest(path: Path | None = None) -> dict[str, Any]:
     target = MANIFEST_PATH if path is None else path
     sync_package_payload()
+    sync_cleanroom_extract_package_sources()
     obj = build_manifest_object()
     # MANIFEST.json itself is copied into consumers by the installer apply step
     # (not listed in files[] to avoid self-hash circularity).
@@ -973,6 +1034,7 @@ def verify_manifest(path: Path | None = None) -> list[str]:
     errors.extend(_version_alignment_errors())
     errors.extend(_doctrine_sync_errors())
     errors.extend(_library_mapping_errors())
+    errors.extend(_cleanroom_fixture_errors())
     if not target.is_file():
         errors.append("MANIFEST.json missing")
         return errors

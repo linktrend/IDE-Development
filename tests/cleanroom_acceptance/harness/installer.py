@@ -95,19 +95,6 @@ def materialize_package_copy(dest: Path, *, source: Path | None = None) -> Path:
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(src, dest)
-    # Minimal fixtures predate PKT-06 delivery-profile audit dependencies.
-    gitops_src = REPO_ROOT / "scripts" / "gitops"
-    gitops_dest = dest / "scripts" / "gitops"
-    if gitops_src.is_dir():
-        gitops_dest.mkdir(parents=True, exist_ok=True)
-        for path in gitops_src.rglob("*"):
-            if not path.is_file() or "__pycache__" in path.parts:
-                continue
-            rel = path.relative_to(gitops_src)
-            target = gitops_dest / rel
-            if not target.is_file():
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(path, target)
     return dest
 
 

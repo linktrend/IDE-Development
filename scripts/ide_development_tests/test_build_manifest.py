@@ -127,6 +127,13 @@ class BuildManifestPackagingTests(unittest.TestCase):
         self.assertIn("scripts/gitops/repository_ci_contract.py", sources)
         self.assertNotIn("scripts/gitops/packager_discover.py", sources)
 
+    def test_cleanroom_extract_fixture_ships_repository_ci_contract(self) -> None:
+        fixture = bm.CLEANROOM_FIXTURE_ROOT
+        contract = fixture / bm.CI_CONTRACT_SOURCE
+        self.assertTrue(contract.is_file(), bm.CI_CONTRACT_SOURCE)
+        errors = bm._cleanroom_fixture_errors()
+        self.assertEqual(errors, [], errors)
+
 
 if __name__ == "__main__":
     unittest.main()
