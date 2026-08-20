@@ -184,3 +184,40 @@ entries:
       - contracts
       - schema
       - application-pipeline
+
+  - id: execution-manifest-schema
+    path: core/contracts/EXECUTION-MANIFEST.schema.json
+    purpose: JSON Schema for Coding Execution Protocol 1.0.1 execution-manifest documents.
+    when_to_read:
+      - when authoring or validating an execution-manifest
+      - when implementing runtime discovery
+    dependencies:
+      - coding-execution-protocol
+    consumers:
+      - AI runtimes
+      - validators
+      - orchestrators
+    status: active
+    tags:
+      - contracts
+      - schema
+      - execution-manifest
+
+  - id: execution-control-contract
+    path: core/contracts/EXECUTION-CONTROL-CONTRACT.md
+    purpose: Control-contract rules for exact-candidate invalidation, bounded retry, leases, resource uncertainty, approval, Git authority, V25_BOOTSTRAP_LEAN Issue checkpoints, waived legacy publisher gates, and Autowork discovery.
+    when_to_read:
+      - before mutating under an execution-manifest
+      - when evaluating retry, lease, approval, or publisher claims
+    dependencies:
+      - execution-manifest-schema
+      - contract-model
+    consumers:
+      - AI runtimes
+      - orchestrators
+      - reviewers
+    status: active
+    tags:
+      - contracts
+      - execution
+      - control

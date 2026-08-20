@@ -167,3 +167,18 @@ Factual correction for Update 9:
 3. Stop only for repeated unresolved findings, two no-progress cycles, repair reintroduction, redesign/new authority, infrastructure retry exhaustion, or an explicit resource limit. Same-identity severity reductions count as measurable progress. Compute units are recorded through an explicit accounting path so `maxComputeUnits` can stall truthfully. Those stops are truthful HOLD / `review_stalled` packets and cannot fabricate a clean review. `evaluate_progress` short-circuits HOLD and `review_stalled`. `ingest_review` fails closed on those stops; empty findings cannot mark pending or stalled identities corrected or emit `review_clean`.
 4. Distinct nonempty fingerprints never fuzzy-merge; only wording variants of the same identity may match. First-seen findings on repair-touched paths are `introduced_by_repair` and remain blocking; first-seen findings on untouched paths are `newly_discovered_in_unchanged_scope`.
 5. Review ingest requires exact `headSha` and `gitTree`, and `paths` as a nonempty list of nonempty strings. Malformed or non-object findings are `malformed_reviewer_output` with truthful HOLD and no cycle consumption. Repair cancels or invalidates any live reviewer. Implementer and reviewer actors stay separate. Reviewer silence or timeout is never clean and cannot authorize Full or repair until a valid exact-bound review transition explicitly clears the stop. A later source change invalidates prior review and Full evidence. Full never runs while HOLD or `review_stalled`.
+
+## Amendment — 2026-08-20 (singular Review Ready publisher authority)
+
+Superseded by `V25_BOOTSTRAP_LEAN` below. The earlier claim that `linktrend-review-ready-publisher` is the sole canonical Review Ready publisher is non-authoritative for v2.5.
+
+## Amendment — 2026-08-20 (`V25_BOOTSTRAP_LEAN`)
+
+Founder-approved Coding Execution Protocol 1.0.1 amendment `V25_BOOTSTRAP_LEAN`:
+
+1. A v2.5 Issue checkpoint is accepted from exact pushed commit/tree, scoped diff, focused tests, independent Terra verification, and manifest evidence. Review Ready and publisher tokens are not required.
+2. No singular legacy publisher is canonical for v2.5, including `linktrend-review-ready-publisher`.
+3. A failed or missing legacy publisher is `WAIVED_LEGACY_GATE`, never PASS and never an implementation failure.
+4. A later exact-head administrator recovery is only a named exception after substantive replacement proof, limited to protection snapshot, restore, and readback.
+
+Delivery and workflow YAML remain owned elsewhere.
