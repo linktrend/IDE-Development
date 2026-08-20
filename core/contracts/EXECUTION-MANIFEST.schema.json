@@ -138,7 +138,10 @@
           "items": { "$ref": "#/$defs/attempt" }
         },
         "writeLock": { "$ref": "#/$defs/writeLock" },
-        "orchestrationLease": { "$ref": "#/$defs/packetLease" }
+        "orchestrationLease": { "$ref": "#/$defs/packetLease" },
+        "heartbeat": { "$ref": "#/$defs/heartbeat" },
+        "verificationReceipt": { "$ref": "#/$defs/verificationReceipt" },
+        "retryExhaustion": { "$ref": "#/$defs/retryExhaustion" }
       }
     },
     "issue": {
@@ -204,6 +207,53 @@
         "readback": {}
       }
     },
+    "heartbeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sequence", "writtenAt", "readback", "commit", "tree"],
+      "properties": {
+        "sequence": { "type": "integer", "minimum": 1 },
+        "writtenAt": { "type": "string", "minLength": 1 },
+        "readback": { "type": "boolean" },
+        "payloadDigest": { "type": "string", "minLength": 1 },
+        "commit": { "$ref": "#/$defs/sha40" },
+        "tree": { "$ref": "#/$defs/sha40" },
+        "attemptId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "verificationReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checkoutRef", "commit", "tree", "promotableIdentity"],
+      "properties": {
+        "checkoutRef": { "type": "string", "minLength": 1 },
+        "commit": { "$ref": "#/$defs/sha40" },
+        "tree": { "$ref": "#/$defs/sha40" },
+        "kind": { "type": "string", "minLength": 1 },
+        "promotableIdentity": { "type": "boolean" },
+        "mergeRefEvidence": {
+          "type": ["object", "null"],
+          "additionalProperties": true
+        }
+      }
+    },
+    "retryExhaustion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "exhausted", "reason", "recovery"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["ordinary_source", "infrastructure", "code_failure"]
+        },
+        "exhausted": { "type": "boolean" },
+        "reason": { "type": "string", "minLength": 1 },
+        "recovery": {
+          "type": "string",
+          "enum": ["continue", "new_identity", "hold", "named_exception"]
+        }
+      }
+    },
     "controls": {
       "type": "object",
       "additionalProperties": false,
@@ -217,7 +267,11 @@
         "publisherAuthority",
         "autoworkDiscovery",
         "issueCheckpoint",
-        "administratorRecovery"
+        "administratorRecovery",
+        "durableHeartbeat",
+        "checkoutBoundVerification",
+        "retryExhaustion",
+        "hostedCapacityScheduler"
       ],
       "properties": {
         "exactCandidateInvalidation": {
@@ -449,6 +503,105 @@
               "items": {
                 "type": "string",
                 "enum": ["protection_snapshot", "restore", "readback"]
+              }
+            }
+          }
+        },
+        "durableHeartbeat": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["writeReadbackRequired", "persistBeforeMutation"],
+          "properties": {
+            "writeReadbackRequired": { "type": "boolean", "const": true },
+            "persistBeforeMutation": { "type": "boolean", "const": true }
+          }
+        },
+        "checkoutBoundVerification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["bindToCheckout", "forbidMergeRefIdentity"],
+          "properties": {
+            "bindToCheckout": { "type": "boolean", "const": true },
+            "forbidMergeRefIdentity": { "type": "boolean", "const": true }
+          }
+        },
+        "retryExhaustion": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "diagnoseBeforeRecovery",
+            "forbidSilentRetry",
+            "ordinaryRecovery",
+            "infrastructureRecovery",
+            "codeFailureRecovery"
+          ],
+          "properties": {
+            "diagnoseBeforeRecovery": { "type": "boolean", "const": true },
+            "forbidSilentRetry": { "type": "boolean", "const": true },
+            "ordinaryRecovery": { "type": "string", "const": "new_identity" },
+            "infrastructureRecovery": { "type": "string", "const": "hold" },
+            "codeFailureRecovery": { "type": "string", "const": "new_identity" }
+          }
+        },
+        "hostedCapacityScheduler": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requireCompleteSnapshot",
+            "busyIsNotDiagnosis",
+            "hostedConcurrencyAuthority",
+            "maxAdmittedSlots",
+            "unknownProbeSeconds",
+            "backstopSeconds",
+            "prioritization",
+            "utilizationGapEvent",
+            "recomputeOnEvents"
+          ],
+          "properties": {
+            "requireCompleteSnapshot": { "type": "boolean", "const": true },
+            "busyIsNotDiagnosis": { "type": "boolean", "const": true },
+            "unknownIsBlocking": { "type": "boolean", "const": true },
+            "hostedConcurrencyAuthority": {
+              "type": "string",
+              "const": "execution-protocol"
+            },
+            "maxAdmittedSlots": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["local", "hosted"],
+              "properties": {
+                "local": { "type": "integer", "const": 1 },
+                "hosted": { "type": "integer", "minimum": 1, "maximum": 8 }
+              }
+            },
+            "unknownProbeSeconds": { "type": "integer", "const": 600 },
+            "backstopSeconds": { "type": "integer", "const": 600 },
+            "prioritization": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "string",
+                "enum": ["priority", "fifo", "dependencyReady"]
+              }
+            },
+            "utilizationGapEvent": {
+              "type": "string",
+              "const": "UTILIZATION_GAP"
+            },
+            "recomputeOnEvents": {
+              "type": "array",
+              "minItems": 5,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "admission",
+                  "completion",
+                  "invalidation",
+                  "probe_timeout",
+                  "api_rejection",
+                  "utilization_gap_repair"
+                ]
               }
             }
           }

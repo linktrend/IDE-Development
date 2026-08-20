@@ -89,7 +89,26 @@ def repaired_running_history() -> dict:
         "packetId": "PKT-01",
         "repository": "linktrend/IDE-Development",
     }
+    packet["heartbeat"] = {
+        "sequence": 1,
+        "writtenAt": "2026-08-20T08:30:00Z",
+        "readback": True,
+        "payloadDigest": "sha256:heartbeat-att-02",
+        "commit": COMMIT,
+        "tree": TREE,
+        "attemptId": "ATT-02",
+    }
     return document
+
+
+def _verification_receipt() -> dict:
+    return {
+        "checkoutRef": "issue/349-pkt-01",
+        "commit": COMMIT,
+        "tree": TREE,
+        "kind": "checkout_bound",
+        "promotableIdentity": True,
+    }
 
 
 def complete_valid() -> dict:
@@ -99,6 +118,7 @@ def complete_valid() -> dict:
     packet["acceptedCommit"] = COMMIT
     packet["acceptedTree"] = TREE
     packet["completionEvidence"] = _completion_evidence()
+    packet["verificationReceipt"] = _verification_receipt()
     packet["attempts"] = [_terminal_attempt("ATT-01"), _success_attempt("ATT-03")]
     packet["writeLock"] = {"active": False, "attemptId": "ATT-03"}
     return document
@@ -212,6 +232,45 @@ class SemanticLifecycleTests(unittest.TestCase):
         self.assertTrue(
             any(
                 "packet=PKT-01 attempt=ATT-03: completed_packet_has_active_lock" in err
+                for err in result.errors
+            ),
+            result.errors,
+        )
+
+    def test_running_without_heartbeat_readback_is_rejected(self) -> None:
+        document = repaired_running_history()
+        _packet(document)["heartbeat"]["readback"] = False
+        result = validate_plan_or_runtime(document, repo_root=ROOT)
+        self.assertFalse(result.ok)
+        self.assertTrue(
+            any(
+                "packet=PKT-01 attempt=ATT-02: heartbeat_readback_missing" in err
+                for err in result.errors
+            ),
+            result.errors,
+        )
+
+    def test_complete_merge_ref_receipt_is_rejected(self) -> None:
+        document = complete_valid()
+        _packet(document)["verificationReceipt"]["checkoutRef"] = "refs/pull/343/merge"
+        result = validate_plan_or_runtime(document, repo_root=ROOT)
+        self.assertFalse(result.ok)
+        self.assertTrue(
+            any(
+                "packet=PKT-01 attempt=-: merge_ref_identity_forbidden" in err
+                for err in result.errors
+            ),
+            result.errors,
+        )
+
+    def test_running_exhausted_without_diagnosis_is_rejected(self) -> None:
+        document = repaired_running_history()
+        _packet(document)["attempts"][0]["reason"] = "ordinary_source_exhausted"
+        result = validate_plan_or_runtime(document, repo_root=ROOT)
+        self.assertFalse(result.ok)
+        self.assertTrue(
+            any(
+                "packet=PKT-01 attempt=ATT-01: retry_exhaustion_undiagnosed" in err
                 for err in result.errors
             ),
             result.errors,

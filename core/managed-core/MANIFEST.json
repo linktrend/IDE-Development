@@ -1296,10 +1296,21 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "content-config-continuous-utilization-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/config/continuous-utilization.json",
+      "sourceHash": "sha256:637cc6d5e688eb3b183d8e07d84cfb9a82571b723d0c6ce11ca19f82a36b4321",
+      "destination": ".ide-development/content/config/continuous-utilization.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "doctrine-0003-autonomous-ship-pull-promote-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/0003-autonomous-ship-pull-promote.md",
-      "sourceHash": "sha256:8ae1d02c794cf85677c616b22e976db264f988c5e5a02cac8b82828888b06963",
+      "sourceHash": "sha256:d0a5989a83ebeff7c4447966e67a8b72004da73dc124f54c67025f7ec0906bd5",
       "destination": ".ide-development/content/doctrine/0003-autonomous-ship-pull-promote.md",
       "mode": "0644",
       "platform": "all",
@@ -1362,11 +1373,33 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "doctrine-coding-execution-protocol-md",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/doctrine/CODING-EXECUTION-PROTOCOL.md",
+      "sourceHash": "sha256:7e64f2130383c05eed471575f763556f180bfa1fdd2350dd0a8353b721939ac1",
+      "destination": ".ide-development/content/doctrine/CODING-EXECUTION-PROTOCOL.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "doctrine-delivery-modes-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/DELIVERY-MODES.md",
       "sourceHash": "sha256:dfd133d83523766ef9c21d951223d12007731e7bae0ccc0057a77da1a001bf42",
       "destination": ".ide-development/content/doctrine/DELIVERY-MODES.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
+      "id": "doctrine-hosted-capacity-scheduler-md",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md",
+      "sourceHash": "sha256:bbc94a0a405b5b6a0bcd126fc7b1e4829e049e358769747c1f6cdd018dd02813",
+      "destination": ".ide-development/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md",
       "mode": "0644",
       "platform": "all",
       "os": "all",
@@ -1957,6 +1990,17 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "core-schemas-continuous-utilization-schema-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/schemas/continuous-utilization.schema.json",
+      "sourceHash": "sha256:243b8479084cea00aabcbb3545e5e52d308e1bc19e475941a8f032da7a494d4a",
+      "destination": ".ide-development/schemas/continuous-utilization.schema.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "core-schemas-delivery-modes-schema-json",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/schemas/delivery-modes.schema.json",
@@ -2182,6 +2226,17 @@
       "source": "core/managed-core/schemas/transaction.schema.json",
       "sourceHash": "sha256:ab0eff1bcdb35be926721b7c437fe578828fef1008f795c7cd3686b97069e5f4",
       "destination": ".ide-development/schemas/transaction.schema.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
+      "id": "core-examples-continuous-utilization-example-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/examples/continuous-utilization.example.json",
+      "sourceHash": "sha256:637cc6d5e688eb3b183d8e07d84cfb9a82571b723d0c6ce11ca19f82a36b4321",
+      "destination": ".ide-development/examples/continuous-utilization.example.json",
       "mode": "0644",
       "platform": "all",
       "os": "all",
