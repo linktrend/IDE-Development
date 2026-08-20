@@ -1296,10 +1296,22 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "config-continuous-utilization-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/config/continuous-utilization.json",
+      "sourceHash": "sha256:637cc6d5e688eb3b183d8e07d84cfb9a82571b723d0c6ce11ca19f82a36b4321",
+      "destination": ".ide-development/content/config/continuous-utilization.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-01 packaged continuous-utilization contract."
+    },
+    {
       "id": "doctrine-0003-autonomous-ship-pull-promote-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/0003-autonomous-ship-pull-promote.md",
-      "sourceHash": "sha256:8ae1d02c794cf85677c616b22e976db264f988c5e5a02cac8b82828888b06963",
+      "sourceHash": "sha256:d0a5989a83ebeff7c4447966e67a8b72004da73dc124f54c67025f7ec0906bd5",
       "destination": ".ide-development/content/doctrine/0003-autonomous-ship-pull-promote.md",
       "mode": "0644",
       "platform": "all",
@@ -1362,6 +1374,18 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "doctrine-coding-execution-protocol-md",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/doctrine/CODING-EXECUTION-PROTOCOL.md",
+      "sourceHash": "sha256:c1bda2ccb3e9e898f77304339f6722a821468e334be691ae2b06f31dd34ada57",
+      "destination": ".ide-development/content/doctrine/CODING-EXECUTION-PROTOCOL.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-01 packaged continuous-utilization contract."
+    },
+    {
       "id": "doctrine-delivery-modes-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/DELIVERY-MODES.md",
@@ -1371,6 +1395,18 @@
       "platform": "all",
       "os": "all",
       "mergeStrategy": "replace"
+    },
+    {
+      "id": "doctrine-hosted-capacity-scheduler-md",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md",
+      "sourceHash": "sha256:58ff1d5cafe737d91f7badbff0629f7c15582e5c8deacc80117690cb4d0fa4a0",
+      "destination": ".ide-development/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-01 packaged continuous-utilization contract."
     },
     {
       "id": "doctrine-linktrend-review-gate-md",
@@ -1460,6 +1496,66 @@
       "os": "all",
       "mergeStrategy": "replace",
       "notes": "Hosted GitHub gate contract for offline consumer reference."
+    },
+    {
+      "id": "example-continuous-utilization-example-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/examples/continuous-utilization.example.json",
+      "sourceHash": "sha256:637cc6d5e688eb3b183d8e07d84cfb9a82571b723d0c6ce11ca19f82a36b4321",
+      "destination": ".ide-development/examples/continuous-utilization.example.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-01 packaged continuous-utilization contract."
+    },
+    {
+      "id": "execution-runtime-init-py",
+      "ownershipClass": "managed-core",
+      "source": "core/execution/__init__.py",
+      "sourceHash": "sha256:5240d3c41c54cf65985d584c7cc055c3b1701f468d459e33d880f7744971c201",
+      "destination": ".ide-development/execution/__init__.py",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-01 deterministic execution admission runtime."
+    },
+    {
+      "id": "execution-runtime-lifecycle-py",
+      "ownershipClass": "managed-core",
+      "source": "core/execution/lifecycle.py",
+      "sourceHash": "sha256:3189cdf9e039c8edb96f8eafabae781af1ca1ccadfbb8fc0cf1ff4b3769054e3",
+      "destination": ".ide-development/execution/lifecycle.py",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-01 deterministic execution admission runtime."
+    },
+    {
+      "id": "execution-runtime-protocol-py",
+      "ownershipClass": "managed-core",
+      "source": "core/execution/protocol.py",
+      "sourceHash": "sha256:35ea7ad1dfab7e9874f58d9bbe127a966be76a8535370767008640bcc7b9db1f",
+      "destination": ".ide-development/execution/protocol.py",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-01 deterministic execution admission runtime."
+    },
+    {
+      "id": "execution-runtime-scheduler-py",
+      "ownershipClass": "managed-core",
+      "source": "core/execution/scheduler.py",
+      "sourceHash": "sha256:9c7b255f478824228e818c78354d1bf85e4d438fca1897928d433fe0a82865f9",
+      "destination": ".ide-development/execution/scheduler.py",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-01 deterministic execution admission runtime."
     },
     {
       "id": "library-package-readme-md",
@@ -1955,6 +2051,18 @@
       "platform": "all",
       "os": "all",
       "mergeStrategy": "replace"
+    },
+    {
+      "id": "schema-continuous-utilization-schema-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/schemas/continuous-utilization.schema.json",
+      "sourceHash": "sha256:243b8479084cea00aabcbb3545e5e52d308e1bc19e475941a8f032da7a494d4a",
+      "destination": ".ide-development/schemas/continuous-utilization.schema.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-01 packaged continuous-utilization contract."
     },
     {
       "id": "core-schemas-delivery-modes-schema-json",
@@ -3539,7 +3647,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:58b9dd62a763f58b6c4516a12b6980d3d46cd31e73e0e5f0f81a0e9063157315",
+      "sourceHash": "sha256:fae2132aadebc071d7a0bba3516385ec1b409de5fc4048b11f195e50fb29ea2c",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",

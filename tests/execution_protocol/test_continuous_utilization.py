@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -33,6 +35,10 @@ from core.execution.scheduler import (  # noqa: E402
 
 NOW = datetime(2026, 8, 20, 12, 0, tzinfo=timezone.utc)
 PACKAGED_RELATIVE = (
+    "core/execution/__init__.py",
+    "core/execution/lifecycle.py",
+    "core/execution/protocol.py",
+    "core/execution/scheduler.py",
     "core/managed-core/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md",
     "core/managed-core/content/doctrine/CODING-EXECUTION-PROTOCOL.md",
     "core/managed-core/content/config/continuous-utilization.json",
@@ -254,13 +260,34 @@ class ExtractedInstallerCleanroomTests(unittest.TestCase):
             schema = json.loads((extract / SCHEMA_RELATIVE_PATH).read_text(encoding="utf-8"))
             config = json.loads((extract / CONFIG_RELATIVE_PATH).read_text(encoding="utf-8"))
             self.assertFalse(list(Draft202012Validator(schema).iter_errors(config)))
-            scheduler = ContinuousUtilizationScheduler(
-                config, snapshot=COMPLETE_SNAPSHOT, now=NOW
+            probe = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "import json\n"
+                        "from datetime import datetime, timezone\n"
+                        "from pathlib import Path\n"
+                        "from core.execution.scheduler import "
+                        "COMPLETE_SNAPSHOT, ContinuousUtilizationScheduler, WorkItem\n"
+                        "root = Path.cwd()\n"
+                        "config = json.loads((root / "
+                        "'core/managed-core/content/config/continuous-utilization.json').read_text())\n"
+                        "scheduler = ContinuousUtilizationScheduler(\n"
+                        "    config, snapshot=COMPLETE_SNAPSHOT,\n"
+                        "    now=datetime(2026, 8, 20, 12, 0, tzinfo=timezone.utc),\n"
+                        ")\n"
+                        "scheduler.submit(WorkItem('h1', 'hosted'))\n"
+                        "assert scheduler.admitted_ids() == ('h1',)\n"
+                    ),
+                ],
+                cwd=extract,
+                env={**os.environ, "PYTHONPATH": str(extract)},
+                text=True,
+                capture_output=True,
             )
-            scheduler.submit(_item("h1", offset=1))
-            scheduler.submit(_item("h2", offset=2))
-            self.assertEqual(scheduler.admitted_ids(), ("h1", "h2"))
-            self.assertEqual(len(copied), 5)
+            self.assertEqual(probe.returncode, 0, probe.stderr)
+            self.assertEqual(len(copied), 9)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
