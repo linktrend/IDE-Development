@@ -1,10 +1,10 @@
 # Coding Execution Protocol
 
-**Status:** Canonical  
-**Protocol id:** `coding-execution-protocol`  
-**Protocol version:** 1.0.1  
+**Status:** Canonical
+**Protocol id:** `coding-execution-protocol`
+**Protocol version:** 1.0.1
 **Amendment:** `V25_BOOTSTRAP_LEAN`
-**Schema:** `core/contracts/EXECUTION-MANIFEST.schema.json`  
+**Schema:** `core/contracts/EXECUTION-MANIFEST.schema.json`
 **Control contract:** `core/contracts/EXECUTION-CONTROL-CONTRACT.md`
 
 This document installs the execution semantics for bounded implementer packets. It does not copy project history, prior PRDs, or chat transcripts. Runtime discovery and schema validation live beside this file; delivery workflow YAML is out of scope.

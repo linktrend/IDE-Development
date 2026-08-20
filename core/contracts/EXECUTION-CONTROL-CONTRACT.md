@@ -1,7 +1,7 @@
 # Execution Control Contract
 
 **Status:** Canonical for Coding Execution Protocol 1.0.1 amendment `V25_BOOTSTRAP_LEAN`
-**Consumes:** `core/execution/CODING-EXECUTION-PROTOCOL.md`  
+**Consumes:** `core/execution/CODING-EXECUTION-PROTOCOL.md`
 **Schema:** `core/contracts/EXECUTION-MANIFEST.schema.json`
 
 This contract governs execution-manifest controls. It does not implement delivery workflows, GitHub Actions, or publisher YAML.
