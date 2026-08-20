@@ -45,6 +45,45 @@ Admission fails closed when the resource snapshot is missing or any of `cpu_perc
 
 A busy or exhausted allocator response is not a final capacity diagnosis until the snapshot is complete; incomplete snapshots remain `resource_uncertain`.
 
+## Durable heartbeat write/readback
+
+Packet mutation (RUNNING) requires a durable heartbeat:
+
+1. write the heartbeat record (packet, attempt, sequence, checkout commit/tree)
+2. read it back from the same store
+3. admit only when the readback matches the written record and the checkout identity
+
+A missing write, missing readback, mutated readback, or unbound commit/tree is `heartbeat_readback_missing` / `heartbeat_identity_unbound`. Memory-only or event-only heartbeats are not durable.
+
+## Checkout-bound verification receipts
+
+A verification receipt is accepted only when it binds to the exact checkout identity `repository + commit + tree`.
+
+- `refs/pull/<n>/merge` is merge-ref identity and is never promotable.
+- Merge-ref evidence, when recorded, must set `promotableIdentity=false` and cannot complete a packet.
+- COMPLETE / ARCHIVE_CONFIRMED packets require a checkout-bound receipt whose commit and tree match `acceptedCommit` / `acceptedTree`.
+
+## Retry-exhaustion diagnosis and recovery
+
+When `retry_decision` stops, the runtime must diagnose before any further attempt:
+
+| Exhaustion reason | Recovery |
+|---|---|
+| `ordinary_source_exhausted` | new identity (new commit/tree) |
+| `infrastructure_stopped` | hold; named exception or new identity |
+| `code_failure_no_retry` | new identity |
+
+Silent retry on the same repository/commit/tree after exhaustion is forbidden (`silent_retry_after_exhaustion`). Undiagnosed exhaustion on a live packet is `retry_exhaustion_undiagnosed`.
+
+## Hosted-capacity scheduler
+
+Hosted scheduling is a control decision, not a workflow dispatch:
+
+- Incomplete snapshots stay `resource_uncertain`. Allocator `busy` / `exhausted` in that state is not `capacity_exhausted`.
+- Complete snapshots with `available_slots <= 0` are `capacity_exhausted`.
+- Complete snapshots with known positive slots may be `scheduled`.
+- This contract does not start paid models, Fast gates, or hosted CI.
+
 ## Automatic approval rules
 
 | Action | Decision |
@@ -101,10 +140,11 @@ Unnamed recovery, recovery without replacement proof, or any other operation is 
 
 `validate_execution_lifecycle` / `validate_plan_or_runtime` reject inconsistent manifests. They do not silently normalize fields. Every diagnostic names `packet=<id> attempt=<id|->`.
 
-- `COMPLETE` and `ARCHIVE_CONFIRMED` require a valid accepted commit/tree plus packet-level `packet_completion` evidence bound to that identity. Event-only or empty completion evidence is rejected.
+- `COMPLETE` and `ARCHIVE_CONFIRMED` require a valid accepted commit/tree plus packet-level `packet_completion` evidence bound to that identity, and a checkout-bound verification receipt for that identity. Event-only or empty completion evidence is rejected.
 - `ARCHIVE_CONFIRMED` additionally requires archive API readback evidence.
 - Every attempt on a completed packet must be terminal: `lifecycle=TERMINAL`, terminal `rawStatus`, `endedAt`, and `result` or `reason`.
-- `RUNNING` requires exactly one authoritative nonterminal current attempt, that attempt's active write lock, and a current orchestration lease. Prior repaired terminal attempts may remain.
+- `RUNNING` requires exactly one authoritative nonterminal current attempt, that attempt's active write lock, a current orchestration lease, and a durable heartbeat with matching readback. Prior repaired terminal attempts may remain.
+- Exhausted retries on a live packet require an exhaustion diagnosis; silent same-identity retry is rejected.
 - Completed packets must not retain an active write lock.
 - `COMPLETE` plus a RUNNING attempt is rejected.
 

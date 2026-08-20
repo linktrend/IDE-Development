@@ -177,6 +177,15 @@ Founder-approved Coding Execution Protocol 1.0.1 amendment `V25_BOOTSTRAP_LEAN`:
 3. A failed or missing legacy publisher is `WAIVED_LEGACY_GATE`, never PASS and never an implementation failure.
 4. A later exact-head administrator recovery is only a named exception after substantive replacement proof, limited to protection snapshot, restore, and readback.
 
+## Amendment — 2026-08-20 (PKT-01 durable heartbeat, receipts, retry recovery, hosted capacity)
+
+Founder-authorized PKT-01 follow-on to Coding Execution Protocol 1.0.1:
+
+1. RUNNING packet mutation requires a durable heartbeat write plus matching readback bound to the checkout identity.
+2. Verification receipts bind to exact checkout commit/tree; merge-ref identity is never promotable.
+3. Retry exhaustion must be diagnosed before recovery; silent same-identity retry is forbidden.
+4. Hosted-capacity scheduling requires a complete resource snapshot; allocator busy/exhausted is not a diagnosis until then. This amendment does not authorize paid or Fast hosted runs.
+
 ## Amendment — 2026-08-20 (PKT-05 lean Issue checkpoint and Phase recovery)
 
 GitOps implementation of `V25_BOOTSTRAP_LEAN`:

@@ -122,6 +122,26 @@
       "namedExceptionOnly": true,
       "afterReplacementProof": true,
       "allowedOperations": ["protection_snapshot", "restore", "readback"]
+    },
+    "durableHeartbeat": {
+      "writeReadbackRequired": true,
+      "persistBeforeMutation": true
+    },
+    "checkoutBoundVerification": {
+      "bindToCheckout": true,
+      "forbidMergeRefIdentity": true
+    },
+    "retryExhaustion": {
+      "diagnoseBeforeRecovery": true,
+      "forbidSilentRetry": true,
+      "ordinaryRecovery": "new_identity",
+      "infrastructureRecovery": "hold",
+      "codeFailureRecovery": "new_identity"
+    },
+    "hostedCapacityScheduler": {
+      "requireCompleteSnapshot": true,
+      "busyIsNotDiagnosis": true,
+      "unknownIsBlocking": true
     }
   }
 }

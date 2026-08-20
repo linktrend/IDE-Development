@@ -102,7 +102,7 @@ entries:
     when_to_read:
       - when validating an execution-manifest
       - when starting a bounded implementer packet
-      - when judging exact-candidate, retry, lease, approval, or Git authority rules
+      - when judging exact-candidate, retry, lease, heartbeat, receipt, capacity, approval, or Git authority rules
     dependencies: []
     consumers:
       - human operators
