@@ -75,7 +75,9 @@ PY
   git -C "$repo" commit -qm "authoritative consumer baseline"
   python3 "$repo/scripts/gitops/generated_output_closure.py" --generate-fixtures
   git -C "$repo" add .github/linktrend-secret-scan-fixtures.json
-  git -C "$repo" commit -qm "bind packaged fixture declaration"
+  if ! git -C "$repo" diff --cached --quiet -- .github/linktrend-secret-scan-fixtures.json; then
+    git -C "$repo" commit -qm "bind packaged fixture declaration"
+  fi
   baseline_sha="$(git -C "$repo" rev-parse HEAD)"
   git -C "$repo" remote add fixture "$repo/fixture.git"
   git -C "$repo" update-ref refs/remotes/fixture/development "$baseline_sha"
