@@ -40,6 +40,7 @@ class OutputSpec:
     generator: tuple[str, ...]
     invalidating_sources: tuple[str, ...]
     depends_on: tuple[str, ...]
+    additional_outputs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -130,6 +131,9 @@ def load_graph(repo_root: Path | str, graph_path: str = GRAPH_RELATIVE_PATH) -> 
         depends = raw.get("dependsOn", [])
         if not isinstance(depends, list) or any(not isinstance(item, str) or not item for item in depends):
             raise ClosureError("ambiguous_dependency", f"dependsOn must be an array for {output_rel}")
+        additional = raw.get("additionalOutputs", [])
+        if not isinstance(additional, list) or any(not isinstance(item, str) or not item for item in additional):
+            raise ClosureError("ambiguous_dependency", f"additionalOutputs must be an array for {output_rel}")
         ids.add(output_id)
         paths.add(output_rel)
         outputs.append(
@@ -139,6 +143,7 @@ def load_graph(repo_root: Path | str, graph_path: str = GRAPH_RELATIVE_PATH) -> 
                 generator=tuple(command),
                 invalidating_sources=tuple(sources),
                 depends_on=tuple(depends),
+                additional_outputs=tuple(additional),
             )
         )
     unknown = sorted({dep for item in outputs for dep in item.depends_on if dep not in ids})
@@ -171,11 +176,19 @@ def _git_index_entries(root: Path) -> list[tuple[str, str, str]]:
     return entries
 
 
+def _expanded_exclusions(root: Path, graph: GeneratedOutputGraph) -> frozenset[str]:
+    exact = set(graph.output_paths)
+    for rel in _walk_files(root, exact):
+        if any(_glob_matches(rel, pattern) for spec in graph.outputs for pattern in spec.additional_outputs):
+            exact.add(rel)
+    return frozenset(exact)
+
+
 def _graph_exclusions(root: Path, graph_path: str | None) -> frozenset[str]:
     if graph_path is None:
         return DEFAULT_GRAPH_EXCLUSIONS
     try:
-        return load_graph(root, graph_path).output_paths
+        return _expanded_exclusions(root, load_graph(root, graph_path))
     except ClosureError:
         return DEFAULT_GRAPH_EXCLUSIONS
 
@@ -252,7 +265,14 @@ def _output_digests(root: Path, graph: GeneratedOutputGraph) -> dict[str, str | 
     for spec in graph.outputs:
         path = root / spec.output
         result[spec.output] = _digest_file(path) if path.is_file() and not path.is_symlink() else None
+        for rel in _walk_files(root, {spec.output}):
+            if any(_glob_matches(rel, pattern) for pattern in spec.additional_outputs):
+                result[rel] = _digest_file(root / rel)
     return result
+
+
+def _declared_output_paths(root: Path, graph: GeneratedOutputGraph) -> list[str]:
+    return sorted(_expanded_exclusions(root, graph))
 
 
 def _git_dirty(root: Path, rel: str) -> bool:
@@ -298,9 +318,9 @@ def close_generated_outputs(
 ) -> dict[str, Any]:
     root = Path(repo_root).resolve()
     graph = load_graph(root, graph_path)
-    exclusions = graph.output_paths
+    exclusions = _expanded_exclusions(root, graph)
     if _require_clean_outputs:
-        dirty = sorted(spec.output for spec in graph.outputs if _git_dirty(root, spec.output))
+        dirty = sorted(rel for rel in _declared_output_paths(root, graph) if _git_dirty(root, rel))
         if dirty:
             raise ClosureError("dirty_output", "generated output is already dirty", outputs=dirty)
     source_maps = {
@@ -430,7 +450,7 @@ def verify_generated_outputs(
 ) -> dict[str, Any]:
     root = Path(repo_root).resolve()
     graph = load_graph(root, graph_path)
-    dirty = sorted(spec.output for spec in graph.outputs if _git_dirty(root, spec.output))
+    dirty = sorted(rel for rel in _declared_output_paths(root, graph) if _git_dirty(root, rel))
     if dirty:
         raise ClosureError("dirty_output", "generated output is dirty before finalization", outputs=dirty)
     observed = _output_digests(root, graph)

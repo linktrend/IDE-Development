@@ -57,6 +57,14 @@
               "minLength": 1
             }
           },
+          "additionalOutputs": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
           "dependsOn": {
             "type": "array",
             "uniqueItems": true,

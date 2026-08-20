@@ -31,6 +31,12 @@
         ".github/**",
         "VERSION"
       ],
+      "additionalOutputs": [
+        "core/managed-core/content/doctrine/**",
+        "core/managed-core/platforms/library/**",
+        "core/managed-core/platforms/cursor/rules/**",
+        "core/managed-core/skills/**"
+      ],
       "dependsOn": [
         "secret-scan-fixtures"
       ]
