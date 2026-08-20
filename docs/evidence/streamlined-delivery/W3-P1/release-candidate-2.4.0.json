@@ -3,7 +3,7 @@
   "kind": "ide-development-release-candidate",
   "packageName": "ide-development-managed-core",
   "packageVersion": "2.4.0",
-  "sourceCommit": "b5cf7d08fb17e4deceec235cf99aa56350ab5196",
+  "sourceCommit": "379f3a0e9db7adaa95b0383b0f3a1e6313895b67",
   "manifestHash": "sha256:4ec8ae639f779a5fe8db8f62aaa94ba6a45684214017101991586eb5be1f93e0",
   "archives": [
     {

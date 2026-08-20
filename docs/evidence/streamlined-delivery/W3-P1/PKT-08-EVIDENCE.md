@@ -5,6 +5,7 @@
 - Requested phase head: `f7fae3b09ce4d3196a6967b60f8422779ff82a13`
 - Requested phase tree: `5d8016dfee4c27d6b63aa601d4ca4748a29fdb47`
 - Governed repair checkpoint: `b5cf7d08fb17e4deceec235cf99aa56350ab5196`
+- Final evidence/artifact checkpoint: `379f3a0e9db7adaa95b0383b0f3a1e6313895b67`
 - Managed package: `2.4.0`
 - Manifest SHA-256: `sha256:4ec8ae639f779a5fe8db8f62aaa94ba6a45684214017101991586eb5be1f93e0`
 
@@ -54,7 +55,7 @@ claimed here. Conditional Full remains governed by the exact final Phase head.
 ## Release artifact boundary
 
 The official release-candidate CLI was run from a clean alternate checkout of
-`b5cf7d08fb17e4deceec235cf99aa56350ab5196`. It produced reproducible tar.gz
+`379f3a0e9db7adaa95b0383b0f3a1e6313895b67`. It produced reproducible tar.gz
 and zip archives, passed disposable install verification, and wrote the
 machine-readable metadata in:
 
