@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from scripts.gitops import delivery_controller as controller
 from scripts.gitops import packager_discover as discover
@@ -762,10 +764,6 @@ class DeliveryControllerTests(unittest.TestCase):
         )
         self.assertEqual(owned, {branch: True})
 
-        import os
-        import tempfile
-        from unittest import mock
-
         evidence_path = Path(tempfile.mkdtemp()) / "merge.json"
         evidence_path.write_text(json.dumps({"status": "merged", "promoteBranch": branch}), encoding="utf-8")
         self.github.refs[branch] = self.head
@@ -802,6 +800,27 @@ class DeliveryControllerTests(unittest.TestCase):
                     ]
                 )
                 self.assertEqual(rc_fail, 2)
+
+    def test_production_github_accepts_gh_token_without_automation_token(self) -> None:
+        saved = {
+            key: os.environ.pop(key, None)
+            for key in ("AUTOMATION_TOKEN", "AUTOMATION_TOKEN_SOURCE", "GH_TOKEN", "GITHUB_TOKEN")
+        }
+        try:
+            os.environ["GH_TOKEN"] = "ghs_phase_api"
+            live = controller.resolve_production_github("owner/name")
+            self.assertEqual(live.automation_token, "ghs_phase_api")
+            os.environ.pop("GH_TOKEN", None)
+            os.environ["AUTOMATION_TOKEN"] = "ghs_publisher"
+            os.environ["AUTOMATION_TOKEN_SOURCE"] = "github_token"
+            with self.assertRaisesRegex(controller.ControllerError, "legacy_publisher_token_not_canonical"):
+                controller.resolve_production_github("owner/name")
+        finally:
+            for key, value in saved.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
 
     def test_index_manifest_schema_and_hosted_fast_cover_controller(self) -> None:
         index = (ROOT / "core/managed-core/INDEX.yaml").read_text(encoding="utf-8")
