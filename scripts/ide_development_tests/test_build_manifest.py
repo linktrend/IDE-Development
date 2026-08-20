@@ -177,6 +177,18 @@ class BuildManifestPackagingTests(unittest.TestCase):
             "scripts/install-git-hooks.sh",
         ):
             self.assertIn(rel, sources)
+        closure = json.loads(
+            (bm.REPO_ROOT / "core/managed-core/config/generated-output-closure.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertIn("DOGFOOD_IMPROVEMENT_CLOSURE", closure["audits"])
+        self.assertIn("LEAN_DESIGN", closure["audits"])
+        destinations = {row["source"]: row["destination"] for row in manifest["files"]}
+        self.assertEqual(
+            destinations["core/managed-core/config/generated-output-closure.json"],
+            ".ide-development/config/generated-output-closure.json",
+        )
 
     def test_pkt08_persistence_adversarial_runtime_is_in_managed_package(self) -> None:
         manifest = bm.build_manifest_object()

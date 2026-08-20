@@ -41,5 +41,80 @@
         "secret-scan-fixtures"
       ]
     }
-  ]
+  ],
+  "audits": {
+    "DOGFOOD_IMPROVEMENT_CLOSURE": {
+      "correctiveEventMappings": [
+        {
+          "id": "hosted-scheduler",
+          "source": "core/execution/scheduler.py",
+          "events": {
+            "admission": "recompute",
+            "completion": "recompute",
+            "invalidation": "recompute",
+            "probe_timeout": "recompute",
+            "api_rejection": "recompute",
+            "utilization_gap_repair": "recompute"
+          },
+          "control": "recompute"
+        },
+        {
+          "id": "delivery-lifecycle",
+          "source": "scripts/gitops/coordinator/state.py",
+          "events": {
+            "execution-failed": "transition",
+            "gate-passed": "transition",
+            "merge-development": "transition",
+            "staging-promoted": "transition"
+          },
+          "control": "transition"
+        },
+        {
+          "id": "verification-liveness",
+          "source": "core/execution/verification_liveness.py",
+          "events": {
+            "missing_durable_handle": "reconcile_verification_run",
+            "stale_running_state": "reconcile_verification_run",
+            "orphan_requires_restart": "restart_orphaned_verification"
+          },
+          "control": "reconcile_verification_run"
+        },
+        {
+          "id": "packaging-closure",
+          "source": "scripts/gitops/generated_output_closure.py",
+          "events": {
+            "candidate_baseline_stale": "resolve_candidate_baseline",
+            "dirty_output": "close_generated_outputs",
+            "stale_output": "verify_generated_outputs",
+            "generator_failure": "finalize_candidate"
+          },
+          "control": "finalize_candidate"
+        }
+      ],
+      "executableCommands": [
+        {
+          "id": "installer-entrypoint",
+          "command": [
+            "python3",
+            "scripts/ide-development.py",
+            "version"
+          ]
+        },
+        {
+          "id": "closure-verifier",
+          "command": [
+            "python3",
+            "scripts/gitops/generated_output_closure.py",
+            "--verify"
+          ]
+        }
+      ]
+    },
+    "LEAN_DESIGN": {
+      "limits": {
+        "maxCorrectiveMappings": 4,
+        "maxCorrectiveEvents": 20
+      }
+    }
+  }
 }

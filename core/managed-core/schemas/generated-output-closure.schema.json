@@ -75,6 +75,74 @@
           }
         }
       }
+    },
+    "audits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["DOGFOOD_IMPROVEMENT_CLOSURE", "LEAN_DESIGN"],
+      "properties": {
+        "DOGFOOD_IMPROVEMENT_CLOSURE": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["correctiveEventMappings", "executableCommands"],
+          "properties": {
+            "correctiveEventMappings": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "source", "events", "control"],
+                "properties": {
+                  "id": {"type": "string", "minLength": 1},
+                  "source": {"type": "string", "minLength": 1},
+                  "events": {
+                    "type": "object",
+                    "minProperties": 1,
+                    "additionalProperties": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "control": {"type": "string", "minLength": 1}
+                }
+              }
+            },
+            "executableCommands": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "command"],
+                "properties": {
+                  "id": {"type": "string", "minLength": 1},
+                  "command": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {"type": "string", "minLength": 1}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "LEAN_DESIGN": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["limits"],
+          "properties": {
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["maxCorrectiveMappings", "maxCorrectiveEvents"],
+              "properties": {
+                "maxCorrectiveMappings": {"type": "integer", "minimum": 1},
+                "maxCorrectiveEvents": {"type": "integer", "minimum": 1}
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

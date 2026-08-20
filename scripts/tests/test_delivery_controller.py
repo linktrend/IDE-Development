@@ -296,6 +296,39 @@ class DeliveryControllerTests(unittest.TestCase):
                 full_suite_invoked=True,
             )
 
+    def test_staged_rollout_uses_configured_stage_names_on_critical_path(self) -> None:
+        rollout = controller.StagedRolloutConfig.from_mapping(
+            {
+                "phaseBranchPrefix": "candidate/",
+                "developmentBranch": "integrated",
+                "stagingBranch": "canary",
+                "mainBranch": "production",
+                "requiredChecks": ["System Fast", "System Full"],
+            }
+        )
+        result = controller.promote_to_staging(
+            github=self.github,
+            repository="owner/name",
+            development_sha=self.head,
+            staging_sha=_sha(7),
+            candidate_sha=self.head,
+            candidate_tree=self.tree,
+            receipt=self.receipt,
+            candidate_identity=self.identity,
+            release_gate={"status": "passed", "testProfile": "release", "fullSuiteInvoked": False},
+            role="operator",
+            rollout=rollout,
+        )
+        self.assertEqual(result["stage"], "canary")
+        self.assertEqual(result["promoteBranch"], f"promote/canary/{self.head[:12]}")
+        self.assertEqual(self.github.prs[1]["base"], "canary")
+
+    def test_staged_rollout_rejects_duplicate_stage_identity(self) -> None:
+        with self.assertRaisesRegex(ValueError, "duplicate_rollout_branch"):
+            controller.StagedRolloutConfig.from_mapping(
+                {"developmentBranch": "same", "stagingBranch": "same"}
+            )
+
     def test_changed_staging_content_is_rejected(self) -> None:
         with self.assertRaisesRegex(controller.ControllerError, "changed_staging_content"):
             controller.promote_to_staging(

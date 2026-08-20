@@ -21,26 +21,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          # Full history so git diff --check origin/development...HEAD can resolve
-          # a merge-base on pull_request jobs (default depth=1 is too shallow).
+          # Full history keeps the runtime-supplied target baseline reachable.
           fetch-depth: 0
 
-      - name: Ensure origin/development ref
+      - name: Ensure runtime target ref
+        if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          if git rev-parse --verify origin/development >/dev/null 2>&1; then
-            echo "origin/development already present"
+          target_ref="origin/${GITHUB_BASE_REF}"
+          if git rev-parse --verify "${target_ref}^{commit}" >/dev/null 2>&1; then
+            echo "${target_ref} already present"
             exit 0
           fi
-          git fetch --no-tags origin "development:refs/remotes/origin/development"
-          git rev-parse --verify origin/development
+          git fetch --no-tags origin "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
+          git rev-parse --verify "${target_ref}^{commit}"
 
       - name: Candidate finalization against runtime target baseline
+        if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          baseline_ref="origin/development"
-          baseline_sha="$(git rev-parse --verify "${baseline_ref}^{commit}")"
-          test "${baseline_sha}" = "$(git rev-parse --verify "${baseline_sha}^{commit}")"
+          baseline_ref="origin/${GITHUB_BASE_REF}"
+          baseline_sha="${{ github.event.pull_request.base.sha }}"
           python3 scripts/gitops/generated_output_closure.py \
             --finalize --baseline-sha "${baseline_sha}" --baseline-ref "${baseline_ref}"
 

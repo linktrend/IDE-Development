@@ -36,6 +36,84 @@ RUNTIME_SOURCES = (
 
 
 class PackageMaterializationTests(unittest.TestCase):
+    def test_managed_package_runs_dogfood_closure_and_lean_design_audit(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="managed-closure-audit-") as tmp:
+            source = Path(tmp) / "source"
+            package = Path(tmp) / "package"
+            audit_sources = (
+                "scripts/gitops/generated_output_closure.py",
+                "scripts/gitops/coordinator/state.py",
+                "scripts/ide-development.py",
+                "core/execution/scheduler.py",
+                "core/execution/verification_liveness.py",
+                "core/managed-core/config/generated-output-closure.json",
+            )
+            for rel in audit_sources:
+                destination = source / rel
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(REPO_ROOT / rel, destination)
+
+            materialize_package_copy(package, source=source)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "from scripts.gitops.generated_output_closure import "
+                        "audit_dogfood_improvement_closure; "
+                        "print(audit_dogfood_improvement_closure('.'))"
+                    ),
+                ],
+                cwd=package,
+                env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            result = json.loads(proc.stdout)
+            self.assertEqual(result["dogfoodImprovementClosure"]["status"], "audited")
+
+    def test_extracted_package_runs_dogfood_closure_and_lean_design_audit(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="package-closure-audit-") as tmp:
+            source = Path(tmp) / "source"
+            extract = Path(tmp) / "extract"
+            audit_sources = (
+                "scripts/gitops/generated_output_closure.py",
+                "scripts/gitops/coordinator/state.py",
+                "scripts/ide-development.py",
+                "core/execution/scheduler.py",
+                "core/execution/verification_liveness.py",
+                "core/managed-core/config/generated-output-closure.json",
+            )
+            for rel in audit_sources:
+                destination = source / rel
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(REPO_ROOT / rel, destination)
+
+            materialize_isolated_rc_extract(extract, source=source)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "from scripts.gitops.generated_output_closure import "
+                        "audit_dogfood_improvement_closure; "
+                        "result = audit_dogfood_improvement_closure('.'); "
+                        "assert result['status'] == 'audited', result; "
+                        "assert result['leanDesign']['mappingCount'] == 4, result; "
+                        "print('PASS')"
+                    ),
+                ],
+                cwd=extract,
+                env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("PASS", proc.stdout)
+
     def test_runtime_manifest_declares_transactional_dispatch_dependency_closure(self) -> None:
         manifest = json.loads(
             (REPO_ROOT / "core/github/managed-runtime/MANIFEST.json").read_text(

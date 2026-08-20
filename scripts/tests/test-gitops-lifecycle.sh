@@ -613,19 +613,13 @@ bash "$ROOT/scripts/verify-platform-adoption.sh"
 pass "platform adoption entrypoints + temp consumer"
 
 # ---- candidate finalization (runtime exact baseline + working-tree gate) ----
-# PR CI checkouts often lack refs/remotes/origin/development even when the
-# remote exists. Fetch the ref when missing; still fail closed if unavailable.
-if ! git rev-parse --verify origin/development >/dev/null 2>&1; then
-  if ! git fetch --no-tags origin "development:refs/remotes/origin/development" >/tmp/fetch-development.out 2>/tmp/fetch-development.err; then
-    cat /tmp/fetch-development.out /tmp/fetch-development.err >&2 || true
-    fail "origin/development missing — cannot run git diff --check (fetch failed)"
-  fi
+# The caller supplies the exact target identity.  The resolver may materialize
+# that named remote ref in a shallow checkout; it never invents a branch.
+candidate_baseline_ref="${LINKTREND_TARGET_BASELINE_REF:-}"
+candidate_baseline_sha="${LINKTREND_TARGET_BASELINE_SHA:-}"
+if [ -z "$candidate_baseline_ref" ] || [ -z "$candidate_baseline_sha" ]; then
+  fail "runtime target baseline ref and SHA are required"
 fi
-if ! git rev-parse --verify origin/development >/dev/null 2>&1; then
-  fail "origin/development missing — cannot run git diff --check"
-fi
-candidate_baseline_ref="${LINKTREND_TARGET_BASELINE_REF:-origin/development}"
-candidate_baseline_sha="${LINKTREND_TARGET_BASELINE_SHA:-$(git rev-parse --verify "${candidate_baseline_ref}^{commit}")}"
 LINKTREND_TARGET_BASELINE_REF="$candidate_baseline_ref" \
 LINKTREND_TARGET_BASELINE_SHA="$candidate_baseline_sha" \
   python3 "$ROOT/scripts/gitops/generated_output_closure.py" --finalize \

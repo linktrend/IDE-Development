@@ -106,6 +106,23 @@ class CandidateBaselineResolutionTests(unittest.TestCase):
             baseline,
         )
 
+    def test_shallow_checkout_fetches_configured_remote_target_without_default_branch(self) -> None:
+        tmp, root, baseline, candidate = init_repo()
+        self.addCleanup(tmp.cleanup)
+        bare = root / "origin.git"
+        git(bare.parent, "init", "--bare", "-q", bare.name)
+        git(root, "push", "-q", "origin", f"{baseline}:refs/heads/release-target")
+        git(root, "update-ref", "-d", "refs/remotes/origin/release-target")
+        git(root, "checkout", "-q", "--detach", candidate)
+
+        self.assertEqual(
+            resolve_candidate_baseline(
+                root,
+                environ=runtime_env(baseline, "origin/release-target"),
+            ),
+            baseline,
+        )
+
     def test_detached_candidate_equal_baseline_fails_closed(self) -> None:
         tmp, root, baseline, _ = init_repo()
         self.addCleanup(tmp.cleanup)

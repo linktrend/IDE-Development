@@ -16,10 +16,14 @@ from scripts.gitops.generated_output_closure import (
     BASELINE_SHA_ENV,
     ClosureError,
     candidate_source_tree,
+    audit_dogfood_improvement_closure,
     close_generated_outputs,
     load_graph,
     verify_generated_outputs,
 )
+
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def git(root: Path, *args: str) -> str:
@@ -97,6 +101,13 @@ def script(root: Path, rel: str, body: str) -> list[str]:
 
 
 class GeneratedOutputGraphTests(unittest.TestCase):
+    def test_dogfood_and_lean_design_audits_cover_packaged_controls(self) -> None:
+        result = audit_dogfood_improvement_closure(ROOT)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"], "audited")
+        self.assertEqual(result["leanDesign"]["mappingCount"], 4)
+        self.assertGreaterEqual(result["dogfood"]["executableCommands"], 2)
+
     def test_invalidating_source_is_named_and_order_is_deterministic(self) -> None:
         tmp, root = init_repo()
         self.addCleanup(tmp.cleanup)

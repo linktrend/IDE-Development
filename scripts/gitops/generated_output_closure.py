@@ -52,6 +52,7 @@ class GeneratedOutputGraph:
     schema_version: int
     max_passes: int
     outputs: tuple[OutputSpec, ...]
+    audits: Mapping[str, Any]
 
     @property
     def output_paths(self) -> frozenset[str]:
@@ -153,9 +154,202 @@ def load_graph(repo_root: Path | str, graph_path: str = GRAPH_RELATIVE_PATH) -> 
     unknown = sorted({dep for item in outputs for dep in item.depends_on if dep not in ids})
     if unknown:
         raise ClosureError("ambiguous_dependency", "dependency references unknown output", dependencies=unknown)
-    graph = GeneratedOutputGraph(1, max_passes, tuple(outputs))
+    audits = payload.get("audits", {})
+    if not isinstance(audits, Mapping):
+        raise ClosureError("graph_invalid", "audits must be an object when provided")
+    graph = GeneratedOutputGraph(1, max_passes, tuple(outputs), dict(audits))
     graph.ordered_outputs()
     return graph
+
+
+def _audit_command(root: Path, command: Iterable[str], *, label: str) -> None:
+    argv = tuple(command)
+    if not argv or any(not isinstance(item, str) or not item.strip() for item in argv):
+        raise ClosureError("dogfood_command_invalid", f"{label} must be a non-empty argv array")
+    executable = argv[0]
+    if "/" in executable or "\\" in executable:
+        candidate = root / executable
+        if not candidate.is_file() or candidate.is_symlink():
+            raise ClosureError(
+                "dogfood_command_missing",
+                f"{label} executable does not exist",
+                command=list(argv),
+            )
+        return
+    if shutil.which(executable) is None:
+        raise ClosureError(
+            "dogfood_command_missing",
+            f"{label} executable is unavailable",
+            command=list(argv),
+        )
+    for argument in argv[1:]:
+        if argument.endswith((".py", ".sh", ".mjs")) and "/" in argument:
+            candidate = root / argument
+            if not candidate.is_file() or candidate.is_symlink():
+                raise ClosureError(
+                    "dogfood_command_missing",
+                    f"{label} command path does not exist",
+                    command=list(argv),
+                    path=argument,
+                )
+
+
+def audit_dogfood_improvement_closure(
+    repo_root: Path | str,
+    *,
+    graph: GeneratedOutputGraph | None = None,
+    graph_path: str = GRAPH_RELATIVE_PATH,
+) -> dict[str, Any]:
+    """Audit corrective-event coverage and executable closure commands.
+
+    The graph is the only declaration authority.  This audit validates that
+    each declared event maps to a callable already present in the component
+    source and that every generator command is executable in the current
+    source, managed, or extracted tree.
+    """
+    root = Path(repo_root).resolve()
+    loaded = graph or load_graph(root, graph_path)
+    dogfood = loaded.audits.get("DOGFOOD_IMPROVEMENT_CLOSURE")
+    lean = loaded.audits.get("LEAN_DESIGN")
+    if dogfood is None and lean is None:
+        return {"ok": True, "status": "not-configured"}
+    if not isinstance(dogfood, Mapping) or not isinstance(lean, Mapping):
+        raise ClosureError(
+            "dogfood_audit_invalid",
+            "DOGFOOD_IMPROVEMENT_CLOSURE and LEAN_DESIGN must be configured together",
+        )
+
+    mappings = dogfood.get("correctiveEventMappings")
+    if not isinstance(mappings, list) or not mappings:
+        raise ClosureError(
+            "dogfood_mapping_missing",
+            "systemic corrective event mappings are required",
+        )
+    seen_ids: set[str] = set()
+    seen_events: set[tuple[str, str]] = set()
+    mapping_results: list[dict[str, Any]] = []
+    total_events = 0
+    for index, raw in enumerate(mappings):
+        if not isinstance(raw, Mapping):
+            raise ClosureError("dogfood_mapping_invalid", f"mapping[{index}] must be an object")
+        mapping_id = raw.get("id")
+        source = raw.get("source")
+        events = raw.get("events")
+        control = raw.get("control")
+        if (
+            not isinstance(mapping_id, str)
+            or not mapping_id
+            or mapping_id in seen_ids
+            or not isinstance(source, str)
+            or not source
+            or not isinstance(events, Mapping)
+            or not events
+            or not isinstance(control, str)
+            or not control
+        ):
+            raise ClosureError("dogfood_mapping_invalid", f"mapping[{index}] has incomplete identity")
+        source_rel = _safe_relative(source, f"mapping[{index}].source")
+        source_path = root / source_rel
+        if not source_path.is_file() or source_path.is_symlink():
+            raise ClosureError(
+                "dogfood_mapping_source_missing",
+                f"corrective mapping source does not exist: {source_rel}",
+                mapping=mapping_id,
+            )
+        source_text = source_path.read_text(encoding="utf-8")
+        if control not in source_text:
+            raise ClosureError(
+                "dogfood_control_missing",
+                f"corrective control is not present in {source_rel}",
+                mapping=mapping_id,
+                control=control,
+            )
+        event_names: list[str] = []
+        for event, corrective in sorted(events.items()):
+            if (
+                not isinstance(event, str)
+                or not event
+                or not isinstance(corrective, str)
+                or not corrective
+                or (mapping_id, event) in seen_events
+            ):
+                raise ClosureError(
+                    "dogfood_mapping_invalid",
+                    f"mapping[{index}] contains an invalid or duplicate event",
+                )
+            if event not in source_text or corrective not in source_text:
+                raise ClosureError(
+                    "dogfood_event_uncovered",
+                    f"corrective event mapping is not covered by {source_rel}",
+                    mapping=mapping_id,
+                    event=event,
+                    corrective=corrective,
+                )
+            seen_events.add((mapping_id, event))
+            event_names.append(event)
+        seen_ids.add(mapping_id)
+        total_events += len(event_names)
+        mapping_results.append(
+            {
+                "id": mapping_id,
+                "source": source_rel,
+                "control": control,
+                "events": event_names,
+            }
+        )
+
+    for index, spec in enumerate(loaded.outputs):
+        _audit_command(root, spec.generator, label=f"outputs[{index}].generator")
+    declared_commands = dogfood.get("executableCommands", [])
+    if not isinstance(declared_commands, list):
+        raise ClosureError("dogfood_command_invalid", "executableCommands must be an array")
+    for index, raw in enumerate(declared_commands):
+        if not isinstance(raw, Mapping):
+            raise ClosureError("dogfood_command_invalid", f"executableCommands[{index}] must be an object")
+        command = raw.get("command")
+        if not isinstance(command, list):
+            raise ClosureError("dogfood_command_invalid", f"executableCommands[{index}].command must be argv")
+        _audit_command(root, command, label=f"executableCommands[{index}]")
+
+    limits = lean.get("limits")
+    if not isinstance(limits, Mapping):
+        raise ClosureError("lean_design_invalid", "LEAN_DESIGN limits are required")
+    max_mappings = limits.get("maxCorrectiveMappings")
+    max_events = limits.get("maxCorrectiveEvents")
+    if (
+        isinstance(max_mappings, bool)
+        or not isinstance(max_mappings, int)
+        or isinstance(max_events, bool)
+        or not isinstance(max_events, int)
+        or len(mapping_results) > max_mappings
+        or total_events > max_events
+    ):
+        raise ClosureError(
+            "lean_design_complexity",
+            "corrective-event coverage exceeds configured complexity limits",
+            mappings=len(mapping_results),
+            events=total_events,
+            limits=dict(limits),
+        )
+    pairs = [(row["source"], row["control"]) for row in mapping_results]
+    if len(pairs) != len(set(pairs)):
+        raise ClosureError(
+            "lean_design_redundancy",
+            "multiple corrective mappings duplicate one source/control authority",
+        )
+    return {
+        "ok": True,
+        "status": "audited",
+        "dogfood": {
+            "mappings": mapping_results,
+            "executableCommands": len(declared_commands) + len(loaded.outputs),
+        },
+        "leanDesign": {
+            "mappingCount": len(mapping_results),
+            "eventCount": total_events,
+            "limits": dict(limits),
+        },
+    }
 
 
 def _git_index_entries(root: Path) -> list[tuple[str, str, str]]:
@@ -322,6 +516,7 @@ def close_generated_outputs(
 ) -> dict[str, Any]:
     root = Path(repo_root).resolve()
     graph = load_graph(root, graph_path)
+    audit = audit_dogfood_improvement_closure(root, graph=graph, graph_path=graph_path)
     exclusions = _expanded_exclusions(root, graph)
     if _require_clean_outputs:
         dirty = sorted(rel for rel in _declared_output_paths(root, graph) if _git_dirty(root, rel))
@@ -426,6 +621,7 @@ def close_generated_outputs(
                     spec.id: source_maps[spec.id] for spec in graph.outputs
                 },
                 "outputDigests": output_after,
+                "dogfoodImprovementClosure": audit,
             }
         output_before = output_after
         observed_tree = tree_after
@@ -474,6 +670,34 @@ def _remote_target_ref(root: Path, ref: str) -> str | None:
     return f"refs/remotes/{candidate}"
 
 
+def _ensure_remote_target_ref(root: Path, remote_ref: str) -> None:
+    """Materialize a configured remote target in shallow checkouts only."""
+    if _resolve_commit(root, remote_ref) is not None:
+        return
+    candidate = remote_ref.removeprefix("refs/remotes/")
+    remote, branch = candidate.split("/", 1)
+    fetched = subprocess.run(
+        [
+            "git",
+            "fetch",
+            "--no-tags",
+            remote,
+            f"{branch}:refs/remotes/{remote}/{branch}",
+        ],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if fetched.returncode or _resolve_commit(root, remote_ref) is None:
+        raise ClosureError(
+            "candidate_baseline_invalid",
+            "authoritative remote target ref does not resolve to a commit",
+            ref=remote_ref.removeprefix("refs/remotes/"),
+            diagnostics=(fetched.stderr or fetched.stdout or "").strip()[-1000:],
+        )
+
+
 def resolve_candidate_baseline(
     repo_root: Path | str,
     *,
@@ -516,6 +740,7 @@ def resolve_candidate_baseline(
             "authoritative baseline must identify a configured remote target",
             ref=ref,
         )
+    _ensure_remote_target_ref(root, remote_ref)
     resolved_sha = _resolve_commit(root, sha)
     if resolved_sha != sha:
         raise ClosureError(
@@ -642,6 +867,7 @@ def verify_generated_outputs(
 ) -> dict[str, Any]:
     root = Path(repo_root).resolve()
     graph = load_graph(root, graph_path)
+    audit = audit_dogfood_improvement_closure(root, graph=graph, graph_path=graph_path)
     dirty = sorted(rel for rel in _declared_output_paths(root, graph) if _git_dirty(root, rel))
     if dirty:
         raise ClosureError("dirty_output", "generated output is dirty before finalization", outputs=dirty)
@@ -676,6 +902,7 @@ def verify_generated_outputs(
         "generatorOrder": expected_result["generatorOrder"],
         "sourceTree": expected_result["sourceTree"],
         "outputDigests": observed,
+        "dogfoodImprovementClosure": audit,
     }
 
 
