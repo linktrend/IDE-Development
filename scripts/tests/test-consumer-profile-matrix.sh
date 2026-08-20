@@ -22,15 +22,67 @@ JSON
   # copying source scripts into a hand-made directory.
   python3 "$ROOT/scripts/ide-development.py" install --package "$ROOT" --target "$repo" --json >/dev/null
   python3 "$ROOT/scripts/ide-development.py" verify --package "$ROOT" --target "$repo" --json >/dev/null
+  # Packaged hosted tests contain approved synthetic values.  Carry only the
+  # declarations for the materialized test destinations into this disposable
+  # consumer; never turn undeclared or realistic values into fixtures.
+  python3 - "$ROOT" "$repo" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+source_root, consumer_root = (Path(value) for value in sys.argv[1:3])
+source_declaration = json.loads(
+    (source_root / ".github/linktrend-secret-scan-fixtures.json").read_text(encoding="utf-8")
+)
+manifest = json.loads(
+    (source_root / "core/managed-core/MANIFEST.json").read_text(encoding="utf-8")
+)
+destinations = {
+    row["source"]: row["destination"]
+    for row in manifest["files"]
+    if isinstance(row.get("source"), str)
+    and isinstance(row.get("destination"), str)
+    and row["destination"].startswith(".ide-development/tests/")
+}
+fixtures = []
+for fixture in source_declaration["fixtures"]:
+    destination = destinations.get(fixture["path"])
+    if destination is None:
+        continue
+    copied = dict(fixture)
+    copied["path"] = destination
+    fixtures.append(copied)
+consumer_declaration = {
+    "schemaVersion": source_declaration["schemaVersion"],
+    "kind": source_declaration["kind"],
+    "scannerPolicyVersion": source_declaration["scannerPolicyVersion"],
+    "candidateTree": "0" * 40,
+    "fixtures": fixtures,
+}
+declaration = consumer_root / ".github/linktrend-secret-scan-fixtures.json"
+declaration.write_text(
+    json.dumps(consumer_declaration, indent=2) + "\n",
+    encoding="utf-8",
+)
+PY
+  git -C "$repo" add -A
+  python3 "$repo/scripts/gitops/generated_output_closure.py" --generate-fixtures
+  git -C "$repo" add .github/linktrend-secret-scan-fixtures.json
   git -C "$repo" config user.email "consumer-matrix@example.invalid"
   git -C "$repo" config user.name "Consumer matrix"
   git -C "$repo" remote add origin "$repo/origin.git"
   git -C "$repo" add -A
   git -C "$repo" commit -qm "authoritative consumer baseline"
   baseline_sha="$(git -C "$repo" rev-parse HEAD)"
-  git -C "$repo" update-ref refs/remotes/origin/development "$baseline_sha"
+  git -C "$repo" remote add fixture "$repo/fixture.git"
+  git -C "$repo" update-ref refs/remotes/fixture/development "$baseline_sha"
   git -C "$repo" commit --allow-empty -qm "consumer candidate tip"
-  baseline_ref="origin/development"
+  baseline_ref="fixture/development"
+
+  if git -C "$repo" rev-parse --verify origin/development^{commit} >/dev/null 2>&1; then
+    echo "FAIL: shallow consumer fixture unexpectedly provided origin/development" >&2
+    exit 1
+  fi
 
   # Every installed consumer contract must retain both declared workflow
   # names.  This prevents a Full-only rollout discovery after publication.
@@ -63,6 +115,20 @@ PY
     LINKTREND_ACTIONS_RUNS_JSON="$runs" python3 scripts/gitops/require_exact_ci_success.py \
       --repository "linktrend/${name}" --head "$head")
 done
+
+# A real credential remains blocking even when the matrix's packaged-fixture
+# declaration is present for another consumer.
+actual="$TMP/actual-credential"; mkdir -p "$actual"
+git -C "$actual" init -q -b development
+git -C "$actual" config user.email "consumer-matrix@example.invalid"
+git -C "$actual" config user.name "Consumer matrix"
+printf 'token = "ghp_%s"\n' "$(printf '%*s' 36 '' | tr ' ' A)" >"$actual/credential.py"
+git -C "$actual" add credential.py
+git -C "$actual" commit -qm "actual credential regression vector"
+if python3 "$ROOT/scripts/gitops/secret_scan.py" --repo "$actual" >/dev/null; then
+  echo "FAIL: actual credential was not rejected by secret scan" >&2
+  exit 1
+fi
 
 # The installer/sync upgrade path fills the sole historic omission only; blank
 # or wrong explicit names remain fail-closed when exact workflow discovery runs.
