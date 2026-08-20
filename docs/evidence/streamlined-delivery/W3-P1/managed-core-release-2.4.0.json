@@ -4,8 +4,8 @@
   "packageName": "ide-development-managed-core",
   "packageVersion": "2.4.0",
   "tag": "v2.4.0",
-  "sourceCommit": "379f3a0e9db7adaa95b0383b0f3a1e6313895b67",
-  "manifestHash": "sha256:4ec8ae639f779a5fe8db8f62aaa94ba6a45684214017101991586eb5be1f93e0",
+  "sourceCommit": "5d3adc78e12bf62d1c48052d90b8c46a56a27895",
+  "manifestHash": "sha256:dcac9d44a1867a8627501e8385a4c385db8c6d29d4ad213d315d421a6785c3c4",
   "repository": "linktrend/IDE-Development",
   "releaseUrl": null,
   "releaseId": null,
@@ -13,14 +13,14 @@
     {
       "format": "tar.gz",
       "name": "ide-development-managed-core-2.4.0.tar.gz",
-      "sha256": "sha256:e133bdb396c73edfd0efe67b42a621f978ea90fe1594b52f3eb7fc1e812ce19e",
-      "bytes": 533734
+      "sha256": "sha256:11b296e3879a48f567ffdc4ba0bc481b30eca0cd2fc3093f2a6344d4c4aa51e5",
+      "bytes": 533742
     },
     {
       "format": "zip",
       "name": "ide-development-managed-core-2.4.0.zip",
-      "sha256": "sha256:b47f6f0885b30c35df7a3239a2658a1ee3087c4d1f9fe9a0227398c09ffed4f2",
-      "bytes": 649919
+      "sha256": "sha256:41148a4670a717198a40a36e504e3939b2d01671e2b8ca12e6b69e876b4a295c",
+      "bytes": 649931
     }
   ],
   "publisher": "linktrend-managed-core-release-publisher",
@@ -29,13 +29,13 @@
   "createdAt": "2026-08-20T00:00:00Z",
   "locator": {
     "tag": "v2.4.0",
-    "sourceCommit": "379f3a0e9db7adaa95b0383b0f3a1e6313895b67",
-    "manifestHash": "sha256:4ec8ae639f779a5fe8db8f62aaa94ba6a45684214017101991586eb5be1f93e0",
+    "sourceCommit": "5d3adc78e12bf62d1c48052d90b8c46a56a27895",
+    "manifestHash": "sha256:dcac9d44a1867a8627501e8385a4c385db8c6d29d4ad213d315d421a6785c3c4",
     "primaryArchive": {
       "format": "tar.gz",
       "name": "ide-development-managed-core-2.4.0.tar.gz",
-      "sha256": "sha256:e133bdb396c73edfd0efe67b42a621f978ea90fe1594b52f3eb7fc1e812ce19e",
-      "bytes": 533734
+      "sha256": "sha256:11b296e3879a48f567ffdc4ba0bc481b30eca0cd2fc3093f2a6344d4c4aa51e5",
+      "bytes": 533742
     }
   },
   "notes": "Release candidate creation and disposable install verification passed. Tag, GitHub Release, protected-branch merge, staging promotion, and main promotion were not performed."
