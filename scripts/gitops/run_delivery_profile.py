@@ -201,7 +201,7 @@ def build_identity(
     config_path: Path | None = None,
 ) -> dict[str, Any] | None:
     """Resolve the reusable-evidence identity from explicit or local inputs."""
-    head = head_commit or os.environ.get("GITHUB_SHA") or _run_git(root, "rev-parse", "HEAD")
+    head = head_commit or _run_git(root, "rev-parse", "HEAD") or os.environ.get("GITHUB_SHA")
     tree = git_tree or _run_git(root, "rev-parse", "HEAD^{tree}")
     repo = repository or _remote_repository(root)
     config_digest = digest_bytes(config_path.read_bytes()) if config_path and config_path.is_file() else ""

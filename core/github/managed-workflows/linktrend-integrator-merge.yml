@@ -78,7 +78,7 @@ jobs:
       - name: Checkout exact sealed Phase head in unprivileged PR context
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_head || github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
 
