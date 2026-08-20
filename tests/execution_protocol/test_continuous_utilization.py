@@ -37,13 +37,16 @@ NOW = datetime(2026, 8, 20, 12, 0, tzinfo=timezone.utc)
 PACKAGED_RELATIVE = (
     "core/execution/__init__.py",
     "core/execution/lifecycle.py",
+    "core/execution/manifest_persistence.py",
     "core/execution/protocol.py",
     "core/execution/scheduler.py",
     "core/execution/verification_liveness.py",
     "core/managed-core/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md",
     "core/managed-core/content/doctrine/CODING-EXECUTION-PROTOCOL.md",
     "core/managed-core/content/config/continuous-utilization.json",
+    "core/managed-core/content/config/manifest-persistence.json",
     "core/managed-core/schemas/continuous-utilization.schema.json",
+    "core/managed-core/schemas/manifest-persistence.schema.json",
     "core/managed-core/examples/continuous-utilization.example.json",
 )
 
@@ -288,7 +291,7 @@ class ExtractedInstallerCleanroomTests(unittest.TestCase):
                 capture_output=True,
             )
             self.assertEqual(probe.returncode, 0, probe.stderr)
-            self.assertEqual(len(copied), 10)
+            self.assertEqual(len(copied), 13)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
