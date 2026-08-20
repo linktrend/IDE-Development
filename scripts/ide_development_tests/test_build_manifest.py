@@ -173,6 +173,8 @@ class BuildManifestPackagingTests(unittest.TestCase):
             "scripts/gitops/generated_output_closure.py",
             "scripts/tests/test_generated_output_closure.py",
             "scripts/tests/test_manifest_persistence_recovery.py",
+            ".githooks/pre-push",
+            "scripts/install-git-hooks.sh",
         ):
             self.assertIn(rel, sources)
 

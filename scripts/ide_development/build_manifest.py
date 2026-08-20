@@ -1031,6 +1031,9 @@ def build_entries() -> list[dict[str, Any]]:
     for rel in (
         "scripts/gitops/repository_protection.py",
         "scripts/manage-repository-protections.sh",
+        "scripts/install-git-hooks.sh",
+        ".githooks/pre-commit",
+        ".githooks/pre-push",
         "scripts/ide-development.py",
     ):
         path = REPO_ROOT / rel

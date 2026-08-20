@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -207,8 +208,10 @@ class GeneratedOutputGraphTests(unittest.TestCase):
             "raise SystemExit('generator boom')\n",
         )
         write_graph(root, graph([output("generated.out", failing)]))
-        with self.assertRaisesRegex(ClosureError, "generator_failure"):
+        with self.assertRaisesRegex(ClosureError, "generator_failure") as failure:
             close_generated_outputs(root, graph_path="closure.json")
+        self.assertIn("expectedDigest", failure.exception.diagnostics)
+        self.assertIn("observedTree", failure.exception.diagnostics)
 
     def test_dirty_and_stale_output_are_rejected_by_verifier(self) -> None:
         tmp, root = init_repo()
@@ -245,6 +248,78 @@ class GeneratedOutputGraphTests(unittest.TestCase):
         git(root, "add", "generated.out")
         after = candidate_source_tree(root, "closure.json")
         self.assertEqual(before, after)
+
+    def test_stale_output_is_rejected_by_installed_pre_push_gate(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        source_root = Path(__file__).resolve().parents[2]
+        hook = root / ".githooks" / "pre-push"
+        hook.parent.mkdir()
+        shutil.copy2(source_root / ".githooks/pre-push", hook)
+        runtime = root / "scripts/gitops/generated_output_closure.py"
+        runtime.parent.mkdir(parents=True)
+        shutil.copy2(source_root / "scripts/gitops/generated_output_closure.py", runtime)
+        generator = script(
+            root,
+            "generator.py",
+            "from pathlib import Path\n"
+            "Path('generated.out').write_text(Path('source.txt').read_text(), encoding='utf-8')\n",
+        )
+        write(root, "source.txt", "one\n")
+        write(root, "generated.out", "one\n")
+        write_graph(root, graph([output("generated.out", generator)], max_passes=2))
+        packaged_graph = root / ".ide-development/config/generated-output-closure.json"
+        packaged_graph.parent.mkdir(parents=True)
+        shutil.copy2(root / "closure.json", packaged_graph)
+        commit(root, "installed closure gate")
+        git(root, "config", "core.hooksPath", ".githooks")
+        passing = subprocess.run(
+            [str(hook)],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(passing.returncode, 0, passing.stderr)
+        write(root, "source.txt", "two\n")
+        rejected = subprocess.run(
+            [str(hook)],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("stale", (rejected.stderr + rejected.stdout).lower())
+
+    def test_extracted_closure_runtime_operates_without_ide_checkout(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        source_root = Path(__file__).resolve().parents[2]
+        runtime = root / "scripts/gitops/generated_output_closure.py"
+        runtime.parent.mkdir(parents=True)
+        shutil.copy2(source_root / "scripts/gitops/generated_output_closure.py", runtime)
+        generator = script(
+            root,
+            "generator.py",
+            "from pathlib import Path\n"
+            "Path('generated.out').write_text(Path('source.txt').read_text(), encoding='utf-8')\n",
+        )
+        write(root, "source.txt", "cleanroom\n")
+        write(root, "generated.out", "cleanroom\n")
+        write_graph(root, graph([output("generated.out", generator)]))
+        packaged_graph = root / ".ide-development/config/generated-output-closure.json"
+        packaged_graph.parent.mkdir(parents=True)
+        shutil.copy2(root / "closure.json", packaged_graph)
+        commit(root, "extracted closure runtime")
+        proc = subprocess.run(
+            [sys.executable, str(runtime), "--verify"],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
 
 
 if __name__ == "__main__":
