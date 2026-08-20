@@ -14,6 +14,7 @@ MAX_PERSISTENCE_ATTEMPTS = 3
 TRANSITION_KINDS = ("dispatch", "run", "integration", "archive")
 CONFIG_RELATIVE_PATH = "core/managed-core/content/config/manifest-persistence.json"
 SCHEMA_RELATIVE_PATH = "core/managed-core/schemas/manifest-persistence.schema.json"
+MANIFEST_PERSISTENCE_FAILURE = "MANIFEST_PERSISTENCE_FAILURE"
 
 
 def load_manifest_persistence_config(repo_root: Path | str) -> dict[str, Any]:
@@ -72,6 +73,8 @@ class ManifestRead:
     revision: int
     digest: str | None
     manifest: Mapping[str, Any]
+    updated_at: str | int | float | None = None
+    transition_event: Mapping[str, Any] | None = None
 
 
 def canonical_manifest_digest(manifest: Mapping[str, Any]) -> str:
@@ -94,12 +97,77 @@ def _read_record(store: DurableManifestStore) -> ManifestRead | None:
     observed = canonical_manifest_digest(manifest)
     if digest is not None and digest != observed:
         raise ManifestPersistenceError(
-            "storage_digest_mismatch",
+            MANIFEST_PERSISTENCE_FAILURE,
             "durable manifest digest does not match payload",
             expectedDigest=digest,
             observedDigest=observed,
         )
-    return ManifestRead(int(raw["revision"]), digest, copy.deepcopy(dict(manifest)))
+    updated_at = raw.get("updated_at")
+    if updated_at is not None and (
+        isinstance(updated_at, bool)
+        or not isinstance(updated_at, (str, int, float))
+    ):
+        raise ManifestPersistenceError(
+            MANIFEST_PERSISTENCE_FAILURE,
+            "durable manifest updated_at is malformed",
+        )
+    transition_event = raw.get("transition_event")
+    if transition_event is not None and not isinstance(transition_event, Mapping):
+        raise ManifestPersistenceError(
+            MANIFEST_PERSISTENCE_FAILURE,
+            "durable manifest transition event is malformed",
+        )
+    if transition_event is not None:
+        if (
+            transition_event.get("revision") != int(raw["revision"])
+            or transition_event.get("digest") != digest
+            or transition_event.get("updated_at") != updated_at
+        ):
+            raise ManifestPersistenceError(
+                MANIFEST_PERSISTENCE_FAILURE,
+                "durable manifest transition event is not bound to its record",
+            )
+    return ManifestRead(
+        int(raw["revision"]),
+        digest,
+        copy.deepcopy(dict(manifest)),
+        updated_at,
+        copy.deepcopy(dict(transition_event)) if transition_event is not None else None,
+    )
+
+
+def _updated_at_advanced(
+    previous: str | int | float | None,
+    current: str | int | float,
+) -> bool:
+    if previous is None:
+        return True
+    if type(previous) is type(current) and isinstance(current, (int, float, str)):
+        return current > previous
+    return False
+
+
+def _validate_transition_event(
+    transition_event: Mapping[str, Any],
+    *,
+    revision: int,
+    digest: str,
+    updated_at: str | int | float | None,
+) -> dict[str, Any]:
+    event = copy.deepcopy(dict(transition_event))
+    if (
+        event.get("revision") != revision
+        or event.get("digest") != digest
+        or event.get("updated_at") != updated_at
+    ):
+        raise ManifestPersistenceError(
+            MANIFEST_PERSISTENCE_FAILURE,
+            "manifest transition event is not bound to the CAS write",
+            expectedRevision=revision,
+            expectedDigest=digest,
+            expectedUpdatedAt=updated_at,
+        )
+    return event
 
 
 def persist_manifest(
@@ -107,6 +175,8 @@ def persist_manifest(
     store: DurableManifestStore,
     *,
     max_attempts: int = MAX_PERSISTENCE_ATTEMPTS,
+    updated_at: str | int | float | None = None,
+    transition_event: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compare-and-retry a canonical write, with a fresh read after every write."""
 
@@ -114,11 +184,30 @@ def persist_manifest(
         raise ValueError("max_attempts must be positive")
     candidate = copy.deepcopy(dict(manifest))
     candidate_digest = canonical_manifest_digest(candidate)
+    if updated_at is not None and (
+        isinstance(updated_at, bool)
+        or not isinstance(updated_at, (str, int, float))
+    ):
+        raise ManifestPersistenceError(
+            MANIFEST_PERSISTENCE_FAILURE,
+            "manifest updated_at is malformed",
+        )
+    if transition_event is not None and not isinstance(transition_event, Mapping):
+        raise ManifestPersistenceError(
+            MANIFEST_PERSISTENCE_FAILURE,
+            "manifest transition event is malformed",
+        )
+    metadata_requested = updated_at is not None or transition_event is not None
     last_error: ManifestPersistenceError | None = None
     for attempt in range(1, max_attempts + 1):
         try:
             current = _read_record(store)
-            if current is not None and current.digest == candidate_digest and current.manifest == candidate:
+            if (
+                current is not None
+                and current.digest == candidate_digest
+                and current.manifest == candidate
+                and not metadata_requested
+            ):
                 return {
                     "revision": current.revision,
                     "digest": current.digest,
@@ -127,23 +216,59 @@ def persist_manifest(
                 }
             expected_revision = current.revision if current is not None else 0
             expected_digest = current.digest if current is not None else None
-            store.compare_and_write(expected_revision, expected_digest, {
+            next_revision = expected_revision + 1
+            if (
+                updated_at is not None
+                and current is not None
+                and not _updated_at_advanced(current.updated_at, updated_at)
+            ):
+                raise ManifestPersistenceError(
+                    MANIFEST_PERSISTENCE_FAILURE,
+                    "manifest updated_at did not advance monotonically",
+                    previousUpdatedAt=current.updated_at,
+                    observedUpdatedAt=updated_at,
+                )
+            event = (
+                _validate_transition_event(
+                    transition_event,
+                    revision=next_revision,
+                    digest=candidate_digest,
+                    updated_at=updated_at,
+                )
+                if transition_event is not None
+                else None
+            )
+            payload = {
                 "digest": candidate_digest,
                 "manifest": candidate,
-            })
+            }
+            if updated_at is not None:
+                payload["updated_at"] = updated_at
+            if event is not None:
+                payload["transition_event"] = event
+            store.compare_and_write(expected_revision, expected_digest, payload)
             readback = _read_record(store)
             if (
                 readback is not None
-                and readback.revision == expected_revision + 1
+                and readback.revision == next_revision
                 and readback.digest == candidate_digest
                 and readback.manifest == candidate
+                and (updated_at is None or readback.updated_at == updated_at)
+                and (event is None or readback.transition_event == event)
             ):
-                return {
+                result = {
                     "revision": readback.revision,
                     "digest": readback.digest,
                     "manifest": copy.deepcopy(dict(readback.manifest)),
                     "attempts": attempt,
                 }
+                if readback.updated_at is not None:
+                    result["updated_at"] = readback.updated_at
+                if readback.transition_event is not None:
+                    result["transition_event"] = copy.deepcopy(
+                        dict(readback.transition_event)
+                    )
+                return result
             last_error = ManifestPersistenceError(
                 "readback_mismatch",
                 "fresh manifest readback did not match the write",

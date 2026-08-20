@@ -103,6 +103,110 @@ class PackageMaterializationTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertIn("3", proc.stdout)
 
+    def test_extracted_package_enforces_manifest_persistence_identity_and_cas_binding(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="package-manifest-persistence-adversarial-") as tmp:
+            source = Path(tmp) / "source"
+            extract = Path(tmp) / "extract"
+            for rel in RUNTIME_SOURCES:
+                destination = source / rel
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(REPO_ROOT / rel, destination)
+
+            materialize_isolated_rc_extract(extract, source=source)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    """
+import copy
+from core.execution.manifest_persistence import (
+    MANIFEST_PERSISTENCE_FAILURE,
+    ManifestPersistenceError,
+    canonical_manifest_digest,
+    persist_manifest,
+)
+
+identity = {"repository": "linktrend/IDE-Development", "commit": "a" * 40, "tree": "b" * 40}
+
+def make_manifest(*transitions):
+    return {"schemaVersion": 1, "identity": identity, "transitions": list(transitions)}
+
+class Store:
+    def __init__(self):
+        self.record = None
+    def read(self):
+        return copy.deepcopy(self.record)
+    def compare_and_write(self, expected_revision, expected_digest, payload):
+        current_revision = 0 if self.record is None else self.record["revision"]
+        current_digest = None if self.record is None else self.record["digest"]
+        if (current_revision, current_digest) != (expected_revision, expected_digest):
+            raise ManifestPersistenceError("revision_conflict", "stale revision")
+        self.record = {
+            "revision": expected_revision + 1,
+            "digest": payload["digest"],
+            "manifest": copy.deepcopy(payload["manifest"]),
+        }
+        for key in ("updated_at", "transition_event"):
+            if key in payload:
+                self.record[key] = copy.deepcopy(payload[key])
+
+store = Store()
+initial = make_manifest()
+persist_manifest(initial, store)
+store.record["digest"] = "sha256:" + "c" * 64
+try:
+    persist_manifest(initial, store)
+except ManifestPersistenceError as error:
+    assert error.code == MANIFEST_PERSISTENCE_FAILURE
+else:
+    raise AssertionError("tampered canonical digest was accepted")
+
+store = Store()
+first = make_manifest()
+first_updated_at = "2026-08-20T22:00:00+00:00"
+first_digest = canonical_manifest_digest(first)
+persist_manifest(
+    first,
+    store,
+    updated_at=first_updated_at,
+    transition_event={
+        "id": "transition-1",
+        "kind": "manifest_persisted",
+        "revision": 1,
+        "digest": first_digest,
+        "updated_at": first_updated_at,
+    },
+)
+second = make_manifest({"kind": "run", "id": "run-1"})
+second_updated_at = "2026-08-20T22:00:01+00:00"
+second_digest = canonical_manifest_digest(second)
+result = persist_manifest(
+    second,
+    store,
+    updated_at=second_updated_at,
+    transition_event={
+        "id": "transition-2",
+        "kind": "manifest_persisted",
+        "revision": 2,
+        "digest": second_digest,
+        "updated_at": second_updated_at,
+    },
+)
+assert result["revision"] == 2
+assert result["updated_at"] == second_updated_at
+assert result["transition_event"]["digest"] == second_digest
+print("PASS")
+""",
+                ],
+                cwd=extract,
+                env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("PASS", proc.stdout)
+
     def test_extracted_package_contains_revision_60_final_controls(self) -> None:
         with tempfile.TemporaryDirectory(prefix="package-final-controls-") as tmp:
             source = Path(tmp) / "source"

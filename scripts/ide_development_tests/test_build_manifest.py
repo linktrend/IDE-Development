@@ -178,6 +178,40 @@ class BuildManifestPackagingTests(unittest.TestCase):
         ):
             self.assertIn(rel, sources)
 
+    def test_pkt08_persistence_adversarial_runtime_is_in_managed_package(self) -> None:
+        manifest = bm.build_manifest_object()
+        rows = [
+            row
+            for row in manifest["files"]
+            if isinstance(row.get("source"), str)
+        ]
+        runtime = next(
+            row
+            for row in rows
+            if row["source"] == "core/execution/manifest_persistence.py"
+            and row["destination"] == ".ide-development/execution/manifest_persistence.py"
+        )
+        self.assertEqual(
+            runtime["destination"],
+            ".ide-development/execution/manifest_persistence.py",
+        )
+        self.assertEqual(
+            runtime["sourceHash"],
+            bm._hash_rel("core/execution/manifest_persistence.py"),
+        )
+        source = (bm.REPO_ROOT / "core/execution/manifest_persistence.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("MANIFEST_PERSISTENCE_FAILURE", source)
+        self.assertIn("_validate_transition_event", source)
+        self.assertTrue(
+            any(
+                row["source"] == "scripts/tests/test_manifest_persistence_recovery.py"
+                and row["destination"] == ".ide-development/tests/test_manifest_persistence_recovery.py"
+                for row in rows
+            )
+        )
+
     def test_hosted_portability_regression_inputs_are_packaged(self) -> None:
         manifest = bm.build_manifest_object()
         destinations = {

@@ -82,6 +82,7 @@ from core.execution.verification_liveness import (
 from core.execution.manifest_persistence import (
     AuthorityFailure,
     DurableManifestStore,
+    MANIFEST_PERSISTENCE_FAILURE,
     ManifestPersistenceError,
     ManifestRead,
     canonical_manifest_digest,
@@ -182,6 +183,7 @@ __all__ = [
     "verification_command_digest",
     "AuthorityFailure",
     "DurableManifestStore",
+    "MANIFEST_PERSISTENCE_FAILURE",
     "ManifestPersistenceError",
     "ManifestRead",
     "canonical_manifest_digest",

@@ -13,6 +13,7 @@ from pathlib import Path
 from core.execution.manifest_persistence import (
     AuthorityFailure,
     DurableManifestStore,
+    MANIFEST_PERSISTENCE_FAILURE,
     ManifestPersistenceError,
     canonical_manifest_digest,
     persist_manifest,
@@ -72,6 +73,9 @@ class RecoveryStore(DurableManifestStore):
             "digest": payload["digest"],
             "manifest": copy.deepcopy(payload["manifest"]),
         }
+        for key in ("updated_at", "transition_event"):
+            if key in payload:
+                next_record[key] = copy.deepcopy(payload[key])
         if self.readback_failures:
             self.readback_failures -= 1
             self.record = None
@@ -135,6 +139,59 @@ class ManifestPersistenceTests(unittest.TestCase):
             persist_manifest(manifest(), store, max_attempts=2)
         self.assertEqual(store.write_calls, 2)
         self.assertGreaterEqual(store.read_calls, store.write_calls)
+
+    def test_changed_digest_at_unchanged_revision_fails_closed_after_valid_payload_checks(self) -> None:
+        store = RecoveryStore(manifest())
+        assert store.record is not None
+        revision = store.record["revision"]
+        store.record["digest"] = "sha256:" + "c" * 64
+
+        with self.assertRaises(ManifestPersistenceError) as context:
+            persist_manifest(manifest(), store)
+
+        self.assertEqual(context.exception.code, MANIFEST_PERSISTENCE_FAILURE)
+        self.assertEqual(store.record["revision"], revision)
+
+    def test_monotonic_cas_write_binds_advanced_timestamp_and_transition_event(self) -> None:
+        store = RecoveryStore()
+        first = manifest()
+        first_updated_at = "2026-08-20T22:00:00+00:00"
+        first_digest = canonical_manifest_digest(first)
+        persist_manifest(
+            first,
+            store,
+            updated_at=first_updated_at,
+            transition_event={
+                "id": "transition-1",
+                "kind": "manifest_persisted",
+                "revision": 1,
+                "digest": first_digest,
+                "updated_at": first_updated_at,
+            },
+        )
+
+        second = manifest({"kind": "run", "id": "run-1"})
+        second_updated_at = "2026-08-20T22:00:01+00:00"
+        second_digest = canonical_manifest_digest(second)
+        result = persist_manifest(
+            second,
+            store,
+            updated_at=second_updated_at,
+            transition_event={
+                "id": "transition-2",
+                "kind": "manifest_persisted",
+                "revision": 2,
+                "digest": second_digest,
+                "updated_at": second_updated_at,
+            },
+        )
+
+        self.assertEqual(result["revision"], 2)
+        self.assertEqual(result["digest"], second_digest)
+        self.assertEqual(result["updated_at"], second_updated_at)
+        self.assertEqual(result["transition_event"]["revision"], 2)
+        self.assertEqual(store.record["updated_at"], second_updated_at)
+        self.assertEqual(store.record["transition_event"]["digest"], second_digest)
 
     def test_next_heartbeat_reconstructs_missing_transitions_without_dispatch(self) -> None:
         store = RecoveryStore(manifest({"kind": "dispatch", "id": "dispatch-1"}))
