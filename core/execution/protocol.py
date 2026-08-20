@@ -56,6 +56,28 @@ CONTINUOUS_UTILIZATION_EXAMPLE_RELATIVE_PATH = (
 EXAMPLE_MANIFEST_RELATIVE_PATH = (
     "core/execution/examples/execution-manifest.example.json"
 )
+VERIFICATION_LIVENESS_CONTRACT_RELATIVE_PATH = (
+    "core/contracts/VERIFICATION-LIVENESS-CONTRACT.md"
+)
+VERIFICATION_RUN_SCHEMA_RELATIVE_PATH = "core/contracts/VERIFICATION-RUN.schema.json"
+VERIFICATION_LIVENESS_DOCTRINE_RELATIVE_PATH = (
+    "core/managed-core/content/doctrine/VERIFICATION-LIVENESS.md"
+)
+VERIFICATION_LIVENESS_CONFIG_RELATIVE_PATH = (
+    "core/managed-core/content/config/verification-liveness.json"
+)
+VERIFICATION_LIVENESS_SCHEMA_RELATIVE_PATH = (
+    "core/managed-core/schemas/verification-liveness.schema.json"
+)
+VERIFICATION_RUN_MANAGED_SCHEMA_RELATIVE_PATH = (
+    "core/managed-core/schemas/verification-run.schema.json"
+)
+VERIFICATION_RUN_EXAMPLE_RELATIVE_PATH = (
+    "core/execution/examples/verification-run.example.json"
+)
+VERIFICATION_RUN_MANAGED_EXAMPLE_RELATIVE_PATH = (
+    "core/managed-core/examples/verification-run.example.json"
+)
 HEARTBEAT_COMPARE_FIELDS = (
     "packet_id",
     "attempt_id",
@@ -104,6 +126,14 @@ REQUIRED_DISCOVERY_PATHS = (
     CONTINUOUS_UTILIZATION_CONFIG_RELATIVE_PATH,
     CONTINUOUS_UTILIZATION_SCHEMA_RELATIVE_PATH,
     CONTINUOUS_UTILIZATION_EXAMPLE_RELATIVE_PATH,
+    VERIFICATION_LIVENESS_CONTRACT_RELATIVE_PATH,
+    VERIFICATION_RUN_SCHEMA_RELATIVE_PATH,
+    VERIFICATION_LIVENESS_DOCTRINE_RELATIVE_PATH,
+    VERIFICATION_LIVENESS_CONFIG_RELATIVE_PATH,
+    VERIFICATION_LIVENESS_SCHEMA_RELATIVE_PATH,
+    VERIFICATION_RUN_MANAGED_SCHEMA_RELATIVE_PATH,
+    VERIFICATION_RUN_EXAMPLE_RELATIVE_PATH,
+    VERIFICATION_RUN_MANAGED_EXAMPLE_RELATIVE_PATH,
 )
 
 
@@ -121,6 +151,14 @@ class ProtocolDiscovery:
     continuous_utilization_schema: Path
     continuous_utilization_example: Path
     example_manifest: Path | None
+    verification_liveness_contract: Path
+    verification_run_schema: Path
+    verification_liveness_doctrine: Path
+    verification_liveness_config: Path
+    verification_liveness_schema: Path
+    verification_run_managed_schema: Path
+    verification_run_example: Path
+    verification_run_managed_example: Path
 
 
 @dataclass(frozen=True)
@@ -293,6 +331,14 @@ def discover_runtime(repo_root: Path | str) -> ProtocolDiscovery:
         continuous_utilization_schema=root / CONTINUOUS_UTILIZATION_SCHEMA_RELATIVE_PATH,
         continuous_utilization_example=root / CONTINUOUS_UTILIZATION_EXAMPLE_RELATIVE_PATH,
         example_manifest=example if example.is_file() else None,
+        verification_liveness_contract=root / VERIFICATION_LIVENESS_CONTRACT_RELATIVE_PATH,
+        verification_run_schema=root / VERIFICATION_RUN_SCHEMA_RELATIVE_PATH,
+        verification_liveness_doctrine=root / VERIFICATION_LIVENESS_DOCTRINE_RELATIVE_PATH,
+        verification_liveness_config=root / VERIFICATION_LIVENESS_CONFIG_RELATIVE_PATH,
+        verification_liveness_schema=root / VERIFICATION_LIVENESS_SCHEMA_RELATIVE_PATH,
+        verification_run_managed_schema=root / VERIFICATION_RUN_MANAGED_SCHEMA_RELATIVE_PATH,
+        verification_run_example=root / VERIFICATION_RUN_EXAMPLE_RELATIVE_PATH,
+        verification_run_managed_example=root / VERIFICATION_RUN_MANAGED_EXAMPLE_RELATIVE_PATH,
     )
 
 

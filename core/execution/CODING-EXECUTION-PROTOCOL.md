@@ -66,6 +66,31 @@ The control contract is authoritative. Summary that tests and runtimes must enfo
 | Semantic lifecycle | JSON Schema is not sufficient. Plan/runtime states are rejected (never repaired) when packet, attempt, evidence, execution-state, lease, lock, heartbeat, receipt, retry-exhaustion, or archive records are inconsistent. Diagnostics name `packet=` and `attempt=`. COMPLETE/ARCHIVE_CONFIRMED bind accepted commit/tree, packet-level completion evidence, and a checkout-bound verification receipt; ARCHIVE_CONFIRMED also requires archive API readback. Completed-packet attempts are terminal. RUNNING has exactly one authoritative nonterminal attempt, its active write lock, a current orchestration lease, and a durable heartbeat readback. Completed packets must not retain an active lock. |
 | LiNKautowork discovery | When Autowork discovery is callable it is required. When it is not callable, record an unavailable hold. Do not claim hosted, provider-live, or production proof. |
 
+## 4A. PKT-08 durable verification-liveness amendment
+
+Founder-authorized amendment `V25_PKT08_VERIFICATION_LIVENESS` governs long
+`Full` verification commands. The durable run contract and reconciliation
+runtime are defined by:
+
+- `core/contracts/VERIFICATION-LIVENESS-CONTRACT.md`
+- `core/contracts/VERIFICATION-RUN.schema.json`
+- `core/execution/verification_liveness.py`
+- `core/managed-core/content/config/verification-liveness.json`
+- `core/managed-core/schemas/verification-run.schema.json`
+- `core/managed-core/content/doctrine/VERIFICATION-LIVENESS.md`
+
+The runtime binds repository, canonical checkout/cwd, commit/tree, command
+digest, deterministic log/receipt paths, start/timeout, and durable handle.
+The only persisted run states are `STARTED`, `LIVE`, `TERMINAL`, `ORPHANED`,
+`TIMED_OUT`, and `RESTARTED`. Observed `RUNNING` is accepted only with a
+fresh heartbeat and a live expected handle. Stale, missing/dead, completed
+hosted, mismatched, and duplicate same-tree `Full` executions fail closed.
+Only incomplete orphaned commands may restart, and only within the bounded
+configured policy. Paid/Fast fallback and Review Ready are outside this
+amendment.
+Durable path equality uses physical canonical paths (`realpath`), so platform
+aliases are equivalent only when they resolve to the same target.
+
 ## 5. Proof limits
 
 This protocol authorizes local schema, unit, discovery, and Issue-checkpoint-contract proof only. It does not by itself prove hosted CI, provider-live calls, application canaries, consumer rollout, staging, VPS, E2E, or production behavior.
