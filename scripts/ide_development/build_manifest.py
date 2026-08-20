@@ -70,6 +70,11 @@ LIFECYCLE_CURSOR_RULES = (
     "05-security-cost-and-side-effects.mdc",
 )
 
+REQUIRED_RUNTIME_PACKAGE_SOURCES = (
+    "scripts/gitops/repository_ci_contract.py",
+    "scripts/gitops/promotion_receipt_gate.py",
+)
+
 # Doctrine files mirrored into .ide-development/content/ for consumer offline use.
 CONTENT_DOCTRINE = (
     ("docs/contracts/AGENT-COMPLETION.md", "content/doctrine/AGENT-COMPLETION.md"),
@@ -299,12 +304,37 @@ def sync_package_payload() -> None:
 
 
 def _gitops_script_sources() -> list[str]:
+    """Return physical managed-runtime scripts for package construction.
+
+    A runtime manifest is an authoritative package input.  Silently skipping
+    a missing source would produce an archive whose installer can start but
+    cannot load one of its package-local dependencies.
+    """
     manifest = json.loads(
         (REPO_ROOT / "core" / "github" / "managed-runtime" / "MANIFEST.json").read_text(
             encoding="utf-8"
         )
     )
-    return list(manifest.get("files") or [])
+    sources = list(manifest.get("files") or [])
+    missing_declarations = [
+        rel for rel in REQUIRED_RUNTIME_PACKAGE_SOURCES if rel not in sources
+    ]
+    if missing_declarations:
+        raise ValueError(
+            "Managed runtime manifest omits required package sources: "
+            + ", ".join(missing_declarations)
+        )
+    missing = [
+        rel
+        for rel in sources
+        if not (REPO_ROOT / rel).is_file() or (REPO_ROOT / rel).is_symlink()
+    ]
+    if missing:
+        raise FileNotFoundError(
+            "Managed runtime package sources missing or symlinked: "
+            + ", ".join(sorted(missing))
+        )
+    return sources
 
 
 def build_entries() -> list[dict[str, Any]]:

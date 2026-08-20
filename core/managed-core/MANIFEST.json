@@ -3539,7 +3539,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:2a5b143d629541e1b442dec8377a93d64e41471aaa97fec805fd6220866b46ea",
+      "sourceHash": "sha256:58b9dd62a763f58b6c4516a12b6980d3d46cd31e73e0e5f0f81a0e9063157315",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",
