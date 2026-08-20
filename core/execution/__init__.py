@@ -36,6 +36,11 @@ from core.execution.protocol import (
     validate_execution_manifest,
     validate_lease,
 )
+from core.execution.lifecycle import (
+    LifecycleDiagnostic,
+    validate_execution_lifecycle,
+    validate_plan_or_runtime,
+)
 
 __all__ = [
     "AMENDMENT_ID",
@@ -56,6 +61,7 @@ __all__ = [
     "ResourceVerdict",
     "RetryDecision",
     "ValidationResult",
+    "LifecycleDiagnostic",
     "acquire_orchestration_lease",
     "administrator_recovery",
     "admit_resources",
@@ -70,6 +76,8 @@ __all__ = [
     "publisher_is_canonical",
     "required_approval",
     "retry_decision",
+    "validate_execution_lifecycle",
     "validate_execution_manifest",
     "validate_lease",
+    "validate_plan_or_runtime",
 ]
