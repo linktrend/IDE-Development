@@ -16,15 +16,15 @@ ENTRYPOINT = REPO_ROOT / "scripts" / "ide-development.py"
 BUILD_DIR = REPO_ROOT / "build" / "release-candidate"
 
 
-def runtime_baseline_environment() -> dict[str, str]:
+def runtime_baseline_environment(*, baseline_ref: str) -> dict[str, str]:
     sha = subprocess.check_output(
-        ["git", "rev-parse", "origin/development"],
+        ["git", "rev-parse", f"{baseline_ref}^{{commit}}"],
         cwd=REPO_ROOT,
         text=True,
     ).strip()
     return {
         "LINKTREND_TARGET_BASELINE_SHA": sha,
-        "LINKTREND_TARGET_BASELINE_REF": "origin/development",
+        "LINKTREND_TARGET_BASELINE_REF": baseline_ref,
     }
 
 
@@ -43,7 +43,7 @@ class ReleaseCandidateIntegrationTests(unittest.TestCase):
         ]
         env = os.environ.copy()
         env["PYTHONPATH"] = str(REPO_ROOT / "scripts")
-        env.update(runtime_baseline_environment())
+        env.update(runtime_baseline_environment(baseline_ref="origin/development"))
         proc = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True, env=env)
         cls.create_proc = proc
         cls.create_payload = None
@@ -128,7 +128,7 @@ class ReleaseCandidateIntegrationTests(unittest.TestCase):
         ]
         env = os.environ.copy()
         env["PYTHONPATH"] = str(REPO_ROOT / "scripts")
-        env.update(runtime_baseline_environment())
+        env.update(runtime_baseline_environment(baseline_ref="origin/development"))
         proc = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True, env=env)
         self.assertNotEqual(proc.returncode, 0)
         raw = proc.stdout
