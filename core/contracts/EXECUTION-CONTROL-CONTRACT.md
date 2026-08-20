@@ -97,6 +97,17 @@ A later exact-head administrator recovery is allowed only as a **named** excepti
 
 Unnamed recovery, recovery without replacement proof, or any other operation is forbidden by this control contract.
 
+## Semantic lifecycle (beyond JSON Schema)
+
+`validate_execution_lifecycle` / `validate_plan_or_runtime` reject inconsistent manifests. They do not silently normalize fields. Every diagnostic names `packet=<id> attempt=<id|->`.
+
+- `COMPLETE` and `ARCHIVE_CONFIRMED` require a valid accepted commit/tree plus packet-level `packet_completion` evidence bound to that identity. Event-only or empty completion evidence is rejected.
+- `ARCHIVE_CONFIRMED` additionally requires archive API readback evidence.
+- Every attempt on a completed packet must be terminal: `lifecycle=TERMINAL`, terminal `rawStatus`, `endedAt`, and `result` or `reason`.
+- `RUNNING` requires exactly one authoritative nonterminal current attempt, that attempt's active write lock, and a current orchestration lease. Prior repaired terminal attempts may remain.
+- Completed packets must not retain an active write lock.
+- `COMPLETE` plus a RUNNING attempt is rejected.
+
 ## LiNKautowork automation discovery
 
 When Autowork discovery is callable, it is required. Skipping a callable discovery is a control violation.

@@ -124,7 +124,21 @@
           "type": "array",
           "items": { "$ref": "#/$defs/packetId" },
           "uniqueItems": true
-        }
+        },
+        "executionState": {
+          "type": "string",
+          "enum": ["PLAN", "RUNNING", "COMPLETE", "ARCHIVE_CONFIRMED"]
+        },
+        "acceptedCommit": { "$ref": "#/$defs/sha40" },
+        "acceptedTree": { "$ref": "#/$defs/sha40" },
+        "completionEvidence": { "$ref": "#/$defs/completionEvidence" },
+        "archiveEvidence": { "$ref": "#/$defs/archiveEvidence" },
+        "attempts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/attempt" }
+        },
+        "writeLock": { "$ref": "#/$defs/writeLock" },
+        "orchestrationLease": { "$ref": "#/$defs/packetLease" }
       }
     },
     "issue": {
@@ -135,6 +149,59 @@
         "id": { "$ref": "#/$defs/issueId" },
         "packetId": { "$ref": "#/$defs/packetId" },
         "title": { "type": "string", "minLength": 1 }
+      }
+    },
+    "attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "authoritative": { "type": "boolean" },
+        "lifecycle": { "type": "string" },
+        "rawStatus": { "type": "string" },
+        "endedAt": { "type": ["string", "null"] },
+        "result": { "type": ["string", "null"] },
+        "reason": { "type": ["string", "null"] }
+      }
+    },
+    "writeLock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["active"],
+      "properties": {
+        "active": { "type": "boolean" },
+        "attemptId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "packetLease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["holder", "nonce", "expiresAt"],
+      "properties": {
+        "holder": { "type": "string", "minLength": 1 },
+        "nonce": { "type": "string", "minLength": 1 },
+        "expiresAt": { "type": "string", "minLength": 1 },
+        "packetId": { "$ref": "#/$defs/packetId" },
+        "repository": { "$ref": "#/$defs/repository" }
+      }
+    },
+    "completionEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string" },
+        "commit": { "type": "string" },
+        "tree": { "type": "string" },
+        "summary": { "type": "string" }
+      }
+    },
+    "archiveEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "apiReadback": { "type": "boolean" },
+        "readback": {}
       }
     },
     "controls": {
