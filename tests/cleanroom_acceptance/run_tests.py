@@ -11,6 +11,7 @@ Run:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import sys
@@ -165,8 +166,14 @@ def test_03_sparse_gitops_upgrade(rep: Reporter, package: Path) -> None:
         if (repo / "scripts/gitops/completion_gate.py").read_bytes() != consumer_gate:
             rep.fail("03-sparse-gitops-upgrade", "consumer gitops script mutated")
             return
-        if (repo / ".github/linktrend-gitops-consumer.json").read_bytes() != consumer_json:
-            rep.fail("03-sparse-gitops-upgrade", "consumer gitops json mutated")
+        normalized = json.loads(
+            (repo / ".github/linktrend-gitops-consumer.json").read_text(encoding="utf-8")
+        )
+        if normalized.get("ciWorkflowName") != "CI":
+            rep.fail("03-sparse-gitops-upgrade", "consumer ciWorkflowName changed")
+            return
+        if normalized.get("fastWorkflowName") != "Linktrend Fast Checks":
+            rep.fail("03-sparse-gitops-upgrade", "managed fast workflow not normalized")
             return
         if (repo / "docs/TECHNICAL.md").read_bytes() != tech:
             rep.fail("03-sparse-gitops-upgrade", "technical instructions mutated")

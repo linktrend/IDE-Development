@@ -9,6 +9,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -94,6 +95,19 @@ def materialize_package_copy(dest: Path, *, source: Path | None = None) -> Path:
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(src, dest)
+    # Minimal fixtures predate PKT-06 delivery-profile audit dependencies.
+    gitops_src = REPO_ROOT / "scripts" / "gitops"
+    gitops_dest = dest / "scripts" / "gitops"
+    if gitops_src.is_dir():
+        gitops_dest.mkdir(parents=True, exist_ok=True)
+        for path in gitops_src.rglob("*"):
+            if not path.is_file() or "__pycache__" in path.parts:
+                continue
+            rel = path.relative_to(gitops_src)
+            target = gitops_dest / rel
+            if not target.is_file():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(path, target)
     return dest
 
 
@@ -105,9 +119,17 @@ def materialize_isolated_rc_extract(dest: Path, *, source: Path | None = None) -
     """
     materialize_package_copy(dest, source=source)
     scripts = dest / "scripts"
+    gitops_backup = None
+    gitops_path = scripts / "gitops"
+    if gitops_path.is_dir():
+        gitops_backup = Path(tempfile.mkdtemp(prefix="cr-gitops-"))
+        shutil.copytree(gitops_path, gitops_backup / "gitops")
     if scripts.exists():
         shutil.rmtree(scripts)
     scripts.mkdir(parents=True)
+    if gitops_backup is not None:
+        shutil.copytree(gitops_backup / "gitops", gitops_path)
+        shutil.rmtree(gitops_backup, ignore_errors=True)
     if not INSTALLER_ENTRY.is_file():
         raise FileNotFoundError(f"missing installer entrypoint: {INSTALLER_ENTRY}")
     if not INSTALLER_PACKAGE_DIR.is_dir():

@@ -135,7 +135,7 @@ class PlatformTemplateTests(unittest.TestCase):
         self.assertEqual(required, {"agentsetup", "agentcomply"})
         self.assertTrue(codex["noCursorDependency"])
         self.assertTrue(codex["claudeOutOfScope"])
-        self.assertGreaterEqual(len(codex["approvedRemainingSkills"]), 40)
+        self.assertEqual(len(codex["approvedRemainingSkills"]), 0)
 
         req_dest = {e["destination"] for e in cursor["entries"] if e.get("required")}
         self.assertIn(".cursor/skills/agentsetup/SKILL.md", req_dest)

@@ -251,6 +251,34 @@ def _hosted_workflow_files() -> list[str]:
     return safe
 
 
+def _sync_provider_payload() -> None:
+    """Materialize accepted link-integrations sources for consumer providers/."""
+    src_root = REPO_ROOT / "core" / "link-integrations"
+    dest_root = MANAGED / "platforms" / "providers"
+    for name in (
+        "autowork.mjs",
+        "brain.mjs",
+        "clients.mjs",
+        "config.mjs",
+        "errors.mjs",
+        "index.mjs",
+        "libraries.mjs",
+        "mcp.mjs",
+        "pins.mjs",
+        "platform.mjs",
+        "redaction.mjs",
+        "registry.mjs",
+        "skills-loader.mjs",
+        "skills-lock.json",
+        "skills.mjs",
+        "transport.mjs",
+        "README.md",
+    ):
+        src = src_root / name
+        if src.is_file():
+            _sync_file(src, dest_root / name)
+
+
 def sync_package_payload() -> None:
     """Materialize approved lifecycle payload under core/managed-core/."""
     # Content doctrine copies (self-contained for consumers).
@@ -273,18 +301,9 @@ def sync_package_payload() -> None:
         if src.is_file():
             _sync_file(src, rules_dir / name)
 
-    # Approved remaining skills → managed-core/skills/<name>/SKILL.md
-    skills_manifest = json.loads(
-        (MANAGED / "platforms" / "codex" / "skills-manifest.json").read_text(encoding="utf-8")
-    )
-    for item in skills_manifest.get("approvedRemainingSkills") or []:
-        name = item["name"]
-        src = REPO_ROOT / "core" / "skills" / name / "SKILL.md"
-        if not src.is_file():
-            continue
-        _sync_file(src, MANAGED / "skills" / name / "SKILL.md")
+    _sync_provider_payload()
 
-    # Also mirror agentsetup/agentcomply skill bodies for package completeness.
+    # Bootstrap adapters only — workflow skills resolve from LiNKskills (PKT-07).
     for name in ("agentsetup", "agentcomply"):
         src = REPO_ROOT / "core" / "skills" / name / "SKILL.md"
         if src.is_file():
@@ -317,6 +336,7 @@ def build_entries() -> list[dict[str, Any]]:
         ("INDEX.yaml", ".ide-development/INDEX.yaml"),
         ("content/README.md", ".ide-development/content/README.md"),
         ("config/delivery.json", ".ide-development/config/delivery.json"),
+        ("config/providers.example.json", ".ide-development/config/providers.example.json"),
         ("migrations/catalog.json", ".ide-development/migrations/catalog.json"),
         (
             "migrations/external-cleanup-plan.json",
@@ -773,52 +793,26 @@ def build_entries() -> list[dict[str, Any]]:
             )
         )
 
-    # --- Approved remaining skills (Codex + Cursor discovery) ---
-    skills_root = MANAGED / "skills"
-    if skills_root.is_dir():
-        for skill_dir in sorted(skills_root.iterdir()):
-            skill_md = skill_dir / "SKILL.md"
-            if not skill_md.is_file():
+    # --- Provider runtime (PKT-07 materialization) ---
+    providers_root = MANAGED / "platforms" / "providers"
+    if providers_root.is_dir():
+        for path in sorted(providers_root.rglob("*")):
+            if not path.is_file() or path.is_symlink():
                 continue
-            name = skill_dir.name
-            if name in {"agentsetup", "agentcomply"}:
-                continue  # already handled as required entrypoints
-            source = f"core/managed-core/skills/{name}/SKILL.md"
-            digest = _hash_rel(source)
+            rel_tail = str(path.relative_to(MANAGED)).replace("\\", "/")
+            source = f"core/managed-core/{rel_tail}"
+            name = path.name
             entries.append(
                 _entry(
-                    entry_id=f"codex-skill-{_slug(name)}",
-                    ownership="managed-entrypoint",
-                    source=source,
-                    destination=f".agents/skills/{name}/SKILL.md",
-                    mode="0644",
-                    platform="codex",
-                    merge="replace",
-                    source_hash=digest,
-                )
-            )
-            entries.append(
-                _entry(
-                    entry_id=f"cursor-skill-{_slug(name)}",
-                    ownership="managed-entrypoint",
-                    source=source,
-                    destination=f".cursor/skills/{name}/SKILL.md",
-                    mode="0644",
-                    platform="cursor",
-                    merge="replace",
-                    source_hash=digest,
-                )
-            )
-            entries.append(
-                _entry(
-                    entry_id=f"pkg-skill-{_slug(name)}",
+                    entry_id=f"provider-{_slug(rel_tail)}",
                     ownership="managed-core",
                     source=source,
-                    destination=f".ide-development/skills/{name}/SKILL.md",
+                    destination=f".ide-development/providers/{name}",
                     mode="0644",
                     platform="all",
                     merge="replace",
-                    source_hash=digest,
+                    source_hash=_hash_rel(source),
+                    notes="Accepted link-integrations provider surface for consumers.",
                 )
             )
 
@@ -907,8 +901,9 @@ def build_manifest_object() -> dict[str, Any]:
         "packageVersion": version,
         "description": (
             "Portable IDE Development managed-core v2 — approved shared lifecycle "
-            "(doctrine, Cursor/Codex entrypoints, GitOps scripts, skills). "
-            "Physical files only. No Claude. No secrets."
+            "(doctrine, Cursor/Codex entrypoints, GitOps scripts, provider runtime, "
+            "bootstrap adapters). Physical files only. No workflow SKILL.md packaging. "
+            "No Claude. No secrets."
         ),
         "createdAt": "2026-08-01T00:00:00Z",
         "files": build_entries(),

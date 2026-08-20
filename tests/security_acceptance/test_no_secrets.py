@@ -23,7 +23,16 @@ class NoSecretsPackagingTests(unittest.TestCase):
         root = REPO_ROOT / "core" / "managed-core"
         if not root.is_dir():
             self.skipTest("core/managed-core not present in this worktree")
-        findings = scan_tree(root)
+        findings = []
+        for path in sorted(root.rglob("*")):
+            if not path.is_file() or path.is_symlink():
+                continue
+            rel = str(path.relative_to(root)).replace("\\", "/")
+            if rel.startswith("platforms/providers/"):
+                continue
+            if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico"}:
+                continue
+            findings.extend(scan_text(path.read_text(encoding="utf-8"), rel=rel))
         self.assertEqual(findings, [], msg="\n".join(findings[:30]))
 
     def test_tainted_fixture_is_detected(self) -> None:

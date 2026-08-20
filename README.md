@@ -31,8 +31,10 @@ Live operational companions: [`SETUP.md`](SETUP.md) (clone / install / update), 
 | Surface | What a consumer receives |
 |---|---|
 | Managed core | Committed physical `.ide-development/` tree |
-| Cursor discovery | Physical `.cursor/rules`, `.cursor/commands`, `.cursor/skills` |
-| Codex discovery | Root `AGENTS.md` managed block + physical `.agents/skills/<name>/SKILL.md` |
+| Cursor discovery | Physical `.cursor/rules`, `.cursor/commands`, bootstrap `.cursor/skills` only |
+| Codex discovery | Root `AGENTS.md` managed block + bootstrap `.agents/skills/<name>/SKILL.md` + non-skill skills loader |
+| Provider runtime | Packaged `.ide-development/providers/` (accepted link-integrations surface for consumers) |
+| Workflow skills | Resolved from LiNKskills via the immutable skills lock — not packaged as local `SKILL.md` copies (PKT-07) |
 
 **Precedence:** Shared managed lifecycle rules win when explicitly identified in the package. Legitimate repository-specific technical guidance outside managed ownership/markers is **preserved**. Unknown conflicts and modified obsolete generics **fail closed**. External `.cursor` symlinks are migrated to physical files without reading/writing the external target.
 

@@ -44,11 +44,12 @@ function classify(fn, code, classification) {
   }
 }
 
-test('ISS-04 lock inventories 88 active copies and qualifies or retires every unique skill', () => {
+test('PKT-07 lock inventories bootstrap copies after dual-app authorized removal', () => {
   const lock = loadSkillsLock()
   assert.equal(lock.contractVersion, SKILLS_LOCK_CONTRACT_VERSION)
+  assert.equal(lock.packet, 'PKT-07')
   assert.equal(lock.copyCount, ACTIVE_COPY_COUNT)
-  assert.equal(lock.copies.length, 88)
+  assert.equal(lock.copies.length, ACTIVE_COPY_COUNT)
   assert.equal(lock.uniqueSkillCount, 43)
   assert.equal(lock.qualifiedCount + lock.retiredCount, 43)
   assert.equal(lock.provider.repository, 'linktrend/LiNKskills')
@@ -56,7 +57,9 @@ test('ISS-04 lock inventories 88 active copies and qualifies or retires every un
   assert.equal(lock.provider.tree, '69a131b46a73a4ef724694bfe240b1a11652bcc9')
   assert.equal(lock.rollbackCommit, V24_ROLLBACK_COMMIT)
   assert.equal(lock.rollbackTree, V24_ROLLBACK_TREE)
-  assert.equal(lock.physicalRemovalAuthorized, false)
+  assert.equal(lock.physicalRemovalAuthorized, true)
+  assert.equal(lock.dualAppProof.codex, true)
+  assert.equal(lock.dualAppProof.cursor, true)
   const unique = new Set()
   for (const row of lock.skills) {
     unique.add(row.skillId)
@@ -65,7 +68,7 @@ test('ISS-04 lock inventories 88 active copies and qualifies or retires every un
   assert.equal(unique.size, 43)
   for (const copy of lock.copies) {
     assert.equal(existsSync(join(ROOT, copy.path)), true, copy.path)
-    assert.ok(copy.decision === 'qualified' || copy.decision === 'retired')
+    assert.ok(copy.skillId === 'agentsetup' || copy.skillId === 'agentcomply')
   }
   assert.deepEqual(
     lock.overlapWithLinkskills,
@@ -109,9 +112,9 @@ test('ISS-04 Codex and Cursor retrieve a qualified LiNKskills release fragment',
   assert.equal(fromCursorAdapter.source, 'skills-lock')
 })
 
-test('ISS-04 unavailable provider is refused even when physical copies exist', () => {
-  assert.equal(existsSync(join(ROOT, 'core/skills/git-safeguard/SKILL.md')), true)
-  assert.equal(existsSync(join(ROOT, '.cursor/skills/git-safeguard/SKILL.md')), true)
+test('PKT-07 unavailable provider is refused without local workflow skill fallback', () => {
+  assert.equal(existsSync(join(ROOT, 'core/skills/git-safeguard/SKILL.md')), false)
+  assert.equal(existsSync(join(ROOT, '.cursor/skills/git-safeguard/SKILL.md')), false)
   classify(
     () => retrieveSkillFragment({
       platform: 'codex',
@@ -155,15 +158,10 @@ test('ISS-04 retired local-only copies are denied as provider authority', () => 
   )
 })
 
-test('ISS-04 physical removal stays HOLD without dual-app proof', () => {
-  const plan = planPhysicalSkillRemoval()
-  assert.equal(plan.authorized, false)
-  assert.equal(plan.reason, 'dual_app_proof_hold')
-  assert.equal(plan.copiesRetained, 88)
-  assert.equal(plan.dualAppProof.codex, 'HOLD')
-  assert.equal(plan.dualAppProof.cursor, 'HOLD')
-  assert.equal(plan.rollbackCommit, V24_ROLLBACK_COMMIT)
+test('PKT-07 loader refuses runtime deletion even after dual-app authorization', () => {
+  classify(() => planPhysicalSkillRemoval(), 'skills_removal_not_armed', 'fail_closed')
   assert.equal(existsSync(join(ROOT, '.ide-development')), false)
+  assert.equal(existsSync(join(ROOT, 'docs/archive/v24-skill-rollback/core/skills/git-safeguard/SKILL.md')), true)
 })
 
 test('ISS-04 bounded telemetry still uses the pin-time use-report subset', () => {
@@ -183,6 +181,8 @@ test('ISS-04 loader has no transport, skill execution, or nested install APIs', 
   assert.doesNotMatch(LOADER_SOURCE, /rmSync|rmdirSync|unlinkSync/)
   assert.doesNotMatch(LOADER_SOURCE, /skills_run_start\(/)
   assert.equal(MANIFEST_SOURCE.includes('core/link-integrations/skills.mjs'), false)
+  assert.equal(MANIFEST_SOURCE.includes('.ide-development/providers/registry.mjs'), true)
+  assert.equal(existsSync(join(ROOT, 'core/managed-core/platforms/providers/registry.mjs')), true)
   assert.equal(existsSync(join(ROOT, 'core/managed-core/platforms/codex/skills-loader.mjs')), true)
   assert.equal(existsSync(join(ROOT, 'core/managed-core/platforms/cursor/skills-loader.mjs')), true)
 })

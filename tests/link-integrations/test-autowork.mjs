@@ -365,7 +365,7 @@ test('S0 pins remain frozen and MANIFEST is not a pre-rollout write', () => {
   assert.equal(FROZEN_PROVIDERS.autowork.commit, '9caab9aa33de5f96e33d67d880f2934dc6fd9fef')
   assert.equal(FROZEN_PROVIDERS.autowork.tree, '5f306d674780a5a26048017f916da6048d71e7a5')
   assert.equal(MANIFEST_SOURCE.includes('core/link-integrations/autowork.mjs'), false)
-  assert.equal(MANIFEST_SOURCE.includes('.ide-development/providers/'), false)
+  assert.equal(MANIFEST_SOURCE.includes('.ide-development/providers/registry.mjs'), true)
   assert.equal(existsSync(join(ROOT, '.ide-development')), false)
 })
 

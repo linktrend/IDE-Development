@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "provider-runtime-config/v1",
+  "consumerRepository": "linktrend/example-consumer",
+  "environment": "development",
+  "providers": {
+    "platform": {
+      "endpoint": "https://platform.example.invalid",
+      "credentialRef": "LINKTREND_PLATFORM_DEV_TOKEN",
+      "enabledCapabilities": [
+        "platform.identity.resolve",
+        "platform.capabilities.read"
+      ]
+    },
+    "brain": {
+      "endpoint": "https://brain.example.invalid",
+      "credentialRef": "LINKTREND_BRAIN_DEV_TOKEN",
+      "enabledCapabilities": [
+        "brain.projection.read",
+        "brain.handoff.create"
+      ]
+    },
+    "skills": {
+      "endpoint": "https://skills.example.invalid",
+      "credentialRef": "LINKTREND_SKILLS_DEV_TOKEN",
+      "enabledCapabilities": [
+        "skills.release.read"
+      ]
+    },
+    "libraries": {
+      "endpoint": "https://libraries.example.invalid",
+      "credentialRef": "LINKTREND_LIBRARIES_DEV_TOKEN",
+      "enabledCapabilities": [
+        "libraries.entry.read"
+      ]
+    },
+    "autowork": {
+      "endpoint": "https://autowork.example.invalid",
+      "credentialRef": "LINKTREND_AUTOWORK_DEV_TOKEN",
+      "enabledCapabilities": [
+        "autowork.status.read"
+      ],
+      "availability": "unavailable"
+    }
+  }
+}

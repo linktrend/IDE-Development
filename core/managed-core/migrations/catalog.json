@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "catalogId": "ide-development-managed-core-migrations",
-  "packageVersion": "2.3.6",
+  "packageVersion": "2.4.0",
   "description": "Reviewed Wave 1 supersession catalog. Removals require exact identity and contentHash match; mismatches fail closed.",
   "entries": [
     {
@@ -286,6 +286,662 @@
       "action": "remove",
       "reason": "Former live ruleset mutation wrapper; external protection remains approval-gated W3 authority.",
       "sincePackageVersion": "2.2.0"
+    },
+    {
+      "identity": ".agents/skills/action-queue/SKILL.md",
+      "path": ".agents/skills/action-queue/SKILL.md",
+      "contentHash": "sha256:32aff5fd66bfe8d724377ded1a278b54258c07c3cb567a1a4369589d499f6ac2",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `action-queue` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/api-patterns/SKILL.md",
+      "path": ".agents/skills/api-patterns/SKILL.md",
+      "contentHash": "sha256:f819bbb51d4d8a32a1621085d0931c8cc4c63f581d9ac0507e88af7eb81f4a05",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `api-patterns` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/app-builder/SKILL.md",
+      "path": ".agents/skills/app-builder/SKILL.md",
+      "contentHash": "sha256:88bf10494963cc68ecaf7ca532020e45d843516557089f2c48cfe319d051a555",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `app-builder` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/architecture/SKILL.md",
+      "path": ".agents/skills/architecture/SKILL.md",
+      "contentHash": "sha256:d9934b0c38d5f67d2018a4b452e3f3f1faed29150996ca064406e29bcc767bc0",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `architecture` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/bash-linux/SKILL.md",
+      "path": ".agents/skills/bash-linux/SKILL.md",
+      "contentHash": "sha256:86e46e58c1a561ced5fd8e5ae0300cd50a9866ec7213f840d8eb097e91ce0d60",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `bash-linux` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/ci-cd-and-automation/SKILL.md",
+      "path": ".agents/skills/ci-cd-and-automation/SKILL.md",
+      "contentHash": "sha256:b8b8c95f16acfd71e8ce12004d395ae1b8cf598343edcbabd3bba8eaa8586e3f",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `ci-cd-and-automation` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/code-review-and-quality/SKILL.md",
+      "path": ".agents/skills/code-review-and-quality/SKILL.md",
+      "contentHash": "sha256:88413831483002f87b2a09d4f5abec73cdbdaeb20084a35ea58eac50b6555f91",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `code-review-and-quality` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/code-simplification/SKILL.md",
+      "path": ".agents/skills/code-simplification/SKILL.md",
+      "contentHash": "sha256:5d904fa246d06c962703618d92d8941239546a0febe6079a281f79f98a8043b8",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `code-simplification` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/context-engineering/SKILL.md",
+      "path": ".agents/skills/context-engineering/SKILL.md",
+      "contentHash": "sha256:b2002e82a3e2eeb6e751c278fa46cf32ce8b049777939b78c4dbf955ef822869",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `context-engineering` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/data-table/SKILL.md",
+      "path": ".agents/skills/data-table/SKILL.md",
+      "contentHash": "sha256:800a8f2e1483ba4c5bc82c76dd4e194c15772e28585fb8a59d4ec77bb2e90857",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `data-table` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/database-design/SKILL.md",
+      "path": ".agents/skills/database-design/SKILL.md",
+      "contentHash": "sha256:845fbafe70e56e76de946b123d981cd67f97c97b51a8ff7f5d560d804db60b08",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `database-design` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/deployment-procedures/SKILL.md",
+      "path": ".agents/skills/deployment-procedures/SKILL.md",
+      "contentHash": "sha256:c60479dc3f85a8f67505bd433d59833bd8906033231cc4f57ace1392f6ae5171",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `deployment-procedures` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/deprecation-and-migration/SKILL.md",
+      "path": ".agents/skills/deprecation-and-migration/SKILL.md",
+      "contentHash": "sha256:65b7fbca07a60c6632e83bfa6bd2ce1d0cad051da23d3ec6640d316396c83207",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `deprecation-and-migration` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/documentation-and-adrs/SKILL.md",
+      "path": ".agents/skills/documentation-and-adrs/SKILL.md",
+      "contentHash": "sha256:d604210ca058350c9b25643fc5ddfcbd71ed1771e5f6f6d50acb74b21a9e57af",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `documentation-and-adrs` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/frontend-ui-engineering/SKILL.md",
+      "path": ".agents/skills/frontend-ui-engineering/SKILL.md",
+      "contentHash": "sha256:a54588d8d901f0fb6fdf3d5220c5286f45c68e4c12d94909822856e9bd895d8a",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `frontend-ui-engineering` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/git-safeguard/SKILL.md",
+      "path": ".agents/skills/git-safeguard/SKILL.md",
+      "contentHash": "sha256:54309e7a843917890103cee609e36ab5cf9b1d6e0424d2dd0d124637e8eefe86",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `git-safeguard` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/i18n-localization/SKILL.md",
+      "path": ".agents/skills/i18n-localization/SKILL.md",
+      "contentHash": "sha256:9ae1a55d015d65cbb45b4a89a0afbe586a9b9b4cec94454959db2657e55b5c31",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `i18n-localization` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/incremental-implementation/SKILL.md",
+      "path": ".agents/skills/incremental-implementation/SKILL.md",
+      "contentHash": "sha256:ec316b4b0042bce9cc514e69a3bd412d4e40010c5bfe160448cb36635d6617a7",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `incremental-implementation` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/intelligent-routing/SKILL.md",
+      "path": ".agents/skills/intelligent-routing/SKILL.md",
+      "contentHash": "sha256:90fa5436668f24629df801ceadaed67bf3fb7fa1eda28bfd01e258dbeb1e7dba",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `intelligent-routing` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/lint-and-validate/SKILL.md",
+      "path": ".agents/skills/lint-and-validate/SKILL.md",
+      "contentHash": "sha256:b7f622ed24a11aaec2cfd89e4262b1990344ab778ef1e3901989897dca299778",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `lint-and-validate` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/mcp-builder/SKILL.md",
+      "path": ".agents/skills/mcp-builder/SKILL.md",
+      "contentHash": "sha256:837ec7585cd549f9dc1ccd99f5665a7e6b51306d0e4ac81061fba43bdb82a9b9",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `mcp-builder` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/mobile-design/SKILL.md",
+      "path": ".agents/skills/mobile-design/SKILL.md",
+      "contentHash": "sha256:eff13cba214b7dd00b7bfee52a347bc4d0d6cea1d6ba5adace75f7e4ae0067b0",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `mobile-design` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/model-routing/SKILL.md",
+      "path": ".agents/skills/model-routing/SKILL.md",
+      "contentHash": "sha256:b11c34346a463a025d95a2cdc15d7e4f997dff1007cdf6dd4e2afd0bbc0037a1",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `model-routing` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/nodejs-best-practices/SKILL.md",
+      "path": ".agents/skills/nodejs-best-practices/SKILL.md",
+      "contentHash": "sha256:d2f143d35a22847843857479502d93d62036a5e1002f797f9a79c82e0bf6b21c",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `nodejs-best-practices` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/observability-and-instrumentation/SKILL.md",
+      "path": ".agents/skills/observability-and-instrumentation/SKILL.md",
+      "contentHash": "sha256:d13f7024b230ba3012e212860c34a5d235230b64ba2148089505040d8e00e576",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `observability-and-instrumentation` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/parallel-agents/SKILL.md",
+      "path": ".agents/skills/parallel-agents/SKILL.md",
+      "contentHash": "sha256:028f348befe22ddc9bac8574a85632b9973af661d716ccfb47432c99a7168ab0",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `parallel-agents` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/performance-optimization/SKILL.md",
+      "path": ".agents/skills/performance-optimization/SKILL.md",
+      "contentHash": "sha256:c4846094d378126337eca2ee26c46f22f685e305cfefe0b5f10f43f7780f99b5",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `performance-optimization` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/persistent-qa/SKILL.md",
+      "path": ".agents/skills/persistent-qa/SKILL.md",
+      "contentHash": "sha256:03087bf817616a7bfbb5eedbc48cad93cd44f2fd75fafc3efbeb9f79074cac9c",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `persistent-qa` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/personal-information-forms/SKILL.md",
+      "path": ".agents/skills/personal-information-forms/SKILL.md",
+      "contentHash": "sha256:44b1b2d94de4b9b467aa2dc688320ae76fdef461438785a32e50cdd70250c325",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `personal-information-forms` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/powershell-windows/SKILL.md",
+      "path": ".agents/skills/powershell-windows/SKILL.md",
+      "contentHash": "sha256:b800eff9a79b1e48974982116ddf35ed13f50e026705966d1063c66f89a81edc",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `powershell-windows` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/python-patterns/SKILL.md",
+      "path": ".agents/skills/python-patterns/SKILL.md",
+      "contentHash": "sha256:2642aa922df5df2c7a03c8920549063533cf051fc433250b614c7b2f9d306d2e",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `python-patterns` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/repository-manager/SKILL.md",
+      "path": ".agents/skills/repository-manager/SKILL.md",
+      "contentHash": "sha256:4459bca6ba52919cde9d7e279a09ac90b1603d850a1f8bd675c350dd1f98e24e",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `repository-manager` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/rust-pro/SKILL.md",
+      "path": ".agents/skills/rust-pro/SKILL.md",
+      "contentHash": "sha256:19432a1c0433ccbbe6e2da5ecc8b3c1e031e85d87e9602209c0078ddbf4726b6",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `rust-pro` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/security-and-hardening/SKILL.md",
+      "path": ".agents/skills/security-and-hardening/SKILL.md",
+      "contentHash": "sha256:4d8575cd00667f27ec1cd8a55931b258e7090f2f77f936bc180245ea90600e59",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `security-and-hardening` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/server-management/SKILL.md",
+      "path": ".agents/skills/server-management/SKILL.md",
+      "contentHash": "sha256:8b67557b9171537c8a8f7a266a29d5fd9e9de3de74426f34a9166e924329b11f",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `server-management` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/skill-template/SKILL.md",
+      "path": ".agents/skills/skill-template/SKILL.md",
+      "contentHash": "sha256:f849d5f316f3477c6f6c25a03ca64e209c957e225df5d34fddba56369fcc8818",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `skill-template` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/source-driven-development/SKILL.md",
+      "path": ".agents/skills/source-driven-development/SKILL.md",
+      "contentHash": "sha256:8fc8474d31500ef636f67abb69148a30021d1c9d1704bbe18892f270656b5ddc",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `source-driven-development` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/tailwind-patterns/SKILL.md",
+      "path": ".agents/skills/tailwind-patterns/SKILL.md",
+      "contentHash": "sha256:6fb71055bf393119ad5161202fdc0841f86d09698130cbace2f34099df178cc6",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `tailwind-patterns` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/testing-patterns/SKILL.md",
+      "path": ".agents/skills/testing-patterns/SKILL.md",
+      "contentHash": "sha256:d875ded30e28adbb2348fd435937c45f725b1cf8af2a55d11e63074af87c468e",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `testing-patterns` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/tool-architect/SKILL.md",
+      "path": ".agents/skills/tool-architect/SKILL.md",
+      "contentHash": "sha256:1c367c10cebef6644b9e63291025efac0c6c2f1d4d6813a89289a7257c2f5a5b",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `tool-architect` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".agents/skills/webapp-testing/SKILL.md",
+      "path": ".agents/skills/webapp-testing/SKILL.md",
+      "contentHash": "sha256:b4f6e174ebec11a91660dd64404f5a0372b8ad6262e094b6fee97e753205ae09",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `webapp-testing` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/action-queue/SKILL.md",
+      "path": ".ide-development/skills/action-queue/SKILL.md",
+      "contentHash": "sha256:32aff5fd66bfe8d724377ded1a278b54258c07c3cb567a1a4369589d499f6ac2",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `action-queue` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/api-patterns/SKILL.md",
+      "path": ".ide-development/skills/api-patterns/SKILL.md",
+      "contentHash": "sha256:f819bbb51d4d8a32a1621085d0931c8cc4c63f581d9ac0507e88af7eb81f4a05",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `api-patterns` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/app-builder/SKILL.md",
+      "path": ".ide-development/skills/app-builder/SKILL.md",
+      "contentHash": "sha256:88bf10494963cc68ecaf7ca532020e45d843516557089f2c48cfe319d051a555",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `app-builder` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/architecture/SKILL.md",
+      "path": ".ide-development/skills/architecture/SKILL.md",
+      "contentHash": "sha256:d9934b0c38d5f67d2018a4b452e3f3f1faed29150996ca064406e29bcc767bc0",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `architecture` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/bash-linux/SKILL.md",
+      "path": ".ide-development/skills/bash-linux/SKILL.md",
+      "contentHash": "sha256:86e46e58c1a561ced5fd8e5ae0300cd50a9866ec7213f840d8eb097e91ce0d60",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `bash-linux` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/ci-cd-and-automation/SKILL.md",
+      "path": ".ide-development/skills/ci-cd-and-automation/SKILL.md",
+      "contentHash": "sha256:b8b8c95f16acfd71e8ce12004d395ae1b8cf598343edcbabd3bba8eaa8586e3f",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `ci-cd-and-automation` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/code-review-and-quality/SKILL.md",
+      "path": ".ide-development/skills/code-review-and-quality/SKILL.md",
+      "contentHash": "sha256:88413831483002f87b2a09d4f5abec73cdbdaeb20084a35ea58eac50b6555f91",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `code-review-and-quality` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/code-simplification/SKILL.md",
+      "path": ".ide-development/skills/code-simplification/SKILL.md",
+      "contentHash": "sha256:5d904fa246d06c962703618d92d8941239546a0febe6079a281f79f98a8043b8",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `code-simplification` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/context-engineering/SKILL.md",
+      "path": ".ide-development/skills/context-engineering/SKILL.md",
+      "contentHash": "sha256:b2002e82a3e2eeb6e751c278fa46cf32ce8b049777939b78c4dbf955ef822869",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `context-engineering` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/data-table/SKILL.md",
+      "path": ".ide-development/skills/data-table/SKILL.md",
+      "contentHash": "sha256:800a8f2e1483ba4c5bc82c76dd4e194c15772e28585fb8a59d4ec77bb2e90857",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `data-table` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/database-design/SKILL.md",
+      "path": ".ide-development/skills/database-design/SKILL.md",
+      "contentHash": "sha256:845fbafe70e56e76de946b123d981cd67f97c97b51a8ff7f5d560d804db60b08",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `database-design` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/deployment-procedures/SKILL.md",
+      "path": ".ide-development/skills/deployment-procedures/SKILL.md",
+      "contentHash": "sha256:c60479dc3f85a8f67505bd433d59833bd8906033231cc4f57ace1392f6ae5171",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `deployment-procedures` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/deprecation-and-migration/SKILL.md",
+      "path": ".ide-development/skills/deprecation-and-migration/SKILL.md",
+      "contentHash": "sha256:65b7fbca07a60c6632e83bfa6bd2ce1d0cad051da23d3ec6640d316396c83207",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `deprecation-and-migration` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/documentation-and-adrs/SKILL.md",
+      "path": ".ide-development/skills/documentation-and-adrs/SKILL.md",
+      "contentHash": "sha256:d604210ca058350c9b25643fc5ddfcbd71ed1771e5f6f6d50acb74b21a9e57af",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `documentation-and-adrs` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/frontend-ui-engineering/SKILL.md",
+      "path": ".ide-development/skills/frontend-ui-engineering/SKILL.md",
+      "contentHash": "sha256:a54588d8d901f0fb6fdf3d5220c5286f45c68e4c12d94909822856e9bd895d8a",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `frontend-ui-engineering` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/git-safeguard/SKILL.md",
+      "path": ".ide-development/skills/git-safeguard/SKILL.md",
+      "contentHash": "sha256:54309e7a843917890103cee609e36ab5cf9b1d6e0424d2dd0d124637e8eefe86",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `git-safeguard` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/i18n-localization/SKILL.md",
+      "path": ".ide-development/skills/i18n-localization/SKILL.md",
+      "contentHash": "sha256:9ae1a55d015d65cbb45b4a89a0afbe586a9b9b4cec94454959db2657e55b5c31",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `i18n-localization` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/incremental-implementation/SKILL.md",
+      "path": ".ide-development/skills/incremental-implementation/SKILL.md",
+      "contentHash": "sha256:ec316b4b0042bce9cc514e69a3bd412d4e40010c5bfe160448cb36635d6617a7",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `incremental-implementation` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/intelligent-routing/SKILL.md",
+      "path": ".ide-development/skills/intelligent-routing/SKILL.md",
+      "contentHash": "sha256:90fa5436668f24629df801ceadaed67bf3fb7fa1eda28bfd01e258dbeb1e7dba",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `intelligent-routing` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/lint-and-validate/SKILL.md",
+      "path": ".ide-development/skills/lint-and-validate/SKILL.md",
+      "contentHash": "sha256:b7f622ed24a11aaec2cfd89e4262b1990344ab778ef1e3901989897dca299778",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `lint-and-validate` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/mcp-builder/SKILL.md",
+      "path": ".ide-development/skills/mcp-builder/SKILL.md",
+      "contentHash": "sha256:837ec7585cd549f9dc1ccd99f5665a7e6b51306d0e4ac81061fba43bdb82a9b9",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `mcp-builder` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/mobile-design/SKILL.md",
+      "path": ".ide-development/skills/mobile-design/SKILL.md",
+      "contentHash": "sha256:eff13cba214b7dd00b7bfee52a347bc4d0d6cea1d6ba5adace75f7e4ae0067b0",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `mobile-design` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/model-routing/SKILL.md",
+      "path": ".ide-development/skills/model-routing/SKILL.md",
+      "contentHash": "sha256:b11c34346a463a025d95a2cdc15d7e4f997dff1007cdf6dd4e2afd0bbc0037a1",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `model-routing` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/nodejs-best-practices/SKILL.md",
+      "path": ".ide-development/skills/nodejs-best-practices/SKILL.md",
+      "contentHash": "sha256:d2f143d35a22847843857479502d93d62036a5e1002f797f9a79c82e0bf6b21c",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `nodejs-best-practices` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/observability-and-instrumentation/SKILL.md",
+      "path": ".ide-development/skills/observability-and-instrumentation/SKILL.md",
+      "contentHash": "sha256:d13f7024b230ba3012e212860c34a5d235230b64ba2148089505040d8e00e576",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `observability-and-instrumentation` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/parallel-agents/SKILL.md",
+      "path": ".ide-development/skills/parallel-agents/SKILL.md",
+      "contentHash": "sha256:028f348befe22ddc9bac8574a85632b9973af661d716ccfb47432c99a7168ab0",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `parallel-agents` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/performance-optimization/SKILL.md",
+      "path": ".ide-development/skills/performance-optimization/SKILL.md",
+      "contentHash": "sha256:c4846094d378126337eca2ee26c46f22f685e305cfefe0b5f10f43f7780f99b5",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `performance-optimization` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/persistent-qa/SKILL.md",
+      "path": ".ide-development/skills/persistent-qa/SKILL.md",
+      "contentHash": "sha256:03087bf817616a7bfbb5eedbc48cad93cd44f2fd75fafc3efbeb9f79074cac9c",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `persistent-qa` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/personal-information-forms/SKILL.md",
+      "path": ".ide-development/skills/personal-information-forms/SKILL.md",
+      "contentHash": "sha256:44b1b2d94de4b9b467aa2dc688320ae76fdef461438785a32e50cdd70250c325",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `personal-information-forms` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/powershell-windows/SKILL.md",
+      "path": ".ide-development/skills/powershell-windows/SKILL.md",
+      "contentHash": "sha256:b800eff9a79b1e48974982116ddf35ed13f50e026705966d1063c66f89a81edc",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `powershell-windows` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/python-patterns/SKILL.md",
+      "path": ".ide-development/skills/python-patterns/SKILL.md",
+      "contentHash": "sha256:2642aa922df5df2c7a03c8920549063533cf051fc433250b614c7b2f9d306d2e",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `python-patterns` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/repository-manager/SKILL.md",
+      "path": ".ide-development/skills/repository-manager/SKILL.md",
+      "contentHash": "sha256:4459bca6ba52919cde9d7e279a09ac90b1603d850a1f8bd675c350dd1f98e24e",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `repository-manager` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/rust-pro/SKILL.md",
+      "path": ".ide-development/skills/rust-pro/SKILL.md",
+      "contentHash": "sha256:19432a1c0433ccbbe6e2da5ecc8b3c1e031e85d87e9602209c0078ddbf4726b6",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `rust-pro` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/security-and-hardening/SKILL.md",
+      "path": ".ide-development/skills/security-and-hardening/SKILL.md",
+      "contentHash": "sha256:4d8575cd00667f27ec1cd8a55931b258e7090f2f77f936bc180245ea90600e59",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `security-and-hardening` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/server-management/SKILL.md",
+      "path": ".ide-development/skills/server-management/SKILL.md",
+      "contentHash": "sha256:8b67557b9171537c8a8f7a266a29d5fd9e9de3de74426f34a9166e924329b11f",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `server-management` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/skill-template/SKILL.md",
+      "path": ".ide-development/skills/skill-template/SKILL.md",
+      "contentHash": "sha256:f849d5f316f3477c6f6c25a03ca64e209c957e225df5d34fddba56369fcc8818",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `skill-template` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/source-driven-development/SKILL.md",
+      "path": ".ide-development/skills/source-driven-development/SKILL.md",
+      "contentHash": "sha256:8fc8474d31500ef636f67abb69148a30021d1c9d1704bbe18892f270656b5ddc",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `source-driven-development` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/tailwind-patterns/SKILL.md",
+      "path": ".ide-development/skills/tailwind-patterns/SKILL.md",
+      "contentHash": "sha256:6fb71055bf393119ad5161202fdc0841f86d09698130cbace2f34099df178cc6",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `tailwind-patterns` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/testing-patterns/SKILL.md",
+      "path": ".ide-development/skills/testing-patterns/SKILL.md",
+      "contentHash": "sha256:d875ded30e28adbb2348fd435937c45f725b1cf8af2a55d11e63074af87c468e",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `testing-patterns` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/tool-architect/SKILL.md",
+      "path": ".ide-development/skills/tool-architect/SKILL.md",
+      "contentHash": "sha256:1c367c10cebef6644b9e63291025efac0c6c2f1d4d6813a89289a7257c2f5a5b",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `tool-architect` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
+    },
+    {
+      "identity": ".ide-development/skills/webapp-testing/SKILL.md",
+      "path": ".ide-development/skills/webapp-testing/SKILL.md",
+      "contentHash": "sha256:b4f6e174ebec11a91660dd64404f5a0372b8ad6262e094b6fee97e753205ae09",
+      "action": "remove",
+      "reason": "PKT-07 removes packaged v2.4 workflow skill `webapp-testing` after PKT-04 dual-app proof; LiNKskills lock is sole workflow authority.",
+      "sincePackageVersion": "2.4.0"
     }
   ]
 }

@@ -13,8 +13,11 @@ const sha256 = (value) => createHash('sha256').update(value).digest('hex')
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`
 
 test('path containment rejects Windows cross-drive paths', () => {
-  assert.equal(pathInside('C:\\consumer', 'C:\\consumer\\bundle', win32), true)
-  assert.equal(pathInside('C:\\consumer', 'D:\\bundle', win32), false)
+  const driveC = `C:${win32.sep}consumer`
+  const inside = win32.join(driveC, 'bundle')
+  const outside = `D:${win32.sep}bundle`
+  assert.equal(pathInside(driveC, inside, win32), true)
+  assert.equal(pathInside(driveC, outside, win32), false)
 })
 
 test('real path containment rejects an intermediate symlink escape', () => {

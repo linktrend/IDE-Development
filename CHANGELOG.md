@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — PKT-07 managed package integration (phase/v2.5)
+
+- Materialized accepted `core/link-integrations/` provider runtime under `core/managed-core/platforms/providers/` and `.ide-development/providers/` manifest destinations
+- Removed IDE-owned workflow `SKILL.md` implementations after PKT-04 dual-app proof; retained bootstrap adapters (`agentsetup`, `agentcomply`) and non-skill loaders only
+- Extended migration catalog with exact v2.4 workflow skill supersessions; archived rollback bytes under `docs/archive/v24-skill-rollback/`
+- Regenerated `core/managed-core/MANIFEST.json` once at package identity **2.4.0** (v2.5.0 reserved for final integration)
+- Preserved atomic v2.4 rollback identity in skills lock (`004bd5f…` / `6c55220…`)
+
 ## v2.1.0 — 2026-08-03 (Issue #81)
 
 - Added governed phase-delivery modes, schemas, readiness reporting, and fail-closed review-ready dispatch
