@@ -31,6 +31,17 @@ export {
   validateSkillsTelemetry,
 } from './skills.mjs'
 export {
+  ACTIVE_COPY_COUNT,
+  SKILLS_LOCK_CONTRACT_VERSION,
+  SKILLS_LOCK_PACKET,
+  V24_ROLLBACK_COMMIT,
+  V24_ROLLBACK_TREE,
+  loadSkillsLock,
+  planPhysicalSkillRemoval,
+  recordSkillsTelemetry,
+  retrieveSkillFragment,
+} from './skills-loader.mjs'
+export {
   AUTOWORK_AUDIENCE,
   AUTOWORK_CONTRACT_VERSION,
   AUTOWORK_EXECUTION_AUTHORITY,

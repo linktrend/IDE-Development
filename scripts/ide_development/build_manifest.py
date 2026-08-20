@@ -426,6 +426,22 @@ def build_entries() -> list[dict[str, Any]]:
             "platforms/cursor/materialization-manifest.json",
             ".ide-development/platforms/cursor/materialization-manifest.json",
         ),
+        (
+            "platforms/codex/skills-loader.mjs",
+            ".ide-development/platforms/codex/skills-loader.mjs",
+        ),
+        (
+            "platforms/codex/skills-lock.json",
+            ".ide-development/platforms/codex/skills-lock.json",
+        ),
+        (
+            "platforms/cursor/skills-loader.mjs",
+            ".ide-development/platforms/cursor/skills-loader.mjs",
+        ),
+        (
+            "platforms/cursor/skills-lock.json",
+            ".ide-development/platforms/cursor/skills-lock.json",
+        ),
     ]
     for src_tail, dest in identity_files:
         source = f"core/managed-core/{src_tail}"
@@ -520,9 +536,30 @@ def build_entries() -> list[dict[str, Any]]:
                     mode="0644",
                     platform="all",
                     merge="replace",
-                    source_hash=_hash_rel(pkg_src),
-                )
+                source_hash=_hash_rel(pkg_src),
             )
+        )
+
+    for src_tail, dest, platform in (
+        ("platforms/codex/skills-loader.mjs", ".agents/skills-loader.mjs", "codex"),
+        ("platforms/codex/skills-lock.json", ".agents/skills-lock.json", "codex"),
+        ("platforms/cursor/skills-loader.mjs", ".cursor/skills-loader.mjs", "cursor"),
+        ("platforms/cursor/skills-lock.json", ".cursor/skills-lock.json", "cursor"),
+    ):
+        source = f"core/managed-core/{src_tail}"
+        entries.append(
+            _entry(
+                entry_id=f"{platform}-non-skill-{_slug(Path(src_tail).name)}",
+                ownership="managed-entrypoint",
+                source=source,
+                destination=dest,
+                mode="0644",
+                platform=platform,
+                merge="replace",
+                source_hash=_hash_rel(source),
+                notes="ISS-04 non-skill lock loader. Not a SKILL.md.",
+            )
+        )
 
     # --- Required Cursor entrypoints ---
     cursor_required = [
