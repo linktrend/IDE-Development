@@ -590,7 +590,7 @@ def build_entries() -> list[dict[str, Any]]:
     for source, destination in verification_liveness_files:
         entries.append(
             _entry(
-                entry_id=f"verification-liveness-{_slug(Path(source).name)}",
+                entry_id=f"verification-liveness-{_slug(destination)}",
                 ownership="managed-core",
                 source=source,
                 destination=destination,
