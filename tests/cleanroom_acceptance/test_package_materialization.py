@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
-import os
-import subprocess
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -26,12 +27,30 @@ RUNTIME_SOURCES = (
     "core/execution/scheduler.py",
     "core/execution/verification_liveness.py",
     "core/execution/manifest_persistence.py",
+    "core/execution/transactional_dispatch.py",
     "core/managed-core/content/config/manifest-persistence.json",
     "core/managed-core/schemas/manifest-persistence.schema.json",
+    "core/managed-core/content/config/transactional-dispatch.json",
+    "core/managed-core/schemas/transactional-dispatch.schema.json",
 )
 
 
 class PackageMaterializationTests(unittest.TestCase):
+    def test_runtime_manifest_declares_transactional_dispatch_dependency_closure(self) -> None:
+        manifest = json.loads(
+            (REPO_ROOT / "core/github/managed-runtime/MANIFEST.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        sources = set(manifest["files"])
+        self.assertTrue(
+            {
+                "core/execution/transactional_dispatch.py",
+                "core/managed-core/content/config/transactional-dispatch.json",
+                "core/managed-core/schemas/transactional-dispatch.schema.json",
+            }.issubset(sources)
+        )
+
     def test_package_copy_materializes_canonical_runtime_sources(self) -> None:
         with tempfile.TemporaryDirectory(prefix="package-copy-") as tmp:
             package = Path(tmp) / "package"
