@@ -15,7 +15,13 @@ do
 done
 
 if [[ -n "$GENERATED_OUTPUT_CLOSURE" ]]; then
-  if ! python3 "$GENERATED_OUTPUT_CLOSURE" --verify; then
+  if [[ -n "${LINKTREND_CANDIDATE_BASELINE:-}" ]]; then
+    if ! python3 "$GENERATED_OUTPUT_CLOSURE" \
+      --finalize --baseline "$LINKTREND_CANDIDATE_BASELINE"; then
+      echo "pre-push: REJECT candidate finalization (closure or exact-baseline whitespace)" >&2
+      exit 1
+    fi
+  elif ! python3 "$GENERATED_OUTPUT_CLOSURE" --verify; then
     echo "pre-push: REJECT stale or invalid generated output closure" >&2
     exit 1
   fi

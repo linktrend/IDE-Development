@@ -167,6 +167,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip lane evidence path checks (still requires packaging unit tests)",
     )
+    rc_create.add_argument(
+        "--candidate-baseline",
+        help="Exact commit for post-closure candidate git diff --check",
+    )
     rc_verify = rc_sub.add_parser(
         "verify",
         parents=[rc_common],
@@ -204,6 +208,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     allow_dirty=bool(args.allow_dirty),
                     skip_install_verify=bool(args.skip_install_verify),
                     skip_evidence=bool(args.skip_evidence),
+                    candidate_baseline=args.candidate_baseline,
                 )
                 _emit(payload, as_json=as_json)
                 return EXIT_OK

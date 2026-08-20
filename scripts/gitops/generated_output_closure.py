@@ -8,6 +8,7 @@ import fnmatch
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -20,6 +21,7 @@ GRAPH_RELATIVE_PATH = "core/managed-core/config/generated-output-closure.json"
 PACKAGED_GRAPH_RELATIVE_PATH = ".ide-development/config/generated-output-closure.json"
 DEFAULT_GRAPH_EXCLUSIONS = frozenset({".github/linktrend-secret-scan-fixtures.json"})
 DEFAULT_MAX_PASSES = 3
+SHA40 = r"[0-9a-f]{40}"
 
 
 class ClosureError(ValueError):
@@ -436,6 +438,66 @@ def close_generated_outputs(
     )
 
 
+def candidate_diff_check(repo_root: Path | str, baseline: str) -> dict[str, Any]:
+    """Reject whitespace errors in the candidate delta from an exact commit."""
+    root = Path(repo_root).resolve()
+    if not isinstance(baseline, str) or not re.fullmatch(SHA40, baseline):
+        raise ClosureError(
+            "candidate_baseline_invalid",
+            "candidate finalization requires an exact 40-character baseline commit",
+            baseline=baseline,
+        )
+    resolved = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{baseline}^{{commit}}"],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if resolved.returncode or resolved.stdout.strip() != baseline:
+        raise ClosureError(
+            "candidate_baseline_invalid",
+            "exact candidate baseline is not available",
+            baseline=baseline,
+        )
+    checked = subprocess.run(
+        ["git", "diff", "--check", "--no-ext-diff", baseline, "--"],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    output = (checked.stdout + checked.stderr).strip()
+    if checked.returncode:
+        raise ClosureError(
+            "candidate_whitespace",
+            "candidate diff contains trailing whitespace",
+            baseline=baseline,
+            diagnostics=output[-4000:],
+        )
+    return {"ok": True, "baseline": baseline, "diagnostics": output}
+
+
+def finalize_candidate(
+    repo_root: Path | str,
+    baseline: str,
+    *,
+    graph_path: str = GRAPH_RELATIVE_PATH,
+) -> dict[str, Any]:
+    """Close generated outputs before applying the exact-baseline whitespace gate."""
+    closure = close_generated_outputs(
+        repo_root,
+        graph_path=graph_path,
+        _require_clean_outputs=False,
+    )
+    whitespace = candidate_diff_check(repo_root, baseline)
+    return {
+        "ok": True,
+        "generatedOutputClosure": closure,
+        "candidateDiffCheck": whitespace,
+    }
+
+
 def _copy_for_verify(source: Path, destination: Path) -> None:
     def ignore(_directory: str, names: list[str]) -> set[str]:
         return {name for name in names if name in {"build", "__pycache__"}}
@@ -447,12 +509,14 @@ def verify_generated_outputs(
     repo_root: Path | str,
     *,
     graph_path: str = GRAPH_RELATIVE_PATH,
+    _require_clean_outputs: bool = True,
 ) -> dict[str, Any]:
     root = Path(repo_root).resolve()
     graph = load_graph(root, graph_path)
-    dirty = sorted(rel for rel in _declared_output_paths(root, graph) if _git_dirty(root, rel))
-    if dirty:
-        raise ClosureError("dirty_output", "generated output is dirty before finalization", outputs=dirty)
+    if _require_clean_outputs:
+        dirty = sorted(rel for rel in _declared_output_paths(root, graph) if _git_dirty(root, rel))
+        if dirty:
+            raise ClosureError("dirty_output", "generated output is dirty before finalization", outputs=dirty)
     observed = _output_digests(root, graph)
     with tempfile.TemporaryDirectory(prefix="pkt08-closure-") as temp:
         clone = Path(temp) / "repo"
@@ -499,6 +563,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--graph", default=GRAPH_RELATIVE_PATH)
     parser.add_argument("--close", action="store_true")
+    parser.add_argument(
+        "--finalize",
+        action="store_true",
+        help="close generated outputs, then run exact-baseline git diff --check",
+    )
+    parser.add_argument(
+        "--baseline",
+        help="exact 40-character commit used by candidate finalization",
+    )
     parser.add_argument("--verify", action="store_true")
     parser.add_argument("--generate-fixtures", action="store_true")
     args = parser.parse_args(argv)
@@ -506,7 +579,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.generate_fixtures:
             return _generate_secret_scan_fixtures(root)
-        result = verify_generated_outputs(root, graph_path=args.graph) if not args.close else close_generated_outputs(root, graph_path=args.graph)
+        if args.finalize:
+            if not args.baseline:
+                parser.error("--finalize requires --baseline")
+            result = finalize_candidate(root, args.baseline, graph_path=args.graph)
+        elif args.close:
+            result = close_generated_outputs(root, graph_path=args.graph)
+        else:
+            result = verify_generated_outputs(root, graph_path=args.graph)
     except ClosureError as exc:
         print(json.dumps({"ok": False, "code": exc.code, "detail": exc.detail, **exc.diagnostics}, sort_keys=True), file=sys.stderr)
         return 1

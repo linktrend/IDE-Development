@@ -27,9 +27,32 @@ RUNTIME_FILES = (
     "core/managed-core/content/config/transactional-dispatch.json",
     "core/managed-core/schemas/transactional-dispatch.schema.json",
 )
+MARKDOWN_FILES = (
+    "core/contracts/VERIFICATION-LIVENESS-CONTRACT.md",
+    "core/managed-core/content/doctrine/VERIFICATION-LIVENESS.md",
+)
 
 
 class ExtractedFinalControlTests(unittest.TestCase):
+    def test_extracted_markdown_contracts_reject_hard_break_spaces(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pkt08-whitespace-cleanroom-") as tmp:
+            source = Path(tmp) / "source"
+            extract = Path(tmp) / "extract"
+            for rel in MARKDOWN_FILES:
+                destination = source / rel
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ROOT / rel, destination)
+            materialize_isolated_rc_extract(extract, source=source)
+
+            violations = []
+            for rel in MARKDOWN_FILES:
+                for line_number, line in enumerate(
+                    (extract / rel).read_text(encoding="utf-8").splitlines(), 1
+                ):
+                    if line.endswith((" ", "\t")):
+                        violations.append(f"{rel}:{line_number}")
+            self.assertEqual(violations, [], violations)
+
     def test_extracted_runtime_rejects_all_named_adversarial_paths(self) -> None:
         with tempfile.TemporaryDirectory(prefix="pkt08-final-cleanroom-") as tmp:
             source = Path(tmp) / "source"

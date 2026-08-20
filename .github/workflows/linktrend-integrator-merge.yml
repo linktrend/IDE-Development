@@ -48,6 +48,9 @@ on:
         required: false
         type: string
 
+env:
+  PKT08_EXACT_BASELINE: 239dc35bbdaa33824e951f86911ef2bb29d20d80
+
 permissions: {}
 
 concurrency:
@@ -188,7 +191,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git diff --check
+          python3 scripts/gitops/generated_output_closure.py \
+            --finalize --baseline "${PKT08_EXACT_BASELINE}"
           python3 scripts/gitops/run_delivery_profile.py full
           python3 scripts/gitops/require_exact_ci_success.py \
             --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_HEAD}"
@@ -398,7 +402,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git diff --check
+          python3 scripts/gitops/generated_output_closure.py \
+            --finalize --baseline "${PKT08_EXACT_BASELINE}"
           python3 scripts/gitops/run_delivery_profile.py full
           python3 scripts/gitops/require_exact_ci_success.py \
             --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_HEAD}"

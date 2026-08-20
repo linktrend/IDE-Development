@@ -34,6 +34,9 @@ on:
         required: true
         type: string
 
+env:
+  PKT08_EXACT_BASELINE: 239dc35bbdaa33824e951f86911ef2bb29d20d80
+
 permissions: {}
 
 concurrency:
@@ -89,7 +92,8 @@ jobs:
       - name: Run fast profile
         run: |
           set -euo pipefail
-          git diff --check
+          python3 scripts/gitops/generated_output_closure.py \
+            --finalize --baseline "${PKT08_EXACT_BASELINE}"
           python3 scripts/gitops/run_delivery_profile.py fast
 
       - name: Retain fast-check evidence
@@ -147,5 +151,6 @@ jobs:
       - name: Run exact Fast profile without cache or write authority
         run: |
           set -euo pipefail
-          git diff --check
+          python3 scripts/gitops/generated_output_closure.py \
+            --finalize --baseline "${PKT08_EXACT_BASELINE}"
           python3 scripts/gitops/run_delivery_profile.py fast

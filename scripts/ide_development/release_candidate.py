@@ -53,9 +53,17 @@ from .errors import InstallerError, InvalidPackageError
 from .hashing import sha256_bytes, sha256_file
 
 try:
-    from scripts.gitops.generated_output_closure import ClosureError, verify_generated_outputs
+    from scripts.gitops.generated_output_closure import (
+        ClosureError,
+        finalize_candidate,
+        verify_generated_outputs,
+    )
 except ModuleNotFoundError:  # pragma: no cover - package-style execution
-    from gitops.generated_output_closure import ClosureError, verify_generated_outputs  # type: ignore
+    from gitops.generated_output_closure import (  # type: ignore
+        ClosureError,
+        finalize_candidate,
+        verify_generated_outputs,
+    )
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
@@ -631,21 +639,24 @@ def create_release_candidate(
     allow_dirty: bool = False,
     skip_install_verify: bool = False,
     skip_evidence: bool = False,
+    candidate_baseline: str | None = None,
 ) -> dict[str, Any]:
     """Create deterministic RC archives + metadata under build/."""
-    try:
-        verify_generated_outputs(repo_root)
-    except ClosureError as exc:
-        raise ReleaseCandidateError(
-            "Generated-output closure failed before candidate construction",
-            details={"code": exc.code, **exc.diagnostics, "detail": exc.detail},
-        ) from exc
     if not allow_dirty and worktree_is_dirty(repo_root):
         raise ReleaseCandidateError(
             "Refusing release-candidate creation: worktree is dirty",
             details={"hint": "Commit or stash changes, or pass --allow-dirty for local proofs only"},
         )
-
+    try:
+        if candidate_baseline is None:
+            verify_generated_outputs(repo_root, _require_clean_outputs=not allow_dirty)
+        else:
+            finalize_candidate(repo_root, candidate_baseline)
+    except ClosureError as exc:
+        raise ReleaseCandidateError(
+            "Candidate finalization failed before candidate construction",
+            details={"code": exc.code, **exc.diagnostics, "detail": exc.detail},
+        ) from exc
     version = validate_versions(repo_root)
     schema_ids = validate_schemas(repo_root)
     evidence_ids: list[str] = []
@@ -862,6 +873,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip lane evidence path checks (still requires packaging unit tests)",
     )
+    create.add_argument(
+        "--candidate-baseline",
+        help="Exact commit for post-closure candidate git diff --check",
+    )
 
     verify = sub.add_parser("verify", help="Extract archive and install into a clean temp repo")
     verify.add_argument(
@@ -889,6 +904,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 allow_dirty=bool(args.allow_dirty),
                 skip_install_verify=bool(args.skip_install_verify),
                 skip_evidence=bool(args.skip_evidence),
+                candidate_baseline=args.candidate_baseline,
             )
         elif args.action == "verify":
             payload = verify_release_candidate_archive(

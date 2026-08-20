@@ -15,6 +15,7 @@ from scripts.gitops.generated_output_closure import (
     ClosureError,
     candidate_source_tree,
     close_generated_outputs,
+    finalize_candidate,
     load_graph,
     verify_generated_outputs,
 )
@@ -281,6 +282,27 @@ class GeneratedOutputGraphTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(passing.returncode, 0, passing.stderr)
+        baseline = git(root, "rev-parse", "HEAD")
+        finalized = subprocess.run(
+            [str(hook)],
+            cwd=root,
+            env={**os.environ, "LINKTREND_CANDIDATE_BASELINE": baseline},
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(finalized.returncode, 0, finalized.stderr)
+        write(root, "source.txt", "markdown hard break  \n")
+        whitespace_rejected = subprocess.run(
+            [str(hook)],
+            cwd=root,
+            env={**os.environ, "LINKTREND_CANDIDATE_BASELINE": baseline},
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(whitespace_rejected.returncode, 0)
+        self.assertIn("candidate finalization", (whitespace_rejected.stderr + whitespace_rejected.stdout).lower())
         write(root, "source.txt", "two\n")
         rejected = subprocess.run(
             [str(hook)],
@@ -320,6 +342,27 @@ class GeneratedOutputGraphTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
+
+    def test_candidate_finalization_rejects_markdown_hard_break_after_exact_baseline(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        generator = script(
+            root,
+            "generator.py",
+            "from pathlib import Path\n"
+            "Path('generated.out').write_text(Path('source.txt').read_text(), encoding='utf-8')\n",
+        )
+        write(root, "source.txt", "clean\n")
+        write(root, "generated.out", "clean\n")
+        write_graph(root, graph([output("generated.out", generator)]))
+        commit(root, "exact baseline")
+        baseline = git(root, "rev-parse", "HEAD")
+
+        self.assertTrue(finalize_candidate(root, baseline, graph_path="closure.json")["ok"])
+
+        write(root, "source.txt", "markdown hard break  \n")
+        with self.assertRaisesRegex(ClosureError, "candidate_whitespace"):
+            finalize_candidate(root, baseline, graph_path="closure.json")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 # PKT-08 durable verification-liveness contract
 
-**Status:** Founder-authorized v2.5 amendment  
-**Amendment:** `V25_PKT08_VERIFICATION_LIVENESS`  
-**Runtime:** `core/execution/verification_liveness.py`  
+**Status:** Founder-authorized v2.5 amendment
+**Amendment:** `V25_PKT08_VERIFICATION_LIVENESS`
+**Runtime:** `core/execution/verification_liveness.py`
 **Schema:** `core/contracts/VERIFICATION-RUN.schema.json`
 
 This contract governs long-running `Full` verification commands. It is

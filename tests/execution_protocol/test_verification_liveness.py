@@ -80,6 +80,19 @@ class VerificationLivenessContractTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
+    def test_source_contract_markdown_has_no_trailing_hard_break_spaces(self) -> None:
+        for rel in (
+            "core/contracts/VERIFICATION-LIVENESS-CONTRACT.md",
+            "core/managed-core/content/doctrine/VERIFICATION-LIVENESS.md",
+        ):
+            lines = (ROOT / rel).read_text(encoding="utf-8").splitlines()
+            violations = [
+                f"{rel}:{line_number}"
+                for line_number, line in enumerate(lines, 1)
+                if line.endswith((" ", "\t"))
+            ]
+            self.assertEqual(violations, [], violations)
+
     def test_protocol_discovery_requires_and_exposes_liveness_surfaces(self) -> None:
         discovered = discover_runtime(ROOT)
         for path in (

@@ -612,27 +612,18 @@ pass "cleanup script dry-run safe"
 bash "$ROOT/scripts/verify-platform-adoption.sh"
 pass "platform adoption entrypoints + temp consumer"
 
-# ---- git diff --check (required range + working-tree gate) ----
-# PR CI checkouts often lack refs/remotes/origin/development even when the
-# remote exists. Fetch the ref when missing; still fail closed if unavailable.
-if ! git rev-parse --verify origin/development >/dev/null 2>&1; then
-  if ! git fetch --no-tags origin "development:refs/remotes/origin/development" >/tmp/fetch-development.out 2>/tmp/fetch-development.err; then
-    cat /tmp/fetch-development.out /tmp/fetch-development.err >&2 || true
-    fail "origin/development missing — cannot run git diff --check (fetch failed)"
-  fi
+# ---- candidate finalization (generated closure, then exact-baseline diff check) ----
+PKT08_EXACT_BASELINE=239dc35bbdaa33824e951f86911ef2bb29d20d80
+if ! git cat-file -e "${PKT08_EXACT_BASELINE}^{commit}" 2>/dev/null; then
+  fail "exact PKT-08 baseline missing — cannot finalize candidate"
 fi
-if ! git rev-parse --verify origin/development >/dev/null 2>&1; then
-  fail "origin/development missing — cannot run git diff --check"
+if ! python3 scripts/gitops/generated_output_closure.py \
+  --finalize --baseline "$PKT08_EXACT_BASELINE" \
+  >/tmp/candidate-finalization.out 2>/tmp/candidate-finalization.err; then
+  cat /tmp/candidate-finalization.out /tmp/candidate-finalization.err >&2
+  fail "candidate finalization failed"
 fi
-set +e
-git diff --check origin/development >/tmp/diffcheck-candidate.out 2>/tmp/diffcheck-candidate.err
-candidate_ec=$?
-set -e
-if [ "$candidate_ec" -ne 0 ]; then
-  cat /tmp/diffcheck-candidate.out /tmp/diffcheck-candidate.err >&2
-  fail "git diff --check origin/development failed for candidate tree"
-fi
-pass "git diff --check origin/development clean for candidate tree"
+pass "candidate finalization clean against exact PKT-08 baseline"
 
 # ---- Main Approve package/store interface (Lisa) ----
 grep -q 'github_promote_pr_marker\|Package store' docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md \

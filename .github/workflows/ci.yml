@@ -48,6 +48,14 @@ jobs:
       - name: Install CI Python dependencies
         run: python3 -m pip install --disable-pip-version-check --no-input "jsonschema==4.26.0"
 
+      - name: Candidate finalization whitespace gate
+        env:
+          PKT08_EXACT_BASELINE: 239dc35bbdaa33824e951f86911ef2bb29d20d80
+        run: |
+          set -euo pipefail
+          python3 scripts/gitops/generated_output_closure.py \
+            --finalize --baseline "${PKT08_EXACT_BASELINE}"
+
       - name: Stage 1 verification
         # Runs verify-ide-development.sh, which also invokes:
         #   scripts/verify-vendored-skills.sh

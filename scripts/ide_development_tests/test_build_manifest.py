@@ -36,6 +36,15 @@ class BuildManifestPackagingTests(unittest.TestCase):
                 f"unexpected dest {dest_rel}",
             )
 
+    def test_managed_verification_doctrine_has_no_hard_break_spaces(self) -> None:
+        path = bm.MANAGED / "content" / "doctrine" / "VERIFICATION-LIVENESS.md"
+        violations = [
+            str(line_number)
+            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+            if line.endswith((" ", "\t"))
+        ]
+        self.assertEqual(violations, [], violations)
+
     def test_version_alignment_helpers(self) -> None:
         errors = bm._version_alignment_errors()
         self.assertEqual(errors, [], errors)
