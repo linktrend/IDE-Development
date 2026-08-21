@@ -101,6 +101,19 @@ class BuildManifestPackagingTests(unittest.TestCase):
             "release-candidate package paths must include the CI contract dependency closure",
         )
 
+    def test_application_canary_runtime_is_installable(self) -> None:
+        manifest = bm.build_manifest_object()
+        destinations = {row["destination"] for row in manifest["files"]}
+        required = {
+            ".ide-development/runtime/scripts/ide_development/app_canary.mjs",
+            ".ide-development/runtime/core/managed-core/platforms/codex/adapter.mjs",
+            ".ide-development/runtime/core/managed-core/platforms/cursor/adapter.mjs",
+            ".ide-development/runtime/core/link-integrations/errors.mjs",
+            ".ide-development/runtime/core/link-integrations/clients.mjs",
+            ".ide-development/runtime/core/link-integrations/index.mjs",
+        }
+        self.assertEqual(required - destinations, set())
+
     def test_library_vendor_rename_has_exact_removal_migrations(self) -> None:
         catalog = json.loads(
             (bm.MANAGED / "migrations" / "catalog.json").read_text(encoding="utf-8")

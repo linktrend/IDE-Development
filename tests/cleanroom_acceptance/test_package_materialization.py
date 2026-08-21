@@ -37,6 +37,13 @@ RUNTIME_SOURCES = (
     "core/managed-core/schemas/transactional-dispatch.schema.json",
 )
 
+APPLICATION_RUNTIME_SOURCES = (
+    "scripts/ide_development/app_canary.mjs",
+    "core/managed-core/platforms/codex/adapter.mjs",
+    "core/managed-core/platforms/cursor/adapter.mjs",
+    "core/link-integrations/errors.mjs",
+)
+
 HEARTBEAT_CONTROLLER_SCRIPT = r"""
 import copy
 from datetime import datetime, timedelta, timezone
@@ -466,6 +473,34 @@ print("PASS")
                 )
                 self.assertEqual(proc.returncode, 0, proc.stderr)
                 self.assertIn("PASS", proc.stdout)
+
+    def test_managed_and_extracted_packages_run_application_canary(self) -> None:
+        for materializer, label in (
+            (materialize_package_copy, "managed"),
+            (materialize_isolated_rc_extract, "extracted"),
+        ):
+            with self.subTest(package=label), tempfile.TemporaryDirectory(
+                prefix=f"{label}-application-canary-"
+            ) as tmp:
+                source = Path(tmp) / "source"
+                package = Path(tmp) / label
+                for rel in APPLICATION_RUNTIME_SOURCES:
+                    destination = source / rel
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(REPO_ROOT / rel, destination)
+                materializer(package, source=source)
+                proc = subprocess.run(
+                    ["node", "scripts/ide_development/app_canary.mjs", "--json"],
+                    cwd=package,
+                    env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                result = json.loads(proc.stdout)
+                self.assertTrue(result["ok"])
+                self.assertEqual(result["applications"], ["codex", "cursor"])
 
     def test_managed_and_extracted_packages_ignore_git_objects_in_dependency_digest(self) -> None:
         script = """

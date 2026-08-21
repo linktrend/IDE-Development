@@ -88,6 +88,33 @@ REQUIRED_RUNTIME_PACKAGE_SOURCES = (
     "scripts/gitops/promotion_receipt_gate.py",
 )
 
+# Preserve the source-relative layout under one managed runtime root so the
+# application adapters and provider clients keep working after extraction and
+# consumer installation. This is executable canary/runtime payload, not a
+# second authority or consumer-owned product source.
+APPLICATION_RUNTIME_FILES = (
+    "scripts/ide_development/app_canary.mjs",
+    "core/managed-core/platforms/codex/adapter.mjs",
+    "core/managed-core/platforms/cursor/adapter.mjs",
+    "core/link-integrations/README.md",
+    "core/link-integrations/autowork.mjs",
+    "core/link-integrations/brain.mjs",
+    "core/link-integrations/clients.mjs",
+    "core/link-integrations/config.mjs",
+    "core/link-integrations/errors.mjs",
+    "core/link-integrations/index.mjs",
+    "core/link-integrations/libraries.mjs",
+    "core/link-integrations/mcp.mjs",
+    "core/link-integrations/pins.mjs",
+    "core/link-integrations/platform.mjs",
+    "core/link-integrations/redaction.mjs",
+    "core/link-integrations/registry.mjs",
+    "core/link-integrations/skills-loader.mjs",
+    "core/link-integrations/skills-lock.json",
+    "core/link-integrations/skills.mjs",
+    "core/link-integrations/transport.mjs",
+)
+
 # Doctrine files mirrored into .ide-development/content/ for consumer offline use.
 CONTENT_DOCTRINE = (
     ("docs/contracts/AGENT-COMPLETION.md", "content/doctrine/AGENT-COMPLETION.md"),
@@ -576,6 +603,22 @@ def build_entries() -> list[dict[str, Any]]:
                 merge="replace",
                 source_hash=_hash_rel(source),
                 notes="PKT-01 deterministic execution admission runtime.",
+            )
+        )
+
+    for source in APPLICATION_RUNTIME_FILES:
+        destination = f".ide-development/runtime/{source}"
+        entries.append(
+            _entry(
+                entry_id=f"application-runtime-{_slug(source)}",
+                ownership="managed-core",
+                source=source,
+                destination=destination,
+                mode="0755" if source.endswith("app_canary.mjs") else "0644",
+                platform="all",
+                merge="replace",
+                source_hash=_hash_rel(source),
+                notes="Portable Codex/Cursor provider adapter and installed canary runtime.",
             )
         )
 
