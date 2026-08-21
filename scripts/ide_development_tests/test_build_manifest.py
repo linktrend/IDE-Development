@@ -324,6 +324,11 @@ class BuildManifestPackagingTests(unittest.TestCase):
         for rel in (
             "core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md",
             "core/execution/transactional_dispatch.py",
+            "core/execution/cursor_cloud_dispatch.py",
+            "core/contracts/CURSOR-CLOUD-DISPATCH-CONTRACT.md",
+            "core/managed-core/content/config/cursor-cloud-dispatch.json",
+            "core/managed-core/content/doctrine/CURSOR-CLOUD-DISPATCH-CONTRACT.md",
+            "core/managed-core/schemas/cursor-cloud-dispatch.schema.json",
             "core/managed-core/content/config/transactional-dispatch.json",
             "core/managed-core/content/doctrine/PKT08-REVISION-60-FINAL-CONTROLS.md",
             "core/managed-core/schemas/transactional-dispatch.schema.json",

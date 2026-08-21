@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://linktrend.local/managed-core/cursor-cloud-dispatch.schema.json",
+  "title": "Cursor Cloud API dispatch control",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "controlId",
+    "apiBaseUrl",
+    "apiPath",
+    "apiKeyEnvironmentVariable",
+    "apiBinding",
+    "savedRepositoryRoot",
+    "savedRepositoryLayout",
+    "maxApiAttempts",
+    "environment",
+    "requiresExactNonFastModel",
+    "expectedBuildIdRole",
+    "preparedIntentRequired",
+    "clientSuppliedAgentIdRequired",
+    "governedSetupRequired",
+    "setupReceiptRequired",
+    "attestationBeforeMutationRequired",
+    "cliLoginIsCloudAuthority"
+  ],
+  "properties": {
+    "schemaVersion": {"type": "integer", "const": 1},
+    "controlId": {"type": "string", "const": "cursor-cloud-dispatch-v1"},
+    "apiBaseUrl": {"type": "string", "const": "https://api.cursor.com"},
+    "apiPath": {"type": "string", "const": "/v1/agents"},
+    "apiKeyEnvironmentVariable": {"type": "string", "const": "CURSOR_API_KEY"},
+    "apiBinding": {"type": "string", "const": "prompt-and-governed-setup-only"},
+    "savedRepositoryRoot": {"type": "string", "const": "/agent/repos"},
+    "savedRepositoryLayout": {"type": "string", "const": "/agent/repos/<repo>"},
+    "maxApiAttempts": {"type": "integer", "const": 2},
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "name"],
+      "properties": {
+        "type": {"type": "string", "const": "cloud"},
+        "name": {"type": "string", "const": "IDE Development 2.5.1"}
+      }
+    },
+    "requiresExactNonFastModel": {"type": "boolean", "const": true},
+    "expectedBuildIdRole": {"type": "string", "const": "provenance-only"},
+    "preparedIntentRequired": {"type": "boolean", "const": true},
+    "clientSuppliedAgentIdRequired": {"type": "boolean", "const": true},
+    "governedSetupRequired": {"type": "boolean", "const": true},
+    "setupReceiptRequired": {"type": "boolean", "const": true},
+    "attestationBeforeMutationRequired": {"type": "boolean", "const": true},
+    "cliLoginIsCloudAuthority": {"type": "boolean", "const": false}
+  }
+}
