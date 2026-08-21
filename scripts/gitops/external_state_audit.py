@@ -1107,19 +1107,11 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
 
     # --- protection.development / staging / main ---
     if unchecked:
-        for branch, require_bugbot in (
-            ("development", True),
-            ("staging", False),
-            ("main", False),
-        ):
+        for branch in ("development", "staging", "main"):
             name = RULESET_NAMES[branch]
             exp = (
                 f"Active ruleset {name!r} requires "
-                + (
-                    f"{BUGBOT_CHECK_NAME!r} and {SOURCE_POLICY_CHECK!r}"
-                    if require_bugbot
-                    else f"{SOURCE_POLICY_CHECK!r} (no Bugbot)"
-                )
+                f"{SOURCE_POLICY_CHECK!r} (no obsolete review contexts)"
             )
             results.append(_unchecked(f"protection.{branch}_ruleset", "protection", exp))
     else:
@@ -1131,19 +1123,11 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                 if rulesets_cap == "unavailable"
                 else ("forbidden" if rulesets_cap == "forbidden" else "blocked")
             )
-            for branch, require_bugbot in (
-                ("development", True),
-                ("staging", False),
-                ("main", False),
-            ):
+            for branch in ("development", "staging", "main"):
                 name = RULESET_NAMES[branch]
                 exp = (
                     f"Active ruleset {name!r} requires "
-                    + (
-                        f"{BUGBOT_CHECK_NAME!r} and {SOURCE_POLICY_CHECK!r}"
-                        if require_bugbot
-                        else f"{SOURCE_POLICY_CHECK!r} (no Bugbot)"
-                    )
+                    f"{SOURCE_POLICY_CHECK!r} (no obsolete review contexts)"
                 )
                 results.append(
                     _check(
