@@ -18,6 +18,7 @@ from scripts.gitops.secret_scan import (
     MANAGED_SCANNER_POLICY_PATHS,
     KIND_APPROVED,
     KIND_CREDENTIAL,
+    KIND_SKIPPED,
     KIND_SCOPE,
     KIND_STALE,
     RULE_INPUT_TOO_LARGE,
@@ -885,13 +886,13 @@ class AdversarialRepairTests(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         entropy = hashlib.sha256(b"live-token").hexdigest()
         openai = "sk-" + "proj-abcdefghijklmnopqrstuv"
-        short = "short" + "value1"
+        short = "short-value1"
         escaped_body = "foo\\" + "bar-extra-long"
         concat_left, concat_right = "foo", "bar-extra-long"
         write_tracked(root, "src/app.py", f"token={entropy}\n")
         write_tracked(root, "config.yml", f"password: {entropy}\n")
         write_tracked(root, ".env", f"OPENAI_API_KEY={openai}\n")
-        write_tracked(root, "short.py", f'key = "{short}"\n')
+        write_tracked(root, "short.py", f'password = "{short}"\n')
         write_tracked(root, "escaped.py", f'secret = "{escaped_body}"\n')
         write_tracked(root, "concat.py", f'secret = "{concat_left}" + "{concat_right}"\n')
         commit(root, "unquoted short escaped")
@@ -906,10 +907,40 @@ class AdversarialRepairTests(unittest.TestCase):
         self.assertIn("concat.py", paths)
         self.assertTrue(any(row["rule"] == RULE_FORMAT_SK for row in result["findings"]))
 
+    def test_quoted_member_and_call_references_are_not_assignment_findings(self) -> None:
+        entropy = hashlib.sha256(b"reference-probe").hexdigest()
+        self.assertEqual(extract_assignments('token = "gateway.remote.token"'), [])
+        self.assertEqual(extract_assignments('token = "resolveToken()"'), [])
+        self.assertEqual(extract_assignments('key = "ordinary-name"'), [])
+        self.assertEqual(extract_assignments('url = "https://example.invalid/path"'), [])
+        self.assertEqual(extract_assignments(f'key = "{entropy}"')[0][0], "key")
+
+    def test_six_credential_formats_remain_blocking(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        github = "ghp_" + ("D" * 36)
+        cloud = "AKIA" + ("A" * 16)
+        openai = "sk-" + "proj-abcdefghijklmnopqrstuv"
+        database = "postgres" + "://user:password@example.invalid/database"
+        private_key = "".join(("-----BEGIN RSA ", "PRIVATE KEY-----"))
+        entropy = hashlib.sha256(b"six-format-probe").hexdigest()
+        write_tracked(root, "github.txt", f'token = "{github}"\n')
+        write_tracked(root, "cloud.txt", f'key = "{cloud}"\n')
+        write_tracked(root, "token.txt", f'token = "{openai}"\n')
+        write_tracked(root, "database.txt", f'url = "{database}"\n')
+        write_tracked(root, "private.pem", private_key + "\n")
+        write_tracked(root, "entropy.txt", f'secret = "{entropy}"\n')
+        commit(root, "six credential formats")
+        result = scan_repository(root)
+        self.assertFalse(result["ok"])
+        credential_paths = {row["path"] for row in result["findings"] if row["kind"] == KIND_CREDENTIAL}
+        self.assertEqual(credential_paths, {"github.txt", "cloud.txt", "token.txt", "database.txt", "private.pem", "entropy.txt"})
+
     def test_huge_input_and_scanner_timeout_are_typed_results(self) -> None:
         tmp, root = init_repo()
         self.addCleanup(tmp.cleanup)
-        write_tracked(root, "huge.txt", "x" * 200)
+        github = "ghp_" + ("E" * 36)
+        write_tracked(root, "huge.txt", f'token = "{github}"\n' + ("x" * (1_048_576 + 1)))
         blocker = root / "slow.sh"
         blocker.write_text("#!/bin/sh\nsleep 5\n", encoding="utf-8")
         blocker.chmod(0o755)
@@ -920,13 +951,12 @@ class AdversarialRepairTests(unittest.TestCase):
         )
         git(root, "add", "--", "slow.sh")
         commit(root, "huge and slow")
-        with patch.object(secret_scan_mod, "MAX_FILE_BYTES", 64), patch.object(
-            secret_scan_mod, "REPO_SCANNER_TIMEOUT_SEC", 0.2
-        ):
+        with patch.object(secret_scan_mod, "REPO_SCANNER_TIMEOUT_SEC", 0.2):
             result = scan_repository(root)
         self.assertFalse(result["ok"])
         self.assertEqual(result["kind"], "secret-scan-result")
-        self.assertTrue(any(row["rule"] == RULE_INPUT_TOO_LARGE and row["path"] == "huge.txt" for row in result["findings"]))
+        self.assertTrue(any(row["path"] == "huge.txt" and row["kind"] == KIND_CREDENTIAL for row in result["findings"]))
+        self.assertFalse(any(row["rule"] == RULE_INPUT_TOO_LARGE and row["path"] == "huge.txt" for row in result["findings"]))
         self.assertTrue(any(row["rule"] == RULE_REPO_TIMEOUT and row.get("scannerId") == "slow" for row in result["findings"]))
 
     def test_schema_extras_and_typed_failures_match_result_schema(self) -> None:
@@ -969,8 +999,17 @@ class AdversarialRepairTests(unittest.TestCase):
         write_tracked_bytes(root, "opaque.bin", b"\x00\x01\x02\x00secret-not-decoded")
         commit(root, "undecodable")
         result = scan_repository(root)
-        self.assertFalse(result["ok"])
-        self.assertTrue(any(row["rule"] == RULE_INPUT_UNDECODABLE and row["path"] == "opaque.bin" for row in result["findings"]))
+        self.assertTrue(result["ok"])
+        self.assertTrue(any(row["kind"] == KIND_SKIPPED and row["rule"] == RULE_INPUT_UNDECODABLE and row["path"] == "opaque.bin" for row in result["findings"]))
+
+    def test_binary_and_high_control_content_is_typed_nonblocking_skip(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        write_tracked_bytes(root, "binary.bin", bytes([1, 31, 2, 30]) * 3000)
+        commit(root, "binary content")
+        result = scan_repository(root)
+        self.assertTrue(result["ok"])
+        self.assertTrue(any(row["kind"] == KIND_SKIPPED and row["rule"] == "input.binary" for row in result["findings"]))
 
     def test_bound_bytes_must_match_detected_value(self) -> None:
         tmp, root = init_repo()
@@ -1061,6 +1100,14 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
             result = scan_repository(root, baseline_evidence=evidence)
         self.assertFalse(result["ok"])
         self.assertEqual(result["inheritedFindingCount"], 1)
+        self.assertEqual(result["repository"], evidence["repository"])
+        self.assertEqual(result["authoritativeRemoteRef"], evidence["authoritativeRemoteRef"])
+        self.assertEqual(result["baselineCommit"], evidence["baselineCommit"])
+        self.assertEqual(result["baselineTree"], evidence["baselineTree"])
+        self.assertEqual(result["candidateCommit"], evidence["candidateCommit"])
+        self.assertEqual(result["candidateGitTree"], evidence["candidateGitTree"])
+        self.assertEqual(result["managedPaths"], sorted(evidence["managedPaths"]))
+        self.assertEqual(result["configDigest"], evidence["configDigest"])
         self.assertTrue(any(row["path"] == "unchanged.py" for row in result["findings"]))
         self.assertTrue(any(row["path"] == "changed.py" for row in result["findings"]))
         scanned_paths = scan.call_args.args[2]
