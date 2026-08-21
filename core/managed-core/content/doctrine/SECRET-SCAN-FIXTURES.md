@@ -5,7 +5,8 @@
 **Migration helper:** `scripts/gitops/secret_scan_migrate.py`
 **Declaration:** `.github/linktrend-secret-scan-fixtures.json`
 **Schemas:** `core/managed-core/schemas/secret-scan-fixtures.schema.json`,
-`core/managed-core/schemas/secret-scan-result.schema.json`
+`core/managed-core/schemas/secret-scan-result.schema.json`,
+`core/managed-core/schemas/change-scoped-secret-scan.schema.json`
 
 Managed Fast and Full execute `python3 scripts/gitops/secret_scan.py` over
 every tracked regular blob. The candidate tree is computed from git index
@@ -44,6 +45,19 @@ One run reports every finding and fixture error together:
 One-byte changes, stale digests, renamed files, duplicated values, duplicate fixture ids,
 unknown rules, undeclared fixtures, and candidate-tree or scanner-policy drift fail
 closed until the declaration is intentionally refreshed and reviewed.
+
+## Large-fork change-scoped evidence
+
+Large forks may pass `--baseline-evidence <json>` to reuse inherited findings.
+Reuse is permitted only when the evidence binds the exact repository,
+authoritative remote ref, baseline commit/tree, candidate commit/tree, scanner
+policy version, explicit managed scanner/policy path set, and configuration
+digest. The scanner computes `changed paths ∪ managed paths`; unchanged
+findings are inherited only from that exact baseline and are never treated as
+proof for changed, deleted, renamed, or ambiguous paths. Missing or stale
+identity, policy/path/config mismatch, unreadable relevant text, and real
+credentials block. Source checkouts and extracted `.ide-development` packages
+resolve their own managed path layout; there is no broad upstream-path ignore.
 
 ## Repository-owned scanners
 

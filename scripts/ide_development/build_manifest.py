@@ -498,6 +498,10 @@ def build_entries() -> list[dict[str, Any]]:
             ".ide-development/schemas/secret-scan-result.schema.json",
         ),
         (
+            "schemas/change-scoped-secret-scan.schema.json",
+            ".ide-development/schemas/change-scoped-secret-scan.schema.json",
+        ),
+        (
             "schemas/repository-ci-contract.schema.json",
             ".ide-development/schemas/repository-ci-contract.schema.json",
         ),

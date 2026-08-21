@@ -14,8 +14,11 @@ from unittest.mock import patch
 from scripts.gitops import secret_scan as secret_scan_mod
 from scripts.gitops.secret_scan import (
     DECLARATION_REL,
+    CHANGE_SCOPED_KIND,
+    MANAGED_SCANNER_POLICY_PATHS,
     KIND_APPROVED,
     KIND_CREDENTIAL,
+    KIND_SKIPPED,
     KIND_SCOPE,
     KIND_STALE,
     RULE_INPUT_TOO_LARGE,
@@ -26,6 +29,8 @@ from scripts.gitops.secret_scan import (
     SCANNER_POLICY_VERSION,
     SYNTHETIC_PREFIX,
     candidate_content_tree,
+    config_digest,
+    managed_scanner_policy_paths,
     digest_bytes,
     extract_assignments,
     identify_synthetic_candidates,
@@ -38,6 +43,7 @@ SECRET_SCAN = ROOT / "scripts" / "gitops" / "secret_scan.py"
 MIGRATE = ROOT / "scripts" / "gitops" / "secret_scan_migrate.py"
 FIXTURE_SCHEMA = ROOT / "core" / "managed-core" / "schemas" / "secret-scan-fixtures.schema.json"
 RESULT_SCHEMA = ROOT / "core" / "managed-core" / "schemas" / "secret-scan-result.schema.json"
+CHANGE_SCOPED_SCHEMA = ROOT / "core" / "managed-core" / "schemas" / "change-scoped-secret-scan.schema.json"
 
 
 def git(root: Path, *args: str) -> str:
@@ -181,14 +187,19 @@ class PackagingContractTests(unittest.TestCase):
         index = (ROOT / "core/managed-core/INDEX.yaml").read_text(encoding="utf-8")
         self.assertTrue(FIXTURE_SCHEMA.is_file())
         self.assertTrue(RESULT_SCHEMA.is_file())
+        self.assertTrue(CHANGE_SCOPED_SCHEMA.is_file())
         self.assertIn("schemas/secret-scan-fixtures.schema.json", index)
         self.assertIn("schemas/secret-scan-result.schema.json", index)
+        self.assertIn("schemas/change-scoped-secret-scan.schema.json", index)
         self.assertIn("core/managed-core/schemas/secret-scan-fixtures.schema.json", RC_REQUIRED_SCHEMA_RELS)
         self.assertIn("core/managed-core/schemas/secret-scan-result.schema.json", RC_REQUIRED_SCHEMA_RELS)
+        self.assertIn("core/managed-core/schemas/change-scoped-secret-scan.schema.json", RC_REQUIRED_SCHEMA_RELS)
         fixtures = json.loads(FIXTURE_SCHEMA.read_text(encoding="utf-8"))
         result = json.loads(RESULT_SCHEMA.read_text(encoding="utf-8"))
+        scoped = json.loads(CHANGE_SCOPED_SCHEMA.read_text(encoding="utf-8"))
         self.assertEqual(fixtures["properties"]["kind"]["const"], "secret-scan-fixtures")
         self.assertEqual(result["properties"]["kind"]["const"], "secret-scan-result")
+        self.assertEqual(scoped["properties"]["kind"]["const"], CHANGE_SCOPED_KIND)
         fixtures_array = fixtures["properties"]["fixtures"]
         self.assertEqual(fixtures_array.get("x-uniqueItemFields"), ["id"])
         self.assertIn("unique", fixtures_array["items"]["properties"]["id"]["description"].lower())
@@ -213,6 +224,7 @@ class PackagingContractTests(unittest.TestCase):
         sources = {row["source"] for row in manifest["files"]}
         self.assertIn("core/managed-core/schemas/secret-scan-fixtures.schema.json", sources)
         self.assertIn("core/managed-core/schemas/secret-scan-result.schema.json", sources)
+        self.assertIn("core/managed-core/schemas/change-scoped-secret-scan.schema.json", sources)
         self.assertIn("scripts/gitops/secret_scan.py", sources)
         self.assertIn("scripts/gitops/secret_scan_migrate.py", sources)
         self.assertIn("scripts/tests/test_fixture_aware_secret_scan.py", sources)
@@ -874,13 +886,13 @@ class AdversarialRepairTests(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         entropy = hashlib.sha256(b"live-token").hexdigest()
         openai = "sk-" + "proj-abcdefghijklmnopqrstuv"
-        short = "short" + "value1"
+        short = "short-value1"
         escaped_body = "foo\\" + "bar-extra-long"
         concat_left, concat_right = "foo", "bar-extra-long"
         write_tracked(root, "src/app.py", f"token={entropy}\n")
         write_tracked(root, "config.yml", f"password: {entropy}\n")
         write_tracked(root, ".env", f"OPENAI_API_KEY={openai}\n")
-        write_tracked(root, "short.py", f'key = "{short}"\n')
+        write_tracked(root, "short.py", f'password = "{short}"\n')
         write_tracked(root, "escaped.py", f'secret = "{escaped_body}"\n')
         write_tracked(root, "concat.py", f'secret = "{concat_left}" + "{concat_right}"\n')
         commit(root, "unquoted short escaped")
@@ -895,10 +907,40 @@ class AdversarialRepairTests(unittest.TestCase):
         self.assertIn("concat.py", paths)
         self.assertTrue(any(row["rule"] == RULE_FORMAT_SK for row in result["findings"]))
 
+    def test_quoted_member_and_call_references_are_not_assignment_findings(self) -> None:
+        entropy = hashlib.sha256(b"reference-probe").hexdigest()
+        self.assertEqual(extract_assignments('token = "gateway.remote.token"'), [])
+        self.assertEqual(extract_assignments('token = "resolveToken()"'), [])
+        self.assertEqual(extract_assignments('key = "ordinary-name"'), [])
+        self.assertEqual(extract_assignments('url = "https://example.invalid/path"'), [])
+        self.assertEqual(extract_assignments(f'key = "{entropy}"')[0][0], "key")
+
+    def test_six_credential_formats_remain_blocking(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        github = "ghp_" + ("D" * 36)
+        cloud = "AKIA" + ("A" * 16)
+        openai = "sk-" + "proj-abcdefghijklmnopqrstuv"
+        database = "postgres" + "://user:password@example.invalid/database"
+        private_key = "".join(("-----BEGIN RSA ", "PRIVATE KEY-----"))
+        entropy = hashlib.sha256(b"six-format-probe").hexdigest()
+        write_tracked(root, "github.txt", f'token = "{github}"\n')
+        write_tracked(root, "cloud.txt", f'key = "{cloud}"\n')
+        write_tracked(root, "token.txt", f'token = "{openai}"\n')
+        write_tracked(root, "database.txt", f'url = "{database}"\n')
+        write_tracked(root, "private.pem", private_key + "\n")
+        write_tracked(root, "entropy.txt", f'secret = "{entropy}"\n')
+        commit(root, "six credential formats")
+        result = scan_repository(root)
+        self.assertFalse(result["ok"])
+        credential_paths = {row["path"] for row in result["findings"] if row["kind"] == KIND_CREDENTIAL}
+        self.assertEqual(credential_paths, {"github.txt", "cloud.txt", "token.txt", "database.txt", "private.pem", "entropy.txt"})
+
     def test_huge_input_and_scanner_timeout_are_typed_results(self) -> None:
         tmp, root = init_repo()
         self.addCleanup(tmp.cleanup)
-        write_tracked(root, "huge.txt", "x" * 200)
+        github = "ghp_" + ("E" * 36)
+        write_tracked(root, "huge.txt", f'token = "{github}"\n' + ("x" * (1_048_576 + 1)))
         blocker = root / "slow.sh"
         blocker.write_text("#!/bin/sh\nsleep 5\n", encoding="utf-8")
         blocker.chmod(0o755)
@@ -909,13 +951,12 @@ class AdversarialRepairTests(unittest.TestCase):
         )
         git(root, "add", "--", "slow.sh")
         commit(root, "huge and slow")
-        with patch.object(secret_scan_mod, "MAX_FILE_BYTES", 64), patch.object(
-            secret_scan_mod, "REPO_SCANNER_TIMEOUT_SEC", 0.2
-        ):
+        with patch.object(secret_scan_mod, "REPO_SCANNER_TIMEOUT_SEC", 0.2):
             result = scan_repository(root)
         self.assertFalse(result["ok"])
         self.assertEqual(result["kind"], "secret-scan-result")
-        self.assertTrue(any(row["rule"] == RULE_INPUT_TOO_LARGE and row["path"] == "huge.txt" for row in result["findings"]))
+        self.assertTrue(any(row["path"] == "huge.txt" and row["kind"] == KIND_CREDENTIAL for row in result["findings"]))
+        self.assertFalse(any(row["rule"] == RULE_INPUT_TOO_LARGE and row["path"] == "huge.txt" for row in result["findings"]))
         self.assertTrue(any(row["rule"] == RULE_REPO_TIMEOUT and row.get("scannerId") == "slow" for row in result["findings"]))
 
     def test_schema_extras_and_typed_failures_match_result_schema(self) -> None:
@@ -958,8 +999,17 @@ class AdversarialRepairTests(unittest.TestCase):
         write_tracked_bytes(root, "opaque.bin", b"\x00\x01\x02\x00secret-not-decoded")
         commit(root, "undecodable")
         result = scan_repository(root)
-        self.assertFalse(result["ok"])
-        self.assertTrue(any(row["rule"] == RULE_INPUT_UNDECODABLE and row["path"] == "opaque.bin" for row in result["findings"]))
+        self.assertTrue(result["ok"])
+        self.assertTrue(any(row["kind"] == KIND_SKIPPED and row["rule"] == RULE_INPUT_UNDECODABLE and row["path"] == "opaque.bin" for row in result["findings"]))
+
+    def test_binary_and_high_control_content_is_typed_nonblocking_skip(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        write_tracked_bytes(root, "binary.bin", bytes([1, 31, 2, 30]) * 3000)
+        commit(root, "binary content")
+        result = scan_repository(root)
+        self.assertTrue(result["ok"])
+        self.assertTrue(any(row["kind"] == KIND_SKIPPED and row["rule"] == "input.binary" for row in result["findings"]))
 
     def test_bound_bytes_must_match_detected_value(self) -> None:
         tmp, root = init_repo()
@@ -1012,6 +1062,91 @@ class AdversarialRepairTests(unittest.TestCase):
         result = scan_repository(root)
         self.assertTrue(result["ok"], result)
         self.assertEqual(kinds(result), [KIND_APPROVED])
+
+
+class ChangeScopedEvidenceTests(unittest.TestCase):
+    def _candidate_with_baseline(self) -> tuple[tempfile.TemporaryDirectory[str], Path, dict]:
+        tmp, root = init_repo()
+        root_remote = "https://github.com/example/change-scoped.git"
+        git(root, "remote", "add", "origin", root_remote)
+        old_secret = "ghp_" + ("A" * 36)
+        write_tracked(root, "unchanged.py", f'token = "{old_secret}"\n')
+        baseline, baseline_tree = commit(root, "baseline credential")
+        git(root, "update-ref", "refs/remotes/origin/development", baseline)
+        baseline_result = scan_repository(root)
+        changed_value = ("g" + "hp_") + ("B" * 36)
+        write_tracked(root, "changed.py", f'token = "{changed_value}"\n')
+        candidate, candidate_tree = commit(root, "candidate credential")
+        evidence = {
+            "schemaVersion": 1,
+            "kind": CHANGE_SCOPED_KIND,
+            "repository": "example/change-scoped",
+            "authoritativeRemoteRef": "origin/development",
+            "baselineCommit": baseline,
+            "baselineTree": baseline_tree,
+            "candidateCommit": candidate,
+            "candidateGitTree": candidate_tree,
+            "scannerPolicyVersion": SCANNER_POLICY_VERSION,
+            "managedPaths": list(MANAGED_SCANNER_POLICY_PATHS),
+            "configDigest": config_digest(root),
+            "findings": baseline_result["findings"],
+        }
+        return tmp, root, evidence
+
+    def test_changed_credential_blocks_and_unchanged_finding_is_inherited(self) -> None:
+        tmp, root, evidence = self._candidate_with_baseline()
+        self.addCleanup(tmp.cleanup)
+        with patch.object(secret_scan_mod, "_scan_regular_blobs", wraps=secret_scan_mod._scan_regular_blobs) as scan:
+            result = scan_repository(root, baseline_evidence=evidence)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["inheritedFindingCount"], 1)
+        self.assertEqual(result["repository"], evidence["repository"])
+        self.assertEqual(result["authoritativeRemoteRef"], evidence["authoritativeRemoteRef"])
+        self.assertEqual(result["baselineCommit"], evidence["baselineCommit"])
+        self.assertEqual(result["baselineTree"], evidence["baselineTree"])
+        self.assertEqual(result["candidateCommit"], evidence["candidateCommit"])
+        self.assertEqual(result["candidateGitTree"], evidence["candidateGitTree"])
+        self.assertEqual(result["managedPaths"], sorted(evidence["managedPaths"]))
+        self.assertEqual(result["configDigest"], evidence["configDigest"])
+        self.assertTrue(any(row["path"] == "unchanged.py" for row in result["findings"]))
+        self.assertTrue(any(row["path"] == "changed.py" for row in result["findings"]))
+        scanned_paths = scan.call_args.args[2]
+        self.assertNotIn("unchanged.py", scanned_paths)
+        self.assertIn("changed.py", scanned_paths)
+
+    def test_identity_config_and_managed_path_drift_fail_closed(self) -> None:
+        tmp, root, evidence = self._candidate_with_baseline()
+        self.addCleanup(tmp.cleanup)
+        for key, value in (
+            ("configDigest", "sha256:" + "0" * 64),
+            ("managedPaths", list(MANAGED_SCANNER_POLICY_PATHS)[:-1]),
+            ("candidateCommit", "0" * 40),
+        ):
+            stale = dict(evidence)
+            stale[key] = value
+            result = scan_repository(root, baseline_evidence=stale)
+            self.assertFalse(result["ok"], key)
+            self.assertTrue(any(row["rule"].startswith("change_scope") for row in result["findings"]), key)
+
+    def test_rename_is_scope_ambiguity_not_an_ignore(self) -> None:
+        tmp, root, evidence = self._candidate_with_baseline()
+        self.addCleanup(tmp.cleanup)
+        git(root, "mv", "unchanged.py", "renamed.py")
+        git(root, "commit", "-qm", "rename candidate")
+        evidence["candidateCommit"] = sha(root)
+        evidence["candidateGitTree"] = tree(root)
+        result = scan_repository(root, baseline_evidence=evidence)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any(row["rule"] == "change_scope.paths" for row in result["findings"]))
+
+    def test_extracted_managed_root_uses_packaged_policy_paths(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        (root / ".ide-development/schemas").mkdir(parents=True)
+        paths = managed_scanner_policy_paths(root)
+        self.assertIn(".ide-development/schemas/secret-scan-result.schema.json", paths)
+        self.assertNotIn("core/managed-core/schemas/secret-scan-result.schema.json", paths)
+        self.assertRegex(config_digest(root, paths), r"^sha256:[0-9a-f]{64}$")
 
 
 if __name__ == "__main__":

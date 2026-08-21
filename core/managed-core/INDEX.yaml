@@ -22,6 +22,7 @@ schemas:
   - schemas/finding-ledger.schema.json
   - schemas/secret-scan-fixtures.schema.json
   - schemas/secret-scan-result.schema.json
+  - schemas/change-scoped-secret-scan.schema.json
   - schemas/generated-output-closure.schema.json
   - schemas/manifest-persistence.schema.json
   - schemas/transactional-dispatch.schema.json
