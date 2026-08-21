@@ -187,6 +187,22 @@ class CandidateBaselineResolutionTests(unittest.TestCase):
                 environment = {**runtime_env(baseline), "CANDIDATE_CONTEXT": context}
                 self.assertEqual(resolve_candidate_baseline(root, environ=environment), baseline)
 
+    def test_ci_injects_authoritative_preintegration_baseline_into_stage_one(self) -> None:
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("Inject exact runtime baseline into Stage 1 receipt context", workflow)
+        self.assertIn("github.event.pull_request.base.sha", workflow)
+        self.assertIn("github.event.before", workflow)
+        self.assertIn("LINKTREND_TARGET_BASELINE_REF=%s", workflow)
+        self.assertIn("LINKTREND_TARGET_BASELINE_SHA=%s", workflow)
+
+    def test_missing_baseline_stays_fail_closed_across_runtime_contexts(self) -> None:
+        for context in ("hosted", "managed-package", "extracted-cleanroom"):
+            with self.subTest(context=context):
+                tmp, root, _, _ = init_repo()
+                self.addCleanup(tmp.cleanup)
+                with self.assertRaisesRegex(ClosureError, "candidate_baseline_missing"):
+                    resolve_candidate_baseline(root, environ={"CANDIDATE_CONTEXT": context})
+
 
 if __name__ == "__main__":
     unittest.main()

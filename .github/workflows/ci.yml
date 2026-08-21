@@ -45,6 +45,19 @@ jobs:
           python3 scripts/gitops/generated_output_closure.py \
             --finalize --baseline-sha "${baseline_sha}" --baseline-ref "${baseline_ref}"
 
+      - name: Inject exact runtime baseline into Stage 1 receipt context
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            baseline_ref="origin/${GITHUB_BASE_REF}"
+            baseline_sha="${{ github.event.pull_request.base.sha }}"
+          else
+            baseline_ref="origin/${GITHUB_REF_NAME}"
+            baseline_sha="${{ github.event.before }}"
+          fi
+          printf 'LINKTREND_TARGET_BASELINE_REF=%s\n' "${baseline_ref}" >> "${GITHUB_ENV}"
+          printf 'LINKTREND_TARGET_BASELINE_SHA=%s\n' "${baseline_sha}" >> "${GITHUB_ENV}"
+
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
