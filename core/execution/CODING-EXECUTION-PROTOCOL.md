@@ -30,6 +30,13 @@ Runtimes must discover these surfaces from the repository root and fail closed i
 - `core/managed-core/schemas/continuous-utilization.schema.json`
 - `core/managed-core/examples/continuous-utilization.example.json`
 
+The paths above are the system-source layout. In a consumer installation the same
+surfaces live under `.ide-development/`: `core/execution/` maps to
+`.ide-development/execution/`, `core/contracts/` maps to
+`.ide-development/contracts/`, and `core/managed-core/` maps directly to
+`.ide-development/`. Runtime discovery must support both layouts and must not require
+consumer-owned `core/` directories.
+
 Discovery is read-only. Discovering the protocol is not authorization to merge, publish, deploy, or mutate providers.
 
 ## 3. Execution-manifest
