@@ -104,6 +104,7 @@ AGENT_ENV_KEYS = (
 FAST_WORKFLOW_REL = Path("core/github/managed-workflows/linktrend-review-packager.yml")
 FULL_WORKFLOW_REL = Path("core/github/managed-workflows/linktrend-integrator-merge.yml")
 GENERATED_CLOSURE_SUBJECT = "phase: close generated outputs"
+SECRET_FIXTURE_REL = ".github/linktrend-secret-scan-fixtures.json"
 
 
 class CoordinatorError(ValueError):
@@ -796,6 +797,48 @@ def _allowed_generated_path(path: str, graph: Any) -> bool:
     return False
 
 
+def _merge_secret_fixture_conflict(probe: Path, path: str) -> bool:
+    """Union explicitly governed fixture rows before deterministic closure.
+
+    The closure may refresh locations and candidate identity, but it must not
+    discard a new approval carried by an accepted Issue checkpoint merely
+    because the generated declaration also changed on the Phase branch.
+    """
+
+    if path != SECRET_FIXTURE_REL:
+        return False
+    try:
+        ours = json.loads(_git(probe, "show", f":2:{path}"))
+        theirs = json.loads(_git(probe, "show", f":3:{path}"))
+    except (CoordinatorError, json.JSONDecodeError) as exc:
+        raise CoordinatorError("generated_fixture_merge_invalid", path) from exc
+    identity_fields = ("schemaVersion", "kind", "scannerPolicyVersion")
+    if any(ours.get(field) != theirs.get(field) for field in identity_fields):
+        raise CoordinatorError("generated_fixture_policy_conflict", path)
+    ours_rows = ours.get("fixtures")
+    theirs_rows = theirs.get("fixtures")
+    if not isinstance(ours_rows, list) or not isinstance(theirs_rows, list):
+        raise CoordinatorError("generated_fixture_merge_invalid", path)
+    merged: list[dict[str, Any]] = []
+    by_id: dict[str, dict[str, Any]] = {}
+    for raw in [*ours_rows, *theirs_rows]:
+        if not isinstance(raw, Mapping) or not isinstance(raw.get("id"), str) or not raw["id"]:
+            raise CoordinatorError("generated_fixture_merge_invalid", path)
+        row = dict(raw)
+        fixture_id = row["id"]
+        existing = by_id.get(fixture_id)
+        if existing is not None:
+            if existing != row:
+                raise CoordinatorError("generated_fixture_identity_conflict", fixture_id)
+            continue
+        by_id[fixture_id] = row
+        merged.append(row)
+    payload = dict(ours)
+    payload["fixtures"] = merged
+    (probe / path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return True
+
+
 def _resolve_generated_only_merge_conflict(probe: Path) -> bool:
     if not _closure_graph_present(probe):
         return False
@@ -810,7 +853,12 @@ def _resolve_generated_only_merge_conflict(probe: Path) -> bool:
     }
     if not unresolved or any(not _allowed_generated_path(path, graph) for path in unresolved):
         return False
-    _git(probe, "checkout", "--ours", "--", *sorted(unresolved))
+    ordinary: list[str] = []
+    for path in sorted(unresolved):
+        if not _merge_secret_fixture_conflict(probe, path):
+            ordinary.append(path)
+    if ordinary:
+        _git(probe, "checkout", "--ours", "--", *ordinary)
     _git(probe, "add", "--", *sorted(unresolved))
     _git(
         probe,

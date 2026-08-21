@@ -334,6 +334,66 @@ class PhasePackagerCoordinatorTests(unittest.TestCase):
         with self.assertRaisesRegex(coordinator.CoordinatorError, "overlapping_commits"):
             self.fx.assemble([first, conflicting], phase_branch="phase/conflict")
 
+    def test_generated_fixture_conflict_preserves_rows_from_both_accepted_tips(self) -> None:
+        fixture_path = ".github/linktrend-secret-scan-fixtures.json"
+        write(
+            self.fx.work / ".ide-development/config/generated-output-closure.json",
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "kind": "generated-output-closure",
+                    "maxPasses": 3,
+                    "outputs": [
+                        {
+                            "id": "secret-fixtures",
+                            "output": fixture_path,
+                            "generator": ["python3", "scripts/noop.py"],
+                            "invalidatingSources": ["**"],
+                            "dependsOn": [],
+                        }
+                    ],
+                    "audits": {},
+                },
+                indent=2,
+            )
+            + "\n",
+        )
+        write(self.fx.work / "scripts/noop.py", "# no-op test generator\n")
+        base = {
+            "schemaVersion": 1,
+            "kind": "secret-scan-fixtures",
+            "scannerPolicyVersion": "secret-scan-policy/v1",
+            "candidateTree": "0" * 40,
+            "fixtures": [],
+        }
+        write(self.fx.work / fixture_path, json.dumps(base, indent=2) + "\n")
+        git(self.fx.work, "add", ".ide-development", ".github", "scripts")
+        git(self.fx.work, "commit", "-qm", "test: fixture merge base")
+        git(self.fx.work, "push", "-q", "origin", "development")
+
+        tips = []
+        for branch, fixture_id in (("issue/61-left", "left"), ("issue/62-right", "right")):
+            git(self.fx.work, "checkout", "-B", branch, "development")
+            payload = dict(base)
+            payload["fixtures"] = [{"id": fixture_id, "path": f"{fixture_id}.txt"}]
+            write(self.fx.work / fixture_path, json.dumps(payload, indent=2) + "\n")
+            git(self.fx.work, "add", fixture_path)
+            git(self.fx.work, "commit", "-qm", branch)
+            tips.append(git(self.fx.work, "rev-parse", "HEAD"))
+
+        git(self.fx.work, "checkout", "-B", "fixture-merge", tips[0])
+        merge = subprocess.run(
+            ["git", "merge", "--no-ff", "--no-edit", tips[1]],
+            cwd=self.fx.work,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(merge.returncode, 0)
+        self.assertTrue(coordinator._resolve_generated_only_merge_conflict(self.fx.work))
+        merged = json.loads((self.fx.work / fixture_path).read_text(encoding="utf-8"))
+        self.assertEqual([row["id"] for row in merged["fixtures"]], ["left", "right"])
+
     def test_rejects_uncommitted_unpushed_wrong_repo_stale_missing(self) -> None:
         ready = self.fx.accept_issue(6, "ready.txt", "ready\n")
         git(self.fx.work, "checkout", ready.branch)
