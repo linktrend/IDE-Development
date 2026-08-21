@@ -203,4 +203,3 @@ def plan_rollout(
         "actions": actions,
         "criticalPath": critical,
     }
-
