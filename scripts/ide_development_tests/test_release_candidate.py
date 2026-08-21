@@ -50,7 +50,9 @@ class ReleaseCandidateGateTests(unittest.TestCase):
         # Concurrent WP1 lanes leave the worktree dirty; production create must refuse.
         if not rc.worktree_is_dirty():
             self.skipTest("worktree currently clean; dirty refusal covered when dirty")
-        with mock.patch.dict(os.environ, runtime_baseline_environment(baseline_ref="origin/development")):
+        # Baseline discovery is independently tested below; hosted issue checkouts
+        # are allowed to omit unrelated remote branches.
+        with mock.patch.object(rc, "finalize_candidate"):
             with self.assertRaises(InstallerError) as ctx:
                 rc.create_release_candidate(
                     allow_dirty=False,
