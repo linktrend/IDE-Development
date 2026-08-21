@@ -617,6 +617,43 @@ pass "platform adoption entrypoints + temp consumer"
 # that named remote ref in a shallow checkout; it never invents a branch.
 candidate_baseline_ref="${LINKTREND_TARGET_BASELINE_REF:-}"
 candidate_baseline_sha="${LINKTREND_TARGET_BASELINE_SHA:-}"
+if [ -z "$candidate_baseline_ref" ] && [ -z "$candidate_baseline_sha" ]; then
+  # The default portable harness is itself a test fixture.  Give its final
+  # invocation the same kind of exact named remote target that CI injects,
+  # while leaving all partially supplied or invalid input fail-closed.
+  candidate_head="$(git rev-parse --verify HEAD^{commit} 2>/dev/null || true)"
+  while IFS=' ' read -r candidate_ref candidate_sha; do
+    [ -n "$candidate_ref" ] || continue
+    case "$candidate_ref" in
+      refs/remotes/*/HEAD) continue ;;
+    esac
+    if [ "$candidate_sha" = "$candidate_head" ]; then
+      continue
+    fi
+    if git merge-base --is-ancestor "$candidate_sha" "$candidate_head" 2>/dev/null; then
+      candidate_baseline_ref="${candidate_ref#refs/remotes/}"
+      candidate_baseline_sha="$candidate_sha"
+      break
+    fi
+  done < <(
+    {
+      git for-each-ref --sort=refname \
+        --format='%(refname) %(objectname)' refs/remotes/origin/phase/
+      git for-each-ref --sort=refname \
+        --format='%(refname) %(objectname)' refs/remotes/origin/development
+      git for-each-ref --sort=refname \
+        --format='%(refname) %(objectname)' refs/remotes/origin/staging
+      git for-each-ref --sort=refname \
+        --format='%(refname) %(objectname)' refs/remotes/origin/main
+      git for-each-ref --sort=refname \
+        --format='%(refname) %(objectname)' refs/remotes
+    } | awk '!seen[$1]++'
+  )
+  if [ -z "$candidate_baseline_ref" ] || [ -z "$candidate_baseline_sha" ]; then
+    fail "default harness could not resolve a distinct named remote target baseline"
+  fi
+  pass "default harness selected named remote target baseline ${candidate_baseline_ref}"
+fi
 if [ -z "$candidate_baseline_ref" ] || [ -z "$candidate_baseline_sha" ]; then
   fail "runtime target baseline ref and SHA are required"
 fi

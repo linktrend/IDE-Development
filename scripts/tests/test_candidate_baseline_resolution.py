@@ -195,6 +195,29 @@ class CandidateBaselineResolutionTests(unittest.TestCase):
         self.assertIn("LINKTREND_TARGET_BASELINE_REF=%s", workflow)
         self.assertIn("LINKTREND_TARGET_BASELINE_SHA=%s", workflow)
 
+    def test_default_lifecycle_harness_supplies_baseline_with_clean_environment(self) -> None:
+        """The portable harness must exercise finalization without caller exports."""
+
+        environment = {
+            key: os.environ[key]
+            for key in ("PATH", "HOME", "LANG", "LC_ALL")
+            if key in os.environ
+        }
+        environment["PYTHONPATH"] = str(ROOT)
+        process = subprocess.run(
+            ["bash", str(ROOT / "scripts/tests/test-gitops-lifecycle.sh")],
+            cwd=ROOT,
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=120,
+        )
+        output = process.stdout + process.stderr
+        self.assertEqual(process.returncode, 0, output)
+        self.assertIn("default harness selected named remote target baseline", output)
+        self.assertIn("candidate finalization clean for runtime target baseline", output)
+
     def test_missing_baseline_stays_fail_closed_across_runtime_contexts(self) -> None:
         for context in ("hosted", "managed-package", "extracted-cleanroom"):
             with self.subTest(context=context):
