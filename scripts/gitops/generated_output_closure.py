@@ -946,8 +946,31 @@ def verify_generated_outputs(
 
 
 def _generate_secret_scan_fixtures(repo_root: Path) -> int:
+    try:
+        from secret_scan import identify_synthetic_candidates
+    except ModuleNotFoundError:  # pragma: no cover - package import path
+        from scripts.gitops.secret_scan import identify_synthetic_candidates
+
     declaration = repo_root / ".github" / "linktrend-secret-scan-fixtures.json"
     payload = json.loads(declaration.read_text(encoding="utf-8"))
+    candidates = identify_synthetic_candidates(repo_root)
+    by_identity: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
+    for row in candidates:
+        identity = (row.get("path"), row.get("field"), row.get("rule"), row.get("digest"))
+        by_identity.setdefault(identity, []).append(row)
+    for fixture in payload.get("fixtures", []):
+        identity = (
+            fixture.get("path"),
+            fixture.get("field"),
+            fixture.get("rule"),
+            fixture.get("digest"),
+        )
+        matches = by_identity.get(identity, [])
+        if len(matches) == 1:
+            # Relocate an existing approval only when its immutable detection
+            # identity has one exact destination. This cannot approve new
+            # bytes, paths, fields, rules, or digests.
+            fixture["line"] = matches[0]["line"]
     payload["candidateTree"] = candidate_source_tree(repo_root)
     declaration.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return 0

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import shutil
 import subprocess
@@ -15,6 +16,7 @@ from scripts.gitops.generated_output_closure import (
     BASELINE_REF_ENV,
     BASELINE_SHA_ENV,
     ClosureError,
+    _generate_secret_scan_fixtures,
     _audit_command,
     candidate_source_tree,
     audit_dogfood_improvement_closure,
@@ -102,6 +104,61 @@ def script(root: Path, rel: str, body: str) -> list[str]:
 
 
 class GeneratedOutputGraphTests(unittest.TestCase):
+    def test_fixture_generator_relocates_only_one_exact_existing_approval(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        value = "ltfx.fixture.relocated.v1"
+        digest = "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
+        write(root, "fixture.py", f"# moved\ntoken = \"{value}\"\n")
+        write(
+            root,
+            ".github/linktrend-secret-scan-fixtures.json",
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "kind": "secret-scan-fixtures",
+                    "scannerPolicyVersion": "secret-scan-policy/v1",
+                    "candidateTree": "0" * 40,
+                    "fixtures": [
+                        {
+                            "id": "existing-approval",
+                            "path": "fixture.py",
+                            "line": 1,
+                            "field": "token",
+                            "rule": "assignment.secret",
+                            "digest": digest,
+                            "bytes": value,
+                            "purpose": "synthetic regression fixture",
+                            "production": False,
+                        }
+                    ],
+                },
+                indent=2,
+            )
+            + "\n",
+        )
+        write_graph(
+            root,
+            graph(
+                [
+                    output(
+                        ".github/linktrend-secret-scan-fixtures.json",
+                        [sys.executable, "scripts/gitops/generated_output_closure.py", "--generate-fixtures"],
+                        invalidating_sources=["**"],
+                        output_id="secret-scan-fixtures",
+                    )
+                ]
+            ),
+        )
+        commit(root, "stale fixture location")
+        _generate_secret_scan_fixtures(root)
+        payload = json.loads(
+            (root / ".github/linktrend-secret-scan-fixtures.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(payload["fixtures"][0]["line"], 2)
+        self.assertEqual(payload["fixtures"][0]["id"], "existing-approval")
+        self.assertEqual(len(payload["fixtures"]), 1)
+
     def test_dogfood_and_lean_design_audits_cover_packaged_controls(self) -> None:
         result = audit_dogfood_improvement_closure(ROOT)
         self.assertTrue(result["ok"])
