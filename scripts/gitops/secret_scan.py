@@ -397,7 +397,20 @@ def extract_assignments(line: str) -> list[tuple[str, str]]:
             index = _skip_ws(line, index + 1)
         if index >= len(line) or line[index] not in ":=":
             continue
-        index = _skip_ws(line, index + 1)
+        assignment_index = index
+        index += 1
+        if (
+            line[assignment_index] == ":"
+            and index < len(line)
+            and line[index] in "-=+?"
+            and line[max(0, match.start() - 2) : match.start()] == "${"
+        ):
+            # Bash parameter expansion (`${NAME:-default}`, and its =/+/?
+            # variants) uses the second character as an operator, not as part
+            # of the effective value. Keep ordinary YAML/shell values that
+            # genuinely begin with `-` unchanged.
+            index += 1
+        index = _skip_ws(line, index)
         if index >= len(line):
             continue
         quoted = line[index] in {"'", '"'}
