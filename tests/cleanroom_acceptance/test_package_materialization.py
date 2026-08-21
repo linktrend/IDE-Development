@@ -311,7 +311,7 @@ else:
                         "audit_dogfood_improvement_closure; "
                         "result = audit_dogfood_improvement_closure('.'); "
                         "assert result['status'] == 'audited', result; "
-                        "assert result['leanDesign']['mappingCount'] == 4, result; "
+                        "assert result['leanDesign']['mappingCount'] == 6, result; "
                         "print('PASS')"
                     ),
                 ],
