@@ -136,6 +136,8 @@ class EngineTests(TempRepoTestCase):
 
         verify = run_verify(target=self.target, package=self.package)
         self.assertEqual(verify.exit_code, EXIT_OK, verify.payload)
+        self.assertEqual(verify.payload["drift"], [])
+        self.assertEqual(verify.payload["summary"]["driftCount"], 0)
 
     def test_sha256_and_read_refuse_symlink(self) -> None:
         from ide_development.io_atomic import read_file_bytes
