@@ -15,6 +15,7 @@ from scripts.gitops.generated_output_closure import (
     BASELINE_REF_ENV,
     BASELINE_SHA_ENV,
     ClosureError,
+    _audit_command,
     candidate_source_tree,
     audit_dogfood_improvement_closure,
     close_generated_outputs,
@@ -107,6 +108,23 @@ class GeneratedOutputGraphTests(unittest.TestCase):
         self.assertEqual(result["status"], "audited")
         self.assertEqual(result["leanDesign"]["mappingCount"], 4)
         self.assertGreaterEqual(result["dogfood"]["executableCommands"], 2)
+
+    def test_command_audit_rejects_missing_python_module_reference(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        with self.assertRaisesRegex(ClosureError, "dogfood_command_missing"):
+            _audit_command(
+                root,
+                [
+                    "env",
+                    "PYTHONPATH=scripts",
+                    "python3",
+                    "-m",
+                    "ide_development.misnamed_build_manifest",
+                    "--verify",
+                ],
+                label="adversarial-command",
+            )
 
     def test_invalidating_source_is_named_and_order_is_deterministic(self) -> None:
         tmp, root = init_repo()

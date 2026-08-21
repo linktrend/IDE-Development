@@ -101,10 +101,13 @@
           ]
         },
         {
-          "id": "closure-verifier",
+          "id": "manifest-verifier",
           "command": [
+            "env",
+            "PYTHONPATH=scripts",
             "python3",
-            "scripts/gitops/generated_output_closure.py",
+            "-m",
+            "ide_development.build_manifest",
             "--verify"
           ]
         }

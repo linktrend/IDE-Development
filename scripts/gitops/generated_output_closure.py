@@ -166,7 +166,22 @@ def _audit_command(root: Path, command: Iterable[str], *, label: str) -> None:
     argv = tuple(command)
     if not argv or any(not isinstance(item, str) or not item.strip() for item in argv):
         raise ClosureError("dogfood_command_invalid", f"{label} must be a non-empty argv array")
-    executable = argv[0]
+    command_start = 0
+    search_paths = [root]
+    if argv[0] == "env":
+        command_start = 1
+        while command_start < len(argv) and "=" in argv[command_start]:
+            name, value = argv[command_start].split("=", 1)
+            if name == "PYTHONPATH":
+                search_paths = [
+                    root / Path(item)
+                    for item in value.split(os.pathsep)
+                    if item
+                ] or [root]
+            command_start += 1
+        if command_start >= len(argv):
+            raise ClosureError("dogfood_command_invalid", f"{label} has no executable")
+    executable = argv[command_start]
     if "/" in executable or "\\" in executable:
         candidate = root / executable
         if not candidate.is_file() or candidate.is_symlink():
@@ -182,7 +197,31 @@ def _audit_command(root: Path, command: Iterable[str], *, label: str) -> None:
             f"{label} executable is unavailable",
             command=list(argv),
         )
-    for argument in argv[1:]:
+    command_args = argv[command_start + 1 :]
+    if "-m" in command_args:
+        module_index = command_args.index("-m")
+        if module_index + 1 >= len(command_args):
+            raise ClosureError(
+                "dogfood_command_invalid",
+                f"{label} -m requires a module reference",
+                command=list(argv),
+            )
+        module = command_args[module_index + 1]
+        if (
+            not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*", module)
+            or not any(
+                (search / Path(*module.split("."))).with_suffix(".py").is_file()
+                or (search / Path(*module.split(".")) / "__init__.py").is_file()
+                for search in search_paths
+            )
+        ):
+            raise ClosureError(
+                "dogfood_command_missing",
+                f"{label} module reference does not exist",
+                command=list(argv),
+                module=module,
+            )
+    for argument in command_args:
         if argument.endswith((".py", ".sh", ".mjs")) and "/" in argument:
             candidate = root / argument
             if not candidate.is_file() or candidate.is_symlink():
