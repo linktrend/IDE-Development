@@ -17,3 +17,5 @@ Read `INDEX.yaml` first, then load only the contract document required for the c
 - `STATE-CONTRACT.md` for valid state changes
 - `SIDE-EFFECT-CONTRACT.md` for allowed and forbidden effects
 - `VALIDATION-CONTRACT.md` for invariants and compliance checks
+- `EXECUTION-CONTROL-CONTRACT.md` for Coding Execution Protocol 1.0.1 control rules
+- `EXECUTION-MANIFEST.schema.json` for schema-valid execution-manifest documents

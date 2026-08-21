@@ -152,7 +152,7 @@ test('AC-I6-FC-platform: expired, unknown field, sensitive key, wrong version, a
     'fail_closed',
   )
   classify(
-    () => validatePlatformIdentity({ ...positive.claim, secret: 'redacted' }, positive.context),
+    () => validatePlatformIdentity({ ...positive.claim, secret: 'ltfx.redacted.v1' }, positive.context),
     'sensitive_field',
     'fail_closed',
   )
@@ -246,7 +246,7 @@ test('AC-I6-FC-platform: accessor getter and setter inputs fail closed', () => {
 test('AC-I6-FC-platform: unknown or sensitive fields fail closed before missing-material unavailable', () => {
   const positive = load('positive-valid.json')
   classify(
-    () => validatePlatformIdentity({ ...positive.claim, actorId: '', secret: 'redacted' }, positive.context),
+    () => validatePlatformIdentity({ ...positive.claim, actorId: '', secret: 'ltfx.redacted.v1' }, positive.context),
     'sensitive_field',
     'fail_closed',
   )
@@ -342,7 +342,7 @@ test('AC-I6-FC-platform: nested array secrets fail closed before missing-materia
   const positive = load('positive-valid.json')
   classify(
     () => validatePlatformIdentity(
-      { ...positive.claim, actorId: '', serviceScopes: [{ secret: 'redacted' }] },
+      { ...positive.claim, actorId: '', serviceScopes: [{ secret: 'ltfx.redacted.v1' }] },
       positive.context,
     ),
     'sensitive_field',
@@ -354,7 +354,7 @@ test('AC-I6-FC-platform: claim poison fails closed before identity-service unava
   const positive = load('positive-valid.json')
   const unavailable = { ...positive.context, identityServiceStatus: 'unavailable' }
   classify(
-    () => validatePlatformIdentity({ ...positive.claim, secret: 'redacted' }, unavailable),
+    () => validatePlatformIdentity({ ...positive.claim, secret: 'ltfx.redacted.v1' }, unavailable),
     'sensitive_field',
     'fail_closed',
   )
@@ -430,7 +430,7 @@ test('AC-I6-FC-platform: unknown credentialStatus and bindingState fail closed',
 
 test('AC-I6-FC-platform: payload_too_deep is classified fail_closed', () => {
   const positive = load('positive-valid.json')
-  let nested = { secret: 'redacted' }
+  let nested = { secret: 'ltfx.redacted.v1' }
   for (let index = 0; index < 6; index += 1) {
     nested = { child: nested }
   }

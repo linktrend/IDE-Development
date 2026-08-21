@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "kind": "generated-output-closure",
+  "maxPasses": 3,
+  "outputs": [
+    {
+      "id": "secret-scan-fixtures",
+      "output": ".github/linktrend-secret-scan-fixtures.json",
+      "generator": [
+        "python3",
+        "scripts/gitops/generated_output_closure.py",
+        "--generate-fixtures"
+      ],
+      "invalidatingSources": [
+        "**"
+      ],
+      "dependsOn": []
+    },
+    {
+      "id": "managed-core-manifest",
+      "output": "core/managed-core/MANIFEST.json",
+      "generator": [
+        "python3",
+        "scripts/ide_development/build_manifest.py",
+        "--write"
+      ],
+      "invalidatingSources": [
+        "core/**",
+        "scripts/**",
+        ".cursor/**",
+        ".github/**",
+        "VERSION"
+      ],
+      "additionalOutputs": [
+        "core/managed-core/content/doctrine/**",
+        "core/managed-core/platforms/library/**",
+        "core/managed-core/platforms/cursor/rules/**",
+        "core/managed-core/skills/**"
+      ],
+      "dependsOn": [
+        "secret-scan-fixtures"
+      ]
+    }
+  ],
+  "audits": {
+    "DOGFOOD_IMPROVEMENT_CLOSURE": {
+      "correctiveEventMappings": [
+        {
+          "id": "hosted-scheduler",
+          "source": "core/execution/scheduler.py",
+          "events": {
+            "admission": "recompute",
+            "completion": "recompute",
+            "invalidation": "recompute",
+            "probe_timeout": "recompute",
+            "api_rejection": "recompute",
+            "utilization_gap_repair": "recompute"
+          },
+          "control": "recompute"
+        },
+        {
+          "id": "delivery-lifecycle",
+          "source": "scripts/gitops/coordinator/state.py",
+          "events": {
+            "execution-failed": "transition",
+            "gate-passed": "transition",
+            "merge-development": "transition",
+            "staging-promoted": "transition"
+          },
+          "control": "transition"
+        },
+        {
+          "id": "verification-liveness",
+          "source": "core/execution/verification_liveness.py",
+          "events": {
+            "missing_durable_handle": "reconcile_verification_run",
+            "stale_running_state": "reconcile_verification_run",
+            "orphan_requires_restart": "restart_orphaned_verification"
+          },
+          "control": "reconcile_verification_run"
+        },
+      {
+        "id": "packaging-closure",
+          "source": "scripts/gitops/generated_output_closure.py",
+          "events": {
+            "candidate_baseline_stale": "resolve_candidate_baseline",
+            "dirty_output": "close_generated_outputs",
+            "stale_output": "verify_generated_outputs",
+            "generator_failure": "finalize_candidate"
+          },
+        "control": "finalize_candidate"
+      },
+      {
+        "id": "manifest-heartbeat",
+        "source": "core/execution/manifest_persistence.py",
+        "events": {
+          "persisted_undispatched_safe_intent": "run_heartbeat_controller",
+          "expired_lease": "run_heartbeat_controller",
+          "failed_check_repair": "run_heartbeat_controller",
+          "no_action_receipt_invalid": "run_heartbeat_controller"
+        },
+        "control": "run_heartbeat_controller"
+      },
+      {
+        "id": "consumer-rollout",
+        "source": "core/execution/rollout.py",
+        "events": {
+          "canary_required": "plan_rollout",
+          "downstream_fan_out": "plan_rollout",
+          "systemic_failure": "plan_rollout",
+          "receipt_identity_changed": "plan_rollout"
+        },
+        "control": "plan_rollout"
+      }
+      ],
+      "executableCommands": [
+        {
+          "id": "installer-entrypoint",
+          "command": [
+            "python3",
+            "scripts/ide-development.py",
+            "version"
+          ]
+        },
+      {
+        "id": "manifest-verifier",
+          "command": [
+            "env",
+            "PYTHONPATH=scripts",
+            "python3",
+            "-m",
+            "ide_development.build_manifest",
+          "--verify"
+        ]
+      },
+      {
+        "id": "heartbeat-controller-entrypoint",
+        "command": [
+          "python3",
+          "scripts/gitops/heartbeat_controller.py",
+          "--help"
+        ]
+      }
+      ]
+    },
+    "LEAN_DESIGN": {
+      "limits": {
+      "maxCorrectiveMappings": 6,
+      "maxCorrectiveEvents": 30
+      }
+    }
+  }
+}

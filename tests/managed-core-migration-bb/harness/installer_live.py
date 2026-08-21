@@ -59,6 +59,24 @@ def resolve_live_package() -> Path:
     )
 
 
+def materialize_live_package(dest: Path, *, source: Path | None = None) -> Path:
+    """Copy the hermetic fixture and its canonical runtime package payload."""
+    src = source or resolve_live_package()
+    if dest.exists():
+        shutil.rmtree(dest)
+    shutil.copytree(src, dest)
+    runtime_manifest = REPO_ROOT / "core" / "github" / "managed-runtime" / "MANIFEST.json"
+    runtime_sources = json.loads(runtime_manifest.read_text(encoding="utf-8")).get("files") or []
+    for rel in runtime_sources:
+        runtime_source = REPO_ROOT / rel
+        if not runtime_source.is_file() or runtime_source.is_symlink():
+            raise FileNotFoundError(f"missing physical runtime package source: {rel}")
+        runtime_destination = dest / rel
+        runtime_destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(runtime_source, runtime_destination)
+    return dest
+
+
 def _parse_json_payload(text: str) -> dict[str, Any] | None:
     text = text.strip()
     if not text:
@@ -203,7 +221,7 @@ def prove_external_cursor_symlink(scenario: dict[str, Any]) -> list[str]:
     tmp = Path(tempfile.mkdtemp(prefix="wp4-live-01-"))
     try:
         package = tmp / "package"
-        shutil.copytree(src, package)
+        materialize_live_package(package, source=src)
         outside = tmp / "outside-cursor"
         outside.mkdir()
         secret = outside / "secret.txt"
@@ -293,7 +311,7 @@ def prove_interrupted_transaction_recovery(scenario: dict[str, Any]) -> list[str
     tmp = Path(tempfile.mkdtemp(prefix="wp4-live-07-"))
     try:
         package = tmp / "package"
-        shutil.copytree(src, package)
+        materialize_live_package(package, source=src)
         # Empty consumer (install first), then interrupt.
         empty = {
             "id": "07-live",
@@ -347,7 +365,7 @@ def prove_byte_exact_rollback(scenario: dict[str, Any]) -> list[str]:
     tmp = Path(tempfile.mkdtemp(prefix="wp4-live-08-"))
     try:
         package = tmp / "package"
-        shutil.copytree(src, package)
+        materialize_live_package(package, source=src)
         empty = {"id": "08-live", "setup": {"files": {}}}
         repo = make_temp_repo(empty)
         installed = run_installer("install", package=package, target=repo)
@@ -401,7 +419,7 @@ def prove_idempotent_repeat(scenario: dict[str, Any]) -> list[str]:
     tmp = Path(tempfile.mkdtemp(prefix="wp4-live-09-"))
     try:
         package = tmp / "package"
-        shutil.copytree(src, package)
+        materialize_live_package(package, source=src)
         empty = {"id": "09-live", "setup": {"files": {}}}
         repo = make_temp_repo(empty)
 

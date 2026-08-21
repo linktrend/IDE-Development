@@ -1,5 +1,9 @@
 # Skills Catalog
 
+ISS-04: unique skill authority is the immutable LiNKskills lock in
+`core/link-integrations/skills-lock.json`. Physical copies remain until
+Codex/Cursor dual-app proof; do not treat local trees as provider substitutes.
+
 Use this file to route into local domain skills and hybrid macro/micro skills.
 
 ## Rules

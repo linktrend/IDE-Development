@@ -21,6 +21,7 @@ export { validateLibraryReference } from './libraries.mjs'
 export {
   BRAIN_CONTRACT_VERSION,
   BRAIN_PIN,
+  validateBrainHandoff,
   validateBrainProjection,
 } from './brain.mjs'
 export {
@@ -29,6 +30,17 @@ export {
   validateSkillsRelease,
   validateSkillsTelemetry,
 } from './skills.mjs'
+export {
+  ACTIVE_COPY_COUNT,
+  SKILLS_LOCK_CONTRACT_VERSION,
+  SKILLS_LOCK_PACKET,
+  V24_ROLLBACK_COMMIT,
+  V24_ROLLBACK_TREE,
+  loadSkillsLock,
+  planPhysicalSkillRemoval,
+  recordSkillsTelemetry,
+  retrieveSkillFragment,
+} from './skills-loader.mjs'
 export {
   AUTOWORK_AUDIENCE,
   AUTOWORK_CONTRACT_VERSION,
@@ -48,3 +60,30 @@ export {
   negotiateMcp,
   validateOkfMapping,
 } from './mcp.mjs'
+export {
+  PROVIDER_RUNTIME_CONFIG_VERSION,
+  validateProviderRuntimeConfig,
+  validateRuntimeConfig,
+} from './config.mjs'
+export {
+  PROVIDER_REGISTRY,
+  PROVIDER_REGISTRY_VERSION,
+  getProviderDefinition,
+  getProviderTool,
+  validateProviderRegistry,
+} from './registry.mjs'
+export { REDACTION_LIMITS, redact, redactError } from './redaction.mjs'
+export {
+  ProviderTransportError,
+  createAuthenticatedTransport,
+  createProviderTransport,
+  createTransports,
+} from './transport.mjs'
+export {
+  createAutoworkClient,
+  createBrainClient,
+  createLibrariesClient,
+  createPlatformClient,
+  createProviderClients,
+  createSkillsClient,
+} from './clients.mjs'

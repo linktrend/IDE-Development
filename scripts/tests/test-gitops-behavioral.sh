@@ -43,18 +43,31 @@ mark_ready_with_evidence() {
   local issue_id="$1"
   local notes="${2:-}"
   local evidence_file="${TMP}/evidence-${issue_id}.json"
+  local pythonpath="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
+  local review_output="${TMP}/review-${issue_id}.json"
 
-  python3 scripts/gitops/completion_gate.py write-evidence \
+  PYTHONPATH="${pythonpath}" python3 "${ROOT}/scripts/gitops/completion_gate.py" write-evidence \
     --evidence-file "${evidence_file}" \
     --classification tests \
     --acceptance "behavioral fixture" \
     --command "0|behavioral-fixture" >/dev/null
 
   if [ -n "${notes}" ]; then
-    COMPLETION_EVIDENCE_FILE="${evidence_file}" bash scripts/mark-review-ready.sh "${issue_id}" "${notes}"
+    PYTHONPATH="${pythonpath}" COMPLETION_EVIDENCE_FILE="${evidence_file}" bash scripts/mark-review-ready.sh "${issue_id}" "${notes}" >"${review_output}"
   else
-    COMPLETION_EVIDENCE_FILE="${evidence_file}" bash scripts/mark-review-ready.sh "${issue_id}"
+    PYTHONPATH="${pythonpath}" COMPLETION_EVIDENCE_FILE="${evidence_file}" bash scripts/mark-review-ready.sh "${issue_id}" >"${review_output}"
   fi
+
+  python3 - "${review_output}" <<'PY'
+import json
+import sys
+
+payload = json.loads(open(sys.argv[1], encoding="utf-8").read())
+if payload.get("state") != "waived_legacy_gate":
+    raise SystemExit(f"unexpected review-ready state: {payload.get('state')!r}")
+if payload.get("published") is not False or payload.get("classification") != "WAIVED_LEGACY_GATE":
+    raise SystemExit("legacy Review Ready publication must remain waived")
+PY
 }
 
 TMP="$(mktemp -d)"
@@ -81,14 +94,18 @@ pushd "$R1" >/dev/null
 git checkout -q -b issue/A-one
 echo a >a.txt && git add a.txt && git commit -q -m "feat: a"
 SHA_A="$(git rev-parse HEAD)"
-# no origin — file backend allows mark
+# no origin — file backend allows checkpoint evidence
 mark_ready_with_evidence A "notes-a" >/dev/null
-bash scripts/validate-review-ready.sh "$SHA_A" >/dev/null
-# concurrent other branch/repo must not create shared readiness file in tree
+# v2.5 deliberately does not publish a Review Ready status or file
 [ ! -f .linktrend/review-ready.json ] || fail "must not write review-ready.json into feature tree"
+if python3 "$ROOT/scripts/gitops/readiness_status.py" get "$SHA_A" >/dev/null 2>&1; then
+  fail "v2.5 legacy Review Ready status must remain absent"
+fi
+EVIDENCE_A="${TMP}/evidence-A.json"
 echo more >>a.txt && git add a.txt && git commit -q -m "feat: later"
-if bash scripts/validate-review-ready.sh >/dev/null 2>&1; then
-  fail "later commit must invalidate readiness"
+if PYTHONPATH="${ROOT}" python3 "${ROOT}/scripts/gitops/completion_gate.py" review-ready \
+  --evidence-file "${EVIDENCE_A}" >/dev/null 2>&1; then
+  fail "later commit must invalidate exact-head evidence"
 fi
 popd >/dev/null
 
@@ -97,13 +114,12 @@ git checkout -q -b issue/B-two
 echo b >b.txt && git add b.txt && git commit -q -m "feat: b"
 SHA_B="$(git rev-parse HEAD)"
 mark_ready_with_evidence B >/dev/null
-bash scripts/validate-review-ready.sh "$SHA_B" >/dev/null
 [ ! -f .linktrend/review-ready.json ] || fail "branch B must not have readiness file"
+if python3 "$ROOT/scripts/gitops/readiness_status.py" get "$SHA_B" >/dev/null 2>&1; then
+  fail "v2.5 legacy Review Ready status must remain absent"
+fi
 popd >/dev/null
-# Both SHAs independently ready in status store
-python3 "$ROOT/scripts/gitops/readiness_status.py" get "$SHA_A" >/dev/null
-python3 "$ROOT/scripts/gitops/readiness_status.py" get "$SHA_B" >/dev/null
-pass "readiness status exact SHA; later commit invalidates; concurrent branches no shared file"
+pass "v2.5 Review Ready waiver is exact-head and leaves no shared status or file"
 
 # ============================================================================
 # 2) Packager policy: discovery no Bugbot; gate fail/head change zero; success once; idempotent
@@ -291,6 +307,16 @@ git -C "$PULL" update-ref refs/remotes/origin/development refs/heads/development
 git -C "$PULL" checkout -q -b issue/frozen issue/unfinished
 echo f >"$PULL/f.txt" && git -C "$PULL" add f.txt && git -C "$PULL" commit -q -m "frozen feat"
 FR="$(git -C "$PULL" rev-parse HEAD)"
+mkdir -p "$TMP/bin"
+cat >"$TMP/bin/gh" <<EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *"--head issue/frozen"* ]]; then
+  echo '[{"headRefOid":"${FR}"}]'
+else
+  echo '[]'
+fi
+EOF
+chmod +x "$TMP/bin/gh"
 pushd "$PULL" >/dev/null
 mark_ready_with_evidence frozen >/dev/null
 # Caller stays on development (not on unfinished)
@@ -299,7 +325,7 @@ BEFORE_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 BEFORE_SHA="$(git rev-parse HEAD)"
 BEFORE_STATUS="$(git status --porcelain)"
 BEFORE_WT="$(git worktree list --porcelain)"
-bash scripts/pull-update-work-branches.sh --branch issue/frozen --branch issue/unfinished >"$TMP/pull.out"
+PATH="$TMP/bin:$PATH" bash scripts/pull-update-work-branches.sh --branch issue/frozen --branch issue/unfinished >"$TMP/pull.out"
 AFTER_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 AFTER_SHA="$(git rev-parse HEAD)"
 AFTER_STATUS="$(git status --porcelain)"
