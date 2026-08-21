@@ -14,7 +14,8 @@ The dispatcher writes and reads back a durable `PREPARED` intent before
 `POST /v1/agents`. Its deterministic idempotency key and client-supplied agent
 ID suppress duplicate creation. Agent ID, run ID, environment, model, exact
 repository path, remote, ref/commit/tree matrix, toolchain, and expected build
-ID provenance are retained in the committed record. The first prompt resolves
+ID provenance plus the exact governed setup receipt digest are retained in the
+committed record. The first prompt resolves
 the target and performs fetch/checkout only under governed setup before
 attestation. Build ID is provenance only, never an API selector. An unknown
 API outcome gets at most one retry with the same idempotency key.

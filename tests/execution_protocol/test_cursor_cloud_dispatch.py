@@ -26,6 +26,7 @@ REQUEST = CursorCloudDispatchRequest(
     model="cursor-grok-4.5-high",
     expected_build_id="ide-development-2.5.1-build-379",
     toolchain={"python": "3.12", "node": "22"},
+    setup_receipt_digest="sha256:c27e25298bc82faafcbac97c11c3da84f872f1ea998e28e757736a4c66dfe5f2",
     governed_setup=True,
 )
 KEY_NAME = "CURSOR_" + "API_KEY"
@@ -61,6 +62,7 @@ class CursorCloudDispatchTests(unittest.TestCase):
         self.assertEqual(config["savedRepositoryLayout"], "/agent/repos/<repo>")
         self.assertEqual(config["maxApiAttempts"], 2)
         self.assertEqual(config["apiBinding"], "prompt-and-governed-setup-only")
+        self.assertTrue(config["setupReceiptRequired"])
         self.assertFalse(config["cliLoginIsCloudAuthority"])
         with self.assertRaisesRegex(CursorCloudDispatchError, "CLI login"):
             require_cursor_cloud_api_key({}, cursor_cli_authenticated=True)
@@ -72,6 +74,17 @@ class CursorCloudDispatchTests(unittest.TestCase):
         self.assertNotIn(value_to_hide, str(raised.exception))
         with self.assertRaises(CursorCloudDispatchError):
             require_cursor_cloud_api_key({})
+
+    def test_governed_setup_receipt_is_required_and_prompt_bound(self) -> None:
+        request = CursorCloudDispatchRequest(
+            **{**REQUEST.__dict__, "setup_receipt_digest": "sha256:bad"}
+        )
+        with self.assertRaisesRegex(CursorCloudDispatchError, "setup receipt"):
+            request.validate()
+        store = DurableCursorCloudIntentStore()
+        http = FakeCursorCloudHTTP(store)
+        dispatch_cursor_cloud(REQUEST, store, http, environment={KEY_NAME: "test-only-key"})
+        self.assertIn(REQUEST.setup_receipt_digest, http.calls[0][2]["prompt"])
 
     def test_prepared_intent_precedes_mock_api_and_duplicate_is_suppressed(self) -> None:
         store = DurableCursorCloudIntentStore()

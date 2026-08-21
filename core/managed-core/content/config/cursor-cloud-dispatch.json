@@ -17,6 +17,7 @@
   "preparedIntentRequired": true,
   "clientSuppliedAgentIdRequired": true,
   "governedSetupRequired": true,
+  "setupReceiptRequired": true,
   "attestationBeforeMutationRequired": true,
   "cliLoginIsCloudAuthority": false
 }

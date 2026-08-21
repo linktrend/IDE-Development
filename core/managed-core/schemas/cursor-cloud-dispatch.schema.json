@@ -20,6 +20,7 @@
     "preparedIntentRequired",
     "clientSuppliedAgentIdRequired",
     "governedSetupRequired",
+    "setupReceiptRequired",
     "attestationBeforeMutationRequired",
     "cliLoginIsCloudAuthority"
   ],
@@ -47,6 +48,7 @@
     "preparedIntentRequired": {"type": "boolean", "const": true},
     "clientSuppliedAgentIdRequired": {"type": "boolean", "const": true},
     "governedSetupRequired": {"type": "boolean", "const": true},
+    "setupReceiptRequired": {"type": "boolean", "const": true},
     "attestationBeforeMutationRequired": {"type": "boolean", "const": true},
     "cliLoginIsCloudAuthority": {"type": "boolean", "const": false}
   }

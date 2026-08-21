@@ -49,6 +49,7 @@ class CursorCloudDispatchRequest:
     model: str
     expected_build_id: str
     toolchain: Mapping[str, str]
+    setup_receipt_digest: str
     environment_name: str = ENV_NAME
     governed_setup: bool = False
 
@@ -57,12 +58,26 @@ class CursorCloudDispatchRequest:
             raise CursorCloudDispatchError(
                 "cursor_cloud_identity_missing", "repository and ref are required"
             )
+        repository_parts = self.repository.split("/")
+        if (
+            len(repository_parts) != 2
+            or any(part in {"", ".", ".."} or "\\" in part for part in repository_parts)
+        ):
+            raise CursorCloudDispatchError(
+                "cursor_cloud_repository_invalid",
+                "repository must be an owner/name identity without traversal",
+            )
         self.resolved_target_path
         normalize_repository_remote(self.target_remote)
         if not self.governed_setup:
             raise CursorCloudDispatchError(
                 "cursor_cloud_governed_setup_required",
                 "target checkout setup must be explicitly governed before dispatch",
+            )
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", self.setup_receipt_digest):
+            raise CursorCloudDispatchError(
+                "cursor_cloud_setup_receipt_invalid",
+                "an exact governed setup receipt digest is required",
             )
         if not _HEX.fullmatch(self.commit) or not _HEX.fullmatch(self.tree):
             raise CursorCloudDispatchError(
@@ -137,7 +152,14 @@ def normalize_repository_remote(remote: str) -> str:
 
     value = str(remote or "").strip()
     parsed = urlsplit(value)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username:
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
         raise CursorCloudDispatchError(
             "cursor_cloud_remote_invalid",
             "remote must be an HTTP(S) URL without credentials",
@@ -244,6 +266,7 @@ def cursor_cloud_idempotency_key(request: CursorCloudDispatchRequest) -> str:
         "expectedBuildId": request.expected_build_id,
         "toolchain": dict(request.toolchain),
         "governedSetup": request.governed_setup,
+        "setupReceiptDigest": request.setup_receipt_digest,
     }
     return CONTROL_ID + ":" + hashlib.sha256(_canonical(identity)).hexdigest()
 
@@ -262,11 +285,14 @@ def build_attestation_prompt(request: CursorCloudDispatchRequest) -> str:
         "ATTESTATION ONLY. Do not perform product mutation, commit, push, or run migrations. "
         f"First cd to and resolve the exact saved-environment target path {request.resolved_target_path}; "
         f"the environment primary repository is not the target. Verify a clean workspace and normalized remote. "
-        f"During governed setup only, in an isolated worktree/branch, bounded-fetch the allowed ref "
-        f"and checkout the exact approved commit ({request.ref}/{request.commit}) and its tree; then "
+        f"During governed setup only, verify exact normalized origin and cleanliness, advertise the exact issue ref, "
+        f"then perform one no-tags/no-prune single-ref fetch into refs/linktrend/attestation/PKT-01; "
+        f"use a deterministic detached isolated worktree at the approved commit/tree ({request.commit}/{request.tree}) "
+        f"and reuse it only if the registered worktree is exact and clean. Then "
         "report PASS/FAIL for the exact remote, repository/path/ref/commit/tree matrix "
         f"({matrix}), and toolchain ({toolchain}). "
         f"Environment={{type:{ENV_TYPE}, name:{request.environment_name}}}. "
+        f"Governed setup receipt {request.setup_receipt_digest} must remain provenance only. "
         f"Expected build ID {request.expected_build_id} is provenance only; it is not a selectable API parameter. "
         "A wrong remote, path, ref, commit, tree, environment, or toolchain is a hard stop and mutation remains unauthorized."
     )
@@ -369,6 +395,7 @@ def dispatch_cursor_cloud(
             "expectedBuildId": request.expected_build_id,
             "toolchain": dict(request.toolchain),
             "governedSetup": request.governed_setup,
+            "setupReceiptDigest": request.setup_receipt_digest,
             "requestDigest": _digest({"key": key, "prompt": prompt}),
         }
         current = _readback_write(

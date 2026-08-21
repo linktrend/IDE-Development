@@ -27,9 +27,10 @@ sent as a selectable build or model selector.
 Before the API call, the durable store must contain a read-back-verified
 `PREPARED` intent. The idempotency key and deterministic client-supplied agent
 ID bind the repository path, remote, ref, commit, tree, environment, model,
-build provenance, and toolchain. A committed intent is returned as a duplicate
-and never creates a second agent. An unknown API outcome receives at most one
-retry with the same idempotency key.
+build provenance, toolchain, and the exact governed setup receipt digest
+(`sha256:<digest>`). A committed intent is returned as a duplicate and never
+creates a second agent. An unknown API outcome receives at most one retry with
+the same idempotency key.
 
 The first prompt is an attestation-only prompt. The agent must not mutate,
 commit, push, migrate, or invoke side effects. It must report the cloud
