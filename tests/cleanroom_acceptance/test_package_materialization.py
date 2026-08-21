@@ -76,6 +76,63 @@ class PackageMaterializationTests(unittest.TestCase):
             result = json.loads(proc.stdout)
             self.assertEqual(result["status"], "audited")
 
+    def test_managed_package_requires_named_remote_baseline(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="managed-baseline-audit-") as tmp:
+            package = Path(tmp) / "package"
+            materialize_package_copy(package, source=PACKAGE_FIXTURE)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    """
+import subprocess
+from pathlib import Path
+from scripts.gitops.generated_output_closure import (
+    ClosureError,
+    resolve_candidate_baseline,
+)
+
+root = Path.cwd()
+def git(*args):
+    result = subprocess.run(
+        ["git", *args], cwd=root, text=True, capture_output=True, check=False
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    return result.stdout.strip()
+
+git("init", "-q", "-b", "development")
+git("config", "user.email", "managed@example.invalid")
+git("config", "user.name", "Managed")
+(root / "baseline.txt").write_text("baseline\n", encoding="utf-8")
+git("add", "baseline.txt")
+git("commit", "-qm", "managed baseline")
+baseline = git("rev-parse", "HEAD")
+git("remote", "add", "fixture", str(root / "fixture.git"))
+git("update-ref", "refs/remotes/fixture/development", baseline)
+git("commit", "--allow-empty", "-qm", "managed candidate")
+assert resolve_candidate_baseline(
+    root,
+    environ={
+        "LINKTREND_TARGET_BASELINE_SHA": baseline,
+        "LINKTREND_TARGET_BASELINE_REF": "fixture/development",
+    },
+) == baseline
+try:
+    resolve_candidate_baseline(root, environ={})
+except ClosureError as error:
+    assert error.code == "candidate_baseline_missing"
+else:
+    raise AssertionError("missing runtime baseline was accepted")
+""",
+                ],
+                cwd=package,
+                env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+
     def test_extracted_package_runs_dogfood_closure_and_lean_design_audit(self) -> None:
         with tempfile.TemporaryDirectory(prefix="package-closure-audit-") as tmp:
             source = Path(tmp) / "source"
@@ -141,6 +198,40 @@ class PackageMaterializationTests(unittest.TestCase):
                     (package / rel).is_file(),
                     f"constructed package lost runtime source {rel}",
                 )
+
+    def test_managed_package_runs_heartbeat_progress_contract(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="managed-heartbeat-contract-") as tmp:
+            package = Path(tmp) / "package"
+            materialize_package_copy(package, source=PACKAGE_FIXTURE)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    """
+from datetime import datetime, timedelta, timezone
+from core.execution.scheduler import (
+    COMPLETE_SNAPSHOT,
+    ContinuousUtilizationScheduler,
+    WorkItem,
+)
+
+now = datetime(2026, 8, 20, tzinfo=timezone.utc)
+scheduler = ContinuousUtilizationScheduler.from_repo(".", snapshot=None, now=now)
+scheduler.submit(WorkItem("heartbeat-action", "hosted"))
+scheduler.tick(now + timedelta(minutes=20))
+assert scheduler.admitted_ids() == ()
+scheduler.set_snapshot(COMPLETE_SNAPSHOT, recompute=False)
+assert scheduler.repair_utilization_gap()
+assert scheduler.admitted_ids() == ("heartbeat-action",)
+""",
+                ],
+                cwd=package,
+                env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
 
     def test_extracted_package_preserves_runtime_contract_dependencies(self) -> None:
         with tempfile.TemporaryDirectory(prefix="package-materialization-") as tmp:

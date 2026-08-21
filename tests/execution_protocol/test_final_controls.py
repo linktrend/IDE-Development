@@ -186,6 +186,22 @@ class FinalControlTests(unittest.TestCase):
         self.assertEqual(store.write_count, 0)
         self.assertEqual(external.calls, 0)
 
+    def test_expired_lease_cannot_recover_a_persisted_action(self) -> None:
+        store = DurableDispatchIntentStore()
+        external = FakeExternalDispatch()
+        with self.assertRaisesRegex(RuntimeError, "stale_or_invalid_lease"):
+            dispatch_transactionally(
+                request(),
+                store,
+                external,
+                lease=lease(expires_at=NOW),
+                holder="executor-1",
+                now=NOW + timedelta(seconds=1),
+                budget=DispatchBudget(remaining_seconds=30, required_seconds=4),
+            )
+        self.assertEqual(store.write_count, 0)
+        self.assertEqual(external.calls, 0)
+
     def test_insufficient_deadline_budget_fails_before_any_side_effect(self) -> None:
         store = DurableDispatchIntentStore()
         external = FakeExternalDispatch()

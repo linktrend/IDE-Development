@@ -216,6 +216,24 @@ class ManifestPersistenceTests(unittest.TestCase):
         repeated = reconcile_manifest_heartbeat(store, authority, max_attempts=3)
         self.assertEqual(repeated["reconstructed"], [])
 
+    def test_heartbeat_never_claims_an_undispatched_persisted_action(self) -> None:
+        store = RecoveryStore(manifest({"kind": "dispatch", "id": "dispatch-1"}))
+        authority = Authority(
+            {
+                "identity": dict(IDENTITY),
+                "cursor": {"status": "queued"},
+                "github": {},
+                "git": {"head": IDENTITY["commit"], "tree": IDENTITY["tree"]},
+            }
+        )
+
+        result = reconcile_manifest_heartbeat(store, authority, max_attempts=3)
+
+        self.assertEqual(result["status"], "reconciled")
+        self.assertFalse(result["dispatchPerformed"])
+        self.assertEqual(result["reconstructed"], [])
+        self.assertEqual(store.read()["manifest"]["transitions"], [{"kind": "dispatch", "id": "dispatch-1"}])
+
     def test_authority_identity_mismatch_is_fail_closed_and_not_conversation_derived(self) -> None:
         store = RecoveryStore(manifest())
         authority = Authority(

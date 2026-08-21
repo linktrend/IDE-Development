@@ -200,6 +200,18 @@ class UtilizationGapRepairTests(unittest.TestCase):
         self.assertEqual(scheduler.admitted_ids(), ("h1", "h2"))
         self.assertIn("utilization_gap_repair", scheduler.event_kinds())
 
+    def test_utilization_gap_recovers_after_twenty_minute_heartbeat_window(self) -> None:
+        scheduler = _scheduler(snapshot=None)
+        scheduler.submit(_item("h1", offset=1))
+        self.assertIn(UTILIZATION_GAP, scheduler.event_kinds())
+        scheduler.tick(NOW + timedelta(minutes=20))
+        self.assertEqual(scheduler.admitted_ids(), ())
+
+        scheduler.set_snapshot(COMPLETE_SNAPSHOT, recompute=False)
+        self.assertTrue(scheduler.repair_utilization_gap())
+        self.assertEqual(scheduler.admitted_ids(), ("h1",))
+        self.assertIn("utilization_gap_repair", scheduler.event_kinds())
+
 
 class TimerRecoveryTests(unittest.TestCase):
     def test_ten_minute_backstop_recovers_unknown_probe(self) -> None:
@@ -273,7 +285,7 @@ class ExtractedInstallerCleanroomTests(unittest.TestCase):
                     "-c",
                     (
                         "import json\n"
-                        "from datetime import datetime, timezone\n"
+                        "from datetime import datetime, timedelta, timezone\n"
                         "from pathlib import Path\n"
                         "from core.execution.scheduler import "
                         "COMPLETE_SNAPSHOT, ContinuousUtilizationScheduler, WorkItem\n"
@@ -281,10 +293,14 @@ class ExtractedInstallerCleanroomTests(unittest.TestCase):
                         "config = json.loads((root / "
                         "'core/managed-core/content/config/continuous-utilization.json').read_text())\n"
                         "scheduler = ContinuousUtilizationScheduler(\n"
-                        "    config, snapshot=COMPLETE_SNAPSHOT,\n"
+                        "    config, snapshot=None,\n"
                         "    now=datetime(2026, 8, 20, 12, 0, tzinfo=timezone.utc),\n"
                         ")\n"
                         "scheduler.submit(WorkItem('h1', 'hosted'))\n"
+                        "scheduler.tick(datetime(2026, 8, 20, 12, 0, tzinfo=timezone.utc) + timedelta(minutes=20))\n"
+                        "assert scheduler.admitted_ids() == ()\n"
+                        "scheduler.set_snapshot(COMPLETE_SNAPSHOT, recompute=False)\n"
+                        "assert scheduler.repair_utilization_gap()\n"
                         "assert scheduler.admitted_ids() == ('h1',)\n"
                     ),
                 ],
