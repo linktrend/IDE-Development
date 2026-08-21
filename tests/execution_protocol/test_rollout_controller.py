@@ -141,6 +141,21 @@ class RolloutControllerTests(unittest.TestCase):
         )
         self.assertEqual([row["target"] for row in result["actions"] if row["kind"] == "UPDATE"], ["one"])
 
+    def test_program_run_may_contain_one_repository(self) -> None:
+        config = RolloutConfig.from_mapping(
+            {"canaryTargets": ["only-repository"], "downstreamTargets": [], "maxParallel": 1}
+        )
+        result = plan_rollout(
+            config,
+            [target("only-repository")],
+            package_digest=PACKAGE,
+            environment_digest=ENVIRONMENT,
+        )
+        self.assertEqual(
+            [row["target"] for row in result["actions"] if row["kind"] == "UPDATE"],
+            ["only-repository"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
