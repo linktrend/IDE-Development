@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 # Allow `python3 tests/managed-core-migration-bb/run_tests.py` without PYTHONPATH.
@@ -21,7 +22,12 @@ from harness.classify import (
     sha256_file,
 )
 from harness.fixture_builder import make_temp_repo
-from harness.installer_live import resolve_live_package, run_installer, run_live_proofs
+from harness.installer_live import (
+    materialize_live_package,
+    resolve_live_package,
+    run_installer,
+    run_live_proofs,
+)
 from harness.paths import (
     CATALOG_PATH,
     FIXTURES_DIR,
@@ -266,12 +272,14 @@ def test_installer_live(rep: Reporter, *, enabled: bool) -> None:
         rep.skip("installer_live", f"missing {INSTALLER_ENTRY}")
         return
 
+    package_tmp = Path(tempfile.mkdtemp(prefix="wp4-live-package-"))
     try:
-        package = resolve_live_package()
+        package = materialize_live_package(package_tmp / "package", source=resolve_live_package())
     except FileNotFoundError as exc:
         rep.fail("installer_live_package", str(exc))
+        shutil.rmtree(package_tmp, ignore_errors=True)
         return
-    rep.ok(f"installer_live_package({package.relative_to(REPO_ROOT)})")
+    rep.ok("installer_live_package(materialized)")
 
     # Smoke: version + plan dry-run against disposable fixture 04
     scenario = load_json(FIXTURES_DIR / "04-exact-obsolete-removal" / "scenario.json")
@@ -298,6 +306,7 @@ def test_installer_live(rep: Reporter, *, enabled: bool) -> None:
             )
     finally:
         shutil.rmtree(repo.parent, ignore_errors=True)
+        shutil.rmtree(package_tmp, ignore_errors=True)
 
     for name, errors in run_live_proofs():
         if errors:

@@ -139,7 +139,7 @@ test('AC-I6-FC-brain: raw conversation, secrets, and execution/tool requests fai
     'fail_closed',
   )
   classify(
-    () => validateBrainProjection({ ...positive.projection, secret: 'redacted' }, positive.context),
+    () => validateBrainProjection({ ...positive.projection, secret: 'ltfx.redacted.v1' }, positive.context),
     'sensitive_field',
     'fail_closed',
   )

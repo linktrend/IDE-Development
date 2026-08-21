@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +18,22 @@ from ide_development.constants import (
 )
 from ide_development.errors import InstallerError
 from ide_development.hashing import sha256_file
+
+
+def runtime_baseline_environment(
+    *,
+    baseline_ref: str,
+    repo_root: Path = rc.REPO_ROOT,
+) -> dict[str, str]:
+    sha = subprocess.check_output(
+        ["git", "rev-parse", f"{baseline_ref}^{{commit}}"],
+        cwd=repo_root,
+        text=True,
+    ).strip()
+    return {
+        "LINKTREND_TARGET_BASELINE_SHA": sha,
+        "LINKTREND_TARGET_BASELINE_REF": baseline_ref,
+    }
 
 
 class ReleaseCandidateGateTests(unittest.TestCase):
@@ -33,17 +50,22 @@ class ReleaseCandidateGateTests(unittest.TestCase):
         # Concurrent WP1 lanes leave the worktree dirty; production create must refuse.
         if not rc.worktree_is_dirty():
             self.skipTest("worktree currently clean; dirty refusal covered when dirty")
-        with self.assertRaises(InstallerError) as ctx:
-            rc.create_release_candidate(
-                allow_dirty=False,
-                skip_install_verify=True,
-                skip_evidence=True,
-            )
+        # Baseline discovery is independently tested below; hosted issue checkouts
+        # are allowed to omit unrelated remote branches.
+        with mock.patch.object(rc, "finalize_candidate"):
+            with self.assertRaises(InstallerError) as ctx:
+                rc.create_release_candidate(
+                    allow_dirty=False,
+                    skip_install_verify=True,
+                    skip_evidence=True,
+                )
         self.assertEqual(ctx.exception.exit_code, EXIT_INVALID_PACKAGE)
         self.assertIn("dirty", ctx.exception.message.lower())
 
     def test_missing_evidence_refusal(self) -> None:
-        with mock.patch.object(
+        # This unit test exercises the evidence gate, not Git baseline discovery.
+        # Hosted issue-branch checkouts intentionally may not fetch development.
+        with mock.patch.object(rc, "finalize_candidate"), mock.patch.object(
             rc,
             "validate_tests_and_evidence",
             side_effect=rc.ReleaseCandidateError(
@@ -59,6 +81,44 @@ class ReleaseCandidateGateTests(unittest.TestCase):
                 )
             self.assertIn("evidence", ctx.exception.message.lower())
 
+    def test_fixture_environment_accepts_named_remote_without_origin_target(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="release-candidate-baseline-") as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q", "-b", "development"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "release-candidate@example.invalid"],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Release Candidate Tests"],
+                cwd=root,
+                check=True,
+            )
+            (root / "README.md").write_text("baseline\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README.md"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "fixture baseline"], cwd=root, check=True)
+            baseline = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"],
+                cwd=root,
+                text=True,
+            ).strip()
+            subprocess.run(["git", "remote", "add", "fixture", str(root / "fixture.git")], cwd=root, check=True)
+            subprocess.run(
+                ["git", "update-ref", "refs/remotes/fixture/development", baseline],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(["git", "commit", "--allow-empty", "-qm", "fixture candidate"], cwd=root, check=True)
+
+            environment = runtime_baseline_environment(
+                repo_root=root,
+                baseline_ref="fixture/development",
+            )
+
+            self.assertEqual(environment["LINKTREND_TARGET_BASELINE_SHA"], baseline)
+            self.assertEqual(environment["LINKTREND_TARGET_BASELINE_REF"], "fixture/development")
+
     def test_version_inconsistency_refusal(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -68,10 +128,19 @@ class ReleaseCandidateGateTests(unittest.TestCase):
             (managed / "VERSION").write_text("9.9.9\n", encoding="utf-8")
             with self.assertRaises(InstallerError) as ctx:
                 rc.validate_versions(root)
-            self.assertIn("2.4.0", ctx.exception.message.lower() + str(ctx.exception.details))
+            self.assertIn("2.5.0", ctx.exception.message.lower() + str(ctx.exception.details))
 
 
 class ReleaseCandidateArchiveTests(unittest.TestCase):
+    def test_host_path_scan_ignores_documentation_path_component(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rc._scan_bytes_for_host_paths(
+                "skill.md",
+                b"See linktrend/LiNKtrend-System/docs/workspace/MVO-UI-POLICY.md.\n",
+                repo_root=Path("/workspace"),
+            )
+
     def test_tar_and_zip_reproducible(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             staging = Path(tmp) / "stage"

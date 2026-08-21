@@ -261,6 +261,8 @@ for relative in (
 receipt = Path("scripts/gitops/gate_receipt.py").read_text(encoding="utf-8")
 assert ".ide-development/config/delivery.json" in receipt
 assert "resolved_profile_files" in receipt
+assert 'verify.add_argument("--workflow-head-commit")' in receipt
+assert "workflow_head_commit=args.workflow_head_commit" in receipt
 print("PASS: receipt and promotion identities bind a resolved source or installed profile")
 PY
 

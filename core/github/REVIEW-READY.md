@@ -1,5 +1,7 @@
 # Review-ready signal (out-of-diff)
 
+**v2.5 (`V25_BOOTSTRAP_LEAN`):** this status and `linktrend-review-ready-publisher` are **not canonical**. Issue checkpoints are accepted without Review Ready or `AUTOMATION_TOKEN`. Legacy publisher/status outcomes are classified **`WAIVED_LEGACY_GATE`**, never PASS, and must never bypass substantive proof, security, exact identity, scope, review, or rollback. Do not attempt this publisher or a hosted fallback from implementer sessions.
+
 When a work branch tip is finished and eligible for the Tue/Fri Review Packager, publish a **GitHub commit status** on that exact SHA. Do **not** add a readiness file or marker commit to the feature diff.
 
 ## Why not a file in the branch

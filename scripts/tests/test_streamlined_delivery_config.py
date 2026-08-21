@@ -44,7 +44,7 @@ def hosted_payload() -> dict:
         "promotion": {
             "reuseExactReceipt": True,
             "identity": [
-                "repository", "gitTree", "dependencyDigest", "profileDigest", "workflowDigest"
+                "repository", "headCommit", "gitTree", "dependencyDigest", "profileDigest", "workflowDigest"
             ],
         },
         "review": {"bugbot": "final-candidate-only"},
