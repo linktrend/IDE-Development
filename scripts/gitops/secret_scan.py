@@ -33,7 +33,6 @@ POLICY_SHAPE_RE = re.compile(r"^secret-scan-policy/[A-Za-z0-9._-]+$")
 SYNTHETIC_PREFIX = "ltfx."
 DECLARATION_REL = ".github/linktrend-secret-scan-fixtures.json"
 REPO_SCANNERS_REL = ".github/linktrend-repository-secret-scanners.json"
-MAX_FILE_BYTES = 1_048_576
 REPO_SCANNER_TIMEOUT_SEC = 30.0
 EMPTY_TREE = "0" * 40
 
@@ -41,6 +40,7 @@ KIND_CREDENTIAL = "credential_finding"
 KIND_APPROVED = "approved_synthetic_fixture"
 KIND_STALE = "stale_fixture_declaration"
 KIND_SCOPE = "fixture_scope_violation"
+KIND_SKIPPED = "skipped_input"
 BLOCKING_KINDS = frozenset({KIND_CREDENTIAL, KIND_STALE, KIND_SCOPE})
 
 RULE_ASSIGNMENT = "assignment.secret"
@@ -87,9 +87,8 @@ CREDENTIAL_FIELDS = (
     "api-key",
     "private_key",
     "private-key",
-    "key",
-    "url",
 )
+GENERIC_REFERENCE_FIELDS = frozenset({"key", "url"})
 ANY_FIELD_RE = re.compile(r"(?i)\b(?P<field>[A-Za-z_][A-Za-z0-9_]*)\b")
 FIELD_RE = re.compile(
     r"(?i)\b(?P<field>"
@@ -430,7 +429,7 @@ def _is_reference_value(value: str) -> bool:
         return True
     if stripped.startswith(("(", "[", "{")):
         return True
-    if stripped.startswith("${") or stripped.startswith("$("):
+    if stripped.startswith(("$", "<")):
         return True
     if re.fullmatch(r"[A-Z][A-Z0-9_]{2,}", stripped):
         return True
@@ -441,6 +440,11 @@ def _is_reference_value(value: str) -> bool:
     if stripped.startswith(("f\"", "f'", 'rf"', "fr\"", "F\"", "F'")):
         return True
     if stripped.startswith("`") or stripped.endswith("`"):
+        return True
+    expression = stripped.rstrip(",;:)}]")
+    if re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*(?:\?\.)[A-Za-z_$][A-Za-z0-9_$?.]*", expression):
+        return True
+    if expression.endswith(("...", "…")):
         return True
     if ".md`" in stripped or (".md" in stripped and "/" in stripped):
         return True
@@ -575,11 +579,15 @@ def _is_credential_field(name: str) -> bool:
     return FIELD_RE.fullmatch(name) is not None
 
 
+def _is_generic_reference_field(name: str) -> bool:
+    return name.lower().replace("-", "_") in GENERIC_REFERENCE_FIELDS
+
+
 def _is_code_expression(value: str) -> bool:
-    stripped = value.strip()
+    stripped = value.strip().rstrip(",;:)}]")
     if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", stripped):
         return True
-    if re.search(r"[\[\]+]|::", stripped):
+    if re.search(r"[\[\]+]|::|\?\.|\?\?|=>|->", stripped):
         return True
     if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", stripped) and "." in stripped:
         return True
@@ -624,13 +632,16 @@ def extract_assignments(line: str) -> list[tuple[str, str]]:
             value, _ = _read_unquoted(line, index)
             if not value:
                 continue
-        if not _is_credential_field(raw_field) and not is_synthetic_value(value):
+        credential_field = _is_credential_field(raw_field)
+        generic_reference_field = _is_generic_reference_field(raw_field)
+        if not credential_field and not generic_reference_field and not is_synthetic_value(value):
+            continue
+        if generic_reference_field and not is_realistic_value(value) and not is_synthetic_value(value):
             continue
         if _is_reference_value(value) and not is_realistic_value(value) and not is_synthetic_value(value):
             continue
         if (
-            not quoted
-            and _is_code_expression(value)
+            _is_code_expression(value)
             and not is_realistic_value(value)
             and not is_synthetic_value(value)
         ):
@@ -711,6 +722,14 @@ def _nul_ratio(raw: bytes, offset: int) -> float:
     return nuls / pairs
 
 
+def _looks_binary(raw: bytes) -> bool:
+    sample = raw[:8192]
+    if not sample:
+        return False
+    controls = sum(byte < 9 or 13 < byte < 32 for byte in sample)
+    return controls / len(sample) > 0.01
+
+
 def decode_tracked_text(raw: bytes) -> tuple[str | None, str]:
     """Decode UTF-8 / UTF-16 / UTF-16LE / UTF-16BE. Never uses errors=ignore."""
     if raw.startswith(b"\xff\xfe"):
@@ -734,6 +753,8 @@ def decode_tracked_text(raw: bytes) -> tuple[str | None, str]:
         text = None
     else:
         if "\x00" not in text:
+            if _looks_binary(raw):
+                return None, "binary"
             return text, "utf-8"
     if len(raw) >= 4 and len(raw) % 2 == 0:
         if _nul_ratio(raw, 1) >= 0.25:
@@ -748,6 +769,8 @@ def decode_tracked_text(raw: bytes) -> tuple[str | None, str]:
                 return None, "undecodable"
     if b"\x00" in raw:
         return None, "undecodable"
+    if _looks_binary(raw):
+        return None, "binary"
     return raw.decode("latin-1"), "latin-1"
 
 
@@ -1193,19 +1216,6 @@ def _scan_regular_blobs(
         _kind, size = info
         if _kind != "blob":
             continue
-        if size > MAX_FILE_BYTES:
-            findings.append(
-                _finding(
-                    kind=KIND_CREDENTIAL,
-                    path=entry.path,
-                    line=None,
-                    field=None,
-                    rule=RULE_INPUT_TOO_LARGE,
-                    digest=None,
-                    detail=f"size={size}:max={MAX_FILE_BYTES}",
-                )
-            )
-            continue
         readable.append(entry)
     blobs = _read_blobs(root, [entry.oid for entry in readable])
     for entry in readable:
@@ -1227,11 +1237,11 @@ def _scan_regular_blobs(
         if text is None:
             findings.append(
                 _finding(
-                    kind=KIND_CREDENTIAL,
+                    kind=KIND_SKIPPED,
                     path=entry.path,
                     line=None,
                     field=None,
-                    rule=RULE_INPUT_UNDECODABLE,
+                    rule=RULE_INPUT_UNDECODABLE if encoding != "binary" else "input.binary",
                     digest=None,
                     detail=encoding,
                 )
