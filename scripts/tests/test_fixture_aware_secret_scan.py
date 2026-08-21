@@ -104,6 +104,24 @@ class CodeExpressionTests(unittest.TestCase):
             [],
         )
 
+    def test_bash_parameter_defaults_exclude_operator_from_secret_value(self) -> None:
+        value = synthetic_value("bash-default")
+        for operator in (":-", ":=", ":+", ":?"):
+            with self.subTest(operator=operator):
+                self.assertIn(
+                    ("payload_secret", value),
+                    extract_assignments(
+                        f'PAYLOAD_SECRET="${{PAYLOAD_SECRET{operator}{value}}}"'
+                    ),
+                )
+
+    def test_non_parameter_value_keeps_leading_dash(self) -> None:
+        value = synthetic_value("literal-leading-dash")
+        self.assertIn(
+            ("payload_secret", f"-{value}"),
+            extract_assignments(f"payload_secret: -{value}"),
+        )
+
 
 def declaration(
     *,
