@@ -24,6 +24,7 @@ SCHEMA_RELATIVE_PATH = (
     "core/managed-core/schemas/transactional-dispatch.schema.json"
 )
 MAX_COMMIT_ATTEMPTS = 3
+FORBIDDEN_HEARTBEAT_ACTIONS = frozenset({"fast", "paid", "premium"})
 
 
 class TransactionalDispatchError(RuntimeError):
@@ -241,6 +242,48 @@ def deterministic_dispatch_key(request: DispatchRequest) -> str:
     }
     digest = hashlib.sha256(_canonical_bytes(identity)).hexdigest()
     return f"{CONTROL_IDEMPOTENCY_KEY}:{digest}"
+
+
+def dispatch_request_from_safe_action(
+    manifest: Mapping[str, Any],
+    action: Mapping[str, Any],
+) -> DispatchRequest:
+    """Build an exact, non-paid dispatch request from persisted manifest data."""
+
+    identity = manifest.get("identity")
+    if not isinstance(identity, Mapping):
+        raise TransactionalDispatchError(
+            "action_identity_missing", "safe action identity is incomplete"
+        )
+    repository = str(identity.get("repository") or "")
+    commit = str(identity.get("commit") or "")
+    tree = str(identity.get("tree") or "")
+    packet_id = str(manifest.get("packetId") or manifest.get("id") or "")
+    action_name = str(action.get("action") or action.get("name") or "").strip()
+    if not action.get("safe") is True:
+        raise TransactionalDispatchError(
+            "unsafe_action", "heartbeat may dispatch only a safe persisted action"
+        )
+    if not packet_id or not repository or not commit or not tree or not action_name:
+        raise TransactionalDispatchError(
+            "action_identity_missing", "safe action identity is incomplete"
+        )
+    if action_name.lower() in FORBIDDEN_HEARTBEAT_ACTIONS:
+        raise TransactionalDispatchError(
+            "paid_fallback_forbidden",
+            "heartbeat recovery cannot dispatch paid or Fast work",
+        )
+    payload = action.get("payload")
+    if not isinstance(payload, Mapping):
+        payload = {"action": action_name}
+    return DispatchRequest(
+        packet_id=packet_id,
+        repository=repository,
+        commit=commit,
+        tree=tree,
+        action=action_name,
+        payload=dict(payload),
+    )
 
 
 def _readback_write(

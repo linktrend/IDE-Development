@@ -36,7 +36,7 @@
       "uniqueItems": true,
       "items": {
         "type": "string",
-        "enum": ["dispatch", "run", "integration", "archive"]
+        "enum": ["dispatch", "run", "integration", "archive", "UTILIZATION_GAP"]
       }
     },
     "conversationIsAuthority": {

@@ -34,6 +34,123 @@ RUNTIME_SOURCES = (
     "core/managed-core/schemas/transactional-dispatch.schema.json",
 )
 
+HEARTBEAT_CONTROLLER_SCRIPT = r"""
+import copy
+from datetime import datetime, timedelta, timezone
+
+from core.execution import (
+    DispatchBudget,
+    DurableDispatchIntentStore,
+    LeaseState,
+    persist_manifest,
+    run_heartbeat_controller,
+)
+
+identity = {
+    "repository": "linktrend/IDE-Development",
+    "commit": "a" * 40,
+    "tree": "b" * 40,
+}
+
+class Store:
+    def __init__(self):
+        self.record = None
+    def read(self):
+        return copy.deepcopy(self.record)
+    def compare_and_write(self, expected_revision, expected_digest, payload):
+        current_revision = 0 if self.record is None else self.record["revision"]
+        current_digest = None if self.record is None else self.record["digest"]
+        assert (current_revision, current_digest) == (expected_revision, expected_digest)
+        self.record = {
+            "revision": expected_revision + 1,
+            "digest": payload["digest"],
+            "manifest": copy.deepcopy(payload["manifest"]),
+        }
+
+class Authority:
+    def read_authoritative_state(self, observed_identity):
+        assert observed_identity == identity
+        return {
+            "identity": dict(identity),
+            "cursor": {"status": "REPAIR_REQUESTED"},
+            "github": {},
+            "git": {"head": identity["commit"], "tree": identity["tree"]},
+        }
+
+class External:
+    def __init__(self):
+        self.calls = 0
+        self.records = {}
+    def dispatch(self, request, key):
+        self.calls += 1
+        record = {"dispatchId": "cleanroom-dispatch-1", "idempotencyKey": key}
+        self.records[key] = record
+        return {"statusCode": 201, **record}
+    def read_by_idempotency_key(self, key):
+        return copy.deepcopy(self.records.get(key))
+
+now = datetime(2026, 8, 21, tzinfo=timezone.utc)
+manifest = {
+    "schemaVersion": 1,
+    "packetId": "PKT-08",
+    "identity": dict(identity),
+    "transitions": [],
+    "orchestrationLease": {
+        "holder": "stale",
+        "nonce": "stale",
+        "expiresAt": (now - timedelta(seconds=1)).isoformat(),
+    },
+    "safeAction": {
+        "id": "cleanroom-action",
+        "safe": True,
+        "action": "run-repair",
+        "payload": {"reason": "failed-check"},
+    },
+}
+store = Store()
+persist_manifest(manifest, store)
+external = External()
+lease = LeaseState(
+    holder="executor",
+    packet_id="PKT-08",
+    repository=identity["repository"],
+    nonce="fresh",
+    expires_at=now + timedelta(minutes=5),
+)
+first = run_heartbeat_controller(
+    store,
+    Authority(),
+    dispatch_store=DurableDispatchIntentStore(),
+    external_dispatch=external,
+    lease=lease,
+    holder="executor",
+    budget=DispatchBudget(30, 4),
+    now=now,
+    no_progress_wakes=2,
+)
+assert first["dispatchPerformed"] is True, first
+assert first["requiredAction"]["kind"] != "DONT_NOTIFY", first
+assert first["receipt"]["readback"] is True, first
+second = run_heartbeat_controller(
+    store,
+    Authority(),
+    dispatch_store=first.get("_dispatchStore", DurableDispatchIntentStore()),
+    external_dispatch=external,
+    lease=lease,
+    holder="executor",
+    budget=DispatchBudget(30, 4),
+    now=now + timedelta(seconds=1),
+    no_progress_wakes=2,
+)
+assert external.calls == 1, external.calls
+assert second["requiredAction"]["kind"] == "DONT_NOTIFY", second
+assert sum(
+    row.get("kind") == "UTILIZATION_GAP"
+    for row in store.read()["manifest"]["transitions"]
+) == 1
+print("PASS")
+"""
+
 
 class PackageMaterializationTests(unittest.TestCase):
     def test_managed_package_runs_dogfood_closure_and_lean_design_audit(self) -> None:
@@ -246,6 +363,32 @@ assert scheduler.admitted_ids() == ("heartbeat-action",)
                 check=False,
             )
             self.assertEqual(proc.returncode, 0, proc.stderr)
+
+    def test_managed_and_extracted_packages_invoke_heartbeat_controller(self) -> None:
+        for materializer, label in (
+            (materialize_package_copy, "managed"),
+            (materialize_isolated_rc_extract, "extracted"),
+        ):
+            with self.subTest(package=label), tempfile.TemporaryDirectory(
+                prefix=f"{label}-heartbeat-controller-"
+            ) as tmp:
+                source = Path(tmp) / "source"
+                package = Path(tmp) / label
+                for rel in RUNTIME_SOURCES:
+                    destination = source / rel
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(REPO_ROOT / rel, destination)
+                materializer(package, source=source)
+                proc = subprocess.run(
+                    [sys.executable, "-c", HEARTBEAT_CONTROLLER_SCRIPT],
+                    cwd=package,
+                    env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                self.assertIn("PASS", proc.stdout)
 
     def test_extracted_package_preserves_runtime_contract_dependencies(self) -> None:
         with tempfile.TemporaryDirectory(prefix="package-materialization-") as tmp:

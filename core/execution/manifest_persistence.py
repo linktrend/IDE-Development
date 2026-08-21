@@ -6,12 +6,25 @@ import copy
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Protocol
 
+from core.execution.lifecycle import heartbeat_progress_requirements
+from core.execution.scheduler import ContinuousUtilizationScheduler, UTILIZATION_GAP
+from core.execution.transactional_dispatch import (
+    DispatchBudget,
+    DispatchIntentStore,
+    DispatchResult,
+    ExternalDispatchPort,
+    dispatch_request_from_safe_action,
+    dispatch_transactionally,
+)
+
 
 MAX_PERSISTENCE_ATTEMPTS = 3
-TRANSITION_KINDS = ("dispatch", "run", "integration", "archive")
+HEARTBEAT_RECOVERY_SECONDS = 20 * 60
+TRANSITION_KINDS = ("dispatch", "run", "integration", "archive", UTILIZATION_GAP)
 CONFIG_RELATIVE_PATH = "core/managed-core/content/config/manifest-persistence.json"
 SCHEMA_RELATIVE_PATH = "core/managed-core/schemas/manifest-persistence.schema.json"
 MANIFEST_PERSISTENCE_FAILURE = "MANIFEST_PERSISTENCE_FAILURE"
@@ -351,13 +364,137 @@ def _failure_manifest(current: Mapping[str, Any], *, count: int, code: str) -> d
     return updated
 
 
+def _heartbeat_action_id(
+    kind: str,
+    identity: Mapping[str, str],
+    payload: Mapping[str, Any],
+) -> str:
+    data = json.dumps(
+        {"kind": kind, "identity": dict(identity), "payload": dict(payload)},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return "heartbeat-" + hashlib.sha256(data).hexdigest()[:24]
+
+
+def _safe_action_from(
+    manifest: Mapping[str, Any],
+    snapshot: Mapping[str, Any],
+) -> Mapping[str, Any] | None:
+    transitions = manifest.get("transitions")
+    processed_ids = {
+        str(item.get("actionId"))
+        for item in transitions
+        if isinstance(item, Mapping)
+        and item.get("kind") == "dispatch"
+        and item.get("actionId")
+    } if isinstance(transitions, list) else set()
+
+    def pending(value: Any) -> Mapping[str, Any] | None:
+        if not isinstance(value, Mapping) or value.get("safe") is not True:
+            return None
+        action_id = str(value.get("id") or "")
+        state = str(value.get("state") or value.get("status") or "").upper()
+        if action_id in processed_ids or state in {"DISPATCHED", "COMMITTED", "COMPLETED"}:
+            return None
+        return value
+
+    for key in ("safeAction", "requiredAction", "repairAction", "pendingAction"):
+        value = pending(manifest.get(key))
+        if value is not None:
+            return value
+    cursor = snapshot.get("cursor")
+    if isinstance(cursor, Mapping):
+        value = pending(cursor.get("safeAction") or cursor.get("repairAction"))
+        if value is not None:
+            return value
+    value = pending(snapshot.get("safeAction") or snapshot.get("repairAction"))
+    if value is not None:
+        return value
+    return None
+
+
+def _completed_action(
+    requirement: Mapping[str, Any],
+    *,
+    identity: Mapping[str, str],
+) -> dict[str, Any]:
+    code = str(requirement["code"])
+    action_names = {
+        "expired_lease": "LEASE_RENEWAL_REQUIRED",
+        "repair_requested_without_run": "REPAIR_REQUESTED",
+        "completed_transition_unprocessed": "PROCESS_COMPLETED_TRANSITION",
+        "failed_check_repair": "REPAIR_FAILED_CHECK",
+        "compatible_ready_work": "ADMIT_READY_WORK",
+    }
+    name = action_names.get(code, code.upper())
+    return {
+        "id": _heartbeat_action_id(code, identity, requirement),
+        "kind": "ACTION_REQUIRED",
+        "code": code,
+        "action": name,
+        "identity": dict(identity),
+        "dispatchable": False,
+    }
+
+
+def _no_action_receipt(
+    record: ManifestRead,
+    snapshot: Mapping[str, Any],
+    *,
+    identity: Mapping[str, str],
+) -> dict[str, Any]:
+    return {
+        "schemaVersion": 1,
+        "kind": "heartbeat_no_action",
+        "manifestRevision": record.revision,
+        "manifestDigest": record.digest or canonical_manifest_digest(record.manifest),
+        "snapshotDigest": canonical_manifest_digest(snapshot),
+        "identity": dict(identity),
+        "decision": "DONT_NOTIFY",
+        "requirements": [],
+    }
+
+
+def _append_heartbeat_transition(
+    current: Mapping[str, Any],
+    transition: Mapping[str, Any],
+) -> dict[str, Any]:
+    updated = copy.deepcopy(dict(current))
+    transitions = updated.get("transitions")
+    if not isinstance(transitions, list):
+        raise ManifestPersistenceError(
+            "manifest_transitions_invalid",
+            "canonical transitions must be an array",
+        )
+    transition_id = transition.get("id")
+    if transition_id and any(
+        isinstance(item, Mapping) and item.get("id") == transition_id
+        for item in transitions
+    ):
+        return updated
+    transitions.append(copy.deepcopy(dict(transition)))
+    updated["transitions"] = transitions
+    return updated
+
+
 def reconcile_manifest_heartbeat(
     store: DurableManifestStore,
     authority: AuthorityPort,
     *,
     max_attempts: int = MAX_PERSISTENCE_ATTEMPTS,
+    scheduler: ContinuousUtilizationScheduler | None = None,
+    now: datetime | None = None,
+    no_progress_wakes: int = 0,
+    elapsed_seconds: int = 0,
 ) -> dict[str, Any]:
-    """Recover only identity-bound transitions observed from external authorities."""
+    """Reconcile authorities and produce one deterministic heartbeat action.
+
+    This function owns the read/decide/persist portion of the heartbeat turn.
+    ``run_heartbeat_controller`` is the packaged entrypoint that consumes a
+    dispatchable action before the process exits.
+    """
 
     current_record = _read_record(store)
     if current_record is None:
@@ -417,11 +554,255 @@ def reconcile_manifest_heartbeat(
     updated.pop("authorityFailures", None)
     updated.pop("lastAuthorityFailure", None)
     persisted = persist_manifest(updated, store, max_attempts=max_attempts)
+    current_record = _read_record(store)
+    if current_record is None:  # pragma: no cover - persist_manifest readback guarantees this
+        raise ManifestPersistenceError("readback_missing", "heartbeat manifest readback is missing")
+    current = dict(current_record.manifest)
+    requirements = heartbeat_progress_requirements(
+        current,
+        snapshot,
+        now=now,
+        no_progress_wakes=no_progress_wakes,
+        elapsed_seconds=elapsed_seconds,
+    )
+
+    gap_required = any(
+        item.get("code") in {"two_no_progress_wakes", "heartbeat_timeout"}
+        for item in requirements
+    )
+    existing_gap = any(
+        isinstance(item, Mapping)
+        and item.get("kind") == UTILIZATION_GAP
+        and item.get("recoveryPerformed") is True
+        for item in current.get("transitions", [])
+    )
+    recovery_performed = False
+    if gap_required and not existing_gap:
+        if scheduler is not None:
+            scheduler.recover_utilization_gap_once()
+        gap_transition = {
+            "id": _heartbeat_action_id(
+                UTILIZATION_GAP,
+                dict(identity),
+                {"reason": "heartbeat_no_progress"},
+            ),
+            "kind": UTILIZATION_GAP,
+            "identity": dict(identity),
+            "reason": "heartbeat_no_progress",
+            "recovery": "bounded_recompute",
+            "recoveryPerformed": True,
+        }
+        updated = _append_heartbeat_transition(current, gap_transition)
+        persisted = persist_manifest(updated, store, max_attempts=max_attempts)
+        recovery_performed = True
+        requirements = tuple(
+            item
+            for item in requirements
+            if item.get("code") not in {"two_no_progress_wakes", "heartbeat_timeout"}
+        )
+        if not requirements:
+            requirements = (
+                {
+                    "code": UTILIZATION_GAP,
+                    "recoveryPerformed": True,
+                },
+            )
+        current_record = _read_record(store)
+        if current_record is None:  # pragma: no cover
+            raise ManifestPersistenceError(
+                "readback_missing", "heartbeat recovery readback is missing"
+            )
+    elif existing_gap:
+        requirements = tuple(
+            item
+            for item in requirements
+            if item.get("code") not in {"two_no_progress_wakes", "heartbeat_timeout"}
+        )
+
+    if requirements:
+        requirement = requirements[0]
+        action = _safe_action_from(current, snapshot)
+        if action is not None and requirement.get("code") in {
+            "expired_lease",
+            "persisted_undispatched_safe_intent",
+            "repair_requested_without_run",
+            "failed_check_repair",
+            "compatible_ready_work",
+        }:
+            required_action = {
+                "id": _heartbeat_action_id(
+                    "dispatch", dict(identity), dict(action)
+                ),
+                "kind": "DISPATCH_SAFE_ACTION",
+                "code": str(requirement["code"]),
+                "action": str(action.get("action") or action.get("name") or ""),
+                "safeAction": copy.deepcopy(dict(action)),
+                "identity": dict(identity),
+                "dispatchable": True,
+            }
+        elif requirement.get("code") == UTILIZATION_GAP:
+            required_action = {
+                "id": _heartbeat_action_id(
+                    UTILIZATION_GAP, dict(identity), dict(requirement)
+                ),
+                "kind": UTILIZATION_GAP,
+                "code": UTILIZATION_GAP,
+                "identity": dict(identity),
+                "dispatchable": False,
+                "recoveryPerformed": recovery_performed
+                or bool(requirement.get("recoveryPerformed")),
+            }
+        else:
+            required_action = _completed_action(requirement, identity=dict(identity))
+        return {
+            "status": "action_required",
+            "notify": True,
+            "reconstructed": recovered,
+            "dispatchPerformed": False,
+            "requiredAction": required_action,
+            "revision": persisted["revision"],
+            "digest": persisted["digest"],
+            "recoveryPerformed": recovery_performed,
+        }
+
+    receipt = _no_action_receipt(current_record, snapshot, identity=dict(identity))
     return {
         "status": "reconciled",
         "notify": False,
         "reconstructed": recovered,
         "dispatchPerformed": False,
+        "revision": persisted["revision"],
+        "digest": persisted["digest"],
+        "requiredAction": {
+            "kind": "DONT_NOTIFY",
+            "id": _heartbeat_action_id("DONT_NOTIFY", dict(identity), receipt),
+            "dispatchable": False,
+            "receipt": receipt,
+        },
+        "noActionReceipt": receipt,
+        "recoveryPerformed": recovery_performed,
+    }
+
+
+def run_heartbeat_controller(
+    store: DurableManifestStore,
+    authority: AuthorityPort,
+    *,
+    dispatch_store: DispatchIntentStore | None = None,
+    external_dispatch: ExternalDispatchPort | None = None,
+    lease=None,
+    holder: str | None = None,
+    budget: DispatchBudget | None = None,
+    scheduler: ContinuousUtilizationScheduler | None = None,
+    now: datetime | None = None,
+    no_progress_wakes: int = 0,
+    elapsed_seconds: int = 0,
+    max_attempts: int = MAX_PERSISTENCE_ATTEMPTS,
+) -> dict[str, Any]:
+    """Run one complete packaged heartbeat turn, including safe dispatch."""
+
+    result = reconcile_manifest_heartbeat(
+        store,
+        authority,
+        max_attempts=max_attempts,
+        scheduler=scheduler,
+        now=now,
+        no_progress_wakes=no_progress_wakes,
+        elapsed_seconds=elapsed_seconds,
+    )
+    action = result.get("requiredAction")
+    if not isinstance(action, Mapping) or action.get("kind") != "DISPATCH_SAFE_ACTION":
+        return result
+    if (
+        dispatch_store is None
+        or external_dispatch is None
+        or lease is None
+        or not holder
+        or budget is None
+    ):
+        return {
+            **result,
+            "status": "action_required",
+            "actionable": True,
+            "dispatchBlocked": "heartbeat_controller_dependencies_missing",
+        }
+
+    record = _read_record(store)
+    if record is None:  # pragma: no cover
+        raise ManifestPersistenceError("manifest_missing", "heartbeat manifest disappeared")
+    safe_action = action.get("safeAction")
+    if not isinstance(safe_action, Mapping):
+        raise ManifestPersistenceError(
+            "safe_action_missing", "dispatch action did not contain its persisted intent"
+        )
+    request = dispatch_request_from_safe_action(record.manifest, safe_action)
+    dispatched: DispatchResult = dispatch_transactionally(
+        request,
+        dispatch_store,
+        external_dispatch,
+        lease=lease,
+        holder=holder,
+        now=now or datetime.now(timezone.utc),
+        budget=budget,
+    )
+    dispatch_transition = {
+        "id": action["id"],
+        "kind": "dispatch",
+        "actionId": action["id"],
+        "authorityId": dispatched.dispatch_id,
+        "identity": dict(record.manifest["identity"]),
+        "reconstructedOnHeartbeat": True,
+        "dispatchStatus": dispatched.status,
+    }
+    updated = _append_heartbeat_transition(record.manifest, dispatch_transition)
+    if hasattr(lease, "expires_at"):
+        updated["orchestrationLease"] = {
+            "holder": str(getattr(lease, "holder")),
+            "nonce": str(getattr(lease, "nonce")),
+            "expiresAt": getattr(lease, "expires_at").astimezone(timezone.utc).isoformat(),
+            "repository": str(getattr(lease, "repository")),
+        }
+    for key in ("safeAction", "requiredAction", "repairAction", "pendingAction"):
+        value = updated.get(key)
+        if isinstance(value, Mapping) and value.get("safe") is True:
+            completed = copy.deepcopy(dict(value))
+            completed.update(
+                {
+                    "status": "COMMITTED",
+                    "dispatchId": dispatched.dispatch_id,
+                    "idempotencyKey": dispatched.idempotency_key,
+                }
+            )
+            updated[key] = completed
+    persisted = persist_manifest(updated, store, max_attempts=max_attempts)
+    receipt = {
+        "schemaVersion": 1,
+        "kind": "heartbeat_dispatch_receipt",
+        "actionId": action["id"],
+        "idempotencyKey": dispatched.idempotency_key,
+        "dispatchId": dispatched.dispatch_id,
+        "dispatchStatus": dispatched.status,
+        "manifestRevision": persisted["revision"],
+        "manifestDigest": persisted["digest"],
+        "readback": True,
+    }
+    return {
+        **result,
+        "status": "dispatched",
+        "notify": True,
+        "dispatchPerformed": True,
+        "dispatch": {
+            "status": dispatched.status,
+            "idempotencyKey": dispatched.idempotency_key,
+            "dispatchId": dispatched.dispatch_id,
+            "revision": dispatched.revision,
+        },
+        "receipt": receipt,
+        "requiredAction": {
+            **dict(action),
+            "executed": True,
+            "receipt": receipt,
+        },
         "revision": persisted["revision"],
         "digest": persisted["digest"],
     }

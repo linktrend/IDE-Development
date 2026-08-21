@@ -11,7 +11,8 @@
     "dispatch",
     "run",
     "integration",
-    "archive"
+    "archive",
+    "UTILIZATION_GAP"
   ],
   "conversationIsAuthority": false,
   "duplicateDispatch": "suppress",

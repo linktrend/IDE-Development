@@ -50,6 +50,7 @@ from core.execution.protocol import (
 )
 from core.execution.lifecycle import (
     LifecycleDiagnostic,
+    heartbeat_progress_requirements,
     validate_execution_lifecycle,
     validate_plan_or_runtime,
 )
@@ -89,6 +90,7 @@ from core.execution.manifest_persistence import (
     load_manifest_persistence_config,
     persist_manifest,
     reconcile_manifest_heartbeat,
+    run_heartbeat_controller,
 )
 from core.execution.transactional_dispatch import (
     CONTROL_IDEMPOTENCY_KEY,
@@ -104,6 +106,7 @@ from core.execution.transactional_dispatch import (
     design_approval_decision,
     deterministic_dispatch_key,
     deterministic_resume_id,
+    dispatch_request_from_safe_action,
     dispatch_transactionally,
     load_transactional_dispatch_config,
     resume_unsolicited_design_result,
@@ -135,6 +138,7 @@ __all__ = [
     "ValidationResult",
     "VerificationReceiptDecision",
     "LifecycleDiagnostic",
+    "heartbeat_progress_requirements",
     "acquire_orchestration_lease",
     "administrator_recovery",
     "admit_resources",
@@ -190,6 +194,7 @@ __all__ = [
     "load_manifest_persistence_config",
     "persist_manifest",
     "reconcile_manifest_heartbeat",
+    "run_heartbeat_controller",
     "CONTROL_IDEMPOTENCY_KEY",
     "DispatchBudget",
     "DispatchInterrupted",
@@ -203,6 +208,7 @@ __all__ = [
     "design_approval_decision",
     "deterministic_dispatch_key",
     "deterministic_resume_id",
+    "dispatch_request_from_safe_action",
     "dispatch_transactionally",
     "load_transactional_dispatch_config",
     "resume_unsolicited_design_result",

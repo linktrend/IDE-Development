@@ -7,6 +7,7 @@ Does not silently normalize. Diagnostics always name packet and attempt.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -304,6 +305,131 @@ def _validate_running_packet(
         )
     _heartbeat_ok(packet, diagnostics, attempt_id=current_id)
     _retry_exhaustion_ok(packet, diagnostics, running=True)
+
+
+def _heartbeat_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(
+            timezone.utc
+        )
+    except ValueError:
+        return None
+
+
+def heartbeat_progress_requirements(
+    manifest: Mapping[str, Any],
+    snapshot: Mapping[str, Any],
+    *,
+    now: datetime | None = None,
+    no_progress_wakes: int = 0,
+    elapsed_seconds: int = 0,
+) -> tuple[dict[str, Any], ...]:
+    """Return deterministic reasons a heartbeat may not be silent.
+
+    This is a lifecycle read-only contract. It deliberately does not dispatch
+    or mutate state; the manifest heartbeat controller consumes its result.
+    """
+
+    requirements: list[dict[str, Any]] = []
+    clock = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    lease = manifest.get("orchestrationLease")
+    if not isinstance(lease, Mapping):
+        lease = snapshot.get("lease")
+    if isinstance(lease, Mapping):
+        expires_at = _heartbeat_timestamp(lease.get("expiresAt"))
+        if expires_at is not None and expires_at <= clock:
+            requirements.append({"code": "expired_lease"})
+
+    transitions = manifest.get("transitions")
+    transition_rows = (
+        [item for item in transitions if isinstance(item, Mapping)]
+        if isinstance(transitions, list)
+        else []
+    )
+    transition_kinds = {str(item.get("kind") or "") for item in transition_rows}
+    processed_action_ids = {
+        str(item.get("actionId"))
+        for item in transition_rows
+        if item.get("kind") == "dispatch" and item.get("actionId")
+    }
+
+    action_candidates: list[Mapping[str, Any]] = []
+    for key in ("safeAction", "requiredAction", "repairAction", "pendingAction"):
+        value = manifest.get(key)
+        if isinstance(value, Mapping):
+            action_candidates.append(value)
+    for item in transition_rows:
+        if str(item.get("kind") or "") in {
+            "action_persisted",
+            "dispatch_intent",
+            "repair_requested",
+        }:
+            action_candidates.append(item)
+    for action in action_candidates:
+        state = str(action.get("state") or action.get("status") or "").upper()
+        action_id = str(action.get("id") or "")
+        if action_id and action_id in processed_action_ids:
+            continue
+        if action.get("safe") is True and state not in {"DISPATCHED", "COMMITTED", "COMPLETED"}:
+            requirements.append(
+                {"code": "persisted_undispatched_safe_intent", "action": dict(action)}
+            )
+            break
+
+    cursor = snapshot.get("cursor")
+    cursor = cursor if isinstance(cursor, Mapping) else {}
+    github = snapshot.get("github")
+    github = github if isinstance(github, Mapping) else {}
+    status = str(cursor.get("status") or snapshot.get("status") or "").upper()
+    run_id = cursor.get("runId") or github.get("workflowRunId")
+    heartbeat_repair_dispatched = any(
+        item.get("kind") == "dispatch"
+        and item.get("reconstructedOnHeartbeat") is True
+        for item in transition_rows
+    )
+    if status == "REPAIR_REQUESTED" and not run_id and not heartbeat_repair_dispatched:
+        requirements.append({"code": "repair_requested_without_run"})
+
+    if status in {"COMPLETED", "SUCCESS", "FAILED", "CANCELLED"} and "run" not in transition_kinds:
+        requirements.append({"code": "completed_transition_unprocessed"})
+
+    check = github.get("check")
+    checks = github.get("checks")
+    failed_check = (
+        isinstance(check, Mapping)
+        and str(check.get("conclusion") or check.get("status") or "").upper()
+        in {"FAILURE", "FAILED", "TIMED_OUT", "CANCELLED"}
+    ) or (
+        isinstance(checks, list)
+        and any(
+            isinstance(item, Mapping)
+            and str(item.get("conclusion") or item.get("status") or "").upper()
+            in {"FAILURE", "FAILED", "TIMED_OUT", "CANCELLED"}
+            for item in checks
+        )
+    )
+    if failed_check:
+        requirements.append({"code": "failed_check_repair"})
+
+    ready_work = snapshot.get("readyWork") or cursor.get("readyWork")
+    if ready_work:
+        requirements.append({"code": "compatible_ready_work", "readyWork": ready_work})
+
+    heartbeat = manifest.get("heartbeat")
+    if isinstance(heartbeat, Mapping):
+        no_progress_wakes = max(
+            no_progress_wakes, int(heartbeat.get("noProgressWakes") or 0)
+        )
+        elapsed_seconds = max(
+            elapsed_seconds, int(heartbeat.get("elapsedSeconds") or 0)
+        )
+    if no_progress_wakes >= 2:
+        requirements.append({"code": "two_no_progress_wakes"})
+    elif elapsed_seconds >= 20 * 60:
+        requirements.append({"code": "heartbeat_timeout"})
+    return tuple(requirements)
 
 
 def validate_execution_lifecycle(document: Mapping[str, Any]) -> ValidationResult:

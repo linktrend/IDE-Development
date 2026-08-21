@@ -8,8 +8,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from core.execution.protocol import LeaseState
 from core.execution.manifest_persistence import (
     AuthorityFailure,
     DurableManifestStore,
@@ -18,6 +20,12 @@ from core.execution.manifest_persistence import (
     canonical_manifest_digest,
     persist_manifest,
     reconcile_manifest_heartbeat,
+    run_heartbeat_controller,
+)
+from core.execution.scheduler import ContinuousUtilizationScheduler
+from core.execution.transactional_dispatch import (
+    DispatchBudget,
+    DurableDispatchIntentStore,
 )
 
 
@@ -95,6 +103,21 @@ class Authority:
         return copy.deepcopy(self.snapshot)
 
 
+class DispatchAuthority:
+    def __init__(self) -> None:
+        self.calls = 0
+        self.records: dict[str, dict[str, str]] = {}
+
+    def dispatch(self, request, idempotency_key):
+        self.calls += 1
+        record = {"dispatchId": "heartbeat-dispatch-1", "idempotencyKey": idempotency_key}
+        self.records[idempotency_key] = record
+        return {"statusCode": 201, **record}
+
+    def read_by_idempotency_key(self, idempotency_key):
+        return copy.deepcopy(self.records.get(idempotency_key))
+
+
 class ManifestPersistenceTests(unittest.TestCase):
     def test_extracted_runtime_loads_config_without_checkout_imports(self) -> None:
         root = Path(__file__).resolve().parents[2]
@@ -102,10 +125,17 @@ class ManifestPersistenceTests(unittest.TestCase):
             extract = Path(temp)
             (extract / "core" / "execution").mkdir(parents=True)
             (extract / "core" / "execution" / "__init__.py").write_text("", encoding="utf-8")
-            shutil.copy2(
-                root / "core/execution/manifest_persistence.py",
-                extract / "core/execution/manifest_persistence.py",
-            )
+            for runtime_file in (
+                "lifecycle.py",
+                "manifest_persistence.py",
+                "protocol.py",
+                "scheduler.py",
+                "transactional_dispatch.py",
+            ):
+                shutil.copy2(
+                    root / "core/execution" / runtime_file,
+                    extract / "core/execution" / runtime_file,
+                )
             config = extract / "core/managed-core/content/config/manifest-persistence.json"
             config.parent.mkdir(parents=True)
             shutil.copy2(root / "core/managed-core/content/config/manifest-persistence.json", config)
@@ -233,6 +263,102 @@ class ManifestPersistenceTests(unittest.TestCase):
         self.assertFalse(result["dispatchPerformed"])
         self.assertEqual(result["reconstructed"], [])
         self.assertEqual(store.read()["manifest"]["transitions"], [{"kind": "dispatch", "id": "dispatch-1"}])
+
+    def test_revision_133_heartbeat_dispatches_once_then_allows_dont_notify(self) -> None:
+        now = datetime(2026, 8, 21, tzinfo=timezone.utc)
+        initial = manifest()
+        initial.update(
+            {
+                "packetId": "PKT-08",
+                "orchestrationLease": {
+                    "holder": "stale-executor",
+                    "nonce": "stale-nonce",
+                    "expiresAt": (now - timedelta(seconds=1)).isoformat(),
+                },
+                "safeAction": {
+                    "id": "repair-action-1",
+                    "safe": True,
+                    "action": "run-repair",
+                    "payload": {"reason": "failed-check"},
+                },
+            }
+        )
+        store = RecoveryStore(initial)
+        authority = Authority(
+            {
+                "identity": dict(IDENTITY),
+                "cursor": {"status": "REPAIR_REQUESTED"},
+                "github": {},
+                "git": {"head": IDENTITY["commit"], "tree": IDENTITY["tree"]},
+            }
+        )
+        external = DispatchAuthority()
+        dispatch_store = DurableDispatchIntentStore()
+        scheduler = ContinuousUtilizationScheduler.from_repo(
+            Path(__file__).resolve().parents[2],
+            snapshot={
+                "complete": True,
+                "identity": dict(IDENTITY),
+                "slots": {"local": 1, "hosted": 2},
+                "running": [],
+                "waiting": [],
+            },
+            now=now,
+        )
+        fresh_lease = LeaseState(
+            holder="executor-1",
+            packet_id="PKT-08",
+            repository=IDENTITY["repository"],
+            nonce="fresh-nonce",
+            expires_at=now + timedelta(minutes=5),
+        )
+
+        first = run_heartbeat_controller(
+            store,
+            authority,
+            dispatch_store=dispatch_store,
+            external_dispatch=external,
+            lease=fresh_lease,
+            holder="executor-1",
+            budget=DispatchBudget(remaining_seconds=30, required_seconds=4),
+            scheduler=scheduler,
+            now=now,
+            no_progress_wakes=2,
+        )
+        self.assertTrue(first["dispatchPerformed"])
+        self.assertNotEqual(first["requiredAction"]["kind"], "DONT_NOTIFY")
+        self.assertEqual(external.calls, 1)
+        self.assertTrue(first["receipt"]["readback"])
+        self.assertEqual(
+            store.read()["manifest"]["safeAction"]["status"], "COMMITTED"
+        )
+
+        second = run_heartbeat_controller(
+            store,
+            authority,
+            dispatch_store=dispatch_store,
+            external_dispatch=external,
+            lease=fresh_lease,
+            holder="executor-1",
+            budget=DispatchBudget(remaining_seconds=30, required_seconds=4),
+            scheduler=scheduler,
+            now=now + timedelta(seconds=1),
+            no_progress_wakes=2,
+        )
+        self.assertFalse(second["dispatchPerformed"])
+        self.assertEqual(second["requiredAction"]["kind"], "DONT_NOTIFY")
+        self.assertTrue(second["noActionReceipt"]["manifestDigest"].startswith("sha256:"))
+        self.assertEqual(external.calls, 1)
+        self.assertEqual(
+            len(
+                [
+                    row
+                    for row in store.read()["manifest"]["transitions"]
+                    if row.get("kind") == "UTILIZATION_GAP"
+                ]
+            ),
+            1,
+        )
 
     def test_authority_identity_mismatch_is_fail_closed_and_not_conversation_derived(self) -> None:
         store = RecoveryStore(manifest())

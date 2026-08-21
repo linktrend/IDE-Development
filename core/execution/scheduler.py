@@ -209,6 +209,15 @@ class ContinuousUtilizationScheduler:
         self.recompute("utilization_gap_repair")
         return set(self._admitted) != before
 
+    def recover_utilization_gap_once(self) -> bool:
+        """Perform at most one heartbeat-bounded utilization-gap recovery."""
+
+        if any(event.kind == "utilization_gap_recovery" for event in self.events):
+            return False
+        changed = self.repair_utilization_gap()
+        self._emit("utilization_gap_recovery", None, "bounded_heartbeat_recovery")
+        return changed
+
     def admitted_ids(self) -> tuple[str, ...]:
         return tuple(sorted(self._admitted, key=self._sort_key))
 
