@@ -608,10 +608,6 @@ bash "$ROOT/scripts/cleanup-merged-branches.sh" --remote --repo-root "$TMP/repo"
 grep -q 'dry-run\|cleanup mode=dry-run' /tmp/cleanup.out || fail "cleanup dry-run marker missing"
 pass "cleanup script dry-run safe"
 
-# ---- verify-platform-adoption (temp consumer path) ----
-bash "$ROOT/scripts/verify-platform-adoption.sh"
-pass "platform adoption entrypoints + temp consumer"
-
 # ---- candidate finalization (runtime exact baseline + working-tree gate) ----
 # The caller supplies the exact target identity.  The resolver may materialize
 # that named remote ref in a shallow checkout; it never invents a branch.

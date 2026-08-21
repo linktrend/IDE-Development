@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import shutil
 import subprocess
 import sys
@@ -28,6 +29,7 @@ from core.execution.transactional_dispatch import (
     DispatchBudget,
     DurableDispatchIntentStore,
 )
+from scripts.gitops.heartbeat_controller import run_file_heartbeat
 
 
 IDENTITY = {
@@ -375,6 +377,85 @@ class ManifestPersistenceTests(unittest.TestCase):
         self.assertTrue(result["notify"])
         self.assertEqual(result["requiredAction"]["code"], "failed_check_repair")
         self.assertNotEqual(result["requiredAction"]["kind"], "DONT_NOTIFY")
+
+    def test_file_backed_controller_dispatches_persisted_action_once(self) -> None:
+        now = datetime(2026, 8, 21, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest_path = root / "manifest.json"
+            authority_path = root / "authority.json"
+            outbox_path = root / "outbox.json"
+            initial = manifest()
+            initial.update(
+                {
+                    "packetId": "PKT-08",
+                    "orchestrationLease": {
+                        "holder": "stale",
+                        "nonce": "stale",
+                        "expiresAt": (now - timedelta(seconds=1)).isoformat(),
+                    },
+                    "safeAction": {
+                        "id": "repair-action",
+                        "safe": True,
+                        "action": "run-repair",
+                        "payload": {"reason": "failed-check"},
+                    },
+                }
+            )
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "revision": 1,
+                        "digest": canonical_manifest_digest(initial),
+                        "manifest": initial,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            authority_path.write_text(
+                json.dumps(
+                    {
+                        "identity": dict(IDENTITY),
+                        "cursor": {"status": "REPAIR_REQUESTED"},
+                        "github": {},
+                        "git": {"head": IDENTITY["commit"], "tree": IDENTITY["tree"]},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            lease = LeaseState(
+                holder="direct-controller",
+                packet_id="PKT-08",
+                repository=IDENTITY["repository"],
+                nonce="fresh",
+                expires_at=now + timedelta(minutes=5),
+            )
+
+            first = run_file_heartbeat(
+                manifest_path=manifest_path,
+                authority_path=authority_path,
+                outbox_path=outbox_path,
+                lease=lease,
+                holder="direct-controller",
+                now=now,
+                remaining_seconds=30,
+            )
+            second = run_file_heartbeat(
+                manifest_path=manifest_path,
+                authority_path=authority_path,
+                outbox_path=outbox_path,
+                lease=lease,
+                holder="direct-controller",
+                now=now + timedelta(seconds=1),
+                remaining_seconds=30,
+            )
+
+            self.assertTrue(first["dispatchPerformed"])
+            self.assertEqual(second["requiredAction"]["kind"], "DONT_NOTIFY")
+            outbox = json.loads(outbox_path.read_text(encoding="utf-8"))
+            self.assertEqual(len(outbox["dispatches"]), 1)
+            persisted = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted["manifest"]["safeAction"]["status"], "COMMITTED")
 
     def test_controller_rejects_unverifiable_no_action_receipt(self) -> None:
         store = RecoveryStore(manifest())

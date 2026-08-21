@@ -558,6 +558,7 @@ def build_entries() -> list[dict[str, Any]]:
             "core/execution/transactional_dispatch.py",
             ".ide-development/execution/transactional_dispatch.py",
         ),
+        ("core/execution/rollout.py", ".ide-development/execution/rollout.py"),
         (
             "core/execution/examples/verification-run.example.json",
             ".ide-development/execution/examples/verification-run.example.json",

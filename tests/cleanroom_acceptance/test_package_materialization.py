@@ -29,6 +29,8 @@ RUNTIME_SOURCES = (
     "core/execution/verification_liveness.py",
     "core/execution/manifest_persistence.py",
     "core/execution/transactional_dispatch.py",
+    "core/execution/rollout.py",
+    "scripts/gitops/heartbeat_controller.py",
     "core/managed-core/content/config/manifest-persistence.json",
     "core/managed-core/schemas/manifest-persistence.schema.json",
     "core/managed-core/content/config/transactional-dispatch.json",
@@ -406,6 +408,56 @@ assert scheduler.admitted_ids() == ("heartbeat-action",)
                 materializer(package, source=source)
                 proc = subprocess.run(
                     [sys.executable, "-c", HEARTBEAT_CONTROLLER_SCRIPT],
+                    cwd=package,
+                    env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                self.assertIn("PASS", proc.stdout)
+
+    def test_managed_and_extracted_packages_plan_generic_canary_rollout(self) -> None:
+        script = r'''
+from core.execution.rollout import RolloutConfig, plan_rollout
+config = RolloutConfig.from_mapping({
+    "canaryTargets": ["alpha"],
+    "downstreamTargets": ["beta", "gamma"],
+    "maxParallel": 2,
+})
+first = plan_rollout(
+    config,
+    [{"name": "alpha", "status": "PENDING"}, {"name": "beta", "status": "PENDING"}, {"name": "gamma", "status": "PENDING"}],
+    package_digest="sha256:" + "a" * 64,
+    environment_digest="sha256:" + "b" * 64,
+)
+assert [row["target"] for row in first["actions"] if row["mutating"]] == ["alpha"]
+receipt = {"status": "PASSED", "packageDigest": "sha256:" + "a" * 64, "environmentDigest": "sha256:" + "b" * 64, "afterTree": "2" * 40}
+second = plan_rollout(
+    config,
+    [{"name": "alpha", "status": "VERIFIED", "afterTree": "2" * 40, "receipt": receipt}, {"name": "beta", "status": "PENDING"}, {"name": "gamma", "status": "PENDING"}],
+    package_digest="sha256:" + "a" * 64,
+    environment_digest="sha256:" + "b" * 64,
+)
+assert [row["target"] for row in second["actions"] if row["kind"] == "UPDATE"] == ["beta", "gamma"]
+print("PASS")
+'''
+        for materializer, label in (
+            (materialize_package_copy, "managed"),
+            (materialize_isolated_rc_extract, "extracted"),
+        ):
+            with self.subTest(package=label), tempfile.TemporaryDirectory(
+                prefix=f"{label}-rollout-controller-"
+            ) as tmp:
+                source = Path(tmp) / "source"
+                package = Path(tmp) / label
+                for rel in RUNTIME_SOURCES:
+                    destination = source / rel
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(REPO_ROOT / rel, destination)
+                materializer(package, source=source)
+                proc = subprocess.run(
+                    [sys.executable, "-c", script],
                     cwd=package,
                     env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
                     text=True,

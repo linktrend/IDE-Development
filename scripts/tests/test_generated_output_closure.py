@@ -106,8 +106,16 @@ class GeneratedOutputGraphTests(unittest.TestCase):
         result = audit_dogfood_improvement_closure(ROOT)
         self.assertTrue(result["ok"])
         self.assertEqual(result["status"], "audited")
-        self.assertEqual(result["leanDesign"]["mappingCount"], 4)
+        self.assertEqual(result["leanDesign"]["mappingCount"], 6)
         self.assertGreaterEqual(result["dogfood"]["executableCommands"], 2)
+
+    def test_top_level_verifier_is_portable_and_does_not_repeat_adoption(self) -> None:
+        verify = (ROOT / "scripts/verify-ide-development.sh").read_text(encoding="utf-8")
+        lifecycle = (ROOT / "scripts/tests/test-gitops-lifecycle.sh").read_text(encoding="utf-8")
+        self.assertIn('mktemp "${TMPDIR:-/tmp}/ide-fast-inventory.XXXXXX"', verify)
+        self.assertNotIn("ide-fast-inventory.XXXXXX.json", verify)
+        self.assertEqual(verify.count("bash scripts/verify-platform-adoption.sh"), 1)
+        self.assertNotIn('bash "$ROOT/scripts/verify-platform-adoption.sh"', lifecycle)
 
     def test_command_audit_rejects_missing_python_module_reference(self) -> None:
         tmp, root = init_repo()

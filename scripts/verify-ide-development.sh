@@ -20,7 +20,8 @@ pass() {
 # The profile runner captures command output and writes one machine-readable
 # inventory.  This local measurement checks the hosted target declaration; it
 # is not represented as hosted CI proof.
-fast_inventory="$(mktemp "${TMPDIR:-/tmp}/ide-fast-inventory.XXXXXX.json")"
+# BSD mktemp (macOS) requires the replacement Xs at the end of the template.
+fast_inventory="$(mktemp "${TMPDIR:-/tmp}/ide-fast-inventory.XXXXXX")"
 fast_started_ns="$(python3 -c 'import time; print(time.monotonic_ns())')"
 if ! python3 scripts/gitops/run_delivery_profile.py fast --inventory-json "$fast_inventory" >/dev/null; then
   python3 - "$fast_inventory" <<'PY' >&2

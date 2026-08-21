@@ -16,3 +16,11 @@ duplicate dispatch.
 Transient authority or storage misses do not notify a human immediately.
 Repeated bounded failure returns a blocked, fail-closed result with a durable
 diagnostic. No fallback weakens protected gates or secret scanning.
+
+The installed executable boundary is
+`scripts/gitops/heartbeat_controller.py`. It uses a compare-and-swap manifest
+file, a compare-and-swap dispatch-intent file, and an idempotent durable outbox.
+An actionable persisted repair may return success only after the outbox entry
+and updated manifest are both read back. `DONT_NOTIFY` is allowed only with the
+verified no-action receipt; missing runtime dependencies return actionable
+failure rather than quiet success.

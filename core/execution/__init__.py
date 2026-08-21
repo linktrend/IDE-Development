@@ -112,6 +112,7 @@ from core.execution.transactional_dispatch import (
     load_transactional_dispatch_config,
     resume_unsolicited_design_result,
 )
+from core.execution.rollout import RolloutConfig, RolloutError, plan_rollout
 
 __all__ = [
     "AMENDMENT_ID",
@@ -214,4 +215,7 @@ __all__ = [
     "dispatch_transactionally",
     "load_transactional_dispatch_config",
     "resume_unsolicited_design_result",
+    "RolloutConfig",
+    "RolloutError",
+    "plan_rollout",
 ]
