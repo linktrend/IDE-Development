@@ -63,6 +63,63 @@ class Fixture:
     def development_sha(self) -> str:
         return git(self.work, "rev-parse", "origin/development")
 
+    def enable_generated_closure(self) -> None:
+        write(
+            self.work / ".ide-development/config/generated-output-closure.json",
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "kind": "generated-output-closure",
+                    "maxPasses": 3,
+                    "outputs": [
+                        {
+                            "id": "phase-binding",
+                            "output": ".github/phase-binding.txt",
+                            "generator": ["python3", "scripts/generate-phase-binding.py"],
+                            "invalidatingSources": ["**"],
+                            "dependsOn": [],
+                        }
+                    ],
+                    "audits": {},
+                },
+                indent=2,
+            )
+            + "\n",
+        )
+        write(
+            self.work / "scripts/generate-phase-binding.py",
+            """#!/usr/bin/env python3
+import hashlib
+import pathlib
+import subprocess
+
+root = pathlib.Path.cwd()
+paths = subprocess.run(
+    [\"git\", \"ls-files\"], cwd=root, text=True, capture_output=True, check=True
+).stdout.splitlines()
+digest = hashlib.sha256()
+for rel in sorted(path for path in paths if path != \".github/phase-binding.txt\"):
+    digest.update(rel.encode())
+    digest.update(b\"\\0\")
+    digest.update((root / rel).read_bytes())
+(root / \".github/phase-binding.txt\").parent.mkdir(parents=True, exist_ok=True)
+(root / \".github/phase-binding.txt\").write_text(digest.hexdigest() + \"\\n\")
+""",
+        )
+        write(self.work / ".github/phase-binding.txt", "initial\n")
+        git(self.work, "add", ".ide-development", ".github", "scripts")
+        git(self.work, "commit", "-qm", "test: enable generated closure")
+        subprocess.run(
+            ["python3", "scripts/generate-phase-binding.py"],
+            cwd=self.work,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        git(self.work, "add", ".github/phase-binding.txt")
+        git(self.work, "commit", "-qm", "test: bind development tree")
+        git(self.work, "push", "-q", "origin", "development")
+
     def accept_issue(self, number: int, filename: str, content: str, *, ready: bool = True) -> coordinator.AcceptedSource:
         branch = f"issue/{number}-{filename.split('.')[0]}"
         git(self.work, "checkout", "-B", branch, "development")
@@ -77,6 +134,36 @@ class Fixture:
             self.github.ready_shas.add(sha)
             self.github.evidence[sha] = {"schemaVersion": 1, "headSha": sha, "classification": "tests"}
         return source
+
+    def accept_issue_with_generated_binding(
+        self,
+        number: int,
+        filename: str,
+        content: str,
+    ) -> coordinator.AcceptedSource:
+        branch = f"issue/{number}-{filename.split('.')[0]}"
+        git(self.work, "checkout", "-B", branch, "development")
+        write(self.work / filename, content)
+        git(self.work, "add", filename)
+        subprocess.run(
+            ["python3", "scripts/generate-phase-binding.py"],
+            cwd=self.work,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        git(self.work, "add", ".github/phase-binding.txt")
+        git(self.work, "commit", "-qm", f"issue {number} with generated binding")
+        sha = git(self.work, "rev-parse", "HEAD")
+        git(self.work, "push", "-q", "-u", "origin", branch)
+        git(self.work, "checkout", "development")
+        self.github.ready_shas.add(sha)
+        self.github.evidence[sha] = {
+            "schemaVersion": 1,
+            "headSha": sha,
+            "classification": "tests",
+        }
+        return coordinator.AcceptedSource(branch=branch, sha=sha, order=number)
 
     def assemble(self, sources: list[coordinator.AcceptedSource], **kwargs):
         ordered = [
@@ -169,6 +256,83 @@ class PhasePackagerCoordinatorTests(unittest.TestCase):
         self.assertEqual(detail, "handoff_stale_head")
         ok, detail = coordinator.consume_handoff(updated["handoff"], live_head=updated["headSha"], live_tree=updated["gitTree"])
         self.assertTrue(ok, detail)
+
+    def test_accepted_tip_ancestry_from_other_base_is_not_phase_divergence(self) -> None:
+        git(self.fx.work, "checkout", "-B", "main", "development")
+        write(self.fx.work / "main-only.txt", "main-only ancestry\n")
+        git(self.fx.work, "add", "main-only.txt")
+        git(self.fx.work, "commit", "-qm", "main-only planning ancestor")
+        git(self.fx.work, "checkout", "-B", "issue/34-cross-base-plan", "main")
+        write(self.fx.work / "plan.txt", "accepted plan\n")
+        git(self.fx.work, "add", "plan.txt")
+        git(self.fx.work, "commit", "-qm", "accepted cross-base plan")
+        planning_sha = git(self.fx.work, "rev-parse", "HEAD")
+        git(self.fx.work, "push", "-q", "-u", "origin", "issue/34-cross-base-plan")
+        git(self.fx.work, "checkout", "development")
+        planning = coordinator.AcceptedSource(
+            branch="issue/34-cross-base-plan",
+            sha=planning_sha,
+            order=1,
+        )
+        self.fx.github.ready_shas.add(planning_sha)
+        self.fx.github.evidence[planning_sha] = {
+            "schemaVersion": 1,
+            "headSha": planning_sha,
+            "classification": "tests",
+        }
+
+        created = self.fx.assemble([planning])
+        repair = self.fx.accept_issue(35, "repair.txt", "repair\n")
+        updated = self.fx.assemble([planning, repair])
+
+        self.assertEqual(updated["action"], "updated")
+        self.assertNotEqual(updated["headSha"], created["headSha"])
+        git(self.fx.work, "cat-file", "-e", f"{updated['headSha']}:main-only.txt")
+        git(self.fx.work, "cat-file", "-e", f"{updated['headSha']}:plan.txt")
+        git(self.fx.work, "cat-file", "-e", f"{updated['headSha']}:repair.txt")
+
+    def test_phase_assembly_closes_generated_outputs_and_reuses_verified_closure(self) -> None:
+        self.fx.enable_generated_closure()
+        first = self.fx.accept_issue(34, "generated-one.txt", "one\n")
+        created = self.fx.assemble([first])
+        self.assertEqual(
+            git(self.fx.work, "show", "-s", "--format=%s", created["headSha"]),
+            coordinator.GENERATED_CLOSURE_SUBJECT,
+        )
+        binding = git(self.fx.work, "show", f"{created['headSha']}:.github/phase-binding.txt")
+        parent_binding = git(self.fx.work, "show", f"{created['headSha']}^:.github/phase-binding.txt")
+        self.assertNotEqual(binding, parent_binding)
+
+        reused = self.fx.assemble([first])
+        self.assertTrue(reused["idempotent"])
+        self.assertEqual(reused["headSha"], created["headSha"])
+
+        second = self.fx.accept_issue(35, "generated-two.txt", "two\n")
+        updated = self.fx.assemble([first, second])
+        self.assertEqual(updated["action"], "updated")
+        self.assertEqual(
+            git(self.fx.work, "show", "-s", "--format=%s", updated["headSha"]),
+            coordinator.GENERATED_CLOSURE_SUBJECT,
+        )
+        self.assertNotEqual(updated["headSha"], created["headSha"])
+        git(self.fx.work, "cat-file", "-e", f"{updated['headSha']}:generated-one.txt")
+        git(self.fx.work, "cat-file", "-e", f"{updated['headSha']}:generated-two.txt")
+
+    def test_generated_output_overlap_is_replaced_but_source_overlap_still_blocks(self) -> None:
+        self.fx.enable_generated_closure()
+        first = self.fx.accept_issue_with_generated_binding(36, "left.txt", "left\n")
+        second = self.fx.accept_issue_with_generated_binding(37, "right.txt", "right\n")
+        result = self.fx.assemble([first, second])
+        self.assertEqual(
+            git(self.fx.work, "show", "-s", "--format=%s", result["headSha"]),
+            coordinator.GENERATED_CLOSURE_SUBJECT,
+        )
+        git(self.fx.work, "cat-file", "-e", f"{result['headSha']}:left.txt")
+        git(self.fx.work, "cat-file", "-e", f"{result['headSha']}:right.txt")
+
+        conflicting = self.fx.accept_issue(38, "left.txt", "different\n")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "overlapping_commits"):
+            self.fx.assemble([first, conflicting], phase_branch="phase/conflict")
 
     def test_rejects_uncommitted_unpushed_wrong_repo_stale_missing(self) -> None:
         ready = self.fx.accept_issue(6, "ready.txt", "ready\n")
