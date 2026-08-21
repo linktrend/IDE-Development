@@ -15,6 +15,8 @@ import hashlib
 import json
 import os
 import tempfile
+import sys
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -48,6 +50,43 @@ def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
+
+
+@contextmanager
+def _exclusive_controller_lock(path: Path):
+    """Serialize a complete read/reconcile/dispatch/persist turn cross-platform."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(str(path), os.O_RDWR | os.O_CREAT, 0o644)
+    acquired = False
+    try:
+        if sys.platform == "win32":  # pragma: no cover - exercised in Windows matrix
+            import msvcrt
+
+            if os.lseek(descriptor, 0, os.SEEK_END) < 1:
+                os.write(descriptor, b"\0")
+            os.lseek(descriptor, 0, os.SEEK_SET)
+            msvcrt.locking(descriptor, msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+        acquired = True
+        yield
+    finally:
+        if acquired:
+            try:
+                if sys.platform == "win32":  # pragma: no cover
+                    import msvcrt
+
+                    os.lseek(descriptor, 0, os.SEEK_SET)
+                    msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(descriptor, fcntl.LOCK_UN)
+            except OSError:
+                pass
+        os.close(descriptor)
 
 
 def _read_json(path: Path, *, default: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -194,21 +233,24 @@ def run_file_heartbeat(
     remaining_seconds: int = 30,
 ) -> dict[str, Any]:
     manifest_file = Path(manifest_path)
-    result = run_heartbeat_controller(
-        JsonFileManifestStore(manifest_file),
-        JsonFileAuthority(authority_path),
-        dispatch_store=JsonFileDispatchIntentStore(
-            manifest_file.with_name(manifest_file.name + ".dispatch-intents.json")
-        ),
-        external_dispatch=JsonOutboxDispatchPort(outbox_path),
-        lease=lease,
-        holder=holder,
-        budget=DispatchBudget(
-            remaining_seconds=remaining_seconds,
-            required_seconds=5,
-        ),
-        now=now or datetime.now(timezone.utc),
-    )
+    with _exclusive_controller_lock(
+        manifest_file.with_name(manifest_file.name + ".heartbeat.lock")
+    ):
+        result = run_heartbeat_controller(
+            JsonFileManifestStore(manifest_file),
+            JsonFileAuthority(authority_path),
+            dispatch_store=JsonFileDispatchIntentStore(
+                manifest_file.with_name(manifest_file.name + ".dispatch-intents.json")
+            ),
+            external_dispatch=JsonOutboxDispatchPort(outbox_path),
+            lease=lease,
+            holder=holder,
+            budget=DispatchBudget(
+                remaining_seconds=remaining_seconds,
+                required_seconds=5,
+            ),
+            now=now or datetime.now(timezone.utc),
+        )
     if result.get("requiredAction", {}).get("kind") != "DONT_NOTIFY" and not result.get(
         "dispatchPerformed"
     ):
@@ -252,4 +294,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

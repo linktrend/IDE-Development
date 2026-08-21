@@ -3711,7 +3711,7 @@
       "id": "gitops-scripts-gitops-heartbeat-controller-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/heartbeat_controller.py",
-      "sourceHash": "sha256:064ad52c5bb99fc9f3ed58ecb7eccc65fddef140899aa0e4daa6350c51dcfc64",
+      "sourceHash": "sha256:e0744965f86964ca83d479f058abef4dd998186862c9f777e0c12f71c515dad2",
       "destination": "scripts/gitops/heartbeat_controller.py",
       "mode": "0644",
       "platform": "github",
