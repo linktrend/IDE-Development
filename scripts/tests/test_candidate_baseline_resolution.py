@@ -13,6 +13,7 @@ from scripts.gitops.generated_output_closure import (
     BASELINE_REF_ENV,
     BASELINE_SHA_ENV,
     ClosureError,
+    bind_push_event_baseline,
     candidate_diff_check,
     resolve_candidate_baseline,
 )
@@ -62,6 +63,32 @@ def runtime_env(baseline: str, ref: str = "origin/development") -> dict[str, str
 
 
 class CandidateBaselineResolutionTests(unittest.TestCase):
+    def test_push_event_binds_predecessor_to_event_scoped_remote_target(self) -> None:
+        tmp, root, baseline, candidate = init_repo()
+        self.addCleanup(tmp.cleanup)
+        git(root, "checkout", "-q", "--detach", candidate)
+        ref = bind_push_event_baseline(
+            root,
+            branch="development",
+            before_sha=baseline,
+            after_sha=candidate,
+        )
+        self.assertEqual(ref, "origin/development-before")
+        self.assertEqual(resolve_candidate_baseline(root, environ=runtime_env(baseline, ref)), baseline)
+
+    def test_push_event_rejects_untrusted_or_stale_identity(self) -> None:
+        tmp, root, baseline, candidate = init_repo()
+        self.addCleanup(tmp.cleanup)
+        git(root, "checkout", "-q", "--detach", candidate)
+        with self.assertRaisesRegex(ClosureError, "candidate_baseline_ref_invalid"):
+            bind_push_event_baseline(root, branch="refs/heads/development", before_sha=baseline, after_sha=candidate)
+        with self.assertRaisesRegex(ClosureError, "candidate_baseline_equal_head"):
+            bind_push_event_baseline(root, branch="development", before_sha=candidate, after_sha=candidate)
+        with self.assertRaisesRegex(ClosureError, "candidate_baseline_invalid"):
+            bind_push_event_baseline(root, branch="development", before_sha="0" * 40, after_sha=candidate)
+        with self.assertRaisesRegex(ClosureError, "candidate_baseline_stale"):
+            bind_push_event_baseline(root, branch="development", before_sha=baseline, after_sha=baseline)
+
     def test_branch_checkout_requires_distinct_remote_target(self) -> None:
         tmp, root, baseline, candidate = init_repo()
         self.addCleanup(tmp.cleanup)
@@ -192,6 +219,10 @@ class CandidateBaselineResolutionTests(unittest.TestCase):
         self.assertIn("Inject exact runtime baseline into Stage 1 receipt context", workflow)
         self.assertIn("github.event.pull_request.base.sha", workflow)
         self.assertIn("github.event.before", workflow)
+        self.assertIn("github.event.after", workflow)
+        self.assertIn("--bind-push-baseline", workflow)
+        self.assertIn("--push-branch", workflow)
+        self.assertNotIn('baseline_ref="origin/${GITHUB_REF_NAME}"', workflow)
         self.assertIn("LINKTREND_TARGET_BASELINE_REF=%s", workflow)
         self.assertIn("LINKTREND_TARGET_BASELINE_SHA=%s", workflow)
 
