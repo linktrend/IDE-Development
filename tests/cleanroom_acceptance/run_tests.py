@@ -101,6 +101,31 @@ def _fail_cli(rep: Reporter, name: str, result, *, expect: int | None = None) ->
     rep.fail(name, detail)
 
 
+def test_12_resolution_fail_closed_cleanroom(rep: Reporter, package: Path) -> None:
+    """Extracted-package probe: malformed resolution cannot mutate a consumer."""
+    repo = make_consumer_repo(prefix="cr-12-")
+    try:
+        installed = run_installer("install", package=package, target=repo)
+        if installed.returncode != EXIT_OK:
+            _fail_cli(rep, "12-resolution-fail-closed", installed, expect=EXIT_OK)
+            return
+        before = managed_identity_map(repo)
+        resolution = repo.parent / "malformed-resolution.json"
+        resolution.write_text(
+            json.dumps({"schemaVersion": 2, "kind": "ide-managed-upgrade-resolution", "force": True}) + "\n",
+            encoding="utf-8",
+        )
+        result = run_installer("update", "--resolution-manifest", str(resolution), package=package, target=repo)
+        if result.returncode == EXIT_OK:
+            rep.fail("12-resolution-fail-closed", "malformed resolution unexpectedly applied")
+        elif before != managed_identity_map(repo):
+            rep.fail("12-resolution-fail-closed", "malformed resolution mutated consumer")
+        else:
+            rep.ok("12-resolution-fail-closed")
+    finally:
+        cleanup_repo(repo)
+
+
 def test_01_brand_new_install(rep: Reporter, package: Path) -> Path | None:
     """1. Brand-new repository installation."""
     repo = make_consumer_repo(prefix="cr-01-")
@@ -807,6 +832,7 @@ def main(argv: list[str] | None = None) -> int:
         "09-drift-and-deterministic-repair",
         "10-interrupted-recovery-and-rollback",
         "11-extracted-rc-no-checkout-access",
+        "12-resolution-fail-closed",
     ]
     if args.list:
         for sid in scenarios:
@@ -848,6 +874,7 @@ def main(argv: list[str] | None = None) -> int:
         test_08_obsolete_removal_and_conflict(rep, package)
         test_09_drift_and_deterministic_repair(rep, package_src)
         test_10_interrupted_recovery_and_rollback(rep, package_src)
+        test_12_resolution_fail_closed_cleanroom(rep, package)
         test_11_extracted_rc_no_checkout_access(rep, package_src)
     finally:
         shutil.rmtree(work, ignore_errors=True)

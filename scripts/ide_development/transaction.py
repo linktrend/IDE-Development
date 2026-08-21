@@ -8,7 +8,7 @@ import shutil
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .constants import MANAGED_CORE_DIR
 from .errors import ConflictError, RollbackError
@@ -18,6 +18,7 @@ from .lock import exclusive_transaction_lock
 from .manifest import Manifest, ManifestEntry
 from .paths import encode_backup_name, git_meta_dir, join_under, join_under_nofollow, path_is_symlink
 from .plan import OpKind, Plan, PlanAction
+from .resolution import UpgradeResolution
 from .state import FileState, InstalledState, save_installed_state, utc_now
 from .symlink_migrate import (
     apply_migrate_symlink,
@@ -362,6 +363,8 @@ def apply_plan(
     manifest: Manifest,
     plan: Plan,
     prior: InstalledState | None,
+    resolution: UpgradeResolution | None = None,
+    post_apply_check: Callable[[], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if plan.has_conflicts:
         raise ConflictError(
@@ -376,6 +379,8 @@ def apply_plan(
             manifest=manifest,
             plan=plan,
             prior=prior,
+            resolution=resolution,
+            post_apply_check=post_apply_check,
         )
 
 
@@ -386,6 +391,8 @@ def _apply_plan_unlocked(
     manifest: Manifest,
     plan: Plan,
     prior: InstalledState | None,
+    resolution: UpgradeResolution | None = None,
+    post_apply_check: Callable[[], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     # Recover any interrupted transaction before starting a new one
     recovery = _recover_interrupted_unlocked(target_root)
@@ -449,6 +456,18 @@ def _apply_plan_unlocked(
             details={"path": str(current)},
         )
 
+    if resolution is not None:
+        for item in resolution.conflicts:
+            destination = join_under_nofollow(target_root, item.path)
+            if path_is_symlink(destination) or not destination.is_file() or sha256_file(destination) != item.current_digest:
+                raise ConflictError(
+                    "Managed upgrade resolution became stale before apply",
+                    details={"path": item.path},
+                )
+        state_path = join_under_nofollow(target_root, ".ide-development/installed-state.json")
+        if path_is_symlink(state_path) or not state_path.is_file() or sha256_file(state_path) != resolution.installed_state_digest:
+            raise ConflictError("Installed-state preimage became stale before apply")
+
     tx_id = str(uuid.uuid4())
     journal: dict[str, Any] = {
         "schemaVersion": 1,
@@ -467,6 +486,8 @@ def _apply_plan_unlocked(
         "applied": [],
         "priorInstalledState": prior.to_dict() if prior is not None else None,
     }
+    if resolution is not None:
+        journal["managedUpgradeResolution"] = resolution.to_dict()
     write_journal(current, journal)
 
     backups: list[BackupRecord] = []
@@ -560,6 +581,11 @@ def _apply_plan_unlocked(
         )
         save_installed_state(target_root, next_state)
 
+        post_verification = post_apply_check() if post_apply_check is not None else None
+        if post_verification is not None:
+            journal["postInstallVerification"] = post_verification
+            write_journal(current, journal)
+
         journal["phase"] = PHASE_COMPLETE
         journal["status"] = "completed"
         journal["completedAt"] = utc_now()
@@ -586,6 +612,15 @@ def _apply_plan_unlocked(
         "applied": [a.to_dict() for a in mutating],
         "recovery": recovery,
         "packageVersion": manifest.package_version,
+        "backupReceipt": {
+            "transactionId": tx_id,
+            "backupCount": len(backups),
+            "paths": [record.path for record in backups],
+            "rollbackAvailable": True,
+            "journal": str(last_tx_dir(target_root) / "journal.json"),
+        },
+        "managedUpgradeResolution": resolution.to_dict() if resolution else None,
+        "postInstallVerification": post_verification,
     }
 
 
