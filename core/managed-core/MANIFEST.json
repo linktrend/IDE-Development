@@ -1310,7 +1310,7 @@
       "id": "core-config-generated-output-closure-json",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/config/generated-output-closure.json",
-      "sourceHash": "sha256:e2bcb1c8a32d9e7209620690d2197a33e681281bece3aebd38f2d6fca137db3b",
+      "sourceHash": "sha256:55adad55d05b2b05cd6240ca2e22eeaca9e086f10b006dc13fb65338057bc9b5",
       "destination": ".ide-development/config/generated-output-closure.json",
       "mode": "0644",
       "platform": "all",

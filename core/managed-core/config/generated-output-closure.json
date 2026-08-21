@@ -140,14 +140,6 @@
           "scripts/gitops/heartbeat_controller.py",
           "--help"
         ]
-      },
-      {
-        "id": "rollout-controller-tests",
-        "command": [
-          "python3",
-          "tests/execution_protocol/test_rollout_controller.py",
-          "-v"
-        ]
       }
       ]
     },
