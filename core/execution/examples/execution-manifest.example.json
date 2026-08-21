@@ -169,6 +169,7 @@
       },
       "digestBound": true,
       "preferredRoutes": ["auto_cost", "composer", "grok", "specialist", "independent_review", "bulk_documents"],
+      "routeBindings": { "bulk_documents": "gemini-3.7-flash-medium" },
       "thirdPartyRequiresException": true,
       "oneHopFallback": true,
       "exceptionEvidence": ["capability", "security", "independence", "context"]

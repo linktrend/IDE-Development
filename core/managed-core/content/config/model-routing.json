@@ -17,6 +17,11 @@
     "bounded": "composer-2.5",
     "complex": "cursor-grok-4.6-medium"
   },
+  "bulkDocuments": {
+    "modelSlug": "gemini-3.7-flash-medium",
+    "fast": false,
+    "taskJustifiedOnly": true
+  },
   "thirdParty": {
     "requiresExplicitException": true,
     "allowedReasons": ["capability", "security", "independence", "context"],

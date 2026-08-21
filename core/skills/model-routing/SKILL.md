@@ -29,7 +29,7 @@ agent-followed doctrine.
 | `grok` | `.cursor/agents/route-escalation.md` | `cursor-grok-4.6-medium` (Fast=false) |
 | `specialist` | `.cursor/agents/route-specialist.md` | `gpt-5.6-sol-medium` (Fast=false) |
 | `independent_review` | `.cursor/agents/route-independent-review.md` | `claude-opus-4-8-thinking-medium` |
-| `bulk_documents` | `.cursor/agents/route-bulk-documents.md` | `gemini-2.5-flash` |
+| `bulk_documents` | `.cursor/agents/route-bulk-documents.md` | `gemini-3.7-flash-medium` (Fast=false) |
 
 Spawn the matching subagent (Task tool / `/route-*`) rather than doing the work
 on an unpinned parent model when a route clearly applies.
@@ -67,12 +67,13 @@ Use Sol or another third-party model only when the packet records a specific cap
 - independent challenge of an architecture or large implementation
 - Run as a SEPARATE review task. The reviewer must receive the original request, approved scope, plan, complete diff, tests and known risks.
 
-### bulk_documents — Gemini 2.5 Flash
+### bulk_documents — Gemini 3.7 Flash Medium
 
 - large-volume classification or extraction
 - very large document collections
 - PDF, image or multimodal classification
 - repetitive structured synthesis across many files
+- use only for a task-justified bulk-document role with the exact selector `gemini-3.7-flash-medium`; Fast must be false
 - Require a representative sample review before processing the full collection. Never move, rename or delete files based solely on unreviewed classification output.
 
 ## Escalation-on-failure protocol (Principal-approved)

@@ -611,7 +611,7 @@
         "packetRouting": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["conformance", "digestBound", "preferredRoutes", "thirdPartyRequiresException", "oneHopFallback"],
+          "required": ["conformance", "digestBound", "preferredRoutes", "routeBindings", "thirdPartyRequiresException", "oneHopFallback"],
           "properties": {
             "conformance": {
               "type": "object",
@@ -630,6 +630,14 @@
               "minItems": 3,
               "uniqueItems": true,
               "items": { "type": "string", "enum": ["auto_cost", "composer", "grok", "specialist", "independent_review", "bulk_documents"] }
+            },
+            "routeBindings": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["bulk_documents"],
+              "properties": {
+                "bulk_documents": { "const": "gemini-3.7-flash-medium" }
+              }
             },
             "thirdPartyRequiresException": { "type": "boolean", "const": true },
             "oneHopFallback": { "type": "boolean", "const": true },

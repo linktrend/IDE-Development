@@ -161,6 +161,12 @@ class CanonicalManifestAdversarialTests(unittest.TestCase):
         self.assertTrue(result.errors)
 
         document = canonical_manifest()
+        document["controls"]["packetRouting"]["routeBindings"]["bulk_documents"] = "gemini-2.5-flash"
+        result = validate_execution_manifest(document, repo_root=ROOT)
+        self.assertFalse(result.ok)
+        self.assertTrue(result.errors)
+
+        document = canonical_manifest()
         document["controls"]["cursorCloudExecution"]["preDispatchAdvertisedRefValidation"] = False
         result = validate_execution_manifest(document, repo_root=ROOT)
         self.assertFalse(result.ok)

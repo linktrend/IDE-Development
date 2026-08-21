@@ -3,7 +3,7 @@
   "$id": "https://linktrend.dev/schemas/model-routing.schema.json",
   "title": "IDE model routing policy",
   "type": "object",
-  "required": ["schemaVersion", "conformance", "route", "auto", "directFirstPartyFallbacks", "thirdParty", "fast", "evidence"],
+  "required": ["schemaVersion", "conformance", "route", "auto", "directFirstPartyFallbacks", "bulkDocuments", "thirdParty", "fast", "evidence"],
   "properties": {
     "schemaVersion": { "const": 1 },
     "conformance": {
@@ -33,6 +33,16 @@
       "type": "object",
       "required": ["bounded", "complex"],
       "properties": { "bounded": { "const": "composer-2.5" }, "complex": { "const": "cursor-grok-4.6-medium" } },
+      "additionalProperties": false
+    },
+    "bulkDocuments": {
+      "type": "object",
+      "required": ["modelSlug", "fast", "taskJustifiedOnly"],
+      "properties": {
+        "modelSlug": { "const": "gemini-3.7-flash-medium" },
+        "fast": { "const": false },
+        "taskJustifiedOnly": { "const": true }
+      },
       "additionalProperties": false
     },
     "thirdParty": {

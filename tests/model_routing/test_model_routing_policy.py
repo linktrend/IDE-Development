@@ -32,6 +32,23 @@ def test_direct_cursor_routes_precede_third_party_exceptions():
     assert policy["fast"] is False
 
 
+def test_bulk_documents_has_exact_task_justified_non_fast_binding():
+    policy = json.loads((ROOT / "core/managed-core/content/config/model-routing.json").read_text())
+    assert policy["bulkDocuments"] == {
+        "modelSlug": "gemini-3.7-flash-medium",
+        "fast": False,
+        "taskJustifiedOnly": True,
+    }
+    for relative in (
+        "core/agents/route-bulk-documents.md",
+        "core/skills/model-routing/SKILL.md",
+        "core/managed-core/skills/model-routing/SKILL.md",
+    ):
+        text = (ROOT / relative).read_text()
+        assert "gemini-3.7-flash-medium" in text
+        assert "gemini-2.5-flash" not in text
+
+
 def test_skill_rejects_generic_auto_and_requires_attestation():
     skill = (ROOT / "core/managed-core/skills/model-routing/SKILL.md").read_text()
     assert "Cloud API `id=default`, `displayName=Auto` without mode proof" in skill
