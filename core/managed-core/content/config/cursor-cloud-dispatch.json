@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "controlId": "cursor-cloud-dispatch-v1",
+  "apiBaseUrl": "https://api.cursor.com",
+  "apiPath": "/v1/agents",
+  "apiKeyEnvironmentVariable": "CURSOR_API_KEY",
+  "apiBinding": "prompt-and-governed-setup-only",
+  "savedRepositoryRoot": "/agent/repos",
+  "savedRepositoryLayout": "/agent/repos/<repo>",
+  "maxApiAttempts": 2,
+  "environment": {
+    "type": "cloud",
+    "name": "IDE Development 2.5.1"
+  },
+  "requiresExactNonFastModel": true,
+  "expectedBuildIdRole": "provenance-only",
+  "preparedIntentRequired": true,
+  "clientSuppliedAgentIdRequired": true,
+  "governedSetupRequired": true,
+  "setupReceiptRequired": true,
+  "attestationBeforeMutationRequired": true,
+  "cliLoginIsCloudAuthority": false
+}

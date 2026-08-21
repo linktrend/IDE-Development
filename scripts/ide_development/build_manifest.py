@@ -597,6 +597,10 @@ def build_entries() -> list[dict[str, Any]]:
             "core/execution/transactional_dispatch.py",
             ".ide-development/execution/transactional_dispatch.py",
         ),
+        (
+            "core/execution/cursor_cloud_dispatch.py",
+            ".ide-development/execution/cursor_cloud_dispatch.py",
+        ),
         ("core/execution/rollout.py", ".ide-development/execution/rollout.py"),
         (
             "core/execution/examples/verification-run.example.json",
@@ -642,6 +646,22 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "core/managed-core/content/doctrine/PKT08-REVISION-60-FINAL-CONTROLS.md",
             ".ide-development/content/doctrine/PKT08-REVISION-60-FINAL-CONTROLS.md",
+        ),
+        (
+            "core/contracts/CURSOR-CLOUD-DISPATCH-CONTRACT.md",
+            ".ide-development/contracts/CURSOR-CLOUD-DISPATCH-CONTRACT.md",
+        ),
+        (
+            "core/managed-core/content/config/cursor-cloud-dispatch.json",
+            ".ide-development/content/config/cursor-cloud-dispatch.json",
+        ),
+        (
+            "core/managed-core/content/doctrine/CURSOR-CLOUD-DISPATCH-CONTRACT.md",
+            ".ide-development/content/doctrine/CURSOR-CLOUD-DISPATCH-CONTRACT.md",
+        ),
+        (
+            "core/managed-core/schemas/cursor-cloud-dispatch.schema.json",
+            ".ide-development/schemas/cursor-cloud-dispatch.schema.json",
         ),
     )
     for source, destination in transactional_dispatch_files:
