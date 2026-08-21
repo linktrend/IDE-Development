@@ -15,6 +15,7 @@ import os
 import re
 from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
+from urllib.parse import urlsplit, urlunsplit
 
 
 CONTROL_ID = "cursor-cloud-dispatch-v1"
@@ -22,6 +23,8 @@ API_BASE_URL = "https://api.cursor.com"
 API_PATH = "/v1/agents"
 ENV_TYPE = "cloud"
 ENV_NAME = "IDE Development 2.5.1"
+SAVED_REPOSITORY_ROOT = "/agent/repos"
+MAX_API_ATTEMPTS = 2
 _HEX = re.compile(r"^[0-9a-f]{40,64}$")
 
 
@@ -38,6 +41,8 @@ class CursorCloudDispatchError(RuntimeError):
 @dataclass(frozen=True)
 class CursorCloudDispatchRequest:
     repository: str
+    target_path: str
+    target_remote: str
     ref: str
     commit: str
     tree: str
@@ -45,11 +50,19 @@ class CursorCloudDispatchRequest:
     expected_build_id: str
     toolchain: Mapping[str, str]
     environment_name: str = ENV_NAME
+    governed_setup: bool = False
 
     def validate(self) -> None:
         if not self.repository.strip() or not self.ref.strip():
             raise CursorCloudDispatchError(
                 "cursor_cloud_identity_missing", "repository and ref are required"
+            )
+        self.resolved_target_path
+        normalize_repository_remote(self.target_remote)
+        if not self.governed_setup:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_governed_setup_required",
+                "target checkout setup must be explicitly governed before dispatch",
             )
         if not _HEX.fullmatch(self.commit) or not _HEX.fullmatch(self.tree):
             raise CursorCloudDispatchError(
@@ -87,6 +100,56 @@ class CursorCloudDispatchRequest:
     @property
     def environment(self) -> dict[str, str]:
         return {"type": ENV_TYPE, "name": self.environment_name}
+
+    @property
+    def resolved_target_path(self) -> str:
+        return canonical_saved_repository_path(self.repository, self.target_path)
+
+
+def canonical_saved_repository_path(repository: str, target_path: str) -> str:
+    """Resolve only ``/agent/repos/<repo>``; reject primary/default ambiguity."""
+
+    repo_name = repository.rstrip("/").split("/")[-1]
+    raw = str(target_path or "")
+    if not repo_name or not raw or "\\" in raw or "//" in raw:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_target_path_invalid", "target repository path is missing or ambiguous"
+        )
+    if raw.startswith(SAVED_REPOSITORY_ROOT + "/"):
+        relative = raw[len(SAVED_REPOSITORY_ROOT) + 1 :]
+    elif raw.startswith("/"):
+        raise CursorCloudDispatchError(
+            "cursor_cloud_target_path_escape", "target path is outside the saved repository root"
+        )
+    else:
+        relative = raw
+    segments = relative.split("/")
+    if len(segments) != 1 or segments[0] in {"", ".", ".."} or segments[0] != repo_name:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_target_path_ambiguous",
+            "target path must select the requested repository, not the environment primary repo",
+        )
+    return f"{SAVED_REPOSITORY_ROOT}/{repo_name}"
+
+
+def normalize_repository_remote(remote: str) -> str:
+    """Normalize local ``origin`` readback for exact repository comparison."""
+
+    value = str(remote or "").strip()
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_remote_invalid",
+            "remote must be an HTTP(S) URL without credentials",
+        )
+    path = parsed.path.rstrip("/")
+    if path.endswith(".git"):
+        path = path[:-4]
+    if not path or "//" in path or ".." in path.split("/"):
+        raise CursorCloudDispatchError(
+            "cursor_cloud_remote_invalid", "remote path is not canonical"
+        )
+    return urlunsplit((parsed.scheme.casefold(), parsed.hostname.casefold(), path, "", ""))
 
 
 @dataclass(frozen=True)
@@ -171,6 +234,8 @@ def cursor_cloud_idempotency_key(request: CursorCloudDispatchRequest) -> str:
     identity = {
         "control": CONTROL_ID,
         "repository": request.repository,
+        "targetPath": request.resolved_target_path,
+        "targetRemote": normalize_repository_remote(request.target_remote),
         "ref": request.ref,
         "commit": request.commit,
         "tree": request.tree,
@@ -178,6 +243,7 @@ def cursor_cloud_idempotency_key(request: CursorCloudDispatchRequest) -> str:
         "environment": request.environment,
         "expectedBuildId": request.expected_build_id,
         "toolchain": dict(request.toolchain),
+        "governedSetup": request.governed_setup,
     }
     return CONTROL_ID + ":" + hashlib.sha256(_canonical(identity)).hexdigest()
 
@@ -190,16 +256,19 @@ def cursor_cloud_client_agent_id(request: CursorCloudDispatchRequest) -> str:
 
 def build_attestation_prompt(request: CursorCloudDispatchRequest) -> str:
     request.validate()
-    matrix = f"repository={request.repository}; ref={request.ref}; commit={request.commit}; tree={request.tree}"
+    matrix = f"repository={request.repository}; path={request.resolved_target_path}; remote={normalize_repository_remote(request.target_remote)}; ref={request.ref}; commit={request.commit}; tree={request.tree}"
     toolchain = ", ".join(f"{key}={value}" for key, value in sorted(request.toolchain.items()))
     return (
-        "ATTESTATION ONLY. Do not modify files, commit, push, run migrations, "
-        "or invoke any external side effect. Before any mutation is considered, "
-        "report PASS/FAIL for the exact Cloud environment identity, the repository/ref/commit/tree "
-        f"matrix ({matrix}), and the toolchain ({toolchain}). "
+        "ATTESTATION ONLY. Do not perform product mutation, commit, push, or run migrations. "
+        f"First cd to and resolve the exact saved-environment target path {request.resolved_target_path}; "
+        f"the environment primary repository is not the target. Verify a clean workspace and normalized remote. "
+        f"During governed setup only, in an isolated worktree/branch, bounded-fetch the allowed ref "
+        f"and checkout the exact approved commit ({request.ref}/{request.commit}) and its tree; then "
+        "report PASS/FAIL for the exact remote, repository/path/ref/commit/tree matrix "
+        f"({matrix}), and toolchain ({toolchain}). "
         f"Environment={{type:{ENV_TYPE}, name:{request.environment_name}}}. "
         f"Expected build ID {request.expected_build_id} is provenance only; it is not a selectable API parameter. "
-        "A mismatch is a hard stop and mutation remains unauthorized."
+        "A wrong remote, path, ref, commit, tree, environment, or toolchain is a hard stop and mutation remains unauthorized."
     )
 
 
@@ -290,6 +359,8 @@ def dispatch_cursor_cloud(
             "idempotencyKey": key,
             "clientAgentId": client_agent_id,
             "repository": request.repository,
+            "targetPath": request.resolved_target_path,
+            "targetRemote": normalize_repository_remote(request.target_remote),
             "ref": request.ref,
             "commit": request.commit,
             "tree": request.tree,
@@ -297,6 +368,7 @@ def dispatch_cursor_cloud(
             "model": request.model,
             "expectedBuildId": request.expected_build_id,
             "toolchain": dict(request.toolchain),
+            "governedSetup": request.governed_setup,
             "requestDigest": _digest({"key": key, "prompt": prompt}),
         }
         current = _readback_write(
@@ -316,18 +388,22 @@ def dispatch_cursor_cloud(
         "env": request.environment,
         "model": request.model,
         "prompt": prompt,
-        "repository": request.repository,
-        "ref": request.ref,
-        "commit": request.commit,
-        "tree": request.tree,
-        "provenance": {"expectedBuildId": request.expected_build_id},
     }
-    try:
-        response = http.post(API_PATH, headers=headers, body=body)
-    except Exception as exc:  # keep PREPARED for an idempotent retry
+    response: Mapping[str, Any] | None = None
+    for attempt in range(MAX_API_ATTEMPTS):
+        try:
+            response = http.post(API_PATH, headers=headers, body=body)
+            break
+        except Exception as exc:  # keep PREPARED for one idempotent retry
+            if attempt + 1 == MAX_API_ATTEMPTS:
+                raise CursorCloudDispatchError(
+                    "cursor_cloud_api_interrupted",
+                    "Cloud API call did not produce an authoritative response after one retry",
+                ) from exc
+    if response is None:  # pragma: no cover - loop either returns or raises
         raise CursorCloudDispatchError(
-            "cursor_cloud_api_interrupted", "Cloud API call did not produce an authoritative response"
-        ) from exc
+            "cursor_cloud_api_interrupted", "Cloud API response was unavailable"
+        )
     status = int(response.get("statusCode", response.get("status", 0)) or 0)
     if status != 201:
         raise CursorCloudDispatchError(
@@ -399,18 +475,28 @@ def validate_cursor_cloud_attestation(
         raise CursorCloudDispatchError(
             "cursor_cloud_attestation_required", "mutation requires a PASS no-mutation attestation"
         )
+    if attestation.get("workspaceClean") is not True:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_attestation_required",
+            "mutation requires a clean target workspace attestation",
+        )
     expected = {
         "environment": request.environment,
+        "targetPath": request.resolved_target_path,
+        "remote": normalize_repository_remote(request.target_remote),
         "repository": request.repository,
         "ref": request.ref,
         "commit": request.commit,
         "tree": request.tree,
         "toolchain": dict(request.toolchain),
+        "workspaceClean": True,
     }
     for field, value in expected.items():
         observed = attestation.get(field)
         if field == "environment" and isinstance(observed, Mapping):
             observed = dict(observed)
+        if field == "remote":
+            observed = normalize_repository_remote(str(observed or ""))
         if field == "toolchain" and isinstance(observed, Mapping):
             observed = dict(observed)
         if observed != value:

@@ -13,14 +13,23 @@ diagnostics.
 
 The adapter calls `POST /v1/agents` through an injected HTTP port. It supplies
 the exact named environment `{type: "cloud", name: "IDE Development 2.5.1"}`
-and one exact non-Fast model. The expected build ID is recorded as provenance
-only; it is deliberately not sent as a selectable build or model selector.
+and one exact non-Fast model. Cursor's public API does not provide an exact
+repository checkout selector, so repository binding is not claimed in the API
+body. Instead, the saved environment target is deterministically selected as
+`/agent/repos/<repo>`. For example, LiNKbrain must select
+`/agent/repos/LiNKbrain` with remote `https://github.com/linktrend/LiNKbrain`;
+the default LiNKharness primary repository is rejected. The first prompt must
+resolve that path, and fetch/checkout the required ref or exact commit only as
+governed setup, before remote/repository/ref/commit/tree/toolchain attestation.
+The expected build ID is recorded as provenance only; it is deliberately not
+sent as a selectable build or model selector.
 
 Before the API call, the durable store must contain a read-back-verified
 `PREPARED` intent. The idempotency key and deterministic client-supplied agent
-ID bind the repository, ref, commit, tree, environment, model, build
-provenance, and toolchain. A committed intent is returned as a duplicate and
-never creates a second agent.
+ID bind the repository path, remote, ref, commit, tree, environment, model,
+build provenance, and toolchain. A committed intent is returned as a duplicate
+and never creates a second agent. An unknown API outcome receives at most one
+retry with the same idempotency key.
 
 The first prompt is an attestation-only prompt. The agent must not mutate,
 commit, push, migrate, or invoke side effects. It must report the cloud
