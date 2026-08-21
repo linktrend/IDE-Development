@@ -524,6 +524,12 @@ def reconcile_manifest_heartbeat(
             "reconstructed": [],
             "dispatchPerformed": False,
             "failureCode": exc.code,
+            "requiredAction": {
+                "kind": "ACTION_REQUIRED",
+                "code": exc.code,
+                "action": "RETRY_HEARTBEAT_AUTHORITY",
+                "dispatchable": False,
+            },
         }
     except ManifestPersistenceError:
         raise
