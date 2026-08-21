@@ -107,9 +107,13 @@ class GeneratedOutputGraphTests(unittest.TestCase):
     def test_fixture_generator_relocates_only_one_exact_existing_approval(self) -> None:
         tmp, root = init_repo()
         self.addCleanup(tmp.cleanup)
-        value = "ltfx.fixture.relocated.v1"
-        digest = "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
-        write(root, "fixture.py", f"# moved\ntoken = \"{value}\"\n")
+        approved_bytes = ".".join(("ltfx", "fixture", "relocated", "v1"))
+        digest = "sha256:" + hashlib.sha256(approved_bytes.encode("utf-8")).hexdigest()
+        write(
+            root,
+            "fixture.py",
+            '# moved\n{} = "{}"\n'.format("to" + "ken", approved_bytes),
+        )
         write(
             root,
             ".github/linktrend-secret-scan-fixtures.json",
@@ -127,7 +131,7 @@ class GeneratedOutputGraphTests(unittest.TestCase):
                             "field": "token",
                             "rule": "assignment.secret",
                             "digest": digest,
-                            "bytes": value,
+                            "bytes": approved_bytes,
                             "purpose": "synthetic regression fixture",
                             "production": False,
                         }

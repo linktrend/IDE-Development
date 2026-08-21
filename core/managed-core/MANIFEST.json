@@ -3361,7 +3361,7 @@
       "id": "test-test-generated-output-closure-py",
       "ownershipClass": "managed-core",
       "source": "scripts/tests/test_generated_output_closure.py",
-      "sourceHash": "sha256:04b4654f53bc4674e4a15ddd1ec9437902a5de03f82e62fba621da58ed885b0c",
+      "sourceHash": "sha256:d26a97e7bcb37fd203b81a44816639f34323d89498857a88b78a221c02edc01f",
       "destination": ".ide-development/tests/test_generated_output_closure.py",
       "mode": "0644",
       "platform": "github",
