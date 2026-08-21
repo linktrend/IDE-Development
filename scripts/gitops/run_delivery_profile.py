@@ -331,8 +331,13 @@ def _tail(value: str, limit: int = 2000) -> str:
 def _tracked_workspace_digest(root: Path) -> str | None:
     if not (root / ".git").exists():
         return None
-    status = _run_git(root, "status", "--porcelain", "--untracked-files=no")
-    return digest_bytes(status.encode("utf-8"))
+    # Compare tracked content, not porcelain status.  A freshly-created index
+    # can be racily-clean: the first `git status` may refresh stat data and a
+    # second identical status can then differ even though no file changed.
+    # `git diff HEAD` is content based, includes staged and unstaged tracked
+    # changes, and deliberately excludes harmless untracked interpreter caches.
+    diff = _run_git(root, "diff", "--binary", "HEAD", "--")
+    return digest_bytes(diff.encode("utf-8"))
 
 
 def run_profile(

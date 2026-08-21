@@ -319,6 +319,30 @@ class DeliveryProfileRunnerTests(unittest.TestCase):
                 "evidence_not_complete_success",
             )
 
+    def test_untracked_python_cache_does_not_block_later_profile_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "pkt06@example.invalid"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "PKT-06"], cwd=root, check=True)
+            source = root / "check.py"
+            source.write_text("value = 1\n", encoding="utf-8")
+            subprocess.run(["git", "add", "check.py"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "fixture"], cwd=root, check=True)
+
+            result = runner.run_profile(
+                root,
+                "fast",
+                commands=[
+                    ["python3", "-m", "py_compile", "check.py"],
+                    ["python3", "-c", "print('continued')"],
+                ],
+                identity=identity(),
+            )
+            self.assertTrue(result["ok"])
+            self.assertFalse(result["workspaceMutated"])
+            self.assertEqual([row["status"] for row in result["commands"]], ["passed", "passed"])
+
     def test_invalid_identity_fails_closed(self) -> None:
         with self.assertRaisesRegex(runner.DeliveryProfileError, "identity_commit_invalid"):
             runner.identity_digest({**identity(), "headCommit": "not-a-sha"})
