@@ -160,6 +160,21 @@ class ControllerError(ValueError):
         return {"code": self.code, "detail": self.detail}
 
 
+def _receipt_workflow_run_id(receipt: Mapping[str, Any]) -> int:
+    """Return the exact reusable Full run ID required by promotion gates."""
+
+    raw = receipt.get("workflowRunId")
+    if isinstance(raw, bool):
+        raise ControllerError("receipt_workflow_run_invalid", str(raw))
+    try:
+        run_id = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ControllerError("receipt_workflow_run_invalid", str(raw or "missing")) from exc
+    if run_id < 1 or str(raw).strip() != str(run_id):
+        raise ControllerError("receipt_workflow_run_invalid", str(raw))
+    return run_id
+
+
 class GitHubPort(Protocol):
     """Merge/promote adapter. Tests inject ``MemoryGitHub``."""
 
@@ -902,6 +917,7 @@ def promote_to_staging(
         "candidateHead": normalize_sha(candidate_sha),
         "promoteBranch": branch,
         "receiptDigest": compute_receipt_digest(receipt),
+        "fullRunId": _receipt_workflow_run_id(receipt),
     }
     body = f"<!-- linktrend-promote: {json.dumps(marker, sort_keys=True)} -->"
     pr = call_with_infrastructure_retry(
@@ -980,6 +996,7 @@ def prepare_main_promotion(
         "candidateHead": normalize_sha(candidate_sha),
         "promoteBranch": branch,
         "receiptDigest": compute_receipt_digest(receipt),
+        "fullRunId": _receipt_workflow_run_id(receipt),
         "awaitingFounderApproval": True,
     }
     body = f"<!-- linktrend-promote: {json.dumps(marker, sort_keys=True)} -->"
