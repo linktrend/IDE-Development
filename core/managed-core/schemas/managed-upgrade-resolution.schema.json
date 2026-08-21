@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://linktrend.local/managed-core/managed-upgrade-resolution.schema.json",
+  "title": "IDE managed upgrade resolution v2",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "kind", "repository", "targetWorktree", "consumer", "provider", "allowedConflictPaths", "conflicts", "verification", "backupAndRollback", "resolution"],
+  "properties": {
+    "schemaVersion": {"const": 2},
+    "kind": {"const": "ide-managed-upgrade-resolution"},
+    "repository": {"type": "string", "minLength": 1},
+    "targetWorktree": {"type": "string", "minLength": 1},
+    "consumer": {"$ref": "#/$defs/identity"},
+    "provider": {"type": "object", "required": ["repository", "authoritativeRef", "commit", "tree", "installerVersion", "independentVerificationReceipt", "managedPackageManifest"]},
+    "allowedConflictPaths": {"const": [".ide-development/schemas/secret-scan-result.schema.json", ".ide-development/tests/test_fixture_aware_secret_scan.py", "scripts/gitops/secret_scan.py"]},
+    "conflicts": {"type": "array", "minItems": 3, "items": {"$ref": "#/$defs/conflict"}},
+    "verification": {"type": "object", "required": ["providerReceipt", "providerTreeRequired", "consumerTreeRequired", "noUpstreamScanOrMutation"]},
+    "backupAndRollback": {"type": "object", "required": ["backupRequiredBeforeApply", "transactionRequired", "manualOverwriteForbidden"]},
+    "resolution": {"type": "object", "required": ["deferredPaths", "noExtraPaths"]}
+  },
+  "$defs": {
+    "oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "identity": {"type": "object", "required": ["commit", "tree"], "properties": {"commit": {"$ref": "#/$defs/oid"}, "tree": {"$ref": "#/$defs/oid"}}},
+    "conflict": {
+      "type": "object",
+      "required": ["path", "installedBaseline", "currentConsumer", "provider"],
+      "properties": {
+        "path": {"enum": [".ide-development/schemas/secret-scan-result.schema.json", ".ide-development/tests/test_fixture_aware_secret_scan.py", "scripts/gitops/secret_scan.py"]},
+        "installedBaseline": {"$ref": "#/$defs/file"},
+        "currentConsumer": {"$ref": "#/$defs/file"},
+        "provider": {"$ref": "#/$defs/file"},
+        "decision": {"const": "provider-supersedes"}
+      }
+    },
+    "file": {"type": "object", "required": ["sha256"], "properties": {"sha256": {"$ref": "#/$defs/digest"}}}
+  }
+}

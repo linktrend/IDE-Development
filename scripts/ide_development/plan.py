@@ -247,6 +247,7 @@ def _classify_existing(
     dest: Path,
     entry: ManifestEntry,
     prior: InstalledState | None,
+    authorized_replacements: frozenset[str] = frozenset(),
 ) -> tuple[OpKind | None, ConflictItem | None, DriftItem | None, str, str]:
     rel = entry.destination
 
@@ -353,6 +354,8 @@ def _classify_existing(
         )
 
     if prior_file.content_hash != actual_hash:
+        if rel in authorized_replacements:
+            return OpKind.REPLACE, None, None, "explicit digest-bound provider supersedes", "managed_upgrade"
         if actual_hash == entry.source_hash:
             return OpKind.REPLACE, None, None, "repair state to matching package bytes", "managed_upgrade"
         return (
@@ -401,6 +404,7 @@ def build_plan(
     migration: MigrationCatalog,
     prior: InstalledState | None,
     dry_run: bool,
+    authorized_replacements: frozenset[str] = frozenset(),
 ) -> Plan:
     plan = Plan(
         command=command,
@@ -483,6 +487,7 @@ def build_plan(
             dest=dest,
             entry=entry,
             prior=prior,
+            authorized_replacements=authorized_replacements,
         )
         if conflict is not None:
             plan.conflicts.append(conflict)

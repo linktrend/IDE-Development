@@ -593,6 +593,11 @@ def _is_code_expression(value: str) -> bool:
         return True
     if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*(?:\([^)]*\)|\))+", stripped):
         return True
+    # A multiline call can end the physical source line immediately after its
+    # opening parenthesis. Treat that syntactic reference as code, while the
+    # realistic-value check above still blocks credential literals.
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*\(", stripped):
+        return True
     return False
 
 

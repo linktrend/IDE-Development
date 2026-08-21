@@ -911,6 +911,7 @@ class AdversarialRepairTests(unittest.TestCase):
         entropy = hashlib.sha256(b"reference-probe").hexdigest()
         self.assertEqual(extract_assignments('token = "gateway.remote.token"'), [])
         self.assertEqual(extract_assignments('token = "resolveToken()"'), [])
+        self.assertEqual(extract_assignments("api_key = require_cursor_cloud_api_key("), [])
         self.assertEqual(extract_assignments('key = "ordinary-name"'), [])
         self.assertEqual(extract_assignments('url = "https://example.invalid/path"'), [])
         self.assertEqual(extract_assignments(f'key = "{entropy}"')[0][0], "key")
