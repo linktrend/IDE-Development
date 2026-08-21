@@ -29,13 +29,12 @@ DEFAULT_VERIFY = "Verify IDE Development"
 # Obsolete managed contexts that must never remain required or evaluated.
 OBSOLETE_TO_ACTIVE: dict[str, str] = {
     "Enforce allowed PR source branches": SOURCE_POLICY_CHECK,
-    "Cursor Bugbot": REVIEW_GATE_CHECK,
 }
+OBSOLETE_REMOVED = frozenset({"Cursor Bugbot", REVIEW_GATE_CHECK, "Linktrend Review Ready"})
 
 ACTIVE_MANAGED_CHECKS = frozenset(
     {
         SOURCE_POLICY_CHECK,
-        REVIEW_GATE_CHECK,
         FAST_CHECKS,
         FULL_SUITE,
         RECEIPT_GATE,
@@ -102,7 +101,6 @@ def derive_active_check_contract(
         "schemaVersion": SCHEMA_VERSION,
         "releaseId": release_id,
         "checks": {
-            "reviewGate": REVIEW_GATE_CHECK,
             "sourcePolicy": SOURCE_POLICY_CHECK,
             "fastChecks": FAST_CHECKS,
             "fullSuite": FULL_SUITE,
@@ -110,6 +108,7 @@ def derive_active_check_contract(
             "verify": verify,
         },
         "obsoleteManaged": dict(OBSOLETE_TO_ACTIVE),
+        "removedManaged": sorted(OBSOLETE_REMOVED),
         "variables": {
             "integrator": CHECK_VAR_NAMES[0],
             "staging": CHECK_VAR_NAMES[1],
@@ -128,6 +127,8 @@ def replace_obsolete_checks(names: Sequence[str]) -> list[str]:
         name = str(raw or "").strip()
         if not name:
             continue
+        if name in OBSOLETE_REMOVED:
+            continue
         mapped = OBSOLETE_TO_ACTIVE.get(name, name)
         if mapped in seen:
             continue
@@ -139,7 +140,7 @@ def replace_obsolete_checks(names: Sequence[str]) -> list[str]:
 def strip_obsolete_managed(names: Sequence[str]) -> list[str]:
     """Drop obsolete managed names that have an active replacement."""
 
-    obsolete = set(OBSOLETE_TO_ACTIVE)
+    obsolete = set(OBSOLETE_TO_ACTIVE) | set(OBSOLETE_REMOVED)
     return [n for n in names if n not in obsolete]
 
 
@@ -292,6 +293,8 @@ def detect_context_defects(
                     "replacement": OBSOLETE_TO_ACTIVE[name],
                 }
             )
+        elif name in OBSOLETE_REMOVED:
+            defects.append({"kind": "stale", "context": name, "replacement": None})
         conclusion = entry["conclusion"]
         if name in req_set and conclusion in {"skipped", "neutral", "cancelled"}:
             # Only skipped/neutral and never success for this context.

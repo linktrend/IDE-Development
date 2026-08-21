@@ -162,14 +162,13 @@ def verify_receipt_file(
 
 
 def evaluate_development_gates(payload: Mapping[str, Any], expected_head_sha: str) -> Decision:
-    """Require exact seal, fast, Bugbot, and full/not-required on one head."""
+    """Require exact seal, fast, and full/not-required on one head."""
     head = _sha(expected_head_sha)
     if not head:
         return Decision(False, "invalid_head", "expected development head SHA is invalid")
     aliases = {
         "seal": ("seal", "sealed", "phaseReady"),
         "fast": ("fast", "fastGate", "fast-gate"),
-        "bugbot": ("bugbot", "cursorBugbot", "Cursor Bugbot", "reviewGate", "Linktrend Review Gate"),
         "full": ("full", "fullSuite", "full-gate"),
     }
     for name, keys in aliases.items():
@@ -184,7 +183,7 @@ def evaluate_development_gates(payload: Mapping[str, Any], expected_head_sha: st
         observed = _sha(_field(row, "sha", "headSha", "sourceSha"))
         if not observed or observed != head:
             return Decision(False, f"{name}_stale", f"{name} is not bound to the exact sealed head")
-    return Decision(True, "accepted", "exact seal, fast, Bugbot, and full/not-required gates passed")
+    return Decision(True, "accepted", "exact seal, fast, and full/not-required gates passed")
 
 
 def evaluate_main_approval(
