@@ -14,6 +14,10 @@ for name in "${consumers[@]}"; do
   repo="$TMP/$name"
   mkdir -p "$repo/.github"
   git -C "$repo" init -q -b development
+  # The disposable repository has no consumer-owned .gitignore. Keep Python's
+  # interpreter caches out of its baseline so py_compile exercises source
+  # validation instead of rewriting a mistakenly tracked test artifact.
+  printf '%s\n' '__pycache__/' '*.py[cod]' >>"$repo/.git/info/exclude"
   cat >"$repo/.github/linktrend-gitops-consumer.json" <<JSON
 {"schemaVersion":1,"fastWorkflowName":"Linktrend Fast Checks","ciWorkflowName":"${name} CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Linktrend Review Gate","reviewGateCheckName":"Linktrend Review Gate","bugbotProviderCheckName":"Cursor Bugbot","runnerType":"github-hosted"}
 JSON
