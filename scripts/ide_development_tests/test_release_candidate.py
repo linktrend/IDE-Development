@@ -61,7 +61,9 @@ class ReleaseCandidateGateTests(unittest.TestCase):
         self.assertIn("dirty", ctx.exception.message.lower())
 
     def test_missing_evidence_refusal(self) -> None:
-        with mock.patch.object(
+        # This unit test exercises the evidence gate, not Git baseline discovery.
+        # Hosted issue-branch checkouts intentionally may not fetch development.
+        with mock.patch.object(rc, "finalize_candidate"), mock.patch.object(
             rc,
             "validate_tests_and_evidence",
             side_effect=rc.ReleaseCandidateError(
@@ -69,13 +71,12 @@ class ReleaseCandidateGateTests(unittest.TestCase):
                 details={"missing": ["tests/packaging/LANE_D_RESULT.md"]},
             ),
         ):
-            with mock.patch.dict(os.environ, runtime_baseline_environment(baseline_ref="origin/development")):
-                with self.assertRaises(InstallerError) as ctx:
-                    rc.create_release_candidate(
-                        allow_dirty=True,
-                        skip_install_verify=True,
-                        skip_evidence=False,
-                    )
+            with self.assertRaises(InstallerError) as ctx:
+                rc.create_release_candidate(
+                    allow_dirty=True,
+                    skip_install_verify=True,
+                    skip_evidence=False,
+                )
             self.assertIn("evidence", ctx.exception.message.lower())
 
     def test_fixture_environment_accepts_named_remote_without_origin_target(self) -> None:
