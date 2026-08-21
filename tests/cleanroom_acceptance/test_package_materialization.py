@@ -80,6 +80,13 @@ class PackageMaterializationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="managed-baseline-audit-") as tmp:
             package = Path(tmp) / "package"
             materialize_package_copy(package, source=PACKAGE_FIXTURE)
+            for rel in (
+                "core/managed-core/content/config/continuous-utilization.json",
+                "core/managed-core/schemas/continuous-utilization.schema.json",
+            ):
+                destination = package / rel
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(REPO_ROOT / rel, destination)
             proc = subprocess.run(
                 [
                     sys.executable,
@@ -103,7 +110,7 @@ def git(*args):
 git("init", "-q", "-b", "development")
 git("config", "user.email", "managed@example.invalid")
 git("config", "user.name", "Managed")
-(root / "baseline.txt").write_text("baseline\n", encoding="utf-8")
+(root / "baseline.txt").write_text("baseline\\n", encoding="utf-8")
 git("add", "baseline.txt")
 git("commit", "-qm", "managed baseline")
 baseline = git("rev-parse", "HEAD")
@@ -203,6 +210,13 @@ else:
         with tempfile.TemporaryDirectory(prefix="managed-heartbeat-contract-") as tmp:
             package = Path(tmp) / "package"
             materialize_package_copy(package, source=PACKAGE_FIXTURE)
+            for rel in (
+                "core/managed-core/content/config/continuous-utilization.json",
+                "core/managed-core/schemas/continuous-utilization.schema.json",
+            ):
+                destination = package / rel
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(REPO_ROOT / rel, destination)
             proc = subprocess.run(
                 [
                     sys.executable,
