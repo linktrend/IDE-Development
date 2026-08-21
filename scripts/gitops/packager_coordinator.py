@@ -21,6 +21,7 @@ starts Full.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -75,6 +76,15 @@ except ModuleNotFoundError:  # pragma: no cover - script-style execution
     from github_auth import GitHubAuthError, resolve_phase_api_token  # type: ignore
     from issue_checkpoint import bind_issue_completion, parse_immutable_evidence_payload  # type: ignore
 
+try:
+    from scripts.gitops.generated_output_closure import (
+        ClosureError,
+        close_generated_outputs,
+        load_graph,
+    )
+except ModuleNotFoundError:  # pragma: no cover - script-style execution
+    from generated_output_closure import ClosureError, close_generated_outputs, load_graph  # type: ignore
+
 COMPONENT_KIND = "phase_packager_coordinator"
 IS_PHASE_PACKAGER = True
 HANDOFF_REL = Path(".linktrend/phase-handoff.json")
@@ -93,6 +103,8 @@ AGENT_ENV_KEYS = (
 )
 FAST_WORKFLOW_REL = Path("core/github/managed-workflows/linktrend-review-packager.yml")
 FULL_WORKFLOW_REL = Path("core/github/managed-workflows/linktrend-integrator-merge.yml")
+GENERATED_CLOSURE_SUBJECT = "phase: close generated outputs"
+SECRET_FIXTURE_REL = ".github/linktrend-secret-scan-fixtures.json"
 
 
 class CoordinatorError(ValueError):
@@ -594,6 +606,7 @@ def _is_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
 
 
 def _probe_conflicts(repo: Path, development: str, sources: list[AcceptedSource]) -> None:
+    graph = load_graph(repo) if _closure_graph_present(repo) else None
     overlapping: list[dict[str, Any]] = []
     for left, right in (
         (sources[i], sources[j]) for i in range(len(sources)) for j in range(i + 1, len(sources))
@@ -601,7 +614,12 @@ def _probe_conflicts(repo: Path, development: str, sources: list[AcceptedSource]
         related = _is_ancestor(repo, left.sha, right.sha) or _is_ancestor(repo, right.sha, left.sha)
         if related:
             continue
-        shared = sorted(_changed_paths(repo, development, left.sha) & _changed_paths(repo, development, right.sha))
+        shared = sorted(
+            path
+            for path in _changed_paths(repo, development, left.sha)
+            & _changed_paths(repo, development, right.sha)
+            if graph is None or not _allowed_generated_path(path, graph)
+        )
         if shared:
             overlapping.append(
                 {
@@ -627,6 +645,8 @@ def _probe_conflicts(repo: Path, development: str, sources: list[AcceptedSource]
                     check=False,
                 )
                 if merge.returncode:
+                    if _resolve_generated_only_merge_conflict(probe):
+                        continue
                     subprocess.run(
                         ["git", "merge", "--abort"],
                         cwd=probe,
@@ -718,6 +738,11 @@ def _unique_phase_commits(
     phase_sha: str,
     accepted_shas: set[str],
 ) -> list[str]:
+    accepted_ancestry = {
+        normalize_sha(line)
+        for line in _git(repo, "rev-list", *sorted(accepted_shas), check=False).splitlines()
+        if line.strip()
+    }
     output = _git(repo, "rev-list", "--parents", f"{development_sha}..{phase_sha}", check=False)
     unique: list[str] = []
     for line in output.splitlines():
@@ -726,9 +751,11 @@ def _unique_phase_commits(
             continue
         commit = normalize_sha(parts[0])
         parents = [normalize_sha(item) for item in parts[1:]]
-        if commit in accepted_shas:
+        if commit in accepted_ancestry:
             continue
         if len(parents) == 2 and parents[1] in accepted_shas:
+            continue
+        if _is_generated_closure_commit(repo, commit, parents=parents):
             continue
         unique.append(commit)
     return unique
@@ -751,6 +778,172 @@ def _remaining_sources(repo: Path, start_sha: str, sources: list[AcceptedSource]
     return remaining
 
 
+def _closure_graph_present(repo: Path) -> bool:
+    return any(
+        (repo / rel).is_file()
+        for rel in (
+            "core/managed-core/config/generated-output-closure.json",
+            ".ide-development/config/generated-output-closure.json",
+        )
+    )
+
+
+def _allowed_generated_path(path: str, graph: Any) -> bool:
+    for spec in graph.outputs:
+        if path == spec.output:
+            return True
+        if any(fnmatch.fnmatch(path, pattern) for pattern in spec.additional_outputs):
+            return True
+    return False
+
+
+def _merge_secret_fixture_conflict(probe: Path, path: str) -> bool:
+    """Union explicitly governed fixture rows before deterministic closure.
+
+    The closure may refresh locations and candidate identity, but it must not
+    discard a new approval carried by an accepted Issue checkpoint merely
+    because the generated declaration also changed on the Phase branch.
+    """
+
+    if path != SECRET_FIXTURE_REL:
+        return False
+    try:
+        ours = json.loads(_git(probe, "show", f":2:{path}"))
+        theirs = json.loads(_git(probe, "show", f":3:{path}"))
+    except (CoordinatorError, json.JSONDecodeError) as exc:
+        raise CoordinatorError("generated_fixture_merge_invalid", path) from exc
+    identity_fields = ("schemaVersion", "kind", "scannerPolicyVersion")
+    if any(ours.get(field) != theirs.get(field) for field in identity_fields):
+        raise CoordinatorError("generated_fixture_policy_conflict", path)
+    ours_rows = ours.get("fixtures")
+    theirs_rows = theirs.get("fixtures")
+    if not isinstance(ours_rows, list) or not isinstance(theirs_rows, list):
+        raise CoordinatorError("generated_fixture_merge_invalid", path)
+    merged: list[dict[str, Any]] = []
+    by_id: dict[str, dict[str, Any]] = {}
+    for raw in [*ours_rows, *theirs_rows]:
+        if not isinstance(raw, Mapping) or not isinstance(raw.get("id"), str) or not raw["id"]:
+            raise CoordinatorError("generated_fixture_merge_invalid", path)
+        row = dict(raw)
+        fixture_id = row["id"]
+        existing = by_id.get(fixture_id)
+        if existing is not None:
+            if existing != row:
+                raise CoordinatorError("generated_fixture_identity_conflict", fixture_id)
+            continue
+        by_id[fixture_id] = row
+        merged.append(row)
+    payload = dict(ours)
+    payload["fixtures"] = merged
+    (probe / path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return True
+
+
+def _resolve_generated_only_merge_conflict(probe: Path) -> bool:
+    if not _closure_graph_present(probe):
+        return False
+    try:
+        graph = load_graph(probe)
+    except ClosureError:
+        return False
+    unresolved = {
+        line.strip()
+        for line in _git(probe, "diff", "--name-only", "--diff-filter=U", check=False).splitlines()
+        if line.strip()
+    }
+    if not unresolved or any(not _allowed_generated_path(path, graph) for path in unresolved):
+        return False
+    ordinary: list[str] = []
+    for path in sorted(unresolved):
+        if not _merge_secret_fixture_conflict(probe, path):
+            ordinary.append(path)
+    if ordinary:
+        _git(probe, "checkout", "--ours", "--", *ordinary)
+    _git(probe, "add", "--", *sorted(unresolved))
+    _git(
+        probe,
+        "-c",
+        "user.name=LiNKtrend Phase Packager",
+        "-c",
+        "user.email=phase-packager@linktrend.invalid",
+        "commit",
+        "--no-edit",
+    )
+    return True
+
+
+def _close_and_commit_generated_outputs(probe: Path) -> str:
+    before = normalize_sha(_git(probe, "rev-parse", "HEAD"))
+    if not _closure_graph_present(probe):
+        return before
+    try:
+        graph = load_graph(probe)
+        close_generated_outputs(probe)
+    except ClosureError as exc:
+        raise CoordinatorError("generated_output_closure_failed", str(exc)) from exc
+    status = subprocess.run(
+        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        cwd=probe,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if status.returncode:
+        raise CoordinatorError("generated_output_status", (status.stderr or status.stdout).strip()[-1000:])
+    changed = [entry[3:] for entry in status.stdout.split("\0") if len(entry) > 3]
+    unexpected = sorted(path for path in changed if not _allowed_generated_path(path, graph))
+    if unexpected:
+        raise CoordinatorError("generated_output_scope", ",".join(unexpected))
+    if not changed:
+        return before
+    _git(probe, "add", "--all", "--", *changed)
+    _git(
+        probe,
+        "-c",
+        "user.name=LiNKtrend Phase Packager",
+        "-c",
+        "user.email=phase-packager@linktrend.invalid",
+        "commit",
+        "-m",
+        GENERATED_CLOSURE_SUBJECT,
+    )
+    return normalize_sha(_git(probe, "rev-parse", "HEAD"))
+
+
+def _is_generated_closure_commit(repo: Path, commit: str, *, parents: list[str]) -> bool:
+    if len(parents) != 1:
+        return False
+    if _git(repo, "show", "-s", "--format=%s", commit, check=False) != GENERATED_CLOSURE_SUBJECT:
+        return False
+    with tempfile.TemporaryDirectory(prefix="phase-closure-verify-") as tmp:
+        probe = Path(tmp) / "work"
+        added = subprocess.run(
+            ["git", "worktree", "add", "--detach", str(probe), parents[0]],
+            cwd=repo,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if added.returncode:
+            return False
+        try:
+            try:
+                expected = _close_and_commit_generated_outputs(probe)
+            except CoordinatorError:
+                return False
+            expected_tree = _git(repo, "rev-parse", f"{expected}^{{tree}}", check=False)
+            observed_tree = _git(repo, "rev-parse", f"{commit}^{{tree}}", check=False)
+            return bool(expected_tree and expected_tree == observed_tree)
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(probe)],
+                cwd=repo,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+
 def _assemble_in_worktree(
     repo: Path,
     *,
@@ -758,8 +951,6 @@ def _assemble_in_worktree(
     sources: list[AcceptedSource],
 ) -> str:
     remaining = _remaining_sources(repo, start_sha, sources)
-    if not remaining:
-        return normalize_sha(start_sha)
     with tempfile.TemporaryDirectory(prefix="phase-assemble-") as tmp:
         probe = Path(tmp) / "work"
         _git(repo, "worktree", "add", "--detach", str(probe), start_sha)
@@ -781,6 +972,8 @@ def _assemble_in_worktree(
                     check=False,
                 )
                 if merge.returncode:
+                    if _resolve_generated_only_merge_conflict(probe):
+                        continue
                     subprocess.run(
                         ["git", "merge", "--abort"],
                         cwd=probe,
@@ -789,6 +982,7 @@ def _assemble_in_worktree(
                         check=False,
                     )
                     raise CoordinatorError("conflicting_commits", source.branch)
+            _close_and_commit_generated_outputs(probe)
             head = normalize_sha(_git(probe, "rev-parse", "HEAD"))
             _git(repo, "update-ref", "refs/phase-packager/assemble", head)
         finally:
@@ -1017,11 +1211,9 @@ def assemble_phase(
         start_sha = development_sha
 
     revision = _candidate_revision(repository, phase_branch, development_sha, ordered)
-    identical = not remaining
-    if identical:
-        head = existing_phase or development_sha
-    else:
-        head = _assemble_in_worktree(repo, start_sha=start_sha, sources=ordered)
+    pre_closure_head = existing_phase or development_sha if not remaining else ""
+    head = _assemble_in_worktree(repo, start_sha=start_sha, sources=ordered)
+    identical = not remaining and head == pre_closure_head
     tree = _git(repo, "rev-parse", f"{head}^{{tree}}")
     for source in ordered:
         if not _is_ancestor(repo, source.sha, head):
