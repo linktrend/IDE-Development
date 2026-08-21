@@ -91,6 +91,7 @@ from core.execution.manifest_persistence import (
     persist_manifest,
     reconcile_manifest_heartbeat,
     run_heartbeat_controller,
+    verify_no_action_receipt,
 )
 from core.execution.transactional_dispatch import (
     CONTROL_IDEMPOTENCY_KEY,
@@ -195,6 +196,7 @@ __all__ = [
     "persist_manifest",
     "reconcile_manifest_heartbeat",
     "run_heartbeat_controller",
+    "verify_no_action_receipt",
     "CONTROL_IDEMPOTENCY_KEY",
     "DispatchBudget",
     "DispatchInterrupted",

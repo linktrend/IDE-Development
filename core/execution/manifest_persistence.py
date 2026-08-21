@@ -454,7 +454,34 @@ def _no_action_receipt(
         "identity": dict(identity),
         "decision": "DONT_NOTIFY",
         "requirements": [],
+        "readback": True,
     }
+
+
+def verify_no_action_receipt(
+    receipt: Mapping[str, Any],
+    *,
+    record: ManifestRead,
+    identity: Mapping[str, str],
+    snapshot: Mapping[str, Any] | None = None,
+) -> bool:
+    """Verify the durable identity binding required before DONT_NOTIFY."""
+
+    expected_manifest_digest = record.digest or canonical_manifest_digest(record.manifest)
+    if (
+        receipt.get("schemaVersion") != 1
+        or receipt.get("kind") != "heartbeat_no_action"
+        or receipt.get("decision") != "DONT_NOTIFY"
+        or receipt.get("readback") is not True
+        or receipt.get("requirements") != []
+        or receipt.get("manifestRevision") != record.revision
+        or receipt.get("manifestDigest") != expected_manifest_digest
+        or receipt.get("identity") != dict(identity)
+    ):
+        return False
+    if snapshot is not None and receipt.get("snapshotDigest") != canonical_manifest_digest(snapshot):
+        return False
+    return True
 
 
 def _append_heartbeat_transition(
@@ -672,6 +699,16 @@ def reconcile_manifest_heartbeat(
         }
 
     receipt = _no_action_receipt(current_record, snapshot, identity=dict(identity))
+    if not verify_no_action_receipt(
+        receipt,
+        record=current_record,
+        identity=dict(identity),
+        snapshot=snapshot,
+    ):
+        raise ManifestPersistenceError(
+            "no_action_receipt_invalid",
+            "heartbeat controller could not verify its no-action receipt",
+        )
     return {
         "status": "reconciled",
         "notify": False,
@@ -717,7 +754,33 @@ def run_heartbeat_controller(
         elapsed_seconds=elapsed_seconds,
     )
     action = result.get("requiredAction")
-    if not isinstance(action, Mapping) or action.get("kind") != "DISPATCH_SAFE_ACTION":
+    if not isinstance(action, Mapping):
+        return result
+    if action.get("kind") == "DONT_NOTIFY":
+        record = _read_record(store)
+        receipt = action.get("receipt")
+        if (
+            record is None
+            or not isinstance(receipt, Mapping)
+            or not verify_no_action_receipt(
+                receipt,
+                record=record,
+                identity=dict(record.manifest.get("identity") or {}),
+            )
+        ):
+            return {
+                **result,
+                "status": "action_required",
+                "notify": True,
+                "requiredAction": {
+                    "kind": "ACTION_REQUIRED",
+                    "code": "no_action_receipt_invalid",
+                    "action": "RECONCILE_HEARTBEAT_RECEIPT",
+                    "dispatchable": False,
+                },
+            }
+        return result
+    if action.get("kind") != "DISPATCH_SAFE_ACTION":
         return result
     if (
         dispatch_store is None

@@ -21,6 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_SOURCES = (
     "scripts/gitops/repository_ci_contract.py",
     "scripts/gitops/promotion_receipt_gate.py",
+    "scripts/gitops/run_delivery_profile.py",
     "core/execution/__init__.py",
     "core/execution/protocol.py",
     "core/execution/lifecycle.py",
@@ -74,6 +75,16 @@ class Authority:
             "identity": dict(identity),
             "cursor": {"status": "REPAIR_REQUESTED"},
             "github": {},
+            "git": {"head": identity["commit"], "tree": identity["tree"]},
+        }
+
+class FailedAuthority(Authority):
+    def read_authoritative_state(self, observed_identity):
+        assert observed_identity == identity
+        return {
+            "identity": dict(identity),
+            "cursor": {"status": "queued"},
+            "github": {"check": {"conclusion": "FAILURE"}},
             "git": {"head": identity["commit"], "tree": identity["tree"]},
         }
 
@@ -148,6 +159,20 @@ assert sum(
     row.get("kind") == "UTILIZATION_GAP"
     for row in store.read()["manifest"]["transitions"]
 ) == 1
+failed_store = Store()
+persist_manifest(
+    {
+        "schemaVersion": 1,
+        "packetId": "PKT-08",
+        "identity": dict(identity),
+        "transitions": [],
+    },
+    failed_store,
+)
+failed = run_heartbeat_controller(failed_store, FailedAuthority())
+assert failed["notify"] is True, failed
+assert failed["requiredAction"]["code"] == "failed_check_repair", failed
+assert failed["requiredAction"]["kind"] != "DONT_NOTIFY", failed
 print("PASS")
 """
 
@@ -381,6 +406,57 @@ assert scheduler.admitted_ids() == ("heartbeat-action",)
                 materializer(package, source=source)
                 proc = subprocess.run(
                     [sys.executable, "-c", HEARTBEAT_CONTROLLER_SCRIPT],
+                    cwd=package,
+                    env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                self.assertIn("PASS", proc.stdout)
+
+    def test_managed_and_extracted_packages_ignore_git_objects_in_dependency_digest(self) -> None:
+        script = """
+import fnmatch
+import os
+from pathlib import Path
+from scripts.gitops import run_delivery_profile as runner
+
+root = Path(".")
+(root / ".git" / "objects" / "aa").mkdir(parents=True)
+(root / ".git" / "objects" / "aa" / "missing.lock").write_text("control", encoding="utf-8")
+(root / "requirements.txt").write_text("jsonschema\\n", encoding="utf-8")
+digest = runner._digest_files(root, ("**/*lock*", "**/requirements*.txt"))
+expected_rows = []
+for directory, directory_names, file_names in os.walk(root, followlinks=False):
+    directory_names[:] = [name for name in directory_names if name != ".git"]
+    for name in file_names:
+        if fnmatch.fnmatch(name, "*lock*") or fnmatch.fnmatch(name, "requirements*.txt"):
+            path = Path(directory) / name
+            expected_rows.append({
+                "path": path.relative_to(root).as_posix(),
+                "digest": runner.digest_bytes(path.read_bytes()),
+            })
+expected = runner.digest_json(sorted(expected_rows, key=lambda row: row["path"]))
+assert digest == expected, digest
+assert ".git/" not in digest
+print("PASS")
+"""
+        for materializer, label in (
+            (materialize_package_copy, "managed"),
+            (materialize_isolated_rc_extract, "extracted"),
+        ):
+            with self.subTest(package=label), tempfile.TemporaryDirectory(
+                prefix=f"{label}-dependency-digest-"
+            ) as tmp:
+                source = Path(tmp) / "source"
+                package = Path(tmp) / label
+                source_path = source / "scripts/gitops/run_delivery_profile.py"
+                source_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(REPO_ROOT / "scripts/gitops/run_delivery_profile.py", source_path)
+                materializer(package, source=source)
+                proc = subprocess.run(
+                    [sys.executable, "-c", script],
                     cwd=package,
                     env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
                     text=True,

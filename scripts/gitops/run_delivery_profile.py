@@ -10,6 +10,7 @@ workspace mutation stops execution and marks the remaining commands omitted.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -181,11 +182,37 @@ def _remote_repository(root: Path) -> str:
 
 
 def _digest_files(root: Path, patterns: Sequence[str]) -> str:
+    """Digest matched working-tree files without traversing Git metadata."""
+
+    matches: dict[str, Path] = {}
+    for directory, directory_names, file_names in os.walk(root, followlinks=False):
+        directory_names[:] = sorted(
+            name for name in directory_names if name != ".git"
+        )
+        base = Path(directory)
+        for name in sorted(file_names):
+            path = base / name
+            if path.is_symlink():
+                continue
+            relative = path.relative_to(root).as_posix()
+            if any(
+                path.match(pattern)
+                or fnmatch.fnmatch(relative, pattern)
+                or fnmatch.fnmatch(name, pattern.removeprefix("**/"))
+                for pattern in patterns
+            ):
+                matches[relative] = path
+
     rows: list[dict[str, str]] = []
-    for pattern in patterns:
-        for path in sorted(root.glob(pattern)):
-            if path.is_file():
-                rows.append({"path": str(path.relative_to(root)).replace("\\", "/"), "digest": digest_bytes(path.read_bytes())})
+    for relative in sorted(matches):
+        path = matches[relative]
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            raise DeliveryProfileError(
+                f"dependency_declaration_unreadable:{relative}:{exc}"
+            ) from exc
+        rows.append({"path": relative, "digest": digest_bytes(raw)})
     return digest_json(rows)
 
 
@@ -209,7 +236,22 @@ def build_identity(
         "repository": repo,
         "gitTree": tree,
         "headCommit": head,
-        "dependencyDigest": dependency_digest or _digest_files(root, ("**/*lock*", "**/requirements*.txt")),
+        "dependencyDigest": dependency_digest
+        or _digest_files(
+            root,
+            (
+                "**/Cargo.lock",
+                "**/Gemfile.lock",
+                "**/Pipfile.lock",
+                "**/poetry.lock",
+                "**/package-lock.json",
+                "**/npm-shrinkwrap.json",
+                "**/pnpm-lock.yaml",
+                "**/yarn.lock",
+                "**/uv.lock",
+                "**/requirements*.txt",
+            ),
+        ),
         "profileDigest": profile_digest or config_digest,
         "workflowDigest": workflow_digest or _digest_files(root, (".github/workflows/*.yml", ".github/workflows/*.yaml")),
     }

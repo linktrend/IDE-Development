@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from core.execution.protocol import LeaseState
 from core.execution.manifest_persistence import (
@@ -358,6 +359,41 @@ class ManifestPersistenceTests(unittest.TestCase):
                 ]
             ),
             1,
+        )
+
+    def test_failed_check_remains_actionable_and_cannot_dont_notify(self) -> None:
+        store = RecoveryStore(manifest())
+        authority = Authority(
+            {
+                "identity": dict(IDENTITY),
+                "cursor": {"status": "queued"},
+                "github": {"check": {"conclusion": "FAILURE"}},
+                "git": {"head": IDENTITY["commit"], "tree": IDENTITY["tree"]},
+            }
+        )
+        result = run_heartbeat_controller(store, authority)
+        self.assertTrue(result["notify"])
+        self.assertEqual(result["requiredAction"]["code"], "failed_check_repair")
+        self.assertNotEqual(result["requiredAction"]["kind"], "DONT_NOTIFY")
+
+    def test_controller_rejects_unverifiable_no_action_receipt(self) -> None:
+        store = RecoveryStore(manifest())
+        with patch(
+            "core.execution.manifest_persistence.reconcile_manifest_heartbeat",
+            return_value={
+                "status": "reconciled",
+                "notify": False,
+                "dispatchPerformed": False,
+                "requiredAction": {
+                    "kind": "DONT_NOTIFY",
+                    "receipt": {"decision": "DONT_NOTIFY"},
+                },
+            },
+        ):
+            result = run_heartbeat_controller(store, Authority({}))
+        self.assertTrue(result["notify"])
+        self.assertEqual(
+            result["requiredAction"]["code"], "no_action_receipt_invalid"
         )
 
     def test_authority_identity_mismatch_is_fail_closed_and_not_conversation_derived(self) -> None:

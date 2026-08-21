@@ -90,6 +90,74 @@ class DeliveryProfileRunnerTests(unittest.TestCase):
             self.assertTrue(result["ok"])
             self.assertEqual(result["executedCount"], 1)
 
+    def test_dependency_digest_ignores_worktree_shared_git_objects(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repository = root / "repository"
+            subprocess.run(["git", "init", "-q", repository], check=True)
+            subprocess.run(
+                ["git", "-C", str(repository), "config", "user.email", "pkt06@example.invalid"],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(repository), "config", "user.name", "PKT-06"],
+                check=True,
+            )
+            (repository / "README.md").write_text("root\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(repository), "add", "README.md"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repository), "commit", "-qm", "root"],
+                check=True,
+            )
+            worktree = root / "worktree"
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repository),
+                    "worktree",
+                    "add",
+                    "-q",
+                    "-b",
+                    "profile-test",
+                    str(worktree),
+                ],
+                check=True,
+            )
+            (worktree / "requirements.txt").write_text("jsonschema\n", encoding="utf-8")
+            shared_objects = repository / ".git" / "objects" / "aa"
+            shared_objects.mkdir(parents=True)
+            (shared_objects / "disappearing.lock").write_text("not a dependency", encoding="utf-8")
+            digest = runner._digest_files(worktree, ("**/*lock*", "**/requirements*.txt"))
+            expected = runner.digest_json(
+                [
+                    {
+                        "path": "requirements.txt",
+                        "digest": runner.digest_bytes(b"jsonschema\n"),
+                    }
+                ]
+            )
+            self.assertEqual(digest, expected)
+            self.assertNotIn(".git/", digest)
+
+    def test_disappearing_working_tree_dependency_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            declaration = root / "requirements.txt"
+            declaration.write_text("jsonschema\n", encoding="utf-8")
+            original_read_bytes = Path.read_bytes
+
+            def disappear() -> bytes:
+                declaration.unlink()
+                return original_read_bytes(declaration)
+
+            with patch.object(Path, "read_bytes", side_effect=disappear):
+                with self.assertRaisesRegex(
+                    runner.DeliveryProfileError,
+                    "dependency_declaration_unreadable:requirements.txt",
+                ):
+                    runner._digest_files(root, ("**/requirements*.txt",))
+
     def test_missing_or_empty_profile_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(SystemExit, "delivery_profile_config_missing"):
