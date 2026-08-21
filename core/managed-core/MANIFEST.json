@@ -4643,7 +4643,7 @@
       "id": "installer-scripts-ide-development-release-candidate-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/release_candidate.py",
-      "sourceHash": "sha256:06223978f53ddd42b80ca1803790bfd553500d20c8afb3fb5b68015809ce5dfd",
+      "sourceHash": "sha256:21f99261016d06536e7eb3d1e39f93b27f730c2491ae1cceda7dae7e79b9e331",
       "destination": "scripts/ide_development/release_candidate.py",
       "mode": "0644",
       "platform": "all",

@@ -212,6 +212,20 @@ class ReleaseCandidateArchiveTests(unittest.TestCase):
             )
             rc.stage_package_tree(repo_root=root, staging_root=staging, paths=["resolver.py"])
 
+    def test_code_api_key_resolver_with_literal_is_still_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            staging = root / "stage"
+            staging.mkdir()
+            source = root / "resolver.py"
+            source.write_text(
+                'api_key = require_cursor_cloud_api_key("SUPERSECRETVALUE123456")\n',
+                encoding="utf-8",
+            )
+            with self.assertRaises(InstallerError) as ctx:
+                rc.stage_package_tree(repo_root=root, staging_root=staging, paths=["resolver.py"])
+            self.assertIn("credential", ctx.exception.message.lower())
+
     def test_refuse_host_absolute_path_content(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
