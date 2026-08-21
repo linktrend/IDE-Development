@@ -4,18 +4,22 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 from . import __version__ as installer_version
 from .constants import EXIT_CONFLICT, EXIT_DRIFT, EXIT_OK, MANAGED_CORE_DIR
 from .errors import InstallerError, InvalidPackageError, RollbackError
-from .manifest import load_manifest, load_migration_catalog
+from .manifest import Manifest, load_manifest, load_migration_catalog
 from .paths import require_git_repo, resolve_dir, same_path
 from .plan import Plan, build_drift_report, build_plan, meaningful_drift
 from .state import load_installed_state
 from .transaction import apply_plan, current_tx_dir, read_journal, recover_interrupted, rollback_last
 from .io_atomic import atomic_write_bytes
+from .hashing import sha256_file
+from .resolution import UpgradeResolution, load_and_validate_resolution
 
 
 CONSUMER_CONFIG = Path(".github/linktrend-gitops-consumer.json")
@@ -165,12 +169,97 @@ def _repository_ci_trigger_audit(package_root: Path, target_root: Path) -> dict[
     return ci_module.installer_audit_repository_ci_triggers(target_root)
 
 
+def _resolve_authorized_upgrade(
+    *,
+    resolution_manifest: Path | None,
+    target_root: Path,
+    package_root: Path,
+    manifest: Manifest,
+    prior: Any,
+    plan: Plan,
+) -> UpgradeResolution | None:
+    if resolution_manifest is None:
+        return None
+    entries = {entry.destination: entry for entry in manifest.active_entries()}
+    observed: list[tuple[str, str, str, str]] = []
+    for conflict in plan.conflicts:
+        if conflict.kind.value != "hash_mismatch_owned":
+            raise InvalidPackageError(
+                "Resolution may authorize only hash_mismatch_owned conflicts",
+                details={"path": conflict.path, "kind": conflict.kind.value},
+            )
+        entry = entries.get(conflict.path)
+        prior_file = prior.files.get(conflict.path) if prior is not None else None
+        destination = target_root / conflict.path
+        if entry is None or prior_file is None or not destination.is_file() or destination.is_symlink():
+            raise InvalidPackageError(f"Resolution conflict is not a regular managed file: {conflict.path}")
+        observed.append(
+            (conflict.path, prior_file.content_hash, sha256_file(destination), entry.source_hash)
+        )
+    resolution = load_and_validate_resolution(
+        resolution_manifest,
+        target_root=target_root,
+        package_version=manifest.package_version,
+        package_manifest_digest=sha256_file(manifest.path),
+        package_root=package_root,
+        prior_package_version=prior.package_version if prior is not None else None,
+        prior_installed_state_digest=(
+            sha256_file(target_root / ".ide-development/installed-state.json")
+            if (target_root / ".ide-development/installed-state.json").is_file()
+            else None
+        ),
+        observed_conflicts=observed,
+    )
+    return resolution
+
+
+def _post_install_verification(
+    *, target_root: Path, package_root: Path, resolution: UpgradeResolution | None
+) -> dict[str, Any]:
+    """Verify the applied package before its transaction is committed."""
+    verify = run_verify(target=target_root, package=package_root)
+    manifest = load_manifest(package_root)
+    installed_manifest = target_root / MANAGED_CORE_DIR / "MANIFEST.json"
+    manifest_ok = installed_manifest.is_file() and not installed_manifest.is_symlink() and (
+        sha256_file(installed_manifest) == sha256_file(manifest.path)
+    )
+    scanner = target_root / "scripts/gitops/secret_scan.py"
+    scan_ok = False
+    scan_exit: int | None = None
+    if scanner.is_file() and not scanner.is_symlink():
+        scan = subprocess.run(
+            [sys.executable, str(scanner), "--repo", str(target_root)],
+            cwd=target_root,
+            text=True,
+            capture_output=True,
+            timeout=60,
+            check=False,
+        )
+        scan_exit = scan.returncode
+        scan_ok = scan.returncode == 0
+    receipt_ok = resolution is not None and resolution.verification.get("providerReceipt") and resolution.verification.get("providerTreeRequired") is True and resolution.verification.get("consumerTreeRequired") is True and resolution.verification.get("noUpstreamScanOrMutation") is True
+    result = {
+        "manifest": "pass" if manifest_ok else "fail",
+        "managedHashes": "pass" if verify.exit_code == EXIT_OK else "fail",
+        "closure": "pass" if verify.exit_code == EXIT_OK else "fail",
+        "selfScan": "pass" if scan_ok else "fail",
+        "cleanroom": "receipt-bound-pass" if receipt_ok else "fail",
+        "verifyExitCode": verify.exit_code,
+    }
+    if scan_exit is not None:
+        result["selfScanExitCode"] = scan_exit
+    if not all(result[key] in {"pass", "receipt-bound-pass"} for key in ("manifest", "managedHashes", "closure", "selfScan", "cleanroom")):
+        raise InvalidPackageError("Post-install managed upgrade verification failed", details=result)
+    return result
+
+
 def run_plan(
     *,
     target: Path,
     package: Path | None = None,
     command: str = "plan",
     dry_run: bool = True,
+    resolution_manifest: Path | None = None,
 ) -> EngineResult:
     package_root, target_root = _prepare(target=target, package=package)
     recovery = _maybe_recover(target_root, mutate=False)
@@ -190,6 +279,25 @@ def run_plan(
         prior=prior,
         dry_run=True,
     )
+    resolution = _resolve_authorized_upgrade(
+        resolution_manifest=resolution_manifest,
+        target_root=target_root,
+        package_root=package_root,
+        manifest=manifest,
+        prior=prior,
+        plan=plan,
+    )
+    if resolution is not None:
+        plan = build_plan(
+            command=command,
+            package_root=package_root,
+            target_root=target_root,
+            manifest=manifest,
+            migration=migration,
+            prior=prior,
+            dry_run=True,
+            authorized_replacements=resolution.paths,
+        )
     ci_trigger_audit = _repository_ci_trigger_audit(package_root, target_root)
     exit_code = EXIT_CONFLICT if plan.has_conflicts else EXIT_OK
     payload = _plan_payload(
@@ -198,6 +306,7 @@ def run_plan(
         installerVersion=installer_version,
         normalizedFastWorkflowName=normalized_fast,
         repositoryCiTriggerAudit=ci_trigger_audit,
+        managedUpgradeResolution=resolution.to_dict() if resolution else None,
     )
     return EngineResult(exit_code=exit_code, payload=payload)
 
@@ -208,6 +317,7 @@ def run_install_or_update(
     package: Path | None = None,
     command: str,
     dry_run: bool = False,
+    resolution_manifest: Path | None = None,
 ) -> EngineResult:
     package_root, target_root = _prepare(target=target, package=package)
     recovery = _maybe_recover(target_root, mutate=not dry_run)
@@ -217,7 +327,11 @@ def run_install_or_update(
     # The installer is the authoritative upgrade path.  Early consumers have
     # a repository-owned config without the later receipt-bound Fast key; add
     # only that fixed managed declaration.  Never infer a consumer CI name.
-    normalized_fast = _normalize_consumer_workflow_contract(target_root, mutate=not dry_run)
+    # A digest-bound resolution must be completely preflighted before any
+    # consumer write; its clean-worktree proof also excludes config repair.
+    normalized_fast = _normalize_consumer_workflow_contract(
+        target_root, mutate=not dry_run and resolution_manifest is None
+    )
     prior = load_installed_state(target_root)
 
     if command == "update" and prior is None:
@@ -234,6 +348,29 @@ def run_install_or_update(
         prior=prior,
         dry_run=dry_run,
     )
+    resolution = _resolve_authorized_upgrade(
+        resolution_manifest=resolution_manifest,
+        target_root=target_root,
+        package_root=package_root,
+        manifest=manifest,
+        prior=prior,
+        plan=plan,
+    )
+    if resolution_manifest is not None and normalized_fast:
+        raise InvalidPackageError(
+            "Digest-bound resolution refuses unrelated workflow-config normalization"
+        )
+    if resolution is not None:
+        plan = build_plan(
+            command=command,
+            package_root=package_root,
+            target_root=target_root,
+            manifest=manifest,
+            migration=migration,
+            prior=prior,
+            dry_run=dry_run,
+            authorized_replacements=resolution.paths,
+        )
     ci_trigger_audit = _repository_ci_trigger_audit(package_root, target_root)
     payload = _plan_payload(
         plan,
@@ -241,6 +378,7 @@ def run_install_or_update(
         installerVersion=installer_version,
         normalizedFastWorkflowName=normalized_fast,
         repositoryCiTriggerAudit=ci_trigger_audit,
+        managedUpgradeResolution=resolution.to_dict() if resolution else None,
     )
 
     if plan.has_conflicts:
@@ -256,9 +394,18 @@ def run_install_or_update(
         manifest=manifest,
         plan=plan,
         prior=prior,
+        resolution=resolution,
+        post_apply_check=(
+            lambda: _post_install_verification(
+                target_root=target_root, package_root=package_root, resolution=resolution
+            )
+            if resolution is not None
+            else {}
+        ),
     )
     payload["applied"] = True
     payload["transaction"] = result
+    payload["postInstallVerification"] = result.get("postInstallVerification")
     return EngineResult(exit_code=EXIT_OK, payload=payload)
 
 
