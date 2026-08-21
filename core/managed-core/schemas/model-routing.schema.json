@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://linktrend.dev/schemas/model-routing.schema.json",
+  "title": "IDE model routing policy",
+  "type": "object",
+  "required": ["schemaVersion", "route", "auto", "directFirstPartyFallbacks", "thirdParty", "fast", "evidence"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "route": { "const": "auto_cost" },
+    "auto": {
+      "type": "object",
+      "required": ["selector", "optimizeFor", "requiredReadback", "cloudApiDefaultIsSufficient"],
+      "properties": {
+        "selector": { "const": "auto-smart" },
+        "optimizeFor": { "const": "cost" },
+        "requiredReadback": { "const": true },
+        "cloudApiDefaultIsSufficient": { "const": false }
+      },
+      "additionalProperties": false
+    },
+    "directFirstPartyFallbacks": {
+      "type": "object",
+      "required": ["bounded", "complex"],
+      "properties": { "bounded": { "const": "composer-2.5" }, "complex": { "const": "cursor-grok-4.6-medium" } },
+      "additionalProperties": false
+    },
+    "thirdParty": {
+      "type": "object",
+      "required": ["requiresExplicitException", "allowedReasons", "oneHopFallback"],
+      "properties": {
+        "requiresExplicitException": { "const": true },
+        "allowedReasons": { "type": "array", "items": { "enum": ["capability", "security", "independence", "context"] }, "minItems": 1 },
+        "oneHopFallback": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "fast": { "const": false },
+    "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 6 }
+  },
+  "additionalProperties": false
+}

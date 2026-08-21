@@ -19,5 +19,13 @@
   "governedSetupRequired": true,
   "setupReceiptRequired": true,
   "attestationBeforeMutationRequired": true,
+  "preDispatchAdvertisedRefValidation": true,
+  "missingIssueRefAction": "rebaseline_and_recreate_branch",
+  "preparedIntentSupersession": {
+    "immutable": true,
+    "requiresNewIntent": true,
+    "neverReuseCloudAttempt": true
+  },
+  "actualModelReadbackRequired": true,
   "cliLoginIsCloudAuthority": false
 }

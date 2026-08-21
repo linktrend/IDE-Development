@@ -644,6 +644,18 @@ def build_entries() -> list[dict[str, Any]]:
 
     transactional_dispatch_files = (
         (
+            "core/managed-core/content/config/model-routing.json",
+            ".ide-development/content/config/model-routing.json",
+        ),
+        (
+            "core/managed-core/content/doctrine/MODEL-ROUTING-POLICY.md",
+            ".ide-development/content/doctrine/MODEL-ROUTING-POLICY.md",
+        ),
+        (
+            "core/managed-core/schemas/model-routing.schema.json",
+            ".ide-development/schemas/model-routing.schema.json",
+        ),
+        (
             "core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md",
             ".ide-development/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md",
         ),

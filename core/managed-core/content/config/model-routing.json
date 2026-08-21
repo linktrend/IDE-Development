@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "route": "auto_cost",
+  "auto": {
+    "selector": "auto-smart",
+    "optimizeFor": "cost",
+    "requiredReadback": true,
+    "cloudApiDefaultIsSufficient": false
+  },
+  "directFirstPartyFallbacks": {
+    "bounded": "composer-2.5",
+    "complex": "cursor-grok-4.6-medium"
+  },
+  "thirdParty": {
+    "requiresExplicitException": true,
+    "allowedReasons": ["capability", "security", "independence", "context"],
+    "oneHopFallback": true
+  },
+  "fast": false,
+  "evidence": ["requestedRoute", "selector", "optimizeFor", "effectiveModelId", "effectiveDisplayName", "usagePool"]
+}

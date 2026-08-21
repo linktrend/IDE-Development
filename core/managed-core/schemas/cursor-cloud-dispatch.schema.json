@@ -22,6 +22,10 @@
     "governedSetupRequired",
     "setupReceiptRequired",
     "attestationBeforeMutationRequired",
+    "preDispatchAdvertisedRefValidation",
+    "missingIssueRefAction",
+    "preparedIntentSupersession",
+    "actualModelReadbackRequired",
     "cliLoginIsCloudAuthority"
   ],
   "properties": {
@@ -50,6 +54,19 @@
     "governedSetupRequired": {"type": "boolean", "const": true},
     "setupReceiptRequired": {"type": "boolean", "const": true},
     "attestationBeforeMutationRequired": {"type": "boolean", "const": true},
+    "preDispatchAdvertisedRefValidation": {"type": "boolean", "const": true},
+    "missingIssueRefAction": {"type": "string", "const": "rebaseline_and_recreate_branch"},
+    "preparedIntentSupersession": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["immutable", "requiresNewIntent", "neverReuseCloudAttempt"],
+      "properties": {
+        "immutable": {"type": "boolean", "const": true},
+        "requiresNewIntent": {"type": "boolean", "const": true},
+        "neverReuseCloudAttempt": {"type": "boolean", "const": true}
+      }
+    },
+    "actualModelReadbackRequired": {"type": "boolean", "const": true},
     "cliLoginIsCloudAuthority": {"type": "boolean", "const": false}
   }
 }

@@ -271,7 +271,9 @@
         "durableHeartbeat",
         "checkoutBoundVerification",
         "retryExhaustion",
-        "hostedCapacityScheduler"
+        "hostedCapacityScheduler",
+        "packetRouting",
+        "cursorCloudExecution"
       ],
       "properties": {
         "exactCandidateInvalidation": {
@@ -604,6 +606,47 @@
                 ]
               }
             }
+          }
+        },
+        "packetRouting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["digestBound", "preferredRoutes", "thirdPartyRequiresException", "oneHopFallback"],
+          "properties": {
+            "digestBound": { "type": "boolean", "const": true },
+            "preferredRoutes": {
+              "type": "array",
+              "minItems": 3,
+              "uniqueItems": true,
+              "items": { "type": "string", "enum": ["auto_cost", "composer", "grok", "specialist", "independent_review", "bulk_documents"] }
+            },
+            "thirdPartyRequiresException": { "type": "boolean", "const": true },
+            "oneHopFallback": { "type": "boolean", "const": true },
+            "exceptionEvidence": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "type": "string", "enum": ["capability", "security", "independence", "context"] }
+            }
+          }
+        },
+        "cursorCloudExecution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["preDispatchAdvertisedRefValidation", "missingRefAction", "preparedSupersession", "actualModelReadback"],
+          "properties": {
+            "preDispatchAdvertisedRefValidation": { "type": "boolean", "const": true },
+            "missingRefAction": { "type": "string", "enum": ["rebaseline_and_recreate_branch", "hold"] },
+            "preparedSupersession": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["immutable", "requiresNewIntent", "neverReuseCloudAttempt"],
+              "properties": {
+                "immutable": { "type": "boolean", "const": true },
+                "requiresNewIntent": { "type": "boolean", "const": true },
+                "neverReuseCloudAttempt": { "type": "boolean", "const": true }
+              }
+            },
+            "actualModelReadback": { "type": "boolean", "const": true }
           }
         }
       }

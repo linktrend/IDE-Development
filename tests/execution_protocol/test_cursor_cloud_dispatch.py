@@ -10,6 +10,7 @@ from core.execution.cursor_cloud_dispatch import (
     CursorCloudDispatchRequest,
     DurableCursorCloudIntentStore,
     dispatch_cursor_cloud,
+    supersede_prepared_intent,
     load_cursor_cloud_dispatch_config,
     require_cursor_cloud_api_key,
     validate_cursor_cloud_attestation,
@@ -28,6 +29,7 @@ REQUEST = CursorCloudDispatchRequest(
     toolchain={"python": "3.12", "node": "22"},
     setup_receipt_digest="sha256:c27e25298bc82faafcbac97c11c3da84f872f1ea998e28e757736a4c66dfe5f2",
     governed_setup=True,
+    advertised_refs={"issue/379-cursor-cloud": "a" * 40},
 )
 KEY_NAME = "CURSOR_" + "API_KEY"
 
@@ -55,6 +57,22 @@ class FakeCursorCloudHTTP:
 
 
 class CursorCloudDispatchTests(unittest.TestCase):
+    def test_advertised_ref_must_exist_and_match_before_http(self) -> None:
+        request = CursorCloudDispatchRequest(**{**REQUEST.__dict__, "advertised_refs": {}})
+        http = FakeCursorCloudHTTP(DurableCursorCloudIntentStore())
+        with self.assertRaisesRegex(CursorCloudDispatchError, "advertised issue ref"):
+            dispatch_cursor_cloud(request, http.store, http, environment={KEY_NAME: "test-only-key"})
+        self.assertEqual(http.calls, [])
+
+    def test_stale_prepared_intent_is_superseded_without_reuse(self) -> None:
+        store = DurableCursorCloudIntentStore()
+        store.compare_and_write("old", 0, None, {"state": "PREPARED", "idempotencyKey": "old"})
+        replaced = supersede_prepared_intent(store, "old", "new")
+        self.assertEqual(replaced["state"], "SUPERSEDED")
+        self.assertEqual(replaced["supersededBy"], "new")
+        with self.assertRaisesRegex(CursorCloudDispatchError, "only a PREPARED"):
+            supersede_prepared_intent(store, "old", "newer")
+
     def test_config_is_exact_and_cli_login_is_not_authority(self) -> None:
         config = load_cursor_cloud_dispatch_config(str(Path(__file__).resolve().parents[2]))
         self.assertEqual(config["apiBaseUrl"], "https://api.cursor.com")
@@ -63,6 +81,10 @@ class CursorCloudDispatchTests(unittest.TestCase):
         self.assertEqual(config["maxApiAttempts"], 2)
         self.assertEqual(config["apiBinding"], "prompt-and-governed-setup-only")
         self.assertTrue(config["setupReceiptRequired"])
+        self.assertTrue(config["preDispatchAdvertisedRefValidation"])
+        self.assertEqual(config["missingIssueRefAction"], "rebaseline_and_recreate_branch")
+        self.assertTrue(config["preparedIntentSupersession"]["neverReuseCloudAttempt"])
+        self.assertTrue(config["actualModelReadbackRequired"])
         self.assertFalse(config["cliLoginIsCloudAuthority"])
         with self.assertRaisesRegex(CursorCloudDispatchError, "CLI login"):
             require_cursor_cloud_api_key({}, cursor_cli_authenticated=True)

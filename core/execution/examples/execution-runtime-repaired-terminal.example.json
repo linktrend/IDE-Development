@@ -200,6 +200,23 @@
         "api_rejection",
         "utilization_gap_repair"
       ]
+    },
+    "packetRouting": {
+      "digestBound": true,
+      "preferredRoutes": ["auto_cost", "composer", "grok", "specialist", "independent_review", "bulk_documents"],
+      "thirdPartyRequiresException": true,
+      "oneHopFallback": true,
+      "exceptionEvidence": ["capability", "security", "independence", "context"]
+    },
+    "cursorCloudExecution": {
+      "preDispatchAdvertisedRefValidation": true,
+      "missingRefAction": "rebaseline_and_recreate_branch",
+      "preparedSupersession": {
+        "immutable": true,
+        "requiresNewIntent": true,
+        "neverReuseCloudAttempt": true
+      },
+      "actualModelReadback": true
     }
   }
 }

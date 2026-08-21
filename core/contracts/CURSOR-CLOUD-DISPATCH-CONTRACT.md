@@ -11,6 +11,13 @@ diagnostics.
 
 ## Dispatch controls
 
+Before any Cloud POST, the coordinator must read back the advertised issue ref
+and prove that it exists and points to the exact requested commit. A missing or
+deleted ref is a governed rebaseline event: recreate the short-lived issue
+branch, write a new immutable `PREPARED` intent, and supersede the old intent.
+The old intent and Cloud attempt are never edited or reused. The effective model
+and usage-pool readback must also be retained with committed evidence.
+
 The adapter calls `POST /v1/agents` through an injected HTTP port. It supplies
 the exact named environment `{type: "cloud", name: "IDE Development 2.5.1"}`
 and one exact non-Fast model. Cursor's public API does not provide an exact

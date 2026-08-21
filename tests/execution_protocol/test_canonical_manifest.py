@@ -147,6 +147,26 @@ class CanonicalManifestPositiveTests(unittest.TestCase):
 
 
 class CanonicalManifestAdversarialTests(unittest.TestCase):
+    def test_packet_routing_and_cursor_cloud_controls_are_required(self) -> None:
+        document = canonical_manifest()
+        del document["controls"]["packetRouting"]
+        result = validate_execution_manifest(document, repo_root=ROOT)
+        self.assertFalse(result.ok)
+        self.assertTrue(any("packetRouting" in error for error in result.errors), result.errors)
+
+        document = canonical_manifest()
+        document["controls"]["cursorCloudExecution"]["preDispatchAdvertisedRefValidation"] = False
+        result = validate_execution_manifest(document, repo_root=ROOT)
+        self.assertFalse(result.ok)
+        self.assertTrue(any("True" in error or "const" in error for error in result.errors), result.errors)
+
+    def test_prepared_supersession_is_immutable_and_never_reuses_cloud_attempt(self) -> None:
+        document = canonical_manifest()
+        document["controls"]["cursorCloudExecution"]["preparedSupersession"]["neverReuseCloudAttempt"] = False
+        result = validate_execution_manifest(document, repo_root=ROOT)
+        self.assertFalse(result.ok)
+        self.assertTrue(result.errors)
+
     def test_missing_follow_on_control_is_rejected(self) -> None:
         for key in FOLLOW_ON_CONTROLS:
             document = canonical_manifest()

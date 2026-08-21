@@ -52,6 +52,8 @@ class CursorCloudDispatchRequest:
     setup_receipt_digest: str
     environment_name: str = ENV_NAME
     governed_setup: bool = False
+    advertised_refs: Mapping[str, str] | None = None
+    supersedes_intent_key: str | None = None
 
     def validate(self) -> None:
         if not self.repository.strip() or not self.ref.strip():
@@ -83,6 +85,12 @@ class CursorCloudDispatchRequest:
             raise CursorCloudDispatchError(
                 "cursor_cloud_identity_invalid",
                 "commit and tree must be exact hexadecimal git identities",
+            )
+        advertised = self.advertised_refs
+        if not isinstance(advertised, Mapping) or str(advertised.get(self.ref) or "") != self.commit:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_advertised_ref_invalid",
+                "pre-dispatch advertised issue ref is missing or does not point to the requested commit",
             )
         model = self.model.strip()
         if not model:
@@ -267,6 +275,8 @@ def cursor_cloud_idempotency_key(request: CursorCloudDispatchRequest) -> str:
         "toolchain": dict(request.toolchain),
         "governedSetup": request.governed_setup,
         "setupReceiptDigest": request.setup_receipt_digest,
+        "advertisedRefs": dict(request.advertised_refs or {}),
+        "supersedesIntentKey": request.supersedes_intent_key,
     }
     return CONTROL_ID + ":" + hashlib.sha256(_canonical(identity)).hexdigest()
 
@@ -344,6 +354,35 @@ def _response_value(response: Mapping[str, Any], *keys: str) -> Any:
     return None
 
 
+def supersede_prepared_intent(
+    store: CursorCloudIntentStore, previous_key: str, replacement_key: str
+) -> Mapping[str, Any] | None:
+    """Immutably retire a stale PREPARED intent before a rebaseline dispatch.
+
+    A missing/deleted issue ref must be rebaselined and receive a newly created
+    issue branch/intent. The old intent is never edited into the replacement and
+    no Cloud call is made by this helper.
+    """
+
+    current = store.read(previous_key)
+    if current is None:
+        return None
+    if current.get("state") != "PREPARED":
+        raise CursorCloudDispatchError(
+            "cursor_cloud_intent_not_supersedable",
+            "only a PREPARED intent may be superseded; committed history is immutable",
+        )
+    payload = dict(current)
+    payload.update({"state": "SUPERSEDED", "supersededBy": replacement_key})
+    return _readback_write(
+        store,
+        previous_key,
+        {field: value for field, value in payload.items() if field not in {"revision", "digest"}},
+        expected_revision=int(current["revision"]),
+        expected_digest=str(current["digest"]),
+    )
+
+
 def dispatch_cursor_cloud(
     request: CursorCloudDispatchRequest,
     store: CursorCloudIntentStore,
@@ -363,6 +402,8 @@ def dispatch_cursor_cloud(
         environment, cursor_cli_authenticated=cursor_cli_authenticated
     )
     key = cursor_cloud_idempotency_key(request)
+    if request.supersedes_intent_key:
+        supersede_prepared_intent(store, request.supersedes_intent_key, key)
     client_agent_id = cursor_cloud_client_agent_id(request)
     prompt = build_attestation_prompt(request)
     current = store.read(key)
@@ -396,6 +437,8 @@ def dispatch_cursor_cloud(
             "toolchain": dict(request.toolchain),
             "governedSetup": request.governed_setup,
             "setupReceiptDigest": request.setup_receipt_digest,
+            "advertisedRefs": dict(request.advertised_refs or {}),
+            "supersedesIntentKey": request.supersedes_intent_key,
             "requestDigest": _digest({"key": key, "prompt": prompt}),
         }
         current = _readback_write(
