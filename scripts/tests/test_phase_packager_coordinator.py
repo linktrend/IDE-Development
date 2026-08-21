@@ -170,6 +170,40 @@ class PhasePackagerCoordinatorTests(unittest.TestCase):
         ok, detail = coordinator.consume_handoff(updated["handoff"], live_head=updated["headSha"], live_tree=updated["gitTree"])
         self.assertTrue(ok, detail)
 
+    def test_accepted_tip_ancestry_from_other_base_is_not_phase_divergence(self) -> None:
+        git(self.fx.work, "checkout", "-B", "main", "development")
+        write(self.fx.work / "main-only.txt", "main-only ancestry\n")
+        git(self.fx.work, "add", "main-only.txt")
+        git(self.fx.work, "commit", "-qm", "main-only planning ancestor")
+        git(self.fx.work, "checkout", "-B", "issue/34-cross-base-plan", "main")
+        write(self.fx.work / "plan.txt", "accepted plan\n")
+        git(self.fx.work, "add", "plan.txt")
+        git(self.fx.work, "commit", "-qm", "accepted cross-base plan")
+        planning_sha = git(self.fx.work, "rev-parse", "HEAD")
+        git(self.fx.work, "push", "-q", "-u", "origin", "issue/34-cross-base-plan")
+        git(self.fx.work, "checkout", "development")
+        planning = coordinator.AcceptedSource(
+            branch="issue/34-cross-base-plan",
+            sha=planning_sha,
+            order=1,
+        )
+        self.fx.github.ready_shas.add(planning_sha)
+        self.fx.github.evidence[planning_sha] = {
+            "schemaVersion": 1,
+            "headSha": planning_sha,
+            "classification": "tests",
+        }
+
+        created = self.fx.assemble([planning])
+        repair = self.fx.accept_issue(35, "repair.txt", "repair\n")
+        updated = self.fx.assemble([planning, repair])
+
+        self.assertEqual(updated["action"], "updated")
+        self.assertNotEqual(updated["headSha"], created["headSha"])
+        git(self.fx.work, "cat-file", "-e", f"{updated['headSha']}:main-only.txt")
+        git(self.fx.work, "cat-file", "-e", f"{updated['headSha']}:plan.txt")
+        git(self.fx.work, "cat-file", "-e", f"{updated['headSha']}:repair.txt")
+
     def test_rejects_uncommitted_unpushed_wrong_repo_stale_missing(self) -> None:
         ready = self.fx.accept_issue(6, "ready.txt", "ready\n")
         git(self.fx.work, "checkout", ready.branch)

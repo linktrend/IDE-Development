@@ -718,6 +718,11 @@ def _unique_phase_commits(
     phase_sha: str,
     accepted_shas: set[str],
 ) -> list[str]:
+    accepted_ancestry = {
+        normalize_sha(line)
+        for line in _git(repo, "rev-list", *sorted(accepted_shas), check=False).splitlines()
+        if line.strip()
+    }
     output = _git(repo, "rev-list", "--parents", f"{development_sha}..{phase_sha}", check=False)
     unique: list[str] = []
     for line in output.splitlines():
@@ -726,7 +731,7 @@ def _unique_phase_commits(
             continue
         commit = normalize_sha(parts[0])
         parents = [normalize_sha(item) for item in parts[1:]]
-        if commit in accepted_shas:
+        if commit in accepted_ancestry:
             continue
         if len(parents) == 2 and parents[1] in accepted_shas:
             continue
