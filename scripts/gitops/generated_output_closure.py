@@ -24,6 +24,7 @@ DEFAULT_MAX_PASSES = 3
 BASELINE_SHA_ENV = "LINKTREND_TARGET_BASELINE_SHA"
 BASELINE_REF_ENV = "LINKTREND_TARGET_BASELINE_REF"
 SHA40 = r"[0-9a-f]{40}"
+PUSH_BRANCH = r"[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*"
 
 
 class ClosureError(ValueError):
@@ -737,6 +738,87 @@ def _ensure_remote_target_ref(root: Path, remote_ref: str) -> None:
         )
 
 
+def bind_push_event_baseline(
+    repo_root: Path | str,
+    *,
+    branch: str,
+    before_sha: str,
+    after_sha: str | None = None,
+) -> str:
+    """Bind a push predecessor to an exact event-scoped remote target."""
+    root = Path(repo_root).resolve()
+    if (
+        not isinstance(branch, str)
+        or not re.fullmatch(PUSH_BRANCH, branch)
+        or branch.startswith("refs/")
+        or ".." in branch
+    ):
+        raise ClosureError(
+            "candidate_baseline_ref_invalid",
+            "push branch must be a safe named branch",
+            branch=branch,
+        )
+    if not isinstance(before_sha, str) or not re.fullmatch(SHA40, before_sha) or set(before_sha) == {"0"}:
+        raise ClosureError(
+            "candidate_baseline_invalid",
+            "push predecessor SHA must be a non-zero 40-character lowercase hexadecimal identity",
+        )
+    head = _resolve_commit(root, "HEAD")
+    before = _resolve_commit(root, before_sha)
+    if head is None or before is None:
+        raise ClosureError(
+            "candidate_baseline_invalid",
+            "push predecessor or candidate HEAD does not resolve to a commit",
+            before=before_sha,
+            head=head,
+        )
+    if after_sha is not None:
+        if not isinstance(after_sha, str) or not re.fullmatch(SHA40, after_sha):
+            raise ClosureError("candidate_baseline_invalid", "push after SHA is invalid")
+        if after_sha != head:
+            raise ClosureError(
+                "candidate_baseline_stale",
+                "push after SHA does not match the checked-out candidate HEAD",
+                after=after_sha,
+                head=head,
+            )
+    if before == head:
+        raise ClosureError(
+            "candidate_baseline_equal_head",
+            "push predecessor must be distinct from the candidate HEAD",
+            baseline=before,
+            head=head,
+        )
+    ancestor = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", before, head],
+        cwd=root,
+        check=False,
+    )
+    if ancestor.returncode:
+        raise ClosureError(
+            "candidate_baseline_stale",
+            "push predecessor is not an ancestor of the checked-out candidate",
+            baseline=before,
+            head=head,
+        )
+    target = f"refs/remotes/origin/{branch}-before"
+    updated = subprocess.run(
+        ["git", "update-ref", target, before],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if updated.returncode or _resolve_commit(root, target) != before:
+        raise ClosureError(
+            "candidate_baseline_invalid",
+            "event-bound remote target could not be materialized",
+            ref=target.removeprefix("refs/remotes/"),
+            diagnostics=(updated.stderr or updated.stdout or "").strip()[-1000:],
+        )
+    return target.removeprefix("refs/remotes/")
+
+
 def resolve_candidate_baseline(
     repo_root: Path | str,
     *,
@@ -996,6 +1078,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--baseline-sha", help="runtime-supplied exact baseline SHA")
     parser.add_argument("--baseline-ref", help="runtime-supplied authoritative remote ref")
+    parser.add_argument("--bind-push-baseline", action="store_true", help="bind a push predecessor to a named remote target")
+    parser.add_argument("--push-branch", help="push event branch name")
+    parser.add_argument("--push-before", help="push event predecessor SHA")
+    parser.add_argument("--push-after", help="push event candidate SHA")
     parser.add_argument("--verify", action="store_true")
     parser.add_argument("--generate-fixtures", action="store_true")
     args = parser.parse_args(argv)
@@ -1003,6 +1089,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.generate_fixtures:
             return _generate_secret_scan_fixtures(root)
+        if args.bind_push_baseline:
+            result = bind_push_event_baseline(
+                root,
+                branch=args.push_branch or "",
+                before_sha=args.push_before or "",
+                after_sha=args.push_after,
+            )
+            print(json.dumps({"ok": True, "baselineRef": result}, sort_keys=True))
+            return 0
         if args.finalize:
             result = finalize_candidate(
                 root,
