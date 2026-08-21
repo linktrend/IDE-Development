@@ -3,9 +3,20 @@
   "$id": "https://linktrend.dev/schemas/model-routing.schema.json",
   "title": "IDE model routing policy",
   "type": "object",
-  "required": ["schemaVersion", "route", "auto", "directFirstPartyFallbacks", "thirdParty", "fast", "evidence"],
+  "required": ["schemaVersion", "conformance", "route", "auto", "directFirstPartyFallbacks", "thirdParty", "fast", "evidence"],
   "properties": {
     "schemaVersion": { "const": 1 },
+    "conformance": {
+      "type": "object",
+      "required": ["kind", "mandatory", "notOptional", "omissionEvidence"],
+      "properties": {
+        "kind": { "const": "restoration" },
+        "mandatory": { "const": true },
+        "notOptional": { "const": true },
+        "omissionEvidence": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
     "route": { "const": "auto_cost" },
     "auto": {
       "type": "object",

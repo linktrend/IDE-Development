@@ -7,6 +7,12 @@ ROOT = Path(__file__).parents[2]
 
 def test_auto_cost_requires_explicit_cost_mode_and_readback():
     policy = json.loads((ROOT / "core/managed-core/content/config/model-routing.json").read_text())
+    assert policy["conformance"] == {
+        "kind": "restoration",
+        "mandatory": True,
+        "notOptional": True,
+        "omissionEvidence": "The superseded baseline hard-coded third-party/default routes without the original cost-mode and effective-model attestation controls.",
+    }
     assert policy["route"] == "auto_cost"
     assert policy["auto"] == {
         "selector": "auto-smart",
@@ -31,3 +37,12 @@ def test_skill_rejects_generic_auto_and_requires_attestation():
     assert "Cloud API `id=default`, `displayName=Auto` without mode proof" in skill
     assert "retain the effective model id, display name, params and usage pool" in skill
     assert "Fast must be false" in skill
+
+
+def test_doctrine_identifies_restoration_of_original_mandatory_requirement():
+    doctrine = (ROOT / "core/managed-core/content/doctrine/MODEL-ROUTING-POLICY.md").read_text()
+    assert "restoration/backfill" in doctrine
+    assert "original **mandatory" in doctrine
+    assert "Coding Execution" in doctrine
+    assert "not a new feature" in doctrine
+    assert "Historical omission evidence" in doctrine

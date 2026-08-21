@@ -611,8 +611,19 @@
         "packetRouting": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["digestBound", "preferredRoutes", "thirdPartyRequiresException", "oneHopFallback"],
+          "required": ["conformance", "digestBound", "preferredRoutes", "thirdPartyRequiresException", "oneHopFallback"],
           "properties": {
+            "conformance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "mandatory", "notOptional", "omissionEvidence"],
+              "properties": {
+                "kind": { "const": "restoration" },
+                "mandatory": { "type": "boolean", "const": true },
+                "notOptional": { "type": "boolean", "const": true },
+                "omissionEvidence": { "type": "string", "minLength": 1 }
+              }
+            },
             "digestBound": { "type": "boolean", "const": true },
             "preferredRoutes": {
               "type": "array",

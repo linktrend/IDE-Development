@@ -12,6 +12,10 @@ source_of_truth: LiNKdeveloper/packages/model-routing/src/router.ts
 
 # Model routing (Cursor Desktop)
 
+This skill restores/backfills an original mandatory Coding Execution Protocol
+requirement omitted or incorrectly implemented in the prior routing baseline;
+it is not a new feature, optional improvement, or rollout-created policy.
+
 IDE Development has no persistent Ledger process. Model routing is enforced by
 **pinned custom subagents** under `.cursor/agents/route-*.md` plus this skill's
 agent-followed doctrine.

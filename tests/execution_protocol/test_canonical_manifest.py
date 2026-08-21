@@ -155,6 +155,12 @@ class CanonicalManifestAdversarialTests(unittest.TestCase):
         self.assertTrue(any("packetRouting" in error for error in result.errors), result.errors)
 
         document = canonical_manifest()
+        del document["controls"]["packetRouting"]["conformance"]
+        result = validate_execution_manifest(document, repo_root=ROOT)
+        self.assertFalse(result.ok)
+        self.assertTrue(result.errors)
+
+        document = canonical_manifest()
         document["controls"]["cursorCloudExecution"]["preDispatchAdvertisedRefValidation"] = False
         result = validate_execution_manifest(document, repo_root=ROOT)
         self.assertFalse(result.ok)

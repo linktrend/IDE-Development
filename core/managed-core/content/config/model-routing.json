@@ -1,5 +1,11 @@
 {
   "schemaVersion": 1,
+  "conformance": {
+    "kind": "restoration",
+    "mandatory": true,
+    "notOptional": true,
+    "omissionEvidence": "The superseded baseline hard-coded third-party/default routes without the original cost-mode and effective-model attestation controls."
+  },
   "route": "auto_cost",
   "auto": {
     "selector": "auto-smart",

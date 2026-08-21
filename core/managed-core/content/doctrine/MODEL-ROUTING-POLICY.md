@@ -1,4 +1,15 @@
-# IDE model-routing policy 2.5.1
+# IDE model-routing protocol-conformance restoration
+
+This is a restoration/backfill of an original **mandatory Coding Execution
+Protocol requirement** that was omitted or incorrectly implemented in the
+superseded routing baseline. It is conformance restoration, not a new feature,
+optional improvement, or rollout-created policy. Historical omission evidence
+is the prior IDE baseline `2a0b6db`, whose route table hard-coded the
+Sonnet/Sol/Grok pattern without Auto Cost mode proof and effective-model
+attestation. The acceptance record must therefore prove the original behavior
+end to end: route selection, explicit cost-mode binding, actual model readback,
+usage-pool evidence, direct Cursor fallbacks, and documented third-party
+exceptions.
 
 The preferred route is Cursor Auto Cost, but only when the Cursor Router selector
 is explicitly `auto-smart` with `optimize_for=cost` and the effective selection
