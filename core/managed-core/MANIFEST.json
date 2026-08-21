@@ -4048,7 +4048,7 @@
       "id": "gitops-scripts-gitops-packager-coordinator-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/packager_coordinator.py",
-      "sourceHash": "sha256:f7c8212a9b9bf1cba0602ff3ca9ec4d28a9f871936a7b874b32949195eefcd84",
+      "sourceHash": "sha256:fbd93236ddcecbcc82b484b7b0c57c6506a65c38fe3a0b9b768805e04ffa97b0",
       "destination": "scripts/gitops/packager_coordinator.py",
       "mode": "0644",
       "platform": "github",
