@@ -48,6 +48,51 @@ def _pkg_bytes(package: Path, *parts: str) -> bytes:
     return (package.joinpath(*parts)).read_bytes()
 
 
+def _manifest(package: Path) -> dict:
+    return json.loads(
+        (package / "core" / "managed-core" / "MANIFEST.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+
+def _legacy_fixture(package: Path) -> bool:
+    """The checked-in Lane B fixture has deliberately synthetic sample files."""
+    return (package / "core" / "managed-core" / "files" / "CORE.txt").is_file()
+
+
+def _managed_entry(package: Path, destination: str) -> dict:
+    for entry in _manifest(package).get("files") or []:
+        if entry.get("destination") == destination:
+            return entry
+    raise AssertionError(f"package manifest has no destination: {destination}")
+
+
+def _contract_paths(package: Path) -> dict[str, str]:
+    """Return package-specific probes without weakening either package lane."""
+    if _legacy_fixture(package):
+        return {
+            "core": ".ide-development/CORE.txt",
+            "cursor_rule": ".cursor/rules/sample-rule.mdc",
+            "cursor_skill": ".cursor/skills/sample-skill/SKILL.md",
+            "codex_skill": ".agents/skills/sample-skill/SKILL.md",
+        }
+    return {
+        "core": ".ide-development/VERSION",
+        "cursor_rule": ".cursor/rules/00-bootstrap.mdc",
+        "cursor_skill": ".cursor/skills/action-queue/SKILL.md",
+        "codex_skill": ".agents/skills/action-queue/SKILL.md",
+    }
+
+
+def _probe_entry(package: Path) -> tuple[dict, Path, str]:
+    """Choose a stable managed file for drift/transaction tests."""
+    paths = _contract_paths(package)
+    destination = paths["core"]
+    entry = _managed_entry(package, destination)
+    return entry, package / entry["source"], destination
+
+
 def _fail_cli(rep: Reporter, name: str, result, *, expect: int | None = None) -> None:
     detail = (
         f"exit={result.returncode} expected={expect} "
@@ -64,12 +109,13 @@ def test_01_brand_new_install(rep: Reporter, package: Path) -> Path | None:
         if result.returncode != EXIT_OK:
             _fail_cli(rep, "01-brand-new-install", result, expect=EXIT_OK)
             return None
+        paths = _contract_paths(package)
         for rel in (
-            ".ide-development/CORE.txt",
+            paths["core"],
             ".ide-development/installed-state.json",
-            ".cursor/rules/sample-rule.mdc",
-            ".cursor/skills/sample-skill/SKILL.md",
-            ".agents/skills/sample-skill/SKILL.md",
+            paths["cursor_rule"],
+            paths["cursor_skill"],
+            paths["codex_skill"],
             "AGENTS.md",
         ):
             path = repo / rel
@@ -78,7 +124,13 @@ def test_01_brand_new_install(rep: Reporter, package: Path) -> Path | None:
                 return None
         nested = repo / "apps" / "nested" / "deep"
         nested.mkdir(parents=True)
-        disc_errs = assert_cursor_codex_discovery(repo, from_nested=nested)
+        disc_errs = assert_cursor_codex_discovery(
+            repo,
+            from_nested=nested,
+            cursor_rule_rel=paths["cursor_rule"],
+            cursor_skill_rel=paths["cursor_skill"],
+            codex_skill_rel=paths["codex_skill"],
+        )
         escape_errs = assert_no_escape_symlinks(repo)
         leak_errs = assert_no_checkout_paths_in_tree(repo)
         errors = disc_errs + escape_errs + leak_errs
@@ -129,6 +181,16 @@ def test_02_idempotent_repeat(rep: Reporter, package: Path) -> None:
 
 def test_03_sparse_gitops_upgrade(rep: Reporter, package: Path) -> None:
     """3. Upgrade from sparse GitOps layout."""
+    bootstrap_rel = (
+        ".cursor/rules/cursor-gitops-bootstrap.mdc"
+        if _legacy_fixture(package)
+        else ".cursor/rules/consumer-sparse-bootstrap.mdc"
+    )
+    consumer_gate_rel = (
+        "scripts/gitops/completion_gate.py"
+        if _legacy_fixture(package)
+        else "scripts/local/completion_gate.py"
+    )
     sparse_note = _pkg_bytes(
         package,
         "core",
@@ -143,16 +205,16 @@ def test_03_sparse_gitops_upgrade(rep: Reporter, package: Path) -> None:
             ".github/linktrend-gitops-consumer.json": (
                 '{\n  "schemaVersion": 1,\n  "ciWorkflowName": "CI"\n}\n'
             ),
-            ".cursor/rules/cursor-gitops-bootstrap.mdc": "# sparse gitops bootstrap\n",
+            bootstrap_rel: "# sparse gitops bootstrap\n",
             ".ide-development-upgrade-notes/obsolete-sparse-gitops-note-v1.md": sparse_note,
-            "scripts/gitops/completion_gate.py": "# consumer sparse runtime\nprint('sparse')\n",
+            consumer_gate_rel: "# consumer sparse runtime\nprint('sparse')\n",
             "docs/TECHNICAL.md": "# repository-specific technical instructions\nKeep.\n",
         },
     )
     try:
-        consumer_gate = (repo / "scripts/gitops/completion_gate.py").read_bytes()
+        consumer_gate = (repo / consumer_gate_rel).read_bytes()
         tech = (repo / "docs/TECHNICAL.md").read_bytes()
-        bootstrap = (repo / ".cursor/rules/cursor-gitops-bootstrap.mdc").read_bytes()
+        bootstrap = (repo / bootstrap_rel).read_bytes()
 
         result = run_installer("install", package=package, target=repo)
         if result.returncode != EXIT_OK:
@@ -162,7 +224,7 @@ def test_03_sparse_gitops_upgrade(rep: Reporter, package: Path) -> None:
         if note.exists():
             rep.fail("03-sparse-gitops-upgrade", "obsolete sparse note was not removed")
             return
-        if (repo / "scripts/gitops/completion_gate.py").read_bytes() != consumer_gate:
+        if (repo / consumer_gate_rel).read_bytes() != consumer_gate:
             rep.fail("03-sparse-gitops-upgrade", "consumer gitops script mutated")
             return
         consumer_config = json.loads(
@@ -179,10 +241,10 @@ def test_03_sparse_gitops_upgrade(rep: Reporter, package: Path) -> None:
             return
         # Sparse bootstrap is consumer-owned (not in catalog as exact match remove
         # and not a managed destination) — must remain.
-        if (repo / ".cursor/rules/cursor-gitops-bootstrap.mdc").read_bytes() != bootstrap:
+        if (repo / bootstrap_rel).read_bytes() != bootstrap:
             rep.fail("03-sparse-gitops-upgrade", "sparse bootstrap rule mutated")
             return
-        if not (repo / ".ide-development/CORE.txt").is_file():
+        if not (repo / _contract_paths(package)["core"]).is_file():
             rep.fail("03-sparse-gitops-upgrade", "managed core missing after upgrade")
             return
         rep.ok("03-sparse-gitops-upgrade")
@@ -219,7 +281,7 @@ def test_04_external_cursor_symlink(rep: Reporter, package_src: Path) -> None:
         if cursor.is_symlink() or not cursor.is_dir():
             rep.fail("04-external-cursor-migrate", ".cursor not physical directory")
             return
-        sample = cursor / "rules" / "sample-rule.mdc"
+        sample = repo / _contract_paths(package)["cursor_rule"]
         if not sample.is_file() or sample.is_symlink():
             rep.fail("04-external-cursor-migrate", "managed cursor rule missing")
             return
@@ -282,10 +344,10 @@ def test_05_physical_cursor_consumer_owned(rep: Reporter, package: Path) -> None
             if (repo / rel).read_bytes() != content:
                 rep.fail("05-physical-cursor-consumer-owned", f"mutated {rel}")
                 return
-        if not (repo / ".cursor/rules/sample-rule.mdc").is_file():
+        if not (repo / _contract_paths(package)["cursor_rule"]).is_file():
             rep.fail("05-physical-cursor-consumer-owned", "managed rule missing")
             return
-        if not (repo / ".cursor/skills/sample-skill/SKILL.md").is_file():
+        if not (repo / _contract_paths(package)["cursor_skill"]).is_file():
             rep.fail("05-physical-cursor-consumer-owned", "managed cursor skill missing")
             return
         rep.ok("05-physical-cursor-consumer-owned")
@@ -295,6 +357,9 @@ def test_05_physical_cursor_consumer_owned(rep: Reporter, package: Path) -> None
 
 def test_06_agents_md_consumer_text(rep: Reporter, package: Path) -> None:
     """6. Root AGENTS.md with consumer text outside managed markers."""
+    managed_block = _pkg_bytes(
+        package, "core", "managed-core", "platforms", "codex", "AGENTS.managed-section.md"
+    ).decode("utf-8")
     repo = make_consumer_repo(
         prefix="cr-06-",
         files={
@@ -315,7 +380,7 @@ def test_06_agents_md_consumer_text(rep: Reporter, package: Path) -> None:
         if "BEGIN LINKTREND-IDE-MANAGED" not in text or "END LINKTREND-IDE-MANAGED" not in text:
             rep.fail("06-agents-md-consumer-text", "managed markers missing")
             return
-        if "Managed AGENTS block from package." not in text:
+        if managed_block.strip() not in text:
             rep.fail("06-agents-md-consumer-text", "managed block missing")
             return
         # Second update must preserve consumer text byte-identical outside markers.
@@ -358,13 +423,20 @@ def test_07_repo_specific_agents_skills(rep: Reporter, package: Path) -> None:
         if (repo / "docs/architecture.md").read_bytes() != arch_before:
             rep.fail("07-repo-specific-agents-skills", "technical docs mutated")
             return
-        managed = repo / ".agents/skills/sample-skill/SKILL.md"
+        managed = repo / _contract_paths(package)["codex_skill"]
         if not managed.is_file() or managed.is_symlink():
             rep.fail("07-repo-specific-agents-skills", "managed Codex skill missing")
             return
         nested = repo / "packages" / "svc" / "nested"
         nested.mkdir(parents=True)
-        errs = assert_cursor_codex_discovery(repo, from_nested=nested)
+        paths = _contract_paths(package)
+        errs = assert_cursor_codex_discovery(
+            repo,
+            from_nested=nested,
+            cursor_rule_rel=paths["cursor_rule"],
+            cursor_skill_rel=paths["cursor_skill"],
+            codex_skill_rel=paths["codex_skill"],
+        )
         if errs:
             rep.fail("07-repo-specific-agents-skills", "; ".join(errs))
             return
@@ -375,24 +447,44 @@ def test_07_repo_specific_agents_skills(rep: Reporter, package: Path) -> None:
 
 def test_08_obsolete_removal_and_conflict(rep: Reporter, package: Path) -> None:
     """8. Exact-known obsolete removal AND modified/unknown conflict refusal."""
-    obsolete_exact = _pkg_bytes(
-        package, "core", "managed-core", "files", "obsolete-generic.txt"
-    )
-    obsolete_v1 = _pkg_bytes(
-        package,
-        "core",
-        "managed-core",
-        "migrations",
-        "known-bytes",
-        "obsolete-generic-v1.mdc",
-    )
+    if _legacy_fixture(package):
+        obsolete_path = ".cursor/rules/obsolete-generic.mdc"
+        obsolete_exact = _pkg_bytes(
+            package, "core", "managed-core", "files", "obsolete-generic.txt"
+        )
+        obsolete_v1_path = ".cursor/rules/obsolete-generic-v1.mdc"
+        obsolete_v1 = _pkg_bytes(
+            package,
+            "core",
+            "managed-core",
+            "migrations",
+            "known-bytes",
+            "obsolete-generic-v1.mdc",
+        )
+    else:
+        catalog = json.loads(
+            (package / "core" / "managed-core" / "migrations" / "catalog.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        entry = next(
+            item
+            for item in catalog["entries"]
+            if item.get("action") == "remove"
+            and item.get("knownBytes")
+            and item.get("path") == ".cursor/rules/obsolete-generic-v1.mdc"
+        )
+        obsolete_path = entry["path"]
+        obsolete_exact = _pkg_bytes(package, *entry["knownBytes"].split("/"))
+        obsolete_v1_path = obsolete_path
+        obsolete_v1 = obsolete_exact
 
     # Exact removal
     repo_ok = make_consumer_repo(
         prefix="cr-08a-",
         files={
-            ".cursor/rules/obsolete-generic.mdc": obsolete_exact,
-            ".cursor/rules/obsolete-generic-v1.mdc": obsolete_v1,
+            obsolete_path: obsolete_exact,
+            obsolete_v1_path: obsolete_v1,
         },
     )
     try:
@@ -400,11 +492,8 @@ def test_08_obsolete_removal_and_conflict(rep: Reporter, package: Path) -> None:
         if result.returncode != EXIT_OK:
             _fail_cli(rep, "08-obsolete-exact-removal", result, expect=EXIT_OK)
             return
-        if (repo_ok / ".cursor/rules/obsolete-generic.mdc").exists():
-            rep.fail("08-obsolete-exact-removal", "obsolete-generic.mdc not removed")
-            return
-        if (repo_ok / ".cursor/rules/obsolete-generic-v1.mdc").exists():
-            rep.fail("08-obsolete-exact-removal", "obsolete-generic-v1.mdc not removed")
+        if (repo_ok / obsolete_path).exists() or (repo_ok / obsolete_v1_path).exists():
+            rep.fail("08-obsolete-exact-removal", "known obsolete file was not removed")
             return
         rep.ok("08-obsolete-exact-removal")
     finally:
@@ -414,19 +503,19 @@ def test_08_obsolete_removal_and_conflict(rep: Reporter, package: Path) -> None:
     repo_bad = make_consumer_repo(
         prefix="cr-08b-",
         files={
-            ".cursor/rules/obsolete-generic.mdc": "MODIFIED — not reviewed obsolete bytes\n",
+            obsolete_path: "MODIFIED — not reviewed obsolete bytes\n",
         },
     )
     try:
-        before = (repo_bad / ".cursor/rules/obsolete-generic.mdc").read_bytes()
+        before = (repo_bad / obsolete_path).read_bytes()
         result = run_installer("install", package=package, target=repo_bad)
         if result.returncode != EXIT_CONFLICT:
             _fail_cli(rep, "08-obsolete-conflict-refuse", result, expect=EXIT_CONFLICT)
             return
-        if not (repo_bad / ".cursor/rules/obsolete-generic.mdc").exists():
+        if not (repo_bad / obsolete_path).exists():
             rep.fail("08-obsolete-conflict-refuse", "modified obsolete file was deleted")
             return
-        if (repo_bad / ".cursor/rules/obsolete-generic.mdc").read_bytes() != before:
+        if (repo_bad / obsolete_path).read_bytes() != before:
             rep.fail("08-obsolete-conflict-refuse", "modified obsolete file bytes changed")
             return
         rep.ok("08-obsolete-conflict-refuse")
@@ -446,7 +535,8 @@ def test_09_drift_and_deterministic_repair(rep: Reporter, package_src: Path) -> 
             _fail_cli(rep, "09-drift-preinstall", installed, expect=EXIT_OK)
             return
 
-        core = repo / ".ide-development" / "CORE.txt"
+        entry, source, destination = _probe_entry(package)
+        core = repo / destination
         original = core.read_bytes()
         original_mode = mode_octal(core)
 
@@ -508,7 +598,15 @@ def test_09_drift_and_deterministic_repair(rep: Reporter, package_src: Path) -> 
             _fail_cli(rep, "09-drift-marker-repair", marker_repair, expect=EXIT_OK)
             return
         text = agents.read_text(encoding="utf-8")
-        if "Keep me." not in text or "Managed AGENTS block from package." not in text:
+        managed_block = _pkg_bytes(
+            package,
+            "core",
+            "managed-core",
+            "platforms",
+            "codex",
+            "AGENTS.managed-section.md",
+        ).decode("utf-8")
+        if "Keep me." not in text or managed_block.strip() not in text:
             rep.fail("09-drift-marker-repair", "marker upsert did not repair correctly")
             return
         if "DRIFTED BLOCK" in text:
@@ -533,11 +631,12 @@ def test_10_interrupted_recovery_and_rollback(rep: Reporter, package_src: Path) 
             _fail_cli(rep, "10-preinstall", installed, expect=EXIT_OK)
             return
 
-        core = repo / ".ide-development" / "CORE.txt"
+        entry, source, destination = _probe_entry(package)
+        core = repo / destination
         original = core.read_bytes()
         original_mode = mode_octal(core)
         plant_interrupted_current_transaction(
-            repo, rel_path=".ide-development/CORE.txt", original=original, mode=original_mode
+            repo, rel_path=destination, original=original, mode=original_mode
         )
         if core.read_bytes() == original:
             rep.fail("10-interrupt-plant", "interrupt plant did not change destination")
@@ -559,9 +658,9 @@ def test_10_interrupted_recovery_and_rollback(rep: Reporter, package_src: Path) 
         # Byte/mode-exact rollback after a real mutating update
         mutated = tmp / "mutated-package"
         shutil.copytree(package, mutated)
-        mutated_core = mutated / "core" / "managed-core" / "files" / "CORE.txt"
+        mutated_core = mutated / entry["source"]
         mutated_core.write_text("CORE_MUTATED_FOR_ROLLBACK\n", encoding="utf-8")
-        rewrite_manifest_source_hash(mutated, "managed-core-readme", mutated_core)
+        rewrite_manifest_source_hash(mutated, entry["id"], mutated_core)
         pre_update = core.read_bytes()
         pre_mode = mode_octal(core)
         updated = run_installer("update", package=mutated, target=repo)
@@ -614,13 +713,20 @@ def test_11_extracted_rc_no_checkout_access(rep: Reporter, package_src: Path) ->
         if result.returncode != EXIT_OK:
             _fail_cli(rep, "11-extracted-rc-install", result, expect=EXIT_OK)
             return
-        if not (repo / ".ide-development" / "CORE.txt").is_file():
+        if not (repo / _contract_paths(package_src)["core"]).is_file():
             rep.fail("11-extracted-rc-install", "managed core missing")
             return
         nested = repo / "src" / "nested"
         nested.mkdir(parents=True)
+        paths = _contract_paths(package_src)
         errors = (
-            assert_cursor_codex_discovery(repo, from_nested=nested)
+            assert_cursor_codex_discovery(
+                repo,
+                from_nested=nested,
+                cursor_rule_rel=paths["cursor_rule"],
+                cursor_skill_rel=paths["cursor_skill"],
+                codex_skill_rel=paths["codex_skill"],
+            )
             + assert_no_escape_symlinks(repo)
             + assert_no_checkout_paths_in_tree(repo)
         )
@@ -639,7 +745,8 @@ def test_11_extracted_rc_no_checkout_access(rep: Reporter, package_src: Path) ->
         if version.returncode != EXIT_OK:
             _fail_cli(rep, "11-extracted-rc-version", version, expect=EXIT_OK)
             return
-        if (version.payload or {}).get("packageVersion") != "2.0.0":
+        expected_version = _manifest(package_src).get("packageVersion")
+        if (version.payload or {}).get("packageVersion") != expected_version:
             rep.fail(
                 "11-extracted-rc-version",
                 f"unexpected version payload: {version.payload}",
@@ -648,11 +755,13 @@ def test_11_extracted_rc_no_checkout_access(rep: Reporter, package_src: Path) ->
         if errors:
             rep.fail("11-extracted-rc", "; ".join(errors[:8]))
             return
-        # Provenance note for Lane D dependency
-        note = PACKAGE_FIXTURE / "PACKAGE_NOTE.txt"
-        if not note.is_file():
-            rep.fail("11-extracted-rc-dependency-note", "missing PACKAGE_NOTE.txt")
-            return
+        # The checked-in fixture has an explicit Lane B provenance note; a real
+        # release archive proves its provenance through the archive manifest.
+        if _legacy_fixture(package_src):
+            note = PACKAGE_FIXTURE / "PACKAGE_NOTE.txt"
+            if not note.is_file():
+                rep.fail("11-extracted-rc-dependency-note", "missing PACKAGE_NOTE.txt")
+                return
         rep.ok("11-extracted-rc-no-checkout-access")
     finally:
         if repo is not None:

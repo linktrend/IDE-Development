@@ -27,6 +27,8 @@ except ModuleNotFoundError:  # pragma: no cover - script-style execution
     from generated_output_closure import ClosureError, candidate_source_tree as closure_candidate_source_tree  # type: ignore
 
 SCANNER_POLICY_VERSION = "secret-scan-policy/v1"
+CHANGE_SCOPED_SCHEMA_VERSION = 1
+CHANGE_SCOPED_KIND = "change-scoped-secret-scan-evidence"
 POLICY_SHAPE_RE = re.compile(r"^secret-scan-policy/[A-Za-z0-9._-]+$")
 SYNTHETIC_PREFIX = "ltfx."
 DECLARATION_REL = ".github/linktrend-secret-scan-fixtures.json"
@@ -58,6 +60,10 @@ RULE_REPO_MALFORMED = "repository_scanner.malformed"
 RULE_INPUT_UNDECODABLE = "input.undecodable"
 RULE_INPUT_TOO_LARGE = "input.too_large"
 RULE_GIT_FAILED = "git.failed"
+RULE_CHANGE_SCOPE = "change_scope.invalid"
+RULE_CHANGE_IDENTITY = "change_scope.identity"
+RULE_CHANGE_CONFIG = "change_scope.config"
+RULE_CHANGE_PATHS = "change_scope.paths"
 
 KNOWN_RULES = frozenset(
     {
@@ -117,6 +123,34 @@ FIXTURE_REQUIRED = (
 )
 FIXTURE_OPTIONAL = frozenset({"bytes"})
 REGULAR_MODES = frozenset({"100644", "100755"})
+SHA256_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+
+# These are the only files whose policy/scanner bytes can affect a managed
+# scan.  A change-scoped run always scans them even when the source diff is
+# otherwise small.  Keep this set explicit: broad path exclusions are unsafe.
+MANAGED_SCANNER_POLICY_PATHS = (
+    DECLARATION_REL,
+    REPO_SCANNERS_REL,
+    "scripts/gitops/secret_scan.py",
+    "scripts/gitops/secret_scan_migrate.py",
+    "core/managed-core/config/delivery.json",
+    ".github/linktrend-delivery-mode.json",
+    ".github/linktrend-repository-ci-contract.json",
+    "core/managed-core/schemas/secret-scan-fixtures.schema.json",
+    "core/managed-core/schemas/secret-scan-result.schema.json",
+    "core/managed-core/schemas/change-scoped-secret-scan.schema.json",
+)
+
+
+def managed_scanner_policy_paths(root: Path) -> tuple[str, ...]:
+    """Return source or extracted-package policy paths for this repository."""
+    managed_root = "core/managed-core"
+    if (root / ".ide-development").is_dir() and not (root / managed_root).is_dir():
+        managed_root = ".ide-development"
+    return tuple(
+        path.replace("core/managed-core", managed_root)
+        for path in MANAGED_SCANNER_POLICY_PATHS
+    )
 
 
 class SecretScanError(Exception):
@@ -168,6 +202,173 @@ def _git_bytes(root: Path, *args: str, input_bytes: bytes | None = None) -> byte
         detail = (result.stderr or result.stdout).decode("utf-8", errors="replace").strip()
         raise SecretScanError("git_failed", detail)
     return result.stdout
+
+
+def _git_identity(root: Path) -> tuple[str, str, str]:
+    """Return the exact candidate commit, full Git tree, and repository name."""
+    commit = _git(root, "rev-parse", "--verify", "HEAD^{commit}").strip()
+    tree = _git(root, "rev-parse", "--verify", "HEAD^{tree}").strip()
+    if not OID_RE.fullmatch(commit) or not OID_RE.fullmatch(tree):
+        raise SecretScanError("change_scope_identity", "candidate commit/tree")
+    try:
+        remote = _git(root, "remote", "get-url", "origin").strip()
+    except SecretScanError as exc:
+        raise SecretScanError("change_scope_identity", "origin remote is required") from exc
+    remote = remote.removesuffix("/").removesuffix(".git")
+    if remote.startswith("git@") and ":" in remote:
+        repository = remote.split(":", 1)[1]
+    else:
+        repository = remote.rsplit("/", 2)[-2:]
+        repository = "/".join(repository) if isinstance(repository, list) else str(repository)
+    if not repository or "/" not in repository or repository.startswith("/"):
+        raise SecretScanError("change_scope_identity", "repository identity")
+    return commit, tree, repository
+
+
+def config_digest(root: Path, paths: tuple[str, ...] | None = None) -> str:
+    """Digest policy/scanner paths, including explicit missing-file markers."""
+    digest = hashlib.sha256()
+    for rel in sorted(paths or managed_scanner_policy_paths(root)):
+        path = root / rel
+        digest.update(rel.encode("utf-8"))
+        digest.update(b"\0")
+        try:
+            raw = path.read_bytes() if path.is_file() else b"<missing>"
+        except OSError as exc:
+            raise SecretScanError("change_scope_config", rel) from exc
+        digest.update(raw)
+        digest.update(b"\0")
+    return "sha256:" + digest.hexdigest()
+
+
+def _remote_ref_name(ref: str) -> str:
+    if ref.startswith("refs/remotes/"):
+        return ref
+    if re.fullmatch(r"[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+", ref):
+        return "refs/remotes/" + ref
+    raise SecretScanError("change_scope_identity", "authoritative remote ref")
+
+
+def changed_paths(root: Path, baseline_commit: str, candidate_commit: str) -> set[str]:
+    """Resolve a conservative baseline-to-candidate path set.
+
+    Any delete, rename/copy, malformed status, or path ambiguity is a hard
+    failure.  This prevents a missing path from becoming an accidental blind
+    spot in a large fork.
+    """
+    raw = _git_bytes(
+        root,
+        "diff",
+        "--name-status",
+        "--find-renames=50%",
+        "--find-copies=50%",
+        "-z",
+        f"{baseline_commit}..{candidate_commit}",
+        "--",
+    )
+    tokens = raw.split(b"\0")
+    paths: set[str] = set()
+    index = 0
+    while index < len(tokens):
+        status_raw = tokens[index]
+        index += 1
+        if not status_raw:
+            continue
+        try:
+            status = status_raw.decode("ascii")
+        except UnicodeDecodeError as exc:
+            raise SecretScanError("change_scope_paths", "non-ascii diff status") from exc
+        if not status or status[0] not in "AMUT" or (len(status) > 1 and not status[1:].isdigit()):
+            raise SecretScanError("change_scope_paths", f"ambiguous status {status}")
+        if index >= len(tokens) or not tokens[index]:
+            raise SecretScanError("change_scope_paths", "missing changed path")
+        path_raw = tokens[index]
+        index += 1
+        path = path_raw.decode("utf-8", errors="strict")
+        if not _valid_relpath(path):
+            raise SecretScanError("change_scope_paths", "invalid changed path")
+        paths.add(path)
+    return paths
+
+
+def _validate_change_scoped_evidence(
+    root: Path, evidence: Any
+) -> dict[str, Any]:
+    if not isinstance(evidence, dict):
+        raise SecretScanError("change_scope_identity", "evidence must be an object")
+    required = {
+        "schemaVersion", "kind", "repository", "authoritativeRemoteRef",
+        "baselineCommit", "baselineTree", "candidateCommit", "candidateGitTree",
+        "scannerPolicyVersion", "managedPaths", "configDigest", "findings",
+    }
+    if evidence.get("schemaVersion") != CHANGE_SCOPED_SCHEMA_VERSION or evidence.get("kind") != CHANGE_SCOPED_KIND:
+        raise SecretScanError("change_scope_identity", "schema or kind")
+    # candidateTree was the name used by early acceptance packets for the
+    # full Git tree. Accept it as a one-way compatibility alias, while output
+    # remains unambiguous (`candidateGitTree` versus the result's source tree.
+    candidate_git_tree = evidence.get("candidateGitTree", evidence.get("candidateTree"))
+    allowed = required | {"candidateTree"}
+    if set(evidence) - allowed:
+        raise SecretScanError("change_scope_identity", "unknown evidence field")
+    if required - set(evidence) - {"candidateGitTree"} or candidate_git_tree is None:
+        raise SecretScanError("change_scope_identity", "missing evidence identity")
+    commit, tree, repository = _git_identity(root)
+    if evidence["repository"] != repository:
+        raise SecretScanError("change_scope_identity", "repository")
+    remote_ref = _remote_ref_name(str(evidence["authoritativeRemoteRef"]))
+    baseline = str(evidence["baselineCommit"])
+    baseline_tree = str(evidence["baselineTree"])
+    if not OID_RE.fullmatch(baseline) or not OID_RE.fullmatch(baseline_tree):
+        raise SecretScanError("change_scope_identity", "baseline commit/tree")
+    if evidence["candidateCommit"] != commit or candidate_git_tree != tree:
+        raise SecretScanError("change_scope_identity", "candidate commit/tree")
+    if evidence["scannerPolicyVersion"] != SCANNER_POLICY_VERSION:
+        raise SecretScanError("change_scope_policy", "scannerPolicyVersion")
+    if not isinstance(evidence["managedPaths"], list) or any(
+        not isinstance(path, str) or not _valid_relpath(path) for path in evidence["managedPaths"]
+    ):
+        raise SecretScanError("change_scope_paths", "managed scanner/policy path set")
+    expected_paths = managed_scanner_policy_paths(root)
+    if sorted(evidence["managedPaths"]) != sorted(expected_paths):
+        raise SecretScanError("change_scope_paths", "managed scanner/policy path set")
+    if not isinstance(evidence["findings"], list):
+        raise SecretScanError("change_scope_identity", "findings")
+    for finding in evidence["findings"]:
+        if not isinstance(finding, dict) or not _valid_relpath(str(finding.get("path", ""))):
+            raise SecretScanError("change_scope_identity", "finding path")
+    if not SHA256_DIGEST_RE.fullmatch(str(evidence["configDigest"])):
+        raise SecretScanError("change_scope_config", "configDigest shape")
+    if config_digest(root, expected_paths) != evidence["configDigest"]:
+        raise SecretScanError("change_scope_config", "configDigest")
+    try:
+        remote_tip = _git(root, "rev-parse", "--verify", remote_ref + "^{commit}").strip()
+        resolved_baseline_tree = _git(root, "rev-parse", "--verify", baseline + "^{tree}").strip()
+    except SecretScanError as exc:
+        raise SecretScanError("change_scope_identity", "baseline or authoritative ref unavailable") from exc
+    if remote_tip != baseline or resolved_baseline_tree != baseline_tree:
+        raise SecretScanError("change_scope_identity", "stale baseline commit/tree")
+    ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", baseline, commit], cwd=root, check=False)
+    if ancestor.returncode:
+        raise SecretScanError("change_scope_identity", "baseline is not an ancestor")
+    # A staged or unstaged candidate must not silently differ from the identity
+    # being proved. The scanner reads index identities, so a dirty worktree
+    # would otherwise make the evidence claim ambiguous.
+    staged = subprocess.run(["git", "diff", "--cached", "--quiet", commit, "--"], cwd=root, check=False)
+    if staged.returncode:
+        raise SecretScanError("change_scope_identity", "candidate index differs from commit")
+    unstaged = subprocess.run(["git", "diff", "--quiet", commit, "--"], cwd=root, check=False)
+    if unstaged.returncode:
+        raise SecretScanError("change_scope_identity", "candidate worktree differs from commit")
+    return {
+        "repository": repository,
+        "authoritativeRemoteRef": str(evidence["authoritativeRemoteRef"]),
+        "baselineCommit": baseline,
+        "baselineTree": baseline_tree,
+        "candidateCommit": commit,
+        "candidateGitTree": tree,
+        "findings": evidence["findings"],
+        "changedPaths": changed_paths(root, baseline, commit),
+    }
 
 
 def tracked_entries(root: Path) -> list[IndexEntry]:
@@ -672,9 +873,11 @@ def _error_result(exc: SecretScanError, content_tree: str = EMPTY_TREE) -> dict[
     )
 
 
-def make_result(*, content_tree: str, findings: list[dict[str, Any]]) -> dict[str, Any]:
+def make_result(
+    *, content_tree: str, findings: list[dict[str, Any]], scan_mode: str | None = None, **metadata: Any
+) -> dict[str, Any]:
     ok = not any(row["kind"] in BLOCKING_KINDS for row in findings)
-    return {
+    result = {
         "schemaVersion": 1,
         "kind": "secret-scan-result",
         "scannerPolicyVersion": SCANNER_POLICY_VERSION,
@@ -682,6 +885,23 @@ def make_result(*, content_tree: str, findings: list[dict[str, Any]]) -> dict[st
         "ok": ok,
         "findings": findings,
     }
+    if scan_mode is not None:
+        result["scanMode"] = scan_mode
+    metadata_keys = {
+        "authoritative_remote_ref": "authoritativeRemoteRef",
+        "baseline_commit": "baselineCommit",
+        "baseline_tree": "baselineTree",
+        "candidate_commit": "candidateCommit",
+        "candidate_git_tree": "candidateGitTree",
+        "managed_paths": "managedPaths",
+        "config_digest": "configDigest",
+        "scanned_paths": "scannedPaths",
+        "inherited_finding_count": "inheritedFindingCount",
+    }
+    result.update(
+        {metadata_keys.get(key, key): value for key, value in metadata.items() if value is not None}
+    )
+    return result
 
 
 def _evaluate_declarations(
@@ -948,10 +1168,11 @@ def _run_repository_scanners(root: Path) -> list[dict[str, Any]]:
 def _scan_regular_blobs(
     root: Path,
     entries: list[IndexEntry],
+    paths: set[str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     detections: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
-    regular = [entry for entry in entries if entry.is_regular]
+    regular = [entry for entry in entries if entry.is_regular and (paths is None or entry.path in paths)]
     sizes = _blob_types_and_sizes(root, [entry.oid for entry in regular])
     readable: list[IndexEntry] = []
     for entry in regular:
@@ -1020,10 +1241,50 @@ def _scan_regular_blobs(
     return detections, findings
 
 
-def _scan_repository(root: Path) -> dict[str, Any]:
+def _change_scope_error_result(exc: SecretScanError, content_tree: str = EMPTY_TREE) -> dict[str, Any]:
+    rule = {
+        "change_scope_identity": RULE_CHANGE_IDENTITY,
+        "change_scope_config": RULE_CHANGE_CONFIG,
+        "change_scope_policy": RULE_CHANGE_CONFIG,
+        "change_scope_paths": RULE_CHANGE_PATHS,
+    }.get(exc.code, RULE_CHANGE_SCOPE)
+    return make_result(
+        content_tree=content_tree,
+        findings=[
+            _finding(
+                kind=KIND_CREDENTIAL,
+                path=".",
+                line=None,
+                field=None,
+                rule=rule,
+                digest=None,
+                detail=exc.detail or exc.code,
+            )
+        ],
+        scan_mode="change-scoped",
+    )
+
+
+def _scan_repository(root: Path, baseline_evidence: Any | None = None) -> dict[str, Any]:
     entries = tracked_entries(root)
     content_tree = candidate_content_tree(root)
-    detections, findings = _scan_regular_blobs(root, entries)
+    scope: dict[str, Any] | None = None
+    scan_paths: set[str] | None = None
+    inherited: list[dict[str, Any]] = []
+    if baseline_evidence is not None:
+        scope = _validate_change_scoped_evidence(root, baseline_evidence)
+        scan_paths = set(scope["changedPaths"]) | set(managed_scanner_policy_paths(root))
+        current_paths = {entry.path for entry in entries}
+        if any(path not in current_paths for path in scope["changedPaths"]):
+            raise SecretScanError("change_scope_paths", "changed path is absent from candidate")
+        inherited = [
+            dict(row)
+            for row in scope["findings"]
+            if isinstance(row, dict)
+            and isinstance(row.get("path"), str)
+            and row["path"] not in scan_paths
+        ]
+    detections, findings = _scan_regular_blobs(root, entries, scan_paths)
     declaration = None
     decl_entry = next((entry for entry in entries if entry.path == DECLARATION_REL), None)
     if decl_entry is not None and decl_entry.is_regular:
@@ -1036,16 +1297,47 @@ def _scan_repository(root: Path) -> dict[str, Any]:
         except SecretScanError as exc:
             findings.extend(_error_result(exc, content_tree)["findings"])
             declaration = None
+    findings = inherited + findings
     findings.extend(_evaluate_declarations(detections, declaration, content_tree))
     findings.extend(_run_repository_scanners(root))
-    return make_result(content_tree=content_tree, findings=findings)
+    if scope is None:
+        return make_result(content_tree=content_tree, findings=findings)
+    return make_result(
+        content_tree=content_tree,
+        findings=findings,
+        scan_mode="change-scoped",
+        repository=scope["repository"],
+        authoritative_remote_ref=scope["authoritativeRemoteRef"],
+        baseline_commit=scope["baselineCommit"],
+        baseline_tree=scope["baselineTree"],
+        candidate_commit=scope["candidateCommit"],
+        candidate_git_tree=scope["candidateGitTree"],
+        managed_paths=sorted(managed_scanner_policy_paths(root)),
+        config_digest=config_digest(root, tuple(managed_scanner_policy_paths(root))),
+        scanned_paths=sorted(scan_paths or set()),
+        inherited_finding_count=len(inherited),
+    )
 
 
-def scan_repository(root: Path) -> dict[str, Any]:
+def scan_repository(
+    root: Path,
+    *,
+    baseline_evidence: Any | None = None,
+    baseline_evidence_path: Path | str | None = None,
+) -> dict[str, Any]:
     root = root.resolve()
     try:
-        return _scan_repository(root)
+        if baseline_evidence is not None and baseline_evidence_path is not None:
+            raise SecretScanError("change_scope_identity", "two baseline evidence inputs")
+        if baseline_evidence_path is not None:
+            try:
+                baseline_evidence = json.loads(Path(baseline_evidence_path).read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise SecretScanError("change_scope_identity", "unreadable baseline evidence") from exc
+        return _scan_repository(root, baseline_evidence)
     except SecretScanError as exc:
+        if baseline_evidence is not None or baseline_evidence_path is not None:
+            return _change_scope_error_result(exc)
         return _error_result(exc)
 
 
@@ -1078,8 +1370,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=".")
     parser.add_argument("--json-output")
+    parser.add_argument(
+        "--baseline-evidence",
+        help="reuse exact trusted baseline findings from this change-scoped evidence JSON",
+    )
     args = parser.parse_args(argv)
-    result = scan_repository(Path(args.repo))
+    result = scan_repository(Path(args.repo), baseline_evidence_path=args.baseline_evidence)
     text = json.dumps(result, indent=2) + "\n"
     if args.json_output:
         Path(args.json_output).write_text(text, encoding="utf-8")

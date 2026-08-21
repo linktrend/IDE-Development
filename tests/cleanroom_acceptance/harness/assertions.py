@@ -70,7 +70,14 @@ def assert_no_checkout_paths_in_tree(repo: Path) -> list[str]:
     return errors
 
 
-def assert_cursor_codex_discovery(repo: Path, *, from_nested: Path) -> list[str]:
+def assert_cursor_codex_discovery(
+    repo: Path,
+    *,
+    from_nested: Path,
+    cursor_rule_rel: str = ".cursor/rules/sample-rule.mdc",
+    cursor_skill_rel: str = ".cursor/skills/sample-skill/SKILL.md",
+    codex_skill_rel: str = ".agents/skills/sample-skill/SKILL.md",
+) -> list[str]:
     """Prove Cursor/Codex managed entrypoints are discoverable from a nested cwd."""
     errors: list[str] = []
     root = find_git_root(from_nested)
@@ -79,9 +86,9 @@ def assert_cursor_codex_discovery(repo: Path, *, from_nested: Path) -> list[str]
     if root.resolve() != repo.resolve():
         errors.append(f"nested walk found unexpected root {root} (want {repo})")
 
-    cursor_rule = root / ".cursor" / "rules" / "sample-rule.mdc"
-    cursor_skill = root / ".cursor" / "skills" / "sample-skill" / "SKILL.md"
-    codex_skill = root / ".agents" / "skills" / "sample-skill" / "SKILL.md"
+    cursor_rule = root / cursor_rule_rel
+    cursor_skill = root / cursor_skill_rel
+    codex_skill = root / codex_skill_rel
     agents = root / "AGENTS.md"
 
     for label, path in (
