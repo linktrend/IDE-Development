@@ -34,6 +34,12 @@ There is **no** `.linktrend/review-ready.json` readiness file. Do not create, di
 | `status` | Report current completion state | `0` ok |
 | `write-evidence` | Write schema-versioned completion / lean checkpoint evidence for current `HEAD` | `0` ok |
 
+Without an explicit `--evidence-file` or `COMPLETION_EVIDENCE_FILE`, evidence is
+written under the repository git-common-dir, keyed by branch and exact `HEAD`.
+It is never written into the tracked candidate tree. Explicit legacy evidence
+paths remain readable for compatibility, but new checkpoints must not create
+self-referential `.linktrend/completion-evidence.json` changes.
+
 Exit codes: `0` ok, `78` incomplete, `2` blocked, `1` failed.
 
 ## States
