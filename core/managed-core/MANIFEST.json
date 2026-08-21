@@ -1341,6 +1341,18 @@
       "notes": "PKT-01 packaged continuous-utilization contract."
     },
     {
+      "id": "revision-60-final-controls-ide-development-content-config-cursor-cloud-dispatch-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/config/cursor-cloud-dispatch.json",
+      "sourceHash": "sha256:44a68bc03e30df282d895c31228cb371dec6d2d71bfec6885be11aa2b65421af",
+      "destination": ".ide-development/content/config/cursor-cloud-dispatch.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-08 revision-60 final controls."
+    },
+    {
       "id": "core-content-config-manifest-persistence-json",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/config/manifest-persistence.json",
@@ -1451,6 +1463,18 @@
       "os": "all",
       "mergeStrategy": "replace",
       "notes": "PKT-01 packaged continuous-utilization contract."
+    },
+    {
+      "id": "revision-60-final-controls-ide-development-content-doctrine-cursor-cloud-dispatch-contract-md",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/doctrine/CURSOR-CLOUD-DISPATCH-CONTRACT.md",
+      "sourceHash": "sha256:a5991ef6f116b81ba41306440705f4536753ef270057d1166492327cfc3880d9",
+      "destination": ".ide-development/content/doctrine/CURSOR-CLOUD-DISPATCH-CONTRACT.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-08 revision-60 final controls."
     },
     {
       "id": "doctrine-delivery-modes-md",
@@ -1610,6 +1634,18 @@
       "notes": "Hosted GitHub gate contract for offline consumer reference."
     },
     {
+      "id": "revision-60-final-controls-ide-development-contracts-cursor-cloud-dispatch-contract-md",
+      "ownershipClass": "managed-core",
+      "source": "core/contracts/CURSOR-CLOUD-DISPATCH-CONTRACT.md",
+      "sourceHash": "sha256:45699fdc8fd56ba331530b8b829d3a7255af555f55148e8fbddb8cd8831ba3bb",
+      "destination": ".ide-development/contracts/CURSOR-CLOUD-DISPATCH-CONTRACT.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-08 revision-60 final controls."
+    },
+    {
       "id": "execution-runtime-execution-control-contract-md",
       "ownershipClass": "managed-core",
       "source": "core/contracts/EXECUTION-CONTROL-CONTRACT.md",
@@ -1709,8 +1745,20 @@
       "id": "execution-runtime-init-py",
       "ownershipClass": "managed-core",
       "source": "core/execution/__init__.py",
-      "sourceHash": "sha256:cdd0a84103bb95d9f63d831ff996d99055f9972c316fdab9d4920eba408f492c",
+      "sourceHash": "sha256:bd3ffd9e1f7ddff38f3827a74d87580217cfdd29b37a0228dec1664daf1a3b80",
       "destination": ".ide-development/execution/__init__.py",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-01 deterministic execution admission runtime."
+    },
+    {
+      "id": "execution-runtime-cursor-cloud-dispatch-py",
+      "ownershipClass": "managed-core",
+      "source": "core/execution/cursor_cloud_dispatch.py",
+      "sourceHash": "sha256:f0f9dd650c869829b9e7720962fe6582f4089fd1fa955a56a3ce2a10b7b7dedf",
+      "destination": ".ide-development/execution/cursor_cloud_dispatch.py",
       "mode": "0644",
       "platform": "all",
       "os": "all",
@@ -2548,6 +2596,18 @@
       "os": "all",
       "mergeStrategy": "replace",
       "notes": "PKT-01 packaged continuous-utilization contract."
+    },
+    {
+      "id": "revision-60-final-controls-ide-development-schemas-cursor-cloud-dispatch-schema-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/schemas/cursor-cloud-dispatch.schema.json",
+      "sourceHash": "sha256:f9fed63254841dae15e2865e858c45d14386bb7e11cbbeca46bf05ecb2f40478",
+      "destination": ".ide-development/schemas/cursor-cloud-dispatch.schema.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "PKT-08 revision-60 final controls."
     },
     {
       "id": "core-schemas-delivery-modes-schema-json",
@@ -3604,8 +3664,20 @@
       "id": "gitops-core-execution-init-py",
       "ownershipClass": "managed",
       "source": "core/execution/__init__.py",
-      "sourceHash": "sha256:cdd0a84103bb95d9f63d831ff996d99055f9972c316fdab9d4920eba408f492c",
+      "sourceHash": "sha256:bd3ffd9e1f7ddff38f3827a74d87580217cfdd29b37a0228dec1664daf1a3b80",
       "destination": "core/execution/__init__.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
+      "id": "gitops-core-execution-cursor-cloud-dispatch-py",
+      "ownershipClass": "managed",
+      "source": "core/execution/cursor_cloud_dispatch.py",
+      "sourceHash": "sha256:f0f9dd650c869829b9e7720962fe6582f4089fd1fa955a56a3ce2a10b7b7dedf",
+      "destination": "core/execution/cursor_cloud_dispatch.py",
       "mode": "0644",
       "platform": "github",
       "os": "all",
@@ -3697,6 +3769,18 @@
       "notes": "Managed GitOps script; never overwrites consumer ci.yml."
     },
     {
+      "id": "gitops-core-managed-core-content-config-cursor-cloud-dispatch-json",
+      "ownershipClass": "managed",
+      "source": "core/managed-core/content/config/cursor-cloud-dispatch.json",
+      "sourceHash": "sha256:44a68bc03e30df282d895c31228cb371dec6d2d71bfec6885be11aa2b65421af",
+      "destination": "core/managed-core/content/config/cursor-cloud-dispatch.json",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
       "id": "gitops-core-managed-core-content-config-manifest-persistence-json",
       "ownershipClass": "managed",
       "source": "core/managed-core/content/config/manifest-persistence.json",
@@ -3714,6 +3798,18 @@
       "source": "core/managed-core/content/config/transactional-dispatch.json",
       "sourceHash": "sha256:73417b2ee3280e96b0181748c39454289c3af104dd1f7b6a9a574a6ded8f2c7c",
       "destination": "core/managed-core/content/config/transactional-dispatch.json",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
+      "id": "gitops-core-managed-core-schemas-cursor-cloud-dispatch-schema-json",
+      "ownershipClass": "managed",
+      "source": "core/managed-core/schemas/cursor-cloud-dispatch.schema.json",
+      "sourceHash": "sha256:f9fed63254841dae15e2865e858c45d14386bb7e11cbbeca46bf05ecb2f40478",
+      "destination": "core/managed-core/schemas/cursor-cloud-dispatch.schema.json",
       "mode": "0644",
       "platform": "github",
       "os": "all",
@@ -4393,7 +4489,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:0f19ea4581288296b54748c0f7243a2367ec97a309148204eb68bc75d4cfb415",
+      "sourceHash": "sha256:3101eb3dc3a3e085a93b995198571e9188c9df66dc937538a72807513bc08229",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://linktrend.local/managed-core/cursor-cloud-dispatch.schema.json",
+  "title": "Cursor Cloud API dispatch control",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "controlId",
+    "apiBaseUrl",
+    "apiPath",
+    "apiKeyEnvironmentVariable",
+    "environment",
+    "requiresExactNonFastModel",
+    "expectedBuildIdRole",
+    "preparedIntentRequired",
+    "clientSuppliedAgentIdRequired",
+    "attestationBeforeMutationRequired",
+    "cliLoginIsCloudAuthority"
+  ],
+  "properties": {
+    "schemaVersion": {"type": "integer", "const": 1},
+    "controlId": {"type": "string", "const": "cursor-cloud-dispatch-v1"},
+    "apiBaseUrl": {"type": "string", "const": "https://api.cursor.com"},
+    "apiPath": {"type": "string", "const": "/v1/agents"},
+    "apiKeyEnvironmentVariable": {"type": "string", "const": "CURSOR_API_KEY"},
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "name"],
+      "properties": {
+        "type": {"type": "string", "const": "cloud"},
+        "name": {"type": "string", "const": "IDE Development 2.5.1"}
+      }
+    },
+    "requiresExactNonFastModel": {"type": "boolean", "const": true},
+    "expectedBuildIdRole": {"type": "string", "const": "provenance-only"},
+    "preparedIntentRequired": {"type": "boolean", "const": true},
+    "clientSuppliedAgentIdRequired": {"type": "boolean", "const": true},
+    "attestationBeforeMutationRequired": {"type": "boolean", "const": true},
+    "cliLoginIsCloudAuthority": {"type": "boolean", "const": false}
+  }
+}
