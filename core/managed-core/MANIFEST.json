@@ -1307,10 +1307,10 @@
       "mergeStrategy": "replace"
     },
     {
-      "id": "core-config-generated-output-closure-json",
+      "id": "core-content-config-generated-output-closure-consumer-json",
       "ownershipClass": "managed-core",
-      "source": "core/managed-core/config/generated-output-closure.json",
-      "sourceHash": "sha256:55adad55d05b2b05cd6240ca2e22eeaca9e086f10b006dc13fb65338057bc9b5",
+      "source": "core/managed-core/content/config/generated-output-closure.consumer.json",
+      "sourceHash": "sha256:4d2ce86e89e8944b8c8de9c82046718d33c20080cd3594fa3dbc3adb1ceac34e",
       "destination": ".ide-development/config/generated-output-closure.json",
       "mode": "0644",
       "platform": "all",
@@ -4368,7 +4368,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:061fe57c716b9c2467a61ea26f406b19b5f65968663f5bd922ab4606a424caf8",
+      "sourceHash": "sha256:8f1914fa381bb1ec4a77775089340943c050e05d2a3e0e0934c3d91334b31470",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",

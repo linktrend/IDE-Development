@@ -404,7 +404,7 @@ def build_entries() -> list[dict[str, Any]]:
         ("content/README.md", ".ide-development/content/README.md"),
         ("config/delivery.json", ".ide-development/config/delivery.json"),
         (
-            "config/generated-output-closure.json",
+            "content/config/generated-output-closure.consumer.json",
             ".ide-development/config/generated-output-closure.json",
         ),
         (

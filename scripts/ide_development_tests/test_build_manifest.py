@@ -178,7 +178,7 @@ class BuildManifestPackagingTests(unittest.TestCase):
         manifest = bm.build_manifest_object()
         sources = {row["source"] for row in manifest["files"]}
         for rel in (
-            "core/managed-core/config/generated-output-closure.json",
+            "core/managed-core/content/config/generated-output-closure.consumer.json",
             "core/managed-core/content/config/manifest-persistence.json",
             "core/managed-core/schemas/generated-output-closure.schema.json",
             "core/managed-core/schemas/manifest-persistence.schema.json",
@@ -199,8 +199,25 @@ class BuildManifestPackagingTests(unittest.TestCase):
         self.assertIn("LEAN_DESIGN", closure["audits"])
         destinations = {row["source"]: row["destination"] for row in manifest["files"]}
         self.assertEqual(
-            destinations["core/managed-core/config/generated-output-closure.json"],
+            destinations["core/managed-core/content/config/generated-output-closure.consumer.json"],
             ".ide-development/config/generated-output-closure.json",
+        )
+        consumer_closure = json.loads(
+            (
+                bm.REPO_ROOT
+                / "core/managed-core/content/config/generated-output-closure.consumer.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            [row["id"] for row in consumer_closure["outputs"]],
+            ["secret-scan-fixtures"],
+        )
+        self.assertFalse(
+            any(
+                "build_manifest.py" in part
+                for row in consumer_closure["outputs"]
+                for part in row["generator"]
+            )
         )
 
     def test_pkt08_persistence_adversarial_runtime_is_in_managed_package(self) -> None:
