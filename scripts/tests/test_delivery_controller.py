@@ -204,7 +204,7 @@ class DeliveryControllerTests(unittest.TestCase):
 
     def test_failed_missing_or_skipped_gates_are_rejected(self) -> None:
         missing = dict(_named_checks(self.head))
-        del missing["Linktrend Review Gate"]
+        del missing["Linktrend Full Suite"]
         with self.assertRaisesRegex(controller.ControllerError, "required_gate_missing"):
             controller.verify_development_eligibility(
                 handoff=self.handoff,

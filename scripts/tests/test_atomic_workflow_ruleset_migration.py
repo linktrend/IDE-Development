@@ -20,13 +20,14 @@ class CheckContractTests(unittest.TestCase):
             "Enforce allowed PR source branches",
             contract["checks"].values(),
         )
+        self.assertNotIn("reviewGate", contract["checks"])
+        self.assertIn("Linktrend Review Gate", contract["removedManaged"])
 
     def test_protection_baseline_uses_active_source_policy(self) -> None:
         dev = rp.managed_baseline("development")
         self.assertEqual(
             dev,
             [
-                "Linktrend Review Gate",
                 "Verify IDE Development",
                 "Linktrend Branch Source Policy",
             ],
@@ -121,7 +122,7 @@ class PreserveRepoOwnedTests(unittest.TestCase):
         self.assertIn("Extra Gate", union["preserved"])
         self.assertIn("Linktrend Branch Source Policy", union["desired"])
         self.assertNotIn("Enforce allowed PR source branches", union["desired"])
-        self.assertEqual(union["desired"].index("Linktrend Review Gate"), 0)
+        self.assertNotIn("Linktrend Review Gate", union["desired"])
 
 
 class ContextDefectTests(unittest.TestCase):
@@ -183,7 +184,7 @@ class EvaluatorMigrationTests(unittest.TestCase):
         )
         self.assertEqual(
             after["packagerRequiredChecks"],
-            ["Linktrend Review Gate", "Verify IDE Development"],
+            ["Verify IDE Development"],
         )
         self.assertEqual(
             after["promoterRequiredChecks"],

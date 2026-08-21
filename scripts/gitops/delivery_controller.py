@@ -84,7 +84,6 @@ INFRASTRUCTURE_ERROR_CODES = frozenset(
 REQUIRED_CHECK_NAMES = (
     "Linktrend Fast Checks",
     "Linktrend Full Suite",
-    "Linktrend Review Gate",
     "Linktrend Branch Source Policy",
 )
 
