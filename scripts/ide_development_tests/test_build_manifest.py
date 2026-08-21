@@ -44,9 +44,9 @@ class BuildManifestPackagingTests(unittest.TestCase):
         path = bm.MANIFEST_PATH
         self.assertTrue(path.is_file())
         data = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(data.get("packageVersion"), "2.5.0")
+        self.assertEqual(data.get("packageVersion"), "2.5.1")
         managed = bm.VERSION_PATH.read_text(encoding="utf-8").strip().lstrip("v")
-        self.assertEqual(managed, "2.5.0")
+        self.assertEqual(managed, "2.5.1")
 
     def test_required_cursor_materialization_sources_are_packaged(self) -> None:
         manifest = bm.build_manifest_object()
@@ -114,6 +114,16 @@ class BuildManifestPackagingTests(unittest.TestCase):
         }
         self.assertEqual(required - destinations, set())
 
+    def test_execution_manifest_contract_is_installable(self) -> None:
+        manifest = bm.build_manifest_object()
+        destinations = {row["destination"] for row in manifest["files"]}
+        required = {
+            ".ide-development/execution/CODING-EXECUTION-PROTOCOL.md",
+            ".ide-development/contracts/EXECUTION-CONTROL-CONTRACT.md",
+            ".ide-development/contracts/EXECUTION-MANIFEST.schema.json",
+        }
+        self.assertEqual(required - destinations, set())
+
     def test_library_vendor_rename_has_exact_removal_migrations(self) -> None:
         catalog = json.loads(
             (bm.MANAGED / "migrations" / "catalog.json").read_text(encoding="utf-8")
@@ -137,7 +147,7 @@ class BuildManifestPackagingTests(unittest.TestCase):
         }
         self.assertEqual({path: removals.get(path) for path in expected}, expected)
 
-    def test_hosted_defaults_and_redacted_cleanup_inventory_are_packaged(self) -> None:
+    def test_hosted_defaults_are_packaged_without_portfolio_rollout_data(self) -> None:
         config = json.loads(
             (bm.MANAGED / "config" / "delivery.json").read_text(encoding="utf-8")
         )
@@ -153,19 +163,12 @@ class BuildManifestPackagingTests(unittest.TestCase):
         self.assertEqual(config["profiles"]["full"]["commands"], expected)
         self.assertTrue(config["profiles"]["full"]["required"])
 
-        cleanup = json.loads(
-            (bm.MANAGED / "migrations" / "external-cleanup-plan.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        self.assertEqual(len(cleanup["repositories"]), 9)
-        self.assertEqual(cleanup["applyAuthority"], "W3")
-        self.assertFalse(any("value" in row for row in cleanup["targets"]))
-
         manifest = bm.build_manifest_object()
         sources = {row["source"] for row in manifest["files"]}
         self.assertIn("core/managed-core/config/delivery.json", sources)
-        self.assertIn("core/managed-core/migrations/external-cleanup-plan.json", sources)
+        self.assertNotIn(
+            "core/managed-core/migrations/external-cleanup-plan.json", sources
+        )
         self.assertNotIn("scripts/gitops/resolve_automation_token.sh", sources)
         self.assertIn("scripts/gitops/packager_coordinator.py", sources)
         self.assertIn("scripts/gitops/independent_review_convergence.py", sources)
@@ -173,6 +176,53 @@ class BuildManifestPackagingTests(unittest.TestCase):
         self.assertIn("scripts/gitops/secret_scan_migrate.py", sources)
         self.assertIn("scripts/gitops/repository_ci_contract.py", sources)
         self.assertNotIn("scripts/gitops/packager_discover.py", sources)
+
+        forbidden = (
+            "openclaw_prime",
+            "LiNKplatform",
+            "LiNKskills",
+            "LiNKbrain",
+            "LiNKsites",
+            "LiNKdeveloper",
+            "LiNKlibraries",
+            "LiNKautowork",
+            "LiNKtrading-codebase",
+        )
+        rollout_boundary_files = [
+            bm.MANAGED / "content" / "doctrine" / "MANAGED-CORE-V2.md",
+            *(bm.MANAGED / "migrations").glob("*.json"),
+            *(bm.MANAGED / "migrations").glob("*.md"),
+        ]
+        active_text = "\n".join(
+            path.read_text(encoding="utf-8", errors="ignore")
+            for path in rollout_boundary_files
+        )
+        for repository in forbidden:
+            self.assertNotIn(repository, active_text)
+
+        catalog = json.loads(
+            (bm.MANAGED / "migrations" / "catalog.json").read_text(encoding="utf-8")
+        )
+        cleanup_removal = next(
+            (
+                row
+                for row in catalog["entries"]
+                if row["path"]
+                == ".ide-development/migrations/external-cleanup-plan.json"
+            ),
+            None,
+        )
+        self.assertEqual(
+            cleanup_removal,
+            {
+                "identity": ".ide-development/migrations/external-cleanup-plan.json",
+                "path": ".ide-development/migrations/external-cleanup-plan.json",
+                "contentHash": "sha256:8404f3c27f84d54539a9c928ce35a08180d67341c288fc4373b210a84727e53a",
+                "action": "remove",
+                "reason": "Remove the exact v2.5.0 portfolio-specific rollout cleanup plan from the reusable package.",
+                "sincePackageVersion": "2.5.1",
+            },
+        )
 
     def test_pkt08_closure_and_persistence_contracts_are_packaged(self) -> None:
         manifest = bm.build_manifest_object()

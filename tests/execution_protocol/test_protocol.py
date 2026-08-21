@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
+import tempfile
 import unittest
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -19,6 +21,7 @@ from core.execution.protocol import (  # noqa: E402
     LEGACY_PUBLISHERS,
     PROTOCOL_ID,
     PROTOCOL_VERSION,
+    REQUIRED_DISCOVERY_PATHS,
     WAIVED_LEGACY_GATE,
     DurableHeartbeatStore,
     acquire_orchestration_lease,
@@ -85,6 +88,34 @@ class DiscoveryTests(unittest.TestCase):
     def test_missing_surface_fails_closed(self) -> None:
         with self.assertRaises(FileNotFoundError):
             discover_runtime(Path("/tmp"))
+
+    def test_runtime_discovers_installed_consumer_layout(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="installed-protocol-") as tmp:
+            consumer = Path(tmp)
+            for rel in REQUIRED_DISCOVERY_PATHS:
+                if rel.startswith("core/managed-core/"):
+                    destination = consumer / ".ide-development" / rel.removeprefix(
+                        "core/managed-core/"
+                    )
+                elif rel.startswith("core/contracts/"):
+                    destination = consumer / ".ide-development/contracts" / rel.removeprefix(
+                        "core/contracts/"
+                    )
+                else:
+                    destination = consumer / ".ide-development/execution" / rel.removeprefix(
+                        "core/execution/"
+                    )
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ROOT / rel, destination)
+
+            discovered = discover_runtime(consumer)
+            self.assertEqual(
+                discovered.schema_path,
+                consumer.resolve()
+                / ".ide-development/contracts/EXECUTION-MANIFEST.schema.json",
+            )
+            self.assertTrue(discovered.control_contract.is_file())
+            self.assertTrue(discovered.protocol_document.is_file())
 
 
 class ManifestSchemaTests(unittest.TestCase):

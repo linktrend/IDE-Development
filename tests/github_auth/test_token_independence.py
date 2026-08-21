@@ -6,7 +6,6 @@ import os
 import sys
 import unittest
 from pathlib import Path
-from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -71,12 +70,9 @@ class TokenIndependenceTests(unittest.TestCase):
                 resolve_production_github("owner/name")
             self.assertEqual(controller.exception.code, "missing_github_credentials")
             os.environ["GH_TOKEN"] = "ghs_phase_api"
-            with mock.patch(
-                "scripts.gitops.packager_coordinator.require_bugbot_user_token",
-                return_value="user-token",
-            ):
-                github, _pusher = resolve_production_adapters("owner/name")
+            github, _pusher = resolve_production_adapters("owner/name")
             self.assertEqual(github.automation_token, "ghs_phase_api")
+            self.assertEqual(github.user_token, "ghs_phase_api")
             live = resolve_production_github("owner/name")
             self.assertEqual(live.automation_token, "ghs_phase_api")
         finally:
