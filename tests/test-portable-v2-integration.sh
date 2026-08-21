@@ -36,16 +36,18 @@ run_cmd() {
 # ---- Packaging invariants (manifest / credentials / version alignment) ----
 
 assert_packaging() {
-  local root_ver pkg_ver pkg_json_ver
+  local root_ver pkg_ver pkg_json_ver expected_ver
   root_ver="$(tr -d '[:space:]' < VERSION)"
   pkg_ver="$(tr -d '[:space:]' < core/managed-core/VERSION)"
-  [[ "${root_ver#v}" == "2.3.0" ]] || fail "root VERSION must be v2.3.0 identity (got '$root_ver')"
-  [[ "${pkg_ver#v}" == "2.3.0" ]] || fail "managed VERSION must be 2.3.0 identity (got '$pkg_ver')"
+  expected_ver="${root_ver#v}"
+  [[ "$expected_ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] \
+    || fail "root VERSION is not a semantic version (got '$root_ver')"
+  [[ "${pkg_ver#v}" == "$expected_ver" ]] || fail "managed VERSION must match root identity (got '$pkg_ver')"
   [[ "${root_ver#v}" == "${pkg_ver#v}" ]] || fail "VERSION alignment drift: root=$root_ver managed=$pkg_ver"
   pkg_json_ver="$(python3 -c "import json; print(json.load(open('core/managed-core/MANIFEST.json'))['packageVersion'])")"
-  [[ "$pkg_json_ver" == "2.3.0" ]] || fail "MANIFEST packageVersion must be 2.3.0 (got '$pkg_json_ver')"
+  [[ "$pkg_json_ver" == "$expected_ver" ]] || fail "MANIFEST packageVersion must match VERSION (got '$pkg_json_ver')"
   [[ "${pkg_ver#v}" == "$pkg_json_ver" ]] || fail "managed VERSION ($pkg_ver) != packageVersion ($pkg_json_ver)"
-  pass "VERSION / packageVersion aligned at 2.3.0"
+  pass "VERSION / packageVersion aligned at $expected_ver"
 
   # Doctrine docs → packaged content must stay byte-synced (Track 4 packaging contract).
   python3 - <<'PY'
@@ -114,8 +116,9 @@ PY
 assert_docs() {
   local ver
   ver="$(tr -d '[:space:]' < VERSION)"
-  [[ "$ver" == "v2.3.0" ]] || fail "VERSION must be v2.3.0 (got '$ver')"
-  pass "VERSION is v2.3.0"
+  [[ "$ver" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] \
+    || fail "VERSION is not a semantic version (got '$ver')"
+  pass "VERSION is $ver"
 
   for f in README.md SETUP.md \
     docs/IDE-DEVELOPMENT-INTENT.md \
@@ -224,7 +227,7 @@ PY
   grep -qiE 'no Git tag|does \*\*not\*\* create a Git tag|without tagging|no Git tag or GitHub release' \
     README.md docs/GITOPS-CONSUMER-ROLLOUT.md \
     || fail "missing explicit no-tag/no-release Wave 1 language"
-  pass "v2.3.0 identified without tag/release claim"
+  pass "$ver identified without tag/release claim"
 
   # Historical Claude files may remain; harness must not delete them.
   [[ -f claude/CLAUDE.md ]] || info "historical claude/CLAUDE.md not present (ok if previously absent)"

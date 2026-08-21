@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ide_development import build_manifest as bm
+from ide_development import release_candidate as rc
 
 REQUIRED_DOCTRINE = {
     "AGENT-COMPLETION.md",
@@ -41,9 +44,9 @@ class BuildManifestPackagingTests(unittest.TestCase):
         path = bm.MANIFEST_PATH
         self.assertTrue(path.is_file())
         data = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(data.get("packageVersion"), "2.4.0")
+        self.assertEqual(data.get("packageVersion"), "2.5.0")
         managed = bm.VERSION_PATH.read_text(encoding="utf-8").strip().lstrip("v")
-        self.assertEqual(managed, "2.4.0")
+        self.assertEqual(managed, "2.5.0")
 
     def test_required_cursor_materialization_sources_are_packaged(self) -> None:
         manifest = bm.build_manifest_object()
@@ -66,6 +69,50 @@ class BuildManifestPackagingTests(unittest.TestCase):
                 missing_cursor.append(cursor_destination)
         self.assertEqual(missing, [])
         self.assertEqual(missing_cursor, [])
+
+    def test_runtime_manifest_missing_source_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-manifest-") as tmp:
+            root = Path(tmp)
+            runtime_manifest = root / "core" / "github" / "managed-runtime" / "MANIFEST.json"
+            runtime_manifest.parent.mkdir(parents=True)
+            runtime_manifest.write_text(
+                json.dumps(
+                    {
+                        "files": list(bm.REQUIRED_RUNTIME_PACKAGE_SOURCES),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.object(bm, "REPO_ROOT", root):
+                with self.assertRaises(FileNotFoundError):
+                    bm._gitops_script_sources()
+
+    def test_runtime_manifest_declares_contract_dependencies(self) -> None:
+        sources = set(bm._gitops_script_sources())
+        self.assertTrue(
+            set(bm.REQUIRED_RUNTIME_PACKAGE_SOURCES).issubset(sources),
+            "runtime manifest must export the CI contract and its package dependency",
+        )
+
+    def test_release_candidate_exports_contract_dependencies(self) -> None:
+        package_paths = set(rc.collect_package_paths())
+        self.assertTrue(
+            set(bm.REQUIRED_RUNTIME_PACKAGE_SOURCES).issubset(package_paths),
+            "release-candidate package paths must include the CI contract dependency closure",
+        )
+
+    def test_application_canary_runtime_is_installable(self) -> None:
+        manifest = bm.build_manifest_object()
+        destinations = {row["destination"] for row in manifest["files"]}
+        required = {
+            ".ide-development/runtime/scripts/ide_development/app_canary.mjs",
+            ".ide-development/runtime/core/managed-core/platforms/codex/adapter.mjs",
+            ".ide-development/runtime/core/managed-core/platforms/cursor/adapter.mjs",
+            ".ide-development/runtime/core/link-integrations/errors.mjs",
+            ".ide-development/runtime/core/link-integrations/clients.mjs",
+            ".ide-development/runtime/core/link-integrations/index.mjs",
+        }
+        self.assertEqual(required - destinations, set())
 
     def test_library_vendor_rename_has_exact_removal_migrations(self) -> None:
         catalog = json.loads(
@@ -126,6 +173,112 @@ class BuildManifestPackagingTests(unittest.TestCase):
         self.assertIn("scripts/gitops/secret_scan_migrate.py", sources)
         self.assertIn("scripts/gitops/repository_ci_contract.py", sources)
         self.assertNotIn("scripts/gitops/packager_discover.py", sources)
+
+    def test_pkt08_closure_and_persistence_contracts_are_packaged(self) -> None:
+        manifest = bm.build_manifest_object()
+        sources = {row["source"] for row in manifest["files"]}
+        for rel in (
+            "core/managed-core/content/config/generated-output-closure.consumer.json",
+            "core/managed-core/content/config/manifest-persistence.json",
+            "core/managed-core/schemas/generated-output-closure.schema.json",
+            "core/managed-core/schemas/manifest-persistence.schema.json",
+            "core/execution/manifest_persistence.py",
+            "scripts/gitops/generated_output_closure.py",
+            "scripts/tests/test_generated_output_closure.py",
+            "scripts/tests/test_manifest_persistence_recovery.py",
+            ".githooks/pre-push",
+            "scripts/install-git-hooks.sh",
+        ):
+            self.assertIn(rel, sources)
+        closure = json.loads(
+            (bm.REPO_ROOT / "core/managed-core/config/generated-output-closure.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertIn("DOGFOOD_IMPROVEMENT_CLOSURE", closure["audits"])
+        self.assertIn("LEAN_DESIGN", closure["audits"])
+        destinations = {row["source"]: row["destination"] for row in manifest["files"]}
+        self.assertEqual(
+            destinations["core/managed-core/content/config/generated-output-closure.consumer.json"],
+            ".ide-development/config/generated-output-closure.json",
+        )
+        consumer_closure = json.loads(
+            (
+                bm.REPO_ROOT
+                / "core/managed-core/content/config/generated-output-closure.consumer.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            [row["id"] for row in consumer_closure["outputs"]],
+            ["secret-scan-fixtures"],
+        )
+        self.assertFalse(
+            any(
+                "build_manifest.py" in part
+                for row in consumer_closure["outputs"]
+                for part in row["generator"]
+            )
+        )
+
+    def test_pkt08_persistence_adversarial_runtime_is_in_managed_package(self) -> None:
+        manifest = bm.build_manifest_object()
+        rows = [
+            row
+            for row in manifest["files"]
+            if isinstance(row.get("source"), str)
+        ]
+        runtime = next(
+            row
+            for row in rows
+            if row["source"] == "core/execution/manifest_persistence.py"
+            and row["destination"] == ".ide-development/execution/manifest_persistence.py"
+        )
+        self.assertEqual(
+            runtime["destination"],
+            ".ide-development/execution/manifest_persistence.py",
+        )
+        self.assertEqual(
+            runtime["sourceHash"],
+            bm._hash_rel("core/execution/manifest_persistence.py"),
+        )
+        source = (bm.REPO_ROOT / "core/execution/manifest_persistence.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("MANIFEST_PERSISTENCE_FAILURE", source)
+        self.assertIn("_validate_transition_event", source)
+        self.assertTrue(
+            any(
+                row["source"] == "scripts/tests/test_manifest_persistence_recovery.py"
+                and row["destination"] == ".ide-development/tests/test_manifest_persistence_recovery.py"
+                for row in rows
+            )
+        )
+
+    def test_hosted_portability_regression_inputs_are_packaged(self) -> None:
+        manifest = bm.build_manifest_object()
+        destinations = {
+            row["source"]: row["destination"]
+            for row in manifest["files"]
+            if isinstance(row.get("source"), str)
+        }
+        self.assertEqual(
+            destinations.get("scripts/tests/test_candidate_baseline_resolution.py"),
+            ".ide-development/tests/test_candidate_baseline_resolution.py",
+        )
+        self.assertIn("scripts/gitops/generated_output_closure.py", destinations)
+        self.assertIn("scripts/gitops/secret_scan.py", destinations)
+
+    def test_pkt08_revision_60_final_controls_are_packaged(self) -> None:
+        manifest = bm.build_manifest_object()
+        sources = {row["source"] for row in manifest["files"]}
+        for rel in (
+            "core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md",
+            "core/execution/transactional_dispatch.py",
+            "core/managed-core/content/config/transactional-dispatch.json",
+            "core/managed-core/content/doctrine/PKT08-REVISION-60-FINAL-CONTROLS.md",
+            "core/managed-core/schemas/transactional-dispatch.schema.json",
+        ):
+            self.assertIn(rel, sources)
 
 
 if __name__ == "__main__":

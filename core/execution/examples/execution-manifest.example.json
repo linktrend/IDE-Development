@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "protocol": {
+    "id": "coding-execution-protocol",
+    "version": "1.0.1",
+    "amendment": "V25_BOOTSTRAP_LEAN"
+  },
+  "program": {
+    "id": "ide-development-v2.5",
+    "name": "IDE Development v2.5",
+    "targetRelease": "2.5.0"
+  },
+  "baseline": {
+    "repository": "linktrend/IDE-Development",
+    "commit": "004bd5faa1e14ee100a018e16dcb049f0fb2d8eb",
+    "tree": "6c55220132cc7e9a1baef06f8c147ee9ac9431e7",
+    "ref": "development"
+  },
+  "packets": [
+    {
+      "id": "PKT-01",
+      "title": "Canonical protocol and execution contracts",
+      "issues": ["ISS-01"],
+      "ownedPaths": [
+        "core/execution/",
+        "core/contracts/",
+        "core/managed-core/content/doctrine/",
+        "tests/execution_protocol/"
+      ],
+      "prohibitedPaths": [
+        "core/link-integrations/",
+        "core/skills/",
+        ".github/workflows/",
+        "VERSION"
+      ],
+      "verificationCommands": [
+        [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests/execution_protocol",
+          "-p",
+          "test_*.py",
+          "-v"
+        ]
+      ]
+    }
+  ],
+  "issues": [
+    {
+      "id": "ISS-01",
+      "packetId": "PKT-01",
+      "title": "Install Coding Execution Protocol 1.0.1 contracts"
+    }
+  ],
+  "controls": {
+    "exactCandidateInvalidation": {
+      "enabled": true,
+      "identityFields": ["repository", "commit", "tree", "workflowDigest", "profileDigest"]
+    },
+    "boundedRetry": {
+      "ordinarySourceRepairs": 3,
+      "infrastructureAttemptsPerCandidate": 2,
+      "codeFailureRetries": 0
+    },
+    "orchestrationLease": {
+      "required": true,
+      "scope": "packet-repository",
+      "ttlSeconds": 3600
+    },
+    "resourceUncertainty": {
+      "failClosed": true,
+      "unknownIsBlocking": true
+    },
+    "automaticApproval": {
+      "checkpoint": "automatic",
+      "stagingPromote": "automatic-on-receipt-identity",
+      "reservedActions": [
+        "main_promote",
+        "publish_release",
+        "deploy_production",
+        "github_protection_change",
+        "provider_live_mutation"
+      ],
+      "forbiddenActors": ["self_review", "self_merge", "prefer_incoming"]
+    },
+    "gitAuthority": {
+      "workBranchPattern": "issue/<n>-<slug>",
+      "protectedRefs": ["development", "staging", "main"],
+      "implementerMayOpenPr": false,
+      "implementerMayMerge": false,
+      "nestedSelfInstall": false
+    },
+    "publisherAuthority": {
+      "canonicalForV25": "none",
+      "legacyPublishers": [
+        "linktrend-review-ready-publisher",
+        "mark-review-ready.sh-as-publisher",
+        "review-ready.json",
+        "user-pat-publisher"
+      ],
+      "missingOrFailedClassification": "WAIVED_LEGACY_GATE"
+    },
+    "autoworkDiscovery": {
+      "requiredWhenCallable": true,
+      "unavailableIsHold": true
+    },
+    "issueCheckpoint": {
+      "acceptWithoutReviewReady": true,
+      "acceptWithoutToken": true,
+      "requiredEvidence": [
+        "exact_pushed_commit_tree",
+        "scoped_diff",
+        "focused_tests",
+        "independent_terra_verification",
+        "manifest_evidence"
+      ]
+    },
+    "administratorRecovery": {
+      "namedExceptionOnly": true,
+      "afterReplacementProof": true,
+      "allowedOperations": ["protection_snapshot", "restore", "readback"]
+    },
+    "durableHeartbeat": {
+      "writeReadbackRequired": true,
+      "persistBeforeMutation": true
+    },
+    "checkoutBoundVerification": {
+      "bindToCheckout": true,
+      "forbidMergeRefIdentity": true
+    },
+    "retryExhaustion": {
+      "diagnoseBeforeRecovery": true,
+      "forbidSilentRetry": true,
+      "ordinaryRecovery": "new_identity",
+      "infrastructureRecovery": "hold",
+      "codeFailureRecovery": "new_identity"
+    },
+    "hostedCapacityScheduler": {
+      "requireCompleteSnapshot": true,
+      "busyIsNotDiagnosis": true,
+      "unknownIsBlocking": true,
+      "hostedConcurrencyAuthority": "execution-protocol",
+      "maxAdmittedSlots": {
+        "local": 1,
+        "hosted": 2
+      },
+      "unknownProbeSeconds": 600,
+      "backstopSeconds": 600,
+      "prioritization": ["priority", "dependencyReady", "fifo"],
+      "utilizationGapEvent": "UTILIZATION_GAP",
+      "recomputeOnEvents": [
+        "admission",
+        "completion",
+        "invalidation",
+        "probe_timeout",
+        "api_rejection",
+        "utilization_gap_repair"
+      ]
+    }
+  }
+}

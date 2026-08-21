@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "packageName": "ide-development-managed-core",
-  "packageVersion": "2.4.0",
+  "packageVersion": "2.5.0",
   "description": "Example managed-core manifest for schema validation (not a live install set).",
   "createdAt": "2026-08-01T00:00:00Z",
   "files": [

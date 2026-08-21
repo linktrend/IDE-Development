@@ -40,7 +40,7 @@ class EngineTests(TempRepoTestCase):
         result = run_version(package=self.package)
         self.assertEqual(result.exit_code, EXIT_OK)
         self.assertEqual(result.payload["packageVersion"], "2.1.0")
-        self.assertEqual(result.payload["installerVersion"], "2.4.0")
+        self.assertEqual(result.payload["installerVersion"], "2.5.0")
 
     def test_marker_upsert_preserves_consumer_text(self) -> None:
         agents = self.target / "AGENTS.md"
@@ -59,7 +59,7 @@ class EngineTests(TempRepoTestCase):
         result = run_version(package=self.package)
         self.assertEqual(result.exit_code, EXIT_OK)
         self.assertEqual(result.payload["packageVersion"], "2.1.0")
-        self.assertEqual(result.payload["installerVersion"], "2.4.0")
+        self.assertEqual(result.payload["installerVersion"], "2.5.0")
 
     def test_plan_and_dry_run_no_writes(self) -> None:
         before = _snapshot(self.target)
@@ -136,6 +136,8 @@ class EngineTests(TempRepoTestCase):
 
         verify = run_verify(target=self.target, package=self.package)
         self.assertEqual(verify.exit_code, EXIT_OK, verify.payload)
+        self.assertEqual(verify.payload["drift"], [])
+        self.assertEqual(verify.payload["summary"]["driftCount"], 0)
 
     def test_sha256_and_read_refuse_symlink(self) -> None:
         from ide_development.io_atomic import read_file_bytes

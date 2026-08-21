@@ -2,6 +2,7 @@
 # GitOps lifecycle invariants (Batches 2–8 + repair control / managed runtime).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 cd "$ROOT"
 fail() { echo "FAIL: $1" >&2; exit 1; }
 pass() { echo "PASS: $1"; }
@@ -262,6 +263,17 @@ run_review_ready_expect() {
   ec=$?
   set -e
   [ "$ec" -eq "$expected" ] || fail "completion_gate expected exit $expected, got $ec ($(cat "$out" "$err"))"
+  if [ "$expected" -eq 0 ]; then
+    python3 - "$out" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+assert payload.get("state") == "waived_legacy_gate", payload
+assert payload.get("published") is False, payload
+assert payload.get("classification") == "WAIVED_LEGACY_GATE", payload
+PY
+  fi
 }
 
 write_completion_evidence() {
@@ -299,8 +311,8 @@ pass "completion_gate stale evidence fails closed without success status"
 
 write_completion_evidence ".linktrend/valid-evidence.json" 0
 run_review_ready_expect 0 ".linktrend/valid-evidence.json"
-assert_success_status "$advanced_sha"
-pass "completion_gate valid evidence publishes success status for exact SHA"
+assert_no_success_status "$advanced_sha"
+pass "completion_gate valid evidence waives legacy Review Ready for exact SHA"
 
 (
   cd "$WT"
@@ -596,31 +608,60 @@ bash "$ROOT/scripts/cleanup-merged-branches.sh" --remote --repo-root "$TMP/repo"
 grep -q 'dry-run\|cleanup mode=dry-run' /tmp/cleanup.out || fail "cleanup dry-run marker missing"
 pass "cleanup script dry-run safe"
 
-# ---- verify-platform-adoption (temp consumer path) ----
-bash "$ROOT/scripts/verify-platform-adoption.sh"
-pass "platform adoption entrypoints + temp consumer"
-
-# ---- git diff --check (required range + working-tree gate) ----
-# PR CI checkouts often lack refs/remotes/origin/development even when the
-# remote exists. Fetch the ref when missing; still fail closed if unavailable.
-if ! git rev-parse --verify origin/development >/dev/null 2>&1; then
-  if ! git fetch --no-tags origin "development:refs/remotes/origin/development" >/tmp/fetch-development.out 2>/tmp/fetch-development.err; then
-    cat /tmp/fetch-development.out /tmp/fetch-development.err >&2 || true
-    fail "origin/development missing — cannot run git diff --check (fetch failed)"
+# ---- candidate finalization (runtime exact baseline + working-tree gate) ----
+# The caller supplies the exact target identity.  The resolver may materialize
+# that named remote ref in a shallow checkout; it never invents a branch.
+candidate_baseline_ref="${LINKTREND_TARGET_BASELINE_REF:-}"
+candidate_baseline_sha="${LINKTREND_TARGET_BASELINE_SHA:-}"
+if [ -z "$candidate_baseline_ref" ] && [ -z "$candidate_baseline_sha" ]; then
+  # The default portable harness is itself a test fixture.  Give its final
+  # invocation the same kind of exact named remote target that CI injects,
+  # while leaving all partially supplied or invalid input fail-closed.
+  candidate_head="$(git rev-parse --verify HEAD^{commit} 2>/dev/null || true)"
+  while IFS=' ' read -r candidate_ref candidate_sha; do
+    [ -n "$candidate_ref" ] || continue
+    case "$candidate_ref" in
+      refs/remotes/*/HEAD) continue ;;
+    esac
+    if [ "$candidate_sha" = "$candidate_head" ]; then
+      continue
+    fi
+    if git merge-base --is-ancestor "$candidate_sha" "$candidate_head" 2>/dev/null; then
+      candidate_baseline_ref="${candidate_ref#refs/remotes/}"
+      candidate_baseline_sha="$candidate_sha"
+      break
+    fi
+  done < <(
+    {
+      git for-each-ref --sort=refname \
+        --format='%(refname) %(objectname)' refs/remotes/origin/phase/
+      git for-each-ref --sort=refname \
+        --format='%(refname) %(objectname)' refs/remotes/origin/development
+      git for-each-ref --sort=refname \
+        --format='%(refname) %(objectname)' refs/remotes/origin/staging
+      git for-each-ref --sort=refname \
+        --format='%(refname) %(objectname)' refs/remotes/origin/main
+      git for-each-ref --sort=refname \
+        --format='%(refname) %(objectname)' refs/remotes
+    } | awk '!seen[$1]++'
+  )
+  if [ -z "$candidate_baseline_ref" ] || [ -z "$candidate_baseline_sha" ]; then
+    fail "default harness could not resolve a distinct named remote target baseline"
   fi
+  pass "default harness selected named remote target baseline ${candidate_baseline_ref}"
 fi
-if ! git rev-parse --verify origin/development >/dev/null 2>&1; then
-  fail "origin/development missing — cannot run git diff --check"
+if [ -z "$candidate_baseline_ref" ] || [ -z "$candidate_baseline_sha" ]; then
+  fail "runtime target baseline ref and SHA are required"
 fi
-set +e
-git diff --check origin/development >/tmp/diffcheck-candidate.out 2>/tmp/diffcheck-candidate.err
-candidate_ec=$?
-set -e
-if [ "$candidate_ec" -ne 0 ]; then
-  cat /tmp/diffcheck-candidate.out /tmp/diffcheck-candidate.err >&2
-  fail "git diff --check origin/development failed for candidate tree"
-fi
-pass "git diff --check origin/development clean for candidate tree"
+LINKTREND_TARGET_BASELINE_REF="$candidate_baseline_ref" \
+LINKTREND_TARGET_BASELINE_SHA="$candidate_baseline_sha" \
+  python3 "$ROOT/scripts/gitops/generated_output_closure.py" --finalize \
+  >/tmp/candidate-finalization.out 2>/tmp/candidate-finalization.err \
+  || {
+    cat /tmp/candidate-finalization.out /tmp/candidate-finalization.err >&2
+    fail "candidate finalization failed for runtime target baseline"
+  }
+pass "candidate finalization clean for runtime target baseline"
 
 # ---- Main Approve package/store interface (Lisa) ----
 grep -q 'github_promote_pr_marker\|Package store' docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md \

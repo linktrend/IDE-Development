@@ -16,6 +16,55 @@ pass() {
   echo "PASS: $1"
 }
 
+# --- Complete Fast inventory and target measurement ---
+# The profile runner captures command output and writes one machine-readable
+# inventory.  This local measurement checks the hosted target declaration; it
+# is not represented as hosted CI proof.
+# BSD mktemp (macOS) requires the replacement Xs at the end of the template.
+fast_inventory="$(mktemp "${TMPDIR:-/tmp}/ide-fast-inventory.XXXXXX")"
+fast_started_ns="$(python3 -c 'import time; print(time.monotonic_ns())')"
+if ! python3 scripts/gitops/run_delivery_profile.py fast --inventory-json "$fast_inventory" >/dev/null; then
+  python3 - "$fast_inventory" <<'PY' >&2
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+if path.is_file():
+    print(json.dumps(json.loads(path.read_text(encoding="utf-8")), sort_keys=True))
+PY
+  rm -f "$fast_inventory"
+  fail "Fast profile inventory reported a failure"
+fi
+fast_elapsed_ms="$(( ( $(python3 -c 'import time; print(time.monotonic_ns())') - fast_started_ns ) / 1000000 ))"
+python3 - "$fast_inventory" "$fast_elapsed_ms" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+inventory = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+delivery = json.loads(Path("core/managed-core/config/delivery.json").read_text(encoding="utf-8"))
+compute = delivery["compute"]
+target_ms = int(delivery["profiles"]["fast"]["timeoutMinutes"]) * 60 * 1000
+assert inventory["kind"] == "ci-profile-inventory"
+assert inventory["profile"] == "fast" and inventory["boundary"] == "fast"
+assert inventory["complete"] is True and inventory["ok"] is True
+assert inventory["commands"] and all(row["status"] == "passed" for row in inventory["commands"])
+assert inventory["risk"]["level"] in {"low", "medium", "high", "critical"}
+elapsed_ms = int(sys.argv[2])
+print(json.dumps({
+    "kind": "ci-hosted-fast-target-measurement",
+    "measurementContext": "local-preflight",
+    "targetProvider": compute["provider"],
+    "targetRunner": compute["runner"],
+    "targetMs": target_ms,
+    "elapsedMs": elapsed_ms,
+    "withinTarget": elapsed_ms <= target_ms,
+}, sort_keys=True))
+PY
+rm -f "$fast_inventory"
+pass "Fast profile complete inventory and hosted target measurement"
+
 # --- Broken symlink check ---
 broken="$(find .cursor -type l ! -exec test -e {} \; -print 2>/dev/null | wc -l | tr -d ' ')"
 total="$(find .cursor -type l 2>/dev/null | wc -l | tr -d ' ')"

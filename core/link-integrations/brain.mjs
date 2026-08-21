@@ -44,6 +44,21 @@ const EXECUTION_REQUEST_KEYS = new Set([
   'execution',
   'skills_run',
 ])
+const HANDOFF_KEYS = new Set([
+  'contractVersion',
+  'authority',
+  'executionAuthority',
+  'handoffRef',
+  'namespaceRef',
+  'status',
+  'actorRef',
+  'targetRef',
+  'summary',
+  'createdAt',
+  'updatedAt',
+])
+const HANDOFF_REF = /^[A-Za-z0-9][A-Za-z0-9._~:/@+-]{0,255}$/
+const HANDOFF_STATUSES = new Set(['open', 'accepted', 'closed'])
 const SENSITIVE = /(?:secret|password|token|authorization|private.?key|prompt|transcript|conversation|raw(?:_|$)|full.?content|^body$)/i
 
 /**
@@ -390,4 +405,95 @@ export function validateBrainProjection(value, context = {}) {
     accepted.handoffRef = opaqueRef(record.handoffRef, 'handoffRef')
   }
   return Object.freeze(accepted)
+}
+
+/**
+ * Validate a bounded Brain handoff without turning it into execution
+ * authority. Handoff references are opaque and namespace-bound; payloads,
+ * prompts, and tool instructions are never accepted.
+ *
+ * @param {unknown} value
+ * @returns {Readonly<Record<string, string>>}
+ */
+export function validateBrainHandoff(value) {
+  const record = snapshotOwnEnumerablePlainData(value, 'brain_handoff_invalid', 'brain handoff')
+  rejectSensitive(record)
+  rejectUnknown(record, HANDOFF_KEYS, 'brain handoff')
+  if (record.contractVersion !== BRAIN_CONTRACT_VERSION) {
+    fail('brain_handoff_incompatible', 'brain handoff contractVersion is incompatible', {
+      classification: 'incompatible',
+      field: 'contractVersion',
+    })
+  }
+  if (record.authority !== 'advisory') {
+    fail('brain_handoff_denied', 'brain handoff authority must remain advisory', {
+      classification: 'denied',
+      field: 'authority',
+    })
+  }
+  if (record.executionAuthority !== 'none') {
+    fail('brain_execution_denied', 'brain handoff executionAuthority must remain none', {
+      classification: 'denied',
+      field: 'executionAuthority',
+    })
+  }
+  if (typeof record.handoffRef !== 'string' || !HANDOFF_REF.test(record.handoffRef)) {
+    fail('brain_handoff_malformed', 'brain handoff reference is malformed', {
+      classification: 'fail_closed',
+      field: 'handoffRef',
+    })
+  }
+  if (typeof record.namespaceRef !== 'string' || !HANDOFF_REF.test(record.namespaceRef)) {
+    fail('brain_handoff_malformed', 'brain handoff namespace is malformed', {
+      classification: 'fail_closed',
+      field: 'namespaceRef',
+    })
+  }
+  if (record.status === 'unavailable') {
+    fail('brain_handoff_unavailable', 'brain handoff provider is unavailable', {
+      classification: 'unavailable',
+      provider: 'brain',
+    })
+  }
+  if (typeof record.status !== 'string' || !HANDOFF_STATUSES.has(record.status)) {
+    fail('brain_handoff_malformed', 'brain handoff status is malformed', {
+      classification: 'fail_closed',
+      field: 'status',
+    })
+  }
+  for (const field of ['actorRef', 'targetRef']) {
+    if (record[field] !== undefined && (typeof record[field] !== 'string' || !HANDOFF_REF.test(record[field]))) {
+      fail('brain_handoff_malformed', `brain handoff ${field} is malformed`, {
+        classification: 'fail_closed',
+        field,
+      })
+    }
+  }
+  if (record.summary !== undefined && (typeof record.summary !== 'string' || record.summary.length > 1000)) {
+    fail('brain_handoff_malformed', 'brain handoff summary is outside the bounded size', {
+      classification: 'fail_closed',
+      field: 'summary',
+    })
+  }
+  for (const field of ['createdAt', 'updatedAt']) {
+    if (record[field] !== undefined && (typeof record[field] !== 'string' || !Number.isFinite(Date.parse(record[field])))) {
+      fail('brain_handoff_malformed', `brain handoff ${field} is malformed`, {
+        classification: 'fail_closed',
+        field,
+      })
+    }
+  }
+  return Object.freeze({
+    contractVersion: BRAIN_CONTRACT_VERSION,
+    authority: 'advisory',
+    executionAuthority: 'none',
+    handoffRef: record.handoffRef,
+    namespaceRef: record.namespaceRef,
+    status: record.status,
+    ...(record.actorRef === undefined ? {} : { actorRef: record.actorRef }),
+    ...(record.targetRef === undefined ? {} : { targetRef: record.targetRef }),
+    ...(record.summary === undefined ? {} : { summary: record.summary }),
+    ...(record.createdAt === undefined ? {} : { createdAt: record.createdAt }),
+    ...(record.updatedAt === undefined ? {} : { updatedAt: record.updatedAt }),
+  })
 }
