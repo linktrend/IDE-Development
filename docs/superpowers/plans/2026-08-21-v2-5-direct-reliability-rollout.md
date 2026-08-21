@@ -61,8 +61,7 @@ Run in order:
 2. `python3 scripts/gitops/generated_output_closure.py --verify`
 3. Focused test command from Task 1
 4. `git diff --check origin/development...HEAD`
-5. `bash scripts/tests/test-consumer-profile-matrix.sh`
-6. `bash scripts/verify-ide-development.sh`
+5. `bash scripts/verify-ide-development.sh` (includes the consumer-profile matrix once)
 
 Do not rerun a completed exact-tree command unless its inputs or environment changed.
 
@@ -82,4 +81,3 @@ Do not rerun a completed exact-tree command unless its inputs or environment cha
 3. After LiNKplatform passes, prepare isolated issue branches for the other eight consumers and update them concurrently where their repository locks do not conflict.
 4. Keep repository-specific failures isolated; stop all targets only for a systemic package defect.
 5. Record exact before/after commits and trees, package digest, checks, rollback, and final portfolio reconciliation.
-
