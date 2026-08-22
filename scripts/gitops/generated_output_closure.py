@@ -826,19 +826,26 @@ def resolve_candidate_baseline(
     baseline_ref: str | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> str:
-    """Resolve a distinct candidate baseline from a named remote target ref."""
+    """Resolve a distinct candidate baseline from the runtime remote target tip.
+
+    A directly supplied baseline SHA is an exact assertion and remains strict.
+    An environment SHA is a refreshable runtime hint: a fast-forwarded remote
+    target may supersede it, but unrelated, non-ancestor, or already-at-HEAD
+    moves remain fail-closed.
+    """
     root = Path(repo_root).resolve()
     runtime = os.environ if environ is None else environ
-    sha = baseline_sha or runtime.get(BASELINE_SHA_ENV)
+    explicit_sha = baseline_sha is not None
+    sha = baseline_sha if explicit_sha else runtime.get(BASELINE_SHA_ENV)
     ref = baseline_ref or runtime.get(BASELINE_REF_ENV)
-    if not sha or not ref:
+    if not ref:
         raise ClosureError(
             "candidate_baseline_missing",
             "exact baseline SHA and authoritative remote ref are required at runtime",
             shaProvided=bool(sha),
             refProvided=bool(ref),
         )
-    if not isinstance(sha, str) or not re.fullmatch(SHA40, sha):
+    if sha is not None and (not isinstance(sha, str) or not re.fullmatch(SHA40, sha)):
         raise ClosureError(
             "candidate_baseline_invalid",
             "baseline SHA must be exactly 40 lowercase hexadecimal characters",
@@ -875,17 +882,41 @@ def resolve_candidate_baseline(
             "authoritative remote target ref does not resolve to a commit",
             ref=ref,
         )
-    if resolved_ref != sha:
-        raise ClosureError(
-            "candidate_baseline_stale",
-            "runtime baseline SHA does not match the authoritative remote target tip",
-            ref=ref,
-            expected=resolved_ref,
-            supplied=sha,
-        )
     head = _resolve_commit(root, "HEAD")
     if head is None:
         raise ClosureError("candidate_baseline_invalid", "candidate HEAD does not resolve to a commit")
+    if sha is not None:
+        resolved_sha = _resolve_commit(root, sha)
+        if resolved_sha != sha:
+            raise ClosureError(
+                "candidate_baseline_invalid",
+                "baseline SHA does not resolve to an available commit",
+            )
+        if resolved_ref != sha:
+            if explicit_sha:
+                raise ClosureError(
+                    "candidate_baseline_stale",
+                    "runtime baseline SHA does not match the authoritative remote target tip",
+                    ref=ref,
+                    expected=resolved_ref,
+                    supplied=sha,
+                )
+            refreshed = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", sha, resolved_ref],
+                cwd=root,
+                check=False,
+            )
+            if refreshed.returncode or resolved_ref == head:
+                raise ClosureError(
+                    "candidate_baseline_stale",
+                    "runtime baseline SHA cannot be reconciled to the authoritative remote target tip",
+                    ref=ref,
+                    expected=resolved_ref,
+                    supplied=sha,
+                )
+            sha = resolved_ref
+    else:
+        sha = resolved_ref
     if head == sha:
         raise ClosureError(
             "candidate_baseline_equal_head",
