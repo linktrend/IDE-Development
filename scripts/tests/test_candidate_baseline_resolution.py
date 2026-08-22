@@ -171,7 +171,32 @@ class CandidateBaselineResolutionTests(unittest.TestCase):
         git(root, "update-ref", "refs/remotes/origin/development", candidate)
         git(root, "checkout", "-q", "--detach", candidate)
         with self.assertRaisesRegex(ClosureError, "candidate_baseline_stale"):
-            resolve_candidate_baseline(root, environ=runtime_env(baseline))
+            resolve_candidate_baseline(root, baseline_sha=baseline, baseline_ref="origin/development")
+
+    def test_runtime_baseline_hint_reconciles_to_fast_forwarded_remote_tip(self) -> None:
+        tmp, root, baseline, candidate = init_repo()
+        self.addCleanup(tmp.cleanup)
+        git(root, "checkout", "-q", "--detach", candidate)
+        (root / "runtime-tip.txt").write_text("tip\n", encoding="utf-8")
+        git(root, "add", "runtime-tip.txt")
+        git(root, "commit", "-qm", "runtime target tip")
+        tip = git(root, "rev-parse", "HEAD")
+        (root / "candidate-after-tip.txt").write_text("candidate\n", encoding="utf-8")
+        git(root, "add", "candidate-after-tip.txt")
+        git(root, "commit", "-qm", "candidate after runtime tip")
+        git(root, "update-ref", "refs/remotes/origin/development", tip)
+        self.assertEqual(resolve_candidate_baseline(root, environ=runtime_env(baseline)), tip)
+
+    def test_remote_target_tip_is_used_when_runtime_sha_is_omitted(self) -> None:
+        tmp, root, baseline, _ = init_repo()
+        self.addCleanup(tmp.cleanup)
+        self.assertEqual(
+            resolve_candidate_baseline(
+                root,
+                environ={BASELINE_REF_ENV: "origin/development"},
+            ),
+            baseline,
+        )
 
     def test_omitted_and_wrong_baselines_fail_closed(self) -> None:
         tmp, root, _, _ = init_repo()
