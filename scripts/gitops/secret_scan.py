@@ -268,9 +268,9 @@ def _remote_ref_name(ref: str) -> str:
 def changed_paths(root: Path, baseline_commit: str, candidate_commit: str) -> set[str]:
     """Resolve a conservative baseline-to-candidate path set.
 
-    Any delete, rename/copy, malformed status, or path ambiguity is a hard
-    failure.  This prevents a missing path from becoming an accidental blind
-    spot in a large fork.
+    Any delete, malformed status, or path ambiguity is a hard failure. Git
+    rename/copy records contribute both source and destination paths so neither
+    side becomes an accidental blind spot in a large fork.
     """
     raw = _git_bytes(
         root,
@@ -294,7 +294,7 @@ def changed_paths(root: Path, baseline_commit: str, candidate_commit: str) -> se
             status = status_raw.decode("ascii")
         except UnicodeDecodeError as exc:
             raise SecretScanError("change_scope_paths", "non-ascii diff status") from exc
-        if not status or status[0] not in "AMUT" or (len(status) > 1 and not status[1:].isdigit()):
+        if not status or status[0] not in "AMUTRC" or (len(status) > 1 and not status[1:].isdigit()):
             raise SecretScanError("change_scope_paths", f"ambiguous status {status}")
         if index >= len(tokens) or not tokens[index]:
             raise SecretScanError("change_scope_paths", "missing changed path")
@@ -304,6 +304,16 @@ def changed_paths(root: Path, baseline_commit: str, candidate_commit: str) -> se
         if not _valid_relpath(path):
             raise SecretScanError("change_scope_paths", "invalid changed path")
         paths.add(path)
+        if status[0] in "RC":
+            if len(status) == 1 or not status[1:].isdigit():
+                raise SecretScanError("change_scope_paths", f"ambiguous status {status}")
+            if index >= len(tokens) or not tokens[index]:
+                raise SecretScanError("change_scope_paths", "missing rename/copy destination")
+            destination = tokens[index].decode("utf-8", errors="strict")
+            index += 1
+            if not _valid_relpath(destination):
+                raise SecretScanError("change_scope_paths", "invalid rename/copy destination")
+            paths.add(destination)
     return paths
 
 
