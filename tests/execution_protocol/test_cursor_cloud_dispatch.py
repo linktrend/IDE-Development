@@ -11,6 +11,7 @@ from core.execution.cursor_cloud_dispatch import (
     DurableCursorCloudIntentStore,
     ENV_PUBLIC_ID,
     dispatch_cursor_cloud,
+    supersede_obsolete_prepared_intents,
     load_cursor_cloud_dispatch_config,
     require_cursor_cloud_api_key,
     validate_cursor_cloud_run_readback,
@@ -57,6 +58,49 @@ class FakeCursorCloudHTTP:
 
 
 class CursorCloudDispatchTests(unittest.TestCase):
+    def test_obsolete_prepared_fixed_cap_is_superseded_but_committed_is_preserved(self) -> None:
+        store = DurableCursorCloudIntentStore()
+        store.compare_and_write(
+            "old-fixed",
+            0,
+            None,
+            {
+                "state": "PREPARED",
+                "idempotencyKey": "old-fixed",
+                "concurrencyPolicy": "fixed_hosted_2",
+            },
+        )
+        store.compare_and_write(
+            "completed",
+            0,
+            None,
+            {
+                "state": "COMMITTED",
+                "idempotencyKey": "completed",
+                "concurrencyPolicy": "fixed_hosted_2",
+            },
+        )
+        self.assertEqual(supersede_obsolete_prepared_intents(store), ["old-fixed"])
+        self.assertEqual(store.read("old-fixed")["state"], "SUPERSEDED")
+        self.assertEqual(store.read("completed")["state"], "COMMITTED")
+
+    def test_dispatch_requires_enumerable_intent_store_for_supersession(self) -> None:
+        class ReadOnlyStore:
+            def read(self, key):
+                return None
+
+            def compare_and_write(self, *args, **kwargs):
+                raise AssertionError("must fail before write")
+
+        http = FakeCursorCloudHTTP(DurableCursorCloudIntentStore())
+        with self.assertRaisesRegex(CursorCloudDispatchError, "enumerate"):
+            dispatch_cursor_cloud(
+                REQUEST,
+                ReadOnlyStore(),
+                http,
+                environment={KEY_NAME: "test-only-key"},
+            )
+
     def test_config_is_exact_and_cli_login_is_not_authority(self) -> None:
         config = load_cursor_cloud_dispatch_config(str(Path(__file__).resolve().parents[2]))
         self.assertEqual(config["apiBaseUrl"], "https://api.cursor.com")

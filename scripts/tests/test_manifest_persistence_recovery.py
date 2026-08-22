@@ -302,7 +302,13 @@ class ManifestPersistenceTests(unittest.TestCase):
             snapshot={
                 "complete": True,
                 "identity": dict(IDENTITY),
-                "slots": {"local": 1, "hosted": 2},
+                "cursorCapacity": {
+                    "authenticated": True,
+                    "availableWorkers": 8,
+                    "observedAt": "2026-08-20T22:00:00+00:00",
+                },
+                "spendCeiling": {"maxWorkers": 8},
+                "safetyLimit": {"maxWorkers": 8},
                 "running": [],
                 "waiting": [],
             },
