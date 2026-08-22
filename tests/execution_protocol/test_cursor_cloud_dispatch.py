@@ -9,9 +9,11 @@ from core.execution.cursor_cloud_dispatch import (
     CursorCloudDispatchError,
     CursorCloudDispatchRequest,
     DurableCursorCloudIntentStore,
+    ENV_PUBLIC_ID,
     dispatch_cursor_cloud,
     load_cursor_cloud_dispatch_config,
     require_cursor_cloud_api_key,
+    validate_cursor_cloud_run_readback,
     validate_cursor_cloud_attestation,
 )
 
@@ -61,6 +63,8 @@ class CursorCloudDispatchTests(unittest.TestCase):
         self.assertEqual(config["apiPath"], "/v1/agents")
         self.assertEqual(config["savedRepositoryLayout"], "/agent/repos/<repo>")
         self.assertEqual(config["maxApiAttempts"], 2)
+        self.assertEqual(config["environment"]["publicId"], ENV_PUBLIC_ID)
+        self.assertTrue(config["runReadbackRequired"])
         self.assertEqual(config["apiBinding"], "prompt-and-governed-setup-only")
         self.assertTrue(config["setupReceiptRequired"])
         self.assertFalse(config["cliLoginIsCloudAuthority"])
@@ -219,6 +223,24 @@ class CursorCloudDispatchTests(unittest.TestCase):
                 environment={KEY_NAME: "test-only-key"},
             )
         self.assertEqual(http.calls, [])
+
+    def test_public_environment_identity_and_run_readback_are_required(self) -> None:
+        request = REQUEST
+        good = {
+            "environment": request.environment,
+            "environmentPublicId": ENV_PUBLIC_ID,
+            "observedBuildId": "bld-observed-379",
+            "expectedBuildId": request.expected_build_id,
+            "effectiveModel": request.model,
+            "fast": False,
+        }
+        validate_cursor_cloud_run_readback(request, good)
+        with self.assertRaisesRegex(CursorCloudDispatchError, "public environment"):
+            validate_cursor_cloud_run_readback(request, {**good, "environmentPublicId": "wrong"})
+        with self.assertRaisesRegex(CursorCloudDispatchError, "effective model"):
+            validate_cursor_cloud_run_readback(request, {**good, "effectiveModel": "Fast"})
+        with self.assertRaisesRegex(CursorCloudDispatchError, "Fast"):
+            validate_cursor_cloud_run_readback(request, {**good, "fast": True})
 
     def test_attestation_mismatch_blocks_mutation(self) -> None:
         good = {

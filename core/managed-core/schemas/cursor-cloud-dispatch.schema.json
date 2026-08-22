@@ -17,6 +17,8 @@
     "environment",
     "requiresExactNonFastModel",
     "expectedBuildIdRole",
+    "runReadbackRequired",
+    "runReadbackFields",
     "preparedIntentRequired",
     "clientSuppliedAgentIdRequired",
     "governedSetupRequired",
@@ -40,11 +42,17 @@
       "required": ["type", "name"],
       "properties": {
         "type": {"type": "string", "const": "cloud"},
-        "name": {"type": "string", "const": "IDE Development 2.5.1"}
+        "name": {"type": "string", "const": "IDE Development 2.5.1"},
+        "publicId": {"type": "string", "const": "1937ddb1-9d3e-11f1-a7d1-d6b4613131ce"}
       }
     },
     "requiresExactNonFastModel": {"type": "boolean", "const": true},
     "expectedBuildIdRole": {"type": "string", "const": "provenance-only"},
+    "runReadbackRequired": {"type": "boolean", "const": true},
+    "runReadbackFields": {
+      "type": "array",
+      "const": ["environmentPublicId", "observedBuildId", "expectedBuildId", "effectiveModel", "fast"]
+    },
     "preparedIntentRequired": {"type": "boolean", "const": true},
     "clientSuppliedAgentIdRequired": {"type": "boolean", "const": true},
     "governedSetupRequired": {"type": "boolean", "const": true},
