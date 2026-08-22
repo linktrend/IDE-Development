@@ -1308,13 +1308,28 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
             "outputs": [
                 {
                     "id": "managed-core-manifest",
-                    "output": "core/managed-core/MANIFEST.json",
+                    "output": ".github/linktrend-secret-scan-fixtures.json",
                     "generator": ["python3", "scripts/ide_development/build_manifest.py", "--write"],
                     "invalidatingSources": ["core/**"],
                     "dependsOn": [],
                 }
             ],
         }
+        write_tracked(
+            root,
+            "core/managed-core/MANIFEST.json",
+            json.dumps(
+                {
+                    "files": [
+                        {
+                            "source": "core/managed-core/content/config/generated-output-closure.consumer.json",
+                            "destination": ".ide-development/config/generated-output-closure.json",
+                        }
+                    ]
+                }
+            )
+            + "\n",
+        )
         write_tracked(
             root,
             ".ide-development/content/config/generated-output-closure.json",
@@ -1345,7 +1360,20 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
 
         manifest = root / ".ide-development/MANIFEST.json"
         manifest.parent.mkdir(parents=True, exist_ok=True)
-        manifest.write_text(json.dumps({"files": []}) + "\n", encoding="utf-8")
+        manifest.write_text(
+            json.dumps(
+                {
+                    "files": [
+                        {
+                            "source": "core/managed-core/content/config/generated-output-closure.consumer.json",
+                            "destination": ".ide-development/config/generated-output-closure.json",
+                        }
+                    ]
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         (root / ".ide-development/migrations/external-cleanup-plan.json").unlink()
         evidence["configDigest"] = config_digest(root)
         allowed = scan_repository(root, baseline_evidence=evidence)
