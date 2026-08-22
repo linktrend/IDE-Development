@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -223,20 +225,11 @@ def _post_install_verification(
     manifest_ok = installed_manifest.is_file() and not installed_manifest.is_symlink() and (
         sha256_file(installed_manifest) == sha256_file(manifest.path)
     )
-    scanner = target_root / "scripts/gitops/secret_scan.py"
-    scan_ok = False
-    scan_exit: int | None = None
-    if scanner.is_file() and not scanner.is_symlink():
-        scan = subprocess.run(
-            [sys.executable, str(scanner), "--repo", str(target_root)],
-            cwd=target_root,
-            text=True,
-            capture_output=True,
-            timeout=60,
-            check=False,
-        )
-        scan_exit = scan.returncode
-        scan_ok = scan.returncode == 0
+    scan = _run_post_install_secret_scan(target_root=target_root, resolution=resolution)
+    scan_ok = scan["ok"]
+    scan_exit = scan.get("exitCode")
+    scan_mode = scan["mode"]
+    scan_error_type = scan.get("errorType")
     receipt_ok = resolution is not None and resolution.verification.get("providerReceipt") and resolution.verification.get("providerTreeRequired") is True and resolution.verification.get("consumerTreeRequired") is True and resolution.verification.get("noUpstreamScanOrMutation") is True
     result = {
         "manifest": "pass" if manifest_ok else "fail",
@@ -245,12 +238,57 @@ def _post_install_verification(
         "selfScan": "pass" if scan_ok else "fail",
         "cleanroom": "receipt-bound-pass" if receipt_ok else "fail",
         "verifyExitCode": verify.exit_code,
+        "selfScanMode": scan_mode,
     }
     if scan_exit is not None:
         result["selfScanExitCode"] = scan_exit
+    if scan_error_type is not None:
+        result["selfScanErrorType"] = scan_error_type
     if not all(result[key] in {"pass", "receipt-bound-pass"} for key in ("manifest", "managedHashes", "closure", "selfScan", "cleanroom")):
         raise InvalidPackageError("Post-install managed upgrade verification failed", details=result)
     return result
+
+
+def _run_post_install_secret_scan(
+    *, target_root: Path, resolution: UpgradeResolution | None
+) -> dict[str, Any]:
+    """Run the installed scanner with an exact optional change-scope receipt."""
+    scanner = target_root / "scripts/gitops/secret_scan.py"
+    if not scanner.is_file() or scanner.is_symlink():
+        return {"ok": False, "mode": "full", "errorType": "missing-scanner"}
+
+    scan_args = [sys.executable, str(scanner), "--repo", str(target_root)]
+    scan_mode = "full"
+    evidence_file: Path | None = None
+    scoped = resolution.verification.get("changeScopedSecretScan") if resolution is not None else None
+    if scoped is not None:
+        # The resolution loader validated the exact digest and shape. Keep the
+        # evidence outside the consumer and delete it in all cases.
+        scan_mode = "change-scoped"
+        evidence_fd, evidence_name = tempfile.mkstemp(prefix="ide-change-scan-", suffix=".json")
+        os.close(evidence_fd)
+        evidence_file = Path(evidence_name)
+        try:
+            evidence_file.write_text(
+                json.dumps(scoped["evidence"], sort_keys=True, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+            scan_args.extend(["--baseline-evidence", str(evidence_file)])
+            result = subprocess.run(
+                scan_args, cwd=target_root, text=True, capture_output=True, timeout=60, check=False
+            )
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "mode": scan_mode, "errorType": "timeout"}
+        finally:
+            evidence_file.unlink(missing_ok=True)
+    else:
+        try:
+            result = subprocess.run(
+                scan_args, cwd=target_root, text=True, capture_output=True, timeout=60, check=False
+            )
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "mode": scan_mode, "errorType": "timeout"}
+    return {"ok": result.returncode == 0, "mode": scan_mode, "exitCode": result.returncode}
 
 
 def run_plan(

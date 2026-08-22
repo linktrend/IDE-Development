@@ -22,6 +22,21 @@ ALLOWED_CONFLICT_PATHS = frozenset({
     ".ide-development/tests/test_fixture_aware_secret_scan.py",
     "scripts/gitops/secret_scan.py",
 })
+CHANGE_SCOPED_EVIDENCE_KEY = "changeScopedSecretScan"
+CHANGE_SCOPED_EVIDENCE_REQUIRED = frozenset({
+    "schemaVersion",
+    "kind",
+    "repository",
+    "authoritativeRemoteRef",
+    "baselineCommit",
+    "baselineTree",
+    "candidateCommit",
+    "candidateGitTree",
+    "scannerPolicyVersion",
+    "managedPaths",
+    "configDigest",
+    "findings",
+})
 
 
 @dataclass(frozen=True)
@@ -98,6 +113,42 @@ def _path(value: Any) -> str:
     if normalized != value:
         raise InvalidPackageError(f"Resolution path must be normalized: {value!r}")
     return normalized
+
+
+def _canonical_digest(value: Any) -> str:
+    """Digest an evidence object without allowing JSON formatting ambiguity."""
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
+def _validate_change_scoped_binding(verification: dict[str, Any]) -> None:
+    """Validate the receipt envelope before any transaction can begin.
+
+    The target scanner performs repository/Git/config validation after the
+    package is materialized.  This preflight only validates the immutable
+    envelope and evidence shape, preventing malformed or silently omitted
+    evidence from reaching the post-install hook.
+    """
+    if CHANGE_SCOPED_EVIDENCE_KEY not in verification:
+        return
+    binding = verification.get(CHANGE_SCOPED_EVIDENCE_KEY)
+    if not isinstance(binding, dict) or set(binding) != {"evidence", "evidenceDigest"}:
+        raise InvalidPackageError(
+            "Change-scoped secret-scan binding must contain only evidence and evidenceDigest"
+        )
+    evidence = binding.get("evidence")
+    if not isinstance(evidence, dict) or set(evidence) - (CHANGE_SCOPED_EVIDENCE_REQUIRED | {"candidateTree"}):
+        raise InvalidPackageError("Change-scoped secret-scan evidence has unknown fields")
+    if CHANGE_SCOPED_EVIDENCE_REQUIRED - set(evidence):
+        raise InvalidPackageError("Change-scoped secret-scan evidence is missing required identity")
+    if evidence.get("schemaVersion") != 1 or evidence.get("kind") != "change-scoped-secret-scan-evidence":
+        raise InvalidPackageError("Change-scoped secret-scan evidence schema/kind is invalid")
+    if not isinstance(evidence.get("managedPaths"), list) or not evidence["managedPaths"]:
+        raise InvalidPackageError("Change-scoped secret-scan managed path identity is required")
+    if not isinstance(evidence.get("findings"), list):
+        raise InvalidPackageError("Change-scoped secret-scan findings must be an array")
+    if _digest(binding.get("evidenceDigest"), "changeScopedSecretScan.evidenceDigest") != _canonical_digest(evidence):
+        raise InvalidPackageError("Change-scoped secret-scan evidence digest is stale")
 
 
 def load_and_validate_resolution(resolution_path: Path, *, target_root: Path, package_root: Path, package_version: str, package_manifest_digest: str, prior_package_version: str | None, prior_installed_state_digest: str | None = None, observed_conflicts: Iterable[tuple[str, str, str, str]]) -> UpgradeResolution:
@@ -187,6 +238,7 @@ def load_and_validate_resolution(resolution_path: Path, *, target_root: Path, pa
     verification = raw.get("verification")
     if not isinstance(verification, dict) or verification.get("providerReceipt") != provider["independentVerificationReceipt"] or verification.get("providerTreeRequired") is not True or verification.get("consumerTreeRequired") is not True or verification.get("noUpstreamScanOrMutation") is not True:
         raise InvalidPackageError("Independent verification receipt is incomplete or mismatched")
+    _validate_change_scoped_binding(verification)
     checks = verification.get("canonicalProviderChecks")
     required_cases = {
         "quoted member and call references are non-findings",

@@ -14,7 +14,7 @@
     "provider": {"type": "object", "required": ["repository", "authoritativeRef", "commit", "tree", "installerVersion", "independentVerificationReceipt", "managedPackageManifest"]},
     "allowedConflictPaths": {"const": [".ide-development/schemas/secret-scan-result.schema.json", ".ide-development/tests/test_fixture_aware_secret_scan.py", "scripts/gitops/secret_scan.py"]},
     "conflicts": {"type": "array", "minItems": 3, "items": {"$ref": "#/$defs/conflict"}},
-    "verification": {"type": "object", "required": ["providerReceipt", "providerTreeRequired", "consumerTreeRequired", "noUpstreamScanOrMutation"]},
+    "verification": {"type": "object", "required": ["providerReceipt", "providerTreeRequired", "consumerTreeRequired", "noUpstreamScanOrMutation"], "properties": {"changeScopedSecretScan": {"$ref": "#/$defs/changeScopedSecretScan"}}},
     "backupAndRollback": {"type": "object", "required": ["backupRequiredBeforeApply", "transactionRequired", "manualOverwriteForbidden"]},
     "resolution": {"type": "object", "required": ["deferredPaths", "noExtraPaths"]}
   },
@@ -33,6 +33,33 @@
         "decision": {"const": "provider-supersedes"}
       }
     },
-    "file": {"type": "object", "required": ["sha256"], "properties": {"sha256": {"$ref": "#/$defs/digest"}}}
+    "file": {"type": "object", "required": ["sha256"], "properties": {"sha256": {"$ref": "#/$defs/digest"}}},
+    "changeScopedSecretScan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence", "evidenceDigest"],
+      "properties": {
+        "evidenceDigest": {"$ref": "#/$defs/digest"},
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schemaVersion", "kind", "repository", "authoritativeRemoteRef", "baselineCommit", "baselineTree", "candidateCommit", "candidateGitTree", "scannerPolicyVersion", "managedPaths", "configDigest", "findings"],
+          "properties": {
+            "schemaVersion": {"const": 1},
+            "kind": {"const": "change-scoped-secret-scan-evidence"},
+            "repository": {"type": "string", "minLength": 1},
+            "authoritativeRemoteRef": {"type": "string", "minLength": 1},
+            "baselineCommit": {"$ref": "#/$defs/oid"},
+            "baselineTree": {"$ref": "#/$defs/oid"},
+            "candidateCommit": {"$ref": "#/$defs/oid"},
+            "candidateGitTree": {"$ref": "#/$defs/oid"},
+            "scannerPolicyVersion": {"type": "string", "minLength": 1},
+            "managedPaths": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+            "configDigest": {"$ref": "#/$defs/digest"},
+            "findings": {"type": "array", "items": {"type": "object"}}
+          }
+        }
+      }
+    }
   }
 }

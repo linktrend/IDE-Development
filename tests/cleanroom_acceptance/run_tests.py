@@ -14,12 +14,14 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 # Allow `python3 tests/cleanroom_acceptance/run_tests.py` without PYTHONPATH.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from harness.assertions import (  # noqa: E402
     assert_cursor_codex_discovery,
@@ -42,6 +44,11 @@ from harness.installer import (  # noqa: E402
 from harness.paths import PACKAGE_FIXTURE, REPO_ROOT  # noqa: E402
 from harness.reporter import Reporter  # noqa: E402
 from harness.repo import cleanup_repo, make_consumer_repo  # noqa: E402
+from scripts.gitops.secret_scan import (  # noqa: E402
+    SCANNER_POLICY_VERSION,
+    config_digest,
+    managed_scanner_policy_paths,
+)
 
 
 def _pkg_bytes(package: Path, *parts: str) -> bytes:
@@ -122,6 +129,73 @@ def test_12_resolution_fail_closed_cleanroom(rep: Reporter, package: Path) -> No
             rep.fail("12-resolution-fail-closed", "malformed resolution mutated consumer")
         else:
             rep.ok("12-resolution-fail-closed")
+    finally:
+        cleanup_repo(repo)
+
+
+def test_13_extracted_change_scoped_scan_inherits_large_baseline(rep: Reporter, package: Path) -> None:
+    """An extracted package scans the bounded scope without replaying history."""
+    if not any(
+        entry.get("destination") == "scripts/gitops/secret_scan.py"
+        for entry in _manifest(package).get("files") or []
+    ):
+        rep.skip("13-extracted-change-scoped-scan", "legacy fixture has no packaged scanner")
+        return
+    repo = make_consumer_repo(
+        prefix="cr-13-",
+        files={".gitignore": "*\n!.gitignore\n!README.md\n"},
+    )
+    try:
+        def git(*args: str) -> str:
+            result = subprocess.run(
+                ["git", *args], cwd=repo, text=True, capture_output=True, check=True
+            )
+            return result.stdout.strip()
+        git("add", ".gitignore")
+        git("commit", "-qm", "ignore managed package paths")
+        installed = run_installer("install", package=package, target=repo)
+        if installed.returncode != EXIT_OK:
+            _fail_cli(rep, "13-extracted-change-scoped-scan", installed, expect=EXIT_OK)
+            return
+        git("remote", "add", "origin", "https://github.com/example/cleanroom.git")
+        baseline = git("rev-parse", "HEAD")
+        baseline_tree = git("rev-parse", "HEAD^{tree}")
+        git("update-ref", "refs/remotes/origin/development", baseline)
+        evidence = {
+            "schemaVersion": 1,
+            "kind": "change-scoped-secret-scan-evidence",
+            "repository": "example/cleanroom",
+            "authoritativeRemoteRef": "origin/development",
+            "baselineCommit": baseline,
+            "baselineTree": baseline_tree,
+            "candidateCommit": baseline,
+            "candidateGitTree": baseline_tree,
+            "scannerPolicyVersion": SCANNER_POLICY_VERSION,
+            "managedPaths": list(managed_scanner_policy_paths(repo)),
+            "configDigest": config_digest(repo),
+            "findings": [
+                {"kind": "approved_synthetic_fixture", "path": f"history/{i}.py", "rule": "assignment.secret"}
+                for i in range(10_000)
+            ],
+        }
+        evidence_path = repo.parent / "change-scoped-evidence.json"
+        evidence_path.write_text(json.dumps(evidence) + "\n", encoding="utf-8")
+        scanner = repo / "scripts/gitops/secret_scan.py"
+        result = subprocess.run(
+            [sys.executable, str(scanner), "--repo", str(repo), "--baseline-evidence", str(evidence_path)],
+            cwd=repo, text=True, capture_output=True, check=False,
+        )
+        if not result.stdout.strip():
+            _fail_cli(rep, "13-extracted-change-scoped-scan", result, expect=EXIT_OK)
+            return
+        payload = json.loads(result.stdout)
+        if result.returncode != 0 or not payload.get("ok") or payload.get("scanMode") != "change-scoped":
+            _fail_cli(rep, "13-extracted-change-scoped-scan", result, expect=EXIT_OK)
+            return
+        if payload.get("inheritedFindingCount") != 10_000:
+            rep.fail("13-extracted-change-scoped-scan", "inherited baseline count changed")
+            return
+        rep.ok("13-extracted-change-scoped-scan")
     finally:
         cleanup_repo(repo)
 
@@ -833,6 +907,7 @@ def main(argv: list[str] | None = None) -> int:
         "10-interrupted-recovery-and-rollback",
         "11-extracted-rc-no-checkout-access",
         "12-resolution-fail-closed",
+        "13-extracted-change-scoped-scan",
     ]
     if args.list:
         for sid in scenarios:
@@ -875,6 +950,7 @@ def main(argv: list[str] | None = None) -> int:
         test_09_drift_and_deterministic_repair(rep, package_src)
         test_10_interrupted_recovery_and_rollback(rep, package_src)
         test_12_resolution_fail_closed_cleanroom(rep, package)
+        test_13_extracted_change_scoped_scan_inherits_large_baseline(rep, package)
         test_11_extracted_rc_no_checkout_access(rep, package_src)
     finally:
         shutil.rmtree(work, ignore_errors=True)

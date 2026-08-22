@@ -349,15 +349,17 @@ def _validate_change_scoped_evidence(
     ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", baseline, commit], cwd=root, check=False)
     if ancestor.returncode:
         raise SecretScanError("change_scope_identity", "baseline is not an ancestor")
-    # A staged or unstaged candidate must not silently differ from the identity
-    # being proved. The scanner reads index identities, so a dirty worktree
-    # would otherwise make the evidence claim ambiguous.
-    staged = subprocess.run(["git", "diff", "--cached", "--quiet", commit, "--"], cwd=root, check=False)
-    if staged.returncode:
-        raise SecretScanError("change_scope_identity", "candidate index differs from commit")
-    unstaged = subprocess.run(["git", "diff", "--quiet", commit, "--"], cwd=root, check=False)
-    if unstaged.returncode:
-        raise SecretScanError("change_scope_identity", "candidate worktree differs from commit")
+    # The transaction may dirty only the exact managed scanner/policy paths.
+    # Any unrelated edit, type change, delete, rename, or copy remains an
+    # ambiguous candidate and fails closed.
+    expected_managed = set(managed_scanner_policy_paths(root))
+    for status, path in _worktree_diff_statuses(root, commit):
+        if status[0] not in {"M", "A", "T", "U"} or path not in expected_managed or status[0] in {"A", "T", "U"}:
+            raise SecretScanError("change_scope_paths", "candidate worktree differs outside managed paths")
+        if not (root / path).is_file() or (root / path).is_symlink():
+            raise SecretScanError("change_scope_paths", "managed path is deleted or symlinked")
+    if _untracked_worktree_paths(root):
+        raise SecretScanError("change_scope_paths", "untracked candidate paths are ambiguous")
     return {
         "repository": repository,
         "authoritativeRemoteRef": str(evidence["authoritativeRemoteRef"]),
@@ -1256,6 +1258,74 @@ def _scan_regular_blobs(
     return detections, findings
 
 
+def _scan_worktree_managed_blobs(
+    root: Path, entries: list[IndexEntry], paths: set[str]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Scan installed managed policy bytes, including expected tracked edits."""
+    detections: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    tracked = {entry.path for entry in entries}
+    for rel in sorted(paths):
+        path = root / rel
+        if not path.exists() or path.is_symlink():
+            if rel in tracked:
+                raise SecretScanError("change_scope_paths", f"managed path is deleted or symlinked: {rel}")
+            continue
+        if not path.is_file():
+            raise SecretScanError("change_scope_paths", f"managed path is not a regular file: {rel}")
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            raise SecretScanError("change_scope_paths", f"managed path is unreadable: {rel}") from exc
+        text, encoding = decode_tracked_text(raw)
+        if text is None:
+            findings.append(
+                _finding(
+                    kind=KIND_SKIPPED,
+                    path=rel,
+                    line=None,
+                    field=None,
+                    rule=RULE_INPUT_UNDECODABLE if encoding != "binary" else "input.binary",
+                    digest=None,
+                    detail=encoding,
+                )
+            )
+            continue
+        detections.extend(scan_text(rel, text))
+    return detections, findings
+
+
+def _worktree_diff_statuses(root: Path, commit: str) -> list[tuple[str, str]]:
+    raw = _git_bytes(
+        root, "diff", "--name-status", "--find-renames=50%", "--find-copies=50%", "-z", commit, "--"
+    )
+    tokens = raw.split(b"\0")
+    statuses: list[tuple[str, str]] = []
+    index = 0
+    while index < len(tokens):
+        status_raw = tokens[index]
+        index += 1
+        if not status_raw:
+            continue
+        status = status_raw.decode("ascii", errors="strict")
+        if index >= len(tokens) or not tokens[index]:
+            raise SecretScanError("change_scope_paths", "missing worktree diff path")
+        path = tokens[index].decode("utf-8", errors="strict")
+        index += 1
+        statuses.append((status, path))
+        if status.startswith(("R", "C")):
+            if index >= len(tokens) or not tokens[index]:
+                raise SecretScanError("change_scope_paths", "missing rename/copy destination")
+            statuses.append((status, tokens[index].decode("utf-8", errors="strict")))
+            index += 1
+    return statuses
+
+
+def _untracked_worktree_paths(root: Path) -> list[str]:
+    raw = _git(root, "status", "--porcelain=v1", "--untracked-files=all")
+    return [line[3:] for line in raw.splitlines() if line.startswith("?? ")]
+
+
 def _change_scope_error_result(exc: SecretScanError, content_tree: str = EMPTY_TREE) -> dict[str, Any]:
     rule = {
         "change_scope_identity": RULE_CHANGE_IDENTITY,
@@ -1299,7 +1369,13 @@ def _scan_repository(root: Path, baseline_evidence: Any | None = None) -> dict[s
             and isinstance(row.get("path"), str)
             and row["path"] not in scan_paths
         ]
-    detections, findings = _scan_regular_blobs(root, entries, scan_paths)
+    managed_paths = set(managed_scanner_policy_paths(root)) if scope is not None else set()
+    index_scan_paths = (scan_paths - managed_paths) if scan_paths is not None else None
+    detections, findings = _scan_regular_blobs(root, entries, index_scan_paths)
+    if scope is not None:
+        managed_detections, managed_findings = _scan_worktree_managed_blobs(root, entries, managed_paths)
+        detections.extend(managed_detections)
+        findings.extend(managed_findings)
     declaration = None
     decl_entry = next((entry for entry in entries if entry.path == DECLARATION_REL), None)
     if decl_entry is not None and decl_entry.is_regular:
