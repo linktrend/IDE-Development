@@ -75,6 +75,8 @@ RULE_CHANGE_IDENTITY = "change_scope.identity"
 RULE_CHANGE_CONFIG = "change_scope.config"
 RULE_CHANGE_PATHS = "change_scope.paths"
 GENERATED_PACKAGE_MANIFEST_REL = ".ide-development/MANIFEST.json"
+GENERATED_CLOSURE_CONTRACT_SOURCE_REL = "core/managed-core/content/config/generated-output-closure.consumer.json"
+GENERATED_CLOSURE_CONTRACT_DEST_REL = ".ide-development/config/generated-output-closure.json"
 MIGRATION_CATALOG_RELS = (
     ".ide-development/migrations/catalog.json",
     "core/managed-core/migrations/catalog.json",
@@ -1428,6 +1430,15 @@ def _package_manifest_entries(root: Path) -> list[dict[str, Any]]:
     return []
 
 
+def _generated_manifest_contract_declared(entries: list[dict[str, Any]]) -> bool:
+    """Require the package's exact generated-closure contract before allowing its manifest."""
+    return any(
+        entry.get("source") == GENERATED_CLOSURE_CONTRACT_SOURCE_REL
+        and entry.get("destination") == GENERATED_CLOSURE_CONTRACT_DEST_REL
+        for entry in entries
+    )
+
+
 def _generated_transaction_paths(root: Path, entries: list[dict[str, Any]]) -> set[str]:
     """Resolve generated destinations from the package manifest and closure graph.
 
@@ -1463,7 +1474,7 @@ def _generated_transaction_paths(root: Path, entries: list[dict[str, Any]]) -> s
                 allowed.add(destination)
         # The installer writes this package identity after applying entries;
         # the closure graph declares the source-side generated MANIFEST.
-        if output.output == "core/managed-core/MANIFEST.json":
+        if output.output == "core/managed-core/MANIFEST.json" or _generated_manifest_contract_declared(entries):
             allowed.add(GENERATED_PACKAGE_MANIFEST_REL)
     return allowed
 
