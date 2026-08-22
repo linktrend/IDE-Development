@@ -157,6 +157,7 @@ class ChangedPathStatusTests(unittest.TestCase):
     def test_delete_and_invalid_copy_paths_remain_fail_closed(self) -> None:
         for raw in (
             b"D\0deleted.py\0",
+            b"D1\0deleted.py\0",
             b"C093\0source.py\0",
             b"C093\0source.py\0../dest.py\0",
             b"C093\0source.py\0/dest.py\0",
@@ -164,6 +165,30 @@ class ChangedPathStatusTests(unittest.TestCase):
             with self.subTest(raw=raw), patch.object(secret_scan_mod, "_git_bytes", return_value=raw):
                 with self.assertRaises(SecretScanError):
                     changed_paths(Path("."), "baseline", "candidate")
+
+    def test_declared_migration_deletion_is_included(self) -> None:
+        raw = b"D\0.ide-development/migrations/legacy.json\0"
+        with (
+            patch.object(secret_scan_mod, "_git_bytes", return_value=raw),
+            patch.object(
+                secret_scan_mod,
+                "_managed_migration_paths",
+                return_value={".ide-development/migrations/legacy.json"},
+            ),
+        ):
+            self.assertEqual(
+                changed_paths(Path("."), "baseline", "candidate"),
+                {".ide-development/migrations/legacy.json"},
+            )
+
+    def test_undeclared_migration_deletion_fails_closed(self) -> None:
+        raw = b"D\0.ide-development/migrations/legacy.json\0"
+        with (
+            patch.object(secret_scan_mod, "_git_bytes", return_value=raw),
+            patch.object(secret_scan_mod, "_managed_migration_paths", return_value=set()),
+        ):
+            with self.assertRaises(SecretScanError):
+                changed_paths(Path("."), "baseline", "candidate")
 
 
 def declaration(
