@@ -1566,7 +1566,11 @@ def _scan_repository(root: Path, baseline_evidence: Any | None = None) -> dict[s
         scope = _validate_change_scoped_evidence(root, baseline_evidence)
         scan_paths = set(scope["changedPaths"]) | set(managed_scanner_policy_paths(root))
         current_paths = {entry.path for entry in entries}
-        if any(path not in current_paths for path in scope["changedPaths"]):
+        migration_paths = _managed_migration_paths(root)
+        if any(
+            path not in current_paths and path not in migration_paths
+            for path in scope["changedPaths"]
+        ):
             raise SecretScanError("change_scope_paths", "changed path is absent from candidate")
         inherited = [
             dict(row)
