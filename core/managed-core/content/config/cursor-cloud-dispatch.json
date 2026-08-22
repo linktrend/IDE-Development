@@ -10,10 +10,13 @@
   "maxApiAttempts": 2,
   "environment": {
     "type": "cloud",
-    "name": "IDE Development 2.5.1"
+    "name": "IDE Development 2.5.1",
+    "publicId": "1937ddb1-9d3e-11f1-a7d1-d6b4613131ce"
   },
   "requiresExactNonFastModel": true,
   "expectedBuildIdRole": "provenance-only",
+  "runReadbackRequired": true,
+  "runReadbackFields": ["environmentPublicId", "observedBuildId", "expectedBuildId", "effectiveModel", "fast"],
   "preparedIntentRequired": true,
   "clientSuppliedAgentIdRequired": true,
   "governedSetupRequired": true,

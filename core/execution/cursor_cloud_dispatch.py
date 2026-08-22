@@ -23,6 +23,7 @@ API_BASE_URL = "https://api.cursor.com"
 API_PATH = "/v1/agents"
 ENV_TYPE = "cloud"
 ENV_NAME = "IDE Development 2.5.1"
+ENV_PUBLIC_ID = "1937ddb1-9d3e-11f1-a7d1-d6b4613131ce"
 SAVED_REPOSITORY_ROOT = "/agent/repos"
 MAX_API_ATTEMPTS = 2
 _HEX = re.compile(r"^[0-9a-f]{40,64}$")
@@ -51,6 +52,7 @@ class CursorCloudDispatchRequest:
     toolchain: Mapping[str, str]
     setup_receipt_digest: str
     environment_name: str = ENV_NAME
+    environment_public_id: str = ENV_PUBLIC_ID
     governed_setup: bool = False
 
     def validate(self) -> None:
@@ -104,6 +106,11 @@ class CursorCloudDispatchRequest:
                 "cursor_cloud_environment_mismatch",
                 "dispatch must target the named IDE Development 2.5.1 cloud environment",
             )
+        if self.environment_public_id != ENV_PUBLIC_ID:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_environment_public_id_mismatch",
+                "dispatch must target the saved IDE Development 2.5.1 public environment identity",
+            )
         if not self.toolchain or any(
             not str(key).strip() or not str(value).strip()
             for key, value in self.toolchain.items()
@@ -115,6 +122,12 @@ class CursorCloudDispatchRequest:
     @property
     def environment(self) -> dict[str, str]:
         return {"type": ENV_TYPE, "name": self.environment_name}
+
+    @property
+    def environment_identity(self) -> dict[str, str]:
+        """The named environment plus provider identity, kept out of API selectors."""
+
+        return {**self.environment, "publicId": self.environment_public_id}
 
     @property
     def resolved_target_path(self) -> str:
@@ -182,6 +195,7 @@ class CursorCloudDispatchResult:
     agent_id: str
     run_id: str
     environment: Mapping[str, str]
+    environment_public_id: str
     model: str
     expected_build_id: str
     revision: int
@@ -263,6 +277,7 @@ def cursor_cloud_idempotency_key(request: CursorCloudDispatchRequest) -> str:
         "tree": request.tree,
         "model": request.model,
         "environment": request.environment,
+        "environmentPublicId": request.environment_public_id,
         "expectedBuildId": request.expected_build_id,
         "toolchain": dict(request.toolchain),
         "governedSetup": request.governed_setup,
@@ -291,7 +306,7 @@ def build_attestation_prompt(request: CursorCloudDispatchRequest) -> str:
         f"and reuse it only if the registered worktree is exact and clean. Then "
         "report PASS/FAIL for the exact remote, repository/path/ref/commit/tree matrix "
         f"({matrix}), and toolchain ({toolchain}). "
-        f"Environment={{type:{ENV_TYPE}, name:{request.environment_name}}}. "
+        f"Environment={{type:{ENV_TYPE}, name:{request.environment_name}, publicId:{request.environment_public_id}}}. "
         f"Governed setup receipt {request.setup_receipt_digest} must remain provenance only. "
         f"Expected build ID {request.expected_build_id} is provenance only; it is not a selectable API parameter. "
         "A wrong remote, path, ref, commit, tree, environment, or toolchain is a hard stop and mutation remains unauthorized."
@@ -374,6 +389,7 @@ def dispatch_cursor_cloud(
             str(current["agentId"]),
             str(current["runId"]),
             dict(current["environment"]),
+            str(current["environmentPublicId"]),
             str(current["model"]),
             str(current["expectedBuildId"]),
             int(current["revision"]),
@@ -391,6 +407,7 @@ def dispatch_cursor_cloud(
             "commit": request.commit,
             "tree": request.tree,
             "environment": request.environment,
+            "environmentPublicId": request.environment_public_id,
             "model": request.model,
             "expectedBuildId": request.expected_build_id,
             "toolchain": dict(request.toolchain),
@@ -467,6 +484,7 @@ def dispatch_cursor_cloud(
             "agentId": agent_id,
             "runId": run_id,
             "environment": dict(observed_env),
+            "environmentPublicId": request.environment_public_id,
             "model": observed_model,
             "expectedBuildId": request.expected_build_id,
         }
@@ -485,6 +503,7 @@ def dispatch_cursor_cloud(
         agent_id,
         run_id,
         dict(observed_env),
+        request.environment_public_id,
         observed_model,
         request.expected_build_id,
         int(committed["revision"]),
@@ -532,6 +551,46 @@ def validate_cursor_cloud_attestation(
                 "mutation blocked because Cloud attestation does not match",
                 field=field,
             )
+
+
+def validate_cursor_cloud_run_readback(
+    request: CursorCloudDispatchRequest, readback: Mapping[str, Any]
+) -> None:
+    """Validate post-creation provider readback without treating build provenance as a selector."""
+
+    request.validate()
+    observed_environment = readback.get("environment")
+    if not isinstance(observed_environment, Mapping) or dict(observed_environment) != request.environment:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_environment_mismatch",
+            "run readback environment name/type does not match",
+        )
+    if readback.get("environmentPublicId") != request.environment_public_id:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_environment_public_id_mismatch",
+            "run readback public environment identity does not match",
+        )
+    observed_build = str(readback.get("observedBuildId") or "").strip()
+    if not observed_build:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_build_readback_missing",
+            "run readback must record observed build provenance",
+        )
+    if readback.get("expectedBuildId") != request.expected_build_id:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_build_provenance_mismatch",
+            "run readback expected build provenance differs from the request",
+        )
+    if readback.get("effectiveModel") != request.model:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_effective_model_mismatch",
+            "run readback effective model differs from the exact requested model",
+        )
+    if readback.get("fast") is not False:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_fast_readback_mismatch",
+            "run readback must explicitly prove Fast is false",
+        )
 
 
 def load_cursor_cloud_dispatch_config(repo_root: str) -> dict[str, Any]:

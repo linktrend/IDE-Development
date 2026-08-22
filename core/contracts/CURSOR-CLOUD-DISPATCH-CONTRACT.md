@@ -20,7 +20,9 @@ unknown fields are rejected.
 
 The adapter calls `POST /v1/agents` through an injected HTTP port. It supplies
 the exact named environment `{type: "cloud", name: "IDE Development 2.5.1"}`
-and one exact non-Fast model. Cursor's public API does not provide an exact
+and one exact non-Fast model. The saved environment's public identity
+`1937ddb1-9d3e-11f1-a7d1-d6b4613131ce` is carried in PREPARED/readback evidence,
+not as an unsupported API selector. Cursor's public API does not provide an exact
 repository checkout selector, so repository binding is not claimed in the API
 body. Instead, the saved environment target is deterministically selected as
 `/agent/repos/<repo>`. For example, LiNKbrain must select
@@ -29,7 +31,10 @@ the default LiNKharness primary repository is rejected. The first prompt must
 resolve that path, and fetch/checkout the required ref or exact commit only as
 governed setup, before remote/repository/ref/commit/tree/toolchain attestation.
 The expected build ID is recorded as provenance only; it is deliberately not
-sent as a selectable build or model selector.
+sent as a selectable build or model selector. After creation, the provider run
+readback must explicitly record the public environment ID, observed build
+provenance, expected build provenance, effective model and `fast=false`; a
+mismatch is a hard stop.
 
 Before the API call, the durable store must contain a read-back-verified
 `PREPARED` intent. The idempotency key and deterministic client-supplied agent
