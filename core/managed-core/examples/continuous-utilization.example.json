@@ -7,6 +7,7 @@
   "adaptiveConcurrency": {
     "mode": "minimum_of_live_evidence",
     "capacityEvidence": "authenticated_cursor_account",
+    "identityFields": ["accountId", "apiKeyName", "teamId", "programRunId"],
     "spendCeilingEvidence": "required",
     "safetyConstraintEvidence": "required",
     "evidenceMaxAgeSeconds": 600

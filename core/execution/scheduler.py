@@ -34,6 +34,7 @@ CONFIG_RELATIVE_PATH = (
 SCHEMA_RELATIVE_PATH = (
     "core/managed-core/schemas/continuous-utilization.schema.json"
 )
+EXECUTION_IDENTITY_FIELDS = ("accountId", "apiKeyName", "teamId", "programRunId")
 EXAMPLE_RELATIVE_PATH = (
     "core/managed-core/examples/continuous-utilization.example.json"
 )
@@ -47,9 +48,37 @@ COMPLETE_SNAPSHOT = {
         "authenticated": True,
         "availableWorkers": 8,
         "observedAt": "2026-08-20T12:00:00+00:00",
+        "executionIdentity": {
+            "accountId": "acct-example",
+            "apiKeyName": "CURSOR_API_KEY",
+            "teamId": "team-example",
+            "programRunId": "run-example",
+        },
     },
-    "spendCeiling": {"maxWorkers": 8},
-    "safetyLimit": {"maxWorkers": 8},
+    "executionIdentity": {
+        "accountId": "acct-example",
+        "apiKeyName": "CURSOR_API_KEY",
+        "teamId": "team-example",
+        "programRunId": "run-example",
+    },
+    "spendCeiling": {
+        "maxWorkers": 8,
+        "executionIdentity": {
+            "accountId": "acct-example",
+            "apiKeyName": "CURSOR_API_KEY",
+            "teamId": "team-example",
+            "programRunId": "run-example",
+        },
+    },
+    "safetyLimit": {
+        "maxWorkers": 8,
+        "executionIdentity": {
+            "accountId": "acct-example",
+            "apiKeyName": "CURSOR_API_KEY",
+            "teamId": "team-example",
+            "programRunId": "run-example",
+        },
+    },
 }
 
 
@@ -103,10 +132,12 @@ class ContinuousUtilizationScheduler:
         config: Mapping[str, Any],
         *,
         snapshot: Mapping[str, Any] | None = None,
+        execution_identity: Mapping[str, str] | None = None,
         now: datetime | None = None,
     ) -> None:
         self._config = dict(config)
         self._snapshot: Mapping[str, Any] | None = snapshot
+        self._execution_identity = dict(execution_identity or {})
         self._now = now or datetime(2026, 8, 20, tzinfo=timezone.utc)
         self._items: dict[str, WorkItem] = {}
         self._admitted: dict[str, datetime] = {}
@@ -123,11 +154,13 @@ class ContinuousUtilizationScheduler:
         repo_root: Path | str,
         *,
         snapshot: Mapping[str, Any] | None = None,
+        execution_identity: Mapping[str, str] | None = None,
         now: datetime | None = None,
     ) -> ContinuousUtilizationScheduler:
         return cls(
             load_continuous_utilization_config(repo_root),
             snapshot=snapshot,
+            execution_identity=execution_identity,
             now=now,
         )
 
@@ -263,11 +296,17 @@ class ContinuousUtilizationScheduler:
             "spendCeiling": evidence["spendCeiling"],
             "safetyLimit": evidence["safetyLimit"],
             "effectiveHostedCapacity": evidence["effectiveCapacity"],
+            "executionIdentity": evidence["executionIdentity"],
+            "capacityDiagnostics": evidence["diagnostics"],
             "dependencyReadyDisjointPackets": len(ready),
+            "dependencyReadyDisjointCapacity": len(ready),
             "dependencyReadyPacketIds": ready,
             "admittedWorkers": list(self.admitted_ids()),
             "issuedWorkers": list((self._snapshot or {}).get("issuedWorkers", [])),
             "runningWorkers": list((self._snapshot or {}).get("runningWorkers", [])),
+            "admittedWorkerCount": len(self._admitted),
+            "issuedWorkerCount": len((self._snapshot or {}).get("issuedWorkers", [])),
+            "runningWorkerCount": len((self._snapshot or {}).get("runningWorkers", [])),
             "constraints": {
                 "providerCapacity": "live_authenticated_cursor_readback",
                 "spendCeiling": "configured_run_ceiling",
@@ -303,45 +342,88 @@ class ContinuousUtilizationScheduler:
         maximum = self.max_local if lane == LANE_LOCAL else self.max_hosted
         return maximum - self._admitted_in_lane(lane)
 
-    def _capacity_evidence(self) -> dict[str, int | None]:
+    def _capacity_evidence(self) -> dict[str, Any]:
+        empty = {
+            "providerCapacity": None,
+            "spendCeiling": None,
+            "safetyLimit": None,
+            "effectiveCapacity": None,
+            "executionIdentity": None,
+            "diagnostics": {},
+        }
         snapshot = self._snapshot
         if not isinstance(snapshot, Mapping):
-            return {
-                "providerCapacity": None,
-                "spendCeiling": None,
-                "safetyLimit": None,
-                "effectiveCapacity": None,
-            }
-        try:
-            cursor = snapshot["cursorCapacity"]
-            spend = snapshot["spendCeiling"]
-            safety = snapshot["safetyLimit"]
-            if not isinstance(cursor, Mapping) or not cursor.get("authenticated"):
-                raise ValueError
-            observed_at = datetime.fromisoformat(str(cursor["observedAt"]))
-            if observed_at.tzinfo is None:
-                raise ValueError
-            max_age = int(self._config["adaptiveConcurrency"]["evidenceMaxAgeSeconds"])
-            if self._now - observed_at > timedelta(seconds=max_age):
-                raise ValueError
-            provider = int(cursor["availableWorkers"])
-            ceiling = int(spend["maxWorkers"])
-            limit = int(safety["maxWorkers"])
-            if min(provider, ceiling, limit) < 0:
-                raise ValueError
-        except (KeyError, TypeError, ValueError, OverflowError):
-            return {
-                "providerCapacity": None,
-                "spendCeiling": None,
-                "safetyLimit": None,
-                "effectiveCapacity": None,
-            }
-        return {
-            "providerCapacity": provider,
-            "spendCeiling": ceiling,
-            "safetyLimit": limit,
-            "effectiveCapacity": min(provider, ceiling, limit),
+            empty["diagnostics"] = {"snapshot": "missing"}
+            return empty
+        expected = self._execution_identity
+        observed_identity = snapshot.get("executionIdentity")
+        if not expected or any(
+            not isinstance(expected.get(field), str) or not expected.get(field).strip()
+            for field in EXECUTION_IDENTITY_FIELDS
+        ):
+            empty["diagnostics"] = {"executionIdentity": "scheduler_input_missing"}
+            return empty
+        if not isinstance(observed_identity, Mapping):
+            empty["diagnostics"] = {"executionIdentity": "snapshot_missing"}
+            return empty
+        if dict(observed_identity) != expected:
+            empty["executionIdentity"] = dict(observed_identity)
+            empty["diagnostics"] = {"executionIdentity": "snapshot_mismatch"}
+            return empty
+        empty["executionIdentity"] = dict(observed_identity)
+        cursor = snapshot.get("cursorCapacity")
+        spend = snapshot.get("spendCeiling")
+        safety = snapshot.get("safetyLimit")
+        values: dict[str, int | None] = {
+            "providerCapacity": None,
+            "spendCeiling": None,
+            "safetyLimit": None,
         }
+        diagnostics: dict[str, str] = {}
+        if not isinstance(cursor, Mapping):
+            diagnostics["providerCapacity"] = "missing"
+        elif not cursor.get("authenticated"):
+            diagnostics["providerCapacity"] = "unauthenticated"
+        elif dict(cursor.get("executionIdentity") or {}) != expected:
+            diagnostics["providerCapacity"] = "identity_mismatch"
+        else:
+            try:
+                observed_at = datetime.fromisoformat(str(cursor["observedAt"]))
+                max_age = int(self._config["adaptiveConcurrency"]["evidenceMaxAgeSeconds"])
+                if observed_at.tzinfo is None:
+                    raise ValueError("timezone_missing")
+                if self._now - observed_at > timedelta(seconds=max_age):
+                    raise ValueError("stale")
+                value = int(cursor["availableWorkers"])
+                if value < 0:
+                    raise ValueError("negative")
+                values["providerCapacity"] = value
+            except (TypeError, ValueError, OverflowError) as exc:
+                diagnostics["providerCapacity"] = str(exc) or "invalid"
+        for name, raw, key in (
+            ("spendCeiling", spend, "maxWorkers"),
+            ("safetyLimit", safety, "maxWorkers"),
+        ):
+            if not isinstance(raw, Mapping):
+                diagnostics[name] = "missing"
+                continue
+            if dict(raw.get("executionIdentity") or {}) != expected:
+                diagnostics[name] = "identity_mismatch"
+                continue
+            try:
+                value = int(raw[key])
+                if value < 0:
+                    raise ValueError("negative")
+                values[name] = value
+            except KeyError:
+                diagnostics[name] = "missing"
+            except (TypeError, ValueError, OverflowError) as exc:
+                diagnostics[name] = str(exc) or "invalid"
+        empty.update(values)
+        empty["diagnostics"] = diagnostics
+        if not diagnostics and all(value is not None for value in values.values()):
+            empty["effectiveCapacity"] = min(values.values())
+        return empty
 
     def _adaptive_capacity(self) -> int | None:
         return self._capacity_evidence()["effectiveCapacity"]

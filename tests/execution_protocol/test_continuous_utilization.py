@@ -34,6 +34,12 @@ from core.execution.scheduler import (  # noqa: E402
 )
 
 NOW = datetime(2026, 8, 20, 12, 0, tzinfo=timezone.utc)
+EXECUTION_IDENTITY = {
+    "accountId": "acct-example",
+    "apiKeyName": "CURSOR_API_KEY",
+    "teamId": "team-example",
+    "programRunId": "run-example",
+}
 PACKAGED_RELATIVE = (
     "core/execution/__init__.py",
     "core/execution/lifecycle.py",
@@ -85,13 +91,22 @@ def _item(
 
 def _scheduler(*, hosted: int | None = None, snapshot=COMPLETE_SNAPSHOT) -> ContinuousUtilizationScheduler:
     config = _config(hosted=hosted) if hosted is not None else _config()
-    if hosted is not None:
-        snapshot = dict(snapshot) if snapshot is not None else None
-        if snapshot is not None:
-            snapshot["cursorCapacity"] = {**snapshot["cursorCapacity"], "availableWorkers": hosted}
-            snapshot["spendCeiling"] = {"maxWorkers": hosted}
-            snapshot["safetyLimit"] = {"maxWorkers": hosted}
-    return ContinuousUtilizationScheduler(config, snapshot=snapshot, now=NOW)
+    snapshot = dict(snapshot) if snapshot is not None else None
+    if snapshot is not None:
+        snapshot["executionIdentity"] = dict(EXECUTION_IDENTITY)
+        for component in ("cursorCapacity", "spendCeiling", "safetyLimit"):
+            if isinstance(snapshot.get(component), dict):
+                snapshot[component] = dict(snapshot[component])
+                snapshot[component]["executionIdentity"] = dict(EXECUTION_IDENTITY)
+    if hosted is not None and snapshot is not None:
+        snapshot["cursorCapacity"] = {**snapshot["cursorCapacity"], "availableWorkers": hosted}
+        snapshot["spendCeiling"] = {"maxWorkers": hosted}
+        snapshot["safetyLimit"] = {"maxWorkers": hosted}
+        snapshot["spendCeiling"]["executionIdentity"] = dict(EXECUTION_IDENTITY)
+        snapshot["safetyLimit"]["executionIdentity"] = dict(EXECUTION_IDENTITY)
+    return ContinuousUtilizationScheduler(
+        config, snapshot=snapshot, execution_identity=EXECUTION_IDENTITY, now=NOW
+    )
 
 
 class PackagedConfigTests(unittest.TestCase):
@@ -120,8 +135,10 @@ class PrioritizationTests(unittest.TestCase):
         self.assertEqual(scheduler.admitted_ids(), ())
         snapshot = dict(COMPLETE_SNAPSHOT)
         snapshot["cursorCapacity"] = {**snapshot["cursorCapacity"], "availableWorkers": 1}
-        snapshot["spendCeiling"] = {"maxWorkers": 1}
-        snapshot["safetyLimit"] = {"maxWorkers": 1}
+        snapshot["spendCeiling"] = {"maxWorkers": 1, "executionIdentity": dict(EXECUTION_IDENTITY)}
+        snapshot["safetyLimit"] = {"maxWorkers": 1, "executionIdentity": dict(EXECUTION_IDENTITY)}
+        snapshot["executionIdentity"] = dict(EXECUTION_IDENTITY)
+        snapshot["cursorCapacity"]["executionIdentity"] = dict(EXECUTION_IDENTITY)
         scheduler.set_snapshot(snapshot, recompute=False)
         scheduler.repair_utilization_gap()
         self.assertEqual(scheduler.admitted_ids(), ("high",))
@@ -159,6 +176,35 @@ class AdaptiveCapacityTests(unittest.TestCase):
         scheduler.submit(_item("h1"))
         self.assertEqual(scheduler.admitted_ids(), ())
         self.assertIsNone(scheduler.admission_report()["spendCeiling"])
+
+    def test_missing_component_keeps_other_diagnostics_and_counts(self) -> None:
+        snapshot = dict(COMPLETE_SNAPSHOT)
+        snapshot["spendCeiling"] = {"executionIdentity": dict(EXECUTION_IDENTITY)}
+        snapshot["issuedWorkers"] = ["issued-1"]
+        snapshot["runningWorkers"] = ["running-1"]
+        scheduler = _scheduler(snapshot=snapshot)
+        scheduler.submit(_item("h1"))
+        report = scheduler.admission_report()
+        self.assertEqual(report["providerCapacity"], 8)
+        self.assertIsNone(report["spendCeiling"])
+        self.assertEqual(report["safetyLimit"], 8)
+        self.assertEqual(report["capacityDiagnostics"]["spendCeiling"], "missing")
+        self.assertEqual(report["issuedWorkerCount"], 1)
+        self.assertEqual(report["runningWorkerCount"], 1)
+
+    def test_identity_mismatch_blocks_and_is_reported(self) -> None:
+        snapshot = dict(COMPLETE_SNAPSHOT)
+        snapshot["executionIdentity"] = {**EXECUTION_IDENTITY, "programRunId": "other-run"}
+        scheduler = ContinuousUtilizationScheduler(
+            load_continuous_utilization_config(ROOT),
+            snapshot=snapshot,
+            execution_identity=EXECUTION_IDENTITY,
+            now=NOW,
+        )
+        scheduler.submit(_item("h1"))
+        report = scheduler.admission_report()
+        self.assertEqual(report["capacityDiagnostics"]["executionIdentity"], "snapshot_mismatch")
+        self.assertEqual(report["admittedWorkerCount"], 0)
 
     def test_stale_capacity_evidence_blocks(self) -> None:
         snapshot = dict(COMPLETE_SNAPSHOT)
@@ -353,7 +399,9 @@ class ExtractedInstallerCleanroomTests(unittest.TestCase):
                         "config = json.loads((root / "
                         "'core/managed-core/content/config/continuous-utilization.json').read_text())\n"
                         "scheduler = ContinuousUtilizationScheduler(\n"
-                        "    config, snapshot=None,\n"
+                        "    config, snapshot=None, execution_identity={\n"
+                        "        'accountId': 'acct-example', 'apiKeyName': 'CURSOR_API_KEY',\n"
+                        "        'teamId': 'team-example', 'programRunId': 'run-example'},\n"
                         "    now=datetime(2026, 8, 20, 12, 0, tzinfo=timezone.utc),\n"
                         ")\n"
                         "scheduler.submit(WorkItem('h1', 'hosted'))\n"

@@ -44,6 +44,15 @@ build provenance, toolchain, and the exact governed setup receipt digest
 creates a second agent. An unknown API outcome receives at most one retry with
 the same idempotency key.
 
+Before preparing a new request, the store enumerates all intents. Every
+uncompleted `PREPARED` record that names the retired fixed hosted-worker cap is
+atomically marked `SUPERSEDED` with the adaptive policy and must receive a new
+idempotency identity. `COMMITTED` records are preserved as completed evidence.
+If the store cannot enumerate and read back these records, dispatch stops
+before the API call. Capacity evidence is bound to the exact account, API-key
+name, team, and Program Run identity; a missing or mismatched identity is not
+usable evidence.
+
 The first prompt is an attestation-only prompt. The agent must not mutate,
 commit, push, migrate, or invoke side effects. It must report the cloud
 environment identity, repository/ref/commit/tree matrix, and toolchain. A

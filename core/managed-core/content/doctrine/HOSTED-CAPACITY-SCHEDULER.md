@@ -23,7 +23,14 @@ Admission limits:
 The scheduler reports each input separately as provider capacity, spend ceiling,
 safety limit, dependency/path constraints, admitted workers, issued workers, and
 running workers. Missing, stale, unauthenticated, or mismatched evidence blocks
-hosted admission.
+hosted admission. Evidence is valid only when its exact account, API-key name,
+team, and Program Run identity match the scheduler input and freshness is bound
+to that identity. Missing or stale components remain individually reported.
+
+Before a new dispatch, all uncompleted PREPARED intents using the retired fixed
+cap are atomically marked SUPERSEDED and recomputed under the adaptive policy.
+Completed evidence remains immutable; stores that cannot enumerate and read
+back intents fail closed.
 
 Admission is deterministic: higher `priority`, then earlier `submitted_at`, then `item_id`. Unmet dependencies and conflict groups block a job without delaying unrelated admitted work.
 

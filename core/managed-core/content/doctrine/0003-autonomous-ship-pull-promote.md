@@ -191,7 +191,7 @@ Founder-authorized PKT-01 follow-on to Coding Execution Protocol 1.0.1:
 Founder-authorized continuation of PKT-01:
 
 1. Continuous utilization is a packaged contract: doctrine, config, schema, example, and MANIFEST surfaces plus the deterministic scheduler runtime.
-2. Hosted concurrency authority is `execution-protocol`. Local admission remains 1; hosted admission is the minimum of live authenticated Cursor capacity, dependency-ready disjoint work, the configured spend ceiling, and explicit safety limits. Unknown or stale evidence blocks and the 10-minute backstop recomputes instead of guessing.
+2. Hosted concurrency authority is `execution-protocol`. Local admission remains 1; hosted admission is the minimum of live authenticated Cursor capacity, dependency-ready disjoint work, the configured spend ceiling, and explicit safety limits. Capacity evidence must match the exact account, API-key name, team, and Program Run identity. Unknown or stale evidence blocks and the 10-minute backstop recomputes instead of guessing.
 3. `UTILIZATION_GAP` is an event that must be repaired by recomputation, not by paid or Fast fallback.
 4. Invalidation delays only the changed identity. Completion unlocks the next eligible job.
 
