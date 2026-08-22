@@ -1282,6 +1282,23 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
         self.assertFalse(blocked["ok"])
         self.assertTrue(any(row["rule"] == "change_scope.paths" for row in blocked["findings"]))
 
+    def test_untracked_installer_manifest_destination_is_allowed_but_unrelated_is_not(self) -> None:
+        tmp, root, evidence = self._candidate_with_baseline()
+        self.addCleanup(tmp.cleanup)
+        write_tracked(root, "core/managed-core/MANIFEST.json", json.dumps({"files": [{"destination": "created.py"}]}) + "\n")
+        candidate, candidate_tree = commit(root, "managed package candidate")
+        evidence["candidateCommit"] = candidate
+        evidence["candidateGitTree"] = candidate_tree
+        write_tracked(root, "created.py", "note = \"new installed package\"\n")
+        evidence["configDigest"] = config_digest(root)
+        allowed = scan_repository(root, baseline_evidence=evidence)
+        self.assertFalse(any(row["rule"] == "change_scope.paths" for row in allowed["findings"]))
+        write_tracked(root, "unrelated.py", "note = \"unexpected dirty path\"\n")
+        evidence["configDigest"] = config_digest(root)
+        blocked = scan_repository(root, baseline_evidence=evidence)
+        self.assertFalse(blocked["ok"])
+        self.assertTrue(any(row["rule"] == "change_scope.paths" for row in blocked["findings"]))
+
     def test_rename_is_scope_ambiguity_not_an_ignore(self) -> None:
         tmp, root, evidence = self._candidate_with_baseline()
         self.addCleanup(tmp.cleanup)
