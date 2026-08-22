@@ -1299,6 +1299,72 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
         self.assertFalse(blocked["ok"])
         self.assertTrue(any(row["rule"] == "change_scope.paths" for row in blocked["findings"]))
 
+    def test_generated_manifest_and_declared_migration_cleanup_are_allowed_but_unrelated_paths_block(self) -> None:
+        tmp, root, evidence = self._candidate_with_baseline()
+        self.addCleanup(tmp.cleanup)
+        closure = {
+            "schemaVersion": 1,
+            "kind": "generated-output-closure",
+            "outputs": [
+                {
+                    "id": "managed-core-manifest",
+                    "output": "core/managed-core/MANIFEST.json",
+                    "generator": ["python3", "scripts/ide_development/build_manifest.py", "--write"],
+                    "invalidatingSources": ["core/**"],
+                    "dependsOn": [],
+                }
+            ],
+        }
+        write_tracked(
+            root,
+            "core/managed-core/config/generated-output-closure.json",
+            json.dumps(closure) + "\n",
+        )
+        write_tracked(
+            root,
+            "core/managed-core/migrations/catalog.json",
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "entries": [
+                        {
+                            "identity": ".ide-development/migrations/external-cleanup-plan.json",
+                            "path": ".ide-development/migrations/external-cleanup-plan.json",
+                            "contentHash": "sha256:" + ("a" * 64),
+                            "action": "remove",
+                        }
+                    ],
+                }
+            )
+            + "\n",
+        )
+        write_tracked(root, ".ide-development/migrations/external-cleanup-plan.json", "legacy\n")
+        candidate, candidate_tree = commit(root, "generated transaction declarations")
+        evidence["candidateCommit"] = candidate
+        evidence["candidateGitTree"] = candidate_tree
+
+        manifest = root / ".ide-development/MANIFEST.json"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(json.dumps({"files": []}) + "\n", encoding="utf-8")
+        (root / ".ide-development/migrations/external-cleanup-plan.json").unlink()
+        evidence["configDigest"] = config_digest(root)
+        allowed = scan_repository(root, baseline_evidence=evidence)
+        self.assertFalse(any(row["rule"] == "change_scope.paths" for row in allowed["findings"]), allowed)
+
+        write_tracked(root, "unexpected-tracked.py", "note = 'unexpected'\n")
+        evidence["configDigest"] = config_digest(root)
+        tracked_blocked = scan_repository(root, baseline_evidence=evidence)
+        self.assertFalse(tracked_blocked["ok"])
+        self.assertTrue(any(row["rule"] == "change_scope.paths" for row in tracked_blocked["findings"]))
+        (root / "unexpected-tracked.py").unlink()
+        git(root, "reset", "-q", "--", "unexpected-tracked.py")
+
+        (root / "unexpected-untracked.py").write_text("note = 'unexpected'\n", encoding="utf-8")
+        evidence["configDigest"] = config_digest(root)
+        untracked_blocked = scan_repository(root, baseline_evidence=evidence)
+        self.assertFalse(untracked_blocked["ok"])
+        self.assertTrue(any(row["rule"] == "change_scope.paths" for row in untracked_blocked["findings"]))
+
     def test_rename_is_scope_ambiguity_not_an_ignore(self) -> None:
         tmp, root, evidence = self._candidate_with_baseline()
         self.addCleanup(tmp.cleanup)
