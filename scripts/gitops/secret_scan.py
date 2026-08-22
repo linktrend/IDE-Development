@@ -439,6 +439,7 @@ def candidate_content_tree(root: Path) -> str:
     graph_paths = (
         root / "core/managed-core/config/generated-output-closure.json",
         root / ".ide-development/config/generated-output-closure.json",
+        root / ".ide-development/content/config/generated-output-closure.json",
     )
     if any(path.is_file() for path in graph_paths):
         try:
@@ -1437,6 +1438,7 @@ def _generated_transaction_paths(root: Path, entries: list[dict[str, Any]]) -> s
     graph_paths = (
         root / "core/managed-core/config/generated-output-closure.json",
         root / ".ide-development/config/generated-output-closure.json",
+        root / ".ide-development/content/config/generated-output-closure.json",
     )
     graph_path = next((path for path in graph_paths if path.is_file()), None)
     if graph_path is None:
