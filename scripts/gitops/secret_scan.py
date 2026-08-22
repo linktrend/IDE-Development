@@ -11,6 +11,7 @@ Repository-owned scanners stay additive and blocking.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import math
@@ -19,12 +20,21 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 
 try:
-    from scripts.gitops.generated_output_closure import ClosureError, candidate_source_tree as closure_candidate_source_tree
+    from scripts.gitops.generated_output_closure import (
+        ClosureError,
+        candidate_source_tree as closure_candidate_source_tree,
+        load_graph as load_generated_output_graph,
+    )
 except ModuleNotFoundError:  # pragma: no cover - script-style execution
-    from generated_output_closure import ClosureError, candidate_source_tree as closure_candidate_source_tree  # type: ignore
+    from generated_output_closure import (  # type: ignore
+        ClosureError,
+        candidate_source_tree as closure_candidate_source_tree,
+        load_graph as load_generated_output_graph,
+    )
 
 SCANNER_POLICY_VERSION = "secret-scan-policy/v1"
 CHANGE_SCOPED_SCHEMA_VERSION = 1
@@ -64,6 +74,11 @@ RULE_CHANGE_SCOPE = "change_scope.invalid"
 RULE_CHANGE_IDENTITY = "change_scope.identity"
 RULE_CHANGE_CONFIG = "change_scope.config"
 RULE_CHANGE_PATHS = "change_scope.paths"
+GENERATED_PACKAGE_MANIFEST_REL = ".ide-development/MANIFEST.json"
+MIGRATION_CATALOG_RELS = (
+    ".ide-development/migrations/catalog.json",
+    "core/managed-core/migrations/catalog.json",
+)
 
 KNOWN_RULES = frozenset(
     {
@@ -354,7 +369,14 @@ def _validate_change_scoped_evidence(
     # ambiguous candidate and fails closed.
     expected_managed = set(managed_scanner_policy_paths(root))
     expected_transaction = _managed_transaction_paths(root)
+    expected_migrations = _managed_migration_paths(root)
     for status, path in _worktree_diff_statuses(root, commit):
+        if status[0] == "D":
+            if path not in expected_migrations:
+                raise SecretScanError("change_scope_paths", "candidate worktree differs outside managed paths")
+            continue
+        if path in expected_migrations:
+            raise SecretScanError("change_scope_paths", "migration destination must be removed")
         if (
             status[0] not in {"M", "A", "T", "U"}
             or path not in expected_managed | expected_transaction
@@ -1376,25 +1398,108 @@ def _untracked_worktree_paths(root: Path) -> list[str]:
     return [line[3:] for line in raw.splitlines() if line.startswith("?? ")]
 
 
-def _managed_transaction_paths(root: Path) -> set[str]:
-    """Return exact managed destinations written by an installer transaction."""
-    paths = {".ide-development/installed-state.json"}
+def _matches_declared_output(path: str, pattern: str) -> bool:
+    """Match one source path against a generated-output declaration."""
+    normalized = pattern.replace("\\", "/")
+    if normalized in {"**", "**/*"}:
+        return True
+    if normalized.endswith("/**"):
+        prefix = normalized[:-3].rstrip("/")
+        return path == prefix or path.startswith(prefix + "/")
+    if normalized.startswith("**/"):
+        normalized = normalized[3:]
+    return fnmatch.fnmatchcase(path, normalized) or PurePosixPath(path).match(normalized)
+
+
+def _package_manifest_entries(root: Path) -> list[dict[str, Any]]:
+    """Read exact package entries from the source or extracted package."""
     for rel in (".ide-development/MANIFEST.json", "core/managed-core/MANIFEST.json"):
         manifest = root / rel
         if not manifest.is_file() or manifest.is_symlink():
             continue
         try:
             payload = json.loads(manifest.read_text(encoding="utf-8"))
-            entries = payload.get("files")
-        except (OSError, UnicodeError, json.JSONDecodeError, AttributeError):
+        except (OSError, UnicodeError, json.JSONDecodeError):
             continue
+        entries = payload.get("files") if isinstance(payload, dict) else None
+        if isinstance(entries, list):
+            return [entry for entry in entries if isinstance(entry, dict)]
+    return []
+
+
+def _generated_transaction_paths(root: Path, entries: list[dict[str, Any]]) -> set[str]:
+    """Resolve generated destinations from the package manifest and closure graph.
+
+    The package MANIFEST and generated-output closure are the only authorities
+    for generated destinations.  Patterns are expanded only against declared
+    manifest sources; no path prefix is ignored implicitly.
+    """
+    graph_paths = (
+        root / "core/managed-core/config/generated-output-closure.json",
+        root / ".ide-development/config/generated-output-closure.json",
+    )
+    graph_path = next((path for path in graph_paths if path.is_file()), None)
+    if graph_path is None:
+        return set()
+    try:
+        graph = load_generated_output_graph(root, graph_path.relative_to(root).as_posix())
+    except (ClosureError, OSError, ValueError):
+        return set()
+
+    sources = {
+        str(entry.get("source")): str(entry.get("destination"))
+        for entry in entries
+        if isinstance(entry.get("source"), str)
+        and isinstance(entry.get("destination"), str)
+        and _valid_relpath(str(entry.get("destination")))
+    }
+    allowed: set[str] = set()
+    for output in graph.outputs:
+        patterns = (output.output, *output.additional_outputs)
+        for source, destination in sources.items():
+            if any(_matches_declared_output(source, pattern) for pattern in patterns):
+                allowed.add(destination)
+        # The installer writes this package identity after applying entries;
+        # the closure graph declares the source-side generated MANIFEST.
+        if output.output == "core/managed-core/MANIFEST.json":
+            allowed.add(GENERATED_PACKAGE_MANIFEST_REL)
+    return allowed
+
+
+def _managed_migration_paths(root: Path) -> set[str]:
+    """Return exact removal destinations declared by the migration catalog."""
+    for rel in MIGRATION_CATALOG_RELS:
+        catalog = root / rel
+        if not catalog.is_file() or catalog.is_symlink():
+            continue
+        try:
+            payload = json.loads(catalog.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+        entries = payload.get("entries") if isinstance(payload, dict) else None
         if not isinstance(entries, list):
             continue
-        for entry in entries:
-            if isinstance(entry, dict) and isinstance(entry.get("destination"), str):
-                destination = entry["destination"]
-                if _valid_relpath(destination):
-                    paths.add(destination)
+        return {
+            str(entry["path"])
+            for entry in entries
+            if isinstance(entry, dict)
+            and entry.get("action") == "remove"
+            and isinstance(entry.get("path"), str)
+            and _valid_relpath(str(entry["path"]))
+        }
+    return set()
+
+
+def _managed_transaction_paths(root: Path) -> set[str]:
+    """Return exact managed destinations written by an installer transaction."""
+    paths = {".ide-development/installed-state.json"}
+    entries = _package_manifest_entries(root)
+    for entry in entries:
+        destination = entry.get("destination")
+        if isinstance(destination, str) and _valid_relpath(destination):
+            paths.add(destination)
+    paths.update(_generated_transaction_paths(root, entries))
+    paths.update(_managed_migration_paths(root))
     return paths
 
 
