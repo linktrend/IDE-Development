@@ -15,10 +15,22 @@ This doctrine is implemented by a **deterministic admission runtime**. Doctrine 
 
 ## Slots
 
-Canonical maxima:
+Admission limits:
 
 - local: **1**
-- hosted: **2** (tests may use a third hosted slot only as unused capacity under the same authority)
+- hosted: no packaged fixed maximum. The scheduler admits the minimum of the live authenticated Cursor account capacity, dependency-ready disjoint packets, the configured spend/credit ceiling, and explicit repository or external-resource safety limits.
+
+The scheduler reports each input separately as provider capacity, spend ceiling,
+safety limit, dependency/path constraints, admitted workers, issued workers, and
+running workers. Missing, stale, unauthenticated, or mismatched evidence blocks
+hosted admission. Evidence is valid only when its exact account, API-key name,
+team, and Program Run identity match the scheduler input and freshness is bound
+to that identity. Missing or stale components remain individually reported.
+
+Before a new dispatch, all uncompleted PREPARED intents using the retired fixed
+cap are atomically marked SUPERSEDED and recomputed under the adaptive policy.
+Completed evidence remains immutable; stores that cannot enumerate and read
+back intents fail closed.
 
 Admission is deterministic: higher `priority`, then earlier `submitted_at`, then `item_id`. Unmet dependencies and conflict groups block a job without delaying unrelated admitted work.
 
