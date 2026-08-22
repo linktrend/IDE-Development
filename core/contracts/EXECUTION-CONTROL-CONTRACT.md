@@ -92,7 +92,9 @@ Silent retry on the same repository/commit/tree after exhaustion is forbidden (`
 Hosted scheduling is a **deterministic runtime** (`core/execution/scheduler.py`) bound to the packaged continuous-utilization config:
 
 - `hostedConcurrencyAuthority` is `execution-protocol` (not GitHub, paid models, or Fast).
-- Canonical slot maxima are local `1` and hosted `2`.
+- Local admission remains capped at `1`; hosted admission is adaptive and is the minimum of live authenticated Cursor account capacity, dependency-ready disjoint work, the configured spend/credit ceiling, and explicit repository or external-resource safety limits. No fixed hosted maximum is encoded.
+- Every admission report must distinguish provider capacity, spend ceiling, safety limit, dependency/path constraints, admitted workers, issued workers, and running workers.
+- Missing, stale, unauthenticated, or mismatched capacity/spend/safety evidence blocks hosted admission. Evidence must also match the exact account, API-key name, team, and Program Run identity supplied to the scheduler. Before dispatch, every uncompleted PREPARED intent bound to the obsolete fixed-capacity policy is atomically superseded and recomputed under the adaptive authority; completed evidence is preserved.
 - Incomplete snapshots stay `resource_uncertain`. Allocator `busy` / `exhausted` in that state is not `capacity_exhausted`.
 - Unknown probes do not occupy slots. After 600 seconds the runtime recovers and recomputes.
 - Free slots with waiting runnable work emit `UTILIZATION_GAP`; repair recomputes after a complete snapshot.

@@ -19,6 +19,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 
 CONTROL_ID = "cursor-cloud-dispatch-v1"
+ADAPTIVE_CAPACITY_POLICY = "adaptive_minimum_of_live_evidence"
 API_BASE_URL = "https://api.cursor.com"
 API_PATH = "/v1/agents"
 ENV_TYPE = "cloud"
@@ -54,6 +55,7 @@ class CursorCloudDispatchRequest:
     environment_name: str = ENV_NAME
     environment_public_id: str = ENV_PUBLIC_ID
     governed_setup: bool = False
+    concurrency_policy: str = ADAPTIVE_CAPACITY_POLICY
 
     def validate(self) -> None:
         if not self.repository.strip() or not self.ref.strip():
@@ -117,6 +119,11 @@ class CursorCloudDispatchRequest:
         ):
             raise CursorCloudDispatchError(
                 "cursor_cloud_toolchain_missing", "toolchain attestation data is required"
+            )
+        if self.concurrency_policy != ADAPTIVE_CAPACITY_POLICY:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_capacity_policy_invalid",
+                "dispatch must use the adaptive capacity policy",
             )
 
     @property
@@ -213,6 +220,8 @@ class CursorCloudIntentStore(Protocol):
         payload: Mapping[str, Any],
     ) -> None: ...
 
+    def list_intents(self) -> list[Mapping[str, Any]]: ...
+
 
 class CursorCloudHTTPPort(Protocol):
     def post(
@@ -232,6 +241,9 @@ class DurableCursorCloudIntentStore:
         self.read_count += 1
         value = self._records.get(idempotency_key)
         return copy.deepcopy(value) if value is not None else None
+
+    def list_intents(self) -> list[dict[str, Any]]:
+        return [copy.deepcopy(value) for value in self._records.values()]
 
     def compare_and_write(
         self,
@@ -282,8 +294,57 @@ def cursor_cloud_idempotency_key(request: CursorCloudDispatchRequest) -> str:
         "toolchain": dict(request.toolchain),
         "governedSetup": request.governed_setup,
         "setupReceiptDigest": request.setup_receipt_digest,
+        "concurrencyPolicy": request.concurrency_policy,
     }
     return CONTROL_ID + ":" + hashlib.sha256(_canonical(identity)).hexdigest()
+
+
+def supersede_obsolete_prepared_intents(
+    store: CursorCloudIntentStore,
+    *,
+    policy: str = ADAPTIVE_CAPACITY_POLICY,
+) -> list[str]:
+    """Invalidate every uncompleted intent bound to the retired fixed cap.
+
+    Completed evidence is immutable.  A store that cannot enumerate intents is
+    rejected rather than silently leaving an obsolete PREPARED record alive.
+    """
+
+    list_intents = getattr(store, "list_intents", None)
+    if not callable(list_intents):
+        raise CursorCloudDispatchError(
+            "cursor_cloud_intent_supersession_unavailable",
+            "intent store cannot enumerate PREPARED records",
+        )
+    superseded: list[str] = []
+    for record in list_intents():
+        if not isinstance(record, Mapping) or record.get("state") != "PREPARED":
+            continue
+        bound_policy = record.get("concurrencyPolicy")
+        fixed = bound_policy in {"fixed_hosted_2", "fixed_hosted_worker_cap", "max_hosted_2"}
+        if not fixed and "maxHostedWorkers" in record:
+            fixed = record.get("maxHostedWorkers") == 2
+        if not fixed:
+            continue
+        key = str(record.get("idempotencyKey") or "")
+        if not key:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_intent_supersession_invalid",
+                "obsolete PREPARED intent has no idempotency key",
+            )
+        revision = int(record.get("revision", 0))
+        expected_digest = str(record.get("digest") or "") or None
+        payload = dict(record)
+        payload.update({
+            "state": "SUPERSEDED",
+            "supersededByPolicy": policy,
+            "supersessionReason": "obsolete_fixed_hosted_worker_cap",
+        })
+        payload.pop("digest", None)
+        payload.pop("revision", None)
+        store.compare_and_write(key, revision, expected_digest, payload)
+        superseded.append(key)
+    return superseded
 
 
 def cursor_cloud_client_agent_id(request: CursorCloudDispatchRequest) -> str:
@@ -377,6 +438,7 @@ def dispatch_cursor_cloud(
     api_key = require_cursor_cloud_api_key(
         environment, cursor_cli_authenticated=cursor_cli_authenticated
     )
+    supersede_obsolete_prepared_intents(store)
     key = cursor_cloud_idempotency_key(request)
     client_agent_id = cursor_cloud_client_agent_id(request)
     prompt = build_attestation_prompt(request)
@@ -413,6 +475,7 @@ def dispatch_cursor_cloud(
             "toolchain": dict(request.toolchain),
             "governedSetup": request.governed_setup,
             "setupReceiptDigest": request.setup_receipt_digest,
+            "concurrencyPolicy": request.concurrency_policy,
             "requestDigest": _digest({"key": key, "prompt": prompt}),
         }
         current = _readback_write(
