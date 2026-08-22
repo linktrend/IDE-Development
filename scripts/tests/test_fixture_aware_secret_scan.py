@@ -1351,6 +1351,14 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
         allowed = scan_repository(root, baseline_evidence=evidence)
         self.assertFalse(any(row["rule"] == "change_scope.paths" for row in allowed["findings"]), allowed)
 
+        cleanup = root / ".ide-development/migrations/external-cleanup-plan.json"
+        cleanup.write_text("modified legacy\n", encoding="utf-8")
+        evidence["configDigest"] = config_digest(root)
+        modified_migration = scan_repository(root, baseline_evidence=evidence)
+        self.assertFalse(modified_migration["ok"])
+        self.assertTrue(any(row["rule"] == "change_scope.paths" for row in modified_migration["findings"]))
+        cleanup.unlink()
+
         write_tracked(root, "unexpected-tracked.py", "note = 'unexpected'\n")
         evidence["configDigest"] = config_digest(root)
         tracked_blocked = scan_repository(root, baseline_evidence=evidence)

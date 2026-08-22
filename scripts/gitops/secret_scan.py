@@ -375,6 +375,8 @@ def _validate_change_scoped_evidence(
             if path not in expected_migrations:
                 raise SecretScanError("change_scope_paths", "candidate worktree differs outside managed paths")
             continue
+        if path in expected_migrations:
+            raise SecretScanError("change_scope_paths", "migration destination must be removed")
         if (
             status[0] not in {"M", "A", "T", "U"}
             or path not in expected_managed | expected_transaction
