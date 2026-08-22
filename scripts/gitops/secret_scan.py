@@ -353,8 +353,13 @@ def _validate_change_scoped_evidence(
     # Any unrelated edit, type change, delete, rename, or copy remains an
     # ambiguous candidate and fails closed.
     expected_managed = set(managed_scanner_policy_paths(root))
+    expected_transaction = _managed_transaction_paths(root)
     for status, path in _worktree_diff_statuses(root, commit):
-        if status[0] not in {"M", "A", "T", "U"} or path not in expected_managed or status[0] in {"A", "T", "U"}:
+        if (
+            status[0] not in {"M", "A", "T", "U"}
+            or path not in expected_managed | expected_transaction
+            or (status[0] in {"A", "T", "U"} and path not in expected_transaction)
+        ):
             raise SecretScanError("change_scope_paths", "candidate worktree differs outside managed paths")
         if not (root / path).is_file() or (root / path).is_symlink():
             raise SecretScanError("change_scope_paths", "managed path is deleted or symlinked")
@@ -1365,6 +1370,28 @@ def _worktree_diff_statuses(root: Path, commit: str) -> list[tuple[str, str]]:
 def _untracked_worktree_paths(root: Path) -> list[str]:
     raw = _git(root, "status", "--porcelain=v1", "--untracked-files=all")
     return [line[3:] for line in raw.splitlines() if line.startswith("?? ")]
+
+
+def _managed_transaction_paths(root: Path) -> set[str]:
+    """Return exact managed destinations written by an installer transaction."""
+    paths = {".ide-development/installed-state.json"}
+    for rel in (".ide-development/MANIFEST.json", "core/managed-core/MANIFEST.json"):
+        manifest = root / rel
+        if not manifest.is_file() or manifest.is_symlink():
+            continue
+        try:
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            entries = payload.get("files")
+        except (OSError, UnicodeError, json.JSONDecodeError, AttributeError):
+            continue
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if isinstance(entry, dict) and isinstance(entry.get("destination"), str):
+                destination = entry["destination"]
+                if _valid_relpath(destination):
+                    paths.add(destination)
+    return paths
 
 
 def _change_scope_error_result(exc: SecretScanError, content_tree: str = EMPTY_TREE) -> dict[str, Any]:
