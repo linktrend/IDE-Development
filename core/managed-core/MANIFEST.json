@@ -1559,7 +1559,7 @@
       "id": "revision-60-final-controls-ide-development-content-doctrine-model-routing-policy-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/MODEL-ROUTING-POLICY.md",
-      "sourceHash": "sha256:c4e35b5a5d4e83964c2cd3bf7ed0eb7efcc17e9b735b93831ea2e449a4ba7d5d",
+      "sourceHash": "sha256:3975ef17dcb212298887424df91904a740379db0840dca909948242002e0df50",
       "destination": ".ide-development/content/doctrine/MODEL-ROUTING-POLICY.md",
       "mode": "0644",
       "platform": "all",

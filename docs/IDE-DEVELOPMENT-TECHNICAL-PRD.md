@@ -307,7 +307,7 @@ IDE Development has **no** persistent Ledger process. Routing is enforced by pin
 | `escalation` | `.cursor/agents/route-escalation.md` | `gpt-5.6-sol[reasoning=medium,context=1m,fast=false]` |
 | `independent_review` | `.cursor/agents/route-independent-review.md` | `claude-opus-4-8[thinking=true,effort=medium,context=1m,fast=false]` |
 | `economical` | `.cursor/agents/route-economical.md` | `composer-2.5[fast=true]` |
-| `bulk_documents` | `.cursor/agents/route-bulk-documents.md` | `gemini-2.5-flash` |
+| `bulk_documents` | `.cursor/agents/route-bulk-documents.md` | `gemini-3.7-flash-medium` (Fast=false; task-justified bulk-document roles only) |
 | `evaluation` | `.cursor/agents/route-evaluation.md` | `grok-4.5[effort=medium,fast=false]` |
 
 **Escalation:** on model-quality failure, log attempt and retry once with the different-family pairing from the skill (one-hop cap). Agent-followed — not mechanized by a Ledger.

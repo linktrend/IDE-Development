@@ -21,9 +21,8 @@ Cursor model: Composer 2.5 for fully bounded economical work and Grok 4.6
 Medium for complex or long-running work. Fast is always false.
 
 Bulk-document roles are a separate, task-justified route bound to the exact
-non-Fast selector `gemini-3.7-flash-medium`. The obsolete
-`gemini-2.5-flash` selector is not accepted and must not be substituted into
-the route binding.
+non-Fast selector `gemini-3.7-flash-medium`. Retired legacy Gemini Flash
+selectors are not accepted and must not be substituted into the route binding.
 
 Sol or another third-party model requires a task-specific exception recorded in
 the packet (capability, security, independence or actual 1M-context need).
