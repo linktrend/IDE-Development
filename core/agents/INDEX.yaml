@@ -499,7 +499,7 @@ entries:
   - id: route-bulk-documents
     path: .cursor/agents/route-bulk-documents.md
     type: model-route
-    purpose: Pinned bulk-documents model route (Gemini 2.5 Flash).
+    purpose: Pinned bulk-documents model route (Gemini 3.7 Flash Medium, Fast=false).
     status: active
     tags: [model-routing, bulk-documents]
 

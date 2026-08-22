@@ -47,6 +47,10 @@ def test_bulk_documents_has_exact_task_justified_non_fast_binding():
         text = (ROOT / relative).read_text()
         assert "gemini-3.7-flash-medium" in text
         assert "gemini-2.5-flash" not in text
+    index = (ROOT / "core/agents/INDEX.yaml").read_text()
+    assert "Gemini 3.7 Flash Medium" in index
+    assert "Fast=false" in index
+    assert "Gemini 2.5 Flash" not in index
 
 
 def test_skill_rejects_generic_auto_and_requires_attestation():
