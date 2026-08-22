@@ -938,6 +938,7 @@ def _evaluate_declarations(
     detections: list[dict[str, Any]],
     declaration: dict[str, Any] | None,
     content_tree: str,
+    inherited_fixture_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     fixtures = list((declaration or {}).get("fixtures") or [])
@@ -984,7 +985,12 @@ def _evaluate_declarations(
                     )
                 )
 
-    used: set[str] = set()
+    # Change-scoped scans intentionally do not rescan unchanged source files.
+    # Rows for synthetic values in those files therefore have no current
+    # detection to mark them as used.  The caller supplies only exact rows
+    # inherited from the trusted baseline declaration; all other rows still
+    # have to be observed and remain fail-closed when unused or stale.
+    used: set[str] = set(inherited_fixture_ids or ())
     for detection in detections:
         if (
             detection["path"] == DECLARATION_REL
@@ -1077,6 +1083,41 @@ def _evaluate_declarations(
                 )
             )
     return findings
+
+
+def _inherited_fixture_ids(
+    root: Path,
+    baseline_commit: str,
+    changed_paths: set[str],
+    declaration: dict[str, Any] | None,
+) -> set[str]:
+    """Return exact fixture rows whose source was unchanged from baseline.
+
+    This is deliberately conservative: a row is inherited only when the
+    baseline declaration is readable/valid, its complete row is byte-for-
+    byte equivalent to the candidate row, and the referenced source path is
+    outside the candidate diff.  Changed, added, missing, duplicate, or
+    altered rows are never rescued by this path.
+    """
+    if declaration is None:
+        return set()
+    try:
+        raw = _git_bytes(root, "show", f"{baseline_commit}:{DECLARATION_REL}")
+        baseline_declaration = _validate_declaration(_load_json_bytes(raw))
+    except SecretScanError:
+        # A trusted baseline scan may predate a declaration or use a package
+        # that cannot be read here.  Do not infer inheritance in that case.
+        return set()
+    baseline_rows = {
+        str(row["id"]): row for row in baseline_declaration["fixtures"]
+    }
+    return {
+        str(row["id"])
+        for row in declaration["fixtures"]
+        if str(row["id"]) in baseline_rows
+        and row["path"] not in changed_paths
+        and row == baseline_rows[str(row["id"])]
+    }
 
 
 def _blob_types_and_sizes(root: Path, oids: list[str]) -> dict[str, tuple[str, int]]:
@@ -1389,7 +1430,22 @@ def _scan_repository(root: Path, baseline_evidence: Any | None = None) -> dict[s
             findings.extend(_error_result(exc, content_tree)["findings"])
             declaration = None
     findings = inherited + findings
-    findings.extend(_evaluate_declarations(detections, declaration, content_tree))
+    inherited_fixture_ids = set()
+    if scope is not None:
+        inherited_fixture_ids = _inherited_fixture_ids(
+            root,
+            scope["baselineCommit"],
+            scope["changedPaths"],
+            declaration,
+        )
+    findings.extend(
+        _evaluate_declarations(
+            detections,
+            declaration,
+            content_tree,
+            inherited_fixture_ids=inherited_fixture_ids,
+        )
+    )
     findings.extend(_run_repository_scanners(root))
     if scope is None:
         return make_result(content_tree=content_tree, findings=findings)
