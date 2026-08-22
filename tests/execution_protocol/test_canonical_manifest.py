@@ -103,6 +103,18 @@ class CanonicalManifestPositiveTests(unittest.TestCase):
         self.assertFalse(combined.skipped)
         for key in FOLLOW_ON_CONTROLS:
             self.assertIn(key, document["controls"])
+        self.assertEqual(
+            document["controls"]["packetRouting"]["preferredRoutes"][:3],
+            ["auto_cost", "composer", "grok"],
+        )
+        self.assertTrue(document["controls"]["cursorCloudExecution"]["actualModelReadback"])
+
+    def test_legacy_manifest_without_new_optional_controls_remains_valid(self) -> None:
+        document = canonical_manifest()
+        del document["controls"]["packetRouting"]
+        del document["controls"]["cursorCloudExecution"]
+        result = validate_plan_or_runtime(document, repo_root=ROOT)
+        self.assertTrue(result.ok, result.errors)
 
     def test_canonical_running_manifest_requires_durable_heartbeat(self) -> None:
         document = canonical_running()
@@ -158,6 +170,22 @@ class CanonicalManifestAdversarialTests(unittest.TestCase):
     def test_unknown_trust_boundary_field_is_rejected(self) -> None:
         document = canonical_manifest()
         document["controls"]["reviewReadyPublisher"] = {"enabled": True}
+        result = validate_execution_manifest(document, repo_root=ROOT)
+        self.assertFalse(result.ok)
+
+    def test_packet_routing_and_cloud_controls_reject_unknown_fields(self) -> None:
+        document = canonical_manifest()
+        document["controls"]["packetRouting"]["unapprovedRoute"] = "third_party_default"
+        result = validate_execution_manifest(document, repo_root=ROOT)
+        self.assertFalse(result.ok)
+
+        document = canonical_manifest()
+        document["controls"]["cursorCloudExecution"]["undocumentedOverride"] = True
+        result = validate_execution_manifest(document, repo_root=ROOT)
+        self.assertFalse(result.ok)
+
+        document = canonical_manifest()
+        document["controls"]["cursorCloudExecution"]["preparedSupersession"]["reusePreparedIntent"] = True
         result = validate_execution_manifest(document, repo_root=ROOT)
         self.assertFalse(result.ok)
 

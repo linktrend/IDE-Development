@@ -49,6 +49,12 @@ A valid manifest declares:
 - one or more packets with owned paths and verification commands
 - the control object defined in the control contract
 
+The `controls.packetRouting` and `controls.cursorCloudExecution` objects are
+approved, digest-bound control surfaces used by newer planners. They are
+validated when present with closed schemas; legacy manifests that omit these
+optional surfaces remain valid, while unknown control names or fields remain
+invalid.
+
 Unknown trust-boundary fields are rejected. Narrative “done” claims are not a substitute for schema-valid records.
 
 ## 4. Control semantics (normative summary)

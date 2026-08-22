@@ -11,6 +11,13 @@ diagnostics.
 
 ## Dispatch controls
 
+Planner manifests may bind the dispatch controls through
+`controls.cursorCloudExecution`. The binding requires pre-dispatch advertised
+ref validation, governed rebaseline/hold handling for a missing ref, immutable
+prepared-intent supersession without reusing a Cloud attempt, and effective
+model readback. The execution-manifest schema validates this object strictly;
+unknown fields are rejected.
+
 The adapter calls `POST /v1/agents` through an injected HTTP port. It supplies
 the exact named environment `{type: "cloud", name: "IDE Development 2.5.1"}`
 and one exact non-Fast model. Cursor's public API does not provide an exact
