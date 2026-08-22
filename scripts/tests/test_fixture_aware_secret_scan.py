@@ -1317,7 +1317,7 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
         }
         write_tracked(
             root,
-            "core/managed-core/config/generated-output-closure.json",
+            ".ide-development/content/config/generated-output-closure.json",
             json.dumps(closure) + "\n",
         )
         write_tracked(
