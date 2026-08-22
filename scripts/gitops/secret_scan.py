@@ -363,8 +363,12 @@ def _validate_change_scoped_evidence(
             raise SecretScanError("change_scope_paths", "candidate worktree differs outside managed paths")
         if not (root / path).is_file() or (root / path).is_symlink():
             raise SecretScanError("change_scope_paths", "managed path is deleted or symlinked")
-    if _untracked_worktree_paths(root):
+    untracked = _untracked_worktree_paths(root)
+    if any(path not in expected_transaction for path in untracked):
         raise SecretScanError("change_scope_paths", "untracked candidate paths are ambiguous")
+    for path in untracked:
+        if not (root / path).is_file() or (root / path).is_symlink():
+            raise SecretScanError("change_scope_paths", "managed transaction path is deleted or symlinked")
     return {
         "repository": repository,
         "authoritativeRemoteRef": str(evidence["authoritativeRemoteRef"]),
