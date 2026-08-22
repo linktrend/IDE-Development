@@ -1116,6 +1116,74 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
         self.assertNotIn("unchanged.py", scanned_paths)
         self.assertIn("changed.py", scanned_paths)
 
+    def test_unchanged_baseline_fixture_declaration_is_inherited(self) -> None:
+        """Unchanged fixture rows are not stale merely because their source is not rescanned."""
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        git(root, "remote", "add", "origin", "https://github.com/example/change-scoped.git")
+        value = synthetic_value("unchanged-baseline")
+        write_tracked(root, "unchanged.py", f'token = "{value}"\n')
+        commit(root, "baseline source")
+        payload = declaration(
+            candidate_tree=candidate_content_tree(root),
+            fixtures=[
+                fixture(
+                    fixture_id="unchanged-baseline",
+                    path="unchanged.py",
+                    line=1,
+                    field="token",
+                    rule="assignment.secret",
+                    value=value,
+                )
+            ],
+        )
+        write_declaration(root, payload)
+        baseline, baseline_tree = commit(root, "baseline declaration")
+        git(root, "update-ref", "refs/remotes/origin/development", baseline)
+        baseline_result = scan_repository(root)
+        self.assertTrue(baseline_result["ok"], baseline_result)
+        self.assertEqual(kinds(baseline_result), [KIND_APPROVED])
+
+        write_tracked(root, "changed.py", 'note = "ordinary change"\n')
+        payload["candidateTree"] = candidate_content_tree(root)
+        write_declaration(root, payload)
+        candidate, candidate_tree = commit(root, "change unrelated source")
+        evidence = {
+            "schemaVersion": 1,
+            "kind": CHANGE_SCOPED_KIND,
+            "repository": "example/change-scoped",
+            "authoritativeRemoteRef": "origin/development",
+            "baselineCommit": baseline,
+            "baselineTree": baseline_tree,
+            "candidateCommit": candidate,
+            "candidateGitTree": candidate_tree,
+            "scannerPolicyVersion": SCANNER_POLICY_VERSION,
+            "managedPaths": list(MANAGED_SCANNER_POLICY_PATHS),
+            "configDigest": config_digest(root),
+            "findings": baseline_result["findings"],
+        }
+        result = scan_repository(root, baseline_evidence=evidence)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["inheritedFindingCount"], 1)
+        approved = [row for row in result["findings"] if row["kind"] == KIND_APPROVED]
+        self.assertEqual(len(approved), 1)
+        self.assertEqual(approved[0]["fixtureId"], "unchanged-baseline")
+        self.assertFalse(any(row.get("detail") == "unused_or_stale_declaration" for row in result["findings"]))
+
+    def test_changed_source_cannot_use_inherited_fixture_row(self) -> None:
+        """Changing a fixture's source path keeps stale/credential detection fail-closed."""
+        tmp, root, evidence = self._candidate_with_baseline()
+        self.addCleanup(tmp.cleanup)
+        changed_value = synthetic_value("changed-source")
+        write_tracked(root, "unchanged.py", f'token = "{changed_value}"\n')
+        candidate, candidate_tree = commit(root, "change fixture source")
+        evidence["candidateCommit"] = candidate
+        evidence["candidateGitTree"] = candidate_tree
+        result = scan_repository(root, baseline_evidence=evidence)
+        self.assertFalse(result["ok"], result)
+        self.assertTrue(any(row["path"] == "unchanged.py" for row in result["findings"]))
+        self.assertFalse(any(row["kind"] == KIND_APPROVED and row["path"] == "unchanged.py" for row in result["findings"]))
+
     def test_ten_thousand_approved_inherited_findings_do_not_force_full_rescan(self) -> None:
         tmp, root = init_repo()
         self.addCleanup(tmp.cleanup)
