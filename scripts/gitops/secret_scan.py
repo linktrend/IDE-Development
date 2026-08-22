@@ -268,9 +268,10 @@ def _remote_ref_name(ref: str) -> str:
 def changed_paths(root: Path, baseline_commit: str, candidate_commit: str) -> set[str]:
     """Resolve a conservative baseline-to-candidate path set.
 
-    Any delete, malformed status, or path ambiguity is a hard failure. Git
-    rename/copy records contribute both source and destination paths so neither
-    side becomes an accidental blind spot in a large fork.
+    Deletes are allowed only for exact migration-catalog removal destinations;
+    all other deletes, malformed statuses, or path ambiguity are hard failures.
+    Git rename/copy records contribute both source and destination paths so
+    neither side becomes an accidental blind spot in a large fork.
     """
     raw = _git_bytes(
         root,
@@ -284,6 +285,7 @@ def changed_paths(root: Path, baseline_commit: str, candidate_commit: str) -> se
     )
     tokens = raw.split(b"\0")
     paths: set[str] = set()
+    managed_migrations = _managed_migration_paths(root)
     index = 0
     while index < len(tokens):
         status_raw = tokens[index]
@@ -294,7 +296,9 @@ def changed_paths(root: Path, baseline_commit: str, candidate_commit: str) -> se
             status = status_raw.decode("ascii")
         except UnicodeDecodeError as exc:
             raise SecretScanError("change_scope_paths", "non-ascii diff status") from exc
-        if not status or status[0] not in "AMUTRC" or (len(status) > 1 and not status[1:].isdigit()):
+        if not status or status[0] not in "ADMUTRC" or (len(status) > 1 and not status[1:].isdigit()):
+            raise SecretScanError("change_scope_paths", f"ambiguous status {status}")
+        if status[0] == "D" and len(status) != 1:
             raise SecretScanError("change_scope_paths", f"ambiguous status {status}")
         if index >= len(tokens) or not tokens[index]:
             raise SecretScanError("change_scope_paths", "missing changed path")
@@ -303,6 +307,8 @@ def changed_paths(root: Path, baseline_commit: str, candidate_commit: str) -> se
         path = path_raw.decode("utf-8", errors="strict")
         if not _valid_relpath(path):
             raise SecretScanError("change_scope_paths", "invalid changed path")
+        if status[0] == "D" and path not in managed_migrations:
+            raise SecretScanError("change_scope_paths", "undeclared migration deletion")
         paths.add(path)
         if status[0] in "RC":
             if len(status) == 1 or not status[1:].isdigit():
