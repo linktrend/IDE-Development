@@ -59,6 +59,18 @@ identity, policy/path/config mismatch, unreadable relevant text, and real
 credentials block. Source checkouts and extracted `.ide-development` packages
 resolve their own managed path layout; there is no broad upstream-path ignore.
 
+### Transactional managed upgrades
+
+A managed-upgrade resolution may include `verification.changeScopedSecretScan`
+with the complete evidence object and its canonical `sha256:` digest. The
+installer validates that binding before writing anything, then supplies the
+evidence to the installed scanner through a private temporary file during
+post-install verification. The scanner still evaluates changed paths plus all
+managed scanner/policy paths, while only unchanged findings from the exact
+baseline evidence are inherited. A missing, stale, malformed, or timed-out
+scoped run aborts and rolls back the transaction. Resolutions without this
+binding deliberately retain the full-repository scan.
+
 ## Repository-owned scanners
 
 `.github/linktrend-repository-secret-scanners.json` may name additional
