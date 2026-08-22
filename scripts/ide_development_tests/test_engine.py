@@ -7,6 +7,8 @@ import os
 import shutil
 import stat
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 from pathlib import Path
 
 from ide_development.constants import (
@@ -16,6 +18,7 @@ from ide_development.constants import (
     EXIT_OK,
 )
 from ide_development.engine import (
+    _run_post_install_secret_scan,
     run_drift,
     run_install_or_update,
     run_plan,
@@ -36,6 +39,68 @@ from ide_development_tests import TempRepoTestCase, FIXTURE_PACKAGE
 
 
 class EngineTests(TempRepoTestCase):
+    def test_post_install_scoped_scan_uses_bound_evidence_and_removes_temp_file(self) -> None:
+        scanner = self.target / "scripts/gitops/secret_scan.py"
+        scanner.parent.mkdir(parents=True)
+        scanner.write_text("# cleanroom scanner fixture\n", encoding="utf-8")
+        evidence = {
+            "schemaVersion": 1,
+            "kind": "change-scoped-secret-scan-evidence",
+            "repository": "example/consumer",
+            "authoritativeRemoteRef": "origin/development",
+            "baselineCommit": "a" * 40,
+            "baselineTree": "b" * 40,
+            "candidateCommit": "c" * 40,
+            "candidateGitTree": "d" * 40,
+            "scannerPolicyVersion": "secret-scan-policy/1",
+            "managedPaths": ["scripts/gitops/secret_scan.py"],
+            "configDigest": "sha256:" + "e" * 64,
+            "findings": [
+                {"kind": "approved_synthetic_fixture", "path": f"old/{i}.py", "rule": "assignment.secret"}
+                for i in range(10_000)
+            ],
+        }
+        resolution = SimpleNamespace(
+            verification={
+                "changeScopedSecretScan": {
+                    "evidence": evidence,
+                    "evidenceDigest": "sha256:" + "f" * 64,
+                }
+            }
+        )
+        seen: dict[str, object] = {}
+
+        def fake_run(args, **kwargs):
+            seen["args"] = args
+            evidence_path = Path(args[args.index("--baseline-evidence") + 1])
+            seen["evidence"] = json.loads(evidence_path.read_text(encoding="utf-8"))
+            seen["exists_during_scan"] = evidence_path.exists()
+            return SimpleNamespace(returncode=0)
+
+        with patch("ide_development.engine.subprocess.run", side_effect=fake_run):
+            result = _run_post_install_secret_scan(target_root=self.target, resolution=resolution)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["mode"], "change-scoped")
+        self.assertEqual(len(seen["evidence"]["findings"]), 10_000)
+        self.assertTrue(seen["exists_during_scan"])
+        evidence_path = Path(seen["args"][seen["args"].index("--baseline-evidence") + 1])
+        self.assertFalse(evidence_path.exists())
+
+    def test_post_install_full_scan_remains_full_and_timeout_is_typed(self) -> None:
+        scanner = self.target / "scripts/gitops/secret_scan.py"
+        scanner.parent.mkdir(parents=True)
+        scanner.write_text("# cleanroom scanner fixture\n", encoding="utf-8")
+
+        def timeout(*_args, **_kwargs):
+            import subprocess
+
+            raise subprocess.TimeoutExpired(cmd="secret_scan", timeout=60)
+
+        with patch("ide_development.engine.subprocess.run", side_effect=timeout):
+            result = _run_post_install_secret_scan(target_root=self.target, resolution=None)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["mode"], "full")
+        self.assertEqual(result["errorType"], "timeout")
     def test_version(self) -> None:
         result = run_version(package=self.package)
         self.assertEqual(result.exit_code, EXIT_OK)

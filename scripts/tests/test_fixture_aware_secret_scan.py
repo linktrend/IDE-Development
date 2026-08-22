@@ -1070,6 +1070,7 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
         tmp, root = init_repo()
         root_remote = "https://github.com/example/change-scoped.git"
         git(root, "remote", "add", "origin", root_remote)
+        write_tracked(root, "scripts/gitops/secret_scan.py", "note = \"baseline scanner\"\n")
         old_secret = "ghp_" + ("A" * 36)
         write_tracked(root, "unchanged.py", f'token = "{old_secret}"\n')
         baseline, baseline_tree = commit(root, "baseline credential")
@@ -1115,6 +1116,39 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
         self.assertNotIn("unchanged.py", scanned_paths)
         self.assertIn("changed.py", scanned_paths)
 
+    def test_ten_thousand_approved_inherited_findings_do_not_force_full_rescan(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        git(root, "remote", "add", "origin", "https://github.com/example/change-scoped.git")
+        write_tracked(root, "baseline.py", "note = \"baseline\"\n")
+        baseline, baseline_tree = commit(root, "baseline")
+        git(root, "update-ref", "refs/remotes/origin/development", baseline)
+        write_tracked(root, "changed.py", 'note = "ordinary change"\n')
+        candidate, candidate_tree = commit(root, "clean candidate")
+        inherited = [
+            {"kind": KIND_APPROVED, "path": f"legacy/{index}.py", "rule": "assignment.secret"}
+            for index in range(10_000)
+        ]
+        evidence = {
+            "schemaVersion": 1,
+            "kind": CHANGE_SCOPED_KIND,
+            "repository": "example/change-scoped",
+            "authoritativeRemoteRef": "origin/development",
+            "baselineCommit": baseline,
+            "baselineTree": baseline_tree,
+            "candidateCommit": candidate,
+            "candidateGitTree": candidate_tree,
+            "scannerPolicyVersion": SCANNER_POLICY_VERSION,
+            "managedPaths": list(MANAGED_SCANNER_POLICY_PATHS),
+            "configDigest": config_digest(root),
+            "findings": inherited,
+        }
+        result = scan_repository(root, baseline_evidence=evidence)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["inheritedFindingCount"], 10_000)
+        self.assertEqual(len(result["findings"]), 10_000)
+        self.assertIn("changed.py", result["scannedPaths"])
+
     def test_identity_config_and_managed_path_drift_fail_closed(self) -> None:
         tmp, root, evidence = self._candidate_with_baseline()
         self.addCleanup(tmp.cleanup)
@@ -1128,6 +1162,39 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
             result = scan_repository(root, baseline_evidence=stale)
             self.assertFalse(result["ok"], key)
             self.assertTrue(any(row["rule"].startswith("change_scope") for row in result["findings"]), key)
+
+    def test_expected_managed_edit_is_scanned_but_unrelated_dirty_state_blocks(self) -> None:
+        tmp, root, evidence = self._candidate_with_baseline()
+        self.addCleanup(tmp.cleanup)
+        write_tracked(root, "changed.py", "note = \"clean candidate\"\n")
+        candidate, candidate_tree = commit(root, "clean candidate")
+        evidence["candidateCommit"] = candidate
+        evidence["candidateGitTree"] = candidate_tree
+        evidence["findings"] = [
+            {"kind": KIND_APPROVED, "path": "legacy.py", "rule": "assignment.secret"}
+        ]
+        write_tracked(root, "scripts/gitops/secret_scan.py", "note = \"provider scanner\"\n")
+        git(root, "add", "scripts/gitops/secret_scan.py")
+        # This is an expected post-install managed edit, not a new candidate
+        # commit. Rebind only the exact current managed-policy digest.
+        evidence["configDigest"] = config_digest(root)
+        result = scan_repository(root, baseline_evidence=evidence)
+        self.assertTrue(result["ok"], result)
+
+        credential = "ghp_" + ("Q" * 36)
+        (root / "scripts/gitops/secret_scan.py").write_text(
+            f'token = "{credential}"\n', encoding="utf-8"
+        )
+        evidence["configDigest"] = config_digest(root)
+        blocked = scan_repository(root, baseline_evidence=evidence)
+        self.assertFalse(blocked["ok"])
+        self.assertTrue(any(row["path"] == "scripts/gitops/secret_scan.py" for row in blocked["findings"]))
+
+        (root / "unrelated.py").write_text("note = \"unrelated dirt\"\n", encoding="utf-8")
+        evidence["configDigest"] = config_digest(root)
+        unrelated = scan_repository(root, baseline_evidence=evidence)
+        self.assertFalse(unrelated["ok"])
+        self.assertTrue(any(row["rule"] == "change_scope.paths" for row in unrelated["findings"]))
 
     def test_rename_is_scope_ambiguity_not_an_ignore(self) -> None:
         tmp, root, evidence = self._candidate_with_baseline()
