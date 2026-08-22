@@ -551,6 +551,7 @@
             "busyIsNotDiagnosis",
             "hostedConcurrencyAuthority",
             "maxAdmittedSlots",
+            "adaptiveConcurrency",
             "unknownProbeSeconds",
             "backstopSeconds",
             "prioritization",
@@ -568,10 +569,21 @@
             "maxAdmittedSlots": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["local", "hosted"],
+              "required": ["local"],
               "properties": {
-                "local": { "type": "integer", "const": 1 },
-                "hosted": { "type": "integer", "minimum": 1, "maximum": 8 }
+                "local": { "type": "integer", "const": 1 }
+              }
+            },
+            "adaptiveConcurrency": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["mode", "capacityEvidence", "spendCeilingEvidence", "safetyConstraintEvidence", "evidenceMaxAgeSeconds"],
+              "properties": {
+                "mode": { "type": "string", "const": "minimum_of_live_evidence" },
+                "capacityEvidence": { "type": "string", "const": "authenticated_cursor_account" },
+                "spendCeilingEvidence": { "type": "string", "const": "required" },
+                "safetyConstraintEvidence": { "type": "string", "const": "required" },
+                "evidenceMaxAgeSeconds": { "type": "integer", "minimum": 1, "maximum": 3600 }
               }
             },
             "unknownProbeSeconds": { "type": "integer", "const": 600 },

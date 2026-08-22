@@ -39,8 +39,10 @@ PACKAGED_RELATIVE = (
     "core/execution/lifecycle.py",
     "core/execution/manifest_persistence.py",
     "core/execution/protocol.py",
+    "core/execution/rollout.py",
     "core/execution/scheduler.py",
     "core/execution/transactional_dispatch.py",
+    "core/execution/cursor_cloud_dispatch.py",
     "core/execution/verification_liveness.py",
     "core/managed-core/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md",
     "core/managed-core/content/doctrine/CODING-EXECUTION-PROTOCOL.md",
@@ -57,7 +59,7 @@ PACKAGED_RELATIVE = (
 def _config(**hosted: int) -> dict:
     document = load_continuous_utilization_config(ROOT)
     if hosted:
-        document["maxAdmittedSlots"]["hosted"] = hosted["hosted"]
+        document["_test_hosted_capacity"] = hosted["hosted"]
     return document
 
 
@@ -83,6 +85,12 @@ def _item(
 
 def _scheduler(*, hosted: int | None = None, snapshot=COMPLETE_SNAPSHOT) -> ContinuousUtilizationScheduler:
     config = _config(hosted=hosted) if hosted is not None else _config()
+    if hosted is not None:
+        snapshot = dict(snapshot) if snapshot is not None else None
+        if snapshot is not None:
+            snapshot["cursorCapacity"] = {**snapshot["cursorCapacity"], "availableWorkers": hosted}
+            snapshot["spendCeiling"] = {"maxWorkers": hosted}
+            snapshot["safetyLimit"] = {"maxWorkers": hosted}
     return ContinuousUtilizationScheduler(config, snapshot=snapshot, now=NOW)
 
 
@@ -92,7 +100,8 @@ class PackagedConfigTests(unittest.TestCase):
         schema = load_continuous_utilization_schema(ROOT)
         self.assertEqual(document["hostedConcurrencyAuthority"], HOSTED_CONCURRENCY_AUTHORITY)
         self.assertEqual(document["maxAdmittedSlots"]["local"], 1)
-        self.assertEqual(document["maxAdmittedSlots"]["hosted"], 2)
+        self.assertNotIn("hosted", document["maxAdmittedSlots"])
+        self.assertEqual(document["adaptiveConcurrency"]["mode"], "minimum_of_live_evidence")
         self.assertEqual(document["unknownProbeSeconds"], BACKSTOP_SECONDS)
         self.assertEqual(document["backstopSeconds"], BACKSTOP_SECONDS)
         self.assertEqual(document["utilizationGapEvent"], UTILIZATION_GAP)
@@ -109,13 +118,17 @@ class PrioritizationTests(unittest.TestCase):
         scheduler.submit(_item("low", priority=0, offset=1))
         scheduler.submit(_item("high", priority=10, offset=2))
         self.assertEqual(scheduler.admitted_ids(), ())
-        scheduler.set_snapshot(COMPLETE_SNAPSHOT, recompute=False)
+        snapshot = dict(COMPLETE_SNAPSHOT)
+        snapshot["cursorCapacity"] = {**snapshot["cursorCapacity"], "availableWorkers": 1}
+        snapshot["spendCeiling"] = {"maxWorkers": 1}
+        snapshot["safetyLimit"] = {"maxWorkers": 1}
+        scheduler.set_snapshot(snapshot, recompute=False)
         scheduler.repair_utilization_gap()
         self.assertEqual(scheduler.admitted_ids(), ("high",))
 
 
-class TwoOfThreeSlotsTests(unittest.TestCase):
-    def test_two_of_three_hosted_slots_are_filled(self) -> None:
+class AdaptiveCapacityTests(unittest.TestCase):
+    def test_live_capacity_above_two_is_filled(self) -> None:
         scheduler = _scheduler(hosted=3)
         scheduler.submit(_item("h1", offset=1))
         scheduler.submit(_item("h2", offset=2))
@@ -123,10 +136,52 @@ class TwoOfThreeSlotsTests(unittest.TestCase):
         self.assertEqual(scheduler._free_slots("hosted"), 1)
         self.assertEqual(len(scheduler.admitted_ids()), 2)
 
+    def test_effective_capacity_is_minimum_of_provider_spend_and_safety(self) -> None:
+        snapshot = dict(COMPLETE_SNAPSHOT)
+        snapshot["cursorCapacity"] = {**snapshot["cursorCapacity"], "availableWorkers": 7}
+        snapshot["spendCeiling"] = {"maxWorkers": 4}
+        snapshot["safetyLimit"] = {"maxWorkers": 3}
+        scheduler = _scheduler(snapshot=snapshot)
+        for item_id in ("h1", "h2", "h3", "h4"):
+            scheduler.submit(_item(item_id))
+        self.assertEqual(scheduler.admitted_ids(), ("h1", "h2", "h3"))
+        report = scheduler.admission_report()
+        self.assertEqual(report["providerCapacity"], 7)
+        self.assertEqual(report["spendCeiling"], 4)
+        self.assertEqual(report["safetyLimit"], 3)
+        self.assertEqual(report["effectiveHostedCapacity"], 3)
+        self.assertEqual(report["admittedWorkers"], ["h1", "h2", "h3"])
+
+    def test_missing_spend_ceiling_blocks(self) -> None:
+        snapshot = dict(COMPLETE_SNAPSHOT)
+        snapshot.pop("spendCeiling")
+        scheduler = _scheduler(snapshot=snapshot)
+        scheduler.submit(_item("h1"))
+        self.assertEqual(scheduler.admitted_ids(), ())
+        self.assertIsNone(scheduler.admission_report()["spendCeiling"])
+
+    def test_stale_capacity_evidence_blocks(self) -> None:
+        snapshot = dict(COMPLETE_SNAPSHOT)
+        snapshot["cursorCapacity"] = {
+            **snapshot["cursorCapacity"],
+            "observedAt": "2026-08-20T00:00:00+00:00",
+        }
+        scheduler = _scheduler(snapshot=snapshot)
+        scheduler.submit(_item("h1"))
+        self.assertEqual(scheduler.admitted_ids(), ())
+
+    def test_overlapping_ownership_blocks_only_conflicting_work(self) -> None:
+        scheduler = _scheduler(hosted=4)
+        scheduler.submit(_item("shared-a", conflicts=("path:src/shared",)))
+        scheduler.submit(_item("shared-b", conflicts=("path:src/shared",)))
+        scheduler.submit(_item("independent", conflicts=("path:src/other",)))
+        self.assertEqual(scheduler.admitted_ids(), ("independent", "shared-a"))
+        self.assertIn("shared-b", scheduler.queued_ids())
+
 
 class ConflictDependencyTests(unittest.TestCase):
     def test_conflict_and_dependency_block_without_preempting_others(self) -> None:
-        scheduler = _scheduler()
+        scheduler = _scheduler(hosted=2)
         scheduler.submit(_item("h1", conflicts=("lock-a",), offset=1))
         scheduler.submit(_item("h2", conflicts=("lock-a",), offset=2))
         scheduler.submit(_item("h3", dependencies=("h4",), offset=3))
@@ -139,7 +194,7 @@ class ConflictDependencyTests(unittest.TestCase):
 
 class CompletionUnlockTests(unittest.TestCase):
     def test_completion_unlocks_next_eligible_job(self) -> None:
-        scheduler = _scheduler()
+        scheduler = _scheduler(hosted=2)
         scheduler.submit(_item("h1", offset=1))
         scheduler.submit(_item("h2", offset=2))
         scheduler.submit(_item("h3", offset=3))
@@ -151,7 +206,7 @@ class CompletionUnlockTests(unittest.TestCase):
 
 class InvalidationSelectiveDelayTests(unittest.TestCase):
     def test_invalidation_delays_only_that_identity(self) -> None:
-        scheduler = _scheduler()
+        scheduler = _scheduler(hosted=2)
         scheduler.submit(_item("h1", offset=1))
         scheduler.submit(_item("h2", offset=2))
         scheduler.submit(_item("h3", offset=3))
@@ -164,7 +219,7 @@ class InvalidationSelectiveDelayTests(unittest.TestCase):
 
 class LocalOneHostedTwoTests(unittest.TestCase):
     def test_local_one_versus_hosted_two(self) -> None:
-        scheduler = _scheduler()
+        scheduler = _scheduler(hosted=2)
         scheduler.submit(_item("l1", "local", offset=1))
         scheduler.submit(_item("l2", "local", offset=2))
         scheduler.submit(_item("h1", offset=3))
@@ -207,7 +262,12 @@ class UtilizationGapRepairTests(unittest.TestCase):
         scheduler.tick(NOW + timedelta(minutes=20))
         self.assertEqual(scheduler.admitted_ids(), ())
 
-        scheduler.set_snapshot(COMPLETE_SNAPSHOT, recompute=False)
+        snapshot = dict(COMPLETE_SNAPSHOT)
+        snapshot["cursorCapacity"] = {
+            **snapshot["cursorCapacity"],
+            "observedAt": "2026-08-20T12:20:00+00:00",
+        }
+        scheduler.set_snapshot(snapshot, recompute=False)
         self.assertTrue(scheduler.repair_utilization_gap())
         self.assertEqual(scheduler.admitted_ids(), ("h1",))
         self.assertIn("utilization_gap_repair", scheduler.event_kinds())
@@ -299,7 +359,9 @@ class ExtractedInstallerCleanroomTests(unittest.TestCase):
                         "scheduler.submit(WorkItem('h1', 'hosted'))\n"
                         "scheduler.tick(datetime(2026, 8, 20, 12, 0, tzinfo=timezone.utc) + timedelta(minutes=20))\n"
                         "assert scheduler.admitted_ids() == ()\n"
-                        "scheduler.set_snapshot(COMPLETE_SNAPSHOT, recompute=False)\n"
+                        "fresh = dict(COMPLETE_SNAPSHOT)\n"
+                        "fresh['cursorCapacity'] = {**fresh['cursorCapacity'], 'observedAt': '2026-08-20T12:20:00+00:00'}\n"
+                        "scheduler.set_snapshot(fresh, recompute=False)\n"
                         "assert scheduler.repair_utilization_gap()\n"
                         "assert scheduler.admitted_ids() == ('h1',)\n"
                     ),
@@ -310,7 +372,7 @@ class ExtractedInstallerCleanroomTests(unittest.TestCase):
                 capture_output=True,
             )
             self.assertEqual(probe.returncode, 0, probe.stderr)
-            self.assertEqual(len(copied), 16)
+            self.assertEqual(len(copied), 18)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 

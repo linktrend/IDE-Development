@@ -1,7 +1,10 @@
 """Deterministic continuous-utilization admission runtime.
 
-Fills local and hosted slots from packaged config. Does not dispatch paid
-models, Fast gates, or GitHub workflows.
+Fills local and hosted work from live, authenticated evidence. Hosted
+admission is adaptive: it is bounded by the provider capacity, spend ceiling,
+and explicit safety limit reported for this run, then narrowed by dependency
+and ownership conflicts. This runtime does not dispatch paid models, Fast
+gates, or GitHub workflows.
 """
 
 from __future__ import annotations
@@ -40,6 +43,13 @@ COMPLETE_SNAPSHOT = {
     "memory_percent": 10,
     "free_disk_gib": 40,
     "docker_available": True,
+    "cursorCapacity": {
+        "authenticated": True,
+        "availableWorkers": 8,
+        "observedAt": "2026-08-20T12:00:00+00:00",
+    },
+    "spendCeiling": {"maxWorkers": 8},
+    "safetyLimit": {"maxWorkers": 8},
 }
 
 
@@ -127,7 +137,10 @@ class ContinuousUtilizationScheduler:
 
     @property
     def max_hosted(self) -> int:
-        return int(self._config["maxAdmittedSlots"]["hosted"])
+        """Return the live adaptive hosted limit, never a packaged constant."""
+
+        capacity = self._adaptive_capacity()
+        return 0 if capacity is None else capacity
 
     @property
     def backstop(self) -> timedelta:
@@ -236,6 +249,33 @@ class ContinuousUtilizationScheduler:
     def event_kinds(self) -> tuple[str, ...]:
         return tuple(event.kind for event in self.events)
 
+    def admission_report(self) -> dict[str, Any]:
+        """Return deterministic capacity/admission facts for operator readback."""
+
+        evidence = self._capacity_evidence()
+        ready = [
+            item_id
+            for item_id in self._order_ids(list(self._items))
+            if self._eligible(item_id)
+        ]
+        return {
+            "providerCapacity": evidence["providerCapacity"],
+            "spendCeiling": evidence["spendCeiling"],
+            "safetyLimit": evidence["safetyLimit"],
+            "effectiveHostedCapacity": evidence["effectiveCapacity"],
+            "dependencyReadyDisjointPackets": len(ready),
+            "dependencyReadyPacketIds": ready,
+            "admittedWorkers": list(self.admitted_ids()),
+            "issuedWorkers": list((self._snapshot or {}).get("issuedWorkers", [])),
+            "runningWorkers": list((self._snapshot or {}).get("runningWorkers", [])),
+            "constraints": {
+                "providerCapacity": "live_authenticated_cursor_readback",
+                "spendCeiling": "configured_run_ceiling",
+                "safetyLimit": "explicit_repository_or_external_limit",
+                "dependenciesAndOwnership": "scheduler_work_item_graph",
+            },
+        }
+
     def recompute(self, event: str) -> None:
         allowed = set(self._config.get("recomputeOnEvents") or ())
         if allowed and event not in allowed and event != "admission":
@@ -262,6 +302,49 @@ class ContinuousUtilizationScheduler:
     def _free_slots(self, lane: str) -> int:
         maximum = self.max_local if lane == LANE_LOCAL else self.max_hosted
         return maximum - self._admitted_in_lane(lane)
+
+    def _capacity_evidence(self) -> dict[str, int | None]:
+        snapshot = self._snapshot
+        if not isinstance(snapshot, Mapping):
+            return {
+                "providerCapacity": None,
+                "spendCeiling": None,
+                "safetyLimit": None,
+                "effectiveCapacity": None,
+            }
+        try:
+            cursor = snapshot["cursorCapacity"]
+            spend = snapshot["spendCeiling"]
+            safety = snapshot["safetyLimit"]
+            if not isinstance(cursor, Mapping) or not cursor.get("authenticated"):
+                raise ValueError
+            observed_at = datetime.fromisoformat(str(cursor["observedAt"]))
+            if observed_at.tzinfo is None:
+                raise ValueError
+            max_age = int(self._config["adaptiveConcurrency"]["evidenceMaxAgeSeconds"])
+            if self._now - observed_at > timedelta(seconds=max_age):
+                raise ValueError
+            provider = int(cursor["availableWorkers"])
+            ceiling = int(spend["maxWorkers"])
+            limit = int(safety["maxWorkers"])
+            if min(provider, ceiling, limit) < 0:
+                raise ValueError
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return {
+                "providerCapacity": None,
+                "spendCeiling": None,
+                "safetyLimit": None,
+                "effectiveCapacity": None,
+            }
+        return {
+            "providerCapacity": provider,
+            "spendCeiling": ceiling,
+            "safetyLimit": limit,
+            "effectiveCapacity": min(provider, ceiling, limit),
+        }
+
+    def _adaptive_capacity(self) -> int | None:
+        return self._capacity_evidence()["effectiveCapacity"]
 
     def _dependency_ready(self, item: WorkItem) -> bool:
         return all(dep in self._completed for dep in item.dependencies)
@@ -308,6 +391,8 @@ class ContinuousUtilizationScheduler:
             return False
         if not self._dependency_ready(item) or self._conflict_blocked(item):
             return False
+        if item.lane == LANE_HOSTED and self._adaptive_capacity() is None:
+            return True
         return self._free_slots(item.lane) > 0
 
     def _has_utilization_gap(self) -> bool:
