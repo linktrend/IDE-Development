@@ -19,6 +19,18 @@ A candidate identity is the tuple:
 
 A later head, tree, repository, or bound digest **invalidates** the previous candidate. Seals, reviews, receipts, and late success for the previous identity must be rejected. Checkpoints may record Git state without sealing.
 
+## Planner routing and Cursor Cloud controls
+
+Newer planners may include the explicit `packetRouting` and
+`cursorCloudExecution` controls in the manifest. They are digest-bound
+surfaces: routing records the approved route matrix and third-party exception
+boundary; Cloud execution records pre-dispatch advertised-ref validation,
+governed missing-ref rebaseline/hold behavior, immutable prepared-intent
+supersession, and effective-model readback. Each object is closed-schema and
+rejects unknown fields. These properties are optional for legacy manifests so
+older protocol documents remain readable; a planner that emits either control
+must satisfy the complete schema and cannot use a generic extension bag.
+
 ## Bounded retry
 
 | Failure class | Attempts | Next |
