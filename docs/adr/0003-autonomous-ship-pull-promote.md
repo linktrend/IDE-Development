@@ -172,7 +172,7 @@ Factual correction for Update 9:
 
 Founder-approved Coding Execution Protocol 1.0.1 amendment `V25_BOOTSTRAP_LEAN`:
 
-1. A v2.5 Issue checkpoint is accepted from exact pushed commit/tree, scoped diff, focused tests, independent Terra verification, and manifest evidence. Review Ready and publisher tokens are not required.
+1. A v2.5 Issue checkpoint is accepted from exact pushed commit/tree, scoped diff, focused tests, independent checkpoint/evidence/scope/protocol verification, and manifest evidence. Existing completed independent Terra evidence remains valid; new undispatched work uses `gpt-5.6-luna-high`. Review Ready and publisher tokens are not required.
 2. No singular legacy publisher is canonical for v2.5, including `linktrend-review-ready-publisher`.
 3. A failed or missing legacy publisher is `WAIVED_LEGACY_GATE`, never PASS and never an implementation failure.
 4. A later exact-head administrator recovery is only a named exception after substantive replacement proof, limited to protection snapshot, restore, and readback.

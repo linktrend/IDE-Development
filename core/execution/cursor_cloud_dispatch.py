@@ -28,6 +28,16 @@ ENV_PUBLIC_ID = "1937ddb1-9d3e-11f1-a7d1-d6b4613131ce"
 SAVED_REPOSITORY_ROOT = "/agent/repos"
 MAX_API_ATTEMPTS = 2
 _HEX = re.compile(r"^[0-9a-f]{40,64}$")
+# Legacy routes are retained only so already-completed evidence remains
+# intelligible.  New undispatched work must never be routed to them.
+UNDISPATCHED_LEGACY_ROUTE_MODELS = frozenset(
+    {
+        "claude-opus-4-8",
+        "claude-opus-4-8-thinking-medium",
+        "gpt-5.6-terra",
+        "gpt-5.6-terra-high",
+    }
+)
 
 
 class CursorCloudDispatchError(RuntimeError):
@@ -304,10 +314,12 @@ def supersede_obsolete_prepared_intents(
     *,
     policy: str = ADAPTIVE_CAPACITY_POLICY,
 ) -> list[str]:
-    """Invalidate every uncompleted intent bound to the retired fixed cap.
+    """Invalidate only undispatched PREPARED intents on retired model routes.
 
     Completed evidence is immutable.  A store that cannot enumerate intents is
     rejected rather than silently leaving an obsolete PREPARED record alive.
+    Route supersession is deliberately model-bound: unrelated PREPARED intents
+    and all completed Opus/Terra evidence remain untouched.
     """
 
     list_intents = getattr(store, "list_intents", None)
@@ -320,11 +332,7 @@ def supersede_obsolete_prepared_intents(
     for record in list_intents():
         if not isinstance(record, Mapping) or record.get("state") != "PREPARED":
             continue
-        bound_policy = record.get("concurrencyPolicy")
-        fixed = bound_policy in {"fixed_hosted_2", "fixed_hosted_worker_cap", "max_hosted_2"}
-        if not fixed and "maxHostedWorkers" in record:
-            fixed = record.get("maxHostedWorkers") == 2
-        if not fixed:
+        if str(record.get("model") or "") not in UNDISPATCHED_LEGACY_ROUTE_MODELS:
             continue
         key = str(record.get("idempotencyKey") or "")
         if not key:
@@ -338,7 +346,7 @@ def supersede_obsolete_prepared_intents(
         payload.update({
             "state": "SUPERSEDED",
             "supersededByPolicy": policy,
-            "supersessionReason": "obsolete_fixed_hosted_worker_cap",
+            "supersessionReason": "undispatched_legacy_model_route",
         })
         payload.pop("digest", None)
         payload.pop("revision", None)

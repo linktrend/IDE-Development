@@ -15,10 +15,10 @@ A v2.5 **Issue checkpoint** is accepted when all of the following are present:
 1. exact pushed commit and tree
 2. scoped diff
 3. focused tests
-4. independent Terra verification
+4. independent checkpoint/evidence/scope/protocol verification (`gpt-5.6-luna-high`)
 5. manifest evidence
 
-Review Ready publication, `AUTOMATION_TOKEN`, an Issue PR, hosted completion status, and legacy publisher status are **nonrequirements**. They must not block checkpoint acceptance.
+Existing completed evidence recorded as independent Terra verification remains valid; new undispatched work uses the separate exact checkpoint verifier. Review Ready publication, `AUTOMATION_TOKEN`, an Issue PR, hosted completion status, and legacy publisher status are **nonrequirements**. They must not block checkpoint acceptance.
 
 `python3 scripts/gitops/completion_gate.py checkpoint` is the implementer entrypoint. `review-ready` remains a compatibility mode that **never publishes** and classifies the legacy publisher as **`WAIVED_LEGACY_GATE`** (never PASS, never an implementation failure). That waived outcome must never bypass substantive proof, security, exact identity, scope, review, or rollback.
 
@@ -55,7 +55,7 @@ Exit codes: `0` ok, `78` incomplete, `2` blocked, `1` failed.
 1. `HEAD` resolves to a SHA and matching git tree.
 2. Working tree is clean; branch is not `development`, `staging`, `main`, or detached.
 3. `HEAD == origin/<branch>` after fetch (exact pushed identity).
-4. Machine-readable evidence bound to that exact SHA/tree covering scoped diff, focused tests, independent Terra verification, and manifest evidence.
+4. Machine-readable evidence bound to that exact SHA/tree covering scoped diff, focused tests, independent checkpoint/evidence/scope/protocol verification, and manifest evidence. Legacy completed records named independent Terra verification remain readable.
 5. No GitHub token, Review Ready status, Issue PR, or hosted completion status is required.
 
 Bare `--tests-ok`, `COMPLETION_TESTS_OK=1`, and arbitrary text in `COMPLETION_EVIDENCE` are not sufficient.

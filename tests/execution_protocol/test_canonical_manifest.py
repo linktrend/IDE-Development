@@ -105,7 +105,7 @@ class CanonicalManifestPositiveTests(unittest.TestCase):
             self.assertIn(key, document["controls"])
         self.assertEqual(
             document["controls"]["packetRouting"]["preferredRoutes"][:3],
-            ["auto_cost", "composer", "grok"],
+            ["composer-2.5", "cursor-grok-4.6-medium", "cursor-grok-4.6-high"],
         )
         self.assertTrue(document["controls"]["cursorCloudExecution"]["actualModelReadback"])
 
@@ -188,6 +188,18 @@ class CanonicalManifestAdversarialTests(unittest.TestCase):
         document["controls"]["cursorCloudExecution"]["preparedSupersession"]["reusePreparedIntent"] = True
         result = validate_execution_manifest(document, repo_root=ROOT)
         self.assertFalse(result.ok)
+
+    def test_founder_routing_matrix_is_exact_and_separate(self) -> None:
+        routing = canonical_manifest()["controls"]["packetRouting"]
+        self.assertEqual(
+            routing["preferredRoutes"],
+            ["composer-2.5", "cursor-grok-4.6-medium", "cursor-grok-4.6-high", "gpt-5.6-luna-high"],
+        )
+        self.assertTrue(routing["specialistsRequireFounderException"])
+        self.assertTrue(routing["routeRoles"]["independentSemanticCodeReview"]["separate"])
+        self.assertTrue(routing["routeRoles"]["checkpointEvidenceScopeProtocolVerifier"]["separate"])
+        self.assertFalse(routing["routeRoles"]["independentSemanticCodeReview"]["fast"])
+        self.assertFalse(routing["routeRoles"]["checkpointEvidenceScopeProtocolVerifier"]["fast"])
 
     def test_heartbeat_without_readback_is_rejected(self) -> None:
         document = canonical_running()

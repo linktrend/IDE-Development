@@ -155,7 +155,7 @@
         "exact_pushed_commit_tree",
         "scoped_diff",
         "focused_tests",
-        "independent_terra_verification",
+        "independent_checkpoint_verification",
         "manifest_evidence"
       ]
     },
@@ -210,10 +210,16 @@
     },
     "packetRouting": {
       "digestBound": true,
-      "preferredRoutes": ["auto_cost", "composer", "grok", "specialist", "independent_review", "bulk_documents"],
-      "thirdPartyRequiresException": true,
+      "preferredRoutes": ["composer-2.5", "cursor-grok-4.6-medium", "cursor-grok-4.6-high", "gpt-5.6-luna-high"],
+      "routeRoles": {
+        "boundedSimpleImplementation": {"model": "composer-2.5", "fast": false, "separate": false},
+        "complexLongImplementation": {"model": "cursor-grok-4.6-medium", "fast": false, "separate": false},
+        "independentSemanticCodeReview": {"model": "cursor-grok-4.6-high", "fast": false, "separate": true},
+        "checkpointEvidenceScopeProtocolVerifier": {"model": "gpt-5.6-luna-high", "fast": false, "separate": true}
+      },
+      "specialistsRequireFounderException": true,
       "oneHopFallback": true,
-      "exceptionEvidence": ["capability", "security", "independence", "context"]
+      "exceptionEvidence": ["capability", "security", "independence", "context", "founder_approval"]
     },
     "cursorCloudExecution": {
       "preDispatchAdvertisedRefValidation": true,
@@ -222,7 +228,7 @@
         "immutable": true,
         "requiresNewIntent": true,
         "neverReuseCloudAttempt": true,
-        "supersedeObsoleteFixedCapacity": true,
+        "supersedeUndispatchedLegacyRoutes": true,
         "preserveCompletedEvidence": true
       },
       "actualModelReadback": true

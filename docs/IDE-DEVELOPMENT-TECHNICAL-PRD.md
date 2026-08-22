@@ -303,14 +303,17 @@ IDE Development has **no** persistent Ledger process. Routing is enforced by pin
 
 | RouteId | Subagent file | Model pin (as on disk) |
 |---|---|---|
-| `default` | `.cursor/agents/route-default.md` | `claude-sonnet-5[thinking=true,effort=medium,context=1m]` |
-| `escalation` | `.cursor/agents/route-escalation.md` | `gpt-5.6-sol[reasoning=medium,context=1m,fast=false]` |
-| `independent_review` | `.cursor/agents/route-independent-review.md` | `claude-opus-4-8[thinking=true,effort=medium,context=1m,fast=false]` |
-| `economical` | `.cursor/agents/route-economical.md` | `composer-2.5[fast=true]` |
-| `bulk_documents` | `.cursor/agents/route-bulk-documents.md` | `gemini-2.5-flash` |
-| `evaluation` | `.cursor/agents/route-evaluation.md` | `grok-4.5[effort=medium,fast=false]` |
+| `bounded_simple_implementation` | `.cursor/agents/route-default.md` | `composer-2.5` |
+| `complex_long_implementation` | `.cursor/agents/route-escalation.md` | `cursor-grok-4.6-medium` |
+| `independent_review` | `.cursor/agents/route-independent-review.md` | `cursor-grok-4.6-high` (Fast off) |
+| `checkpoint_verifier` | `.cursor/agents/route-checkpoint-verifier.md` | `gpt-5.6-luna-high` (Fast off) |
 
 **Escalation:** on model-quality failure, log attempt and retry once with the different-family pairing from the skill (one-hop cap). Agent-followed — not mechanized by a Ledger.
+
+Opus and Terra are not default or required routes for undispatched work.
+Specialist routes require an explicit founder exception. Completed evidence
+recorded under retired model identities remains valid; only undispatched
+PREPARED identities may be superseded.
 
 **Still not same-session proven:** that each bracket-param string resolves as expected in a live Cursor Desktop invocation for every route (doctrine records this gap honestly).
 

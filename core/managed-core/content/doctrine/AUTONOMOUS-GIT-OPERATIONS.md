@@ -25,7 +25,10 @@ digests match. Main promotion requires Carlos's explicit approval.
 ## v2.5 Issue checkpoint (`V25_BOOTSTRAP_LEAN`)
 
 Issue checkpoints are accepted from exact pushed commit/tree, scoped diff,
-focused tests, independent Terra verification, and manifest evidence. Review
+focused tests, independent checkpoint/evidence/scope/protocol verification,
+and manifest evidence. Existing completed records named independent Terra
+verification remain valid; new undispatched work uses `gpt-5.6-luna-high`.
+Review
 Ready publication, `AUTOMATION_TOKEN`, Issue PRs, hosted completion status,
 and legacy publisher status are nonrequirements. Legacy publisher/status
 outcomes are `WAIVED_LEGACY_GATE`, never PASS, and never bypass substantive

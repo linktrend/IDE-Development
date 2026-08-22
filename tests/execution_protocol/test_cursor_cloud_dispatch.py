@@ -58,7 +58,7 @@ class FakeCursorCloudHTTP:
 
 
 class CursorCloudDispatchTests(unittest.TestCase):
-    def test_obsolete_prepared_fixed_cap_is_superseded_but_committed_is_preserved(self) -> None:
+    def test_undispatched_legacy_route_is_superseded_but_completed_evidence_is_preserved(self) -> None:
         store = DurableCursorCloudIntentStore()
         store.compare_and_write(
             "old-fixed",
@@ -67,7 +67,7 @@ class CursorCloudDispatchTests(unittest.TestCase):
             {
                 "state": "PREPARED",
                 "idempotencyKey": "old-fixed",
-                "concurrencyPolicy": "fixed_hosted_2",
+                "model": "gpt-5.6-terra-high",
             },
         )
         store.compare_and_write(
@@ -77,12 +77,23 @@ class CursorCloudDispatchTests(unittest.TestCase):
             {
                 "state": "COMMITTED",
                 "idempotencyKey": "completed",
-                "concurrencyPolicy": "fixed_hosted_2",
+                "model": "gpt-5.6-terra-high",
             },
         )
         self.assertEqual(supersede_obsolete_prepared_intents(store), ["old-fixed"])
         self.assertEqual(store.read("old-fixed")["state"], "SUPERSEDED")
         self.assertEqual(store.read("completed")["state"], "COMMITTED")
+
+    def test_unrelated_prepared_route_is_not_superseded(self) -> None:
+        store = DurableCursorCloudIntentStore()
+        store.compare_and_write(
+            "current-route",
+            0,
+            None,
+            {"state": "PREPARED", "idempotencyKey": "current-route", "model": "cursor-grok-4.6-medium"},
+        )
+        self.assertEqual(supersede_obsolete_prepared_intents(store), [])
+        self.assertEqual(store.read("current-route")["state"], "PREPARED")
 
     def test_dispatch_requires_enumerable_intent_store_for_supersession(self) -> None:
         class ReadOnlyStore:

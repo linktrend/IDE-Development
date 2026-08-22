@@ -477,6 +477,7 @@
                   "exact_pushed_commit_tree",
                   "scoped_diff",
                   "focused_tests",
+                  "independent_checkpoint_verification",
                   "independent_terra_verification",
                   "manifest_evidence"
                 ]
@@ -625,24 +626,66 @@
         "packetRouting": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["digestBound", "preferredRoutes", "thirdPartyRequiresException", "oneHopFallback"],
+          "required": ["digestBound", "preferredRoutes", "routeRoles", "specialistsRequireFounderException", "oneHopFallback"],
           "properties": {
             "digestBound": { "type": "boolean", "const": true },
             "preferredRoutes": {
               "type": "array",
-              "minItems": 3,
-              "uniqueItems": true,
-              "items": {
-                "type": "string",
-                "enum": ["auto_cost", "composer", "grok", "specialist", "independent_review", "bulk_documents"]
+              "const": ["composer-2.5", "cursor-grok-4.6-medium", "cursor-grok-4.6-high", "gpt-5.6-luna-high"]
+            },
+            "routeRoles": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["boundedSimpleImplementation", "complexLongImplementation", "independentSemanticCodeReview", "checkpointEvidenceScopeProtocolVerifier"],
+              "properties": {
+                "boundedSimpleImplementation": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["model", "fast", "separate"],
+                  "properties": {
+                    "model": { "type": "string", "const": "composer-2.5" },
+                    "fast": { "type": "boolean", "const": false },
+                    "separate": { "type": "boolean", "const": false }
+                  }
+                },
+                "complexLongImplementation": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["model", "fast", "separate"],
+                  "properties": {
+                    "model": { "type": "string", "const": "cursor-grok-4.6-medium" },
+                    "fast": { "type": "boolean", "const": false },
+                    "separate": { "type": "boolean", "const": false }
+                  }
+                },
+                "independentSemanticCodeReview": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["model", "fast", "separate"],
+                  "properties": {
+                    "model": { "type": "string", "const": "cursor-grok-4.6-high" },
+                    "fast": { "type": "boolean", "const": false },
+                    "separate": { "type": "boolean", "const": true }
+                  }
+                },
+                "checkpointEvidenceScopeProtocolVerifier": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["model", "fast", "separate"],
+                  "properties": {
+                    "model": { "type": "string", "const": "gpt-5.6-luna-high" },
+                    "fast": { "type": "boolean", "const": false },
+                    "separate": { "type": "boolean", "const": true }
+                  }
+                }
               }
             },
-            "thirdPartyRequiresException": { "type": "boolean", "const": true },
+            "specialistsRequireFounderException": { "type": "boolean", "const": true },
             "oneHopFallback": { "type": "boolean", "const": true },
             "exceptionEvidence": {
               "type": "array",
               "uniqueItems": true,
-              "items": { "type": "string", "enum": ["capability", "security", "independence", "context"] }
+              "items": { "type": "string", "enum": ["capability", "security", "independence", "context", "founder_approval"] }
             }
           }
         },
@@ -659,12 +702,12 @@
             "preparedSupersession": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["immutable", "requiresNewIntent", "neverReuseCloudAttempt", "supersedeObsoleteFixedCapacity", "preserveCompletedEvidence"],
+              "required": ["immutable", "requiresNewIntent", "neverReuseCloudAttempt", "supersedeUndispatchedLegacyRoutes", "preserveCompletedEvidence"],
               "properties": {
                 "immutable": { "type": "boolean", "const": true },
                 "requiresNewIntent": { "type": "boolean", "const": true },
                 "neverReuseCloudAttempt": { "type": "boolean", "const": true },
-                "supersedeObsoleteFixedCapacity": { "type": "boolean", "const": true },
+                "supersedeUndispatchedLegacyRoutes": { "type": "boolean", "const": true },
                 "preserveCompletedEvidence": { "type": "boolean", "const": true }
               }
             },

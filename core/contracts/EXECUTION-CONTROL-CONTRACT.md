@@ -31,6 +31,13 @@ rejects unknown fields. These properties are optional for legacy manifests so
 older protocol documents remain readable; a planner that emits either control
 must satisfy the complete schema and cannot use a generic extension bag.
 
+The current route matrix is `composer-2.5` for bounded/simple implementation,
+`cursor-grok-4.6-medium` for complex/long implementation,
+non-Fast `cursor-grok-4.6-high` for separate semantic/code review, and
+`gpt-5.6-luna-high` for separate exact checkpoint/evidence/scope/protocol
+verification. Opus and Terra are retired as default/required routes for
+undispatched work. Specialists require an explicit founder exception.
+
 ## Bounded retry
 
 | Failure class | Attempts | Next |
@@ -94,7 +101,7 @@ Hosted scheduling is a **deterministic runtime** (`core/execution/scheduler.py`)
 - `hostedConcurrencyAuthority` is `execution-protocol` (not GitHub, paid models, or Fast).
 - Local admission remains capped at `1`; hosted admission is adaptive and is the minimum of live authenticated Cursor account capacity, dependency-ready disjoint work, the configured spend/credit ceiling, and explicit repository or external-resource safety limits. No fixed hosted maximum is encoded.
 - Every admission report must distinguish provider capacity, spend ceiling, safety limit, dependency/path constraints, admitted workers, issued workers, and running workers.
-- Missing, stale, unauthenticated, or mismatched capacity/spend/safety evidence blocks hosted admission. Evidence must also match the exact account, API-key name, team, and Program Run identity supplied to the scheduler. Before dispatch, every uncompleted PREPARED intent bound to the obsolete fixed-capacity policy is atomically superseded and recomputed under the adaptive authority; completed evidence is preserved.
+- Missing, stale, unauthenticated, or mismatched capacity/spend/safety evidence blocks hosted admission. Evidence must also match the exact account, API-key name, team, and Program Run identity supplied to the scheduler. Before dispatch, every undispatched PREPARED intent bound to a retired Opus/Terra model route is atomically superseded and recomputed under the approved route matrix; unrelated intents and completed evidence are preserved.
 - Incomplete snapshots stay `resource_uncertain`. Allocator `busy` / `exhausted` in that state is not `capacity_exhausted`.
 - Unknown probes do not occupy slots. After 600 seconds the runtime recovers and recomputes.
 - Free slots with waiting runnable work emit `UTILIZATION_GAP`; repair recomputes after a complete snapshot.
@@ -131,7 +138,7 @@ A v2.5 Issue checkpoint is accepted when all of the following are present:
 1. exact pushed commit and tree
 2. scoped diff
 3. focused tests
-4. independent Terra verification
+4. independent checkpoint/evidence/scope/protocol verification
 5. manifest evidence
 
 Review Ready publication and publisher tokens are **not** required and must not block that acceptance.

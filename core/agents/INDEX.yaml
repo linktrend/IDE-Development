@@ -471,44 +471,53 @@ entries:
   - id: route-default
     path: .cursor/agents/route-default.md
     type: model-route
-    purpose: Pinned default model route (Sonnet 5 Medium) — ports LiNKdeveloper router.ts.
+    purpose: Pinned bounded/simple implementation route (Composer 2.5).
     status: active
-    tags: [model-routing, default]
+    tags: [model-routing, bounded-simple-implementation]
 
   - id: route-escalation
     path: .cursor/agents/route-escalation.md
     type: model-route
-    purpose: Pinned escalation model route (GPT-5.6 Sol Medium).
+    purpose: Pinned complex/long implementation route (cursor-grok-4.6-medium).
     status: active
-    tags: [model-routing, escalation]
+    tags: [model-routing, complex-long-implementation]
 
   - id: route-independent-review
     path: .cursor/agents/route-independent-review.md
     type: model-route
-    purpose: Pinned independent-review model route (Opus 4.8 Medium).
+    purpose: Pinned separate semantic/code review route (cursor-grok-4.6-high, Fast off).
     status: active
     tags: [model-routing, independent-review]
+
+  - id: route-checkpoint-verifier
+    path: .cursor/agents/route-checkpoint-verifier.md
+    type: model-route
+    purpose: Pinned separate exact checkpoint/evidence/scope/protocol verifier (gpt-5.6-luna-high).
+    status: active
+    tags: [model-routing, checkpoint-verifier]
 
   - id: route-economical
     path: .cursor/agents/route-economical.md
     type: model-route
-    purpose: Pinned economical model route (Composer 2.5).
-    status: active
-    tags: [model-routing, economical]
+    purpose: Compatibility alias for the bounded/simple Composer route; new manifests use route-default.
+    status: compatibility
+    tags: [model-routing, specialist-compatibility]
 
   - id: route-bulk-documents
     path: .cursor/agents/route-bulk-documents.md
     type: model-route
     purpose: Pinned bulk-documents model route (Gemini 2.5 Flash).
-    status: active
-    tags: [model-routing, bulk-documents]
+    purpose: Specialist route; founder exception required.
+    status: compatibility
+    tags: [model-routing, specialist, founder-exception]
 
   - id: route-evaluation
     path: .cursor/agents/route-evaluation.md
     type: model-route
     purpose: Pinned evaluation model route (Grok 4.5 Medium, Fast off).
-    status: active
-    tags: [model-routing, evaluation]
+    purpose: Specialist evaluation route; founder exception required.
+    status: compatibility
+    tags: [model-routing, specialist, founder-exception]
 
   - id: project-planner
     path: .cursor/agents/project-planner.md

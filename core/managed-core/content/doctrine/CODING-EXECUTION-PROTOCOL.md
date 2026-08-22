@@ -50,10 +50,19 @@ A valid manifest declares:
 - the control object defined in the control contract
 
 The `controls.packetRouting` and `controls.cursorCloudExecution` objects are
-approved, digest-bound control surfaces used by newer planners. They are
-validated when present with closed schemas; legacy manifests that omit these
-optional surfaces remain valid, while unknown control names or fields remain
-invalid.
+approved, digest-bound control surfaces used by newer planners. New manifests
+select Composer 2.5 (`composer-2.5`) for bounded/simple implementation and
+`cursor-grok-4.6-medium` for complex/long implementation. The independent
+semantic/code review is a separate non-Fast `cursor-grok-4.6-high` route; the
+separate exact checkpoint/evidence/scope/protocol verifier is
+`gpt-5.6-luna-high`. Opus and Terra routes are not default or required for
+undispatched work. Specialist routes require an explicit founder exception.
+Completed evidence remains valid under its recorded identity; only
+undispatched PREPARED Opus/Terra identities may be superseded.
+
+They are validated when present with closed schemas; legacy manifests that omit
+these optional surfaces remain valid, while unknown control names or fields
+remain invalid.
 
 Unknown trust-boundary fields are rejected. Narrative “done” claims are not a substitute for schema-valid records.
 
@@ -75,7 +84,7 @@ The control contract is authoritative. Summary that tests and runtimes must enfo
 | Consumer rollout | `core/execution/rollout.py` plans manifest-configured canary and downstream cohorts. No product code contains repository names or cohort sizes. Downstream mutation waits for receipt-bound canary success; safe slots fill in the same turn; repository failures isolate; systemic failures stop and roll back; unchanged package/environment/tree receipts suppress equivalent reruns. |
 | Automatic approval | Checkpoints are automatic. Staging promotion may be automatic when receipt identity holds. Main, publish, deploy, protection changes, and live provider mutation require recorded founder approval. Self-review, self-merge, and prefer-incoming are forbidden. |
 | Repository/Git authority | Implementers work on `issue/<n>-<slug>` and must not push protected refs, open or merge their own delivery PRs, or install a nested `.ide-development` copy of this system repository. Packager opens PRs. Delivery controller merges. |
-| v2.5 Issue checkpoint (`V25_BOOTSTRAP_LEAN`) | Exact pushed commit/tree + scoped diff + focused tests + independent Terra verification + manifest evidence accepts the Issue checkpoint. Review Ready and publisher tokens are not required. |
+| v2.5 Issue checkpoint (`V25_BOOTSTRAP_LEAN`) | Exact pushed commit/tree + scoped diff + focused tests + independent checkpoint/evidence/scope/protocol verification + manifest evidence accepts the Issue checkpoint. Existing completed evidence recorded as independent Terra verification remains valid; new undispatched work uses `gpt-5.6-luna-high`. Review Ready and publisher tokens are not required. |
 | Legacy publisher | No singular legacy publisher is canonical for v2.5, including `linktrend-review-ready-publisher`. Failed or missing legacy publisher is `WAIVED_LEGACY_GATE`, never PASS and never an implementation failure. |
 | Administrator recovery | A later exact-head recovery is only a named exception after substantive replacement proof, limited to protection snapshot, restore, and readback. |
 | Semantic lifecycle | JSON Schema is not sufficient. Plan/runtime states are rejected (never repaired) when packet, attempt, evidence, execution-state, lease, lock, heartbeat, receipt, retry-exhaustion, or archive records are inconsistent. Diagnostics name `packet=` and `attempt=`. COMPLETE/ARCHIVE_CONFIRMED bind accepted commit/tree, packet-level completion evidence, and a checkout-bound verification receipt; ARCHIVE_CONFIRMED also requires archive API readback. Completed-packet attempts are terminal. RUNNING has exactly one authoritative nonterminal attempt, its active write lock, a current orchestration lease, and a durable heartbeat readback. Completed packets must not retain an active lock. |
