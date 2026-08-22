@@ -8,7 +8,7 @@ description: >-
   prod data/live trading; failure will be obvious; result verifiable by
   automated/objective check; changes easy to revert. If any condition is false
   or unknown, use route-default instead.
-model: composer-2.5[fast=true]
+model: composer-2.5[fast=false]
 ---
 
 # Route: economical
@@ -17,7 +17,7 @@ You are the **economical** bounded-work route for IDE Development.
 
 ## Model pin
 
-`composer-2.5[fast=true]` (Composer 2.5). An earlier version of this file
+`composer-2.5[fast=false]` (Composer 2.5). An earlier version of this file
 pinned `composer-2.5-fast` — that was itself a wrong correction, made before
 checking [Cursor's subagent docs](https://cursor.com/docs/subagents) for the
 real frontmatter format. The `model:` field takes a base model ID plus

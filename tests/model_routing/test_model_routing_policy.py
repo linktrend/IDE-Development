@@ -67,3 +67,18 @@ def test_doctrine_identifies_restoration_of_original_mandatory_requirement():
     assert "Coding Execution" in doctrine
     assert "not a new feature" in doctrine
     assert "Historical omission evidence" in doctrine
+
+
+def test_active_cursor_route_pins_match_restored_matrix():
+    default = (ROOT / "core/agents/route-default.md").read_text()
+    escalation = (ROOT / "core/agents/route-escalation.md").read_text()
+    economical = (ROOT / "core/agents/route-economical.md").read_text()
+    evaluation = (ROOT / "core/agents/route-evaluation.md").read_text()
+    assert "auto-smart[optimize_for=cost,fast=false]" in default
+    assert "claude-sonnet-5" not in default
+    assert "cursor-grok-4.6-medium[fast=false]" in escalation
+    assert "gpt-5.6-sol" not in escalation
+    assert "composer-2.5[fast=false]" in economical
+    assert "fast=true" not in economical
+    assert "cursor-grok-4.6-medium[fast=false]" in evaluation
+    assert "grok-4.5" not in evaluation

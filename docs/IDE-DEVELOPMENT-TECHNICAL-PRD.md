@@ -303,12 +303,12 @@ IDE Development has **no** persistent Ledger process. Routing is enforced by pin
 
 | RouteId | Subagent file | Model pin (as on disk) |
 |---|---|---|
-| `default` | `.cursor/agents/route-default.md` | `claude-sonnet-5[thinking=true,effort=medium,context=1m]` |
-| `escalation` | `.cursor/agents/route-escalation.md` | `gpt-5.6-sol[reasoning=medium,context=1m,fast=false]` |
+| `auto_cost` | `.cursor/agents/route-default.md` | `auto-smart[optimize_for=cost,fast=false]` (effective-model readback required) |
+| `grok` | `.cursor/agents/route-escalation.md` | `cursor-grok-4.6-medium[fast=false]` |
 | `independent_review` | `.cursor/agents/route-independent-review.md` | `claude-opus-4-8[thinking=true,effort=medium,context=1m,fast=false]` |
-| `economical` | `.cursor/agents/route-economical.md` | `composer-2.5[fast=true]` |
+| `composer` | `.cursor/agents/route-economical.md` | `composer-2.5[fast=false]` |
 | `bulk_documents` | `.cursor/agents/route-bulk-documents.md` | `gemini-3.7-flash-medium` (Fast=false; task-justified bulk-document roles only) |
-| `evaluation` | `.cursor/agents/route-evaluation.md` | `grok-4.5[effort=medium,fast=false]` |
+| `specialist` | packet-bound exception (no standing subagent) | documented third-party capability/security/independence/context exception only (Fast=false) |
 
 **Escalation:** on model-quality failure, log attempt and retry once with the different-family pairing from the skill (one-hop cap). Agent-followed — not mechanized by a Ledger.
 

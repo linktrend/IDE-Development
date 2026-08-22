@@ -471,14 +471,14 @@ entries:
   - id: route-default
     path: .cursor/agents/route-default.md
     type: model-route
-    purpose: Pinned default model route (Sonnet 5 Medium) — ports LiNKdeveloper router.ts.
+    purpose: Pinned cost-aware Cursor Auto route (Auto Cost; explicit auto-smart + optimize_for=cost readback) — ports LiNKdeveloper router.ts.
     status: active
     tags: [model-routing, default]
 
   - id: route-escalation
     path: .cursor/agents/route-escalation.md
     type: model-route
-    purpose: Pinned escalation model route (GPT-5.6 Sol Medium).
+    purpose: Pinned complex-work model route (Cursor Grok 4.6 Medium; Fast=false).
     status: active
     tags: [model-routing, escalation]
 
@@ -492,7 +492,7 @@ entries:
   - id: route-economical
     path: .cursor/agents/route-economical.md
     type: model-route
-    purpose: Pinned economical model route (Composer 2.5).
+    purpose: Pinned bounded-work model route (Composer 2.5; Fast=false).
     status: active
     tags: [model-routing, economical]
 
