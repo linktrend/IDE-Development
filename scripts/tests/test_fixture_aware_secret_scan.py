@@ -1463,6 +1463,56 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
         self.assertFalse(untracked_blocked["ok"])
         self.assertTrue(any(row["rule"] == "change_scope.paths" for row in untracked_blocked["findings"]))
 
+    def test_absent_declared_migration_path_is_allowed_but_absent_unrelated_path_blocks(self) -> None:
+        tmp, root, evidence = self._candidate_with_baseline()
+        self.addCleanup(tmp.cleanup)
+        migration = ".ide-development/migrations/legacy.json"
+        write_tracked(
+            root,
+            "core/managed-core/migrations/catalog.json",
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "entries": [
+                        {
+                            "identity": migration,
+                            "path": migration,
+                            "contentHash": "sha256:" + ("a" * 64),
+                            "action": "remove",
+                        }
+                    ],
+                }
+            )
+            + "\n",
+        )
+        write_tracked(root, migration, "legacy\n")
+        baseline, baseline_tree = commit(root, "migration baseline")
+        git(root, "update-ref", "refs/remotes/origin/development", baseline)
+
+        (root / migration).unlink()
+        candidate, candidate_tree = commit(root, "remove declared migration")
+        evidence.update(
+            {
+                "baselineCommit": baseline,
+                "baselineTree": baseline_tree,
+                "candidateCommit": candidate,
+                "candidateGitTree": candidate_tree,
+                "findings": [],
+            }
+        )
+        allowed = scan_repository(root, baseline_evidence=evidence)
+        self.assertFalse(any(row["rule"] == "change_scope.paths" for row in allowed["findings"]), allowed)
+
+        evidence["findings"] = []
+        with patch.object(
+            secret_scan_mod,
+            "changed_paths",
+            return_value={"unrelated-deleted.py"},
+        ):
+            blocked = scan_repository(root, baseline_evidence=evidence)
+        self.assertFalse(blocked["ok"])
+        self.assertTrue(any(row["rule"] == "change_scope.paths" for row in blocked["findings"]))
+
     def test_rename_is_scope_ambiguity_not_an_ignore(self) -> None:
         tmp, root, evidence = self._candidate_with_baseline()
         self.addCleanup(tmp.cleanup)
