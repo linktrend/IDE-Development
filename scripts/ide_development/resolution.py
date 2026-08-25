@@ -17,9 +17,17 @@ from .paths import as_posix_rel, path_is_symlink
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 KIND = "ide-managed-upgrade-resolution"
+# These are the only managed files that the IDE provider may supersede in a
+# digest-bound upgrade. Keep this set explicit so a provider manifest cannot
+# become implicit overwrite authority.
 ALLOWED_CONFLICT_PATHS = frozenset({
+    ".ide-development/schemas/phase-handoff.schema.json",
+    ".ide-development/schemas/phase-record.schema.json",
     ".ide-development/schemas/secret-scan-result.schema.json",
     ".ide-development/tests/test_fixture_aware_secret_scan.py",
+    ".ide-development/tests/test_phase_packager_coordinator.py",
+    "scripts/gitops/packager_coordinator.py",
+    "scripts/gitops/phase_integrator.py",
     "scripts/gitops/secret_scan.py",
 })
 CHANGE_SCOPED_EVIDENCE_KEY = "changeScopedSecretScan"
