@@ -10,14 +10,17 @@ from core.execution.cursor_cloud_dispatch import (
     CursorCloudDispatchRequest,
     DurableCursorCloudIntentStore,
     ENV_PUBLIC_ID,
+    apply_configured_audit_model_parameters,
     cursor_cloud_client_agent_id,
     dispatch_cursor_cloud,
     dispatch_cursor_cloud_sdk,
+    orchestrate_cursor_cloud_dispatch,
     supersede_obsolete_prepared_intents,
     load_cursor_cloud_dispatch_config,
     require_cursor_cloud_api_key,
     validate_cursor_cloud_run_readback,
     validate_cursor_cloud_attestation,
+    validate_repository_scope,
 )
 
 
@@ -33,6 +36,7 @@ REQUEST = CursorCloudDispatchRequest(
     toolchain={"python": "3.12", "node": "22"},
     setup_receipt_digest="sha256:c27e25298bc82faafcbac97c11c3da84f872f1ea998e28e757736a4c66dfe5f2",
     governed_setup=True,
+    model_parameters={"effort": "medium", "fast": "false"},
 )
 KEY_NAME = "CURSOR_" + "API_KEY"
 
@@ -42,6 +46,7 @@ class FakeCursorCloudHTTP:
         self.store = store
         self.fail_once = fail_once
         self.calls: list[tuple[str, dict, dict]] = []
+        self.get_calls: list[tuple[str, dict]] = []
 
     def post(self, path, *, headers, body):
         self.calls.append((path, dict(headers), dict(body)))
@@ -58,6 +63,21 @@ class FakeCursorCloudHTTP:
             "model": body["model"],
         }
 
+    def get(self, path, *, headers):
+        self.get_calls.append((path, dict(headers)))
+        agent_id = path.rsplit("/", 1)[-1]
+        return {
+            "statusCode": 200,
+            "agentId": agent_id,
+            "environment": {"type": "cloud", "name": "IDE Development 2.5.1"},
+            "environmentPublicId": ENV_PUBLIC_ID,
+            "observedBuildId": "bld-observed-379",
+            "expectedBuildId": REQUEST.expected_build_id,
+            "effectiveModel": REQUEST.model,
+            "modelParameters": {"effort": "medium", "fast": "false"},
+            "fast": False,
+        }
+
 
 class FakeCursorCloudSDK:
     def __init__(self) -> None:
@@ -67,7 +87,7 @@ class FakeCursorCloudSDK:
         self.calls.append(dict(kwargs))
         return {
             "statusCode": 201,
-            "agentId": "ide-" + "a" * 32,
+            "agentId": kwargs["agent_id"],
             "runId": "run-sdk-422",
             "model": kwargs["model"],
             "repository": kwargs["repository_url"],
@@ -228,13 +248,131 @@ class CursorCloudDispatchTests(unittest.TestCase):
         self.assertEqual(sdk.calls[0]["repository_url"], REQUEST.target_remote)
         self.assertEqual(sdk.calls[0]["starting_ref"], REQUEST.ref)
         self.assertEqual(sdk.calls[0]["model"], REQUEST.model)
-        self.assertEqual(sdk.calls[0]["model_parameters"], {})
+        self.assertEqual(
+            sdk.calls[0]["model_parameters"],
+            {"effort": "medium", "fast": "false"},
+        )
+
+    def test_grok_audit_rejects_missing_configured_model_parameters(self) -> None:
+        request = CursorCloudDispatchRequest(
+            **{**REQUEST.__dict__, "model_parameters": {}}
+        )
+        with self.assertRaisesRegex(CursorCloudDispatchError, "audit_parameter"):
+            request.validate()
+
+    def test_orchestrator_applies_configured_audit_model_parameters(self) -> None:
+        config = load_cursor_cloud_dispatch_config(str(Path(__file__).resolve().parents[2]))
+        bare = CursorCloudDispatchRequest(
+            **{**REQUEST.__dict__, "model_parameters": {}}
+        )
+        bound = apply_configured_audit_model_parameters(bare, config)
+        self.assertEqual(
+            dict(bound.model_parameters),
+            {"effort": "medium", "fast": "false"},
+        )
+
+    def test_orchestrator_requires_rest_get_readback_before_commit(self) -> None:
+        store = DurableCursorCloudIntentStore()
+        http = FakeCursorCloudHTTP(store)
+        result = orchestrate_cursor_cloud_dispatch(
+            REQUEST,
+            store,
+            http,
+            sdk=FakeCursorCloudSDK(),
+            repo_root=str(Path(__file__).resolve().parents[2]),
+            environment={KEY_NAME: "test-only-key"},
+        )
+        self.assertEqual(result.status, "committed")
+        self.assertEqual(len(http.get_calls), 1)
+        self.assertTrue(http.get_calls[0][0].endswith(result.agent_id))
+        self.assertEqual(store.read(result.idempotency_key)["state"], "COMMITTED")
+
+    def test_orchestrator_falls_back_to_rest_when_sdk_unavailable(self) -> None:
+        class UnavailableSDK:
+            def create_agent(self, **kwargs):
+                raise CursorCloudDispatchError(
+                    "cursor_cloud_sdk_unavailable",
+                    "install cursor-sdk or use the explicit REST fallback",
+                )
+
+        store = DurableCursorCloudIntentStore()
+        http = FakeCursorCloudHTTP(store)
+        result = orchestrate_cursor_cloud_dispatch(
+            REQUEST,
+            store,
+            http,
+            sdk=UnavailableSDK(),
+            repo_root=str(Path(__file__).resolve().parents[2]),
+            environment={KEY_NAME: "test-only-key"},
+        )
+        self.assertEqual(result.status, "committed")
+        self.assertEqual(len(http.calls), 1)
+        self.assertEqual(len(http.get_calls), 1)
+
+    def test_multi_repository_requires_explicit_scope(self) -> None:
+        config = load_cursor_cloud_dispatch_config(str(Path(__file__).resolve().parents[2]))
+        implicit = CursorCloudDispatchRequest(
+            **{
+                **REQUEST.__dict__,
+                "repository": "linktrend/LiNKbrain",
+                "target_path": "/agent/repos/LiNKbrain",
+                "target_remote": "https://github.com/linktrend/LiNKbrain",
+                "explicit_scope_repositories": ("linktrend/IDE-Development",),
+                "explicit_scope_remotes": {},
+            }
+        )
+        with self.assertRaisesRegex(CursorCloudDispatchError, "remote"):
+            validate_repository_scope(implicit, config)
+
+    def test_multi_repository_explicit_scope_is_admitted(self) -> None:
+        config = load_cursor_cloud_dispatch_config(str(Path(__file__).resolve().parents[2]))
+        scoped = CursorCloudDispatchRequest(
+            **{
+                **REQUEST.__dict__,
+                "explicit_scope_repositories": ("linktrend/LiNKbrain",),
+                "explicit_scope_remotes": {
+                    "linktrend/LiNKbrain": "https://github.com/linktrend/LiNKbrain",
+                },
+            }
+        )
+        validate_repository_scope(scoped, config)
+        store = DurableCursorCloudIntentStore()
+        sdk = FakeCursorCloudSDK()
+        expected_client_id = cursor_cloud_client_agent_id(scoped)
+        sdk.create_agent = lambda **kwargs: (
+            sdk.calls.append(dict(kwargs))
+            or {
+                "statusCode": 201,
+                "agentId": expected_client_id,
+                "runId": "run-sdk-multi",
+                "model": kwargs["model"],
+                "repository": kwargs["repository_url"],
+                "startingRef": kwargs["starting_ref"],
+            }
+        )
+        http = FakeCursorCloudHTTP(store)
+        result = orchestrate_cursor_cloud_dispatch(
+            scoped,
+            store,
+            http,
+            sdk=sdk,
+            config=config,
+            environment={KEY_NAME: "test-only-key"},
+        )
+        self.assertEqual(result.status, "committed")
+        self.assertEqual(
+            sdk.calls[0]["repository_bindings"],
+            [
+                (scoped.target_remote, scoped.ref),
+                ("https://github.com/linktrend/LiNKbrain", scoped.ref),
+            ],
+        )
 
     def test_sdk_fast_parameter_is_rejected_before_dispatch(self) -> None:
         request = CursorCloudDispatchRequest(
             **{**REQUEST.__dict__, "model_parameters": {"effort": "medium", "fast": "true"}}
         )
-        with self.assertRaisesRegex(CursorCloudDispatchError, "Fast"):
+        with self.assertRaisesRegex(CursorCloudDispatchError, "fast=false"):
             request.validate()
 
     def test_repo_relative_target_is_canonicalized_to_saved_environment_root(self) -> None:

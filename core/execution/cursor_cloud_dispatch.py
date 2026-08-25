@@ -15,8 +15,8 @@ import hashlib
 import json
 import os
 import re
-from dataclasses import dataclass, field
-from typing import Any, Mapping, Protocol
+from dataclasses import dataclass, field, replace
+from typing import Any, Mapping, Protocol, Sequence
 from urllib.parse import urlsplit, urlunsplit
 
 
@@ -55,6 +55,8 @@ class CursorCloudDispatchRequest:
     toolchain: Mapping[str, str]
     setup_receipt_digest: str
     model_parameters: Mapping[str, str] = field(default_factory=dict)
+    explicit_scope_repositories: tuple[str, ...] = ()
+    explicit_scope_remotes: Mapping[str, str] = field(default_factory=dict)
     environment_name: str = ENV_NAME
     environment_public_id: str = ENV_PUBLIC_ID
     governed_setup: bool = False
@@ -101,6 +103,7 @@ class CursorCloudDispatchRequest:
                 "cursor_cloud_fast_model_forbidden",
                 "Fast is not an admitted Cursor Cloud model",
             )
+        validate_grok_audit_model_parameters(self)
         if str(self.model_parameters.get("fast", "false")).casefold() != "false":
             raise CursorCloudDispatchError(
                 "cursor_cloud_fast_model_forbidden",
@@ -236,6 +239,103 @@ class CursorCloudHTTPPort(Protocol):
         self, path: str, *, headers: Mapping[str, str], body: Mapping[str, Any]
     ) -> Mapping[str, Any]: ...
 
+    def get(self, path: str, *, headers: Mapping[str, str]) -> Mapping[str, Any]: ...
+
+
+def is_grok_audit_model(model: str) -> bool:
+    return "grok" in str(model or "").casefold()
+
+
+def apply_configured_audit_model_parameters(
+    request: CursorCloudDispatchRequest,
+    config: Mapping[str, Any],
+) -> CursorCloudDispatchRequest:
+    """Bind configured Grok audit parameters before dispatch validation."""
+
+    if not is_grok_audit_model(request.model):
+        return request
+    audit = dict(config["auditModelParameters"])
+    merged = dict(audit)
+    merged.update(dict(request.model_parameters))
+    return replace(request, model_parameters=merged)
+
+
+def validate_grok_audit_model_parameters(request: CursorCloudDispatchRequest) -> None:
+    if not is_grok_audit_model(request.model):
+        return
+    required = {"effort": "medium", "fast": "false"}
+    for key, expected in required.items():
+        if key not in request.model_parameters:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_audit_parameter_missing",
+                f"Grok audit dispatch requires explicit model parameter {key}",
+                parameter=key,
+            )
+        if str(request.model_parameters[key]) != expected:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_audit_parameter_mismatch",
+                f"Grok audit dispatch requires {key}={expected}",
+                parameter=key,
+            )
+
+
+def validate_repository_scope(
+    request: CursorCloudDispatchRequest, config: Mapping[str, Any]
+) -> None:
+    """Default to one repository per run; admit coordinated multi-repo only explicitly."""
+
+    extras = tuple(request.explicit_scope_repositories)
+    if not extras:
+        if request.explicit_scope_remotes:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_explicit_scope_remote_without_repositories",
+                "explicit scope remotes require coordinated repository identities",
+            )
+        return
+    if not config.get("multiRepositoryRequiresExplicitScope"):
+        raise CursorCloudDispatchError(
+            "cursor_cloud_multi_repository_forbidden",
+            "multi-repository dispatch requires explicit scope admission",
+        )
+    seen = {request.repository}
+    for repo in extras:
+        parts = repo.split("/")
+        if (
+            len(parts) != 2
+            or any(part in {"", ".", ".."} or "\\" in part for part in parts)
+            or repo in seen
+        ):
+            raise CursorCloudDispatchError(
+                "cursor_cloud_explicit_scope_repository_invalid",
+                "explicit scope repository identity is invalid or duplicated",
+            )
+        seen.add(repo)
+        remote = str(request.explicit_scope_remotes.get(repo) or "")
+        if not remote:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_explicit_scope_remote_missing",
+                "each explicit-scope repository requires a governed remote",
+                repository=repo,
+            )
+        normalize_repository_remote(remote)
+
+
+def _sdk_repository_bindings(
+    request: CursorCloudDispatchRequest,
+) -> list[tuple[str, str]]:
+    bindings = [(normalize_repository_remote(request.target_remote), request.ref)]
+    for repo in request.explicit_scope_repositories:
+        remote = normalize_repository_remote(str(request.explicit_scope_remotes[repo]))
+        bindings.append((remote, request.ref))
+    deduped: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in bindings:
+        if item in seen:
+            continue
+        seen.add(item)
+        deduped.append(item)
+    return deduped
+
 
 class CursorCloudSDKPort(Protocol):
     def create_agent(
@@ -246,6 +346,7 @@ class CursorCloudSDKPort(Protocol):
         model_parameters: Mapping[str, str],
         repository_url: str,
         starting_ref: str,
+        repository_bindings: Sequence[tuple[str, str]] | None = None,
         prompt: str,
         name: str,
         agent_id: str,
@@ -272,6 +373,7 @@ class CursorPythonSDKPort:
         model_parameters: Mapping[str, str],
         repository_url: str,
         starting_ref: str,
+        repository_bindings: Sequence[tuple[str, str]] | None = None,
         prompt: str,
         name: str,
         agent_id: str,
@@ -290,6 +392,7 @@ class CursorPythonSDKPort:
                 "cursor_cloud_sdk_unavailable",
                 "install cursor-sdk or use the explicit REST fallback",
             ) from exc
+        bindings = list(repository_bindings or [(repository_url, starting_ref)])
         agent = Agent.create(
             model=ModelSelection(
                 id=model,
@@ -303,7 +406,10 @@ class CursorPythonSDKPort:
             agent_id=agent_id,
             idempotency_key=idempotency_key,
             cloud=CloudAgentOptions(
-                repos=[CloudRepository(url=repository_url, starting_ref=starting_ref)],
+                repos=[
+                    CloudRepository(url=url, starting_ref=ref)
+                    for url, ref in bindings
+                ],
                 auto_create_pr=False,
             ),
         )
@@ -345,6 +451,7 @@ class _SDKAsHTTPPort:
                 model_parameters=self.request.model_parameters,
                 repository_url=normalize_repository_remote(self.request.target_remote),
                 starting_ref=self.request.ref,
+                repository_bindings=_sdk_repository_bindings(self.request),
                 prompt=str(body["prompt"]),
                 name=f"{self.request.repository}:{self.request.ref}",
                 agent_id=str(body["agentId"]),
@@ -425,6 +532,11 @@ def cursor_cloud_idempotency_key(request: CursorCloudDispatchRequest) -> str:
         "tree": request.tree,
         "model": request.model,
         "modelParameters": dict(request.model_parameters),
+        "explicitScopeRepositories": list(request.explicit_scope_repositories),
+        "explicitScopeRemotes": {
+            repo: normalize_repository_remote(remote)
+            for repo, remote in sorted(request.explicit_scope_remotes.items())
+        },
         "environment": request.environment,
         "environmentPublicId": request.environment_public_id,
         "expectedBuildId": request.expected_build_id,
@@ -557,6 +669,64 @@ def _response_value(response: Mapping[str, Any], *keys: str) -> Any:
     return None
 
 
+def _normalize_rest_run_readback(
+    response: Mapping[str, Any], request: CursorCloudDispatchRequest
+) -> dict[str, Any]:
+    observed_env = _response_value(response, "env", "environment") or request.environment
+    if not isinstance(observed_env, Mapping):
+        observed_env = request.environment
+    fast_value = response.get("fast")
+    if fast_value is None:
+        params = _response_value(response, "modelParameters", "model_parameters")
+        if isinstance(params, Mapping) and "fast" in params:
+            fast_value = str(params["fast"]).casefold() == "true"
+        else:
+            fast_value = True
+    elif isinstance(fast_value, str):
+        fast_value = fast_value.casefold() == "true"
+    return {
+        "environment": dict(observed_env),
+        "environmentPublicId": str(
+            _response_value(response, "environmentPublicId", "environment_public_id")
+            or request.environment_public_id
+        ),
+        "observedBuildId": str(
+            _response_value(response, "observedBuildId", "observed_build_id", "buildId") or ""
+        ),
+        "expectedBuildId": str(
+            _response_value(response, "expectedBuildId", "expected_build_id")
+            or request.expected_build_id
+        ),
+        "effectiveModel": str(_response_value(response, "effectiveModel", "model") or request.model),
+        "fast": bool(fast_value),
+    }
+
+
+def _rest_get_run_readback(
+    http: CursorCloudHTTPPort,
+    agent_id: str,
+    headers: Mapping[str, str],
+    request: CursorCloudDispatchRequest,
+) -> Mapping[str, Any]:
+    get = getattr(http, "get", None)
+    if not callable(get):
+        raise CursorCloudDispatchError(
+            "cursor_cloud_rest_readback_unavailable",
+            "HTTP port must implement GET for mandatory REST readback",
+        )
+    response = get(f"{API_PATH}/{agent_id}", headers=headers)
+    status = int(response.get("statusCode", response.get("status", 0)) or 0)
+    if status != 200:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_rest_readback_rejected",
+            "REST GET readback did not return HTTP 200",
+            statusCode=status,
+        )
+    readback = _normalize_rest_run_readback(response, request)
+    validate_cursor_cloud_run_readback(request, readback)
+    return readback
+
+
 def dispatch_cursor_cloud(
     request: CursorCloudDispatchRequest,
     store: CursorCloudIntentStore,
@@ -564,11 +734,15 @@ def dispatch_cursor_cloud(
     *,
     environment: Mapping[str, str] | None = None,
     cursor_cli_authenticated: bool = False,
+    rest_readback: CursorCloudHTTPPort | None = None,
+    require_rest_readback: bool = False,
 ) -> CursorCloudDispatchResult:
     """Create one Cloud agent using mocked or real HTTP authority.
 
     No Cursor endpoint is contacted by this module itself; callers provide the
     HTTP port.  Tests must provide a fake port and never use a live key.
+    When ``require_rest_readback`` is true, a REST GET on the created agent
+    must succeed and match the governed request before durable COMMITTED state.
     """
 
     request.validate()
@@ -609,6 +783,11 @@ def dispatch_cursor_cloud(
             "environmentPublicId": request.environment_public_id,
             "model": request.model,
             "modelParameters": dict(request.model_parameters),
+            "explicitScopeRepositories": list(request.explicit_scope_repositories),
+            "explicitScopeRemotes": {
+                repo: normalize_repository_remote(remote)
+                for repo, remote in sorted(request.explicit_scope_remotes.items())
+            },
             "expectedBuildId": request.expected_build_id,
             "toolchain": dict(request.toolchain),
             "governedSetup": request.governed_setup,
@@ -639,6 +818,8 @@ def dispatch_cursor_cloud(
         try:
             response = http.post(API_PATH, headers=headers, body=body)
             break
+        except CursorCloudDispatchError:
+            raise
         except Exception as exc:  # keep PREPARED for one idempotent retry
             if attempt + 1 == MAX_API_ATTEMPTS:
                 raise CursorCloudDispatchError(
@@ -678,6 +859,9 @@ def dispatch_cursor_cloud(
         raise CursorCloudDispatchError(
             "cursor_cloud_model_mismatch", "Cloud response model does not match the exact request"
         )
+    if require_rest_readback:
+        readback_http = rest_readback if rest_readback is not None else http
+        _rest_get_run_readback(readback_http, agent_id, headers, request)
     payload = dict(current)
     payload.update(
         {
@@ -717,8 +901,10 @@ def dispatch_cursor_cloud_sdk(
     store: CursorCloudIntentStore,
     sdk: CursorCloudSDKPort,
     *,
+    http: CursorCloudHTTPPort | None = None,
     environment: Mapping[str, str] | None = None,
     cursor_cli_authenticated: bool = False,
+    require_rest_readback: bool = False,
 ) -> CursorCloudDispatchResult:
     """Preferred repository-bound SDK orchestration path.
 
@@ -733,7 +919,53 @@ def dispatch_cursor_cloud_sdk(
         _SDKAsHTTPPort(request, sdk),
         environment=environment,
         cursor_cli_authenticated=cursor_cli_authenticated,
+        rest_readback=http,
+        require_rest_readback=require_rest_readback,
     )
+
+
+def orchestrate_cursor_cloud_dispatch(
+    request: CursorCloudDispatchRequest,
+    store: CursorCloudIntentStore,
+    http: CursorCloudHTTPPort,
+    *,
+    sdk: CursorCloudSDKPort | None = None,
+    config: Mapping[str, Any] | None = None,
+    repo_root: str | None = None,
+    environment: Mapping[str, str] | None = None,
+    cursor_cli_authenticated: bool = False,
+) -> CursorCloudDispatchResult:
+    """SDK-preferred dispatch with mandatory REST readback and REST fallback."""
+
+    if config is None:
+        if repo_root is None:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_config_missing",
+                "orchestrator requires config or repo_root",
+            )
+        config = load_cursor_cloud_dispatch_config(repo_root)
+    request = apply_configured_audit_model_parameters(request, config)
+    validate_repository_scope(request, config)
+    readback_required = bool(config.get("restReadbackRequired"))
+    dispatch_kwargs = {
+        "environment": environment,
+        "cursor_cli_authenticated": cursor_cli_authenticated,
+        "rest_readback": http,
+        "require_rest_readback": readback_required,
+    }
+    preferred_sdk = config.get("preferredClient") == "cursor-python-sdk"
+    if preferred_sdk and sdk is not None:
+        try:
+            return dispatch_cursor_cloud(
+                request,
+                store,
+                _SDKAsHTTPPort(request, sdk),
+                **dispatch_kwargs,
+            )
+        except CursorCloudDispatchError as exc:
+            if exc.code != "cursor_cloud_sdk_unavailable":
+                raise
+    return dispatch_cursor_cloud(request, store, http, **dispatch_kwargs)
 
 
 def validate_cursor_cloud_attestation(

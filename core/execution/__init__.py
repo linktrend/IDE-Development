@@ -130,12 +130,15 @@ from core.execution.cursor_cloud_dispatch import (
     canonical_saved_repository_path,
     cursor_cloud_client_agent_id,
     cursor_cloud_idempotency_key,
+    apply_configured_audit_model_parameters,
     dispatch_cursor_cloud,
     dispatch_cursor_cloud_sdk,
+    orchestrate_cursor_cloud_dispatch,
     load_cursor_cloud_dispatch_config,
     normalize_repository_remote,
     require_cursor_cloud_api_key,
     validate_cursor_cloud_attestation,
+    validate_repository_scope,
 )
 
 __all__ = [
@@ -258,10 +261,13 @@ __all__ = [
     "canonical_saved_repository_path",
     "cursor_cloud_client_agent_id",
     "cursor_cloud_idempotency_key",
+    "apply_configured_audit_model_parameters",
     "dispatch_cursor_cloud",
     "dispatch_cursor_cloud_sdk",
+    "orchestrate_cursor_cloud_dispatch",
     "load_cursor_cloud_dispatch_config",
     "normalize_repository_remote",
     "require_cursor_cloud_api_key",
     "validate_cursor_cloud_attestation",
+    "validate_repository_scope",
 ]
