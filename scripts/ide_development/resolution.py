@@ -129,6 +129,16 @@ def _canonical_digest(value: Any) -> str:
     return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
+def _validate_observed_conflict_paths(paths: Iterable[str]) -> frozenset[str]:
+    """Require a non-empty observed subset of the explicit provider allowlist."""
+    observed = frozenset(paths)
+    if not observed:
+        raise InvalidPackageError("Observed conflicts must contain at least one managed path")
+    if not observed.issubset(ALLOWED_CONFLICT_PATHS):
+        raise InvalidPackageError("Observed conflicts contain an undeclared managed path")
+    return observed
+
+
 def _validate_change_scoped_binding(verification: dict[str, Any]) -> None:
     """Validate the receipt envelope before any transaction can begin.
 
@@ -203,11 +213,10 @@ def load_and_validate_resolution(resolution_path: Path, *, target_root: Path, pa
     if raw.get("allowedConflictPaths") != sorted(ALLOWED_CONFLICT_PATHS):
         raise InvalidPackageError("Resolution allowedConflictPaths must exactly equal canonical scanner paths")
     expected = {rel: (old, current, provider_hash) for rel, old, current, provider_hash in observed_conflicts}
-    if set(expected) != ALLOWED_CONFLICT_PATHS:
-        raise InvalidPackageError("Observed conflicts do not exactly match canonical scanner paths")
+    observed_paths = _validate_observed_conflict_paths(expected)
     rows = raw.get("conflicts")
-    if not isinstance(rows, list) or len(rows) != len(ALLOWED_CONFLICT_PATHS) or {row.get("path") for row in rows if isinstance(row, dict)} != ALLOWED_CONFLICT_PATHS:
-        raise InvalidPackageError("Resolution conflicts do not exactly match canonical scanner paths")
+    if not isinstance(rows, list) or len(rows) != len(observed_paths) or {row.get("path") for row in rows if isinstance(row, dict)} != observed_paths:
+        raise InvalidPackageError("Resolution conflicts do not exactly match observed managed paths")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     entries = {entry.get("destination"): entry for entry in manifest.get("files", [])}
     resolutions: list[ConflictResolution] = []
