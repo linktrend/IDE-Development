@@ -12,6 +12,7 @@ from core.execution.cursor_cloud_dispatch import (
     ENV_PUBLIC_ID,
     apply_configured_audit_model_parameters,
     cursor_cloud_client_agent_id,
+    cursor_cloud_idempotency_key,
     dispatch_cursor_cloud,
     dispatch_cursor_cloud_sdk,
     orchestrate_cursor_cloud_dispatch,
@@ -69,6 +70,9 @@ class FakeCursorCloudHTTP:
         return {
             "statusCode": 200,
             "agentId": agent_id,
+            "runId": "run-379",
+            "repository": REQUEST.target_remote,
+            "startingRef": REQUEST.ref,
             "environment": {"type": "cloud", "name": "IDE Development 2.5.1"},
             "environmentPublicId": ENV_PUBLIC_ID,
             "observedBuildId": "bld-observed-379",
@@ -77,6 +81,30 @@ class FakeCursorCloudHTTP:
             "modelParameters": {"effort": "medium", "fast": "false"},
             "fast": False,
         }
+
+
+class ConfigurableCursorCloudHTTP(FakeCursorCloudHTTP):
+    """Fake HTTP port with adversarial GET readback overrides."""
+
+    def __init__(
+        self,
+        store: DurableCursorCloudIntentStore,
+        *,
+        get_overrides: dict | None = None,
+        omit_get_fields: tuple[str, ...] = (),
+        fail_once: bool = False,
+    ) -> None:
+        super().__init__(store, fail_once=fail_once)
+        self.get_overrides = dict(get_overrides or {})
+        self.omit_get_fields = omit_get_fields
+
+    def get(self, path, *, headers):
+        response = super().get(path, headers=headers)
+        for field in self.omit_get_fields:
+            response.pop(field, None)
+        if self.get_overrides:
+            response.update(self.get_overrides)
+        return response
 
 
 class FakeCursorCloudSDK:
@@ -88,7 +116,7 @@ class FakeCursorCloudSDK:
         return {
             "statusCode": 201,
             "agentId": kwargs["agent_id"],
-            "runId": "run-sdk-422",
+            "runId": "run-379",
             "model": kwargs["model"],
             "repository": kwargs["repository_url"],
             "startingRef": kwargs["starting_ref"],
@@ -235,7 +263,7 @@ class CursorCloudDispatchTests(unittest.TestCase):
             or {
                 "statusCode": 201,
                 "agentId": expected_client_id,
-                "runId": "run-sdk-422",
+                "runId": "run-379",
                 "model": kwargs["model"],
                 "repository": kwargs["repository_url"],
                 "startingRef": kwargs["starting_ref"],
@@ -344,7 +372,7 @@ class CursorCloudDispatchTests(unittest.TestCase):
             or {
                 "statusCode": 201,
                 "agentId": expected_client_id,
-                "runId": "run-sdk-multi",
+                "runId": "run-379",
                 "model": kwargs["model"],
                 "repository": kwargs["repository_url"],
                 "startingRef": kwargs["starting_ref"],
@@ -465,6 +493,7 @@ class CursorCloudDispatchTests(unittest.TestCase):
 
     def test_public_environment_identity_and_run_readback_are_required(self) -> None:
         request = REQUEST
+        client_agent_id = cursor_cloud_client_agent_id(request)
         good = {
             "environment": request.environment,
             "environmentPublicId": ENV_PUBLIC_ID,
@@ -472,14 +501,89 @@ class CursorCloudDispatchTests(unittest.TestCase):
             "expectedBuildId": request.expected_build_id,
             "effectiveModel": request.model,
             "fast": False,
+            "agentId": client_agent_id,
+            "runId": "run-379",
+            "repositoryUrl": request.target_remote,
+            "startingRef": request.ref,
         }
-        validate_cursor_cloud_run_readback(request, good)
+        validate_cursor_cloud_run_readback(
+            request, good, expected_agent_id=client_agent_id, expected_run_id="run-379"
+        )
         with self.assertRaisesRegex(CursorCloudDispatchError, "public environment"):
-            validate_cursor_cloud_run_readback(request, {**good, "environmentPublicId": "wrong"})
+            validate_cursor_cloud_run_readback(
+                request,
+                {**good, "environmentPublicId": "wrong"},
+                expected_agent_id=client_agent_id,
+                expected_run_id="run-379",
+            )
         with self.assertRaisesRegex(CursorCloudDispatchError, "effective model"):
-            validate_cursor_cloud_run_readback(request, {**good, "effectiveModel": "Fast"})
+            validate_cursor_cloud_run_readback(
+                request,
+                {**good, "effectiveModel": "Fast"},
+                expected_agent_id=client_agent_id,
+                expected_run_id="run-379",
+            )
         with self.assertRaisesRegex(CursorCloudDispatchError, "Fast"):
-            validate_cursor_cloud_run_readback(request, {**good, "fast": True})
+            validate_cursor_cloud_run_readback(
+                request,
+                {**good, "fast": True},
+                expected_agent_id=client_agent_id,
+                expected_run_id="run-379",
+            )
+        with self.assertRaisesRegex(CursorCloudDispatchError, "repository"):
+            validate_cursor_cloud_run_readback(
+                request,
+                {**good, "repositoryUrl": "https://github.com/linktrend/LiNKharness"},
+                expected_agent_id=client_agent_id,
+                expected_run_id="run-379",
+            )
+        with self.assertRaisesRegex(CursorCloudDispatchError, "starting ref"):
+            validate_cursor_cloud_run_readback(
+                request,
+                {**good, "startingRef": "development"},
+                expected_agent_id=client_agent_id,
+                expected_run_id="run-379",
+            )
+        with self.assertRaisesRegex(CursorCloudDispatchError, "run identity"):
+            validate_cursor_cloud_run_readback(
+                request,
+                {**good, "runId": "run-wrong"},
+                expected_agent_id=client_agent_id,
+                expected_run_id="run-379",
+            )
+
+    def test_adversarial_rest_readback_blocks_commit_before_committed(self) -> None:
+        config = load_cursor_cloud_dispatch_config(str(Path(__file__).resolve().parents[2]))
+        key = cursor_cloud_client_agent_id(REQUEST)
+        scenarios = (
+            ("wrong_repository", {"repository": "https://github.com/linktrend/LiNKharness"}, (), "repository"),
+            ("wrong_ref", {"startingRef": "development"}, (), "starting ref"),
+            ("wrong_run_id", {"runId": "run-adversarial"}, (), "run identity"),
+            ("omit_environment_public_id", {}, ("environmentPublicId",), "public environment"),
+            ("omit_expected_build_id", {}, ("expectedBuildId",), "expected build"),
+            ("omit_effective_model", {}, ("effectiveModel",), "effective model"),
+            ("omit_agent_id", {}, ("agentId",), "agent identity"),
+            ("omit_run_id", {}, ("runId",), "run identity"),
+        )
+        for label, overrides, omit, err_pattern in scenarios:
+            with self.subTest(scenario=label):
+                store = DurableCursorCloudIntentStore()
+                http = ConfigurableCursorCloudHTTP(
+                    store, get_overrides=overrides, omit_get_fields=omit
+                )
+                with self.assertRaisesRegex(CursorCloudDispatchError, err_pattern):
+                    orchestrate_cursor_cloud_dispatch(
+                        REQUEST,
+                        store,
+                        http,
+                        sdk=FakeCursorCloudSDK(),
+                        config=config,
+                        environment={KEY_NAME: "test-only-key"},
+                    )
+                prepared = store.read(cursor_cloud_idempotency_key(REQUEST))
+                self.assertIsNotNone(prepared)
+                self.assertEqual(prepared["state"], "PREPARED", label)
+                self.assertEqual(len(http.get_calls), 1, label)
 
     def test_attestation_mismatch_blocks_mutation(self) -> None:
         good = {
