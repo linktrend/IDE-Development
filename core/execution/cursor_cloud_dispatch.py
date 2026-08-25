@@ -15,7 +15,7 @@ import hashlib
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Mapping, Protocol
 from urllib.parse import urlsplit, urlunsplit
 
@@ -54,6 +54,7 @@ class CursorCloudDispatchRequest:
     expected_build_id: str
     toolchain: Mapping[str, str]
     setup_receipt_digest: str
+    model_parameters: Mapping[str, str] = field(default_factory=dict)
     environment_name: str = ENV_NAME
     environment_public_id: str = ENV_PUBLIC_ID
     governed_setup: bool = False
@@ -99,6 +100,11 @@ class CursorCloudDispatchRequest:
             raise CursorCloudDispatchError(
                 "cursor_cloud_fast_model_forbidden",
                 "Fast is not an admitted Cursor Cloud model",
+            )
+        if str(self.model_parameters.get("fast", "false")).casefold() != "false":
+            raise CursorCloudDispatchError(
+                "cursor_cloud_fast_model_forbidden",
+                "SDK model parameters must explicitly keep Fast disabled",
             )
         if not self.expected_build_id.strip():
             raise CursorCloudDispatchError(
@@ -237,6 +243,7 @@ class CursorCloudSDKPort(Protocol):
         *,
         api_key: str,
         model: str,
+        model_parameters: Mapping[str, str],
         repository_url: str,
         starting_ref: str,
         prompt: str,
@@ -262,6 +269,7 @@ class CursorPythonSDKPort:
         *,
         api_key: str,
         model: str,
+        model_parameters: Mapping[str, str],
         repository_url: str,
         starting_ref: str,
         prompt: str,
@@ -270,14 +278,26 @@ class CursorPythonSDKPort:
         idempotency_key: str,
     ) -> Mapping[str, Any]:
         try:
-            from cursor_sdk import Agent, CloudAgentOptions, CloudRepository
+            from cursor_sdk import (
+                Agent,
+                CloudAgentOptions,
+                CloudRepository,
+                ModelParameterValue,
+                ModelSelection,
+            )
         except ImportError as exc:  # pragma: no cover - depends on host runtime
             raise CursorCloudDispatchError(
                 "cursor_cloud_sdk_unavailable",
                 "install cursor-sdk or use the explicit REST fallback",
             ) from exc
         agent = Agent.create(
-            model=model,
+            model=ModelSelection(
+                id=model,
+                params=[
+                    ModelParameterValue(id=key, value=value)
+                    for key, value in sorted(model_parameters.items())
+                ],
+            ),
             api_key=api_key,
             name=name,
             agent_id=agent_id,
@@ -322,6 +342,7 @@ class _SDKAsHTTPPort:
             self.sdk.create_agent(
                 api_key=str(headers["Authorization"]).removeprefix("Bearer "),
                 model=str(body["model"]),
+                model_parameters=self.request.model_parameters,
                 repository_url=normalize_repository_remote(self.request.target_remote),
                 starting_ref=self.request.ref,
                 prompt=str(body["prompt"]),
@@ -403,6 +424,7 @@ def cursor_cloud_idempotency_key(request: CursorCloudDispatchRequest) -> str:
         "commit": request.commit,
         "tree": request.tree,
         "model": request.model,
+        "modelParameters": dict(request.model_parameters),
         "environment": request.environment,
         "environmentPublicId": request.environment_public_id,
         "expectedBuildId": request.expected_build_id,
@@ -586,6 +608,7 @@ def dispatch_cursor_cloud(
             "environment": request.environment,
             "environmentPublicId": request.environment_public_id,
             "model": request.model,
+            "modelParameters": dict(request.model_parameters),
             "expectedBuildId": request.expected_build_id,
             "toolchain": dict(request.toolchain),
             "governedSetup": request.governed_setup,

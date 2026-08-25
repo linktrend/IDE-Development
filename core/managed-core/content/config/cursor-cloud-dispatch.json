@@ -7,6 +7,7 @@
   "preferredClient": "cursor-python-sdk",
   "sdkPackage": "cursor-sdk",
   "sdkRepositoryBinding": "repository-url-and-starting-ref",
+  "auditModelParameters": {"effort": "medium", "fast": "false"},
   "restReadbackRequired": true,
   "singleRepositoryPerRun": true,
   "multiRepositoryRequiresExplicitScope": true,

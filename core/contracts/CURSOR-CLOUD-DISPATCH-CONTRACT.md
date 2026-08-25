@@ -23,6 +23,8 @@ repository URL plus `starting_ref` as first-class SDK fields. Repository-specifi
 work uses one repository per run. Multi-repository execution is admitted only
 when the packet explicitly owns coordinated changes across those repositories;
 contract dependencies alone do not justify a shared write environment.
+Audit launches bind Grok 4.6 with SDK model parameters `effort=medium` and
+`fast=false`; provider readback remains mandatory.
 
 Direct REST remains the bounded fallback and authoritative readback surface.
 The REST adapter calls `POST /v1/agents` through an injected HTTP port. It supplies

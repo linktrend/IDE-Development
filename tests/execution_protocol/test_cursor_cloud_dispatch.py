@@ -126,6 +126,7 @@ class CursorCloudDispatchTests(unittest.TestCase):
         self.assertEqual(config["preferredClient"], "cursor-python-sdk")
         self.assertEqual(config["sdkPackage"], "cursor-sdk")
         self.assertEqual(config["sdkRepositoryBinding"], "repository-url-and-starting-ref")
+        self.assertEqual(config["auditModelParameters"], {"effort": "medium", "fast": "false"})
         self.assertTrue(config["restReadbackRequired"])
         self.assertTrue(config["singleRepositoryPerRun"])
         self.assertTrue(config["multiRepositoryRequiresExplicitScope"])
@@ -227,6 +228,14 @@ class CursorCloudDispatchTests(unittest.TestCase):
         self.assertEqual(sdk.calls[0]["repository_url"], REQUEST.target_remote)
         self.assertEqual(sdk.calls[0]["starting_ref"], REQUEST.ref)
         self.assertEqual(sdk.calls[0]["model"], REQUEST.model)
+        self.assertEqual(sdk.calls[0]["model_parameters"], {})
+
+    def test_sdk_fast_parameter_is_rejected_before_dispatch(self) -> None:
+        request = CursorCloudDispatchRequest(
+            **{**REQUEST.__dict__, "model_parameters": {"effort": "medium", "fast": "true"}}
+        )
+        with self.assertRaisesRegex(CursorCloudDispatchError, "Fast"):
+            request.validate()
 
     def test_repo_relative_target_is_canonicalized_to_saved_environment_root(self) -> None:
         request = CursorCloudDispatchRequest(

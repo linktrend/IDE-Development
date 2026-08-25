@@ -13,6 +13,7 @@
     "preferredClient",
     "sdkPackage",
     "sdkRepositoryBinding",
+    "auditModelParameters",
     "restReadbackRequired",
     "singleRepositoryPerRun",
     "multiRepositoryRequiresExplicitScope",
@@ -41,6 +42,15 @@
     "preferredClient": {"type": "string", "const": "cursor-python-sdk"},
     "sdkPackage": {"type": "string", "const": "cursor-sdk"},
     "sdkRepositoryBinding": {"type": "string", "const": "repository-url-and-starting-ref"},
+    "auditModelParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["effort", "fast"],
+      "properties": {
+        "effort": {"type": "string", "const": "medium"},
+        "fast": {"type": "string", "const": "false"}
+      }
+    },
     "restReadbackRequired": {"type": "boolean", "const": true},
     "singleRepositoryPerRun": {"type": "boolean", "const": true},
     "multiRepositoryRequiresExplicitScope": {"type": "boolean", "const": true},
