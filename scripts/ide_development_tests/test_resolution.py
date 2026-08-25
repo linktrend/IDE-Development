@@ -7,11 +7,58 @@ import unittest
 from pathlib import Path
 
 from ide_development.errors import InvalidPackageError
-from ide_development.resolution import KIND, _canonical_digest, _path, _validate_change_scoped_binding, load_and_validate_resolution
+from ide_development.resolution import (
+    ALLOWED_CONFLICT_PATHS,
+    KIND,
+    _canonical_digest,
+    _path,
+    _validate_observed_conflict_paths,
+    _validate_change_scoped_binding,
+    load_and_validate_resolution,
+)
 from ide_development_tests import TempRepoTestCase
 
 
 class ResolutionTests(TempRepoTestCase):
+    def test_managed_upgrade_allowlist_matches_schema_union(self) -> None:
+        expected = {
+            ".ide-development/schemas/phase-handoff.schema.json",
+            ".ide-development/schemas/phase-record.schema.json",
+            ".ide-development/schemas/secret-scan-result.schema.json",
+            ".ide-development/tests/test_fixture_aware_secret_scan.py",
+            ".ide-development/tests/test_phase_packager_coordinator.py",
+            "scripts/gitops/packager_coordinator.py",
+            "scripts/gitops/phase_integrator.py",
+            "scripts/gitops/secret_scan.py",
+        }
+        self.assertEqual(ALLOWED_CONFLICT_PATHS, expected)
+        schema_path = (
+            Path(__file__).resolve().parents[2]
+            / "core/managed-core/schemas/managed-upgrade-resolution.schema.json"
+        )
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertEqual(schema["properties"]["allowedConflictPaths"]["const"], sorted(expected))
+        self.assertEqual(schema["$defs"]["conflict"]["properties"]["path"]["enum"], sorted(expected))
+        self.assertEqual(schema["properties"]["conflicts"]["minItems"], 1)
+
+    def test_observed_conflicts_may_be_a_nonempty_allowlisted_subset_only(self) -> None:
+        seven_paths = [
+            ".ide-development/schemas/phase-handoff.schema.json",
+            ".ide-development/schemas/phase-record.schema.json",
+            ".ide-development/schemas/secret-scan-result.schema.json",
+            ".ide-development/tests/test_phase_packager_coordinator.py",
+            "scripts/gitops/packager_coordinator.py",
+            "scripts/gitops/phase_integrator.py",
+            "scripts/gitops/secret_scan.py",
+        ]
+        observed = _validate_observed_conflict_paths(seven_paths)
+        self.assertEqual(len(observed), 7)
+        self.assertEqual(_validate_observed_conflict_paths(ALLOWED_CONFLICT_PATHS), ALLOWED_CONFLICT_PATHS)
+        with self.assertRaises(InvalidPackageError):
+            _validate_observed_conflict_paths([])
+        with self.assertRaises(InvalidPackageError):
+            _validate_observed_conflict_paths(["consumer-owned.txt"])
+
     def test_change_scoped_binding_is_digest_bound_and_rejects_missing_input(self) -> None:
         evidence = {
             "schemaVersion": 1,
