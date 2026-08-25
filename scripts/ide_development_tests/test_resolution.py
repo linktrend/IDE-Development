@@ -22,6 +22,7 @@ from ide_development_tests import TempRepoTestCase
 class ResolutionTests(TempRepoTestCase):
     def test_managed_upgrade_allowlist_matches_schema_union(self) -> None:
         expected = {
+            ".ide-development/schemas/managed-upgrade-resolution.schema.json",
             ".ide-development/schemas/phase-handoff.schema.json",
             ".ide-development/schemas/phase-record.schema.json",
             ".ide-development/schemas/secret-scan-result.schema.json",
