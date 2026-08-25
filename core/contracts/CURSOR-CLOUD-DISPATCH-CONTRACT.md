@@ -40,10 +40,13 @@ the default LiNKharness primary repository is rejected. The first prompt must
 resolve that path, and fetch/checkout the required ref or exact commit only as
 governed setup, before remote/repository/ref/commit/tree/toolchain attestation.
 The expected build ID is recorded as provenance only; it is deliberately not
-sent as a selectable build or model selector. After creation, the provider run
-readback must explicitly record the public environment ID, observed build
-provenance, expected build provenance, effective model and `fast=false`; a
-mismatch is a hard stop.
+sent as a selectable build or model selector. After creation, mandatory REST
+`GET /v1/agents/{agentId}` readback must explicitly record and match the
+governed repository URL, starting ref, agent ID, run ID, public environment ID,
+observed build provenance, expected build provenance, effective model, and
+`fast=false` before durable `COMMITTED` state. Missing or mismatched readback
+fields are a hard stop; the dispatcher must not synthesize omitted identity
+from the outbound request.
 
 Before the API call, the durable store must contain a read-back-verified
 `PREPARED` intent. The idempotency key and deterministic client-supplied agent

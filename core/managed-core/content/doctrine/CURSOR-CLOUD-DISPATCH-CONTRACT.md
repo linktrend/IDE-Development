@@ -15,8 +15,10 @@ missing audit parameters fail closed rather than defaulting silently.
 Direct REST remains the bounded fallback when the SDK package or dispatch path
 is unavailable. REST is also the authoritative readback surface: after SDK or
 REST creation, the orchestrator performs `GET /v1/agents/{agentId}` through
-the injected HTTP port and validates environment, build provenance, effective
-model, and `fast=false` before committing durable `COMMITTED` state.
+the injected HTTP port and validates repository URL, starting ref, agent ID,
+run ID, environment, build provenance, effective model, and `fast=false`
+before committing durable `COMMITTED` state. Missing or mismatched readback
+fields fail closed; omitted identity must not be synthesized from the request.
 
 Repository-specific work uses one repository per run by default. Coordinated
 multi-repository execution is admitted only when the packet declares explicit
