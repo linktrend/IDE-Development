@@ -21,6 +21,7 @@ KIND = "ide-managed-upgrade-resolution"
 # digest-bound upgrade. Keep this set explicit so a provider manifest cannot
 # become implicit overwrite authority.
 ALLOWED_CONFLICT_PATHS = frozenset({
+    ".ide-development/schemas/managed-upgrade-resolution.schema.json",
     ".ide-development/schemas/phase-handoff.schema.json",
     ".ide-development/schemas/phase-record.schema.json",
     ".ide-development/schemas/secret-scan-result.schema.json",
