@@ -669,42 +669,47 @@ def _response_value(response: Mapping[str, Any], *keys: str) -> Any:
     return None
 
 
-def _normalize_rest_run_readback(
-    response: Mapping[str, Any], request: CursorCloudDispatchRequest
-) -> dict[str, Any]:
-    observed_env = _response_value(response, "env", "environment") or request.environment
+def _normalize_rest_run_readback(response: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract provider GET fields only; never synthesize missing identity from the request."""
+
+    observed_env = _response_value(response, "env", "environment")
     if not isinstance(observed_env, Mapping):
-        observed_env = request.environment
+        observed_env = {}
     fast_value = response.get("fast")
     if fast_value is None:
         params = _response_value(response, "modelParameters", "model_parameters")
         if isinstance(params, Mapping) and "fast" in params:
             fast_value = str(params["fast"]).casefold() == "true"
-        else:
-            fast_value = True
     elif isinstance(fast_value, str):
         fast_value = fast_value.casefold() == "true"
+    run = response.get("run")
+    run_id = _response_value(response, "runId")
+    if not run_id and isinstance(run, Mapping):
+        run_id = run.get("id")
     return {
         "environment": dict(observed_env),
-        "environmentPublicId": str(
-            _response_value(response, "environmentPublicId", "environment_public_id")
-            or request.environment_public_id
+        "environmentPublicId": _response_value(
+            response, "environmentPublicId", "environment_public_id"
         ),
-        "observedBuildId": str(
-            _response_value(response, "observedBuildId", "observed_build_id", "buildId") or ""
+        "observedBuildId": _response_value(
+            response, "observedBuildId", "observed_build_id", "buildId"
         ),
-        "expectedBuildId": str(
-            _response_value(response, "expectedBuildId", "expected_build_id")
-            or request.expected_build_id
+        "expectedBuildId": _response_value(response, "expectedBuildId", "expected_build_id"),
+        "effectiveModel": _response_value(response, "effectiveModel", "model"),
+        "fast": fast_value,
+        "agentId": _response_value(response, "agentId", "id"),
+        "runId": run_id,
+        "repositoryUrl": _response_value(
+            response, "repositoryUrl", "repository_url", "repository"
         ),
-        "effectiveModel": str(_response_value(response, "effectiveModel", "model") or request.model),
-        "fast": bool(fast_value),
+        "startingRef": _response_value(response, "startingRef", "starting_ref", "ref"),
     }
 
 
 def _rest_get_run_readback(
     http: CursorCloudHTTPPort,
     agent_id: str,
+    run_id: str,
     headers: Mapping[str, str],
     request: CursorCloudDispatchRequest,
 ) -> Mapping[str, Any]:
@@ -722,8 +727,10 @@ def _rest_get_run_readback(
             "REST GET readback did not return HTTP 200",
             statusCode=status,
         )
-    readback = _normalize_rest_run_readback(response, request)
-    validate_cursor_cloud_run_readback(request, readback)
+    readback = _normalize_rest_run_readback(response)
+    validate_cursor_cloud_run_readback(
+        request, readback, expected_agent_id=agent_id, expected_run_id=run_id
+    )
     return readback
 
 
@@ -861,7 +868,7 @@ def dispatch_cursor_cloud(
         )
     if require_rest_readback:
         readback_http = rest_readback if rest_readback is not None else http
-        _rest_get_run_readback(readback_http, agent_id, headers, request)
+        _rest_get_run_readback(readback_http, agent_id, run_id, headers, request)
     payload = dict(current)
     payload.update(
         {
@@ -1011,11 +1018,61 @@ def validate_cursor_cloud_attestation(
 
 
 def validate_cursor_cloud_run_readback(
-    request: CursorCloudDispatchRequest, readback: Mapping[str, Any]
+    request: CursorCloudDispatchRequest,
+    readback: Mapping[str, Any],
+    *,
+    expected_agent_id: str,
+    expected_run_id: str,
 ) -> None:
     """Validate post-creation provider readback without treating build provenance as a selector."""
 
     request.validate()
+    observed_agent_id = str(readback.get("agentId") or "").strip()
+    if not observed_agent_id:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_agent_id_missing",
+            "run readback must record agent identity",
+        )
+    if observed_agent_id != expected_agent_id:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_agent_id_mismatch",
+            "run readback agent identity does not match the created agent",
+        )
+    observed_run_id = str(readback.get("runId") or "").strip()
+    if not observed_run_id:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_run_id_missing",
+            "run readback must record run identity",
+        )
+    if observed_run_id != expected_run_id:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_run_id_mismatch",
+            "run readback run identity does not match the created run",
+        )
+    observed_repository = readback.get("repositoryUrl") or readback.get("repository")
+    if not str(observed_repository or "").strip():
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_repository_missing",
+            "run readback must record repository URL",
+        )
+    if normalize_repository_remote(str(observed_repository)) != normalize_repository_remote(
+        request.target_remote
+    ):
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_repository_mismatch",
+            "run readback repository URL does not match the governed target",
+        )
+    observed_ref = readback.get("startingRef") or readback.get("ref")
+    if not str(observed_ref or "").strip():
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_starting_ref_missing",
+            "run readback must record starting ref",
+        )
+    if str(observed_ref) != request.ref:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_starting_ref_mismatch",
+            "run readback starting ref does not match the governed target",
+        )
     observed_environment = readback.get("environment")
     if not isinstance(observed_environment, Mapping) or dict(observed_environment) != request.environment:
         raise CursorCloudDispatchError(
