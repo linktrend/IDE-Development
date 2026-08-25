@@ -1,9 +1,11 @@
-"""Fail-closed Cursor Cloud API dispatch contract.
+"""Fail-closed Cursor Cloud SDK/API dispatch contract.
 
 The authenticated ``cursor-agent`` CLI is a local-workspace capability.  It is
 not evidence that this process can create a Cursor Cloud agent.  Cloud
-creation therefore requires ``CURSOR_API_KEY`` and uses only the HTTP API
-authority represented by that key.
+creation therefore requires ``CURSOR_API_KEY``.  The Python SDK is the
+preferred orchestration client because it binds the repository URL and
+starting ref explicitly; the HTTP port remains the verification/fallback
+surface.
 """
 
 from __future__ import annotations
@@ -227,6 +229,119 @@ class CursorCloudHTTPPort(Protocol):
     def post(
         self, path: str, *, headers: Mapping[str, str], body: Mapping[str, Any]
     ) -> Mapping[str, Any]: ...
+
+
+class CursorCloudSDKPort(Protocol):
+    def create_agent(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        repository_url: str,
+        starting_ref: str,
+        prompt: str,
+        name: str,
+        agent_id: str,
+        idempotency_key: str,
+    ) -> Mapping[str, Any]: ...
+
+
+class CursorPythonSDKPort:
+    """Lazy real ``cursor-sdk`` adapter.
+
+    Import is deferred so validation and consumers that use only REST do not
+    acquire a mandatory runtime dependency.  Handles are retained because a
+    cloud agent must outlive the create call.
+    """
+
+    def __init__(self) -> None:
+        self._agents: dict[str, Any] = {}
+
+    def create_agent(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        repository_url: str,
+        starting_ref: str,
+        prompt: str,
+        name: str,
+        agent_id: str,
+        idempotency_key: str,
+    ) -> Mapping[str, Any]:
+        try:
+            from cursor_sdk import Agent, CloudAgentOptions, CloudRepository
+        except ImportError as exc:  # pragma: no cover - depends on host runtime
+            raise CursorCloudDispatchError(
+                "cursor_cloud_sdk_unavailable",
+                "install cursor-sdk or use the explicit REST fallback",
+            ) from exc
+        agent = Agent.create(
+            model=model,
+            api_key=api_key,
+            name=name,
+            agent_id=agent_id,
+            idempotency_key=idempotency_key,
+            cloud=CloudAgentOptions(
+                repos=[CloudRepository(url=repository_url, starting_ref=starting_ref)],
+                auto_create_pr=False,
+            ),
+        )
+        run = agent.send(prompt)
+        agent_id = str(getattr(agent, "agent_id", "") or "")
+        run_id = str(getattr(run, "run_id", None) or getattr(run, "id", "") or "")
+        if not agent_id or not run_id:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_sdk_identity_missing",
+                "SDK create/send did not return durable agent and run identities",
+            )
+        self._agents[agent_id] = agent
+        return {
+            "statusCode": 201,
+            "agentId": agent_id,
+            "runId": run_id,
+            "model": model,
+            "repository": repository_url,
+            "startingRef": starting_ref,
+        }
+
+
+class _SDKAsHTTPPort:
+    """Normalize the SDK create/send result into the existing commit path."""
+
+    def __init__(self, request: CursorCloudDispatchRequest, sdk: CursorCloudSDKPort) -> None:
+        self.request = request
+        self.sdk = sdk
+
+    def post(
+        self, path: str, *, headers: Mapping[str, str], body: Mapping[str, Any]
+    ) -> Mapping[str, Any]:
+        if path != API_PATH:
+            raise CursorCloudDispatchError("cursor_cloud_sdk_path_invalid", "unexpected SDK path")
+        response = dict(
+            self.sdk.create_agent(
+                api_key=str(headers["Authorization"]).removeprefix("Bearer "),
+                model=str(body["model"]),
+                repository_url=normalize_repository_remote(self.request.target_remote),
+                starting_ref=self.request.ref,
+                prompt=str(body["prompt"]),
+                name=f"{self.request.repository}:{self.request.ref}",
+                agent_id=str(body["agentId"]),
+                idempotency_key=str(headers["Idempotency-Key"]),
+            )
+        )
+        if response.get("repository") != normalize_repository_remote(self.request.target_remote):
+            raise CursorCloudDispatchError(
+                "cursor_cloud_sdk_repository_mismatch",
+                "SDK response repository does not match the governed target",
+            )
+        if response.get("startingRef") != self.request.ref:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_sdk_ref_mismatch",
+                "SDK response starting ref does not match the governed target",
+            )
+        response["env"] = self.request.environment
+        return response
 
 
 class DurableCursorCloudIntentStore:
@@ -571,6 +686,30 @@ def dispatch_cursor_cloud(
         request.expected_build_id,
         int(committed["revision"]),
         prompt,
+    )
+
+
+def dispatch_cursor_cloud_sdk(
+    request: CursorCloudDispatchRequest,
+    store: CursorCloudIntentStore,
+    sdk: CursorCloudSDKPort,
+    *,
+    environment: Mapping[str, str] | None = None,
+    cursor_cli_authenticated: bool = False,
+) -> CursorCloudDispatchResult:
+    """Preferred repository-bound SDK orchestration path.
+
+    The durable intent, idempotency, model, attestation and post-create
+    readback contract is shared with REST.  The difference is that the SDK
+    receives the exact repository URL and starting ref as first-class fields.
+    """
+
+    return dispatch_cursor_cloud(
+        request,
+        store,
+        _SDKAsHTTPPort(request, sdk),
+        environment=environment,
+        cursor_cli_authenticated=cursor_cli_authenticated,
     )
 
 

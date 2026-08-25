@@ -1,4 +1,4 @@
-# Cursor Cloud API dispatch contract
+# Cursor Cloud SDK/API dispatch contract
 
 **Control:** `cursor-cloud-dispatch-v1`
 
@@ -18,7 +18,14 @@ prepared-intent supersession without reusing a Cloud attempt, and effective
 model readback. The execution-manifest schema validates this object strictly;
 unknown fields are rejected.
 
-The adapter calls `POST /v1/agents` through an injected HTTP port. It supplies
+The preferred adapter uses the official Python `cursor-sdk` and binds one exact
+repository URL plus `starting_ref` as first-class SDK fields. Repository-specific
+work uses one repository per run. Multi-repository execution is admitted only
+when the packet explicitly owns coordinated changes across those repositories;
+contract dependencies alone do not justify a shared write environment.
+
+Direct REST remains the bounded fallback and authoritative readback surface.
+The REST adapter calls `POST /v1/agents` through an injected HTTP port. It supplies
 the exact named environment `{type: "cloud", name: "IDE Development 2.5.1"}`
 and one exact non-Fast model. The saved environment's public identity
 `1937ddb1-9d3e-11f1-a7d1-d6b4613131ce` is carried in PREPARED/readback evidence,

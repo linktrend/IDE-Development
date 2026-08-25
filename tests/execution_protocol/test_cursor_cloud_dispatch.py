@@ -10,7 +10,9 @@ from core.execution.cursor_cloud_dispatch import (
     CursorCloudDispatchRequest,
     DurableCursorCloudIntentStore,
     ENV_PUBLIC_ID,
+    cursor_cloud_client_agent_id,
     dispatch_cursor_cloud,
+    dispatch_cursor_cloud_sdk,
     supersede_obsolete_prepared_intents,
     load_cursor_cloud_dispatch_config,
     require_cursor_cloud_api_key,
@@ -54,6 +56,22 @@ class FakeCursorCloudHTTP:
             "runId": "run-379",
             "env": body["env"],
             "model": body["model"],
+        }
+
+
+class FakeCursorCloudSDK:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def create_agent(self, **kwargs):
+        self.calls.append(dict(kwargs))
+        return {
+            "statusCode": 201,
+            "agentId": "ide-" + "a" * 32,
+            "runId": "run-sdk-422",
+            "model": kwargs["model"],
+            "repository": kwargs["repository_url"],
+            "startingRef": kwargs["starting_ref"],
         }
 
 
@@ -105,6 +123,12 @@ class CursorCloudDispatchTests(unittest.TestCase):
         config = load_cursor_cloud_dispatch_config(str(Path(__file__).resolve().parents[2]))
         self.assertEqual(config["apiBaseUrl"], "https://api.cursor.com")
         self.assertEqual(config["apiPath"], "/v1/agents")
+        self.assertEqual(config["preferredClient"], "cursor-python-sdk")
+        self.assertEqual(config["sdkPackage"], "cursor-sdk")
+        self.assertEqual(config["sdkRepositoryBinding"], "repository-url-and-starting-ref")
+        self.assertTrue(config["restReadbackRequired"])
+        self.assertTrue(config["singleRepositoryPerRun"])
+        self.assertTrue(config["multiRepositoryRequiresExplicitScope"])
         self.assertEqual(config["savedRepositoryLayout"], "/agent/repos/<repo>")
         self.assertEqual(config["maxApiAttempts"], 2)
         self.assertEqual(config["environment"]["publicId"], ENV_PUBLIC_ID)
@@ -179,6 +203,30 @@ class CursorCloudDispatchTests(unittest.TestCase):
         self.assertNotIn("tree", body)
         self.assertIn("cd to and resolve the exact saved-environment target path /agent/repos/LiNKbrain", body["prompt"])
         self.assertIn("https://github.com/linktrend/LiNKbrain", body["prompt"])
+
+    def test_sdk_path_binds_exact_repository_and_starting_ref(self) -> None:
+        store = DurableCursorCloudIntentStore()
+        sdk = FakeCursorCloudSDK()
+        expected_client_id = cursor_cloud_client_agent_id(REQUEST)
+        # The fake must echo the deterministic caller-owned agent identity.
+        sdk.create_agent = lambda **kwargs: (
+            sdk.calls.append(dict(kwargs))
+            or {
+                "statusCode": 201,
+                "agentId": expected_client_id,
+                "runId": "run-sdk-422",
+                "model": kwargs["model"],
+                "repository": kwargs["repository_url"],
+                "startingRef": kwargs["starting_ref"],
+            }
+        )
+        result = dispatch_cursor_cloud_sdk(
+            REQUEST, store, sdk, environment={KEY_NAME: "test-only-key"}
+        )
+        self.assertEqual(result.status, "committed")
+        self.assertEqual(sdk.calls[0]["repository_url"], REQUEST.target_remote)
+        self.assertEqual(sdk.calls[0]["starting_ref"], REQUEST.ref)
+        self.assertEqual(sdk.calls[0]["model"], REQUEST.model)
 
     def test_repo_relative_target_is_canonicalized_to_saved_environment_root(self) -> None:
         request = CursorCloudDispatchRequest(
