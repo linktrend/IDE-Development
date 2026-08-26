@@ -4118,7 +4118,7 @@
       "id": "gitops-scripts-gitops-issue-checkpoint-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/issue_checkpoint.py",
-      "sourceHash": "sha256:4d57320f09838b15b4b5e126933f5d4c5ad8bb4829d715d6874adeeb42e24cdf",
+      "sourceHash": "sha256:29f5155ebef889eae99f7bd32fcaa39386a9eda0d5d69f2cc863d849662ab3df",
       "destination": "scripts/gitops/issue_checkpoint.py",
       "mode": "0644",
       "platform": "github",
