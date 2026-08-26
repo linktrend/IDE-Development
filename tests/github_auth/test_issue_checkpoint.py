@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -46,6 +50,40 @@ def lean_payload(**overrides):
 
 
 class IssueCheckpointTests(unittest.TestCase):
+    def test_workflow_style_import_uses_installed_protocol_without_core(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="issue-checkpoint-managed-") as raw:
+            root = Path(raw)
+            (root / "scripts/gitops").mkdir(parents=True)
+            (root / ".ide-development/execution").mkdir(parents=True)
+            shutil.copy2(
+                ROOT / "scripts/gitops/issue_checkpoint.py",
+                root / "scripts/gitops/issue_checkpoint.py",
+            )
+            shutil.copy2(
+                ROOT / "scripts/gitops/github_auth.py",
+                root / "scripts/gitops/github_auth.py",
+            )
+            shutil.copy2(
+                ROOT / "core/execution/protocol.py",
+                root / ".ide-development/execution/protocol.py",
+            )
+            code = (
+                "import sys; sys.path.insert(0, 'scripts/gitops'); "
+                "import issue_checkpoint as checkpoint; "
+                "assert checkpoint.AMENDMENT_ID == 'V25_BOOTSTRAP_LEAN'; "
+                "assert checkpoint.evaluate_issue_checkpoint is not None"
+            )
+            env = os.environ.copy()
+            env.pop("PYTHONPATH", None)
+            result = subprocess.run(
+                [sys.executable, "-c", code],
+                cwd=root,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_lean_evidence_accepts_without_review_ready_or_token(self) -> None:
         ok, detail, meta = bind_issue_completion(
             sha=COMMIT,
