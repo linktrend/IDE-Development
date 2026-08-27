@@ -46,3 +46,9 @@ Installed managed core: **`.ide-development/`** (versioned package; treat as rea
 
 When needed, open files under `.ide-development/` (and local `docs/` / `scripts/` already installed). Prefer progressive disclosure; do not scan the entire package.
 <!-- END LINKTREND-IDE-MANAGED -->
+
+## AgentLens codebase navigation
+
+- Before exploring source, read `.agentlens/INDEX.md` and route through the relevant module documentation.
+- Before modifying a module, read its `memory.md`; use `outline.md` to locate symbols in large files and `imports.md` to inspect dependencies.
+- If the generated documentation is stale, regenerate it from the repository root with `agentlens .`.

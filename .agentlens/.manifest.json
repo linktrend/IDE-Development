@@ -1,0 +1,106 @@
+{
+  "version": "0.5.0",
+  "generated_at": 1787805095,
+  "modules": {
+    "host-coordinator": {
+      "latest_mtime": 1787804902,
+      "file_count": 12,
+      "files_hash": 12700570965035594416
+    },
+    "tests-adapters": {
+      "latest_mtime": 1787804902,
+      "file_count": 3,
+      "files_hash": 10693005000178676938
+    },
+    "core": {
+      "latest_mtime": 1787804902,
+      "file_count": 12,
+      "files_hash": 18119573807669854523
+    },
+    "core-link-integrations": {
+      "latest_mtime": 1787804902,
+      "file_count": 15,
+      "files_hash": 848797702059266981
+    },
+    "tests-managed-core-migration-bb-harness": {
+      "latest_mtime": 1787804902,
+      "file_count": 7,
+      "files_hash": 2399953100680214262
+    },
+    "tests-github_auth": {
+      "latest_mtime": 1787804902,
+      "file_count": 3,
+      "files_hash": 14284098768179760714
+    },
+    "scripts-ide_development_tests": {
+      "latest_mtime": 1787804902,
+      "file_count": 12,
+      "files_hash": 14541097380902236628
+    },
+    "scripts-tests": {
+      "latest_mtime": 1787804902,
+      "file_count": 27,
+      "files_hash": 668047245221475431
+    },
+    "tests-app_canary": {
+      "latest_mtime": 1787804902,
+      "file_count": 2,
+      "files_hash": 13033784552674834501
+    },
+    "scripts-ide_development": {
+      "latest_mtime": 1787804902,
+      "file_count": 20,
+      "files_hash": 16024775114073818472
+    },
+    "tests-delivery": {
+      "latest_mtime": 1787804902,
+      "file_count": 3,
+      "files_hash": 5751738246853646860
+    },
+    "tests-security_acceptance": {
+      "latest_mtime": 1787804902,
+      "file_count": 11,
+      "files_hash": 12625627261604177751
+    },
+    "core-execution": {
+      "latest_mtime": 1787804902,
+      "file_count": 9,
+      "files_hash": 541848542009416905
+    },
+    "tests-platform_matrix": {
+      "latest_mtime": 1787804902,
+      "file_count": 8,
+      "files_hash": 8998516531493734344
+    },
+    "tests-execution_protocol": {
+      "latest_mtime": 1787804902,
+      "file_count": 9,
+      "files_hash": 18336947354732131223
+    },
+    "scripts-gitops-coordinator": {
+      "latest_mtime": 1787804902,
+      "file_count": 4,
+      "files_hash": 13027682483106300873
+    },
+    "root": {
+      "latest_mtime": 1787804902,
+      "file_count": 65,
+      "files_hash": 3496069169234784208
+    },
+    "tests-cleanroom_acceptance-harness": {
+      "latest_mtime": 1787804902,
+      "file_count": 6,
+      "files_hash": 518570527181474256
+    },
+    "tests-link-integrations": {
+      "latest_mtime": 1787804902,
+      "file_count": 10,
+      "files_hash": 6350402345090113960
+    },
+    "host-coordinator-tests": {
+      "latest_mtime": 1787804902,
+      "file_count": 8,
+      "files_hash": 16205746447748618592
+    }
+  }
+}

@@ -1,0 +1,73 @@
+# Outline
+
+[← Back to MODULE](MODULE.md) | [← Back to INDEX](../../INDEX.md)
+
+Symbol maps for 1 large files in this module.
+
+## tests/execution_protocol/test_protocol.py (679 lines)
+
+| Line | Kind | Name | Visibility |
+| ---- | ---- | ---- | ---------- |
+| 59 | fn | example_manifest | pub |
+| 64 | class | DiscoveryTests | pub |
+| 65 | fn | test_runtime_discovers_protocol_1_0_1_surfaces | pub |
+| 79 | fn | test_protocol_and_doctrine_share_version_1_0_1 | pub |
+| 88 | fn | test_missing_surface_fails_closed | pub |
+| 92 | fn | test_runtime_discovers_installed_consumer_layout | pub |
+| 121 | class | ManifestSchemaTests | pub |
+| 122 | fn | test_example_manifest_is_schema_valid | pub |
+| 128 | fn | test_unknown_top_level_field_is_rejected | pub |
+| 135 | fn | test_wrong_protocol_version_is_rejected | pub |
+| 141 | fn | test_short_commit_is_rejected | pub |
+| 147 | fn | test_schema_loader_matches_discovery | pub |
+| 155 | fn | test_missing_amendment_is_rejected | pub |
+| 162 | class | ExactCandidateTests | pub |
+| 163 | fn | test_identical_identity_is_not_invalidated | pub |
+| 173 | fn | test_new_commit_or_tree_invalidates | pub |
+| 196 | fn | test_digest_change_invalidates_when_bound | pub |
+| 216 | class | BoundedRetryTests | pub |
+| 217 | fn | test_ordinary_source_allows_three_then_stops | pub |
+| 224 | fn | test_infrastructure_retries_once_then_stops | pub |
+| 232 | fn | test_code_failure_never_retries | pub |
+| 239 | class | OrchestrationLeaseTests | pub |
+| 240 | fn | test_exclusive_live_lease_blocks_other_holder | pub |
+| 261 | fn | test_expired_lease_cannot_mutate | pub |
+| 281 | fn | test_matching_live_lease_authorizes_holder | pub |
+| 302 | class | ResourceUncertaintyTests | pub |
+| 303 | fn | test_missing_snapshot_is_uncertain_and_not_admitted | pub |
+| 309 | fn | test_unknown_field_is_blocking | pub |
+| 321 | fn | test_complete_snapshot_admits | pub |
+| 334 | class | AutomaticApprovalTests | pub |
+| 335 | fn | test_checkpoint_is_automatic | pub |
+| 341 | fn | test_main_promote_requires_recorded_founder | pub |
+| 351 | fn | test_self_review_and_self_merge_are_forbidden | pub |
+| 357 | class | GitAuthorityTests | pub |
+| 358 | fn | test_implementer_may_push_issue_branch_only | pub |
+| 374 | fn | test_implementer_cannot_open_or_merge | pub |
+| 389 | class | PublisherAuthorityTests | pub |
+| 390 | fn | test_no_singular_legacy_publisher_is_canonical_for_v25 | pub |
+| 402 | fn | test_failed_or_missing_legacy_publisher_is_waived_not_pass | pub |
+| 419 | class | IssueCheckpointTests | pub |
+| 420 | fn | test_complete_evidence_accepts_without_review_ready_or_token | pub |
+| 437 | fn | test_missing_terra_verification_is_not_accepted | pub |
+| 451 | class | AdministratorRecoveryTests | pub |
+| 452 | fn | test_named_exact_head_recovery_after_replacement_proof | pub |
+| 461 | fn | test_unnamed_or_extra_operations_are_denied | pub |
+| 485 | class | AutoworkDiscoveryTests | pub |
+| 486 | fn | test_callable_discovery_is_required | pub |
+| 494 | fn | test_uncallable_cannot_claim_live_pass | pub |
+| 507 | class | DurableHeartbeatGateTests | pub |
+| 508 | fn | _record | (private) |
+| 519 | fn | test_write_and_readback_admits | pub |
+| 524 | fn | test_missing_readback_is_rejected | pub |
+| 538 | fn | test_mutated_readback_is_rejected | pub |
+| 555 | class | CheckoutBoundReceiptTests | pub |
+| 556 | fn | test_exact_checkout_receipt_is_promotable | pub |
+| 573 | fn | test_merge_ref_identity_is_forbidden | pub |
+| 591 | class | RetryExhaustionRecoveryTests | pub |
+| 592 | fn | test_ordinary_exhaustion_requires_new_identity | pub |
+| 617 | fn | test_infrastructure_hold_allows_named_exception | pub |
+| 640 | class | HostedCapacitySchedulerTests | pub |
+| 641 | fn | test_busy_allocator_without_snapshot_is_uncertain | pub |
+| 650 | fn | test_complete_snapshot_with_no_slots_is_exhausted | pub |
+| 664 | fn | test_complete_snapshot_with_slots_schedules | pub |
