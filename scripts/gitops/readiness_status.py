@@ -197,6 +197,14 @@ def build_portfolio_status(
         "workerProvider": providers,
         "maximumSafeParallelismInUse": maximum_parallelism,
         "protectedTruth": dict(protected_truth or {}),
+        "heartbeatContinuity": dict(state.get("heartbeatAcceptance") or {
+            "status": "PENDING",
+            "confirmedScheduledInvocations": 0,
+            "consecutiveScheduledInvocations": 0,
+            "terminalWorkerReconciled": False,
+            "dependencyReadyPacketDispatched": False,
+            "requirements": ["consecutive_scheduled_invocations"],
+        }),
     }
 
 

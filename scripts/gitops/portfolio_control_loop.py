@@ -52,6 +52,9 @@ TERMINAL_WORKER_STATES = frozenset(
 ACTIVE_WORKER_STATES = frozenset({"RUNNING", "STARTED", "LIVE", "RESTARTED"})
 ALLOWED_TRIGGERS = frozenset({"hourly", "PULSE"})
 MAX_STATE_EVENTS = 500
+HEARTBEAT_PENDING = "PENDING"
+HEARTBEAT_ACTIVE = "ACTIVE"
+HEARTBEAT_PROVEN = "PROVEN"
 
 
 class ControlLoopStore(Protocol):
@@ -285,6 +288,15 @@ def new_control_loop_state(
         "blockers": [],
         "activeTurn": None,
         "lastReport": None,
+        "heartbeatAcceptance": {
+            "status": HEARTBEAT_PENDING,
+            "automationId": None,
+            "confirmedScheduledInvocations": 0,
+            "consecutiveScheduledInvocations": 0,
+            "terminalWorkerReconciled": False,
+            "dependencyReadyPacketDispatched": False,
+            "requirements": ["consecutive_scheduled_invocations"],
+        },
     }
 
 
@@ -309,6 +321,153 @@ def _accepted(observation: Mapping[str, Any], worker: Mapping[str, Any]) -> bool
         or ""
     ).upper()
     return result in {"SUCCESS", "SUCCEEDED", "ACCEPT", "ACCEPTED", "PASS", "PASSED", "COMPLETED"}
+
+
+def _heartbeat_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def _consecutive_scheduled_deliveries(automation: Mapping[str, Any]) -> tuple[int, int]:
+    """Return (confirmed receipt count, latest cadence-consecutive streak)."""
+
+    receipts = automation.get("deliveryReceipts")
+    if not isinstance(receipts, list):
+        return 0, 0
+    cadence = int(automation.get("cadenceSeconds") or 0)
+    confirmed_count = 0
+    streak = 0
+    previous_scheduled: datetime | None = None
+    previous_actual: datetime | None = None
+    for receipt in receipts:
+        if not isinstance(receipt, Mapping):
+            streak = 0
+            previous_scheduled = previous_actual = None
+            continue
+        scheduled = _heartbeat_timestamp(receipt.get("scheduledAt"))
+        actual = _heartbeat_timestamp(receipt.get("actualDeliveryAt"))
+        confirmed = (
+            scheduled is not None
+            and actual is not None
+            and str(receipt.get("result") or "").upper()
+            in {"DELIVERED", "SUCCESS", "CONFIRMED"}
+            and receipt.get("targetTaskId") == automation.get("targetTaskId")
+        )
+        if not confirmed:
+            streak = 0
+            previous_scheduled = previous_actual = None
+            continue
+        confirmed_count += 1
+        consecutive = (
+            previous_scheduled is not None
+            and previous_actual is not None
+            and cadence > 0
+            and scheduled - previous_scheduled == timedelta(seconds=cadence)
+            and actual > previous_actual
+        )
+        streak = streak + 1 if consecutive else 1
+        previous_scheduled, previous_actual = scheduled, actual
+    return confirmed_count, streak
+
+
+def _worker_continuity_evidence(state: Mapping[str, Any]) -> tuple[bool, bool]:
+    """Prove accepted terminal reconciliation followed by dependent dispatch."""
+
+    events = state.get("events")
+    workers = state.get("workers")
+    lanes = state.get("lanes")
+    if not all(isinstance(value, Mapping) for value in (workers, lanes)):
+        return False, False
+    rows = list(events) if isinstance(events, list) else []
+    for index, event in enumerate(rows):
+        if not isinstance(event, Mapping) or event.get("kind") != "terminal_archived":
+            continue
+        worker_id = str(event.get("workerId") or "")
+        worker = workers.get(worker_id)
+        reconciled = (
+            event.get("reconciled") is True
+            and event.get("accepted") is True
+            and isinstance(worker, Mapping)
+            and worker.get("state") == "ARCHIVED"
+            and worker.get("terminalState") == "TERMINAL_ACCEPT"
+            and isinstance(worker.get("archive"), Mapping)
+            and worker["archive"].get("readback") is True
+        )
+        if not reconciled:
+            continue
+        terminal_lane = str(event.get("laneId") or "")
+        for later in rows[index + 1 :]:
+            if not isinstance(later, Mapping) or later.get("kind") != "worker_dispatched":
+                continue
+            if later.get("dependencyReady") is not True:
+                continue
+            dispatched_lane = str(later.get("laneId") or "")
+            lane = lanes.get(dispatched_lane)
+            dependencies = lane.get("dependencies") if isinstance(lane, Mapping) else None
+            if (
+                terminal_lane in (dependencies or ())
+                and all(
+                    isinstance(lanes.get(str(dependency)), Mapping)
+                    and lanes[str(dependency)].get("state") == "COMPLETE"
+                    for dependency in dependencies or ()
+                )
+            ):
+                return True, True
+        return True, False
+    return False, False
+
+
+def heartbeat_continuity_evidence(state: Mapping[str, Any]) -> dict[str, Any]:
+    """Derive fail-closed heartbeat acceptance from durable evidence only."""
+
+    automations = state.get("automations")
+    records = automations.values() if isinstance(automations, Mapping) else ()
+    best_automation: Mapping[str, Any] | None = None
+    best_confirmed = 0
+    best_streak = 0
+    controller = state.get("controller")
+    target_task_id = controller.get("taskId") if isinstance(controller, Mapping) else None
+    for automation in records:
+        if not isinstance(automation, Mapping):
+            continue
+        if target_task_id and automation.get("targetTaskId") != target_task_id:
+            continue
+        confirmed, streak = _consecutive_scheduled_deliveries(automation)
+        if (streak, confirmed) > (best_streak, best_confirmed):
+            best_automation = automation
+            best_confirmed, best_streak = confirmed, streak
+
+    terminal_reconciled, dependency_dispatched = _worker_continuity_evidence(state)
+    if best_streak < 2:
+        status = HEARTBEAT_PENDING
+        requirements = ["consecutive_scheduled_invocations"]
+    elif not terminal_reconciled or not dependency_dispatched:
+        status = HEARTBEAT_ACTIVE
+        requirements = []
+        if not terminal_reconciled:
+            requirements.append("terminal_worker_reconciliation")
+        if not dependency_dispatched:
+            requirements.append("dependency_ready_dispatch")
+    else:
+        status = HEARTBEAT_PROVEN
+        requirements = []
+    return {
+        "status": status,
+        "automationId": best_automation.get("automationId") if best_automation else None,
+        "confirmedScheduledInvocations": best_confirmed,
+        "consecutiveScheduledInvocations": best_streak,
+        "terminalWorkerReconciled": terminal_reconciled,
+        "dependencyReadyPacketDispatched": dependency_dispatched,
+        "requirements": requirements,
+    }
+
+
+def _refresh_heartbeat_acceptance(state: dict[str, Any]) -> None:
+    state["heartbeatAcceptance"] = heartbeat_continuity_evidence(state)
 
 
 def _invoke_hook(hook: Callable[..., Any] | None, value: Mapping[str, Any]) -> Mapping[str, Any] | None:
@@ -473,6 +632,8 @@ class PortfolioControlLoop:
                     "laneId": lane_id,
                     "accepted": accepted,
                     "archiveId": archive.get("archiveId"),
+                    "reconciled": True,
+                    "result": worker.get("result"),
                 },
             )
 
@@ -583,7 +744,14 @@ class PortfolioControlLoop:
             occupied_conflicts.update(conflicts)
             _append_unique(
                 state["events"],
-                {"id": _event_id("dispatch", worker), "kind": "worker_dispatched", "workerId": worker["workerId"], "laneId": lane_id},
+                {
+                    "id": _event_id("dispatch", worker),
+                    "kind": "worker_dispatched",
+                    "workerId": worker["workerId"],
+                    "laneId": lane_id,
+                    "dependencyReady": bool(dependencies),
+                    "dependencies": list(dependencies),
+                },
             )
 
     def invoke(
@@ -639,6 +807,7 @@ class PortfolioControlLoop:
                 )
                 self._replace_stalled(state, now=clock, replace_worker=replace_worker)
                 self._dispatch_ready(state, dispatch_worker=dispatch_worker, now=clock)
+                _refresh_heartbeat_acceptance(state)
                 if protected_truth and protected_truth.get("valid") is False:
                     state["blockers"].append(str(protected_truth.get("blocker") or "protected_truth_unverified"))
                 state["blockers"] = list(dict.fromkeys(str(item) for item in state.get("blockers", []) if str(item)))
@@ -738,6 +907,7 @@ def configure_automation(
         )
         if "remainingRuns" not in existing:
             existing["remainingRuns"] = remaining_runs
+        _refresh_heartbeat_acceptance(state)
         return copy.deepcopy(existing)
     record = {
         "automationId": automation_id,
@@ -753,6 +923,7 @@ def configure_automation(
         "deliveryReceipts": [],
     }
     state["automations"][automation_id] = record
+    _refresh_heartbeat_acceptance(state)
     return copy.deepcopy(record)
 
 
@@ -774,6 +945,7 @@ def record_automation_delivery(
     receipts = automation.setdefault("deliveryReceipts", [])
     existing = next((row for row in receipts if row.get("deliveryId") == delivery_id), None)
     if existing is not None:
+        _refresh_heartbeat_acceptance(state)
         return copy.deepcopy(automation)
     confirmed = actual_delivery_at is not None and str(result).upper() in {"DELIVERED", "SUCCESS", "CONFIRMED"}
     receipt = {
@@ -799,6 +971,7 @@ def record_automation_delivery(
             automation["enabled"] = False
             automation["permanentFailure"] = "automation_delivery_failed"
     receipt["remainingRuns"] = automation.get("remainingRuns", 0)
+    _refresh_heartbeat_acceptance(state)
     return copy.deepcopy(automation)
 
 

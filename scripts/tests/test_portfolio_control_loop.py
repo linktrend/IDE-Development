@@ -22,6 +22,7 @@ from scripts.gitops.portfolio_control_loop import (
     record_automation_delivery,
     transfer_terminal_event,
 )
+from core.execution.manifest_persistence import persist_durable_state
 
 ROOT = Path(__file__).resolve().parents[2]
 NOW = datetime(2026, 8, 28, 12, 0, tzinfo=timezone.utc)
@@ -223,6 +224,83 @@ class PortfolioControlLoopTests(unittest.TestCase):
         )
         self.assertEqual(state["automations"]["update"]["remainingRuns"], 2)
         self.assertEqual(due_automations(state, now=NOW), ())
+
+    def test_heartbeat_creation_and_one_shot_delivery_remain_unproven(self) -> None:
+        state = new_control_loop_state(coordinator_task_id="coord-1", owner_id="owner-1", now=NOW)
+        self.assertEqual(state["heartbeatAcceptance"]["status"], "PENDING")
+        configure_automation(
+            state,
+            automation_id="heartbeat",
+            target_task_id="coord-1",
+            remaining_runs=3,
+            now=NOW,
+        )
+        record_automation_delivery(
+            state,
+            automation_id="heartbeat",
+            delivery_id="delivery-1",
+            scheduled_at=NOW,
+            actual_delivery_at=NOW + timedelta(seconds=2),
+            result="DELIVERED",
+            target_task_id="coord-1",
+        )
+        self.assertEqual(state["heartbeatAcceptance"]["status"], "PENDING")
+        self.assertEqual(state["heartbeatAcceptance"]["consecutiveScheduledInvocations"], 1)
+
+    def test_heartbeat_proven_only_after_consecutive_delivery_and_reconciled_dependent_dispatch(self) -> None:
+        state = new_control_loop_state(coordinator_task_id="coord-1", owner_id="owner-1", now=NOW)
+        configure_automation(
+            state,
+            automation_id="heartbeat",
+            target_task_id="coord-1",
+            remaining_runs=3,
+            now=NOW,
+        )
+        loop = PortfolioControlLoop(MemoryControlLoopStore(state), repo_root=ROOT)
+        loop.register_lane("a")
+        loop.register_lane("b", dependencies=("a",))
+        first = loop.invoke(
+            coordinator_task_id="coord-1",
+            holder="owner-1",
+            trigger="hourly",
+            invocation_id="slot-1",
+            now=NOW,
+        )
+        self.assertEqual(first["status"], "RUNNING")
+        persisted = loop.state()
+        record_automation_delivery(
+            persisted,
+            automation_id="heartbeat",
+            delivery_id="delivery-1",
+            scheduled_at=NOW,
+            actual_delivery_at=NOW + timedelta(seconds=2),
+            result="DELIVERED",
+            target_task_id="coord-1",
+        )
+        record_automation_delivery(
+            persisted,
+            automation_id="heartbeat",
+            delivery_id="delivery-2",
+            scheduled_at=NOW + timedelta(hours=1),
+            actual_delivery_at=NOW + timedelta(hours=1, seconds=2),
+            result="DELIVERED",
+            target_task_id="coord-1",
+        )
+        persist_durable_state(persisted, loop.store)
+        worker_id = loop.state()["lanes"]["a"]["workerId"]
+        result = loop.invoke(
+            coordinator_task_id="coord-1",
+            holder="owner-1",
+            trigger="hourly",
+            invocation_id="slot-2",
+            now=NOW + timedelta(hours=1),
+            observations={worker_id: {"status": "COMPLETED", "result": "SUCCESS"}},
+        )
+        evidence = result["report"]["heartbeatContinuity"]
+        self.assertEqual(evidence["status"], "PROVEN")
+        self.assertEqual(evidence["consecutiveScheduledInvocations"], 2)
+        self.assertTrue(evidence["terminalWorkerReconciled"])
+        self.assertTrue(evidence["dependencyReadyPacketDispatched"])
 
     def test_handover_is_finite_and_terminal_event_transfers_once(self) -> None:
         state = self.loop.state()
