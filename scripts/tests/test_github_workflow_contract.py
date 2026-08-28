@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -15,6 +16,37 @@ MANAGED = ROOT / "core" / "github" / "managed-workflows"
 
 
 class GithubWorkflowContractTests(unittest.TestCase):
+    def test_authoritative_profiles_run_with_runtime_preflight(self) -> None:
+        targets = (
+            "linktrend-review-packager.yml",
+            "linktrend-integrator-merge.yml",
+        )
+        invocation = re.compile(
+            r"python3 scripts/gitops/run_delivery_profile.py (fast|full)(?: --preflight)?$",
+            re.MULTILINE,
+        )
+        for directory in (LIVE, MANAGED):
+            for filename in targets:
+                path = directory / filename
+                lines = [
+                    match.group(0)
+                    for match in invocation.finditer(path.read_text(encoding="utf-8"))
+                ]
+                self.assertTrue(lines, path)
+                self.assertTrue(
+                    all(line.endswith(" --preflight") for line in lines),
+                    path,
+                )
+
+    def test_authoritative_workflows_match_managed_mirrors(self) -> None:
+        for filename in (
+            "linktrend-review-packager.yml",
+            "linktrend-integrator-merge.yml",
+        ):
+            live = (LIVE / filename).read_text(encoding="utf-8")
+            managed = (MANAGED / filename).read_text(encoding="utf-8")
+            self.assertEqual(live, managed, filename)
+
     def test_managed_workflows_have_unique_job_contexts(self) -> None:
         for path in sorted(MANAGED.glob("*.yml")):
             document = yaml.safe_load(path.read_text(encoding="utf-8")) or {}

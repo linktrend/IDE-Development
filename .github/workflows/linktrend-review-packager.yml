@@ -113,7 +113,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/gitops/generated_output_closure.py --finalize
-          python3 scripts/gitops/run_delivery_profile.py fast
+          python3 scripts/gitops/run_delivery_profile.py fast --preflight
 
       - name: Retain fast-check evidence
         if: always()
@@ -173,4 +173,4 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/gitops/generated_output_closure.py --finalize
-          python3 scripts/gitops/run_delivery_profile.py fast
+          python3 scripts/gitops/run_delivery_profile.py fast --preflight

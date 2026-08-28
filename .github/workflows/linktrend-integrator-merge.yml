@@ -209,7 +209,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/gitops/generated_output_closure.py --finalize
-          python3 scripts/gitops/run_delivery_profile.py full
+          python3 scripts/gitops/run_delivery_profile.py full --preflight
           python3 scripts/gitops/require_exact_ci_success.py \
             --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_HEAD}"
 
@@ -419,7 +419,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/gitops/generated_output_closure.py --finalize
-          python3 scripts/gitops/run_delivery_profile.py full
+          python3 scripts/gitops/run_delivery_profile.py full --preflight
           python3 scripts/gitops/require_exact_ci_success.py \
             --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_HEAD}"
 
