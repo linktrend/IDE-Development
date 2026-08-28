@@ -134,12 +134,14 @@ def load_graph(repo_root: Path | str, graph_path: str = GRAPH_RELATIVE_PATH) -> 
         sources = raw.get("invalidatingSources")
         if not isinstance(sources, list) or not sources or any(not isinstance(item, str) or not item for item in sources):
             raise ClosureError("ambiguous_dependency", f"invalidating source set missing for {output_rel}")
+        safe_sources = tuple(_safe_relative(item, f"outputs[{index}].invalidatingSources") for item in sources)
         depends = raw.get("dependsOn", [])
         if not isinstance(depends, list) or any(not isinstance(item, str) or not item for item in depends):
             raise ClosureError("ambiguous_dependency", f"dependsOn must be an array for {output_rel}")
         additional = raw.get("additionalOutputs", [])
         if not isinstance(additional, list) or any(not isinstance(item, str) or not item for item in additional):
             raise ClosureError("ambiguous_dependency", f"additionalOutputs must be an array for {output_rel}")
+        safe_additional = tuple(_safe_relative(item, f"outputs[{index}].additionalOutputs") for item in additional)
         ids.add(output_id)
         paths.add(output_rel)
         outputs.append(
@@ -147,9 +149,9 @@ def load_graph(repo_root: Path | str, graph_path: str = GRAPH_RELATIVE_PATH) -> 
                 id=output_id,
                 output=output_rel,
                 generator=tuple(command),
-                invalidating_sources=tuple(sources),
+                invalidating_sources=safe_sources,
                 depends_on=tuple(depends),
-                additional_outputs=tuple(additional),
+                additional_outputs=safe_additional,
             )
         )
     unknown = sorted({dep for item in outputs for dep in item.depends_on if dep not in ids})
@@ -987,11 +989,10 @@ def finalize_candidate(
         baseline_ref=baseline_ref,
         environ=environ,
     )
-    closure = close_generated_outputs(
-        repo_root,
-        graph_path=graph_path,
-        _require_clean_outputs=False,
-    )
+    # Finalization is a read-only admission gate. Repair is an explicit
+    # separate operation (`--close`) so stale output cannot be regenerated and
+    # then accepted by the same invocation (GEN-05).
+    closure = verify_generated_outputs(repo_root, graph_path=graph_path)
     whitespace = candidate_diff_check(
         repo_root,
         baseline_sha=baseline,
@@ -1033,21 +1034,22 @@ def verify_generated_outputs(
             _require_clean_outputs=False,
         )
         expected = _output_digests(clone, graph)
-    mismatches = [
-        spec
-        for spec in graph.outputs
-        if observed.get(spec.output) != expected.get(spec.output)
-    ]
-    if mismatches:
-        spec = mismatches[0]
+    mismatched_paths = sorted(
+        path
+        for path in set(observed) | set(expected)
+        if observed.get(path) != expected.get(path)
+    )
+    if mismatched_paths:
+        path = mismatched_paths[0]
+        spec = next((item for item in graph.outputs if item.output == path), graph.outputs[0])
         raise _diagnostic(
             "stale_output",
             spec,
-            expected_digest=expected.get(spec.output),
-            observed_digest=observed.get(spec.output),
+            expected_digest=expected.get(path),
+            observed_digest=observed.get(path),
             expected_tree=str(expected_result.get("sourceTree") or ""),
             observed_tree=candidate_source_tree(root, graph_path),
-            detail="working-tree output does not match deterministic generator result",
+            detail=f"working-tree generated output does not match deterministic generator result: {path}",
         )
     return {
         "ok": True,
@@ -1066,6 +1068,8 @@ def _generate_secret_scan_fixtures(repo_root: Path) -> int:
 
     declaration = repo_root / ".github" / "linktrend-secret-scan-fixtures.json"
     payload = json.loads(declaration.read_text(encoding="utf-8"))
+    if not isinstance(payload, Mapping) or payload.get("kind") != "secret-scan-fixtures":
+        raise ClosureError("fixture_input_invalid", "secret-scan fixture declaration identity is invalid")
     candidates = identify_synthetic_candidates(repo_root)
     by_identity: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
     for row in candidates:
