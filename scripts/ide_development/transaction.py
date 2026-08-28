@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from .constants import MANAGED_CORE_DIR
+from .constants import INSTALLED_STATE_REL, MANAGED_CORE_DIR
 from .errors import ConflictError, RollbackError
 from .hashing import normalize_mode, sha256_file
 from .managed_write_guard import WriteLease, is_read_only_mode, managed_write_lease, read_only_mode
@@ -166,7 +166,28 @@ def backup_path(target_root: Path, action: PlanAction) -> BackupRecord:
     )
 
 
-def write_backup_file(tx_dir: Path, target_root: Path, record: BackupRecord) -> None:
+def _authorize_managed_write(lease: WriteLease | None, path: str) -> WriteLease:
+    if lease is None:
+        raise ConflictError("Managed transaction write requires an active lease")
+    lease.assert_authorized(path)
+    return lease
+
+
+def _save_installed_state(
+    target_root: Path, state: InstalledState, *, lease: WriteLease | None
+) -> None:
+    _authorize_managed_write(lease, str(INSTALLED_STATE_REL))
+    save_installed_state(target_root, state)
+
+
+def write_backup_file(
+    tx_dir: Path,
+    target_root: Path,
+    record: BackupRecord,
+    *,
+    lease: WriteLease | None = None,
+) -> None:
+    _authorize_managed_write(lease, record.path)
     if not record.existed or not record.backup_name:
         return
     src = join_under(target_root, record.path)
@@ -184,8 +205,7 @@ def apply_action(
     entries: dict[str, ManifestEntry],
     lease: WriteLease | None = None,
 ) -> None:
-    if lease is not None:
-        lease.assert_authorized(action.path)
+    _authorize_managed_write(lease, action.path)
     if action.op in {OpKind.NOOP, OpKind.EXTERNAL_PLAN}:
         return
     if action.op == OpKind.MIGRATE_SYMLINK:
@@ -219,7 +239,14 @@ def apply_action(
     copy_file_physical(source, dest, mode=read_only_mode(entry.mode))
 
 
-def restore_backup(target_root: Path, tx_dir: Path, record: BackupRecord) -> None:
+def restore_backup(
+    target_root: Path,
+    tx_dir: Path,
+    record: BackupRecord,
+    *,
+    lease: WriteLease | None = None,
+) -> None:
+    _authorize_managed_write(lease, record.path)
     if record.was_symlink:
         if not record.symlink_target:
             raise RollbackError(f"Missing symlink target for rollback of {record.path}")
@@ -357,8 +384,12 @@ def _promote_current_to_last(target_root: Path) -> None:
         os.replace(current, last)
 
 
-def _recover_interrupted_unlocked(target_root: Path) -> dict[str, Any] | None:
+def _recover_interrupted_unlocked(
+    target_root: Path, *, lease: WriteLease | None = None
+) -> dict[str, Any] | None:
     """Recover from an interrupted transaction (caller must hold exclusive lock)."""
+    if lease is None:
+        raise ConflictError("Managed transaction recovery requires an active lease")
     current = current_tx_dir(target_root)
     journal = read_journal(current)
     if journal is None:
@@ -370,7 +401,7 @@ def _recover_interrupted_unlocked(target_root: Path) -> dict[str, Any] | None:
     backups = [BackupRecord.from_dict(x) for x in journal.get("backups") or []]
     # Restore in reverse order for safety
     for record in reversed(backups):
-        restore_backup(target_root, current, record)
+        restore_backup(target_root, current, record, lease=lease)
     # Drop incomplete transaction after successful restore
     shutil.rmtree(current)
     return {
@@ -411,8 +442,8 @@ def recover_interrupted(target_root: Path) -> dict[str, Any] | None:
             transaction_id=f"recovery-{journal.get('transactionId') or uuid.uuid4()}",
             make_writable=False,
             finalize_read_only=False,
-        ):
-            return _recover_interrupted_unlocked(target_root)
+        ) as lease:
+            return _recover_interrupted_unlocked(target_root, lease=lease)
 
 
 def apply_plan(
@@ -441,30 +472,6 @@ def apply_plan(
                 for record in pending.get("backups") or []
                 if isinstance(record, dict) and isinstance(record.get("path"), str)
             )
-        needs_lease = bool(plan.mutating_actions)
-        for rel in (MANIFEST_DEST, ".ide-development/installed-state.json"):
-            path = join_under_nofollow(target_root, rel)
-            if path.exists() and (
-                path_is_symlink(path)
-                or not path.is_file()
-                or not is_read_only_mode(path.stat().st_mode & 0o7777)
-            ):
-                needs_lease = True
-
-        def run(lease: WriteLease | None) -> dict[str, Any]:
-            return _apply_plan_unlocked(
-                target_root=target_root,
-                package_root=package_root,
-                manifest=manifest,
-                plan=plan,
-                prior=prior,
-                resolution=resolution,
-                post_apply_check=post_apply_check,
-                write_lease=lease,
-            )
-
-        if not needs_lease:
-            return run(None)
         with managed_write_lease(
             target_root=target_root,
             paths=lease_paths,
@@ -475,7 +482,16 @@ def apply_plan(
             make_writable=False,
             finalize_read_only=True,
         ) as lease:
-            return run(lease)
+            return _apply_plan_unlocked(
+                target_root=target_root,
+                package_root=package_root,
+                manifest=manifest,
+                plan=plan,
+                prior=prior,
+                resolution=resolution,
+                post_apply_check=post_apply_check,
+                write_lease=lease,
+            )
 
 
 def _apply_plan_unlocked(
@@ -490,7 +506,7 @@ def _apply_plan_unlocked(
     write_lease: WriteLease | None = None,
 ) -> dict[str, Any]:
     # Recover any interrupted transaction before starting a new one
-    recovery = _recover_interrupted_unlocked(target_root)
+    recovery = _recover_interrupted_unlocked(target_root, lease=write_lease)
 
     mutating = plan.mutating_actions
     if not mutating:
@@ -523,6 +539,7 @@ def _apply_plan_unlocked(
                 "installedStateWritten": False,
             }
         if not dest.is_file():
+            _authorize_managed_write(write_lease, MANIFEST_DEST)
             copy_file_physical(manifest.path, dest, mode="0444")
         next_state = build_next_state(
             prior=prior,
@@ -546,7 +563,7 @@ def _apply_plan_unlocked(
             platform="all",
             merge_strategy="replace",
         )
-        save_installed_state(target_root, next_state)
+        _save_installed_state(target_root, next_state, lease=write_lease)
         return {
             "transactionId": None,
             "applied": [],
@@ -608,7 +625,7 @@ def _apply_plan_unlocked(
             reason="installed-state snapshot",
         )
         state_record = backup_path(target_root, state_action)
-        write_backup_file(current, target_root, state_record)
+        write_backup_file(current, target_root, state_record, lease=write_lease)
         backups.append(state_record)
 
         migrate_ancestors = {
@@ -630,7 +647,7 @@ def _apply_plan_unlocked(
                 )
             else:
                 record = backup_path(target_root, action)
-            write_backup_file(current, target_root, record)
+            write_backup_file(current, target_root, record, lease=write_lease)
             backups.append(record)
             journal["backups"] = [b.to_dict() for b in backups]
             write_journal(current, journal)
@@ -645,6 +662,7 @@ def _apply_plan_unlocked(
             if action.entry_id == "package-manifest" or action.path == MANIFEST_DEST:
                 # Not a files[] entry — copy the package manifest bytes directly.
                 if action.op != OpKind.NOOP:
+                    _authorize_managed_write(write_lease, MANIFEST_DEST)
                     copy_file_physical(
                         manifest.path,
                         join_under(target_root, MANIFEST_DEST),
@@ -664,6 +682,7 @@ def _apply_plan_unlocked(
 
         # Ensure MANIFEST.json exists even when the plan had only a NOOP/missing edge.
         if MANIFEST_DEST not in applied:
+            _authorize_managed_write(write_lease, MANIFEST_DEST)
             copy_file_physical(
                 manifest.path,
                 join_under(target_root, MANIFEST_DEST),
@@ -698,7 +717,7 @@ def _apply_plan_unlocked(
             platform="all",
             merge_strategy="replace",
         )
-        save_installed_state(target_root, next_state)
+        _save_installed_state(target_root, next_state, lease=write_lease)
 
         post_verification = post_apply_check() if post_apply_check is not None else None
         if post_verification is not None:
@@ -717,7 +736,7 @@ def _apply_plan_unlocked(
         # Best-effort rollback of this transaction
         try:
             for record in reversed(backups):
-                restore_backup(target_root, current, record)
+                restore_backup(target_root, current, record, lease=write_lease)
             if current.exists():
                 shutil.rmtree(current)
         except Exception as rollback_exc:  # pragma: no cover
@@ -776,13 +795,15 @@ def rollback_last(target_root: Path) -> dict[str, Any]:
             transaction_id=f"rollback-{journal.get('transactionId') or uuid.uuid4()}",
             make_writable=False,
             finalize_read_only=False,
-        ):
-            return _rollback_last_unlocked(target_root)
+        ) as lease:
+            return _rollback_last_unlocked(target_root, lease=lease)
 
 
-def _rollback_last_unlocked(target_root: Path) -> dict[str, Any]:
+def _rollback_last_unlocked(
+    target_root: Path, *, lease: WriteLease | None = None
+) -> dict[str, Any]:
     # Prefer recovering incomplete current first
-    recovery = _recover_interrupted_unlocked(target_root)
+    recovery = _recover_interrupted_unlocked(target_root, lease=lease)
     last = last_tx_dir(target_root)
     journal = read_journal(last)
     if journal is None:
@@ -792,7 +813,7 @@ def _rollback_last_unlocked(target_root: Path) -> dict[str, Any]:
     backups = [BackupRecord.from_dict(x) for x in journal.get("backups") or []]
     try:
         for record in reversed(backups):
-            restore_backup(target_root, last, record)
+            restore_backup(target_root, last, record, lease=lease)
     except Exception as exc:
         raise RollbackError(f"Rollback failed: {exc}") from exc
 
@@ -812,7 +833,7 @@ def _rollback_last_unlocked(target_root: Path) -> dict[str, Any]:
             if isinstance(prior_state.get("manifestHash"), str)
             else None,
         )
-        save_installed_state(target_root, state)
+        _save_installed_state(target_root, state, lease=lease)
     elif not backups:
         pass
 

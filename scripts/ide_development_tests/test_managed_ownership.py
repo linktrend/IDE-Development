@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import stat
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from ide_development.constants import EXIT_DRIFT, EXIT_OK
 from ide_development.engine import run_drift, run_install_or_update
@@ -18,11 +20,99 @@ from ide_development.managed_write_guard import (
     read_only_mode,
 )
 from ide_development.manifest import load_manifest
+from ide_development.plan import OpKind, PlanAction
 from ide_development.state import load_installed_state
+from ide_development.transaction import BackupRecord, apply_action, restore_backup, write_backup_file
 from ide_development_tests import FIXTURE_PACKAGE, TempRepoTestCase
 
 
 class ManagedOwnershipTests(TempRepoTestCase):
+    def test_transaction_managed_writes_require_an_active_exact_lease(self) -> None:
+        action = PlanAction(op=OpKind.NOOP, path=".ide-development/CORE.txt")
+        record = BackupRecord(
+            path=".ide-development/CORE.txt",
+            existed=False,
+            mode=None,
+            content_hash=None,
+            backup_name=None,
+        )
+
+        with self.assertRaises(ConflictError):
+            apply_action(
+                target_root=self.target,
+                package_root=self.package,
+                action=action,
+                entries={},
+            )
+        with self.assertRaises(ConflictError):
+            write_backup_file(
+                self.target / "tx",
+                self.target,
+                record,
+            )
+        with self.assertRaises(ConflictError):
+            restore_backup(self.target, self.target / "tx", record)
+
+    def test_lease_preflights_destinations_before_chmod(self) -> None:
+        target_file = self.target / ".ide-development/CORE.txt"
+        target_file.parent.mkdir(parents=True)
+        target_file.write_text("managed\n", encoding="utf-8")
+        os_mode = stat.S_IMODE(target_file.stat().st_mode)
+        invalid_destination = self.target / "invalid-destination"
+        invalid_destination.mkdir()
+
+        with self.assertRaises(ConflictError):
+            with managed_write_lease(
+                target_root=self.target,
+                paths=[".ide-development/CORE.txt", "invalid-destination"],
+                operation="repair",
+                package_version="2.1.0",
+                manifest_digest="sha256:" + "0" * 64,
+                transaction_id="preflight-destination",
+            ):
+                self.fail("lease acquisition should reject the non-file destination")
+
+        self.assertEqual(stat.S_IMODE(target_file.stat().st_mode), os_mode)
+
+    def test_lease_restores_modes_when_chmod_fails_during_acquisition(self) -> None:
+        paths = [
+            self.target / ".ide-development/CORE.txt",
+            self.target / ".ide-development/assets/file-with-spaces.txt",
+        ]
+        for path in paths:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("managed\n", encoding="utf-8")
+            path.chmod(0o444)
+
+        real_chmod = os.chmod
+        calls = 0
+
+        def fail_on_second_chmod(path: Path, mode: int) -> None:
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise OSError("synthetic chmod failure")
+            real_chmod(path, mode)
+
+        with patch("ide_development.managed_write_guard.os.chmod", side_effect=fail_on_second_chmod):
+            with self.assertRaises(OSError):
+                with managed_write_lease(
+                    target_root=self.target,
+                    paths=[
+                        ".ide-development/CORE.txt",
+                        ".ide-development/assets/file-with-spaces.txt",
+                    ],
+                    operation="repair",
+                    package_version="2.1.0",
+                    manifest_digest="sha256:" + "0" * 64,
+                    transaction_id="chmod-rollback",
+                ):
+                    self.fail("lease acquisition should fail on the synthetic chmod error")
+
+        self.assertEqual(calls, 3)
+        for path in paths:
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o444)
+
     def test_install_is_read_only_and_persists_ownership(self) -> None:
         result = run_install_or_update(
             target=self.target, package=self.package, command="install", dry_run=False

@@ -152,6 +152,7 @@ class _LeaseContext:
         self.finalize_read_only = finalize_read_only
 
     def __enter__(self) -> WriteLease:
+        prepared: list[tuple[str, Path, str]] = []
         for rel in self.paths:
             path = join_under_nofollow(self.target_root, rel)
             if path_is_symlink(path):
@@ -171,8 +172,30 @@ class _LeaseContext:
                     )
                 current = normalize_mode(path.stat().st_mode & 0o7777)
                 self._original_modes[rel] = current
-                if self.make_writable:
-                    os.chmod(path, mode_int(writable_mode(current)))
+                prepared.append((rel, path, current))
+
+        changed: list[tuple[Path, str]] = []
+        try:
+            # All destination validation is complete before the first mode
+            # change.  If a chmod itself fails, restore every earlier change
+            # before allowing acquisition to fail closed.
+            if self.make_writable:
+                for rel, path, current in prepared:
+                    desired = writable_mode(current)
+                    if desired == current:
+                        continue
+                    os.chmod(path, mode_int(desired))
+                    changed.append((path, current))
+        except BaseException:
+            for path, original in reversed(changed):
+                try:
+                    os.chmod(path, mode_int(original))
+                except OSError:
+                    # Preserve the acquisition error; the close path remains
+                    # fail-closed if the caller retries against this target.
+                    pass
+            self._original_modes.clear()
+            raise
         object.__setattr__(self.lease, "_active", True)
         self._entered = True
         return self.lease
