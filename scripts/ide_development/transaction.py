@@ -817,8 +817,14 @@ def _rollback_last_unlocked(
     except Exception as exc:
         raise RollbackError(f"Rollback failed: {exc}") from exc
 
+    # The installed-state backup is the exact preimage.  Do not reserialize it
+    # after restoring it: doing so changes formatting/timestamps and can lose
+    # legacy fields even though the transaction has an exact backup.
+    has_installed_state_preimage = any(
+        record.path == str(INSTALLED_STATE_REL) and record.existed for record in backups
+    )
     prior_state = journal.get("priorInstalledState")
-    if isinstance(prior_state, dict):
+    if not has_installed_state_preimage and isinstance(prior_state, dict):
         files = {
             path: FileState.from_dict(path, raw)
             for path, raw in (prior_state.get("files") or {}).items()

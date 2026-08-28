@@ -401,6 +401,69 @@ class EngineTests(TempRepoTestCase):
         self.assertEqual(core.read_bytes(), original)
         self.assertEqual(stat.S_IMODE(core.stat().st_mode), original_mode)
 
+    def test_rollback_restores_installed_state_preimage_bytes_and_mode(self) -> None:
+        """Current and legacy state preimages survive rollback byte-for-byte."""
+        state = self.target / ".ide-development" / "installed-state.json"
+
+        for index, legacy in enumerate((False, True)):
+            if index == 0:
+                installed = run_install_or_update(
+                    target=self.target,
+                    package=self.package,
+                    command="install",
+                    dry_run=False,
+                )
+                self.assertEqual(installed.exit_code, EXIT_OK, installed.payload)
+            else:
+                # The first rollback leaves the original package installed;
+                # prepare the next update from that restored state.
+                self.assertTrue(state.is_file())
+
+            state.chmod(0o640)
+            if legacy:
+                payload = json.loads(state.read_bytes())
+                payload.pop("lastTransactionId", None)
+                payload.pop("manifestHash", None)
+                for file_state in payload["files"].values():
+                    for key in (
+                        "sourceDigest",
+                        "installedDigest",
+                        "owner",
+                        "mutabilityPolicy",
+                        "removalPolicy",
+                        "ownershipClass",
+                        "platform",
+                        "mergeStrategy",
+                        "packageVersion",
+                    ):
+                        file_state.pop(key, None)
+                state_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+                state.write_bytes(state_bytes)
+            else:
+                state_bytes = state.read_bytes()
+
+            state_mode = stat.S_IMODE(state.stat().st_mode)
+
+            mutated_pkg = Path(self._tmp.name) / f"mutated-package-{index}"
+            shutil.copytree(self.package, mutated_pkg)
+            mutated_core = mutated_pkg / "core/managed-core/files/CORE.txt"
+            mutated_core.write_text(f"managed-core fixture MUTATED {index}\n", encoding="utf-8")
+            _rewrite_manifest_hash(mutated_pkg, "managed-core-readme", mutated_core)
+            _rewrite_package_version(mutated_pkg, f"2.1.{index + 1}")
+
+            updated = run_install_or_update(
+                target=self.target,
+                package=mutated_pkg,
+                command="update",
+                dry_run=False,
+            )
+            self.assertEqual(updated.exit_code, EXIT_OK, updated.payload)
+
+            rolled = run_rollback(target=self.target)
+            self.assertEqual(rolled.exit_code, EXIT_OK, rolled.payload)
+            self.assertEqual(state.read_bytes(), state_bytes)
+            self.assertEqual(stat.S_IMODE(state.stat().st_mode), state_mode)
+
     def test_migration_exact_remove_and_refuse_mismatch(self) -> None:
         obsolete = self.target / ".cursor" / "rules" / "obsolete-generic.mdc"
         obsolete.parent.mkdir(parents=True, exist_ok=True)

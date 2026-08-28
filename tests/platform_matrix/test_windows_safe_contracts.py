@@ -166,7 +166,9 @@ def _rewrite_manifest_hash(package: Path, entry_id: str, source: Path) -> None:
     for entry in data["files"]:
         if entry["id"] == entry_id:
             entry["sourceHash"] = digest
+    data["packageVersion"] = "2.1.1"
     manifest_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    (package / "core/managed-core/VERSION").write_text("2.1.1\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
