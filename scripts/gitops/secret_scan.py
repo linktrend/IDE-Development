@@ -29,12 +29,14 @@ try:
         candidate_source_tree as closure_candidate_source_tree,
         load_graph as load_generated_output_graph,
     )
+    from scripts.gitops.mutation_guard import MutationGuardError, validate_argv
 except ModuleNotFoundError:  # pragma: no cover - script-style execution
     from generated_output_closure import (  # type: ignore
         ClosureError,
         candidate_source_tree as closure_candidate_source_tree,
         load_graph as load_generated_output_graph,
     )
+    from mutation_guard import MutationGuardError, validate_argv  # type: ignore
 
 SCANNER_POLICY_VERSION = "secret-scan-policy/v1"
 CHANGE_SCOPED_SCHEMA_VERSION = 1
@@ -67,6 +69,7 @@ RULE_MALFORMED = "declaration.malformed"
 RULE_REPO_SCANNER = "repository_scanner.failure"
 RULE_REPO_TIMEOUT = "repository_scanner.timeout"
 RULE_REPO_MALFORMED = "repository_scanner.malformed"
+RULE_REPO_CREDENTIAL_DISCOVERY = "repository_scanner.credential_discovery"
 RULE_INPUT_UNDECODABLE = "input.undecodable"
 RULE_INPUT_TOO_LARGE = "input.too_large"
 RULE_GIT_FAILED = "git.failed"
@@ -1247,6 +1250,26 @@ def _run_repository_scanners(root: Path) -> list[dict[str, Any]]:
         command = [str(part) for part in row["command"]]
         if not command:
             raise SecretScanError("repository_scanners_malformed", "empty command")
+        try:
+            # Repository-owned scanners are untrusted children.  They may
+            # inspect repository input, but cannot be used as a credential
+            # discovery side channel.  The error is deliberately reduced to a
+            # rule and scanner id; command arguments and child output never
+            # enter secret-scan evidence.
+            validate_argv(command)
+        except MutationGuardError:
+            findings.append(
+                _finding(
+                    kind=KIND_CREDENTIAL,
+                    path=REPO_SCANNERS_REL,
+                    line=None,
+                    field=None,
+                    rule=RULE_REPO_CREDENTIAL_DISCOVERY,
+                    digest=None,
+                    scanner_id=str(row["id"]),
+                )
+            )
+            continue
         try:
             result = subprocess.run(
                 command,
