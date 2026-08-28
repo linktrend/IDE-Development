@@ -3746,7 +3746,7 @@
       "id": "workflow-linktrend-review-packager-yml",
       "ownershipClass": "managed-core",
       "source": "core/github/managed-workflows/linktrend-review-packager.yml",
-      "sourceHash": "sha256:320ec87cfe5805194311c73bd94a8de27c956d77dbbbb600350e5dd2b694c687",
+      "sourceHash": "sha256:16a74c85cf8c4644f8aeccfe7abaabbb77aa9a837963c50e8275e1452247b7c1",
       "destination": ".ide-development/workflows/linktrend-review-packager.yml",
       "mode": "0644",
       "platform": "github",
