@@ -11,6 +11,9 @@ from ide_development.resolution import (
     ALLOWED_CONFLICT_PATHS,
     KIND,
     _canonical_digest,
+    _package_source_digest,
+    _validate_provider_entry,
+    _validate_provider_source_identity,
     _path,
     _validate_observed_conflict_paths,
     _validate_change_scoped_binding,
@@ -25,12 +28,20 @@ class ResolutionTests(TempRepoTestCase):
             ".ide-development/schemas/managed-upgrade-resolution.schema.json",
             ".ide-development/schemas/phase-handoff.schema.json",
             ".ide-development/schemas/phase-record.schema.json",
-            ".ide-development/schemas/secret-scan-result.schema.json",
+            ".ide-development/tests/test_delivery_controller.py",
             ".ide-development/tests/test_fixture_aware_secret_scan.py",
             ".ide-development/tests/test_phase_packager_coordinator.py",
+            ".ide-development/tests/test_receipt_seal_and_recovery.py",
+            ".ide-development/workflows/linktrend-integrator-merge.yml",
+            "scripts/gitops/completion_gate.py",
+            "scripts/gitops/delivery_controller.py",
+            "scripts/gitops/github_auth.py",
+            "scripts/gitops/issue_checkpoint.py",
             "scripts/gitops/packager_coordinator.py",
             "scripts/gitops/phase_integrator.py",
+            "scripts/gitops/receipt_seal.py",
             "scripts/gitops/secret_scan.py",
+            "scripts/ide_development/resolution.py",
         }
         self.assertEqual(ALLOWED_CONFLICT_PATHS, expected)
         schema_path = (
@@ -41,24 +52,111 @@ class ResolutionTests(TempRepoTestCase):
         self.assertEqual(schema["properties"]["allowedConflictPaths"]["const"], sorted(expected))
         self.assertEqual(schema["$defs"]["conflict"]["properties"]["path"]["enum"], sorted(expected))
         self.assertEqual(schema["properties"]["conflicts"]["minItems"], 1)
+        manifest = json.loads(
+            (Path(__file__).resolve().parents[2] / "core/managed-core/MANIFEST.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        entries = {entry["destination"]: entry for entry in manifest["files"]}
+        for path in expected:
+            entry = entries[path]
+            self.assertIn(entry["ownershipClass"], {"managed", "managed-core", "managed-entrypoint"})
+            self.assertEqual(entry["mergeStrategy"], "replace")
 
     def test_observed_conflicts_may_be_a_nonempty_allowlisted_subset_only(self) -> None:
-        seven_paths = [
-            ".ide-development/schemas/phase-handoff.schema.json",
-            ".ide-development/schemas/phase-record.schema.json",
-            ".ide-development/schemas/secret-scan-result.schema.json",
-            ".ide-development/tests/test_phase_packager_coordinator.py",
-            "scripts/gitops/packager_coordinator.py",
-            "scripts/gitops/phase_integrator.py",
-            "scripts/gitops/secret_scan.py",
-        ]
-        observed = _validate_observed_conflict_paths(seven_paths)
-        self.assertEqual(len(observed), 7)
-        self.assertEqual(_validate_observed_conflict_paths(ALLOWED_CONFLICT_PATHS), ALLOWED_CONFLICT_PATHS)
+        for path in sorted(ALLOWED_CONFLICT_PATHS):
+            self.assertEqual(_validate_observed_conflict_paths([path]), {path})
+        observed = _validate_observed_conflict_paths(sorted(ALLOWED_CONFLICT_PATHS))
+        self.assertEqual(observed, ALLOWED_CONFLICT_PATHS)
         with self.assertRaises(InvalidPackageError):
             _validate_observed_conflict_paths([])
         with self.assertRaises(InvalidPackageError):
             _validate_observed_conflict_paths(["consumer-owned.txt"])
+
+    def test_extracted_package_provider_identity_is_digest_bound(self) -> None:
+        package_root = Path(self._tmp.name) / "official-extracted-package"
+        from ide_development.release_candidate import collect_package_paths, stage_package_tree
+        from ide_development.hashing import sha256_file
+
+        package_root.mkdir()
+        stage_package_tree(
+            repo_root=Path(__file__).resolve().parents[2],
+            staging_root=package_root,
+            paths=collect_package_paths(Path(__file__).resolve().parents[2]),
+        )
+        self.assertFalse((package_root / ".git").exists())
+        manifest_path = package_root / "core/managed-core/MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        provider = {
+            "repository": "linktrend/IDE-Development",
+            "authoritativeRef": "phase/ide-v2.5.2",
+        }
+        digest = sha256_file(manifest_path)
+        provider_digest = _package_source_digest(
+            package_root,
+            manifest,
+            manifest_digest=digest,
+            provider=provider,
+            provider_commit="b" * 40,
+            provider_tree="c" * 40,
+        )
+        bound_provider = {**provider, "packageSourceDigest": provider_digest}
+        self.assertEqual(
+            _validate_provider_source_identity(
+                package_root,
+                manifest,
+                manifest_digest=digest,
+                provider=bound_provider,
+                provider_commit="b" * 40,
+                provider_tree="c" * 40,
+            ),
+            provider_digest,
+        )
+        with self.assertRaisesRegex(InvalidPackageError, "repository/ref identity"):
+            _validate_provider_source_identity(
+                package_root,
+                manifest,
+                manifest_digest=digest,
+                provider={**bound_provider, "repository": "owner/consumer"},
+                provider_commit="b" * 40,
+                provider_tree="c" * 40,
+            )
+        with self.assertRaisesRegex(InvalidPackageError, "source identity is stale"):
+            _validate_provider_source_identity(
+                package_root,
+                manifest,
+                manifest_digest=digest,
+                provider=bound_provider,
+                provider_commit="d" * 40,
+                provider_tree="c" * 40,
+            )
+        source = package_root / "scripts/ide_development/resolution.py"
+        source.write_text("stale provider bytes\n", encoding="utf-8")
+        with self.assertRaisesRegex(InvalidPackageError, "source identity is stale"):
+            _validate_provider_source_identity(
+                package_root,
+                manifest,
+                manifest_digest=digest,
+                provider=bound_provider,
+                provider_commit="b" * 40,
+                provider_tree="c" * 40,
+            )
+
+    def test_unauthorized_paths_and_non_provider_entries_are_rejected(self) -> None:
+        with self.assertRaises(InvalidPackageError):
+            _validate_observed_conflict_paths(["scripts/gitops/*.py"])
+        with self.assertRaises(InvalidPackageError):
+            _validate_observed_conflict_paths(["consumer-owned.txt"])
+        with self.assertRaises(InvalidPackageError):
+            _validate_provider_entry(
+                {"ownershipClass": "consumer-preserve", "mergeStrategy": "replace"},
+                "scripts/gitops/secret_scan.py",
+            )
+        with self.assertRaises(InvalidPackageError):
+            _validate_provider_entry(
+                {"ownershipClass": "managed", "mergeStrategy": "marker-upsert"},
+                "scripts/gitops/secret_scan.py",
+            )
 
     def test_change_scoped_binding_is_digest_bound_and_rejects_missing_input(self) -> None:
         evidence = {
