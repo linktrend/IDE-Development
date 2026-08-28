@@ -38,7 +38,11 @@ try:
         evaluate_release_path,
         verify_receipt_payload,
     )
-    from scripts.gitops.coordinator.receipts import compute_receipt_digest
+    from scripts.gitops.coordinator.receipts import (
+        compute_receipt_digest,
+        compute_transition_digest,
+        create_transition_receipt,
+    )
     from scripts.gitops.github_auth import GitHubAuthError, resolve_phase_api_token
     from scripts.gitops.administrator_recovery import MemoryProtection, recover_phase_merge
 except ModuleNotFoundError:  # pragma: no cover - script-style execution
@@ -50,7 +54,7 @@ except ModuleNotFoundError:  # pragma: no cover - script-style execution
         evaluate_release_path,
         verify_receipt_payload,
     )
-    from coordinator.receipts import compute_receipt_digest  # type: ignore
+    from coordinator.receipts import compute_receipt_digest, compute_transition_digest, create_transition_receipt  # type: ignore
     from github_auth import GitHubAuthError, resolve_phase_api_token  # type: ignore
     from administrator_recovery import MemoryProtection, recover_phase_merge  # type: ignore
 
@@ -173,6 +177,19 @@ def _receipt_workflow_run_id(receipt: Mapping[str, Any]) -> int:
     if run_id < 1 or str(raw).strip() != str(run_id):
         raise ControllerError("receipt_workflow_run_invalid", str(raw))
     return run_id
+
+
+def _receipt_workflow_run_attempt(receipt: Mapping[str, Any]) -> int:
+    raw = receipt.get("workflowRunAttempt")
+    if isinstance(raw, bool):
+        raise ControllerError("receipt_workflow_attempt_invalid", str(raw))
+    try:
+        attempt = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ControllerError("receipt_workflow_attempt_invalid", str(raw or "missing")) from exc
+    if attempt < 1 or str(raw).strip() != str(attempt):
+        raise ControllerError("receipt_workflow_attempt_invalid", str(raw))
+    return attempt
 
 
 class GitHubPort(Protocol):
@@ -836,6 +853,10 @@ def merge_to_development(
     expected_head: str,
     role: str,
     actor: str = "delivery-controller",
+    receipt: Mapping[str, Any] | None = None,
+    candidate_identity: Mapping[str, Any] | None = None,
+    candidate_tree: str | None = None,
+    protected_base_commit: str | None = None,
     rollout: StagedRolloutConfig | None = None,
 ) -> dict[str, Any]:
     """Merge through GitHub protection. Never push directly to development."""
@@ -857,7 +878,7 @@ def merge_to_development(
             match_head_commit=True,
         )
     )
-    return {
+    result = {
         "status": "merged",
         "stage": config.development_branch,
         "pr": pr_number,
@@ -868,6 +889,27 @@ def merge_to_development(
         "directPush": False,
         "component": COMPONENT_KIND,
     }
+    if receipt is not None or candidate_identity is not None:
+        if receipt is None or candidate_identity is None:
+            raise ControllerError("transition_receipt_failed", "receipt and candidate identity must be supplied together")
+        target_tree = normalize_sha(candidate_tree or "")
+        merge_commit = normalize_sha(str(result.get("mergeCommitSha") or ""))
+        if not is_valid_sha(merge_commit) or not is_valid_sha(target_tree):
+            raise ControllerError("transition_receipt_failed", "protected merge did not return an exact commit/tree identity")
+        try:
+            transition = create_transition_receipt(
+                receipt,
+                target_branch=config.development_branch,
+                target_commit=merge_commit,
+                target_tree=target_tree,
+                protected_base_commit=normalize_sha(protected_base_commit or "") or None,
+            ).to_dict()
+        except (ValueError, TypeError) as exc:
+            raise ControllerError("transition_receipt_failed", str(exc)) from exc
+        result["gitTree"] = target_tree
+        result["transitionReceipt"] = transition
+        result["transitionReceiptDigest"] = transition["receiptDigest"]
+    return result
 
 
 def promote_to_staging(
@@ -883,6 +925,7 @@ def promote_to_staging(
     release_gate: Mapping[str, Any],
     role: str,
     full_suite_invoked: bool = False,
+    transition_receipt: Mapping[str, Any] | None = None,
     rollout: StagedRolloutConfig | None = None,
 ) -> dict[str, Any]:
     """Promote via temporary promote/staging/* PR using exact receipt reuse."""
@@ -899,7 +942,12 @@ def promote_to_staging(
     release = evaluate_release_path({**dict(release_gate), "fullSuiteInvoked": False})
     if not release.accepted:
         raise ControllerError(release.code, release.detail)
-    receipt_decision = verify_receipt_payload(receipt, candidate_identity, "full-gate")
+    receipt_decision = verify_receipt_payload(
+        receipt,
+        candidate_identity,
+        "full-gate",
+        transition_receipt=transition_receipt,
+    )
     if not receipt_decision.accepted:
         raise ControllerError("receipt_rejected", f"{receipt_decision.code}:{receipt_decision.detail}")
     identity_tree = normalize_sha(str(candidate_identity.get("gitTree") or ""))
@@ -918,7 +966,10 @@ def promote_to_staging(
         "promoteBranch": branch,
         "receiptDigest": compute_receipt_digest(receipt),
         "fullRunId": _receipt_workflow_run_id(receipt),
+        "fullRunAttempt": _receipt_workflow_run_attempt(receipt),
     }
+    if transition_receipt is not None:
+        marker["transitionReceiptDigest"] = compute_transition_digest(transition_receipt)
     body = f"<!-- linktrend-promote: {json.dumps(marker, sort_keys=True)} -->"
     pr = call_with_infrastructure_retry(
         lambda: github.create_pull_request(
@@ -940,7 +991,16 @@ def promote_to_staging(
             match_head_commit=True,
         )
     )
-    return {
+    try:
+        protected_transition = create_transition_receipt(
+            receipt,
+            target_branch=config.staging_branch,
+            target_commit=normalize_sha(str(merged.get("mergeCommitSha") or "")),
+            target_tree=normalize_sha(candidate_tree),
+        ).to_dict()
+    except (ValueError, TypeError) as exc:
+        raise ControllerError("transition_receipt_failed", str(exc)) from exc
+    result = {
         "status": "merged",
         "stage": config.staging_branch,
         "pr": int(pr["number"]),
@@ -952,8 +1012,11 @@ def promote_to_staging(
         "mergeCommitSha": normalize_sha(str(merged.get("mergeCommitSha") or "")),
         "fullSuiteRerun": False,
         "receiptReused": True,
+        "transitionReceipt": protected_transition,
+        "transitionReceiptDigest": protected_transition["receiptDigest"],
         "component": COMPONENT_KIND,
     }
+    return result
 
 
 def prepare_main_promotion(
@@ -967,6 +1030,7 @@ def prepare_main_promotion(
     candidate_identity: Mapping[str, Any],
     release_gate: Mapping[str, Any],
     role: str,
+    transition_receipt: Mapping[str, Any] | None = None,
     rollout: StagedRolloutConfig | None = None,
 ) -> dict[str, Any]:
     """Open promote/main/* and wait for explicit founder approval."""
@@ -981,7 +1045,12 @@ def prepare_main_promotion(
     release = evaluate_release_path({**dict(release_gate), "fullSuiteInvoked": False})
     if not release.accepted:
         raise ControllerError(release.code, release.detail)
-    receipt_decision = verify_receipt_payload(receipt, candidate_identity, "full-gate")
+    receipt_decision = verify_receipt_payload(
+        receipt,
+        candidate_identity,
+        "full-gate",
+        transition_receipt=transition_receipt,
+    )
     if not receipt_decision.accepted:
         raise ControllerError("receipt_rejected", f"{receipt_decision.code}:{receipt_decision.detail}")
     short = normalize_sha(staging_sha)[:12]
@@ -997,8 +1066,11 @@ def prepare_main_promotion(
         "promoteBranch": branch,
         "receiptDigest": compute_receipt_digest(receipt),
         "fullRunId": _receipt_workflow_run_id(receipt),
+        "fullRunAttempt": _receipt_workflow_run_attempt(receipt),
         "awaitingFounderApproval": True,
     }
+    if transition_receipt is not None:
+        marker["transitionReceiptDigest"] = compute_transition_digest(transition_receipt)
     body = f"<!-- linktrend-promote: {json.dumps(marker, sort_keys=True)} -->"
     pr = call_with_infrastructure_retry(
         lambda: github.create_pull_request(
@@ -1013,7 +1085,7 @@ def prepare_main_promotion(
             head_sha=candidate_sha,
         )
     )
-    return {
+    result = {
         "status": "waiting_founder_approval",
         "stage": config.main_branch,
         "pr": int(pr["number"]),
@@ -1025,6 +1097,9 @@ def prepare_main_promotion(
         "founderApprovalInferred": False,
         "component": COMPONENT_KIND,
     }
+    if transition_receipt is not None:
+        result["transitionReceiptDigest"] = compute_transition_digest(transition_receipt)
+    return result
 
 
 def complete_main_promotion(
@@ -1235,6 +1310,7 @@ def deliver_phase_to_development(
     actor: str = "delivery-controller",
     conflict: bool = False,
     record_path: Path | None = None,
+    protected_tree: str | None = None,
     rollout: StagedRolloutConfig | None = None,
 ) -> dict[str, Any]:
     """End-to-end development merge for one exact Phase PR."""
@@ -1262,18 +1338,26 @@ def deliver_phase_to_development(
             expected_head=live_head,
             role=role,
             actor=actor,
+            receipt=receipt,
+            candidate_identity=candidate_identity,
+            candidate_tree=protected_tree or live_tree,
+            protected_base_commit=str(handoff.get("baseCommit") or ""),
             rollout=config,
         )
     except ControllerError as exc:
         return stop_on_protected_merge_rejection(exc)
     record = {
         **merged,
-        "gitTree": normalize_sha(live_tree),
         "eligibility": eligibility,
         "agentFingerprint": agent_env_fingerprint(),
     }
     if record_path is not None:
-        write_operation_record(record_path, record)
+        operation_record = dict(record)
+        operation_record["transitionReceipt"] = {
+            "receiptDigest": record["transitionReceiptDigest"],
+            "externalEvidenceRequired": True,
+        }
+        write_operation_record(record_path, operation_record)
     return record
 
 
@@ -1413,6 +1497,10 @@ def main(argv: list[str] | None = None) -> int:
                     pr_number=args.pr_number,
                     expected_head=args.expected_head or args.live_head,
                     role=args.role,
+                    receipt=load(args.receipt) if args.receipt else None,
+                    candidate_identity=load(args.identity_json) if args.identity_json else None,
+                    candidate_tree=args.live_tree or None,
+                    protected_base_commit=args.base_sha or None,
                     rollout=rollout,
                 )
             elif args.command == "promote-staging":
@@ -1429,6 +1517,7 @@ def main(argv: list[str] | None = None) -> int:
                     release_gate=load(args.release_json),
                     role=args.role,
                     full_suite_invoked=bool(payload.get("fullSuiteInvoked")),
+                    transition_receipt=load(str(payload["transitionReceipt"])) if isinstance(payload.get("transitionReceipt"), str) else payload.get("transitionReceipt"),
                     rollout=rollout,
                 )
             elif args.command == "prepare-main":
@@ -1443,6 +1532,7 @@ def main(argv: list[str] | None = None) -> int:
                     candidate_identity=load(args.identity_json),
                     release_gate=load(args.release_json),
                     role=args.role,
+                    transition_receipt=load(str(payload["transitionReceipt"])) if isinstance(payload.get("transitionReceipt"), str) else payload.get("transitionReceipt"),
                     rollout=rollout,
                 )
             elif args.command == "complete-main":

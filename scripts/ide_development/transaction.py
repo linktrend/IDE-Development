@@ -10,9 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from .constants import MANAGED_CORE_DIR
+from .constants import INSTALLED_STATE_REL, MANAGED_CORE_DIR
 from .errors import ConflictError, RollbackError
 from .hashing import normalize_mode, sha256_file
+from .managed_write_guard import WriteLease, is_read_only_mode, managed_write_lease, read_only_mode
 from .io_atomic import atomic_write_bytes, copy_file_physical, read_file_bytes, remove_file
 from .lock import exclusive_transaction_lock
 from .manifest import Manifest, ManifestEntry
@@ -165,7 +166,28 @@ def backup_path(target_root: Path, action: PlanAction) -> BackupRecord:
     )
 
 
-def write_backup_file(tx_dir: Path, target_root: Path, record: BackupRecord) -> None:
+def _authorize_managed_write(lease: WriteLease | None, path: str) -> WriteLease:
+    if lease is None:
+        raise ConflictError("Managed transaction write requires an active lease")
+    lease.assert_authorized(path)
+    return lease
+
+
+def _save_installed_state(
+    target_root: Path, state: InstalledState, *, lease: WriteLease | None
+) -> None:
+    _authorize_managed_write(lease, str(INSTALLED_STATE_REL))
+    save_installed_state(target_root, state)
+
+
+def write_backup_file(
+    tx_dir: Path,
+    target_root: Path,
+    record: BackupRecord,
+    *,
+    lease: WriteLease | None = None,
+) -> None:
+    _authorize_managed_write(lease, record.path)
     if not record.existed or not record.backup_name:
         return
     src = join_under(target_root, record.path)
@@ -181,7 +203,9 @@ def apply_action(
     package_root: Path,
     action: PlanAction,
     entries: dict[str, ManifestEntry],
+    lease: WriteLease | None = None,
 ) -> None:
+    _authorize_managed_write(lease, action.path)
     if action.op in {OpKind.NOOP, OpKind.EXTERNAL_PLAN}:
         return
     if action.op == OpKind.MIGRATE_SYMLINK:
@@ -210,12 +234,19 @@ def apply_action(
         begin = entry.marker_begin or ""
         end = entry.marker_end or ""
         rendered = render_marker_file(existing, body, begin, end)
-        atomic_write_bytes(dest, rendered.encode("utf-8"), mode=entry.mode)
+        atomic_write_bytes(dest, rendered.encode("utf-8"), mode=read_only_mode(entry.mode))
         return
-    copy_file_physical(source, dest, mode=entry.mode)
+    copy_file_physical(source, dest, mode=read_only_mode(entry.mode))
 
 
-def restore_backup(target_root: Path, tx_dir: Path, record: BackupRecord) -> None:
+def restore_backup(
+    target_root: Path,
+    tx_dir: Path,
+    record: BackupRecord,
+    *,
+    lease: WriteLease | None = None,
+) -> None:
+    _authorize_managed_write(lease, record.path)
     if record.was_symlink:
         if not record.symlink_target:
             raise RollbackError(f"Missing symlink target for rollback of {record.path}")
@@ -249,6 +280,7 @@ def build_next_state(
     manifest: Manifest,
     target_root: Path,
     actions: list[PlanAction],
+    transaction_id: str | None = None,
 ) -> InstalledState:
     files: dict[str, FileState] = {}
     if prior is not None:
@@ -271,6 +303,13 @@ def build_next_state(
                     source_hash=entry.source_hash,
                     content_hash=sha256_file(dest),
                     mode=normalize_mode(dest.stat().st_mode & 0o7777),
+                    owner=entry.owner,
+                    package_version=manifest.package_version,
+                    mutability_policy=entry.mutability_policy,
+                    removal_policy=entry.removal_policy,
+                    ownership_class=entry.ownership_class,
+                    platform=entry.platform,
+                    merge_strategy=entry.merge_strategy,
                 )
             continue
         if action.path == MANIFEST_DEST or action.entry_id == "package-manifest":
@@ -280,7 +319,14 @@ def build_next_state(
                     id="package-manifest",
                     source_hash=action.source_hash or sha256_file(dest),
                     content_hash=sha256_file(dest),
-                    mode="0644",
+                    mode=normalize_mode(dest.stat().st_mode & 0o7777),
+                    owner=manifest.package_name,
+                    package_version=manifest.package_version,
+                    mutability_policy="read-only",
+                    removal_policy="preserve",
+                    ownership_class="managed-core",
+                    platform="all",
+                    merge_strategy="replace",
                 )
             continue
         entry = entries[action.path]
@@ -290,6 +336,13 @@ def build_next_state(
             source_hash=entry.source_hash,
             content_hash=sha256_file(dest),
             mode=normalize_mode(dest.stat().st_mode & 0o7777),
+            owner=entry.owner,
+            package_version=manifest.package_version,
+            mutability_policy=entry.mutability_policy,
+            removal_policy=entry.removal_policy,
+            ownership_class=entry.ownership_class,
+            platform=entry.platform,
+            merge_strategy=entry.merge_strategy,
         )
     # Ensure all active manifest paths that exist are recorded
     for entry in entries.values():
@@ -300,15 +353,24 @@ def build_next_state(
                 source_hash=entry.source_hash,
                 content_hash=sha256_file(dest),
                 mode=normalize_mode(dest.stat().st_mode & 0o7777),
+                owner=entry.owner,
+                package_version=manifest.package_version,
+                mutability_policy=entry.mutability_policy,
+                removal_policy=entry.removal_policy,
+                ownership_class=entry.ownership_class,
+                platform=entry.platform,
+                merge_strategy=entry.merge_strategy,
             )
         elif entry.destination in files and not dest.exists():
             files.pop(entry.destination, None)
     return InstalledState(
-        schema_version=1,
+        schema_version=manifest.schema_version,
         package_version=manifest.package_version,
         installed_at=utc_now(),
         files=files,
         package_name=manifest.package_name,
+        last_transaction_id=transaction_id,
+        manifest_hash=sha256_file(manifest.path),
     )
 
 
@@ -322,8 +384,12 @@ def _promote_current_to_last(target_root: Path) -> None:
         os.replace(current, last)
 
 
-def _recover_interrupted_unlocked(target_root: Path) -> dict[str, Any] | None:
+def _recover_interrupted_unlocked(
+    target_root: Path, *, lease: WriteLease | None = None
+) -> dict[str, Any] | None:
     """Recover from an interrupted transaction (caller must hold exclusive lock)."""
+    if lease is None:
+        raise ConflictError("Managed transaction recovery requires an active lease")
     current = current_tx_dir(target_root)
     journal = read_journal(current)
     if journal is None:
@@ -335,7 +401,7 @@ def _recover_interrupted_unlocked(target_root: Path) -> dict[str, Any] | None:
     backups = [BackupRecord.from_dict(x) for x in journal.get("backups") or []]
     # Restore in reverse order for safety
     for record in reversed(backups):
-        restore_backup(target_root, current, record)
+        restore_backup(target_root, current, record, lease=lease)
     # Drop incomplete transaction after successful restore
     shutil.rmtree(current)
     return {
@@ -353,7 +419,31 @@ def recover_interrupted(target_root: Path) -> dict[str, Any] | None:
     recovery ran, else None.
     """
     with exclusive_transaction_lock(target_root):
-        return _recover_interrupted_unlocked(target_root)
+        current = current_tx_dir(target_root)
+        journal = read_journal(current)
+        if journal is None:
+            return None
+        paths = {
+            record.get("path")
+            for record in journal.get("backups") or []
+            if isinstance(record, dict) and isinstance(record.get("path"), str)
+        }
+        paths.add(".ide-development/installed-state.json")
+        manifest = join_under_nofollow(target_root, MANIFEST_DEST)
+        manifest_digest = journal.get("manifestDigest")
+        if not isinstance(manifest_digest, str):
+            manifest_digest = sha256_file(manifest) if manifest.is_file() and not path_is_symlink(manifest) else "sha256:" + ("0" * 64)
+        with managed_write_lease(
+            target_root=target_root,
+            paths=paths,
+            operation="recover",
+            package_version=str(journal.get("packageVersion") or "unknown"),
+            manifest_digest=manifest_digest,
+            transaction_id=f"recovery-{journal.get('transactionId') or uuid.uuid4()}",
+            make_writable=False,
+            finalize_read_only=False,
+        ) as lease:
+            return _recover_interrupted_unlocked(target_root, lease=lease)
 
 
 def apply_plan(
@@ -373,15 +463,35 @@ def apply_plan(
         )
 
     with exclusive_transaction_lock(target_root):
-        return _apply_plan_unlocked(
+        lease_paths = {action.path for action in plan.mutating_actions}
+        lease_paths.update({MANIFEST_DEST, ".ide-development/installed-state.json"})
+        pending = read_journal(current_tx_dir(target_root))
+        if isinstance(pending, dict):
+            lease_paths.update(
+                record.get("path")
+                for record in pending.get("backups") or []
+                if isinstance(record, dict) and isinstance(record.get("path"), str)
+            )
+        with managed_write_lease(
             target_root=target_root,
-            package_root=package_root,
-            manifest=manifest,
-            plan=plan,
-            prior=prior,
-            resolution=resolution,
-            post_apply_check=post_apply_check,
-        )
+            paths=lease_paths,
+            operation=plan.command if plan.command in {"install", "update", "repair"} else "repair",
+            package_version=manifest.package_version,
+            manifest_digest=sha256_file(manifest.path),
+            transaction_id=f"lease-{uuid.uuid4()}",
+            make_writable=False,
+            finalize_read_only=True,
+        ) as lease:
+            return _apply_plan_unlocked(
+                target_root=target_root,
+                package_root=package_root,
+                manifest=manifest,
+                plan=plan,
+                prior=prior,
+                resolution=resolution,
+                post_apply_check=post_apply_check,
+                write_lease=lease,
+            )
 
 
 def _apply_plan_unlocked(
@@ -393,9 +503,10 @@ def _apply_plan_unlocked(
     prior: InstalledState | None,
     resolution: UpgradeResolution | None = None,
     post_apply_check: Callable[[], dict[str, Any]] | None = None,
+    write_lease: WriteLease | None = None,
 ) -> dict[str, Any]:
     # Recover any interrupted transaction before starting a new one
-    recovery = _recover_interrupted_unlocked(target_root)
+    recovery = _recover_interrupted_unlocked(target_root, lease=write_lease)
 
     mutating = plan.mutating_actions
     if not mutating:
@@ -408,6 +519,7 @@ def _apply_plan_unlocked(
             dest.is_file()
             and not path_is_symlink(dest)
             and sha256_file(dest) == manifest_hash
+            and is_read_only_mode(dest.stat().st_mode & 0o7777)
         )
         prior_manifest = prior.files.get(MANIFEST_DEST) if prior is not None else None
         if (
@@ -416,6 +528,7 @@ def _apply_plan_unlocked(
             and current_manifest
             and prior_manifest is not None
             and prior_manifest.content_hash == manifest_hash
+            and prior.manifest_hash == manifest_hash
         ):
             return {
                 "transactionId": None,
@@ -426,20 +539,31 @@ def _apply_plan_unlocked(
                 "installedStateWritten": False,
             }
         if not dest.is_file():
-            copy_file_physical(manifest.path, dest, mode="0644")
+            _authorize_managed_write(write_lease, MANIFEST_DEST)
+            copy_file_physical(manifest.path, dest, mode="0444")
         next_state = build_next_state(
             prior=prior,
             manifest=manifest,
             target_root=target_root,
             actions=plan.actions,
+            transaction_id=None,
         )
         next_state.files[MANIFEST_DEST] = FileState(
             id="package-manifest",
             source_hash=manifest_hash,
             content_hash=sha256_file(join_under(target_root, MANIFEST_DEST)),
-            mode="0644",
+            mode=normalize_mode(
+                join_under(target_root, MANIFEST_DEST).stat().st_mode & 0o7777
+            ),
+            owner=manifest.package_name,
+            package_version=manifest.package_version,
+            mutability_policy="read-only",
+            removal_policy="preserve",
+            ownership_class="managed-core",
+            platform="all",
+            merge_strategy="replace",
         )
-        save_installed_state(target_root, next_state)
+        _save_installed_state(target_root, next_state, lease=write_lease)
         return {
             "transactionId": None,
             "applied": [],
@@ -477,6 +601,7 @@ def _apply_plan_unlocked(
         "status": "in_progress",
         "packageName": manifest.package_name,
         "packageVersion": manifest.package_version,
+        "manifestDigest": sha256_file(manifest.path),
         "phase": PHASE_BACKUP,
         "createdAt": utc_now(),
         "dryRun": False,
@@ -500,7 +625,7 @@ def _apply_plan_unlocked(
             reason="installed-state snapshot",
         )
         state_record = backup_path(target_root, state_action)
-        write_backup_file(current, target_root, state_record)
+        write_backup_file(current, target_root, state_record, lease=write_lease)
         backups.append(state_record)
 
         migrate_ancestors = {
@@ -522,7 +647,7 @@ def _apply_plan_unlocked(
                 )
             else:
                 record = backup_path(target_root, action)
-            write_backup_file(current, target_root, record)
+            write_backup_file(current, target_root, record, lease=write_lease)
             backups.append(record)
             journal["backups"] = [b.to_dict() for b in backups]
             write_journal(current, journal)
@@ -537,10 +662,11 @@ def _apply_plan_unlocked(
             if action.entry_id == "package-manifest" or action.path == MANIFEST_DEST:
                 # Not a files[] entry — copy the package manifest bytes directly.
                 if action.op != OpKind.NOOP:
+                    _authorize_managed_write(write_lease, MANIFEST_DEST)
                     copy_file_physical(
                         manifest.path,
                         join_under(target_root, MANIFEST_DEST),
-                        mode="0644",
+                        mode="0444",
                     )
             else:
                 apply_action(
@@ -548,6 +674,7 @@ def _apply_plan_unlocked(
                     package_root=package_root,
                     action=action,
                     entries=entries,
+                    lease=write_lease,
                 )
             applied.append(action.path)
             journal["applied"] = applied
@@ -555,10 +682,11 @@ def _apply_plan_unlocked(
 
         # Ensure MANIFEST.json exists even when the plan had only a NOOP/missing edge.
         if MANIFEST_DEST not in applied:
+            _authorize_managed_write(write_lease, MANIFEST_DEST)
             copy_file_physical(
                 manifest.path,
                 join_under(target_root, MANIFEST_DEST),
-                mode="0644",
+                mode="0444",
             )
             applied.append(MANIFEST_DEST)
             journal["applied"] = applied
@@ -571,15 +699,25 @@ def _apply_plan_unlocked(
             manifest=manifest,
             target_root=target_root,
             actions=plan.actions,
+            transaction_id=tx_id,
         )
         # Record MANIFEST.json in installed-state
         next_state.files[MANIFEST_DEST] = FileState(
             id="package-manifest",
             source_hash=sha256_file(manifest.path),
             content_hash=sha256_file(join_under(target_root, MANIFEST_DEST)),
-            mode="0644",
+            mode=normalize_mode(
+                join_under(target_root, MANIFEST_DEST).stat().st_mode & 0o7777
+            ),
+            owner=manifest.package_name,
+            package_version=manifest.package_version,
+            mutability_policy="read-only",
+            removal_policy="preserve",
+            ownership_class="managed-core",
+            platform="all",
+            merge_strategy="replace",
         )
-        save_installed_state(target_root, next_state)
+        _save_installed_state(target_root, next_state, lease=write_lease)
 
         post_verification = post_apply_check() if post_apply_check is not None else None
         if post_verification is not None:
@@ -598,7 +736,7 @@ def _apply_plan_unlocked(
         # Best-effort rollback of this transaction
         try:
             for record in reversed(backups):
-                restore_backup(target_root, current, record)
+                restore_backup(target_root, current, record, lease=write_lease)
             if current.exists():
                 shutil.rmtree(current)
         except Exception as rollback_exc:  # pragma: no cover
@@ -627,12 +765,45 @@ def _apply_plan_unlocked(
 def rollback_last(target_root: Path) -> dict[str, Any]:
     """Restore exact pre-change bytes/modes from the last completed transaction."""
     with exclusive_transaction_lock(target_root):
-        return _rollback_last_unlocked(target_root)
+        current_journal = read_journal(current_tx_dir(target_root))
+        last = last_tx_dir(target_root)
+        journal = read_journal(last)
+        if journal is None:
+            raise RollbackError("No completed transaction available to rollback")
+        paths = {
+            record.get("path")
+            for record in (journal.get("backups") or [])
+            if isinstance(record, dict) and isinstance(record.get("path"), str)
+        }
+        if isinstance(current_journal, dict):
+            paths.update(
+                record.get("path")
+                for record in current_journal.get("backups") or []
+                if isinstance(record, dict) and isinstance(record.get("path"), str)
+            )
+        paths.add(".ide-development/installed-state.json")
+        manifest = join_under_nofollow(target_root, MANIFEST_DEST)
+        manifest_digest = journal.get("manifestDigest")
+        if not isinstance(manifest_digest, str):
+            manifest_digest = sha256_file(manifest) if manifest.is_file() and not path_is_symlink(manifest) else "sha256:" + ("0" * 64)
+        with managed_write_lease(
+            target_root=target_root,
+            paths=paths,
+            operation="rollback",
+            package_version=str(journal.get("packageVersion") or "unknown"),
+            manifest_digest=manifest_digest,
+            transaction_id=f"rollback-{journal.get('transactionId') or uuid.uuid4()}",
+            make_writable=False,
+            finalize_read_only=False,
+        ) as lease:
+            return _rollback_last_unlocked(target_root, lease=lease)
 
 
-def _rollback_last_unlocked(target_root: Path) -> dict[str, Any]:
+def _rollback_last_unlocked(
+    target_root: Path, *, lease: WriteLease | None = None
+) -> dict[str, Any]:
     # Prefer recovering incomplete current first
-    recovery = _recover_interrupted_unlocked(target_root)
+    recovery = _recover_interrupted_unlocked(target_root, lease=lease)
     last = last_tx_dir(target_root)
     journal = read_journal(last)
     if journal is None:
@@ -642,12 +813,18 @@ def _rollback_last_unlocked(target_root: Path) -> dict[str, Any]:
     backups = [BackupRecord.from_dict(x) for x in journal.get("backups") or []]
     try:
         for record in reversed(backups):
-            restore_backup(target_root, last, record)
+            restore_backup(target_root, last, record, lease=lease)
     except Exception as exc:
         raise RollbackError(f"Rollback failed: {exc}") from exc
 
+    # The installed-state backup is the exact preimage.  Do not reserialize it
+    # after restoring it: doing so changes formatting/timestamps and can lose
+    # legacy fields even though the transaction has an exact backup.
+    has_installed_state_preimage = any(
+        record.path == str(INSTALLED_STATE_REL) and record.existed for record in backups
+    )
     prior_state = journal.get("priorInstalledState")
-    if isinstance(prior_state, dict):
+    if not has_installed_state_preimage and isinstance(prior_state, dict):
         files = {
             path: FileState.from_dict(path, raw)
             for path, raw in (prior_state.get("files") or {}).items()
@@ -658,8 +835,11 @@ def _rollback_last_unlocked(target_root: Path) -> dict[str, Any]:
             installed_at=str(prior_state.get("installedAt") or utc_now()),
             files=files,
             package_name=str(prior_state.get("packageName") or "ide-development-managed-core"),
+            manifest_hash=prior_state.get("manifestHash")
+            if isinstance(prior_state.get("manifestHash"), str)
+            else None,
         )
-        save_installed_state(target_root, state)
+        _save_installed_state(target_root, state, lease=lease)
     elif not backups:
         pass
 

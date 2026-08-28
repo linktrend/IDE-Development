@@ -90,6 +90,86 @@ class ManifestRead:
     transition_event: Mapping[str, Any] | None = None
 
 
+@dataclass(frozen=True)
+class DurableStateRead:
+    """A CAS envelope for durable controller state."""
+
+    revision: int
+    digest: str | None
+    state: Mapping[str, Any]
+
+
+def canonical_state_digest(state: Mapping[str, Any]) -> str:
+    """Digest arbitrary JSON state using the same canonicalization as manifests."""
+
+    data = json.dumps(
+        state, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+def read_durable_state(store: Any) -> DurableStateRead | None:
+    """Read and validate a state envelope supplied by a controller store."""
+
+    raw = store.read()
+    if raw is None:
+        return None
+    state = raw.get("state") if isinstance(raw, Mapping) else None
+    if not isinstance(state, Mapping):
+        raise ManifestPersistenceError(
+            "durable_state_invalid", "durable state envelope must contain an object state"
+        )
+    revision = raw.get("revision")
+    digest = raw.get("digest")
+    if not isinstance(revision, int) or revision < 0:
+        raise ManifestPersistenceError(
+            "durable_state_invalid", "durable state revision must be a non-negative integer"
+        )
+    expected = canonical_state_digest(state)
+    if digest not in (None, expected):
+        raise ManifestPersistenceError(
+            "durable_state_digest_mismatch", "durable state digest does not match state"
+        )
+    return DurableStateRead(revision, digest or expected, dict(state))
+
+
+def persist_durable_state(
+    state: Mapping[str, Any],
+    store: Any,
+    *,
+    max_attempts: int = MAX_PERSISTENCE_ATTEMPTS,
+) -> dict[str, Any]:
+    """CAS-write controller state and require an exact durable readback."""
+
+    if max_attempts < 1:
+        raise ValueError("max_attempts_must_be_positive")
+    payload = copy.deepcopy(dict(state))
+    digest = canonical_state_digest(payload)
+    for _ in range(max_attempts):
+        current = read_durable_state(store)
+        revision = 0 if current is None else current.revision
+        expected_digest = None if current is None else current.digest
+        try:
+            store.compare_and_write(
+                revision,
+                expected_digest,
+                {"state": payload, "digest": digest},
+            )
+        except ManifestPersistenceError:
+            continue
+        readback = read_durable_state(store)
+        if (
+            readback is not None
+            and readback.revision == revision + 1
+            and readback.digest == digest
+            and dict(readback.state) == payload
+        ):
+            return {"revision": readback.revision, "digest": digest, "state": dict(readback.state)}
+    raise ManifestPersistenceError(
+        "durable_storage_exhausted", "controller state CAS/readback attempts exhausted"
+    )
+
+
 def canonical_manifest_digest(manifest: Mapping[str, Any]) -> str:
     data = json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     return "sha256:" + hashlib.sha256(data).hexdigest()

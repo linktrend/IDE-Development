@@ -27,6 +27,7 @@ from ide_development.engine import (
     run_version,
 )
 from ide_development.hashing import sha256_file
+from ide_development.managed_write_guard import managed_write_lease
 from ide_development.transaction import (
     current_tx_dir,
     last_tx_dir,
@@ -105,7 +106,7 @@ class EngineTests(TempRepoTestCase):
         result = run_version(package=self.package)
         self.assertEqual(result.exit_code, EXIT_OK)
         self.assertEqual(result.payload["packageVersion"], "2.1.0")
-        self.assertEqual(result.payload["installerVersion"], "2.5.1")
+        self.assertEqual(result.payload["installerVersion"], "2.5.2")
 
     def test_marker_upsert_preserves_consumer_text(self) -> None:
         agents = self.target / "AGENTS.md"
@@ -124,7 +125,7 @@ class EngineTests(TempRepoTestCase):
         result = run_version(package=self.package)
         self.assertEqual(result.exit_code, EXIT_OK)
         self.assertEqual(result.payload["packageVersion"], "2.1.0")
-        self.assertEqual(result.payload["installerVersion"], "2.5.1")
+        self.assertEqual(result.payload["installerVersion"], "2.5.2")
 
     def test_plan_and_dry_run_no_writes(self) -> None:
         before = _snapshot(self.target)
@@ -346,7 +347,15 @@ class EngineTests(TempRepoTestCase):
             dry_run=False,
         )
         target_file = self.target / ".ide-development" / "CORE.txt"
-        target_file.write_text("drifted\n", encoding="utf-8")
+        with managed_write_lease(
+            target_root=self.target,
+            paths=[".ide-development/CORE.txt"],
+            operation="repair",
+            package_version="2.1.0",
+            manifest_digest=sha256_file(self.package / "core/managed-core/MANIFEST.json"),
+            transaction_id="test-drift",
+        ):
+            target_file.write_text("drifted\n", encoding="utf-8")
         drift = run_drift(target=self.target, package=self.package)
         self.assertEqual(drift.exit_code, EXIT_DRIFT)
         kinds = {item["kind"] for item in drift.payload["drift"]}
@@ -376,6 +385,7 @@ class EngineTests(TempRepoTestCase):
         mutated_core = mutated_pkg / "core/managed-core/files/CORE.txt"
         mutated_core.write_text("managed-core fixture MUTATED\n", encoding="utf-8")
         _rewrite_manifest_hash(mutated_pkg, "managed-core-readme", mutated_core)
+        _rewrite_package_version(mutated_pkg, "2.1.1")
 
         updated = run_install_or_update(
             target=self.target,
@@ -390,6 +400,69 @@ class EngineTests(TempRepoTestCase):
         self.assertEqual(rolled.exit_code, EXIT_OK, rolled.payload)
         self.assertEqual(core.read_bytes(), original)
         self.assertEqual(stat.S_IMODE(core.stat().st_mode), original_mode)
+
+    def test_rollback_restores_installed_state_preimage_bytes_and_mode(self) -> None:
+        """Current and legacy state preimages survive rollback byte-for-byte."""
+        state = self.target / ".ide-development" / "installed-state.json"
+
+        for index, legacy in enumerate((False, True)):
+            if index == 0:
+                installed = run_install_or_update(
+                    target=self.target,
+                    package=self.package,
+                    command="install",
+                    dry_run=False,
+                )
+                self.assertEqual(installed.exit_code, EXIT_OK, installed.payload)
+            else:
+                # The first rollback leaves the original package installed;
+                # prepare the next update from that restored state.
+                self.assertTrue(state.is_file())
+
+            state.chmod(0o640)
+            if legacy:
+                payload = json.loads(state.read_bytes())
+                payload.pop("lastTransactionId", None)
+                payload.pop("manifestHash", None)
+                for file_state in payload["files"].values():
+                    for key in (
+                        "sourceDigest",
+                        "installedDigest",
+                        "owner",
+                        "mutabilityPolicy",
+                        "removalPolicy",
+                        "ownershipClass",
+                        "platform",
+                        "mergeStrategy",
+                        "packageVersion",
+                    ):
+                        file_state.pop(key, None)
+                state_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+                state.write_bytes(state_bytes)
+            else:
+                state_bytes = state.read_bytes()
+
+            state_mode = stat.S_IMODE(state.stat().st_mode)
+
+            mutated_pkg = Path(self._tmp.name) / f"mutated-package-{index}"
+            shutil.copytree(self.package, mutated_pkg)
+            mutated_core = mutated_pkg / "core/managed-core/files/CORE.txt"
+            mutated_core.write_text(f"managed-core fixture MUTATED {index}\n", encoding="utf-8")
+            _rewrite_manifest_hash(mutated_pkg, "managed-core-readme", mutated_core)
+            _rewrite_package_version(mutated_pkg, f"2.1.{index + 1}")
+
+            updated = run_install_or_update(
+                target=self.target,
+                package=mutated_pkg,
+                command="update",
+                dry_run=False,
+            )
+            self.assertEqual(updated.exit_code, EXIT_OK, updated.payload)
+
+            rolled = run_rollback(target=self.target)
+            self.assertEqual(rolled.exit_code, EXIT_OK, rolled.payload)
+            self.assertEqual(state.read_bytes(), state_bytes)
+            self.assertEqual(stat.S_IMODE(state.stat().st_mode), state_mode)
 
     def test_migration_exact_remove_and_refuse_mismatch(self) -> None:
         obsolete = self.target / ".cursor" / "rules" / "obsolete-generic.mdc"
@@ -434,7 +507,15 @@ class EngineTests(TempRepoTestCase):
         (tx / "backups").mkdir(parents=True, exist_ok=True)
         backup_name = encode_backup_name(".ide-development/CORE.txt")
         atomic_write_bytes(tx / "backups" / backup_name, original, mode="0644")
-        core.write_text("partial-write\n", encoding="utf-8")
+        with managed_write_lease(
+            target_root=self.target,
+            paths=[".ide-development/CORE.txt"],
+            operation="repair",
+            package_version="2.1.0",
+            manifest_digest=sha256_file(self.package / "core/managed-core/MANIFEST.json"),
+            transaction_id="test-interrupted-write",
+        ):
+            core.write_text("partial-write\n", encoding="utf-8")
         write_journal(
             tx,
             {
@@ -583,6 +664,14 @@ def _rewrite_manifest_hash(package: Path, entry_id: str, source: Path) -> None:
         if entry["id"] == entry_id:
             entry["sourceHash"] = digest
     manifest_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def _rewrite_package_version(package: Path, version: str) -> None:
+    manifest_path = package / "core/managed-core/MANIFEST.json"
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    data["packageVersion"] = version
+    manifest_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    (package / "core/managed-core/VERSION").write_text(version + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

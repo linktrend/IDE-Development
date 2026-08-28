@@ -8,7 +8,7 @@
   "program": {
     "id": "ide-development-v2.5",
     "name": "IDE Development v2.5",
-    "targetRelease": "2.5.1"
+    "targetRelease": "2.5.2"
   },
   "baseline": {
     "repository": "linktrend/IDE-Development",

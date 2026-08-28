@@ -209,7 +209,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/gitops/generated_output_closure.py --finalize
-          python3 scripts/gitops/run_delivery_profile.py full
+          python3 scripts/gitops/run_delivery_profile.py full --preflight
           python3 scripts/gitops/require_exact_ci_success.py \
             --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_HEAD}"
 
@@ -328,7 +328,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.ref_name }}
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
       - name: Verify an exact already-installed reconciled tree
         env:
@@ -348,7 +348,7 @@ jobs:
           python3 scripts/gitops/require_exact_ci_success.py --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_COMMIT}" --workflow-name "${SECURITY_WORKFLOW_NAME}"
           checks_json="${RUNNER_TEMP}/linktrend-reconciled-checks.json"
           printf '{"fast":"success","ci":"success","security":"success"}\n' > "${checks_json}"
-          git fetch origin staging main
+          git fetch --no-tags --depth=1 origin staging main
           staging_tree="$(git merge-tree --write-tree origin/staging "${EXPECTED_COMMIT}")"
           main_tree="$(git merge-tree --write-tree origin/main "${EXPECTED_COMMIT}")"
           python3 scripts/gitops/verify_reconciled_tree.py \
@@ -419,7 +419,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/gitops/generated_output_closure.py --finalize
-          python3 scripts/gitops/run_delivery_profile.py full
+          python3 scripts/gitops/run_delivery_profile.py full --preflight
           python3 scripts/gitops/require_exact_ci_success.py \
             --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_HEAD}"
 

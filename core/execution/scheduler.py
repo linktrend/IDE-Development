@@ -315,6 +315,29 @@ class ContinuousUtilizationScheduler:
             },
         }
 
+    def dependency_ready_ids(self) -> tuple[str, ...]:
+        """Return every ready, non-conflicting item in deterministic order."""
+
+        return tuple(
+            item_id
+            for item_id in self._order_ids(list(self._items))
+            if self._eligible(item_id)
+        )
+
+    def fill_dependency_ready_capacity(self) -> tuple[str, ...]:
+        """Admit all dependency-ready disjoint work that safe capacity allows."""
+
+        self.recompute("admission")
+        return self.admitted_ids()
+
+    def maximum_safe_parallelism_in_use(self) -> bool:
+        """Report whether no safe slot remains for currently eligible work."""
+
+        ready = self.dependency_ready_ids()
+        return bool(ready) and not any(
+            self._lane_capacity_ok(self._items[item_id]) for item_id in ready
+        )
+
     def recompute(self, event: str) -> None:
         allowed = set(self._config.get("recomputeOnEvents") or ())
         if allowed and event not in allowed and event != "admission":
