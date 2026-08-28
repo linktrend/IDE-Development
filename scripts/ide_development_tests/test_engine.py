@@ -27,6 +27,7 @@ from ide_development.engine import (
     run_version,
 )
 from ide_development.hashing import sha256_file
+from ide_development.managed_write_guard import managed_write_lease
 from ide_development.transaction import (
     current_tx_dir,
     last_tx_dir,
@@ -346,7 +347,15 @@ class EngineTests(TempRepoTestCase):
             dry_run=False,
         )
         target_file = self.target / ".ide-development" / "CORE.txt"
-        target_file.write_text("drifted\n", encoding="utf-8")
+        with managed_write_lease(
+            target_root=self.target,
+            paths=[".ide-development/CORE.txt"],
+            operation="repair",
+            package_version="2.1.0",
+            manifest_digest=sha256_file(self.package / "core/managed-core/MANIFEST.json"),
+            transaction_id="test-drift",
+        ):
+            target_file.write_text("drifted\n", encoding="utf-8")
         drift = run_drift(target=self.target, package=self.package)
         self.assertEqual(drift.exit_code, EXIT_DRIFT)
         kinds = {item["kind"] for item in drift.payload["drift"]}
@@ -376,6 +385,7 @@ class EngineTests(TempRepoTestCase):
         mutated_core = mutated_pkg / "core/managed-core/files/CORE.txt"
         mutated_core.write_text("managed-core fixture MUTATED\n", encoding="utf-8")
         _rewrite_manifest_hash(mutated_pkg, "managed-core-readme", mutated_core)
+        _rewrite_package_version(mutated_pkg, "2.1.1")
 
         updated = run_install_or_update(
             target=self.target,
@@ -434,7 +444,15 @@ class EngineTests(TempRepoTestCase):
         (tx / "backups").mkdir(parents=True, exist_ok=True)
         backup_name = encode_backup_name(".ide-development/CORE.txt")
         atomic_write_bytes(tx / "backups" / backup_name, original, mode="0644")
-        core.write_text("partial-write\n", encoding="utf-8")
+        with managed_write_lease(
+            target_root=self.target,
+            paths=[".ide-development/CORE.txt"],
+            operation="repair",
+            package_version="2.1.0",
+            manifest_digest=sha256_file(self.package / "core/managed-core/MANIFEST.json"),
+            transaction_id="test-interrupted-write",
+        ):
+            core.write_text("partial-write\n", encoding="utf-8")
         write_journal(
             tx,
             {
@@ -583,6 +601,14 @@ def _rewrite_manifest_hash(package: Path, entry_id: str, source: Path) -> None:
         if entry["id"] == entry_id:
             entry["sourceHash"] = digest
     manifest_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def _rewrite_package_version(package: Path, version: str) -> None:
+    manifest_path = package / "core/managed-core/MANIFEST.json"
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    data["packageVersion"] = version
+    manifest_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    (package / "core/managed-core/VERSION").write_text(version + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

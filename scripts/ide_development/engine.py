@@ -21,6 +21,7 @@ from .state import load_installed_state
 from .transaction import apply_plan, current_tx_dir, read_journal, recover_interrupted, rollback_last
 from .io_atomic import atomic_write_bytes
 from .hashing import sha256_file
+from .managed_write_guard import export_candidate
 from .resolution import UpgradeResolution, load_and_validate_resolution
 
 
@@ -164,6 +165,73 @@ def _plan_payload(plan: Plan, **extra: Any) -> dict[str, Any]:
     payload = plan.to_dict()
     payload.update(extra)
     return payload
+
+
+def _validate_package_identity(manifest: Manifest, prior: Any | None) -> str:
+    """Reject a different package identity reusing an installed version."""
+    digest = sha256_file(manifest.path)
+    if prior is None or prior.package_version != manifest.package_version:
+        return digest
+    if prior.manifest_hash is not None and prior.manifest_hash != digest:
+        raise InvalidPackageError(
+            "Managed package version collision: manifest bytes changed for an installed version",
+            details={
+                "packageVersion": manifest.package_version,
+                "installedManifestHash": prior.manifest_hash,
+                "packageManifestHash": digest,
+            },
+        )
+    current = {entry.destination: entry.source_hash for entry in manifest.active_entries()}
+    installed = {
+        path: file_state.source_hash
+        for path, file_state in prior.files.items()
+        if path != f"{MANAGED_CORE_DIR}/MANIFEST.json"
+    }
+    collisions = sorted(
+        path for path in current.keys() & installed.keys() if current[path] != installed[path]
+    )
+    if collisions:
+        raise InvalidPackageError(
+            "Managed package version collision: source bytes changed for an installed version",
+            details={"packageVersion": manifest.package_version, "paths": collisions},
+        )
+    return digest
+
+
+def _export_conflict_candidates(
+    *, target_root: Path, package_version: str, prior: Any | None, plan: Plan
+) -> list[dict[str, object]]:
+    """Quarantine changed owned bytes before reporting an overwrite refusal."""
+    if prior is None:
+        return []
+    exports: list[dict[str, object]] = []
+    for conflict in plan.conflicts:
+        if conflict.kind.value != "hash_mismatch_owned":
+            continue
+        file_state = prior.files.get(conflict.path)
+        destination = target_root / conflict.path
+        if file_state is None or not destination.is_file() or destination.is_symlink():
+            continue
+        try:
+            exports.append(
+                export_candidate(
+                    target_root,
+                    conflict.path,
+                    package_version=package_version,
+                    baseline_digest=file_state.content_hash,
+                    classification="candidate_central_ide_improvement",
+                    reason="managed bytes changed outside an authorized transaction",
+                )
+            )
+        except (OSError, InstallerError) as exc:
+            exports.append(
+                {
+                    "path": conflict.path,
+                    "classification": "candidate_export_failed",
+                    "error": str(exc),
+                }
+            )
+    return exports
 
 
 def _repository_ci_trigger_audit(package_root: Path, target_root: Path) -> dict[str, Any]:
@@ -362,6 +430,9 @@ def run_install_or_update(
     manifest = load_manifest(package_root)
     migration = load_migration_catalog(package_root)
 
+    prior = load_installed_state(target_root)
+    package_manifest_digest = _validate_package_identity(manifest, prior)
+
     # The installer is the authoritative upgrade path.  Early consumers have
     # a repository-owned config without the later receipt-bound Fast key; add
     # only that fixed managed declaration.  Never infer a consumer CI name.
@@ -370,8 +441,6 @@ def run_install_or_update(
     normalized_fast = _normalize_consumer_workflow_contract(
         target_root, mutate=not dry_run and resolution_manifest is None
     )
-    prior = load_installed_state(target_root)
-
     if command == "update" and prior is None:
         raise InvalidPackageError(
             "update requires an existing installed-state; use install for first-time setup"
@@ -417,6 +486,13 @@ def run_install_or_update(
         normalizedFastWorkflowName=normalized_fast,
         repositoryCiTriggerAudit=ci_trigger_audit,
         managedUpgradeResolution=resolution.to_dict() if resolution else None,
+        managedPackageManifestDigest=package_manifest_digest,
+        candidateExports=_export_conflict_candidates(
+            target_root=target_root,
+            package_version=manifest.package_version,
+            prior=prior,
+            plan=plan,
+        ),
     )
 
     if plan.has_conflicts:
@@ -455,12 +531,14 @@ def run_drift(
     package_root, target_root = _prepare(target=target, package=package)
     recovery = _maybe_recover(target_root, mutate=False)
     manifest = load_manifest(package_root)
+    migration = load_migration_catalog(package_root)
     prior = load_installed_state(target_root)
     items = build_drift_report(
         package_root=package_root,
         target_root=target_root,
         manifest=manifest,
         prior=prior,
+        migration=migration,
     )
     meaningful = meaningful_drift(items)
     payload = {
@@ -504,6 +582,7 @@ def run_verify(
         target_root=target_root,
         manifest=manifest,
         prior=prior,
+        migration=migration,
     )
     meaningful = meaningful_drift(items)
     needs_work = [a for a in plan.actions if a.op.value != "noop"]
