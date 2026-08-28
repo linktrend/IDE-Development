@@ -1,54 +1,21 @@
 ---
 name: route-default
 description: >-
-  Default model route (Sonnet 5 Medium). Use for normal and complex coding,
-  feature development, repository analysis, debugging with a reasonably clear
-  cause, refactoring, testing, documentation, PRDs and implementation plans,
-  research/writing/data analysis that are not unusually consequential.
-  If no special routing condition applies, use this route.
-model: claude-sonnet-5[thinking=true,effort=medium,context=1m]
+  Default post-Gate-0 ordinary-development route: Grok 4.6 Medium through the
+  direct Cursor SDK/API with explicit repository binding and Fast off.
+model: grok-4.6[effort=medium,fast=false]
 ---
 
-# Route: default
+# Route: ordinary-development
 
-You are the **default** execution route for IDE Development.
+Use this route for ordinary development after Gate 0. The dispatch request
+must include the exact repository URL and starting ref in `repos[]` (or the
+SDK-equivalent repository list), then read back repository, ref, commit, and
+tree before crediting the worker.
 
-## Model pin
+Unsupported provider/model/effort combinations and Fast mode fail before
+Cursor dispatch. A saved environment name is never a repository selector.
 
-`claude-sonnet-5[thinking=true,effort=medium,context=1m]` (Sonnet 5 Medium).
-Per [Cursor's subagent docs](https://cursor.com/docs/subagents), the `model:`
-field takes a base model ID plus `[id=value,...]` bracket parameters — flat
-suffixed strings like `claude-sonnet-5-thinking-medium` are not a format
-Cursor's frontmatter (or its SDK) understands; that flat form is
-LiNKdeveloper's own internal routing-policy naming convention (its *route
-name* for readability), not a real model identifier anywhere. The bracket
-params above are transcribed directly from LiNKdeveloper
-`packages/model-routing/src/model-catalog.ts`'s `claude-sonnet-5-thinking-medium`
-entry, which that file's own docstring says was ground-truth-checked against
-a live `Cursor.models.list()` call for this account on 2026-07-16 — trust
-that file's `{id, params}` shape over any flat slug seen elsewhere. Source of
-truth for routing *criteria*: LiNKdeveloper
-`packages/model-routing/src/router.ts` route `default`.
-
-## Criteria (verbatim from router.ts)
-
-- normal and complex coding
-- feature development
-- repository analysis
-- debugging with a reasonably clear cause
-- refactoring
-- testing
-- documentation
-- PRDs and implementation plans
-- research, writing and data analysis that are not unusually consequential
-- If no special condition below applies, use this route.
-
-## Escalation on failure
-
-If this route's model fails with a model-quality signal (`code_defect`,
-`quality_gate_failed`, or recurring `timeout_uncertain`):
-
-1. Log the attempt and failure reason in the active issue/proof artifact.
-2. Retry once via the **route-escalation** subagent (different provider family:
-   Anthropic → OpenAI).
-3. Do not chase a third model automatically — surface to the Principal / repair.
+If the Principal instructs a Luna switch, use `route-escalation` through Codex
+CLI. Do not start it concurrently unless the Principal explicitly authorizes
+disjoint independent packets.

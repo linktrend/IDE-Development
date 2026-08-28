@@ -1,63 +1,62 @@
-# Cursor Cloud API dispatch contract
+# Cursor Cloud repository-bound dispatch contract
 
-**Control:** `cursor-cloud-dispatch-v1`
+**Control:** `cursor-cloud-dispatch-v2`
 
-This contract is the reusable authority boundary for creating a Cursor Cloud
-agent for IDE Development 2.5.1. An authenticated `cursor-agent` CLI session
-proves only local workspace access. It does not authorize the Cursor Cloud API.
-Cloud creation requires the `CURSOR_API_KEY` user or service key, which must be
-held by the HTTP adapter and never written to intents, receipts, logs, or
+This contract governs the implementation boundary for Cursor Cloud workers. It
+does not perform the live routing canary or final Grok/Cursor acceptance proof;
+those remain release acceptance work.
+
+## Routing policy
+
+- Gate 0 execution uses GPT-5.6 Luna High through Codex CLI.
+- Post-Gate-0 ordinary development defaults to Grok 4.6 Medium through the
+  direct Cursor SDK/API path, with Fast explicitly disabled.
+- Luna is a fallback only after the Principal instructs the switch. Concurrent
+  Luna work requires explicit Principal authorization for disjoint packets.
+- This direct Cursor dispatcher rejects every other provider, model, effort, or
+  Fast combination before an API key is read or capacity is consumed.
+
+The versioned program-to-repository registry is
+`core/managed-core/content/config/routing-registry.json`. Its current
+`programs` list is intentionally empty: this packet does not invent repository
+identities. Future entries must name every permitted repository, and a shared
+entry must explicitly declare cross-repository scope.
+
+## Repository binding and identity
+
+Every direct REST request carries:
+
+```json
+{
+  "repos": [{"url": "https://github.com/owner/name", "startingRef": "issue/123-slug"}]
+}
+```
+
+The SDK path carries the equivalent `CloudAgentOptions.repos` list. A named
+saved Cursor environment, display name, local checkout, or prompt text is not a
+repository selector. The requested URL must match the logical repository
+identity, and the request includes the exact 40-character starting commit and
+tree in the durable PREPARED intent.
+
+After creation, a mandatory provider readback must prove the exact repository,
+ref, worker HEAD commit, and worker HEAD tree. It must also prove provider,
+model, medium effort, and `fast=false`. Missing or mismatched fields fail
+closed. The run is archived and the intent is marked `REJECTED`; it is never
+counted as a worker.
+
+## Durable and equivalent semantics
+
+The intent store is read back before creation. The idempotency key and
+client-supplied agent ID bind the complete repository/model/identity request.
+Unknown API outcomes receive at most one retry with the same key. The SDK and
+REST adapters share the same preflight, readback, archive-on-mismatch, and
+durable-commit path, so choosing the SDK does not weaken the evidence contract.
+
+API credentials are injected through `CURSOR_API_KEY`; CLI login is not Cloud
+API authority. Credentials never appear in intents, receipts, logs, or
 diagnostics.
 
-## Dispatch controls
-
-Planner manifests may bind the dispatch controls through
-`controls.cursorCloudExecution`. The binding requires pre-dispatch advertised
-ref validation, governed rebaseline/hold handling for a missing ref, immutable
-prepared-intent supersession without reusing a Cloud attempt, and effective
-model readback. The execution-manifest schema validates this object strictly;
-unknown fields are rejected.
-
-The adapter calls `POST /v1/agents` through an injected HTTP port. It supplies
-the exact named environment `{type: "cloud", name: "IDE Development 2.5.1"}`
-and one exact non-Fast model. The saved environment's public identity
-`1937ddb1-9d3e-11f1-a7d1-d6b4613131ce` is carried in PREPARED/readback evidence,
-not as an unsupported API selector. Cursor's public API does not provide an exact
-repository checkout selector, so repository binding is not claimed in the API
-body. Instead, the saved environment target is deterministically selected as
-`/agent/repos/<repo>`. For example, LiNKbrain must select
-`/agent/repos/LiNKbrain` with remote `https://github.com/linktrend/LiNKbrain`;
-the default LiNKharness primary repository is rejected. The first prompt must
-resolve that path, and fetch/checkout the required ref or exact commit only as
-governed setup, before remote/repository/ref/commit/tree/toolchain attestation.
-The expected build ID is recorded as provenance only; it is deliberately not
-sent as a selectable build or model selector. After creation, the provider run
-readback must explicitly record the public environment ID, observed build
-provenance, expected build provenance, effective model and `fast=false`; a
-mismatch is a hard stop.
-
-Before the API call, the durable store must contain a read-back-verified
-`PREPARED` intent. The idempotency key and deterministic client-supplied agent
-ID bind the repository path, remote, ref, commit, tree, environment, model,
-build provenance, toolchain, and the exact governed setup receipt digest
-(`sha256:<digest>`). A committed intent is returned as a duplicate and never
-creates a second agent. An unknown API outcome receives at most one retry with
-the same idempotency key.
-
-Before preparing a new request, the store enumerates all intents. Every
-uncompleted `PREPARED` record that names the retired fixed hosted-worker cap is
-atomically marked `SUPERSEDED` with the adaptive policy and must receive a new
-idempotency identity. `COMMITTED` records are preserved as completed evidence.
-If the store cannot enumerate and read back these records, dispatch stops
-before the API call. Capacity evidence is bound to the exact account, API-key
-name, team, and Program Run identity; a missing or mismatched identity is not
-usable evidence.
-
-The first prompt is an attestation-only prompt. The agent must not mutate,
-commit, push, migrate, or invoke side effects. It must report the cloud
-environment identity, repository/ref/commit/tree matrix, and toolchain. A
-mutation gate accepts only an explicit `PASS` with `noMutation: true` and an
-exact match for every expected field. Any mismatch is a hard stop.
-
-Tests use fake HTTP ports and test-only keys. No Cursor endpoint or real agent
-creation is part of source or package validation.
+The first prompt is attestation-only. It prohibits mutation and asks the worker
+to report the explicit repository/ref/commit/tree matrix and clean workspace.
+This packet supplies local implementation and focused tests only. No real
+Cursor endpoint or live agent creation is part of source validation.

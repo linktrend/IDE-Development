@@ -1,26 +1,37 @@
 {
-  "schemaVersion": 1,
-  "controlId": "cursor-cloud-dispatch-v1",
+  "schemaVersion": 2,
+  "controlId": "cursor-cloud-dispatch-v2",
   "apiBaseUrl": "https://api.cursor.com",
   "apiPath": "/v1/agents",
   "apiKeyEnvironmentVariable": "CURSOR_API_KEY",
-  "apiBinding": "prompt-and-governed-setup-only",
-  "savedRepositoryRoot": "/agent/repos",
-  "savedRepositoryLayout": "/agent/repos/<repo>",
+  "preferredClient": "cursor-sdk",
+  "sdkPackage": "cursor-sdk",
+  "directApiRepositoryBinding": "repos[]",
+  "sdkRepositoryBinding": "CloudAgentOptions.repos",
+  "routingRegistry": "content/config/routing-registry.json",
+  "readbackRequired": true,
+  "readbackFields": ["repository", "ref", "commit", "tree", "provider", "model", "effort", "fast"],
+  "archiveOnMismatchRequired": true,
   "maxApiAttempts": 2,
-  "environment": {
-    "type": "cloud",
-    "name": "IDE Development 2.5.1",
-    "publicId": "1937ddb1-9d3e-11f1-a7d1-d6b4613131ce"
+  "ordinaryDevelopment": {
+    "provider": "cursor",
+    "routeId": "ordinary-development",
+    "model": "grok-4.6",
+    "effort": "medium",
+    "fast": false
   },
-  "requiresExactNonFastModel": true,
-  "expectedBuildIdRole": "provenance-only",
-  "runReadbackRequired": true,
-  "runReadbackFields": ["environmentPublicId", "observedBuildId", "expectedBuildId", "effectiveModel", "fast"],
-  "preparedIntentRequired": true,
-  "clientSuppliedAgentIdRequired": true,
-  "governedSetupRequired": true,
-  "setupReceiptRequired": true,
-  "attestationBeforeMutationRequired": true,
+  "gate0": {
+    "provider": "codex-cli",
+    "model": "gpt-5.6-luna",
+    "effort": "high",
+    "fast": false
+  },
+  "lunaFallback": {
+    "provider": "codex-cli",
+    "model": "gpt-5.6-luna",
+    "effort": "high",
+    "fast": false,
+    "principalInstructionRequired": true
+  },
   "cliLoginIsCloudAuthority": false
 }

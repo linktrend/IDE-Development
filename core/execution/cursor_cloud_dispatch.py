@@ -1,9 +1,11 @@
-"""Fail-closed Cursor Cloud API dispatch contract.
+"""Fail-closed Cursor Cloud SDK/API dispatch contract.
 
-The authenticated ``cursor-agent`` CLI is a local-workspace capability.  It is
-not evidence that this process can create a Cursor Cloud agent.  Cloud
-creation therefore requires ``CURSOR_API_KEY`` and uses only the HTTP API
-authority represented by that key.
+Cursor Cloud routing is repository-bound. The direct REST shape uses ``repos``
+and the SDK adapter uses the equivalent ``CloudAgentOptions.repos`` value. A
+named saved environment is deliberately not part of this contract.
+
+Gate 0 Luna High work is owned by the Codex CLI route; ordinary post-Gate-0
+Cursor work is the only model policy admitted by this direct dispatcher.
 """
 
 from __future__ import annotations
@@ -13,21 +15,30 @@ import hashlib
 import json
 import os
 import re
-from dataclasses import dataclass
-from typing import Any, Mapping, Protocol
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Mapping, Protocol, Sequence
 from urllib.parse import urlsplit, urlunsplit
 
 
-CONTROL_ID = "cursor-cloud-dispatch-v1"
-ADAPTIVE_CAPACITY_POLICY = "adaptive_minimum_of_live_evidence"
+CONTROL_ID = "cursor-cloud-dispatch-v2"
 API_BASE_URL = "https://api.cursor.com"
 API_PATH = "/v1/agents"
-ENV_TYPE = "cloud"
-ENV_NAME = "IDE Development 2.5.1"
-ENV_PUBLIC_ID = "1937ddb1-9d3e-11f1-a7d1-d6b4613131ce"
-SAVED_REPOSITORY_ROOT = "/agent/repos"
 MAX_API_ATTEMPTS = 2
-_HEX = re.compile(r"^[0-9a-f]{40,64}$")
+
+# Import-compatible empty aliases for older adapters. They are not selectors
+# and are never sent to Cursor.
+ENV_NAME = ""
+ENV_PUBLIC_ID = ""
+SAVED_REPOSITORY_ROOT = ""
+
+DIRECT_PROVIDER = "cursor"
+ORDINARY_ROUTE = "ordinary-development"
+DIRECT_MODEL = "grok-4.6"
+DIRECT_EFFORT = "medium"
+DIRECT_FAST = "false"
+_GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
+_SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 class CursorCloudDispatchError(RuntimeError):
@@ -43,7 +54,6 @@ class CursorCloudDispatchError(RuntimeError):
 @dataclass(frozen=True)
 class CursorCloudDispatchRequest:
     repository: str
-    target_path: str
     target_remote: str
     ref: str
     commit: str
@@ -52,66 +62,71 @@ class CursorCloudDispatchRequest:
     expected_build_id: str
     toolchain: Mapping[str, str]
     setup_receipt_digest: str
-    environment_name: str = ENV_NAME
-    environment_public_id: str = ENV_PUBLIC_ID
+    provider: str = DIRECT_PROVIDER
+    route_id: str = ORDINARY_ROUTE
+    model_parameters: Mapping[str, str] = field(default_factory=dict)
+    explicit_scope_repositories: tuple[str, ...] = ()
+    explicit_scope_remotes: Mapping[str, str] = field(default_factory=dict)
     governed_setup: bool = False
-    concurrency_policy: str = ADAPTIVE_CAPACITY_POLICY
+    principal_authorized: bool = False
 
     def validate(self) -> None:
         if not self.repository.strip() or not self.ref.strip():
             raise CursorCloudDispatchError(
                 "cursor_cloud_identity_missing", "repository and ref are required"
             )
-        repository_parts = self.repository.split("/")
-        if (
-            len(repository_parts) != 2
-            or any(part in {"", ".", ".."} or "\\" in part for part in repository_parts)
-        ):
+        parts = self.repository.split("/")
+        if len(parts) != 2 or any(part in {"", ".", ".."} or "\\" in part for part in parts):
             raise CursorCloudDispatchError(
                 "cursor_cloud_repository_invalid",
                 "repository must be an owner/name identity without traversal",
             )
-        self.resolved_target_path
-        normalize_repository_remote(self.target_remote)
+        normalized_remote = normalize_repository_remote(self.target_remote)
+        if normalized_remote != f"https://github.com/{self.repository}":
+            raise CursorCloudDispatchError(
+                "cursor_cloud_repository_remote_mismatch",
+                "repository URL does not match the requested repository identity",
+            )
+        if not _GIT_SHA.fullmatch(self.commit) or not _GIT_SHA.fullmatch(self.tree):
+            raise CursorCloudDispatchError(
+                "cursor_cloud_identity_invalid",
+                "commit and tree must be exact 40-character hexadecimal git identities",
+            )
         if not self.governed_setup:
             raise CursorCloudDispatchError(
                 "cursor_cloud_governed_setup_required",
                 "target checkout setup must be explicitly governed before dispatch",
             )
-        if not re.fullmatch(r"sha256:[0-9a-f]{64}", self.setup_receipt_digest):
+        if not _SHA256.fullmatch(self.setup_receipt_digest):
             raise CursorCloudDispatchError(
                 "cursor_cloud_setup_receipt_invalid",
                 "an exact governed setup receipt digest is required",
-            )
-        if not _HEX.fullmatch(self.commit) or not _HEX.fullmatch(self.tree):
-            raise CursorCloudDispatchError(
-                "cursor_cloud_identity_invalid",
-                "commit and tree must be exact hexadecimal git identities",
-            )
-        model = self.model.strip()
-        if not model:
-            raise CursorCloudDispatchError(
-                "cursor_cloud_model_missing", "an exact non-Fast model is required"
-            )
-        if model.casefold() == "fast" or model.casefold().startswith("fast-"):
-            raise CursorCloudDispatchError(
-                "cursor_cloud_fast_model_forbidden",
-                "Fast is not an admitted Cursor Cloud model",
             )
         if not self.expected_build_id.strip():
             raise CursorCloudDispatchError(
                 "cursor_cloud_build_provenance_missing",
                 "expected build ID is required as provenance",
             )
-        if self.environment_name != ENV_NAME:
+        if self.provider != DIRECT_PROVIDER:
             raise CursorCloudDispatchError(
-                "cursor_cloud_environment_mismatch",
-                "dispatch must target the named IDE Development 2.5.1 cloud environment",
+                "cursor_cloud_provider_unsupported",
+                "direct Cursor dispatch only admits provider=cursor; Luna uses Codex CLI",
             )
-        if self.environment_public_id != ENV_PUBLIC_ID:
+        if self.route_id != ORDINARY_ROUTE:
             raise CursorCloudDispatchError(
-                "cursor_cloud_environment_public_id_mismatch",
-                "dispatch must target the saved IDE Development 2.5.1 public environment identity",
+                "cursor_cloud_route_unsupported",
+                "direct Cursor dispatch only admits the ordinary-development route",
+            )
+        if self.model != DIRECT_MODEL:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_model_unsupported",
+                "ordinary Cursor development requires the exact grok-4.6 model",
+            )
+        parameters = {str(key): str(value) for key, value in self.model_parameters.items()}
+        if parameters != {"effort": DIRECT_EFFORT, "fast": DIRECT_FAST}:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_model_parameters_unsupported",
+                "ordinary Cursor development requires effort=medium and fast=false",
             )
         if not self.toolchain or any(
             not str(key).strip() or not str(value).strip()
@@ -120,61 +135,33 @@ class CursorCloudDispatchRequest:
             raise CursorCloudDispatchError(
                 "cursor_cloud_toolchain_missing", "toolchain attestation data is required"
             )
-        if self.concurrency_policy != ADAPTIVE_CAPACITY_POLICY:
-            raise CursorCloudDispatchError(
-                "cursor_cloud_capacity_policy_invalid",
-                "dispatch must use the adaptive capacity policy",
-            )
+        validate_repository_scope(self)
 
     @property
-    def environment(self) -> dict[str, str]:
-        return {"type": ENV_TYPE, "name": self.environment_name}
+    def normalized_remote(self) -> str:
+        return normalize_repository_remote(self.target_remote)
 
     @property
-    def environment_identity(self) -> dict[str, str]:
-        """The named environment plus provider identity, kept out of API selectors."""
-
-        return {**self.environment, "publicId": self.environment_public_id}
-
-    @property
-    def resolved_target_path(self) -> str:
-        return canonical_saved_repository_path(self.repository, self.target_path)
-
-
-def canonical_saved_repository_path(repository: str, target_path: str) -> str:
-    """Resolve only ``/agent/repos/<repo>``; reject primary/default ambiguity."""
-
-    repo_name = repository.rstrip("/").split("/")[-1]
-    raw = str(target_path or "")
-    if not repo_name or not raw or "\\" in raw or "//" in raw:
-        raise CursorCloudDispatchError(
-            "cursor_cloud_target_path_invalid", "target repository path is missing or ambiguous"
-        )
-    if raw.startswith(SAVED_REPOSITORY_ROOT + "/"):
-        relative = raw[len(SAVED_REPOSITORY_ROOT) + 1 :]
-    elif raw.startswith("/"):
-        raise CursorCloudDispatchError(
-            "cursor_cloud_target_path_escape", "target path is outside the saved repository root"
-        )
-    else:
-        relative = raw
-    segments = relative.split("/")
-    if len(segments) != 1 or segments[0] in {"", ".", ".."} or segments[0] != repo_name:
-        raise CursorCloudDispatchError(
-            "cursor_cloud_target_path_ambiguous",
-            "target path must select the requested repository, not the environment primary repo",
-        )
-    return f"{SAVED_REPOSITORY_ROOT}/{repo_name}"
+    def repository_bindings(self) -> list[dict[str, str]]:
+        bindings = [{"url": self.normalized_remote, "startingRef": self.ref}]
+        seen = {(self.normalized_remote, self.ref)}
+        for repository in self.explicit_scope_repositories:
+            remote = normalize_repository_remote(self.explicit_scope_remotes[repository])
+            item = (remote, self.ref)
+            if item not in seen:
+                bindings.append({"url": remote, "startingRef": self.ref})
+                seen.add(item)
+        return bindings
 
 
 def normalize_repository_remote(remote: str) -> str:
-    """Normalize local ``origin`` readback for exact repository comparison."""
+    """Normalize a repository URL without accepting credentials or ambiguity."""
 
     value = str(remote or "").strip()
     parsed = urlsplit(value)
     if (
-        parsed.scheme not in {"http", "https"}
-        or not parsed.hostname
+        parsed.scheme.casefold() not in {"http", "https"}
+        or parsed.hostname is None
         or parsed.username
         or parsed.password
         or parsed.query
@@ -194,6 +181,53 @@ def normalize_repository_remote(remote: str) -> str:
     return urlunsplit((parsed.scheme.casefold(), parsed.hostname.casefold(), path, "", ""))
 
 
+def canonical_saved_repository_path(repository: str, target_path: str) -> str:
+    """Reject the retired saved-environment path API."""
+
+    del repository, target_path
+    raise CursorCloudDispatchError(
+        "cursor_cloud_saved_environment_forbidden",
+        "saved environment paths are unsupported; use an explicit repos binding",
+    )
+
+
+def validate_repository_scope(request: CursorCloudDispatchRequest) -> None:
+    """Allow one repository by default and extras only when explicitly listed."""
+
+    extras = tuple(request.explicit_scope_repositories)
+    if not extras and request.explicit_scope_remotes:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_explicit_scope_remote_without_repositories",
+            "explicit scope remotes require coordinated repository identities",
+        )
+    seen = {request.repository}
+    for repository in extras:
+        parts = repository.split("/")
+        if (
+            len(parts) != 2
+            or any(part in {"", ".", ".."} or "\\" in part for part in parts)
+            or repository in seen
+        ):
+            raise CursorCloudDispatchError(
+                "cursor_cloud_explicit_scope_repository_invalid",
+                "explicit-scope repository identity is invalid or duplicated",
+            )
+        seen.add(repository)
+        remote = request.explicit_scope_remotes.get(repository)
+        if not remote:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_explicit_scope_remote_missing",
+                "each explicit-scope repository requires a governed remote",
+                repository=repository,
+            )
+        if normalize_repository_remote(remote) != f"https://github.com/{repository}":
+            raise CursorCloudDispatchError(
+                "cursor_cloud_explicit_scope_remote_mismatch",
+                "explicit-scope remote does not match its repository identity",
+                repository=repository,
+            )
+
+
 @dataclass(frozen=True)
 class CursorCloudDispatchResult:
     status: str
@@ -201,10 +235,14 @@ class CursorCloudDispatchResult:
     client_agent_id: str
     agent_id: str
     run_id: str
-    environment: Mapping[str, str]
-    environment_public_id: str
+    repository: str
+    ref: str
+    commit: str
+    tree: str
+    provider: str
     model: str
-    expected_build_id: str
+    effort: str
+    fast: bool
     revision: int
     attestation_prompt: str
 
@@ -227,6 +265,134 @@ class CursorCloudHTTPPort(Protocol):
     def post(
         self, path: str, *, headers: Mapping[str, str], body: Mapping[str, Any]
     ) -> Mapping[str, Any]: ...
+
+    def get(self, path: str, *, headers: Mapping[str, str]) -> Mapping[str, Any]: ...
+
+
+class CursorCloudSDKPort(Protocol):
+    def create_agent(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        model_parameters: Mapping[str, str],
+        repository_bindings: Sequence[Mapping[str, str]],
+        prompt: str,
+        name: str,
+        agent_id: str,
+        idempotency_key: str,
+    ) -> Mapping[str, Any]: ...
+
+    def get_agent(self, agent_id: str) -> Mapping[str, Any]: ...
+
+    def archive_agent(self, agent_id: str) -> Mapping[str, Any]: ...
+
+
+class CursorPythonSDKPort:
+    """Lazy official SDK adapter with create/readback/archive semantics."""
+
+    def __init__(self) -> None:
+        self._agents: dict[str, Any] = {}
+
+    def create_agent(self, **kwargs: Any) -> Mapping[str, Any]:
+        try:
+            from cursor_sdk import (
+                Agent,
+                CloudAgentOptions,
+                CloudRepository,
+                ModelParameterValue,
+                ModelSelection,
+            )
+        except ImportError as exc:  # pragma: no cover - host dependency
+            raise CursorCloudDispatchError(
+                "cursor_cloud_sdk_unavailable", "cursor-sdk is not installed"
+            ) from exc
+        agent = Agent.create(
+            model=ModelSelection(
+                id=kwargs["model"],
+                params=[
+                    ModelParameterValue(id=key, value=value)
+                    for key, value in sorted(kwargs["model_parameters"].items())
+                ],
+            ),
+            api_key=kwargs["api_key"],
+            name=kwargs["name"],
+            agent_id=kwargs["agent_id"],
+            idempotency_key=kwargs["idempotency_key"],
+            cloud=CloudAgentOptions(
+                repos=[
+                    CloudRepository(url=item["url"], starting_ref=item["startingRef"])
+                    for item in kwargs["repository_bindings"]
+                ],
+                auto_create_pr=False,
+            ),
+        )
+        agent_id = str(getattr(agent, "agent_id", "") or kwargs["agent_id"])
+        self._agents[agent_id] = agent
+        run = agent.send(kwargs["prompt"])
+        run_id = str(getattr(run, "run_id", None) or getattr(run, "id", "") or "")
+        if not run_id:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_sdk_identity_missing", "SDK create/send did not return a run identity"
+            )
+        return {"statusCode": 201, "agentId": agent_id, "runId": run_id}
+
+    def get_agent(self, agent_id: str) -> Mapping[str, Any]:
+        agent = self._agents.get(agent_id)
+        status = getattr(agent, "status", None) or getattr(agent, "get_status", None)
+        if agent is None or not callable(status):
+            raise CursorCloudDispatchError(
+                "cursor_cloud_sdk_readback_unavailable", "SDK adapter must expose status readback"
+            )
+        result = status()
+        if not isinstance(result, Mapping):
+            raise CursorCloudDispatchError(
+                "cursor_cloud_sdk_readback_invalid", "SDK status readback must be an object"
+            )
+        return result
+
+    def archive_agent(self, agent_id: str) -> Mapping[str, Any]:
+        agent = self._agents.get(agent_id)
+        archive = getattr(agent, "archive", None)
+        if agent is None or not callable(archive):
+            raise CursorCloudDispatchError(
+                "cursor_cloud_sdk_archive_unavailable", "SDK adapter must expose archive"
+            )
+        result = archive()
+        return dict(result) if isinstance(result, Mapping) else {"status": "archived"}
+
+
+class _SDKAsHTTPPort:
+    def __init__(self, request: CursorCloudDispatchRequest, sdk: CursorCloudSDKPort) -> None:
+        self.request = request
+        self.sdk = sdk
+
+    def post(self, path: str, *, headers: Mapping[str, str], body: Mapping[str, Any]) -> Mapping[str, Any]:
+        if path != API_PATH:
+            raise CursorCloudDispatchError("cursor_cloud_sdk_path_invalid", "unexpected SDK create path")
+        return dict(
+            self.sdk.create_agent(
+                api_key=str(headers["Authorization"]).removeprefix("Bearer "),
+                model=self.request.model,
+                model_parameters={key: str(value) for key, value in self.request.model_parameters.items()},
+                repository_bindings=self.request.repository_bindings,
+                prompt=str(body["prompt"]),
+                name=f"{self.request.repository}:{self.request.ref}",
+                agent_id=str(body["agentId"]),
+                idempotency_key=str(headers["Idempotency-Key"]),
+            )
+        )
+
+    def get(self, path: str, *, headers: Mapping[str, str]) -> Mapping[str, Any]:
+        del headers
+        prefix = API_PATH + "/"
+        if not path.startswith(prefix):
+            raise CursorCloudDispatchError("cursor_cloud_sdk_path_invalid", "unexpected SDK status path")
+        return self.sdk.get_agent(path[len(prefix):])
+
+    def archive(self, agent_id: str, *, headers: Mapping[str, str]) -> Mapping[str, Any]:
+        del headers
+        return self.sdk.archive_agent(agent_id)
 
 
 class DurableCursorCloudIntentStore:
@@ -282,102 +448,48 @@ def cursor_cloud_idempotency_key(request: CursorCloudDispatchRequest) -> str:
     identity = {
         "control": CONTROL_ID,
         "repository": request.repository,
-        "targetPath": request.resolved_target_path,
-        "targetRemote": normalize_repository_remote(request.target_remote),
+        "targetRemote": request.normalized_remote,
         "ref": request.ref,
         "commit": request.commit,
         "tree": request.tree,
+        "provider": request.provider,
+        "routeId": request.route_id,
         "model": request.model,
-        "environment": request.environment,
-        "environmentPublicId": request.environment_public_id,
+        "modelParameters": dict(request.model_parameters),
+        "explicitScopeRepositories": list(request.explicit_scope_repositories),
+        "explicitScopeRemotes": dict(sorted(request.explicit_scope_remotes.items())),
         "expectedBuildId": request.expected_build_id,
         "toolchain": dict(request.toolchain),
-        "governedSetup": request.governed_setup,
         "setupReceiptDigest": request.setup_receipt_digest,
-        "concurrencyPolicy": request.concurrency_policy,
     }
     return CONTROL_ID + ":" + hashlib.sha256(_canonical(identity)).hexdigest()
 
 
-def supersede_obsolete_prepared_intents(
-    store: CursorCloudIntentStore,
-    *,
-    policy: str = ADAPTIVE_CAPACITY_POLICY,
-) -> list[str]:
-    """Invalidate every uncompleted intent bound to the retired fixed cap.
-
-    Completed evidence is immutable.  A store that cannot enumerate intents is
-    rejected rather than silently leaving an obsolete PREPARED record alive.
-    """
-
-    list_intents = getattr(store, "list_intents", None)
-    if not callable(list_intents):
-        raise CursorCloudDispatchError(
-            "cursor_cloud_intent_supersession_unavailable",
-            "intent store cannot enumerate PREPARED records",
-        )
-    superseded: list[str] = []
-    for record in list_intents():
-        if not isinstance(record, Mapping) or record.get("state") != "PREPARED":
-            continue
-        bound_policy = record.get("concurrencyPolicy")
-        fixed = bound_policy in {"fixed_hosted_2", "fixed_hosted_worker_cap", "max_hosted_2"}
-        if not fixed and "maxHostedWorkers" in record:
-            fixed = record.get("maxHostedWorkers") == 2
-        if not fixed:
-            continue
-        key = str(record.get("idempotencyKey") or "")
-        if not key:
-            raise CursorCloudDispatchError(
-                "cursor_cloud_intent_supersession_invalid",
-                "obsolete PREPARED intent has no idempotency key",
-            )
-        revision = int(record.get("revision", 0))
-        expected_digest = str(record.get("digest") or "") or None
-        payload = dict(record)
-        payload.update({
-            "state": "SUPERSEDED",
-            "supersededByPolicy": policy,
-            "supersessionReason": "obsolete_fixed_hosted_worker_cap",
-        })
-        payload.pop("digest", None)
-        payload.pop("revision", None)
-        store.compare_and_write(key, revision, expected_digest, payload)
-        superseded.append(key)
-    return superseded
-
-
 def cursor_cloud_client_agent_id(request: CursorCloudDispatchRequest) -> str:
-    """Return a deterministic client id; retries cannot create a second agent."""
-
     return "ide-" + hashlib.sha256(cursor_cloud_idempotency_key(request).encode()).hexdigest()[:32]
 
 
 def build_attestation_prompt(request: CursorCloudDispatchRequest) -> str:
     request.validate()
-    matrix = f"repository={request.repository}; path={request.resolved_target_path}; remote={normalize_repository_remote(request.target_remote)}; ref={request.ref}; commit={request.commit}; tree={request.tree}"
+    matrix = (
+        f"repository={request.repository}; remote={request.normalized_remote}; ref={request.ref}; "
+        f"commit={request.commit}; tree={request.tree}"
+    )
     toolchain = ", ".join(f"{key}={value}" for key, value in sorted(request.toolchain.items()))
     return (
-        "ATTESTATION ONLY. Do not perform product mutation, commit, push, or run migrations. "
-        f"First cd to and resolve the exact saved-environment target path {request.resolved_target_path}; "
-        f"the environment primary repository is not the target. Verify a clean workspace and normalized remote. "
-        f"During governed setup only, verify exact normalized origin and cleanliness, advertise the exact issue ref, "
-        f"then perform one no-tags/no-prune single-ref fetch into refs/linktrend/attestation/PKT-01; "
-        f"use a deterministic detached isolated worktree at the approved commit/tree ({request.commit}/{request.tree}) "
-        f"and reuse it only if the registered worktree is exact and clean. Then "
-        "report PASS/FAIL for the exact remote, repository/path/ref/commit/tree matrix "
-        f"({matrix}), and toolchain ({toolchain}). "
-        f"Environment={{type:{ENV_TYPE}, name:{request.environment_name}, publicId:{request.environment_public_id}}}. "
-        f"Governed setup receipt {request.setup_receipt_digest} must remain provenance only. "
-        f"Expected build ID {request.expected_build_id} is provenance only; it is not a selectable API parameter. "
-        "A wrong remote, path, ref, commit, tree, environment, or toolchain is a hard stop and mutation remains unauthorized."
+        "ATTESTATION ONLY. Do not mutate, commit, push, migrate, or invoke side effects. "
+        "Use the explicit repository binding in repos[] and verify the requested starting ref. "
+        f"Report PASS/FAIL for repository identity matrix ({matrix}), exact HEAD commit/tree, "
+        f"toolchain ({toolchain}), and workspace cleanliness. Expected build ID "
+        f"{request.expected_build_id} and setup receipt {request.setup_receipt_digest} are provenance only. "
+        "Any repository, ref, commit, tree, model, effort, or Fast mismatch is a hard stop."
     )
 
 
 def require_cursor_cloud_api_key(
     environment: Mapping[str, str] | None = None, *, cursor_cli_authenticated: bool = False
 ) -> str:
-    """Resolve a Cloud API key without ever including its value in diagnostics."""
+    """Resolve the API key without exposing its value in diagnostics."""
 
     env = os.environ if environment is None else environment
     value = str(env.get("CURSOR_API_KEY") or "")
@@ -403,7 +515,7 @@ def _readback_write(
     readback = store.read(key)
     if readback is None or readback.get("digest") != _stored_digest(readback):
         raise CursorCloudDispatchError(
-            "cursor_cloud_intent_readback_failed", "PREPARED intent was not read back"
+            "cursor_cloud_intent_readback_failed", "dispatch intent was not read back"
         )
     for field, value in payload.items():
         if readback.get(field) != value:
@@ -413,11 +525,142 @@ def _readback_write(
     return readback
 
 
+def supersede_obsolete_prepared_intents(store: CursorCloudIntentStore) -> list[str]:
+    """Supersede old fixed-capacity PREPARED records before a new dispatch."""
+
+    list_intents = getattr(store, "list_intents", None)
+    if not callable(list_intents):
+        raise CursorCloudDispatchError(
+            "cursor_cloud_intent_supersession_unavailable",
+            "intent store cannot enumerate PREPARED records",
+        )
+    superseded: list[str] = []
+    for record in list_intents():
+        if not isinstance(record, Mapping) or record.get("state") != "PREPARED":
+            continue
+        if record.get("concurrencyPolicy") not in {
+            "fixed_hosted_2", "fixed_hosted_worker_cap", "max_hosted_2"
+        } and record.get("maxHostedWorkers") != 2:
+            continue
+        key = str(record.get("idempotencyKey") or "")
+        if not key:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_intent_supersession_invalid",
+                "obsolete PREPARED intent has no idempotency key",
+            )
+        payload = dict(record)
+        revision = int(payload.pop("revision", 0))
+        expected_digest = str(payload.pop("digest", "") or "") or None
+        payload.update({"state": "SUPERSEDED", "supersessionReason": "obsolete_fixed_hosted_worker_cap"})
+        store.compare_and_write(key, revision, expected_digest, payload)
+        superseded.append(key)
+    return superseded
+
+
 def _response_value(response: Mapping[str, Any], *keys: str) -> Any:
     for key in keys:
         if response.get(key) is not None:
             return response[key]
     return None
+
+
+def _archive_rejected_agent(http: CursorCloudHTTPPort, agent_id: str, headers: Mapping[str, str]) -> str:
+    archive = getattr(http, "archive", None)
+    try:
+        if callable(archive):
+            archive(agent_id, headers=headers)
+        else:
+            response = http.post(f"{API_PATH}/{agent_id}/archive", headers=headers, body={})
+            status = int(response.get("statusCode", response.get("status", 0)) or 0)
+            if status not in {200, 202, 204}:
+                return f"archive_rejected_http_{status}"
+        return "archived"
+    except Exception as exc:  # preserve identity mismatch as primary failure
+        return f"archive_failed:{type(exc).__name__}"
+
+
+def _mark_rejected(
+    store: CursorCloudIntentStore,
+    key: str,
+    current: Mapping[str, Any] | None,
+    reason: str,
+) -> None:
+    if current is None or current.get("state") != "PREPARED":
+        return
+    payload = dict(current)
+    revision = int(payload.pop("revision", 0))
+    expected_digest = str(payload.pop("digest", "") or "") or None
+    payload.update({"state": "REJECTED", "rejectionReason": reason})
+    try:
+        store.compare_and_write(key, revision, expected_digest, payload)
+    except CursorCloudDispatchError:
+        pass
+
+
+def validate_cursor_cloud_run_readback(
+    request: CursorCloudDispatchRequest, readback: Mapping[str, Any]
+) -> None:
+    """Require exact provider and repository identity readback before credit."""
+
+    request.validate()
+    observed_repository = _response_value(readback, "repository", "repositoryUrl", "remote")
+    if not isinstance(observed_repository, str) or normalize_repository_remote(observed_repository) != request.normalized_remote:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_repository_mismatch",
+            "run readback repository does not match the explicit repository binding",
+        )
+    observed_ref = _response_value(readback, "ref", "startingRef", "branch")
+    observed_commit = _response_value(readback, "commit", "headCommit", "head")
+    observed_tree = _response_value(readback, "tree", "headTree")
+    for field_name, observed, expected in (
+        ("ref", observed_ref, request.ref),
+        ("commit", observed_commit, request.commit),
+        ("tree", observed_tree, request.tree),
+    ):
+        if observed != expected:
+            raise CursorCloudDispatchError(
+                f"cursor_cloud_run_{field_name}_mismatch",
+                f"run readback {field_name} does not match the requested starting identity",
+            )
+    install_status = _response_value(readback, "installStatus", "setupStatus")
+    if install_status is not None and str(install_status).casefold() not in {
+        "success", "succeeded", "complete", "completed", "ready"
+    }:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_install_failed", "run readback reports failed repository setup"
+        )
+    if readback.get("provider") != request.provider:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_provider_mismatch", "run readback provider is not exact"
+        )
+    if readback.get("model") != request.model or readback.get("effectiveModel", request.model) != request.model:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_model_mismatch", "run readback model is not exact"
+        )
+    if readback.get("effort", readback.get("reasoningEffort")) != DIRECT_EFFORT:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_effort_mismatch", "run readback reasoning effort is not exact"
+        )
+    if readback.get("fast") is not False:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_run_fast_readback_mismatch", "run readback must explicitly prove Fast is false"
+        )
+
+
+def _rest_get_run_readback(
+    http: CursorCloudHTTPPort,
+    agent_id: str,
+    headers: Mapping[str, str],
+    request: CursorCloudDispatchRequest,
+) -> Mapping[str, Any]:
+    response = http.get(f"{API_PATH}/{agent_id}", headers=headers)
+    status = int(response.get("statusCode", response.get("status", 0)) or 0)
+    if status != 200:
+        raise CursorCloudDispatchError(
+            "cursor_cloud_rest_readback_rejected", "run readback did not return HTTP 200", statusCode=status
+        )
+    validate_cursor_cloud_run_readback(request, response)
+    return response
 
 
 def dispatch_cursor_cloud(
@@ -427,17 +670,13 @@ def dispatch_cursor_cloud(
     *,
     environment: Mapping[str, str] | None = None,
     cursor_cli_authenticated: bool = False,
+    readback: CursorCloudHTTPPort | None = None,
 ) -> CursorCloudDispatchResult:
-    """Create one Cloud agent using mocked or real HTTP authority.
+    """Create, read back, and durably commit one explicit repository-bound run."""
 
-    No Cursor endpoint is contacted by this module itself; callers provide the
-    HTTP port.  Tests must provide a fake port and never use a live key.
-    """
-
+    # Model/provider validation precedes API-key and HTTP work.
     request.validate()
-    api_key = require_cursor_cloud_api_key(
-        environment, cursor_cli_authenticated=cursor_cli_authenticated
-    )
+    api_key = require_cursor_cloud_api_key(environment, cursor_cli_authenticated=cursor_cli_authenticated)
     supersede_obsolete_prepared_intents(store)
     key = cursor_cloud_idempotency_key(request)
     client_agent_id = cursor_cloud_client_agent_id(request)
@@ -445,42 +684,22 @@ def dispatch_cursor_cloud(
     current = store.read(key)
     if current is not None and current.get("state") == "COMMITTED":
         return CursorCloudDispatchResult(
-            "duplicate",
-            key,
-            client_agent_id,
-            str(current["agentId"]),
-            str(current["runId"]),
-            dict(current["environment"]),
-            str(current["environmentPublicId"]),
-            str(current["model"]),
-            str(current["expectedBuildId"]),
-            int(current["revision"]),
-            prompt,
+            "duplicate", key, client_agent_id, str(current["agentId"]), str(current["runId"]),
+            request.repository, request.ref, request.commit, request.tree, request.provider,
+            request.model, DIRECT_EFFORT, False, int(current["revision"]), prompt,
         )
     if current is None:
         intent = {
-            "state": "PREPARED",
-            "idempotencyKey": key,
-            "clientAgentId": client_agent_id,
-            "repository": request.repository,
-            "targetPath": request.resolved_target_path,
-            "targetRemote": normalize_repository_remote(request.target_remote),
-            "ref": request.ref,
-            "commit": request.commit,
-            "tree": request.tree,
-            "environment": request.environment,
-            "environmentPublicId": request.environment_public_id,
-            "model": request.model,
-            "expectedBuildId": request.expected_build_id,
-            "toolchain": dict(request.toolchain),
-            "governedSetup": request.governed_setup,
-            "setupReceiptDigest": request.setup_receipt_digest,
-            "concurrencyPolicy": request.concurrency_policy,
-            "requestDigest": _digest({"key": key, "prompt": prompt}),
+            "state": "PREPARED", "idempotencyKey": key, "clientAgentId": client_agent_id,
+            "repository": request.repository, "repositoryUrl": request.normalized_remote,
+            "ref": request.ref, "commit": request.commit, "tree": request.tree,
+            "provider": request.provider, "routeId": request.route_id, "model": request.model,
+            "effort": DIRECT_EFFORT, "fast": False, "modelParameters": dict(request.model_parameters),
+            "repositoryBindings": request.repository_bindings,
+            "expectedBuildId": request.expected_build_id, "toolchain": dict(request.toolchain),
+            "governedSetup": request.governed_setup, "setupReceiptDigest": request.setup_receipt_digest,
         }
-        current = _readback_write(
-            store, key, intent, expected_revision=0, expected_digest=None
-        )
+        current = _readback_write(store, key, intent, expected_revision=0, expected_digest=None)
     if current.get("clientAgentId") != client_agent_id:
         raise CursorCloudDispatchError(
             "cursor_cloud_idempotency_collision", "existing intent has another client agent id"
@@ -492,8 +711,9 @@ def dispatch_cursor_cloud(
     }
     body = {
         "agentId": client_agent_id,
-        "env": request.environment,
+        "repos": request.repository_bindings,
         "model": request.model,
+        "modelParameters": dict(request.model_parameters),
         "prompt": prompt,
     }
     response: Mapping[str, Any] | None = None
@@ -501,16 +721,16 @@ def dispatch_cursor_cloud(
         try:
             response = http.post(API_PATH, headers=headers, body=body)
             break
-        except Exception as exc:  # keep PREPARED for one idempotent retry
+        except CursorCloudDispatchError:
+            raise
+        except Exception as exc:
             if attempt + 1 == MAX_API_ATTEMPTS:
                 raise CursorCloudDispatchError(
                     "cursor_cloud_api_interrupted",
                     "Cloud API call did not produce an authoritative response after one retry",
                 ) from exc
-    if response is None:  # pragma: no cover - loop either returns or raises
-        raise CursorCloudDispatchError(
-            "cursor_cloud_api_interrupted", "Cloud API response was unavailable"
-        )
+    if response is None:  # pragma: no cover
+        raise CursorCloudDispatchError("cursor_cloud_api_interrupted", "Cloud API response was unavailable")
     status = int(response.get("statusCode", response.get("status", 0)) or 0)
     if status != 201:
         raise CursorCloudDispatchError(
@@ -524,60 +744,61 @@ def dispatch_cursor_cloud(
             "cursor_cloud_response_identity_missing", "response must include agent and run identity"
         )
     if agent_id != client_agent_id:
+        archive_status = _archive_rejected_agent(http, agent_id, headers)
+        _mark_rejected(store, key, current, "agent_identity_mismatch")
         raise CursorCloudDispatchError(
-            "cursor_cloud_agent_identity_mismatch",
-            "Cloud response did not preserve the client-supplied agent identity",
+            "cursor_cloud_agent_identity_mismatch", "Cloud response did not preserve the client identity", archive=archive_status
         )
-    observed_env = _response_value(response, "env", "environment")
-    if observed_env is None:
-        observed_env = request.environment
-    if not isinstance(observed_env, Mapping) or dict(observed_env) != request.environment:
+    readback_http = readback or http
+    try:
+        observed = _rest_get_run_readback(readback_http, agent_id, headers, request)
+    except CursorCloudDispatchError as exc:
+        archive_status = _archive_rejected_agent(http, agent_id, headers)
+        _mark_rejected(store, key, current, exc.code)
         raise CursorCloudDispatchError(
-            "cursor_cloud_environment_mismatch", "Cloud response environment does not match the request"
-        )
-    observed_model = str(_response_value(response, "model") or request.model)
-    if observed_model != request.model:
-        raise CursorCloudDispatchError(
-            "cursor_cloud_model_mismatch", "Cloud response model does not match the exact request"
-        )
-    payload = dict(current)
-    payload.update(
-        {
-            "state": "COMMITTED",
-            "agentId": agent_id,
-            "runId": run_id,
-            "environment": dict(observed_env),
-            "environmentPublicId": request.environment_public_id,
-            "model": observed_model,
-            "expectedBuildId": request.expected_build_id,
-        }
-    )
+            "cursor_cloud_identity_mismatch_archived",
+            f"run readback rejected: {exc.detail}",
+            cause=exc.code,
+            archive=archive_status,
+        ) from exc
+    committed_payload = dict(current)
+    committed_payload.update({"state": "COMMITTED", "agentId": agent_id, "runId": run_id, "readback": dict(observed)})
     committed = _readback_write(
         store,
         key,
-        {field: value for field, value in payload.items() if field not in {"revision", "digest"}},
+        {field: value for field, value in committed_payload.items() if field not in {"revision", "digest"}},
         expected_revision=int(current["revision"]),
         expected_digest=str(current["digest"]),
     )
     return CursorCloudDispatchResult(
-        "committed",
-        key,
-        client_agent_id,
-        agent_id,
-        run_id,
-        dict(observed_env),
-        request.environment_public_id,
-        observed_model,
-        request.expected_build_id,
-        int(committed["revision"]),
-        prompt,
+        "committed", key, client_agent_id, agent_id, run_id, request.repository, request.ref,
+        request.commit, request.tree, request.provider, request.model, DIRECT_EFFORT, False,
+        int(committed["revision"]), prompt,
+    )
+
+
+def dispatch_cursor_cloud_sdk(
+    request: CursorCloudDispatchRequest,
+    store: CursorCloudIntentStore,
+    sdk: CursorCloudSDKPort,
+    *,
+    environment: Mapping[str, str] | None = None,
+    cursor_cli_authenticated: bool = False,
+) -> CursorCloudDispatchResult:
+    """Preferred SDK path sharing REST create/readback/archive semantics."""
+
+    sdk_http = _SDKAsHTTPPort(request, sdk)
+    return dispatch_cursor_cloud(
+        request, store, sdk_http,
+        environment=environment,
+        cursor_cli_authenticated=cursor_cli_authenticated,
     )
 
 
 def validate_cursor_cloud_attestation(
     request: CursorCloudDispatchRequest, attestation: Mapping[str, Any]
 ) -> None:
-    """Permit mutation only after an exact, explicit no-mutation attestation."""
+    """Permit later mutation only after exact read-only attestation."""
 
     request.validate()
     if attestation.get("status") != "PASS" or attestation.get("noMutation") is not True:
@@ -586,89 +807,49 @@ def validate_cursor_cloud_attestation(
         )
     if attestation.get("workspaceClean") is not True:
         raise CursorCloudDispatchError(
-            "cursor_cloud_attestation_required",
-            "mutation requires a clean target workspace attestation",
+            "cursor_cloud_attestation_required", "mutation requires a clean workspace attestation"
         )
     expected = {
-        "environment": request.environment,
-        "targetPath": request.resolved_target_path,
-        "remote": normalize_repository_remote(request.target_remote),
         "repository": request.repository,
+        "remote": request.normalized_remote,
         "ref": request.ref,
         "commit": request.commit,
         "tree": request.tree,
         "toolchain": dict(request.toolchain),
         "workspaceClean": True,
     }
-    for field, value in expected.items():
-        observed = attestation.get(field)
-        if field == "environment" and isinstance(observed, Mapping):
-            observed = dict(observed)
-        if field == "remote":
+    for field_name, expected_value in expected.items():
+        observed = attestation.get(field_name)
+        if field_name == "remote":
             observed = normalize_repository_remote(str(observed or ""))
-        if field == "toolchain" and isinstance(observed, Mapping):
+        if field_name == "toolchain" and isinstance(observed, Mapping):
             observed = dict(observed)
-        if observed != value:
+        if observed != expected_value:
             raise CursorCloudDispatchError(
                 "cursor_cloud_attestation_mismatch",
                 "mutation blocked because Cloud attestation does not match",
-                field=field,
+                field=field_name,
             )
 
 
-def validate_cursor_cloud_run_readback(
-    request: CursorCloudDispatchRequest, readback: Mapping[str, Any]
-) -> None:
-    """Validate post-creation provider readback without treating build provenance as a selector."""
-
-    request.validate()
-    observed_environment = readback.get("environment")
-    if not isinstance(observed_environment, Mapping) or dict(observed_environment) != request.environment:
-        raise CursorCloudDispatchError(
-            "cursor_cloud_run_environment_mismatch",
-            "run readback environment name/type does not match",
-        )
-    if readback.get("environmentPublicId") != request.environment_public_id:
-        raise CursorCloudDispatchError(
-            "cursor_cloud_run_environment_public_id_mismatch",
-            "run readback public environment identity does not match",
-        )
-    observed_build = str(readback.get("observedBuildId") or "").strip()
-    if not observed_build:
-        raise CursorCloudDispatchError(
-            "cursor_cloud_run_build_readback_missing",
-            "run readback must record observed build provenance",
-        )
-    if readback.get("expectedBuildId") != request.expected_build_id:
-        raise CursorCloudDispatchError(
-            "cursor_cloud_run_build_provenance_mismatch",
-            "run readback expected build provenance differs from the request",
-        )
-    if readback.get("effectiveModel") != request.model:
-        raise CursorCloudDispatchError(
-            "cursor_cloud_run_effective_model_mismatch",
-            "run readback effective model differs from the exact requested model",
-        )
-    if readback.get("fast") is not False:
-        raise CursorCloudDispatchError(
-            "cursor_cloud_run_fast_readback_mismatch",
-            "run readback must explicitly prove Fast is false",
-        )
-
-
 def load_cursor_cloud_dispatch_config(repo_root: str) -> dict[str, Any]:
-    from pathlib import Path
-
     import jsonschema
 
     root = Path(repo_root).resolve()
-    config = json.loads(
-        (root / "core/managed-core/content/config/cursor-cloud-dispatch.json").read_text()
-    )
-    schema = json.loads(
-        (root / "core/managed-core/schemas/cursor-cloud-dispatch.schema.json").read_text()
-    )
+    config = json.loads((root / "core/managed-core/content/config/cursor-cloud-dispatch.json").read_text())
+    schema = json.loads((root / "core/managed-core/schemas/cursor-cloud-dispatch.schema.json").read_text())
     errors = sorted(error.message for error in jsonschema.Draft202012Validator(schema).iter_errors(config))
     if errors:
         raise CursorCloudDispatchError("cursor_cloud_config_invalid", "; ".join(errors))
+    return config
+
+def load_routing_registry(repo_root: str) -> dict[str, Any]:
+    import jsonschema
+
+    root = Path(repo_root).resolve()
+    config = json.loads((root / "core/managed-core/content/config/routing-registry.json").read_text())
+    schema = json.loads((root / "core/managed-core/schemas/routing-registry.schema.json").read_text())
+    errors = sorted(error.message for error in jsonschema.Draft202012Validator(schema).iter_errors(config))
+    if errors:
+        raise CursorCloudDispatchError("cursor_cloud_routing_registry_invalid", "; ".join(errors))
     return config

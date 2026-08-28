@@ -1,63 +1,62 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://linktrend.local/managed-core/cursor-cloud-dispatch.schema.json",
-  "title": "Cursor Cloud API dispatch control",
+  "title": "Cursor Cloud repository-bound dispatch control",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schemaVersion",
-    "controlId",
-    "apiBaseUrl",
-    "apiPath",
-    "apiKeyEnvironmentVariable",
-    "apiBinding",
-    "savedRepositoryRoot",
-    "savedRepositoryLayout",
-    "maxApiAttempts",
-    "environment",
-    "requiresExactNonFastModel",
-    "expectedBuildIdRole",
-    "runReadbackRequired",
-    "runReadbackFields",
-    "preparedIntentRequired",
-    "clientSuppliedAgentIdRequired",
-    "governedSetupRequired",
-    "setupReceiptRequired",
-    "attestationBeforeMutationRequired",
+    "schemaVersion", "controlId", "apiBaseUrl", "apiPath",
+    "apiKeyEnvironmentVariable", "preferredClient", "sdkPackage",
+    "directApiRepositoryBinding", "sdkRepositoryBinding", "routingRegistry",
+    "readbackRequired", "readbackFields", "archiveOnMismatchRequired",
+    "maxApiAttempts", "ordinaryDevelopment", "gate0", "lunaFallback",
     "cliLoginIsCloudAuthority"
   ],
   "properties": {
-    "schemaVersion": {"type": "integer", "const": 1},
-    "controlId": {"type": "string", "const": "cursor-cloud-dispatch-v1"},
+    "schemaVersion": {"type": "integer", "const": 2},
+    "controlId": {"type": "string", "const": "cursor-cloud-dispatch-v2"},
     "apiBaseUrl": {"type": "string", "const": "https://api.cursor.com"},
     "apiPath": {"type": "string", "const": "/v1/agents"},
     "apiKeyEnvironmentVariable": {"type": "string", "const": "CURSOR_API_KEY"},
-    "apiBinding": {"type": "string", "const": "prompt-and-governed-setup-only"},
-    "savedRepositoryRoot": {"type": "string", "const": "/agent/repos"},
-    "savedRepositoryLayout": {"type": "string", "const": "/agent/repos/<repo>"},
+    "preferredClient": {"type": "string", "const": "cursor-sdk"},
+    "sdkPackage": {"type": "string", "const": "cursor-sdk"},
+    "directApiRepositoryBinding": {"type": "string", "const": "repos[]"},
+    "sdkRepositoryBinding": {"type": "string", "const": "CloudAgentOptions.repos"},
+    "routingRegistry": {"type": "string", "const": "content/config/routing-registry.json"},
+    "readbackRequired": {"type": "boolean", "const": true},
+    "readbackFields": {"type": "array", "const": ["repository", "ref", "commit", "tree", "provider", "model", "effort", "fast"]},
+    "archiveOnMismatchRequired": {"type": "boolean", "const": true},
     "maxApiAttempts": {"type": "integer", "const": 2},
-    "environment": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type", "name"],
+    "ordinaryDevelopment": {"$ref": "#/$defs/cursorRoute"},
+    "gate0": {"$ref": "#/$defs/gateRoute"},
+    "lunaFallback": {"$ref": "#/$defs/fallbackRoute"},
+    "cliLoginIsCloudAuthority": {"type": "boolean", "const": false}
+  },
+  "$defs": {
+    "cursorRoute": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider", "routeId", "model", "effort", "fast"],
       "properties": {
-        "type": {"type": "string", "const": "cloud"},
-        "name": {"type": "string", "const": "IDE Development 2.5.1"},
-        "publicId": {"type": "string", "const": "1937ddb1-9d3e-11f1-a7d1-d6b4613131ce"}
+        "provider": {"const": "cursor"}, "routeId": {"const": "ordinary-development"},
+        "model": {"const": "grok-4.6"}, "effort": {"const": "medium"}, "fast": {"const": false}
       }
     },
-    "requiresExactNonFastModel": {"type": "boolean", "const": true},
-    "expectedBuildIdRole": {"type": "string", "const": "provenance-only"},
-    "runReadbackRequired": {"type": "boolean", "const": true},
-    "runReadbackFields": {
-      "type": "array",
-      "const": ["environmentPublicId", "observedBuildId", "expectedBuildId", "effectiveModel", "fast"]
+    "gateRoute": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider", "model", "effort", "fast"],
+      "properties": {
+        "provider": {"const": "codex-cli"}, "model": {"const": "gpt-5.6-luna"},
+        "effort": {"const": "high"}, "fast": {"const": false}
+      }
     },
-    "preparedIntentRequired": {"type": "boolean", "const": true},
-    "clientSuppliedAgentIdRequired": {"type": "boolean", "const": true},
-    "governedSetupRequired": {"type": "boolean", "const": true},
-    "setupReceiptRequired": {"type": "boolean", "const": true},
-    "attestationBeforeMutationRequired": {"type": "boolean", "const": true},
-    "cliLoginIsCloudAuthority": {"type": "boolean", "const": false}
+    "fallbackRoute": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider", "model", "effort", "fast", "principalInstructionRequired"],
+      "properties": {
+        "provider": {"const": "codex-cli"}, "model": {"const": "gpt-5.6-luna"},
+        "effort": {"const": "high"}, "fast": {"const": false},
+        "principalInstructionRequired": {"const": true}
+      }
+    }
   }
 }

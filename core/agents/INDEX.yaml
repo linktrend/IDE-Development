@@ -471,42 +471,42 @@ entries:
   - id: route-default
     path: .cursor/agents/route-default.md
     type: model-route
-    purpose: Pinned default model route (Sonnet 5 Medium) — ports LiNKdeveloper router.ts.
+    purpose: Default post-Gate-0 ordinary-development route (Grok 4.6 Medium through direct Cursor SDK).
     status: active
     tags: [model-routing, default]
 
   - id: route-escalation
     path: .cursor/agents/route-escalation.md
     type: model-route
-    purpose: Pinned escalation model route (GPT-5.6 Sol Medium).
+    purpose: Principal-instructed Luna High fallback route through Codex CLI.
     status: active
     tags: [model-routing, escalation]
 
   - id: route-independent-review
     path: .cursor/agents/route-independent-review.md
     type: model-route
-    purpose: Pinned independent-review model route (Opus 4.8 Medium).
+    purpose: Principal-authorized independent disjoint-packet route through Codex CLI Luna High.
     status: active
     tags: [model-routing, independent-review]
 
   - id: route-economical
     path: .cursor/agents/route-economical.md
     type: model-route
-    purpose: Pinned economical model route (Composer 2.5).
+    purpose: Retired compatibility alias for ordinary-development.
     status: active
     tags: [model-routing, economical]
 
   - id: route-bulk-documents
     path: .cursor/agents/route-bulk-documents.md
     type: model-route
-    purpose: Pinned bulk-documents model route (Gemini 2.5 Flash).
+    purpose: Retired compatibility alias for ordinary-development.
     status: active
     tags: [model-routing, bulk-documents]
 
   - id: route-evaluation
     path: .cursor/agents/route-evaluation.md
     type: model-route
-    purpose: Pinned evaluation model route (Grok 4.5 Medium, Fast off).
+    purpose: Compatibility alias for ordinary-development (Grok 4.6 Medium, Fast off).
     status: active
     tags: [model-routing, evaluation]
 
