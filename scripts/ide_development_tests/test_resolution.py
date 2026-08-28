@@ -10,6 +10,8 @@ from ide_development.errors import InvalidPackageError
 from ide_development.resolution import (
     ALLOWED_CONFLICT_PATHS,
     KIND,
+    PROVIDER_COMMIT,
+    PROVIDER_TREE,
     _canonical_digest,
     _package_source_digest,
     _validate_provider_entry,
@@ -49,6 +51,14 @@ class ResolutionTests(TempRepoTestCase):
             / "core/managed-core/schemas/managed-upgrade-resolution.schema.json"
         )
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            schema["properties"]["provider"]["properties"]["commit"]["const"],
+            PROVIDER_COMMIT,
+        )
+        self.assertEqual(
+            schema["properties"]["provider"]["properties"]["tree"]["const"],
+            PROVIDER_TREE,
+        )
         self.assertEqual(schema["properties"]["allowedConflictPaths"]["const"], sorted(expected))
         self.assertEqual(schema["$defs"]["conflict"]["properties"]["path"]["enum"], sorted(expected))
         self.assertEqual(schema["properties"]["conflicts"]["minItems"], 1)
@@ -97,8 +107,8 @@ class ResolutionTests(TempRepoTestCase):
             manifest,
             manifest_digest=digest,
             provider=provider,
-            provider_commit="b" * 40,
-            provider_tree="c" * 40,
+            provider_commit=PROVIDER_COMMIT,
+            provider_tree=PROVIDER_TREE,
         )
         bound_provider = {**provider, "packageSourceDigest": provider_digest}
         self.assertEqual(
@@ -107,8 +117,8 @@ class ResolutionTests(TempRepoTestCase):
                 manifest,
                 manifest_digest=digest,
                 provider=bound_provider,
-                provider_commit="b" * 40,
-                provider_tree="c" * 40,
+                provider_commit=PROVIDER_COMMIT,
+                provider_tree=PROVIDER_TREE,
             ),
             provider_digest,
         )
@@ -118,17 +128,17 @@ class ResolutionTests(TempRepoTestCase):
                 manifest,
                 manifest_digest=digest,
                 provider={**bound_provider, "repository": "owner/consumer"},
-                provider_commit="b" * 40,
-                provider_tree="c" * 40,
+                provider_commit=PROVIDER_COMMIT,
+                provider_tree=PROVIDER_TREE,
             )
-        with self.assertRaisesRegex(InvalidPackageError, "source identity is stale"):
+        with self.assertRaisesRegex(InvalidPackageError, "commit/tree identity"):
             _validate_provider_source_identity(
                 package_root,
                 manifest,
                 manifest_digest=digest,
                 provider=bound_provider,
                 provider_commit="d" * 40,
-                provider_tree="c" * 40,
+                provider_tree=PROVIDER_TREE,
             )
         source = package_root / "scripts/ide_development/resolution.py"
         source.write_text("stale provider bytes\n", encoding="utf-8")
@@ -138,8 +148,8 @@ class ResolutionTests(TempRepoTestCase):
                 manifest,
                 manifest_digest=digest,
                 provider=bound_provider,
-                provider_commit="b" * 40,
-                provider_tree="c" * 40,
+                provider_commit=PROVIDER_COMMIT,
+                provider_tree=PROVIDER_TREE,
             )
 
     def test_unauthorized_paths_and_non_provider_entries_are_rejected(self) -> None:

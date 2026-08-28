@@ -28,6 +28,9 @@ lean-promotion contract. It identifies `promote/` refs as receipt-only and
 retains Fast/Full checks for `phase/` work plus the explicit Branch Source
 Policy and Receipt Gate checks for promotion. Accepted checks are reused; a
 second broad or local Full suite is not requested.
+`authorizedWorkflowPaths` is an exact, versioned list of the named workflows
+that may receive a lean-promotion guard. Findings for any unlisted workflow
+remain report-only and fail closed; they never become migration actions.
 
 ## Profiles
 
@@ -55,10 +58,11 @@ mutation; restore/key/save failures warn without changing correctness.
 `pull_request` / `push` triggers would repeat expensive checks during
 promotion. The audit is report-only and has no mutation authority. It emits a
 versioned consumer-executable migration plan; a consumer may apply that plan
-only under an independently explicit rollout scope. The plan guards expensive
-workflows to `phase/*` heads, preserves application test commands, and does
-not add a duplicate broad suite. This packet does not apply the plan to any
-consumer workflow.
+only under an independently explicit rollout scope. For the exact listed
+workflow paths, the plan guards expensive workflows to `phase/*` heads,
+preserves application test commands, and does not add a duplicate broad suite.
+Unlisted workflow findings remain fail-closed. This packet does not apply the
+plan to any consumer workflow.
 
 ## Related
 

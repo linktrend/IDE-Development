@@ -20,6 +20,11 @@ KIND = "ide-managed-upgrade-resolution"
 PROVIDER_REPOSITORY = "linktrend/IDE-Development"
 PROVIDER_AUTHORITATIVE_REF = "phase/ide-v2.5.2"
 PROVIDER_INSTALLER_VERSION = "2.5.2"
+# v2.5.2 is immutable.  The extracted package has no .git directory, so the
+# provider commit/tree must be bound by the receipt rather than discovered
+# from the package root.
+PROVIDER_COMMIT = "7edf2fa1a11406e9e8a3d612f4b5fa2850999597"
+PROVIDER_TREE = "aa4ee95e2dfecdbe069b44dfc8d5171ec6f15249"
 PROVIDER_OWNERSHIP_CLASSES = frozenset({"managed", "managed-core", "managed-entrypoint"})
 # These are the only managed files that the IDE provider may supersede in a
 # digest-bound upgrade. Keep this set explicit so a provider manifest cannot
@@ -210,6 +215,8 @@ def _validate_provider_source_identity(
 ) -> str:
     if provider.get("repository") != PROVIDER_REPOSITORY or provider.get("authoritativeRef") != PROVIDER_AUTHORITATIVE_REF:
         raise InvalidPackageError("Resolution provider repository/ref identity is invalid")
+    if provider_commit != PROVIDER_COMMIT or provider_tree != PROVIDER_TREE:
+        raise InvalidPackageError("Resolution provider commit/tree identity is invalid")
     expected = _package_source_digest(
         package_root,
         manifest,
@@ -303,6 +310,8 @@ def load_and_validate_resolution(resolution_path: Path, *, target_root: Path, pa
     provider_commit, provider_tree = _oid(provider["commit"], "provider.commit"), _oid(provider["tree"], "provider.tree")
     if provider.get("repository") != PROVIDER_REPOSITORY or provider.get("authoritativeRef") != PROVIDER_AUTHORITATIVE_REF:
         raise InvalidPackageError("Resolution provider repository/ref identity is invalid")
+    if provider_commit != PROVIDER_COMMIT or provider_tree != PROVIDER_TREE:
+        raise InvalidPackageError("Resolution provider commit/tree identity is invalid")
     managed = provider["managedPackageManifest"]
     if provider["installerVersion"] != PROVIDER_INSTALLER_VERSION or not isinstance(managed, dict) or managed.get("path") != "core/managed-core/MANIFEST.json":
         raise InvalidPackageError("Resolution provider package provenance is invalid")

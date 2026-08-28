@@ -42,6 +42,25 @@ STALE_CONTEXTS = frozenset(
 SCHEMA_VERSION = 1
 PROMOTION_POLICY_SCHEMA_VERSION = 1
 PROMOTION_MIGRATION_ID = "lean-promotion-workflow-migration-v1"
+AUTHORIZED_PROMOTION_WORKFLOW_PATHS = (
+    ".github/workflows/ci-build-artifacts-testbox.yml",
+    ".github/workflows/ci-check-arm-testbox.yml",
+    ".github/workflows/ci-check-testbox.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/codeql-critical-quality.yml",
+    ".github/workflows/codeql.yml",
+    ".github/workflows/control-ui-locale-refresh.yml",
+    ".github/workflows/docker-release.yml",
+    ".github/workflows/live-media-runner-image.yml",
+    ".github/workflows/native-app-locale-refresh.yml",
+    ".github/workflows/npm-telegram-beta-e2e.yml",
+    ".github/workflows/openclaw-live-and-e2e-checks-reusable.yml",
+    ".github/workflows/openclaw-stable-main-closeout.yml",
+    ".github/workflows/opengrep-precise.yml",
+    ".github/workflows/plugin-npm-release.yml",
+    ".github/workflows/sandbox-common-smoke.yml",
+    ".github/workflows/website-installer-sync.yml",
+)
 
 PROFILE_NONE = "none"
 PROFILE_FAST = "fast"
@@ -185,6 +204,7 @@ def default_contract() -> dict[str, Any]:
             },
             "reuseAcceptedChecks": True,
             "duplicateBroadSuite": False,
+            "authorizedWorkflowPaths": list(AUTHORIZED_PROMOTION_WORKFLOW_PATHS),
             "migration": {
                 "id": PROMOTION_MIGRATION_ID,
                 "schemaVersion": PROMOTION_POLICY_SCHEMA_VERSION,
@@ -289,6 +309,14 @@ def validate_contract(contract: Mapping[str, Any]) -> dict[str, Any]:
         raise ContractError("contract_promotion_policy_reuse_required")
     if policy.get("duplicateBroadSuite") is not False:
         raise ContractError("contract_promotion_policy_duplicate_suite")
+    workflow_paths = policy.get("authorizedWorkflowPaths")
+    if (
+        not isinstance(workflow_paths, list)
+        or workflow_paths != sorted(workflow_paths)
+        or len(workflow_paths) != len(set(workflow_paths))
+        or tuple(workflow_paths) != AUTHORIZED_PROMOTION_WORKFLOW_PATHS
+    ):
+        raise ContractError("contract_promotion_policy_workflow_paths")
     migration = policy.get("migration")
     if not isinstance(migration, Mapping):
         raise ContractError("contract_promotion_migration_missing")
@@ -1380,6 +1408,8 @@ def build_lean_promotion_migration_plan(
     audit = audit_workflow_triggers(workflows_dir, contract=contract)
     actions: list[dict[str, Any]] = []
     for conflict in audit["conflicts"]:
+        if not conflict.get("authorized", False):
+            continue
         actions.append(
             {
                 "operation": "guard-expensive-workflow-to-phase-heads",
@@ -1397,15 +1427,17 @@ def build_lean_promotion_migration_plan(
         "schemaVersion": migration["schemaVersion"],
         "kind": "lean-promotion-workflow-migration-plan",
         "migrationId": migration["id"],
-        "status": "rollout-scoped" if rollout_scope else "report-only",
+        "status": "rollout-scoped" if rollout_scope and audit["ok"] else "report-only",
         "requiresExplicitRolloutScope": migration["requiresExplicitRolloutScope"],
-        "mutationAuthorized": bool(rollout_scope),
+        "mutationAuthorized": bool(rollout_scope and audit["ok"]),
         "reportOnlyIsMutationAuthority": migration["reportOnlyIsMutationAuthority"],
         "promotionRefPrefix": policy["promotionRefPrefix"],
         "phaseRefPrefix": policy["phaseRefPrefix"],
         "retainedCheckContexts": dict(policy["retainedCheckContexts"]),
         "reuseAcceptedChecks": policy["reuseAcceptedChecks"],
         "duplicateBroadSuite": policy["duplicateBroadSuite"],
+        "authorizedWorkflowPaths": list(policy["authorizedWorkflowPaths"]),
+        "failClosedForUnauthorizedWorkflows": bool(audit.get("unauthorizedConflicts")),
         "actions": actions,
         "audit": audit,
     }
@@ -1425,6 +1457,9 @@ def audit_workflow_triggers(
         return {
             "ok": True,
             "conflicts": [],
+            "authorizedConflictCount": 0,
+            "unauthorizedConflictCount": 0,
+            "unauthorizedConflicts": [],
             "scanned": 0,
             "detail": "workflows_dir_missing",
         }
@@ -1439,16 +1474,24 @@ def audit_workflow_triggers(
             phase_ref_prefix=str(policy["phaseRefPrefix"]),
         )
         if expensive and broad:
+            workflow_path = f".github/workflows/{path.name}"
+            authorized = workflow_path in policy["authorizedWorkflowPaths"]
             conflicts.append(
                 {
                     "path": str(path).replace("\\", "/"),
+                    "workflowPath": workflow_path,
                     "code": "promotion_expensive_retrigger",
                     "detail": "broad pull_request/push would repeat expensive checks during promotion",
+                    "authorized": authorized,
                 }
             )
+    unauthorized = [conflict for conflict in conflicts if not conflict["authorized"]]
     return {
-        "ok": not conflicts,
+        "ok": not unauthorized,
         "conflicts": conflicts,
+        "authorizedConflictCount": len(conflicts) - len(unauthorized),
+        "unauthorizedConflictCount": len(unauthorized),
+        "unauthorizedConflicts": unauthorized,
         "scanned": scanned,
         "mayModify": False,
         "detail": "report_only_without_rollout_scope",

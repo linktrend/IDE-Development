@@ -130,6 +130,7 @@
         "retainedCheckContexts",
         "reuseAcceptedChecks",
         "duplicateBroadSuite",
+        "authorizedWorkflowPaths",
         "migration"
       ],
       "properties": {
@@ -170,6 +171,15 @@
         },
         "reuseAcceptedChecks": { "type": "boolean", "const": true },
         "duplicateBroadSuite": { "type": "boolean", "const": false },
+        "authorizedWorkflowPaths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^\\.github/workflows/[A-Za-z0-9._-]+\\.ya?ml$"
+          }
+        },
         "migration": {
           "type": "object",
           "additionalProperties": false,

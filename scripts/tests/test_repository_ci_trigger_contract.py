@@ -11,6 +11,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
 from scripts.gitops.repository_ci_contract import (
+    AUTHORIZED_PROMOTION_WORKFLOW_PATHS,
     CLASS_APPLICATION,
     CLASS_MIXED,
     CLASS_TRUSTED,
@@ -161,6 +162,8 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
         )
         self.assertTrue(policy["reuseAcceptedChecks"])
         self.assertFalse(policy["duplicateBroadSuite"])
+        self.assertEqual(tuple(policy["authorizedWorkflowPaths"]), AUTHORIZED_PROMOTION_WORKFLOW_PATHS)
+        self.assertTrue(all("*" not in path for path in policy["authorizedWorkflowPaths"]))
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
         Draft202012Validator(schema).validate(self.contract)
 
@@ -168,7 +171,7 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             workflows = Path(tmp) / ".github" / "workflows"
             workflows.mkdir(parents=True)
-            workflow = workflows / "expensive.yml"
+            workflow = workflows / "ci.yml"
             broad = """name: Full matrix
 on:
   pull_request:
@@ -213,6 +216,31 @@ jobs:
                 )
             self.assertEqual(ctx.exception.code, "installer_mutate_requires_rollout_scope")
             self.assertEqual(workflow.read_bytes(), before)
+
+    def test_lean_promotion_plan_fails_closed_for_unlisted_workflow(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workflows = Path(tmp) / ".github" / "workflows"
+            workflows.mkdir(parents=True)
+            content = "\n".join(
+                [
+                    "name: Unlisted full matrix",
+                    "on:",
+                    "  pull_request:",
+                    "  push:",
+                    "jobs:",
+                    "  full:",
+                    "    runs-on: ubuntu-latest",
+                    "    steps:",
+                    "      - run: echo e2e browser matrix",
+                ]
+            ) + "\n"
+            (workflows / "unlisted-expensive.yml").write_text(content, encoding="utf-8")
+            plan = build_lean_promotion_migration_plan(workflows, contract=self.contract)
+            self.assertFalse(plan["audit"]["ok"])
+            self.assertEqual(plan["actions"], [])
+            self.assertEqual(plan["audit"]["unauthorizedConflictCount"], 1)
+            self.assertTrue(plan["failClosedForUnauthorizedWorkflows"])
+            self.assertFalse(plan["mutationAuthorized"])
 
     def test_expensive_fanout_requires_capacity_and_rejects_duplicates(self) -> None:
         head = _head(7)
@@ -676,6 +704,8 @@ jobs:
             self.assertFalse(result["ok"])
             self.assertEqual(result["scanned"], 2)
             self.assertEqual(result["conflicts"][0]["code"], "promotion_expensive_retrigger")
+            self.assertFalse(result["conflicts"][0]["authorized"])
+            self.assertEqual(result["unauthorizedConflictCount"], 1)
             self.assertFalse(result["mayModify"])
             with self.assertRaises(ContractError):
                 installer_audit_repository_ci_triggers(root, mutate=True, rollout_scope=False)
