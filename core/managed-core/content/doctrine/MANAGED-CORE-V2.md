@@ -190,7 +190,7 @@ Every mutating operation (`install`, `update`, `rollback`) must:
 ### Canonical scanner conflict resolution
 
 The installer accepts a prepared `ide-managed-upgrade-resolution` v2 receipt
-only for the exact three scanner paths listed by
+only for the exact provider-owned paths listed by
 `managed-upgrade-resolution.schema.json`. The receipt binds consumer commit
 and tree, provider commit and tree, the installed-state preimage, each
 installed/current/provider digest, and an explicit `provider-supersedes`

@@ -17,6 +17,10 @@ from .paths import as_posix_rel, path_is_symlink
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 KIND = "ide-managed-upgrade-resolution"
+PROVIDER_REPOSITORY = "linktrend/IDE-Development"
+PROVIDER_AUTHORITATIVE_REF = "phase/ide-v2.5.2"
+PROVIDER_INSTALLER_VERSION = "2.5.2"
+PROVIDER_OWNERSHIP_CLASSES = frozenset({"managed", "managed-core", "managed-entrypoint"})
 # These are the only managed files that the IDE provider may supersede in a
 # digest-bound upgrade. Keep this set explicit so a provider manifest cannot
 # become implicit overwrite authority.
@@ -24,12 +28,20 @@ ALLOWED_CONFLICT_PATHS = frozenset({
     ".ide-development/schemas/managed-upgrade-resolution.schema.json",
     ".ide-development/schemas/phase-handoff.schema.json",
     ".ide-development/schemas/phase-record.schema.json",
-    ".ide-development/schemas/secret-scan-result.schema.json",
+    ".ide-development/tests/test_delivery_controller.py",
     ".ide-development/tests/test_fixture_aware_secret_scan.py",
     ".ide-development/tests/test_phase_packager_coordinator.py",
+    ".ide-development/tests/test_receipt_seal_and_recovery.py",
+    ".ide-development/workflows/linktrend-integrator-merge.yml",
+    "scripts/gitops/completion_gate.py",
+    "scripts/gitops/delivery_controller.py",
+    "scripts/gitops/github_auth.py",
+    "scripts/gitops/issue_checkpoint.py",
     "scripts/gitops/packager_coordinator.py",
     "scripts/gitops/phase_integrator.py",
+    "scripts/gitops/receipt_seal.py",
     "scripts/gitops/secret_scan.py",
+    "scripts/ide_development/resolution.py",
 })
 CHANGE_SCOPED_EVIDENCE_KEY = "changeScopedSecretScan"
 CHANGE_SCOPED_EVIDENCE_REQUIRED = frozenset({
@@ -67,8 +79,12 @@ class UpgradeResolution:
     target_worktree: str
     commit: str
     tree: str
+    provider_repository: str
+    provider_authoritative_ref: str
     provider_commit: str
     provider_tree: str
+    provider_installer_version: str
+    provider_source_digest: str
     package_version: str
     conflicts: tuple[ConflictResolution, ...]
     manifest_digest: str
@@ -81,7 +97,7 @@ class UpgradeResolution:
         return frozenset(item.path for item in self.conflicts)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"kind": KIND, "schemaVersion": 2, "repository": self.repository, "targetWorktree": self.target_worktree, "consumer": {"commit": self.commit, "tree": self.tree}, "provider": {"commit": self.provider_commit, "tree": self.provider_tree}, "packageVersion": self.package_version, "manifestDigest": self.manifest_digest, "installedStateDigest": self.installed_state_digest, "conflicts": [item.to_dict() for item in self.conflicts], "verification": self.verification, "resolutionDigest": self.raw_digest}
+        return {"kind": KIND, "schemaVersion": 2, "repository": self.repository, "targetWorktree": self.target_worktree, "consumer": {"commit": self.commit, "tree": self.tree}, "provider": {"repository": self.provider_repository, "authoritativeRef": self.provider_authoritative_ref, "commit": self.provider_commit, "tree": self.provider_tree, "installerVersion": self.provider_installer_version, "packageSourceDigest": self.provider_source_digest}, "packageVersion": self.package_version, "manifestDigest": self.manifest_digest, "installedStateDigest": self.installed_state_digest, "conflicts": [item.to_dict() for item in self.conflicts], "verification": self.verification, "resolutionDigest": self.raw_digest}
 
 
 def _git(root: Path, *args: str) -> str:
@@ -128,6 +144,89 @@ def _canonical_digest(value: Any) -> str:
     """Digest an evidence object without allowing JSON formatting ambiguity."""
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
+def _package_source_digest(
+    package_root: Path,
+    manifest: dict[str, Any],
+    *,
+    manifest_digest: str,
+    provider: dict[str, Any],
+    provider_commit: str,
+    provider_tree: str,
+) -> str:
+    """Return the portable, digest-bound identity of an extracted package.
+
+    Release-candidate archives deliberately omit ``.git``.  The manifest and
+    every physical source hash therefore form the package identity, with the
+    immutable provider provenance included so an old receipt cannot be reused
+    for a different source identity.
+    """
+    rows: list[dict[str, Any]] = []
+    for entry in manifest.get("files", []):
+        if not isinstance(entry, dict):
+            raise InvalidPackageError("Resolution provider MANIFEST contains an invalid file entry")
+        source = entry.get("source")
+        if not isinstance(source, str) or as_posix_rel(source) != source:
+            raise InvalidPackageError("Resolution provider MANIFEST source path is invalid")
+        source_path = package_root / source
+        if source_path.is_symlink() or not source_path.is_file():
+            raise InvalidPackageError(f"Resolution provider source is missing or unsafe: {source}")
+        declared = _digest(entry.get("sourceHash"), f"provider.manifest.{source}.sourceHash")
+        actual = sha256_file(source_path)
+        if actual != declared:
+            raise InvalidPackageError(f"Resolution provider source identity is stale: {source}")
+        rows.append({
+            "source": source,
+            "sourceHash": actual,
+            "destination": entry.get("destination"),
+            "mode": entry.get("mode"),
+            "ownershipClass": entry.get("ownershipClass"),
+            "platform": entry.get("platform"),
+            "os": entry.get("os", "all"),
+            "mergeStrategy": entry.get("mergeStrategy"),
+        })
+    rows.sort(key=lambda item: (item["source"], item["destination"]))
+    return _canonical_digest({
+        "schemaVersion": 1,
+        "repository": provider.get("repository"),
+        "authoritativeRef": provider.get("authoritativeRef"),
+        "commit": provider_commit,
+        "tree": provider_tree,
+        "packageVersion": manifest.get("packageVersion"),
+        "manifestDigest": manifest_digest,
+        "files": rows,
+    })
+
+
+def _validate_provider_source_identity(
+    package_root: Path,
+    manifest: dict[str, Any],
+    *,
+    manifest_digest: str,
+    provider: dict[str, Any],
+    provider_commit: str,
+    provider_tree: str,
+) -> str:
+    if provider.get("repository") != PROVIDER_REPOSITORY or provider.get("authoritativeRef") != PROVIDER_AUTHORITATIVE_REF:
+        raise InvalidPackageError("Resolution provider repository/ref identity is invalid")
+    expected = _package_source_digest(
+        package_root,
+        manifest,
+        manifest_digest=manifest_digest,
+        provider=provider,
+        provider_commit=provider_commit,
+        provider_tree=provider_tree,
+    )
+    actual = _digest(provider.get("packageSourceDigest"), "provider.packageSourceDigest")
+    if actual != expected:
+        raise InvalidPackageError("Resolution provider package source identity is stale")
+    return actual
+
+
+def _validate_provider_entry(entry: Any, rel: str) -> None:
+    if not isinstance(entry, dict) or entry.get("ownershipClass") not in PROVIDER_OWNERSHIP_CLASSES or entry.get("mergeStrategy") != "replace":
+        raise InvalidPackageError(f"Provider source/digest is not bound to MANIFEST for {rel}")
 
 
 def _validate_observed_conflict_paths(paths: Iterable[str]) -> frozenset[str]:
@@ -202,15 +301,23 @@ def load_and_validate_resolution(resolution_path: Path, *, target_root: Path, pa
     if not isinstance(provider, dict) or not required_provider.issubset(provider):
         raise InvalidPackageError("Resolution provider provenance is incomplete")
     provider_commit, provider_tree = _oid(provider["commit"], "provider.commit"), _oid(provider["tree"], "provider.tree")
-    provider_actual = (_git(package_root, "rev-parse", "--verify", "HEAD^{commit}"), _git(package_root, "rev-parse", "--verify", "HEAD^{tree}"))
-    if (provider_commit, provider_tree) != provider_actual:
-        raise InvalidPackageError("Resolution provider source identity is stale")
+    if provider.get("repository") != PROVIDER_REPOSITORY or provider.get("authoritativeRef") != PROVIDER_AUTHORITATIVE_REF:
+        raise InvalidPackageError("Resolution provider repository/ref identity is invalid")
     managed = provider["managedPackageManifest"]
-    if provider["installerVersion"] != "2.5.1" or not isinstance(managed, dict) or managed.get("path") != "core/managed-core/MANIFEST.json":
+    if provider["installerVersion"] != PROVIDER_INSTALLER_VERSION or not isinstance(managed, dict) or managed.get("path") != "core/managed-core/MANIFEST.json":
         raise InvalidPackageError("Resolution provider package provenance is invalid")
     manifest_path = package_root / "core/managed-core/MANIFEST.json"
-    if managed.get("bytes") != manifest_path.stat().st_size or _digest(managed.get("sha256"), "provider.managedPackageManifest.sha256") != package_manifest_digest:
+    if manifest_path.is_symlink() or not manifest_path.is_file() or managed.get("bytes") != manifest_path.stat().st_size or _digest(managed.get("sha256"), "provider.managedPackageManifest.sha256") != package_manifest_digest:
         raise InvalidPackageError("Resolution provider MANIFEST digest/size is stale")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    provider_source_digest = _validate_provider_source_identity(
+        package_root,
+        manifest,
+        manifest_digest=package_manifest_digest,
+        provider=provider,
+        provider_commit=provider_commit,
+        provider_tree=provider_tree,
+    )
     if raw.get("allowedConflictPaths") != sorted(ALLOWED_CONFLICT_PATHS):
         raise InvalidPackageError("Resolution allowedConflictPaths must exactly equal canonical scanner paths")
     expected = {rel: (old, current, provider_hash) for rel, old, current, provider_hash in observed_conflicts}
@@ -218,7 +325,6 @@ def load_and_validate_resolution(resolution_path: Path, *, target_root: Path, pa
     rows = raw.get("conflicts")
     if not isinstance(rows, list) or len(rows) != len(observed_paths) or {row.get("path") for row in rows if isinstance(row, dict)} != observed_paths:
         raise InvalidPackageError("Resolution conflicts do not exactly match observed managed paths")
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     entries = {entry.get("destination"): entry for entry in manifest.get("files", [])}
     resolutions: list[ConflictResolution] = []
     for row in rows:
@@ -237,10 +343,11 @@ def load_and_validate_resolution(resolution_path: Path, *, target_root: Path, pa
         if (old, current, provider_hash) != expected[rel]:
             raise InvalidPackageError(f"Resolution digest is stale for conflict path: {rel}")
         entry = entries.get(rel)
-        if not entry or row["provider"].get("source") != entry.get("source") or provider_hash != entry.get("sourceHash"):
+        _validate_provider_entry(entry, rel)
+        if row["provider"].get("source") != entry.get("source") or provider_hash != entry.get("sourceHash"):
             raise InvalidPackageError(f"Provider source/digest is not bound to MANIFEST for {rel}")
         provider_source = package_root / entry["source"]
-        if not provider_source.is_file() or provider_source.is_symlink() or row["provider"].get("bytes") != provider_source.stat().st_size:
+        if not provider_source.is_file() or provider_source.is_symlink() or row["provider"].get("bytes") != provider_source.stat().st_size or sha256_file(provider_source) != provider_hash:
             raise InvalidPackageError(f"Provider source byte preimage is stale for {rel}")
         dest = target_root / rel
         if path_is_symlink(dest) or not dest.is_file() or sha256_file(dest) != current:
@@ -275,4 +382,4 @@ def load_and_validate_resolution(resolution_path: Path, *, target_root: Path, pa
         raise InvalidPackageError("Resolution contains deferred or extra paths")
     if prior_package_version is not None and package_version < prior_package_version:
         raise InvalidPackageError("Managed upgrade resolution refuses package downgrade")
-    return UpgradeResolution(path, str(raw.get("repository", "")), target_worktree, commit, tree, provider_commit, provider_tree, package_version, tuple(sorted(resolutions, key=lambda item: item.path)), package_manifest_digest, baseline_digest, verification, "sha256:" + hashlib.sha256(raw_bytes).hexdigest())
+    return UpgradeResolution(path, str(raw.get("repository", "")), target_worktree, commit, tree, str(provider["repository"]), str(provider["authoritativeRef"]), provider_commit, provider_tree, str(provider["installerVersion"]), provider_source_digest, package_version, tuple(sorted(resolutions, key=lambda item: item.path)), package_manifest_digest, baseline_digest, verification, "sha256:" + hashlib.sha256(raw_bytes).hexdigest())
