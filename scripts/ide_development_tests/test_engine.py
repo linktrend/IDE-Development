@@ -106,7 +106,7 @@ class EngineTests(TempRepoTestCase):
         result = run_version(package=self.package)
         self.assertEqual(result.exit_code, EXIT_OK)
         self.assertEqual(result.payload["packageVersion"], "2.1.0")
-        self.assertEqual(result.payload["installerVersion"], "2.5.1")
+        self.assertEqual(result.payload["installerVersion"], "2.5.2")
 
     def test_marker_upsert_preserves_consumer_text(self) -> None:
         agents = self.target / "AGENTS.md"
@@ -125,7 +125,7 @@ class EngineTests(TempRepoTestCase):
         result = run_version(package=self.package)
         self.assertEqual(result.exit_code, EXIT_OK)
         self.assertEqual(result.payload["packageVersion"], "2.1.0")
-        self.assertEqual(result.payload["installerVersion"], "2.5.1")
+        self.assertEqual(result.payload["installerVersion"], "2.5.2")
 
     def test_plan_and_dry_run_no_writes(self) -> None:
         before = _snapshot(self.target)

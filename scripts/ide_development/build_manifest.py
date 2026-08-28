@@ -404,6 +404,18 @@ def build_entries() -> list[dict[str, Any]]:
         ("content/README.md", ".ide-development/content/README.md"),
         ("config/delivery.json", ".ide-development/config/delivery.json"),
         (
+            "content/config/portfolio-control-loop.json",
+            ".ide-development/content/config/portfolio-control-loop.json",
+        ),
+        (
+            "content/config/routing-registry.json",
+            ".ide-development/content/config/routing-registry.json",
+        ),
+        (
+            "content/config/toolchain-manifest.json",
+            ".ide-development/content/config/toolchain-manifest.json",
+        ),
+        (
             "content/config/generated-output-closure.consumer.json",
             ".ide-development/config/generated-output-closure.json",
         ),
@@ -420,6 +432,10 @@ def build_entries() -> list[dict[str, Any]]:
         ("migrations/README.md", ".ide-development/migrations/README.md"),
         ("schemas/manifest.schema.json", ".ide-development/schemas/manifest.schema.json"),
         ("schemas/installed-state.schema.json", ".ide-development/schemas/installed-state.schema.json"),
+        (
+            "schemas/managed-ownership.schema.json",
+            ".ide-development/schemas/managed-ownership.schema.json",
+        ),
         ("schemas/transaction.schema.json", ".ide-development/schemas/transaction.schema.json"),
         (
             "schemas/release-candidate.schema.json",
@@ -492,6 +508,30 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "schemas/transactional-dispatch.schema.json",
             ".ide-development/schemas/transactional-dispatch.schema.json",
+        ),
+        (
+            "schemas/mutation-declaration.schema.json",
+            ".ide-development/schemas/mutation-declaration.schema.json",
+        ),
+        (
+            "schemas/portfolio-control-loop.schema.json",
+            ".ide-development/schemas/portfolio-control-loop.schema.json",
+        ),
+        (
+            "schemas/provider-consumer-handoff.schema.json",
+            ".ide-development/schemas/provider-consumer-handoff.schema.json",
+        ),
+        (
+            "schemas/routing-registry.schema.json",
+            ".ide-development/schemas/routing-registry.schema.json",
+        ),
+        (
+            "schemas/toolchain-manifest.schema.json",
+            ".ide-development/schemas/toolchain-manifest.schema.json",
+        ),
+        (
+            "schemas/transition-receipt.schema.json",
+            ".ide-development/schemas/transition-receipt.schema.json",
         ),
         (
             "schemas/secret-scan-result.schema.json",
