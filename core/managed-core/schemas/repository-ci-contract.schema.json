@@ -11,7 +11,8 @@
     "aggregateContext",
     "profiles",
     "coverageComponents",
-    "trustedGovernance"
+    "trustedGovernance",
+    "promotionPolicy"
   ],
   "$defs": {
     "sha40": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
@@ -116,6 +117,83 @@
         },
         "timeoutMinutes": { "type": "integer", "minimum": 1 }
       }
+    },
+    "promotionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "id",
+        "promotionRefPrefix",
+        "phaseRefPrefix",
+        "developmentBranches",
+        "retainedCheckContexts",
+        "reuseAcceptedChecks",
+        "duplicateBroadSuite",
+        "migration"
+      ],
+      "properties": {
+        "schemaVersion": { "type": "integer", "const": 1 },
+        "id": { "type": "string", "const": "lean-promotion-v1" },
+        "promotionRefPrefix": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+/$"
+        },
+        "phaseRefPrefix": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+/$"
+        },
+        "developmentBranches": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "retainedCheckContexts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["phase", "promotion"],
+          "properties": {
+            "phase": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "promotion": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "reuseAcceptedChecks": { "type": "boolean", "const": true },
+        "duplicateBroadSuite": { "type": "boolean", "const": false },
+        "migration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "schemaVersion",
+            "mode",
+            "requiresExplicitRolloutScope",
+            "reportOnlyIsMutationAuthority",
+            "preserveApplicationCommands"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "const": "lean-promotion-workflow-migration-v1"
+            },
+            "schemaVersion": { "type": "integer", "const": 1 },
+            "mode": { "type": "string", "const": "consumer-executable-plan" },
+            "requiresExplicitRolloutScope": { "type": "boolean", "const": true },
+            "reportOnlyIsMutationAuthority": { "type": "boolean", "const": false },
+            "preserveApplicationCommands": { "type": "boolean", "const": true }
+          }
+        }
+      }
     }
   },
   "properties": {
@@ -169,6 +247,9 @@
     "expensiveWorkflowMarkers": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
+    },
+    "promotionPolicy": {
+      "$ref": "#/$defs/promotionPolicy"
     }
   }
 }

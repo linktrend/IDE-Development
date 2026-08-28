@@ -21,8 +21,13 @@ shared lifecycle:
 | Unchanged staging/main promotion | Receipt verification only — no Full / broad PR matrix |
 
 Branch protection requires the stable aggregate context
-`Linktrend Repository CI Gate`, never an unconditional raw application-Full
-context.
+`Linktrend Full Suite`, never an unconditional raw application-Full context.
+
+The versioned `promotionPolicy` in the repository declaration is the reusable
+lean-promotion contract. It identifies `promote/` refs as receipt-only and
+retains Fast/Full checks for `phase/` work plus the explicit Branch Source
+Policy and Receipt Gate checks for promotion. Accepted checks are reused; a
+second broad or local Full suite is not requested.
 
 ## Profiles
 
@@ -48,8 +53,12 @@ mutation; restore/key/save failures warn without changing correctness.
 
 `installer_audit_repository_ci_triggers` reports workflows whose broad
 `pull_request` / `push` triggers would repeat expensive checks during
-promotion. It may modify triggers only under explicit repository rollout scope
-and must preserve application test commands unless separately authorized.
+promotion. The audit is report-only and has no mutation authority. It emits a
+versioned consumer-executable migration plan; a consumer may apply that plan
+only under an independently explicit rollout scope. The plan guards expensive
+workflows to `phase/*` heads, preserves application test commands, and does
+not add a duplicate broad suite. This packet does not apply the plan to any
+consumer workflow.
 
 ## Related
 
