@@ -40,6 +40,8 @@ STALE_CONTEXTS = frozenset(
     }
 )
 SCHEMA_VERSION = 1
+PROMOTION_POLICY_SCHEMA_VERSION = 1
+PROMOTION_MIGRATION_ID = "lean-promotion-workflow-migration-v1"
 
 PROFILE_NONE = "none"
 PROFILE_FAST = "fast"
@@ -171,6 +173,27 @@ def default_contract() -> dict[str, Any]:
             ],
         },
         "expensiveWorkflowMarkers": list(DEFAULT_EXPENSIVE_MARKERS),
+        "promotionPolicy": {
+            "schemaVersion": PROMOTION_POLICY_SCHEMA_VERSION,
+            "id": "lean-promotion-v1",
+            "promotionRefPrefix": "promote/",
+            "phaseRefPrefix": "phase/",
+            "developmentBranches": ["development"],
+            "retainedCheckContexts": {
+                "phase": [FAST_CONTEXT, FULL_CONTEXT],
+                "promotion": [SOURCE_POLICY_CONTEXT, RECEIPT_CONTEXT],
+            },
+            "reuseAcceptedChecks": True,
+            "duplicateBroadSuite": False,
+            "migration": {
+                "id": PROMOTION_MIGRATION_ID,
+                "schemaVersion": PROMOTION_POLICY_SCHEMA_VERSION,
+                "mode": "consumer-executable-plan",
+                "requiresExplicitRolloutScope": True,
+                "reportOnlyIsMutationAuthority": False,
+                "preserveApplicationCommands": True,
+            },
+        },
     }
 
 
@@ -227,6 +250,60 @@ def validate_contract(contract: Mapping[str, Any]) -> dict[str, Any]:
         raise ContractError("contract_trusted_paths")
     if not isinstance(proofs, list) or not proofs:
         raise ContractError("contract_trusted_proofs")
+    policy = contract.get("promotionPolicy")
+    if not isinstance(policy, Mapping):
+        raise ContractError("contract_promotion_policy_missing")
+    if policy.get("schemaVersion") != PROMOTION_POLICY_SCHEMA_VERSION:
+        raise ContractError("contract_promotion_policy_schema")
+    if policy.get("id") != "lean-promotion-v1":
+        raise ContractError("contract_promotion_policy_id")
+    for key in ("promotionRefPrefix", "phaseRefPrefix"):
+        value = policy.get(key)
+        if not isinstance(value, str) or not value or not value.endswith("/"):
+            raise ContractError("contract_promotion_policy_prefix", key)
+    development_branches = policy.get("developmentBranches")
+    if (
+        not isinstance(development_branches, list)
+        or not development_branches
+        or any(not isinstance(branch, str) or not branch for branch in development_branches)
+        or len(development_branches) != len(set(development_branches))
+    ):
+        raise ContractError("contract_promotion_policy_development_branches")
+    retained = policy.get("retainedCheckContexts")
+    if not isinstance(retained, Mapping):
+        raise ContractError("contract_promotion_policy_retained_checks")
+    for key in ("phase", "promotion"):
+        contexts = retained.get(key)
+        if (
+            not isinstance(contexts, list)
+            or not contexts
+            or any(not isinstance(context, str) or not context for context in contexts)
+            or len(contexts) != len(set(contexts))
+        ):
+            raise ContractError("contract_promotion_policy_retained_checks", key)
+    if retained["phase"] != profiles[PROFILE_FAST].get("requiredCheckContexts", []) + profiles[PROFILE_FULL].get("requiredCheckContexts", []):
+        raise ContractError("contract_promotion_policy_phase_checks")
+    if retained["promotion"] != profiles[PROFILE_PROMOTION].get("requiredCheckContexts", []):
+        raise ContractError("contract_promotion_policy_promotion_checks")
+    if policy.get("reuseAcceptedChecks") is not True:
+        raise ContractError("contract_promotion_policy_reuse_required")
+    if policy.get("duplicateBroadSuite") is not False:
+        raise ContractError("contract_promotion_policy_duplicate_suite")
+    migration = policy.get("migration")
+    if not isinstance(migration, Mapping):
+        raise ContractError("contract_promotion_migration_missing")
+    if migration.get("id") != PROMOTION_MIGRATION_ID:
+        raise ContractError("contract_promotion_migration_id")
+    if migration.get("schemaVersion") != PROMOTION_POLICY_SCHEMA_VERSION:
+        raise ContractError("contract_promotion_migration_schema")
+    if migration.get("mode") != "consumer-executable-plan":
+        raise ContractError("contract_promotion_migration_mode")
+    if migration.get("requiresExplicitRolloutScope") is not True:
+        raise ContractError("contract_promotion_migration_scope_required")
+    if migration.get("reportOnlyIsMutationAuthority") is not False:
+        raise ContractError("contract_promotion_migration_report_only_authority")
+    if migration.get("preserveApplicationCommands") is not True:
+        raise ContractError("contract_promotion_migration_preserve_commands")
     return dict(contract)
 
 
@@ -1226,19 +1303,41 @@ def _workflow_looks_expensive(text: str, markers: Sequence[str]) -> bool:
     return any(marker.lower() in lowered for marker in markers)
 
 
-def _has_broad_promotion_trigger(text: str) -> bool:
+def _promotion_policy(contract: Mapping[str, Any]) -> Mapping[str, Any]:
+    policy = contract.get("promotionPolicy")
+    if not isinstance(policy, Mapping):
+        raise ContractError("contract_promotion_policy_missing")
+    return policy
+
+
+def _has_phase_head_guard(text: str, *, phase_ref_prefix: str) -> bool:
+    escaped_prefix = re.escape(phase_ref_prefix)
+    return bool(
+        re.search(
+            rf"startsWith\(github\.event\.pull_request\.head\.ref,\s*['\"]{escaped_prefix}['\"]\)",
+            text,
+        )
+    )
+
+
+def _has_broad_promotion_trigger(
+    text: str,
+    *,
+    promotion_ref_prefix: str = "promote/",
+    phase_ref_prefix: str = "phase/",
+) -> bool:
     """Detect broad pull_request/push triggers that would fire on promotion PRs."""
     if "pull_request:" not in text and "push:" not in text:
         return False
     # Explicit promotion-only workflows are fine.
-    if re.search(r"(?m)^[ \t]+branches:\s*\[?\s*['\"]?promote/", text):
+    if re.search(
+        rf"(?m)^[ \t]+branches:\s*\[?\s*['\"]?{re.escape(promotion_ref_prefix)}",
+        text,
+    ):
         return False
     # An expensive PR workflow whose job is explicitly restricted to phase/*
     # heads cannot run for promote/* heads, even when its base is development.
-    if re.search(
-        r"startsWith\(github\.event\.pull_request\.head\.ref,\s*['\"]phase/['\"]\)",
-        text,
-    ):
+    if _has_phase_head_guard(text, phase_ref_prefix=phase_ref_prefix):
         return False
     # Path filters alone do not protect promotion PRs that still match paths.
     has_pr_or_push = bool(re.search(r"(?m)^[ \t]*(pull_request|push)\s*:", text))
@@ -1263,11 +1362,61 @@ def _has_broad_promotion_trigger(text: str) -> bool:
     return False
 
 
+def build_lean_promotion_migration_plan(
+    workflows_dir: Path,
+    *,
+    contract: Mapping[str, Any],
+    rollout_scope: bool = False,
+) -> dict[str, Any]:
+    """Build a versioned consumer-executable plan without editing workflows.
+
+    The plan is deliberately derived from the report-only audit. A consumer
+    rollout may apply the listed actions only after independently supplying an
+    explicit rollout scope; an audit result is never mutation authority.
+    """
+
+    policy = _promotion_policy(contract)
+    migration = policy["migration"]
+    audit = audit_workflow_triggers(workflows_dir, contract=contract)
+    actions: list[dict[str, Any]] = []
+    for conflict in audit["conflicts"]:
+        actions.append(
+            {
+                "operation": "guard-expensive-workflow-to-phase-heads",
+                "path": conflict["path"],
+                "precondition": conflict["code"],
+                "guard": (
+                    "startsWith(github.event.pull_request.head.ref, "
+                    f"'{policy['phaseRefPrefix']}')"
+                ),
+                "preserveApplicationCommands": True,
+                "doNotAddBroadSuite": True,
+            }
+        )
+    return {
+        "schemaVersion": migration["schemaVersion"],
+        "kind": "lean-promotion-workflow-migration-plan",
+        "migrationId": migration["id"],
+        "status": "rollout-scoped" if rollout_scope else "report-only",
+        "requiresExplicitRolloutScope": migration["requiresExplicitRolloutScope"],
+        "mutationAuthorized": bool(rollout_scope),
+        "reportOnlyIsMutationAuthority": migration["reportOnlyIsMutationAuthority"],
+        "promotionRefPrefix": policy["promotionRefPrefix"],
+        "phaseRefPrefix": policy["phaseRefPrefix"],
+        "retainedCheckContexts": dict(policy["retainedCheckContexts"]),
+        "reuseAcceptedChecks": policy["reuseAcceptedChecks"],
+        "duplicateBroadSuite": policy["duplicateBroadSuite"],
+        "actions": actions,
+        "audit": audit,
+    }
+
+
 def audit_workflow_triggers(
     workflows_dir: Path,
     *,
     contract: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    policy = _promotion_policy(contract or default_contract())
     markers = list(
         (contract or default_contract()).get("expensiveWorkflowMarkers") or DEFAULT_EXPENSIVE_MARKERS
     )
@@ -1284,7 +1433,11 @@ def audit_workflow_triggers(
         scanned += 1
         text = path.read_text(encoding="utf-8")
         expensive = _workflow_looks_expensive(text, markers)
-        broad = _has_broad_promotion_trigger(text)
+        broad = _has_broad_promotion_trigger(
+            text,
+            promotion_ref_prefix=str(policy["promotionRefPrefix"]),
+            phase_ref_prefix=str(policy["phaseRefPrefix"]),
+        )
         if expensive and broad:
             conflicts.append(
                 {
@@ -1299,6 +1452,7 @@ def audit_workflow_triggers(
         "scanned": scanned,
         "mayModify": False,
         "detail": "report_only_without_rollout_scope",
+        "policyId": policy["id"],
     }
 
 
@@ -1314,6 +1468,11 @@ def installer_audit_repository_ci_triggers(
     """
     contract = load_contract(target_root)
     result = audit_workflow_triggers(target_root / ".github" / "workflows", contract=contract)
+    result["migrationPlan"] = build_lean_promotion_migration_plan(
+        target_root / ".github" / "workflows",
+        contract=contract,
+        rollout_scope=rollout_scope,
+    )
     result["rolloutScope"] = bool(rollout_scope)
     result["mutated"] = False
     if mutate and not rollout_scope:

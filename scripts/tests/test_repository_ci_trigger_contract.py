@@ -27,6 +27,7 @@ from scripts.gitops.repository_ci_contract import (
     ContractError,
     audit_workflow_triggers,
     authorize_omission,
+    build_lean_promotion_migration_plan,
     classify_changed_paths,
     compute_cache_key,
     default_contract,
@@ -145,6 +146,73 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
         stale["aggregateContext"] = "Linktrend Repository CI Gate"
         with self.assertRaisesRegex(ContractError, "contract_aggregate_stale"):
             validate_contract(stale)
+
+    def test_lean_promotion_policy_reuses_phase_and_receipt_checks(self) -> None:
+        policy = self.contract["promotionPolicy"]
+        self.assertEqual(policy["id"], "lean-promotion-v1")
+        self.assertEqual(policy["promotionRefPrefix"], "promote/")
+        self.assertEqual(
+            policy["retainedCheckContexts"]["phase"],
+            ["Linktrend Fast Checks", "Linktrend Full Suite"],
+        )
+        self.assertEqual(
+            policy["retainedCheckContexts"]["promotion"],
+            ["Linktrend Branch Source Policy", "Linktrend Receipt Gate"],
+        )
+        self.assertTrue(policy["reuseAcceptedChecks"])
+        self.assertFalse(policy["duplicateBroadSuite"])
+        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+        Draft202012Validator(schema).validate(self.contract)
+
+    def test_lean_promotion_plan_is_report_only_until_explicit_rollout_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workflows = Path(tmp) / ".github" / "workflows"
+            workflows.mkdir(parents=True)
+            workflow = workflows / "expensive.yml"
+            broad = """name: Full matrix
+on:
+  pull_request:
+  push:
+jobs:
+  full:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo e2e browser matrix
+"""
+            workflow.write_text(broad, encoding="utf-8")
+            plan = build_lean_promotion_migration_plan(
+                workflows,
+                contract=self.contract,
+            )
+            self.assertEqual(plan["status"], "report-only")
+            self.assertFalse(plan["mutationAuthorized"])
+            self.assertFalse(plan["reportOnlyIsMutationAuthority"])
+            self.assertEqual(plan["actions"][0]["precondition"], "promotion_expensive_retrigger")
+            self.assertTrue(plan["actions"][0]["preserveApplicationCommands"])
+            self.assertTrue(plan["actions"][0]["doNotAddBroadSuite"])
+
+            lean = broad.replace(
+                "    runs-on: ubuntu-latest",
+                "    if: startsWith(github.event.pull_request.head.ref, 'phase/')\n"
+                "    runs-on: ubuntu-latest",
+            )
+            workflow.write_text(lean, encoding="utf-8")
+            accepted = build_lean_promotion_migration_plan(
+                workflows,
+                contract=self.contract,
+            )
+            self.assertEqual(accepted["actions"], [])
+            self.assertTrue(accepted["audit"]["ok"])
+
+            before = workflow.read_bytes()
+            with self.assertRaises(ContractError) as ctx:
+                installer_audit_repository_ci_triggers(
+                    Path(tmp),
+                    mutate=True,
+                    rollout_scope=False,
+                )
+            self.assertEqual(ctx.exception.code, "installer_mutate_requires_rollout_scope")
+            self.assertEqual(workflow.read_bytes(), before)
 
     def test_expensive_fanout_requires_capacity_and_rejects_duplicates(self) -> None:
         head = _head(7)

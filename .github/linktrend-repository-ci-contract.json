@@ -108,5 +108,29 @@
     "docker",
     "build-and-test",
     "verify ide development"
-  ]
+  ],
+  "promotionPolicy": {
+    "schemaVersion": 1,
+    "id": "lean-promotion-v1",
+    "promotionRefPrefix": "promote/",
+    "phaseRefPrefix": "phase/",
+    "developmentBranches": ["development"],
+    "retainedCheckContexts": {
+      "phase": ["Linktrend Fast Checks", "Linktrend Full Suite"],
+      "promotion": [
+        "Linktrend Branch Source Policy",
+        "Linktrend Receipt Gate"
+      ]
+    },
+    "reuseAcceptedChecks": true,
+    "duplicateBroadSuite": false,
+    "migration": {
+      "id": "lean-promotion-workflow-migration-v1",
+      "schemaVersion": 1,
+      "mode": "consumer-executable-plan",
+      "requiresExplicitRolloutScope": true,
+      "reportOnlyIsMutationAuthority": false,
+      "preserveApplicationCommands": true
+    }
+  }
 }
