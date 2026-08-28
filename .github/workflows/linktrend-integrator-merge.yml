@@ -95,7 +95,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_head || github.event.pull_request.head.sha }}
-          fetch-depth: 1
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Resolve canonical candidate head (never merge-ref identity)
@@ -381,7 +381,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: development
-          fetch-depth: 1
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Validate recovery dispatch preconditions
