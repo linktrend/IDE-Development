@@ -25,26 +25,31 @@ from ide_development_tests import TempRepoTestCase
 
 
 class ResolutionTests(TempRepoTestCase):
-    def test_managed_upgrade_allowlist_matches_schema_union(self) -> None:
-        expected = {
+    def test_managed_upgrade_allowlist_matches_named_admission_union(self) -> None:
+        linktrading_admission_paths = {
+            "scripts/gitops/delivery_controller.py",
+            "scripts/gitops/receipt_seal.py",
+            "scripts/gitops/secret_scan.py",
+        }
+        openclaw_admission_paths = {
             ".ide-development/schemas/managed-upgrade-resolution.schema.json",
             ".ide-development/schemas/phase-handoff.schema.json",
             ".ide-development/schemas/phase-record.schema.json",
             ".ide-development/tests/test_delivery_controller.py",
-            ".ide-development/tests/test_fixture_aware_secret_scan.py",
             ".ide-development/tests/test_phase_packager_coordinator.py",
             ".ide-development/tests/test_receipt_seal_and_recovery.py",
             ".ide-development/workflows/linktrend-integrator-merge.yml",
-            "scripts/gitops/completion_gate.py",
             "scripts/gitops/delivery_controller.py",
             "scripts/gitops/github_auth.py",
             "scripts/gitops/issue_checkpoint.py",
             "scripts/gitops/packager_coordinator.py",
             "scripts/gitops/phase_integrator.py",
-            "scripts/gitops/receipt_seal.py",
-            "scripts/gitops/secret_scan.py",
             "scripts/ide_development/resolution.py",
         }
+        expected = linktrading_admission_paths | openclaw_admission_paths
+        self.assertEqual(len(linktrading_admission_paths), 3)
+        self.assertEqual(len(openclaw_admission_paths), 13)
+        self.assertEqual(len(expected), 15)
         self.assertEqual(ALLOWED_CONFLICT_PATHS, expected)
         schema_path = (
             Path(__file__).resolve().parents[2]
@@ -74,14 +79,20 @@ class ResolutionTests(TempRepoTestCase):
             self.assertEqual(entry["mergeStrategy"], "replace")
 
     def test_observed_conflicts_may_be_a_nonempty_allowlisted_subset_only(self) -> None:
-        for path in sorted(ALLOWED_CONFLICT_PATHS):
+        admission_union = sorted(ALLOWED_CONFLICT_PATHS)
+        for path in admission_union:
             self.assertEqual(_validate_observed_conflict_paths([path]), {path})
-        observed = _validate_observed_conflict_paths(sorted(ALLOWED_CONFLICT_PATHS))
+        observed = _validate_observed_conflict_paths(admission_union)
         self.assertEqual(observed, ALLOWED_CONFLICT_PATHS)
         with self.assertRaises(InvalidPackageError):
             _validate_observed_conflict_paths([])
-        with self.assertRaises(InvalidPackageError):
-            _validate_observed_conflict_paths(["consumer-owned.txt"])
+        for path in (
+            ".ide-development/tests/test_fixture_aware_secret_scan.py",
+            "scripts/gitops/completion_gate.py",
+            "consumer-owned.txt",
+        ):
+            with self.assertRaises(InvalidPackageError):
+                _validate_observed_conflict_paths([path])
 
     def test_extracted_package_provider_identity_is_digest_bound(self) -> None:
         package_root = Path(self._tmp.name) / "official-extracted-package"
