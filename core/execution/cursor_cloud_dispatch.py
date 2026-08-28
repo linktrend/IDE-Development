@@ -525,8 +525,28 @@ def _readback_write(
     return readback
 
 
-def supersede_obsolete_prepared_intents(store: CursorCloudIntentStore) -> list[str]:
-    """Supersede old fixed-capacity PREPARED records before a new dispatch."""
+def supersede_obsolete_prepared_intents(
+    store: CursorCloudIntentStore,
+    *,
+    current_idempotency_key: str | None = None,
+    repository: str | None = None,
+    ownership_evidence: Mapping[str, Mapping[str, Any]] | None = None,
+) -> list[str]:
+    """Supersede only fixed-capacity records proven stale by an owner authority.
+
+    A capacity marker identifies a record that may need migration; it does not
+    prove that the record is safe to supersede.  The caller must supply an
+    authoritative ownership decision bound to the exact record revision and
+    digest.  With no such evidence, this function is deliberately a no-op.
+    """
+
+    if ownership_evidence is None:
+        return []
+    if not isinstance(ownership_evidence, Mapping):
+        raise CursorCloudDispatchError(
+            "cursor_cloud_intent_supersession_ambiguous",
+            "authoritative ownership evidence must be a keyed mapping",
+        )
 
     list_intents = getattr(store, "list_intents", None)
     if not callable(list_intents):
@@ -534,25 +554,131 @@ def supersede_obsolete_prepared_intents(store: CursorCloudIntentStore) -> list[s
             "cursor_cloud_intent_supersession_unavailable",
             "intent store cannot enumerate PREPARED records",
         )
-    superseded: list[str] = []
+    records: dict[str, Mapping[str, Any]] = {}
     for record in list_intents():
         if not isinstance(record, Mapping) or record.get("state") != "PREPARED":
             continue
-        if record.get("concurrencyPolicy") not in {
-            "fixed_hosted_2", "fixed_hosted_worker_cap", "max_hosted_2"
-        } and record.get("maxHostedWorkers") != 2:
-            continue
         key = str(record.get("idempotencyKey") or "")
-        if not key:
+        if not key or key in records:
             raise CursorCloudDispatchError(
-                "cursor_cloud_intent_supersession_invalid",
-                "obsolete PREPARED intent has no idempotency key",
+                "cursor_cloud_intent_supersession_ambiguous",
+                "PREPARED intent enumeration contains an invalid or duplicate idempotency key",
             )
-        payload = dict(record)
-        revision = int(payload.pop("revision", 0))
-        expected_digest = str(payload.pop("digest", "") or "") or None
-        payload.update({"state": "SUPERSEDED", "supersessionReason": "obsolete_fixed_hosted_worker_cap"})
-        store.compare_and_write(key, revision, expected_digest, payload)
+        records[key] = dict(record)
+
+    evidence_keys = {str(key) for key in ownership_evidence}
+    if current_idempotency_key:
+        evidence_keys.discard(current_idempotency_key)
+    for key in evidence_keys:
+        if key not in records:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_intent_supersession_unrelated",
+                "ownership evidence does not bind an enumerated PREPARED intent",
+                idempotencyKey=key,
+            )
+
+    superseded: list[str] = []
+    for key, snapshot in records.items():
+        if key == current_idempotency_key:
+            continue
+        if snapshot.get("concurrencyPolicy") not in {
+            "fixed_hosted_2", "fixed_hosted_worker_cap", "max_hosted_2"
+        } and snapshot.get("maxHostedWorkers") != 2:
+            continue
+
+        evidence = ownership_evidence.get(key)
+        if not isinstance(evidence, Mapping):
+            raise CursorCloudDispatchError(
+                "cursor_cloud_intent_supersession_ambiguous",
+                "fixed-capacity PREPARED intent lacks authoritative ownership evidence",
+                idempotencyKey=key,
+            )
+
+        status = str(evidence.get("status") or "").casefold()
+        if evidence.get("authoritative") is not True or status not in {"stale", "expired"}:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_intent_supersession_ownership_not_stale",
+                "only authoritative stale or expired ownership evidence may supersede an intent",
+                idempotencyKey=key,
+            )
+        if evidence.get("idempotencyKey") != key:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_intent_supersession_unrelated",
+                "ownership evidence idempotency key does not match the intent",
+                idempotencyKey=key,
+            )
+        record_repository = str(snapshot.get("repository") or "")
+        evidence_repository = str(evidence.get("repository") or "")
+        if not record_repository or evidence_repository != record_repository or (
+            repository is not None and record_repository != repository
+        ):
+            raise CursorCloudDispatchError(
+                "cursor_cloud_intent_supersession_unrelated",
+                "ownership evidence repository is unrelated to the intent",
+                idempotencyKey=key,
+            )
+        record_owner = snapshot.get("ownerId", snapshot.get("owner"))
+        evidence_owner = evidence.get("ownerId", evidence.get("owner"))
+        if (
+            not isinstance(record_owner, str)
+            or not record_owner.strip()
+            or evidence_owner != record_owner
+        ):
+            raise CursorCloudDispatchError(
+                "cursor_cloud_intent_supersession_ambiguous",
+                "ownership evidence does not identify the current owner",
+                idempotencyKey=key,
+            )
+        try:
+            revision = int(snapshot["revision"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_intent_supersession_ambiguous",
+                "PREPARED intent has no valid revision for ownership binding",
+                idempotencyKey=key,
+            ) from exc
+        expected_digest = str(snapshot.get("digest") or "")
+        if (
+            not expected_digest
+            or evidence.get("recordRevision") != revision
+            or evidence.get("recordDigest") != expected_digest
+        ):
+            raise CursorCloudDispatchError(
+                "cursor_cloud_intent_supersession_ambiguous",
+                "ownership evidence is not bound to the current intent revision and digest",
+                idempotencyKey=key,
+            )
+        run_status = str(evidence.get("runStatus") or snapshot.get("runStatus") or "").casefold()
+        if run_status in {"active", "live", "running"} or evidence.get("readback") is False:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_intent_supersession_live",
+                "live or failed-readback ownership cannot be superseded",
+                idempotencyKey=key,
+            )
+
+        current = store.read(key)
+        if not isinstance(current, Mapping) or dict(current) != dict(snapshot):
+            raise CursorCloudDispatchError(
+                "cursor_cloud_intent_supersession_changed",
+                "PREPARED intent changed after enumeration",
+                idempotencyKey=key,
+            )
+        payload = dict(current)
+        payload.pop("revision", None)
+        payload.pop("digest", None)
+        payload.update(
+            {
+                "state": "SUPERSEDED",
+                "supersessionReason": "authoritative_stale_or_expired_ownership",
+            }
+        )
+        _readback_write(
+            store,
+            key,
+            payload,
+            expected_revision=revision,
+            expected_digest=expected_digest,
+        )
         superseded.append(key)
     return superseded
 
@@ -671,14 +797,22 @@ def dispatch_cursor_cloud(
     environment: Mapping[str, str] | None = None,
     cursor_cli_authenticated: bool = False,
     readback: CursorCloudHTTPPort | None = None,
+    ownership_evidence: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> CursorCloudDispatchResult:
     """Create, read back, and durably commit one explicit repository-bound run."""
 
     # Model/provider validation precedes API-key and HTTP work.
     request.validate()
-    api_key = require_cursor_cloud_api_key(environment, cursor_cli_authenticated=cursor_cli_authenticated)
-    supersede_obsolete_prepared_intents(store)
     key = cursor_cloud_idempotency_key(request)
+    api_key = require_cursor_cloud_api_key(
+        environment, cursor_cli_authenticated=cursor_cli_authenticated
+    )
+    supersede_obsolete_prepared_intents(
+        store,
+        current_idempotency_key=key,
+        repository=request.repository,
+        ownership_evidence=ownership_evidence,
+    )
     client_agent_id = cursor_cloud_client_agent_id(request)
     prompt = build_attestation_prompt(request)
     current = store.read(key)
@@ -784,6 +918,7 @@ def dispatch_cursor_cloud_sdk(
     *,
     environment: Mapping[str, str] | None = None,
     cursor_cli_authenticated: bool = False,
+    ownership_evidence: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> CursorCloudDispatchResult:
     """Preferred SDK path sharing REST create/readback/archive semantics."""
 
@@ -792,6 +927,7 @@ def dispatch_cursor_cloud_sdk(
         request, store, sdk_http,
         environment=environment,
         cursor_cli_authenticated=cursor_cli_authenticated,
+        ownership_evidence=ownership_evidence,
     )
 
 

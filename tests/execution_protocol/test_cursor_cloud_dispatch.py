@@ -205,11 +205,130 @@ class CursorCloudDispatchTests(unittest.TestCase):
         self.assertEqual(len(http.calls), 1)
         self.assertEqual(store.read(first.idempotency_key)["state"], "COMMITTED")
 
-    def test_obsolete_prepared_fixed_cap_is_superseded(self) -> None:
+    def test_fixed_capacity_marker_alone_does_not_supersede_prepared_intent(self) -> None:
         store = DurableCursorCloudIntentStore()
-        store.compare_and_write("old", 0, None, {"state": "PREPARED", "idempotencyKey": "old", "concurrencyPolicy": "fixed_hosted_2"})
-        self.assertEqual(supersede_obsolete_prepared_intents(store), ["old"])
-        self.assertEqual(store.read("old")["state"], "SUPERSEDED")
+        store.compare_and_write(
+            "old", 0, None,
+            {
+                "state": "PREPARED", "idempotencyKey": "old",
+                "repository": REQUEST.repository, "concurrencyPolicy": "fixed_hosted_2",
+            },
+        )
+        self.assertEqual(supersede_obsolete_prepared_intents(store), [])
+        self.assertEqual(store.read("old")["state"], "PREPARED")
+
+    def test_authoritative_expired_ownership_supersedes_with_cas_and_readback(self) -> None:
+        store = DurableCursorCloudIntentStore()
+        store.compare_and_write(
+            "old", 0, None,
+            {
+                "state": "PREPARED", "idempotencyKey": "old",
+                "repository": REQUEST.repository, "ownerId": "worker-old",
+                "concurrencyPolicy": "fixed_hosted_2",
+            },
+        )
+        record = store.read("old")
+        evidence = {
+            "authoritative": True, "status": "expired", "idempotencyKey": "old",
+            "repository": REQUEST.repository, "ownerId": "worker-old",
+            "recordRevision": record["revision"],
+            "recordDigest": record["digest"],
+        }
+        self.assertEqual(
+            supersede_obsolete_prepared_intents(
+                store, repository=REQUEST.repository, ownership_evidence={"old": evidence}
+            ),
+            ["old"],
+        )
+        superseded = store.read("old")
+        self.assertEqual(superseded["state"], "SUPERSEDED")
+        self.assertEqual(superseded["supersessionReason"], "authoritative_stale_or_expired_ownership")
+        self.assertEqual(superseded["revision"], 2)
+        self.assertEqual(store.write_count, 2)
+
+    def test_current_key_live_and_unrelated_intents_fail_closed(self) -> None:
+        store = DurableCursorCloudIntentStore()
+        store.compare_and_write(
+            "current", 0, None,
+            {
+                "state": "PREPARED", "idempotencyKey": "current",
+                "repository": REQUEST.repository, "concurrencyPolicy": "fixed_hosted_2",
+            },
+        )
+        current = store.read("current")
+        current_payload = {
+            key: value for key, value in current.items() if key not in {"revision", "digest"}
+        }
+        current_payload["ownerId"] = "worker-current"
+        store.compare_and_write(
+            "current", current["revision"], current["digest"], current_payload
+        )
+        current = store.read("current")
+        current_evidence = {
+            "authoritative": True, "status": "expired", "idempotencyKey": "current",
+            "repository": REQUEST.repository, "ownerId": "worker-current",
+            "recordRevision": current["revision"],
+            "recordDigest": current["digest"],
+        }
+        self.assertEqual(
+            supersede_obsolete_prepared_intents(
+                store, current_idempotency_key="current",
+                repository=REQUEST.repository, ownership_evidence={"current": current_evidence},
+            ),
+            [],
+        )
+        self.assertEqual(store.read("current")["state"], "PREPARED")
+
+        live_evidence = {**current_evidence, "runStatus": "running"}
+        with self.assertRaisesRegex(CursorCloudDispatchError, "live"):
+            supersede_obsolete_prepared_intents(
+                store, repository=REQUEST.repository, ownership_evidence={"current": live_evidence}
+            )
+        self.assertEqual(store.read("current")["state"], "PREPARED")
+
+        unrelated_evidence = {**current_evidence, "repository": "linktrend/other-app"}
+        with self.assertRaisesRegex(CursorCloudDispatchError, "unrelated"):
+            supersede_obsolete_prepared_intents(
+                store, repository=REQUEST.repository, ownership_evidence={"current": unrelated_evidence}
+            )
+        self.assertEqual(store.read("current")["state"], "PREPARED")
+
+    def test_changed_prepared_record_is_not_superseded(self) -> None:
+        class ChangedDuringEnumerationStore(DurableCursorCloudIntentStore):
+            def list_intents(self):
+                snapshot = super().list_intents()
+                record = snapshot[0]
+                current = super().read(record["idempotencyKey"])
+                payload = dict(current)
+                payload.pop("revision")
+                payload.pop("digest")
+                payload["ownerId"] = "new-owner"
+                super().compare_and_write(
+                    record["idempotencyKey"], record["revision"], record["digest"], payload
+                )
+                return snapshot
+
+        store = ChangedDuringEnumerationStore()
+        store.compare_and_write(
+            "old", 0, None,
+            {
+                "state": "PREPARED", "idempotencyKey": "old",
+                "repository": REQUEST.repository, "ownerId": "old-owner",
+                "concurrencyPolicy": "fixed_hosted_2",
+            },
+        )
+        record = store.read("old")
+        evidence = {
+            "authoritative": True, "status": "stale", "idempotencyKey": "old",
+            "repository": REQUEST.repository, "ownerId": "old-owner",
+            "recordRevision": record["revision"],
+            "recordDigest": record["digest"],
+        }
+        with self.assertRaisesRegex(CursorCloudDispatchError, "changed"):
+            supersede_obsolete_prepared_intents(
+                store, repository=REQUEST.repository, ownership_evidence={"old": evidence}
+            )
+        self.assertEqual(store.read("old")["state"], "PREPARED")
 
     def test_attestation_requires_exact_read_only_identity(self) -> None:
         good = {
