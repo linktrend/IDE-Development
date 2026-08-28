@@ -32,7 +32,7 @@ REQUEST = CursorCloudDispatchRequest(
     model_parameters={"effort": "medium", "fast": "false"},
     governed_setup=True,
 )
-KEY_ENV = {"CURSOR_API_KEY": "test-only-key"}
+KEY_ENV = {"CURSOR_API_KEY": "x" * 32}
 
 
 class FakeCursorHTTP:
