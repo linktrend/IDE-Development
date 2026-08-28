@@ -13,6 +13,20 @@ from jsonschema import Draft202012Validator
 PROTOCOL_ID = "coding-execution-protocol"
 PROTOCOL_VERSION = "1.0.1"
 AMENDMENT_ID = "V25_BOOTSTRAP_LEAN"
+PORTFOLIO_CONTROL_LOOP_PROTOCOL = "portfolio-control-loop"
+PORTFOLIO_CONTROL_LOOP_VERSION = "1.0"
+PORTFOLIO_LANE_STATES = frozenset(
+    {
+        "PREPARED",
+        "RUNNING",
+        "WAITING_DEPENDENCY",
+        "TERMINAL_ACCEPT",
+        "TERMINAL_REJECT",
+        "INTEGRATING",
+        "COMPLETE",
+        "BLOCKED",
+    }
+)
 CANONICAL_PUBLISHER = None
 WAIVED_LEGACY_GATE = "WAIVED_LEGACY_GATE"
 LEGACY_PUBLISHERS = frozenset(
@@ -300,6 +314,47 @@ class SchedulerVerdict:
     reason: str
     diagnosis: str
     uncertain: bool = False
+
+
+def control_loop_invocation_key(
+    *,
+    coordinator_task_id: str,
+    trigger: str,
+    invocation_id: str | None = None,
+) -> str:
+    """Return the stable key shared by hourly and exact ``PULSE`` wakes."""
+
+    task = str(coordinator_task_id or "").strip()
+    event = str(invocation_id or trigger or "").strip()
+    if not task or not event:
+        raise ValueError("control_loop_invocation_identity_required")
+    return f"{task}:{event}"
+
+
+def validate_control_loop_lease(
+    lease: Mapping[str, Any],
+    *,
+    holder: str,
+    coordinator_task_id: str,
+    now: datetime | None = None,
+) -> bool:
+    """Validate a durable portfolio-controller lease without ambient state."""
+
+    clock = now or datetime.now(timezone.utc)
+    if not isinstance(lease, Mapping):
+        return False
+    try:
+        expires = datetime.fromisoformat(str(lease["expiresAt"]).replace("Z", "+00:00"))
+    except (KeyError, TypeError, ValueError):
+        return False
+    if expires.tzinfo is None or expires <= clock.astimezone(timezone.utc):
+        return False
+    return (
+        lease.get("holder") == holder
+        and lease.get("coordinatorTaskId") == coordinator_task_id
+        and isinstance(lease.get("nonce"), str)
+        and bool(lease.get("nonce"))
+    )
 
 
 class DurableHeartbeatStore:
