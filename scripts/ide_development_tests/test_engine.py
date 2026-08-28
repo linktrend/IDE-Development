@@ -26,9 +26,14 @@ from ide_development.engine import (
     run_verify,
     run_version,
 )
+from ide_development.errors import InvalidPackageError
 from ide_development.hashing import sha256_file
 from ide_development.managed_write_guard import managed_write_lease
+from ide_development.manifest import load_manifest, load_migration_catalog
+from ide_development.plan import build_plan
+from ide_development.state import load_installed_state
 from ide_development.transaction import (
+    apply_plan,
     current_tx_dir,
     last_tx_dir,
     write_journal,
@@ -400,6 +405,60 @@ class EngineTests(TempRepoTestCase):
         self.assertEqual(rolled.exit_code, EXIT_OK, rolled.payload)
         self.assertEqual(core.read_bytes(), original)
         self.assertEqual(stat.S_IMODE(core.stat().st_mode), original_mode)
+
+    def test_failed_long_transaction_uses_fresh_bounded_rollback_lease(self) -> None:
+        """An expired apply lease must not prevent exact rollback."""
+        installed = run_install_or_update(
+            target=self.target,
+            package=self.package,
+            command="install",
+            dry_run=False,
+        )
+        self.assertEqual(installed.exit_code, EXIT_OK, installed.payload)
+        before = _snapshot(self.target)
+
+        mutated_pkg = Path(self._tmp.name) / "long-transaction-package"
+        shutil.copytree(self.package, mutated_pkg)
+        mutated_core = mutated_pkg / "core/managed-core/files/CORE.txt"
+        mutated_core.write_text("managed-core fixture LONG TRANSACTION\n", encoding="utf-8")
+        _rewrite_manifest_hash(mutated_pkg, "managed-core-readme", mutated_core)
+        _rewrite_package_version(mutated_pkg, "2.1.1")
+
+        manifest = load_manifest(mutated_pkg)
+        prior = load_installed_state(self.target)
+        self.assertIsNotNone(prior)
+        plan = build_plan(
+            command="update",
+            package_root=mutated_pkg,
+            target_root=self.target,
+            manifest=manifest,
+            migration=load_migration_catalog(mutated_pkg),
+            prior=prior,
+            dry_run=False,
+        )
+
+        clock = [1000.0]
+
+        def monotonic() -> float:
+            return clock[0]
+
+        def fail_after_long_verification() -> dict[str, object]:
+            clock[0] += 31.0
+            raise InvalidPackageError("synthetic post-install verification failure")
+
+        with patch("ide_development.managed_write_guard.time.monotonic", side_effect=monotonic):
+            with self.assertRaises(InvalidPackageError):
+                apply_plan(
+                    target_root=self.target,
+                    package_root=mutated_pkg,
+                    manifest=manifest,
+                    plan=plan,
+                    prior=prior,
+                    post_apply_check=fail_after_long_verification,
+                )
+
+        self.assertEqual(_snapshot(self.target), before)
+        self.assertFalse(current_tx_dir(self.target).exists())
 
     def test_rollback_restores_installed_state_preimage_bytes_and_mode(self) -> None:
         """Current and legacy state preimages survive rollback byte-for-byte."""

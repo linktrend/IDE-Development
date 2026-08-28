@@ -735,10 +735,25 @@ def _apply_plan_unlocked(
     except Exception as exc:
         # Best-effort rollback of this transaction
         try:
-            for record in reversed(backups):
-                restore_backup(target_root, current, record, lease=write_lease)
-            if current.exists():
-                shutil.rmtree(current)
+            # The apply lease may have expired while post-install verification
+            # was running.  Rollback is a separate bounded authorization phase;
+            # never reuse an expired apply capability or bypass the lease guard.
+            rollback_paths = {record.path for record in backups}
+            rollback_paths.add(str(INSTALLED_STATE_REL))
+            with managed_write_lease(
+                target_root=target_root,
+                paths=rollback_paths,
+                operation="rollback",
+                package_version=manifest.package_version,
+                manifest_digest=sha256_file(manifest.path),
+                transaction_id=f"rollback-{tx_id}",
+                make_writable=False,
+                finalize_read_only=False,
+            ) as rollback_lease:
+                for record in reversed(backups):
+                    restore_backup(target_root, current, record, lease=rollback_lease)
+                if current.exists():
+                    shutil.rmtree(current)
         except Exception as rollback_exc:  # pragma: no cover
             raise RollbackError(
                 f"Apply failed and rollback failed: {exc}; rollback: {rollback_exc}"
