@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "repository-ci-contract",
-  "aggregateContext": "Linktrend Repository CI Gate",
+  "aggregateContext": "Linktrend Full Suite",
   "profiles": {
     "fast": {
       "id": "fast",
@@ -27,7 +27,7 @@
     "full": {
       "id": "full",
       "commands": [],
-      "requiredCheckContexts": ["Linktrend Repository CI Gate"]
+      "requiredCheckContexts": ["Linktrend Full Suite"]
     },
     "scheduled": {
       "id": "scheduled",
@@ -37,7 +37,7 @@
       "id": "promotion",
       "commands": [],
       "requiredCheckContexts": [
-        "Branch Source Policy",
+        "Linktrend Branch Source Policy",
         "Linktrend Receipt Gate"
       ]
     },
@@ -51,7 +51,7 @@
           "scripts.tests.test_repository_ci_trigger_contract"
         ]
       ],
-      "requiredCheckContexts": ["Linktrend Repository CI Gate"]
+      "requiredCheckContexts": ["Verify IDE Development"]
     }
   },
   "coverageComponents": [

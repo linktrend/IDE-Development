@@ -89,6 +89,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Validate dispatch inputs
@@ -122,6 +123,7 @@ jobs:
         with:
           ref: ${{ steps.inputs.outputs.sha }}
           path: untrusted-branch-data
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Verify remote tip equals immutable SHA; publish or withdraw

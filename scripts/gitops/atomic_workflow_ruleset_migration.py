@@ -10,6 +10,7 @@ installation is separated from sealed product candidates.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from copy import deepcopy
@@ -29,6 +30,8 @@ DEFAULT_VERIFY = "Verify IDE Development"
 # Obsolete managed contexts that must never remain required or evaluated.
 OBSOLETE_TO_ACTIVE: dict[str, str] = {
     "Enforce allowed PR source branches": SOURCE_POLICY_CHECK,
+    "Branch Source Policy": SOURCE_POLICY_CHECK,
+    "Linktrend Repository CI Gate": FULL_SUITE,
 }
 OBSOLETE_REMOVED = frozenset({"Cursor Bugbot", REVIEW_GATE_CHECK, "Linktrend Review Ready"})
 
@@ -100,6 +103,7 @@ def derive_active_check_contract(
     return {
         "schemaVersion": SCHEMA_VERSION,
         "releaseId": release_id,
+        "aggregateContext": FULL_SUITE,
         "checks": {
             "sourcePolicy": SOURCE_POLICY_CHECK,
             "fastChecks": FAST_CHECKS,
@@ -113,6 +117,33 @@ def derive_active_check_contract(
             "integrator": CHECK_VAR_NAMES[0],
             "staging": CHECK_VAR_NAMES[1],
             "release": CHECK_VAR_NAMES[2],
+        },
+        "requiredByBranch": {
+            "development": [DEFAULT_VERIFY, SOURCE_POLICY_CHECK],
+            "staging": [DEFAULT_VERIFY, SOURCE_POLICY_CHECK],
+            "main": [DEFAULT_VERIFY, SOURCE_POLICY_CHECK],
+        },
+        "emission": {
+            "sourcePolicy": {
+                "workflow": "branch-source-policy.yml",
+                "job": SOURCE_POLICY_CHECK,
+                "events": ["pull_request:development", "workflow_call:promotion"],
+            },
+            "fastChecks": {
+                "workflow": "linktrend-review-packager.yml",
+                "job": FAST_CHECKS,
+                "events": ["pull_request:development/phase"],
+            },
+            "fullSuite": {
+                "workflow": "linktrend-integrator-merge.yml",
+                "job": FULL_SUITE,
+                "events": ["pull_request:labeled", "workflow_dispatch"],
+            },
+            "receiptGate": {
+                "workflow": "linktrend-development-to-staging.yml|linktrend-staging-to-main.yml",
+                "job": RECEIPT_GATE,
+                "events": ["pull_request_target:promotion"],
+            },
         },
         "labels": [dict(FULL_SUITE_LABEL)],
     }
@@ -426,21 +457,111 @@ def apply_atomic_branch_updates(
             before = list((branches.get(branch) or {}).get("before") or [])
             restore_branch(branch, before)
             rollback.append({"op": "restore_checks", "branch": branch, "before": before})
+        before_state = {
+            branch: list((branches.get(branch) or {}).get("before") or [])
+            for branch in GOVERNED_BRANCHES
+        }
+        receipt = build_migration_receipt(
+            before_state=before_state,
+            after_state={"status": "incomplete", "appliedBranches": list(applied)},
+            status="incomplete",
+            plan=plan,
+        )
         return {
             "ok": False,
             "code": MIGRATION_INCOMPLETE,
             "detail": str(exc),
             "mutations": mutations,
             "rollback": rollback,
+            "receipt": receipt,
             "falseSuccess": False,
         }
 
+    before_state = {
+        branch: list((branches.get(branch) or {}).get("before") or [])
+        for branch in GOVERNED_BRANCHES
+    }
+    after_state = {
+        branch: list((branches.get(branch) or {}).get("after") or [])
+        for branch in GOVERNED_BRANCHES
+    }
     return {
         "ok": True,
         "code": "",
         "mutations": mutations,
         "rollback": [],
+        "receipt": build_migration_receipt(
+            before_state=before_state,
+            after_state=after_state,
+            status="applied",
+            plan=plan,
+        ),
         "falseSuccess": False,
+    }
+
+
+def _canonical_digest(value: Any) -> str:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
+def build_migration_receipt(
+    *,
+    before_state: Mapping[str, Any],
+    after_state: Mapping[str, Any],
+    status: str,
+    plan: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Create a non-mutating, digest-bound before/after migration receipt."""
+
+    if status not in {"planned", "applied", "rolled_back", "incomplete"}:
+        raise MigrationError("migration_receipt_status_invalid", status)
+    before = deepcopy(dict(before_state))
+    after = deepcopy(dict(after_state))
+    receipt = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "workflow-ruleset-migration-receipt",
+        "status": status,
+        "before": before,
+        "after": after,
+        "beforeDigest": _canonical_digest(before),
+        "afterDigest": _canonical_digest(after),
+        "rollbackAvailable": True,
+        "planComplete": bool((plan or {}).get("complete", True)),
+    }
+    if plan is not None:
+        receipt["plan"] = deepcopy(dict(plan))
+    return receipt
+
+
+def verify_migration_receipt(
+    receipt: Mapping[str, Any],
+    *,
+    before_state: Mapping[str, Any] | None = None,
+    after_state: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Verify receipt digests and optional live readback without mutating it."""
+
+    if receipt.get("schemaVersion") != SCHEMA_VERSION or receipt.get("kind") != "workflow-ruleset-migration-receipt":
+        return {"ok": False, "code": "migration_receipt_schema"}
+    before = receipt.get("before")
+    after = receipt.get("after")
+    if not isinstance(before, Mapping) or not isinstance(after, Mapping):
+        return {"ok": False, "code": "migration_receipt_state_missing"}
+    if receipt.get("beforeDigest") != _canonical_digest(before):
+        return {"ok": False, "code": "migration_receipt_before_mismatch"}
+    if receipt.get("afterDigest") != _canonical_digest(after):
+        return {"ok": False, "code": "migration_receipt_after_mismatch"}
+    if before_state is not None and dict(before_state) != dict(before):
+        return {"ok": False, "code": "migration_receipt_before_readback_mismatch"}
+    if after_state is not None and dict(after_state) != dict(after):
+        return {"ok": False, "code": "migration_receipt_after_readback_mismatch"}
+    return {
+        "ok": True,
+        "code": "migration_receipt_verified",
+        "status": receipt.get("status"),
+        "beforeDigest": receipt.get("beforeDigest"),
+        "afterDigest": receipt.get("afterDigest"),
     }
 
 
@@ -604,8 +725,14 @@ def migrate_evaluator_check_names(
         after["repositoryVariables"] = var_out
 
     # Reject any retained obsolete raw names in string fields commonly used by evaluators.
-    blob = json.dumps(after, sort_keys=True)
-    retained = [old for old in OBSOLETE_TO_ACTIVE if old in blob]
+    def contains_raw_name(value: Any, target: str) -> bool:
+        if isinstance(value, Mapping):
+            return any(contains_raw_name(item, target) for item in value.values())
+        if isinstance(value, (list, tuple)):
+            return any(contains_raw_name(item, target) for item in value)
+        return isinstance(value, str) and value == target
+
+    retained = [old for old in OBSOLETE_TO_ACTIVE if contains_raw_name(after, old)]
     if retained:
         raise MigrationError(
             "stale_evaluator_contract",
@@ -759,7 +886,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "mode",
-        choices=("contract", "preflight", "plan-rename", "labels", "evaluators", "trusted"),
+        choices=("contract", "preflight", "plan-rename", "labels", "evaluators", "receipt", "trusted"),
         help="read-only planning / validation mode (never mutates GitHub)",
     )
     parser.add_argument("--input", help="JSON payload path (default stdin)")
@@ -796,6 +923,13 @@ def main(argv: list[str] | None = None) -> int:
             result = migrate_evaluator_check_names(
                 payload.get("config") or payload,
                 variables=payload.get("variables"),
+            )
+        elif args.mode == "receipt":
+            result = build_migration_receipt(
+                before_state=payload.get("before") or payload.get("beforeState") or {},
+                after_state=payload.get("after") or payload.get("afterState") or {},
+                status=str(payload.get("status") or "planned"),
+                plan=payload.get("plan"),
             )
         else:
             result = plan_trusted_verifier_migration(
