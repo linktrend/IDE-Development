@@ -213,6 +213,11 @@ class LockAndRecoveryTests(DisposableRepoTestCase):
         core_src = mutated / "core/managed-core/files/CORE.txt"
         core_src.write_text("MUTATED\n", encoding="utf-8")
         rewrite_entry_hash(mutated, "managed-core-readme", core_src)
+        manifest_path = mutated / "core/managed-core/MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["packageVersion"] = "2.1.1"
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        (mutated / "core/managed-core/VERSION").write_text("2.1.1\n", encoding="utf-8")
         updated = run_install_or_update(
             target=self.target,
             package=mutated,

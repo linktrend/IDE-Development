@@ -8,7 +8,7 @@
   "program": {
     "id": "ide-development-v2.5",
     "name": "IDE Development v2.5",
-    "targetRelease": "2.5.1"
+    "targetRelease": "2.5.2"
   },
   "baseline": {
     "repository": "linktrend/IDE-Development",
@@ -155,7 +155,7 @@
         "exact_pushed_commit_tree",
         "scoped_diff",
         "focused_tests",
-        "independent_terra_verification",
+        "independent_narrow_review",
         "manifest_evidence"
       ]
     },
@@ -185,8 +185,15 @@
       "unknownIsBlocking": true,
       "hostedConcurrencyAuthority": "execution-protocol",
       "maxAdmittedSlots": {
-        "local": 1,
-        "hosted": 2
+        "local": 1
+      },
+      "adaptiveConcurrency": {
+        "mode": "minimum_of_live_evidence",
+      "capacityEvidence": "authenticated_cursor_account",
+      "identityFields": ["accountId", "apiKeyName", "teamId", "programRunId"],
+        "spendCeilingEvidence": "required",
+        "safetyConstraintEvidence": "required",
+        "evidenceMaxAgeSeconds": 600
       },
       "unknownProbeSeconds": 600,
       "backstopSeconds": 600,
@@ -200,6 +207,25 @@
         "api_rejection",
         "utilization_gap_repair"
       ]
+    },
+    "packetRouting": {
+      "digestBound": true,
+      "preferredRoutes": ["auto_cost", "composer", "grok", "specialist", "independent_review", "bulk_documents"],
+      "thirdPartyRequiresException": true,
+      "oneHopFallback": true,
+      "exceptionEvidence": ["capability", "security", "independence", "context"]
+    },
+    "cursorCloudExecution": {
+      "preDispatchAdvertisedRefValidation": true,
+      "missingRefAction": "rebaseline_and_recreate_branch",
+      "preparedSupersession": {
+        "immutable": true,
+        "requiresNewIntent": true,
+        "neverReuseCloudAttempt": true,
+        "supersedeObsoleteFixedCapacity": true,
+        "preserveCompletedEvidence": true
+      },
+      "actualModelReadback": true
     }
   }
 }

@@ -295,26 +295,26 @@ Live operational map: [`docs/HYBRID-SKILLS-REGISTRY.md`](./HYBRID-SKILLS-REGISTR
 
 ## 6. Model routing
 
-IDE Development has **no** persistent Ledger process. Routing is enforced by pinned Cursor custom subagents + agent-followed doctrine (`core/skills/model-routing/SKILL.md`).
+IDE Development has no persistent Ledger process. The versioned routing
+registry at `core/managed-core/content/config/routing-registry.json` is the
+policy source, and `core/skills/model-routing/SKILL.md` is the agent-facing
+adapter.
 
-**Source of truth for route→task criteria:** LiNKdeveloper `packages/model-routing/src/router.ts` (ported, not live-imported).
-
-**Model pin format:** Cursor subagent frontmatter uses base ID + `[id=value,...]` bracket params (not LiNKdeveloper’s flat internal route-name strings).
-
-| RouteId | Subagent file | Model pin (as on disk) |
+| Route | Provider/model | Execution policy |
 |---|---|---|
-| `default` | `.cursor/agents/route-default.md` | `claude-sonnet-5[thinking=true,effort=medium,context=1m]` |
-| `escalation` | `.cursor/agents/route-escalation.md` | `gpt-5.6-sol[reasoning=medium,context=1m,fast=false]` |
-| `independent_review` | `.cursor/agents/route-independent-review.md` | `claude-opus-4-8[thinking=true,effort=medium,context=1m,fast=false]` |
-| `economical` | `.cursor/agents/route-economical.md` | `composer-2.5[fast=true]` |
-| `bulk_documents` | `.cursor/agents/route-bulk-documents.md` | `gemini-2.5-flash` |
-| `evaluation` | `.cursor/agents/route-evaluation.md` | `grok-4.5[effort=medium,fast=false]` |
+| `gate-0` | Codex CLI / GPT-5.6 Luna High / Fast off | Gate 0 execution |
+| `ordinary-development` | Cursor SDK/API / Grok 4.6 Medium / Fast off | Default after Gate 0 |
+| `luna-fallback` | Codex CLI / GPT-5.6 Luna High / Fast off | Principal-instructed fallback only |
 
-**Escalation:** on model-quality failure, log attempt and retry once with the different-family pairing from the skill (one-hop cap). Agent-followed — not mechanized by a Ledger.
+Direct Cursor requests must bind the exact repository URL and starting ref in
+`repos[]` (or the SDK-equivalent repository list). A named saved environment is
+never a repository selector. Before credit, provider readback must match the
+repository, ref, exact 40-character commit, and exact 40-character tree;
+mismatch is archived/rejected. Concurrent Luna execution requires explicit
+Principal authorization for disjoint independent packets.
 
-**Still not same-session proven:** that each bracket-param string resolves as expected in a live Cursor Desktop invocation for every route (doctrine records this gap honestly).
-
-Also present under `core/agents/`: role templates (planner, reviewer, integrator, …) and squads — separate from route pins.
+The final live Cursor/Grok acceptance canary remains a release gate and is not
+claimed by this source-level implementation packet.
 
 ---
 
