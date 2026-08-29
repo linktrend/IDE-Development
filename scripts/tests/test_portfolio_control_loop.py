@@ -12,6 +12,8 @@ from core.execution.protocol import control_loop_invocation_key
 from scripts.gitops.portfolio_control_loop import (
     MemoryControlLoopStore,
     PortfolioControlLoop,
+    UTILIZATION_GAP,
+    calculate_safe_capacity,
     configure_automation,
     create_handover,
     due_automations,
@@ -51,6 +53,55 @@ class PortfolioControlLoopTests(unittest.TestCase):
                 coordinator_task_id="coord-1", trigger="PULSE", invocation_id="slot-1"
             ),
         )
+        stages = config["stagedCapacityPolicy"]["stages"]
+        self.assertEqual([(row["cursor"], row["luna"]) for row in stages], [(5, 2), (10, 4), (20, 4)])
+        self.assertEqual([row["underfillLuna"] for row in stages], [1, 1, 2])
+
+    def test_staged_provider_capacity_dispatches_available_work_and_reports_gap(self) -> None:
+        store = MemoryControlLoopStore()
+        loop = PortfolioControlLoop(store, repo_root=ROOT)
+        loop.initialize(
+            coordinator_task_id="coord-staged",
+            owner_id="owner-1",
+            now=NOW,
+            capacity={"cursor": 50, "luna": 50, "macMemoryAvailable": True},
+        )
+        for index in range(6):
+            loop.register_lane(f"cursor-{index}", provider="cursor")
+        for index in range(3):
+            loop.register_lane(f"luna-{index}", provider="luna")
+        result = loop.invoke(
+            coordinator_task_id="coord-staged",
+            holder="owner-1",
+            trigger="PULSE",
+            invocation_id="staged-1",
+            now=NOW,
+        )
+        state = loop.state()
+        running = [worker for worker in state["workers"].values() if worker["state"] == "RUNNING"]
+        self.assertEqual(sum(worker["provider"] == "cursor" for worker in running), 5)
+        self.assertEqual(sum(worker["provider"] == "luna" for worker in running), 2)
+        self.assertEqual(result["utilizationGap"]["code"], UTILIZATION_GAP)
+
+    def test_safe_capacity_is_bounded_by_stage_and_mac_memory(self) -> None:
+        config = load_control_loop_config(ROOT)
+        state = new_control_loop_state(
+            coordinator_task_id="coord-staged",
+            owner_id="owner-1",
+            now=NOW,
+            capacity={"cursor": 99, "luna": 99, "macMemoryAvailable": True},
+            stage=3,
+            stage_verification="stage-2",
+        )
+        capacity = calculate_safe_capacity(config, state)
+        self.assertEqual((capacity["cursor"], capacity["luna"], capacity["underfillLuna"]), (20, 4, 2))
+        state["capacity"]["macMemoryAvailable"] = False
+        capacity = calculate_safe_capacity(config, state)
+        self.assertEqual((capacity["cursor"], capacity["luna"]), (0, 0))
+        state["stageVerification"] = "baseline"
+        state["stage"] = 2
+        capacity = calculate_safe_capacity(config, state)
+        self.assertEqual(capacity["source"], "stage_verification_required")
 
     def test_dependency_ready_disjoint_capacity_is_filled(self) -> None:
         self.loop.register_lane("a", priority=1, conflicts=("shared",))
@@ -256,6 +307,7 @@ class PortfolioControlLoopTests(unittest.TestCase):
             remaining_runs=3,
             now=NOW,
         )
+        state["capacity"] = 2
         loop = PortfolioControlLoop(MemoryControlLoopStore(state), repo_root=ROOT)
         loop.register_lane("a")
         loop.register_lane("b", dependencies=("a",))
@@ -331,7 +383,7 @@ class PortfolioControlLoopTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="portfolio-loop-") as tmp:
             path = Path(tmp) / "state.json"
             first = PortfolioControlLoop(JsonFileControlLoopStore(path), repo_root=ROOT)
-            first.initialize(coordinator_task_id="coord-r", owner_id="owner-r", now=NOW)
+            first.initialize(coordinator_task_id="coord-r", owner_id="owner-r", now=NOW, capacity=2)
             first.register_lane("a")
             second = PortfolioControlLoop(JsonFileControlLoopStore(path), repo_root=ROOT)
             recovered = second.recover(

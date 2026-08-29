@@ -55,6 +55,9 @@ MAX_STATE_EVENTS = 500
 HEARTBEAT_PENDING = "PENDING"
 HEARTBEAT_ACTIVE = "ACTIVE"
 HEARTBEAT_PROVEN = "PROVEN"
+UTILIZATION_GAP = "UTILIZATION_GAP"
+CURSOR_PROVIDERS = frozenset({"cursor", "cursor-sdk", "ordinary-development"})
+LUNA_PROVIDERS = frozenset({"luna", "codex-cli", "luna-fallback"})
 
 
 class ControlLoopStore(Protocol):
@@ -251,7 +254,9 @@ def new_control_loop_state(
     owner_id: str,
     now: datetime | None = None,
     lease_seconds: int = 180,
-    capacity: int = 1,
+    capacity: int | Mapping[str, Any] | None = None,
+    stage: int = 1,
+    stage_verification: str = "baseline",
     protected_refs: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     clock = _now(now)
@@ -275,7 +280,9 @@ def new_control_loop_state(
             "acquiredAt": _utc(clock),
             "expiresAt": _utc(clock + timedelta(seconds=lease_seconds)),
         },
-        "capacity": capacity,
+        "stage": stage,
+        "stageVerification": stage_verification,
+        "capacity": copy.deepcopy(capacity),
         "protectedRefs": dict(protected_refs or {}),
         "lanes": {},
         "workers": {},
@@ -297,6 +304,69 @@ def new_control_loop_state(
             "dependencyReadyPacketDispatched": False,
             "requirements": ["consecutive_scheduled_invocations"],
         },
+    }
+
+
+def calculate_safe_capacity(
+    config: Mapping[str, Any], state: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Calculate stage/provider limits from live capacity and Mac memory.
+
+    A provider-capacity mapping is required for provider-specific dispatch. An
+    integer remains a compatibility capacity for the in-memory generic loop;
+    it is not a replacement for the staged Cursor/Luna policy.
+    """
+
+    policy = config.get("stagedCapacityPolicy") or {}
+    stages = policy.get("stages") if isinstance(policy, Mapping) else None
+    stage_number = int(state.get("stage") or 1)
+    stage = next(
+        (row for row in (stages or ()) if isinstance(row, Mapping) and row.get("stage") == stage_number),
+        None,
+    )
+    if stage is None:
+        raise ValueError(f"staged_capacity_policy_missing_stage:{stage_number}")
+    required_verification = str(stage.get("afterVerification") or "baseline")
+    if required_verification != "baseline" and state.get("stageVerification") != required_verification:
+        return {
+            "stage": stage_number,
+            "cursor": 0,
+            "luna": 0,
+            "underfillLuna": int(stage["underfillLuna"]),
+            "macMemoryAvailable": False,
+            "source": "stage_verification_required",
+            "requiredVerification": required_verification,
+        }
+    raw = state.get("capacity")
+    if isinstance(raw, Mapping):
+        memory_ok = raw.get("macMemoryAvailable", raw.get("macMemory")) is True
+        cursor_raw = raw.get("cursor", raw.get("cursorCapacity"))
+        luna_raw = raw.get("luna", raw.get("lunaCapacity"))
+        cursor = min(int(stage["cursor"]), max(0, int(cursor_raw or 0))) if memory_ok else 0
+        luna = min(int(stage["luna"]), max(0, int(luna_raw or 0))) if memory_ok else 0
+        return {
+            "stage": stage_number,
+            "cursor": cursor,
+            "luna": luna,
+            "underfillLuna": int(stage["underfillLuna"]),
+            "macMemoryAvailable": memory_ok,
+            "source": "live_provider_capacity",
+        }
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        return {
+            "stage": stage_number,
+            "total": max(0, raw),
+            "underfillLuna": int(stage["underfillLuna"]),
+            "macMemoryAvailable": True,
+            "source": "generic_test_capacity",
+        }
+    return {
+        "stage": stage_number,
+        "cursor": 0,
+        "luna": 0,
+        "underfillLuna": int(stage["underfillLuna"]),
+        "macMemoryAvailable": False,
+        "source": "capacity_unavailable",
     }
 
 
@@ -511,7 +581,9 @@ class PortfolioControlLoop:
         coordinator_task_id: str,
         owner_id: str,
         now: datetime | None = None,
-        capacity: int | None = None,
+        capacity: int | Mapping[str, Any] | None = None,
+        stage: int = 1,
+        stage_verification: str = "baseline",
         protected_refs: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         with self._lock, _durable_store_lock(self.store):
@@ -526,7 +598,9 @@ class PortfolioControlLoop:
                 owner_id=owner_id,
                 now=now,
                 lease_seconds=int(self.config.get("leaseSeconds", 180)),
-                capacity=capacity or int(self.config.get("maxConcurrentWorkers", 1)),
+                capacity=capacity,
+                stage=stage,
+                stage_verification=stage_verification,
                 protected_refs=protected_refs,
             )
             persist_durable_state(state, self.store)
@@ -689,9 +763,21 @@ class PortfolioControlLoop:
         *,
         dispatch_worker: Callable[..., Any] | None,
         now: datetime,
-    ) -> None:
-        capacity = max(0, int(state.get("capacity") or 0))
-        active = sum(1 for worker in state["workers"].values() if worker.get("state") in ACTIVE_WORKER_STATES)
+    ) -> list[str]:
+        safe_capacity = calculate_safe_capacity(self.config, state)
+        active_workers = [
+            worker
+            for worker in state["workers"].values()
+            if worker.get("state") in ACTIVE_WORKER_STATES
+        ]
+        active = len(active_workers)
+        active_by_provider = {"cursor": 0, "luna": 0, "generic": 0}
+        for worker in active_workers:
+            provider = str(worker.get("provider") or "").strip().lower()
+            bucket = "cursor" if provider in CURSOR_PROVIDERS else "luna" if provider in LUNA_PROVIDERS else "generic"
+            active_by_provider[bucket] += 1
+        dispatched: list[str] = []
+        capacity = int(safe_capacity.get("total") or 0)
         occupied_conflicts = {
             conflict
             for worker in state["workers"].values()
@@ -703,7 +789,7 @@ class PortfolioControlLoop:
             key=lambda row: (-int(row[1].get("priority") or 0), row[0]),
         )
         for lane_id, lane in ordered:
-            if active >= capacity or lane.get("state") not in {"PREPARED", "WAITING_DEPENDENCY"}:
+            if lane.get("state") not in {"PREPARED", "WAITING_DEPENDENCY"}:
                 continue
             dependencies = lane.get("dependencies") or []
             missing = [dependency for dependency in dependencies if dependency not in state["lanes"]]
@@ -719,8 +805,27 @@ class PortfolioControlLoop:
             conflicts = set(lane.get("conflicts") or [])
             if conflicts & occupied_conflicts:
                 continue
+            lane_provider = str(lane.get("provider") or "").strip().lower()
+            provider_bucket = (
+                "cursor" if lane_provider in CURSOR_PROVIDERS
+                else "luna" if lane_provider in LUNA_PROVIDERS
+                else "generic"
+            )
+            provider_limit = (
+                int(safe_capacity.get(provider_bucket) or 0)
+                if provider_bucket != "generic"
+                else capacity
+            )
+            if active_by_provider[provider_bucket] >= provider_limit:
+                continue
             default_id = f"{lane_id}-worker-{_digest({'lane': lane_id, 'events': len(state['events'])})[7:19]}"
             supplied = _invoke_hook(dispatch_worker, lane) if dispatch_worker else None
+            if supplied and supplied.get("accepted") is False:
+                state["blockers"].append(f"lane={lane_id}:dispatch_not_accepted")
+                continue
+            if supplied and supplied.get("readback") is False:
+                state["blockers"].append(f"lane={lane_id}:dispatch_readback_missing")
+                continue
             requested_id = str((supplied or {}).get("workerId") or default_id)
             existing_worker = state["workers"].get(requested_id)
             if isinstance(existing_worker, Mapping) and existing_worker.get("state") in ACTIVE_WORKER_STATES:
@@ -737,10 +842,17 @@ class PortfolioControlLoop:
                 "replacementCount": 0,
             }
             worker.update(supplied or {})
+            worker["dispatch"] = {
+                "accepted": True,
+                "readback": True,
+                "provider": provider_bucket,
+            }
             state["workers"][worker["workerId"]] = worker
             lane["state"] = "RUNNING"
             lane["workerId"] = worker["workerId"]
             active += 1
+            active_by_provider[provider_bucket] += 1
+            dispatched.append(lane_id)
             occupied_conflicts.update(conflicts)
             _append_unique(
                 state["events"],
@@ -751,8 +863,40 @@ class PortfolioControlLoop:
                     "laneId": lane_id,
                     "dependencyReady": bool(dependencies),
                     "dependencies": list(dependencies),
+                    "dispatchReadback": True,
+                    "provider": provider_bucket,
                 },
             )
+        return dispatched
+
+    @staticmethod
+    def _safe_ready_lanes(state: Mapping[str, Any]) -> list[str]:
+        lanes = state.get("lanes") if isinstance(state.get("lanes"), Mapping) else {}
+        workers = state.get("workers") if isinstance(state.get("workers"), Mapping) else {}
+        active_lanes = {
+            str(worker.get("laneId"))
+            for worker in workers.values()
+            if isinstance(worker, Mapping) and worker.get("state") in ACTIVE_WORKER_STATES
+        }
+        ready: list[str] = []
+        for lane_id, lane in lanes.items():
+            if not isinstance(lane, Mapping) or lane.get("state") not in {"PREPARED", "WAITING_DEPENDENCY"}:
+                continue
+            dependencies = lane.get("dependencies") or []
+            if any(
+                not isinstance(lanes.get(str(dep)), Mapping)
+                or lanes[str(dep)].get("state") != "COMPLETE"
+                for dep in dependencies
+            ):
+                continue
+            conflicts = set(lane.get("conflicts") or [])
+            if any(
+                conflicts & set((lanes.get(active_lane) or {}).get("conflicts") or [])
+                for active_lane in active_lanes
+            ):
+                continue
+            ready.append(str(lane_id))
+        return sorted(ready)
 
     def invoke(
         self,
@@ -806,12 +950,33 @@ class PortfolioControlLoop:
                     state, observations or {}, archive_worker=archive_worker, now=clock
                 )
                 self._replace_stalled(state, now=clock, replace_worker=replace_worker)
-                self._dispatch_ready(state, dispatch_worker=dispatch_worker, now=clock)
+                dispatched = self._dispatch_ready(
+                    state, dispatch_worker=dispatch_worker, now=clock
+                )
+                safe_capacity = calculate_safe_capacity(self.config, state)
+                state["safeCapacity"] = safe_capacity
+                safe_ready = self._safe_ready_lanes(state)
+                if safe_ready:
+                    state["utilizationGap"] = {
+                        "code": UTILIZATION_GAP,
+                        "readyLanes": safe_ready,
+                        "dispatchedLanes": dispatched,
+                        "safeCapacity": safe_capacity,
+                    }
+                    state["blockers"].append(UTILIZATION_GAP)
+                else:
+                    state.pop("utilizationGap", None)
+                    state["blockers"] = [
+                        item for item in state.get("blockers", []) if item != UTILIZATION_GAP
+                    ]
                 _refresh_heartbeat_acceptance(state)
                 if protected_truth and protected_truth.get("valid") is False:
                     state["blockers"].append(str(protected_truth.get("blocker") or "protected_truth_unverified"))
                 state["blockers"] = list(dict.fromkeys(str(item) for item in state.get("blockers", []) if str(item)))
                 report = build_portfolio_status(state, protected_truth=protected_truth)
+                report["safeCapacity"] = safe_capacity
+                report["dispatchedLanes"] = dispatched
+                report["utilizationGap"] = copy.deepcopy(state.get("utilizationGap"))
                 state["lastReport"] = report
                 state["activeTurn"] = None
                 state["events"] = state["events"][-MAX_STATE_EVENTS:]
@@ -821,6 +986,8 @@ class PortfolioControlLoop:
                     "status": report["status"],
                     "language": report["language"],
                     "report": report,
+                    "dispatchedLanes": dispatched,
+                    "utilizationGap": copy.deepcopy(state.get("utilizationGap")),
                     "coalesced": False,
                 }
                 state["invocations"][key] = copy.deepcopy(result)
@@ -1102,7 +1269,7 @@ def main(argv: list[str] | None = None) -> int:
         invocation_id=args.invocation_id,
     )
     print(json.dumps(result, sort_keys=True))
-    return 0 if result.get("status") != "HOLD" else 20
+    return 20 if result.get("utilizationGap") else (0 if result.get("status") != "HOLD" else 20)
 
 
 if __name__ == "__main__":

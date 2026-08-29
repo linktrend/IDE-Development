@@ -92,7 +92,7 @@ Silent retry on the same repository/commit/tree after exhaustion is forbidden (`
 Hosted scheduling is a **deterministic runtime** (`core/execution/scheduler.py`) bound to the packaged continuous-utilization config:
 
 - `hostedConcurrencyAuthority` is `execution-protocol` (not GitHub, paid models, or Fast).
-- Local admission remains capped at `1`; hosted admission is adaptive and is the minimum of live authenticated Cursor account capacity, dependency-ready disjoint work, the configured spend/credit ceiling, and explicit repository or external-resource safety limits. No fixed hosted maximum is encoded.
+- Local admission remains capped at `1`. Staged mixed-capacity admission is up to `5 Cursor + 2 Luna` in Stage 1, `10 Cursor + 4 Luna` in Stage 2 after routing/integration verification, and `20 Cursor + 4 Luna` in Stage 3 after another verification. Underfill is `1 Luna` in Stages 1-2 and `2 Luna` in Stage 3. Mac memory and real Cursor capacity remain binding; there is no fixed total-worker cap.
 - Every admission report must distinguish provider capacity, spend ceiling, safety limit, dependency/path constraints, admitted workers, issued workers, and running workers.
 - Missing, stale, unauthenticated, or mismatched capacity/spend/safety evidence blocks hosted admission. Evidence must also match the exact account, API-key name, team, and Program Run identity supplied to the scheduler. Before dispatch, every uncompleted PREPARED intent bound to the obsolete fixed-capacity policy is atomically superseded and recomputed under the adaptive authority; completed evidence is preserved.
 - Incomplete snapshots stay `resource_uncertain`. Allocator `busy` / `exhausted` in that state is not `capacity_exhausted`.
@@ -131,7 +131,7 @@ A v2.5 Issue checkpoint is accepted when all of the following are present:
 1. exact pushed commit and tree
 2. scoped diff
 3. focused tests
-4. independent Terra verification
+4. one provider-independent narrow review bound to the exact commit and tree
 5. manifest evidence
 
 Review Ready publication and publisher tokens are **not** required and must not block that acceptance.
