@@ -66,7 +66,9 @@ class WindowsSafeContractsTests(TempRepoTestCase):
         )
         self.assertEqual(result.exit_code, EXIT_OK, result.payload)
         core = self.target / ".ide-development" / "CORE.txt"
-        assert_mode_portable(self, core, 0o644, label="CORE.txt")
+        # IDE-managed files are read-only after installation. A scoped write
+        # lease is the only supported way to make them temporarily writable.
+        assert_mode_portable(self, core, 0o444, label="CORE.txt")
 
     def test_physical_cursor_tree_after_install(self) -> None:
         """Equivalent to symlink-migration success path when symlink privilege is absent.

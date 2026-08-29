@@ -4551,7 +4551,7 @@
       "id": "gitops-scripts-gitops-runtime-preflight-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/runtime_preflight.py",
-      "sourceHash": "sha256:cb3bb622263023a71b176b57bad07a12b73c9ddcfd0b4655f993103f17aadfbf",
+      "sourceHash": "sha256:dd8a0167c7a3ff4df341882158219e9ce4b8b8b91a4104d3e0fe7ed6b05daafe",
       "destination": "scripts/gitops/runtime_preflight.py",
       "mode": "0644",
       "platform": "github",
