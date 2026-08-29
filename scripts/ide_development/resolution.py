@@ -23,8 +23,8 @@ PROVIDER_INSTALLER_VERSION = "2.5.2"
 # v2.5.2 is immutable.  The extracted package has no .git directory, so the
 # provider commit/tree must be bound by the receipt rather than discovered
 # from the package root.
-PROVIDER_COMMIT = "7edf2fa1a11406e9e8a3d612f4b5fa2850999597"
-PROVIDER_TREE = "aa4ee95e2dfecdbe069b44dfc8d5171ec6f15249"
+PROVIDER_COMMIT = "2c67523e6b4a0c598224d7905f20343f16254a3f"
+PROVIDER_TREE = "77ee2fdb6203732cf750f25c32920b53ef2c8b9b"
 PROVIDER_OWNERSHIP_CLASSES = frozenset({"managed", "managed-core", "managed-entrypoint"})
 # These are the only managed files that the IDE provider may supersede in a
 # digest-bound upgrade. Keep this set explicit so a provider manifest cannot
