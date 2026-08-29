@@ -446,6 +446,8 @@ class AcU0912ExactHeadInvalidationTests(unittest.TestCase):
         apply_repair(session, entries, new_head=HEAD_B, new_tree=TREE_B, touched_paths=["src/authz.py"])
         self.assertFalse(session.full_evidence["valid"])
         self.assertFalse(session.prior_review["valid"])
+        self.assertTrue(session.prior_review["reusedForUnchangedPaths"])
+        self.assertEqual(session.reusable_unchanged_evidence["invalidatedPaths"], ["src/authz.py"])
         self.assertEqual(session.full_evidence["headSha"], HEAD_B)
         review(session, entries, [])
         self.assertTrue(session.prior_review["valid"])

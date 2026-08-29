@@ -901,14 +901,30 @@ def invalidate_evidence(
     previous_head: str | None = None,
     prior_review_accepted: bool = False,
 ) -> None:
-    session.full_evidence = {"valid": False, "headSha": session.candidate_sha}
-    session.prior_review = {"valid": False, "headSha": session.candidate_sha}
+    prior_review = dict(session.prior_review)
+    prior_full = dict(session.full_evidence)
+    # A narrow repair changes only its declared surface. Keep the previous
+    # exact evidence as historical/reusable evidence for untouched paths; the
+    # new candidate still needs focused checks and one narrow delta review.
+    session.full_evidence = {
+        "valid": False,
+        "headSha": session.candidate_sha,
+        "replacedByNarrowRepair": bool(prior_full.get("valid")),
+    }
+    if prior_full.get("headSha"):
+        session.full_evidence["priorHeadSha"] = prior_full["headSha"]
+    session.prior_review = {
+        **prior_review,
+        "valid": False,
+        "reusedForUnchangedPaths": bool(prior_review.get("valid")),
+    }
     session.focused_checks = {"valid": False, "headSha": session.candidate_sha}
     session.delta_review = {"valid": False, "headSha": session.candidate_sha}
     session.reusable_unchanged_evidence = {
         "valid": bool(previous_head and prior_review_accepted),
         "sourceHeadSha": require_sha(previous_head, "previousHead") if previous_head else None,
         "paths": [],
+        "invalidatedPaths": list(session.last_touched_paths),
     }
 
 

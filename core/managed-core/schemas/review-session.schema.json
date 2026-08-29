@@ -41,7 +41,10 @@
         "gitTree": { "$ref": "#/$defs/sha40" },
         "execution": { "type": "string", "enum": ["local", "hosted"] },
         "coverage": { "type": "string", "const": "cumulative" },
-        "finalCandidate": { "type": "boolean" }
+        "finalCandidate": { "type": "boolean" },
+        "replacedByNarrowRepair": { "type": "boolean" },
+        "priorHeadSha": { "$ref": "#/$defs/sha40" },
+        "reusedForUnchangedPaths": { "type": "boolean" }
       }
     }
   },
@@ -134,7 +137,8 @@
       "properties": {
         "valid": { "type": "boolean" },
         "sourceHeadSha": { "anyOf": [{ "$ref": "#/$defs/sha40" }, { "type": "null" }] },
-        "paths": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        "paths": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "invalidatedPaths": { "type": "array", "items": { "type": "string", "minLength": 1 } }
       }
     },
     "fullRuns": {

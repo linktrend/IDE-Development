@@ -10,6 +10,11 @@ status: active
 
 # Model routing
 
+Independent narrow review is provider-neutral: use the ordinary routed
+reviewer by default, or Principal-authorized Luna when explicitly selected.
+Checkpoint acceptance binds the reviewer result to the exact commit/tree and
+forbids self-review; it does not require a particular vendor or model.
+
 The versioned route policy is in
 `core/managed-core/content/config/routing-registry.json`.
 

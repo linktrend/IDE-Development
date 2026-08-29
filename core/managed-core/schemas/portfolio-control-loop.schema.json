@@ -13,7 +13,7 @@
     "leaseSeconds",
     "stalledAfterSeconds",
     "replacementLimit",
-    "maxConcurrentWorkers",
+    "stagedCapacityPolicy",
     "maxAutomationRetries",
     "triggers",
     "terminalStates",
@@ -32,7 +32,25 @@
     "leaseSeconds": { "type": "integer", "minimum": 30, "maximum": 3600 },
     "stalledAfterSeconds": { "type": "integer", "minimum": 30, "maximum": 3600 },
     "replacementLimit": { "type": "integer", "const": 1 },
-    "maxConcurrentWorkers": { "type": "integer", "minimum": 1, "maximum": 64 },
+    "stagedCapacityPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stages", "constraints"],
+      "properties": {
+        "stages": {
+          "type": "array",
+          "const": [
+            {"stage": 1, "cursor": 5, "luna": 2, "underfillLuna": 1, "afterVerification": "baseline"},
+            {"stage": 2, "cursor": 10, "luna": 4, "underfillLuna": 1, "afterVerification": "routing-integration"},
+            {"stage": 3, "cursor": 20, "luna": 4, "underfillLuna": 2, "afterVerification": "stage-2"}
+          ]
+        },
+        "constraints": {
+          "type": "array",
+          "const": ["macMemory", "realCursorCapacity"]
+        }
+      }
+    },
     "maxAutomationRetries": { "type": "integer", "const": 1 },
     "triggers": {
       "type": "array",

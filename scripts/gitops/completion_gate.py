@@ -4,9 +4,10 @@
 Modes: checkpoint | review-ready | blocked | status | write-evidence
 
 v2.5 (V25_BOOTSTRAP_LEAN): Issue checkpoints are accepted from exact pushed
-commit/tree + scoped diff + focused tests + independent Terra verification +
-manifest evidence. Review Ready publication, AUTOMATION_TOKEN, Issue PRs,
-hosted completion status, and legacy publisher status are nonrequirements.
+commit/tree + scoped diff + focused tests + one exact-candidate independent
+narrow review + manifest evidence. Review Ready publication, AUTOMATION_TOKEN,
+Issue PRs, hosted completion status, and legacy publisher status are
+nonrequirements.
 
 review-ready never publishes. Legacy publisher/status outcomes are
 WAIVED_LEGACY_GATE, never PASS, and never bypass substantive proof.
@@ -445,7 +446,7 @@ def cmd_write_evidence(args: argparse.Namespace) -> int:
         (
             getattr(args, "scoped_diff", False),
             getattr(args, "focused_tests", False),
-            getattr(args, "terra_verified", False),
+            getattr(args, "independent_review", False),
             getattr(args, "manifest_evidence", False),
             str(getattr(args, "proof_class", "") or ""),
         )
@@ -456,7 +457,15 @@ def cmd_write_evidence(args: argparse.Namespace) -> int:
         payload["pushed"] = True
         payload["scopedDiff"] = bool(getattr(args, "scoped_diff", False))
         payload["focusedTests"] = {"passed": bool(getattr(args, "focused_tests", False))}
-        payload["independentTerraVerification"] = bool(getattr(args, "terra_verified", False))
+        if getattr(args, "independent_review", False):
+            payload["independentNarrowReview"] = {
+                "accepted": True,
+                "headSha": sha,
+                "gitTree": tree,
+                "paths": ["declared-checkpoint-scope"],
+                "reviewer": {"actor": "routed-independent-reviewer", "role": "reviewer"},
+                "implementerActor": "checkpoint-implementer",
+            }
         payload["manifestEvidence"] = bool(getattr(args, "manifest_evidence", False))
         payload["proofClass"] = str(getattr(args, "proof_class", "") or "local")
     configured = args.evidence_file or os.environ.get("COMPLETION_EVIDENCE_FILE")
@@ -869,7 +878,11 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--proof-class", default="", help="local | hosted | production")
     ap.add_argument("--scoped-diff", action="store_true")
     ap.add_argument("--focused-tests", action="store_true")
-    ap.add_argument("--terra-verified", action="store_true")
+    ap.add_argument(
+        "--independent-review",
+        action="store_true",
+        help="record one exact-candidate provider-neutral narrow review",
+    )
     ap.add_argument("--manifest-evidence", action="store_true")
     args = ap.parse_args(argv)
 

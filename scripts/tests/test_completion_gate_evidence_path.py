@@ -44,7 +44,7 @@ class CompletionEvidencePathTests(unittest.TestCase):
                 evidence_file=None,
                 scoped_diff=False,
                 focused_tests=False,
-                terra_verified=False,
+                independent_review=False,
                 manifest_evidence=False,
                 proof_class="",
             )
