@@ -4798,6 +4798,17 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "installer-scripts-ide-development-openclaw-customization-admission-py",
+      "ownershipClass": "managed",
+      "source": "scripts/ide_development/openclaw_customization_admission.py",
+      "sourceHash": "sha256:5e64cb35889a670a79a540f55f0042bd60bd240b89b9ee1ad630169a440a9ac5",
+      "destination": "scripts/ide_development/openclaw_customization_admission.py",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "installer-scripts-ide-development-paths-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/paths.py",
