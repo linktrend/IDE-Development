@@ -194,7 +194,10 @@ def write_backup_file(
     dest = backups_dir(tx_dir) / record.backup_name
     dest.parent.mkdir(parents=True, exist_ok=True)
     data = read_file_bytes(src)
-    atomic_write_bytes(dest, data, mode=record.mode or "0644")
+    # Backup blobs live in transaction metadata and must remain removable on
+    # Windows. The original destination mode is retained separately in the
+    # BackupRecord and restored from there.
+    atomic_write_bytes(dest, data, mode="0644")
 
 
 def apply_action(

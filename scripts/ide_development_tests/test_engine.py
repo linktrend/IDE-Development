@@ -35,7 +35,7 @@ from ide_development.transaction import (
     backups_dir,
     encode_backup_name,
 )
-from ide_development.io_atomic import atomic_write_bytes
+from ide_development.io_atomic import atomic_write_bytes, remove_file
 from ide_development_tests import TempRepoTestCase, FIXTURE_PACKAGE
 
 
@@ -278,7 +278,7 @@ class EngineTests(TempRepoTestCase):
         self.assertEqual(first.exit_code, EXIT_OK, first.payload)
         state = self.target / ".ide-development" / "installed-state.json"
         self.assertTrue(state.is_file())
-        state.unlink()
+        remove_file(state)
         second = run_install_or_update(
             target=self.target,
             package=self.package,

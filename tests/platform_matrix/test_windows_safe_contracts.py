@@ -66,7 +66,9 @@ class WindowsSafeContractsTests(TempRepoTestCase):
         )
         self.assertEqual(result.exit_code, EXIT_OK, result.payload)
         core = self.target / ".ide-development" / "CORE.txt"
-        assert_mode_portable(self, core, 0o644, label="CORE.txt")
+        # IDE-managed files are read-only after installation. A scoped write
+        # lease is the only supported way to make them temporarily writable.
+        assert_mode_portable(self, core, 0o444, label="CORE.txt")
 
     def test_physical_cursor_tree_after_install(self) -> None:
         """Equivalent to symlink-migration success path when symlink privilege is absent.
@@ -121,7 +123,7 @@ class WindowsSafeContractsTests(TempRepoTestCase):
 
         rolled = run_rollback(target=self.target)
         self.assertEqual(rolled.exit_code, EXIT_OK, rolled.payload)
-        assert_bytes_and_mode_portable(self, core, original, original_mode if not is_windows() else 0o644)
+        assert_bytes_and_mode_portable(self, core, original, 0o444)
 
     def test_worktree_gitfile_meta_under_real_gitdir(self) -> None:
         with tempfile.TemporaryDirectory() as td:

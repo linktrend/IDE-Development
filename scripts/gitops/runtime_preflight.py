@@ -24,6 +24,10 @@ from typing import Any, Callable, Mapping, Sequence
 
 MANIFEST_RELATIVE_PATH = "core/managed-core/content/config/toolchain-manifest.json"
 PACKAGED_MANIFEST_RELATIVE_PATH = ".ide-development/content/config/toolchain-manifest.json"
+PACKAGED_CONFIG_ALIASES = {
+    "core/managed-core/config/generated-output-closure.json": ".ide-development/config/generated-output-closure.json",
+    ".github/linktrend-delivery-mode.json": ".ide-development/config/delivery.json",
+}
 SCHEMA_VERSION = 1
 MANIFEST_KIND = "toolchain-manifest"
 PREFLIGHT_KIND = "runtime-preflight-evidence"
@@ -63,6 +67,14 @@ def _manifest_path(root: Path, requested: str | Path | None) -> Path:
     if source.is_file():
         return source
     return root / PACKAGED_MANIFEST_RELATIVE_PATH
+
+
+def _required_config_path(root: Path, manifest_file: Path, declared: object, label: str) -> Path:
+    relative = _safe_relative(declared, label)
+    packaged = (root / PACKAGED_MANIFEST_RELATIVE_PATH).resolve()
+    if manifest_file.resolve() == packaged:
+        relative = PACKAGED_CONFIG_ALIASES.get(relative, relative)
+    return root / relative
 
 
 def _require_list(value: object, label: str, *, allow_empty: bool = True) -> list[Any]:
@@ -370,6 +382,7 @@ def run_preflight(
 ) -> dict[str, Any]:
     """Return rich preflight results; no provider or credential state is read."""
     root = Path(repo_root).resolve()
+    resolved_manifest_path = _manifest_path(root, manifest_path)
     try:
         manifest = load_manifest(root, manifest_path)
     except PreflightError as exc:
@@ -379,7 +392,7 @@ def run_preflight(
             "ok": False,
             "status": SOURCE_FAILURE,
             "classification": "application",
-            "manifest": str(_manifest_path(root, manifest_path)),
+            "manifest": str(resolved_manifest_path),
             "checks": [_result("manifest", SOURCE_FAILURE, exc.code, exc.detail, classification="application")],
         }
     checks = [check for check in manifest["checks"] if profile is None or profile in (check.get("profiles") or [profile])]
@@ -418,11 +431,16 @@ def run_preflight(
         for service in check["services"]:
             declaration = _require_object(service, f"{check_id}.services")
             results.append(_check_probe(root, f"{check_id}:service:{declaration.get('id', 'unnamed')}", declaration, executable_finder=executable_finder, command_runner=command_runner))
-        missing_config = [
-            _safe_relative(value, f"{check_id}.requiredConfig")
-            for value in check["requiredConfig"]
-            if not (root / _safe_relative(value, f"{check_id}.requiredConfig")).is_file()
-        ]
+        missing_config = []
+        for value in check["requiredConfig"]:
+            config_path = _required_config_path(
+                root,
+                resolved_manifest_path,
+                value,
+                f"{check_id}.requiredConfig",
+            )
+            if not config_path.is_file():
+                missing_config.append(config_path.relative_to(root).as_posix())
         if missing_config:
             results.append(_result(f"{check_id}:configuration", ENVIRONMENT_BLOCKED, "configuration_missing", "required non-secret configuration is unavailable", required=True, observed=",".join(missing_config)))
         policy = check["networkPolicy"]
