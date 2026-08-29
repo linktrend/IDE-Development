@@ -44,9 +44,9 @@ class BuildManifestPackagingTests(unittest.TestCase):
         path = bm.MANIFEST_PATH
         self.assertTrue(path.is_file())
         data = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(data.get("packageVersion"), "2.5.1")
+        self.assertEqual(data.get("packageVersion"), "2.5.2")
         managed = bm.VERSION_PATH.read_text(encoding="utf-8").strip().lstrip("v")
-        self.assertEqual(managed, "2.5.1")
+        self.assertEqual(managed, "2.5.2")
 
     def test_required_cursor_materialization_sources_are_packaged(self) -> None:
         manifest = bm.build_manifest_object()
@@ -324,9 +324,35 @@ class BuildManifestPackagingTests(unittest.TestCase):
         for rel in (
             "core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md",
             "core/execution/transactional_dispatch.py",
+            "core/execution/cursor_cloud_dispatch.py",
+            "core/contracts/CURSOR-CLOUD-DISPATCH-CONTRACT.md",
+            "core/managed-core/content/config/cursor-cloud-dispatch.json",
+            "core/managed-core/content/doctrine/CURSOR-CLOUD-DISPATCH-CONTRACT.md",
+            "core/managed-core/schemas/cursor-cloud-dispatch.schema.json",
             "core/managed-core/content/config/transactional-dispatch.json",
             "core/managed-core/content/doctrine/PKT08-REVISION-60-FINAL-CONTROLS.md",
             "core/managed-core/schemas/transactional-dispatch.schema.json",
+        ):
+            self.assertIn(rel, sources)
+
+    def test_v252_packet_payloads_are_packaged(self) -> None:
+        manifest = bm.build_manifest_object()
+        sources = {row["source"] for row in manifest["files"]}
+        for rel in (
+            "core/managed-core/content/config/portfolio-control-loop.json",
+            "core/managed-core/content/config/routing-registry.json",
+            "core/managed-core/content/config/toolchain-manifest.json",
+            "core/managed-core/schemas/managed-ownership.schema.json",
+            "core/managed-core/schemas/mutation-declaration.schema.json",
+            "core/managed-core/schemas/portfolio-control-loop.schema.json",
+            "core/managed-core/schemas/provider-consumer-handoff.schema.json",
+            "core/managed-core/schemas/routing-registry.schema.json",
+            "core/managed-core/schemas/toolchain-manifest.schema.json",
+            "core/managed-core/schemas/transition-receipt.schema.json",
+            "scripts/gitops/mutation_guard.py",
+            "scripts/gitops/portfolio_control_loop.py",
+            "scripts/gitops/receipt_loop_detector.py",
+            "scripts/gitops/runtime_preflight.py",
         ):
             self.assertIn(rel, sources)
 

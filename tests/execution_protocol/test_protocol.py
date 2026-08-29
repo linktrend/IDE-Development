@@ -418,13 +418,21 @@ class PublisherAuthorityTests(unittest.TestCase):
 
 class IssueCheckpointTests(unittest.TestCase):
     def test_complete_evidence_accepts_without_review_ready_or_token(self) -> None:
+        review = {
+            "accepted": True,
+            "headSha": COMMIT_A,
+            "gitTree": TREE_A,
+            "paths": ["scripts/gitops/portfolio_control_loop.py"],
+            "reviewer": {"actor": "independent-reviewer", "role": "reviewer"},
+            "implementerActor": "implementer",
+        }
         decision = evaluate_issue_checkpoint(
             pushed=True,
             commit=COMMIT_A,
             tree=TREE_A,
             scoped_diff=True,
             focused_tests_passed=True,
-            independent_terra_verified=True,
+            independent_narrow_review=review,
             manifest_evidence=True,
             review_ready=False,
             automation_token_present=False,
@@ -434,18 +442,18 @@ class IssueCheckpointTests(unittest.TestCase):
         self.assertFalse(decision.requires_token)
         self.assertEqual(decision.reason, "v25_bootstrap_lean_issue_checkpoint")
 
-    def test_missing_terra_verification_is_not_accepted(self) -> None:
+    def test_missing_independent_narrow_review_is_not_accepted(self) -> None:
         decision = evaluate_issue_checkpoint(
             pushed=True,
             commit=COMMIT_A,
             tree=TREE_A,
             scoped_diff=True,
             focused_tests_passed=True,
-            independent_terra_verified=False,
+            independent_narrow_review=None,
             manifest_evidence=True,
         )
         self.assertFalse(decision.accepted)
-        self.assertEqual(decision.reason, "independent_terra_verification_required")
+        self.assertEqual(decision.reason, "independent_narrow_review_required")
 
 
 class AdministratorRecoveryTests(unittest.TestCase):

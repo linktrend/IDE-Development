@@ -15,31 +15,6 @@
         "**"
       ],
       "dependsOn": []
-    },
-    {
-      "id": "managed-core-manifest",
-      "output": "core/managed-core/MANIFEST.json",
-      "generator": [
-        "python3",
-        "scripts/ide_development/build_manifest.py",
-        "--write"
-      ],
-      "invalidatingSources": [
-        "core/**",
-        "scripts/**",
-        ".cursor/**",
-        ".github/**",
-        "VERSION"
-      ],
-      "additionalOutputs": [
-        "core/managed-core/content/doctrine/**",
-        "core/managed-core/platforms/library/**",
-        "core/managed-core/platforms/cursor/rules/**",
-        "core/managed-core/skills/**"
-      ],
-      "dependsOn": [
-        "secret-scan-fixtures"
-      ]
     }
   ],
   "audits": {
