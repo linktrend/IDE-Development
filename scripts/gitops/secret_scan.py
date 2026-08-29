@@ -1579,8 +1579,14 @@ def _change_scope_error_result(exc: SecretScanError, content_tree: str = EMPTY_T
     )
 
 
-def _scan_repository(root: Path, baseline_evidence: Any | None = None) -> dict[str, Any]:
+def _scan_repository(
+    root: Path,
+    baseline_evidence: Any | None = None,
+    requested_paths: set[str] | None = None,
+) -> dict[str, Any]:
     entries = tracked_entries(root)
+    if requested_paths is not None:
+        entries = [entry for entry in entries if entry.path in requested_paths]
     content_tree = candidate_content_tree(root)
     scope: dict[str, Any] | None = None
     scan_paths: set[str] | None = None
@@ -1603,7 +1609,11 @@ def _scan_repository(root: Path, baseline_evidence: Any | None = None) -> dict[s
             and row["path"] not in scan_paths
         ]
     managed_paths = set(managed_scanner_policy_paths(root)) if scope is not None else set()
-    index_scan_paths = (scan_paths - managed_paths) if scan_paths is not None else None
+    index_scan_paths = (
+        (scan_paths - managed_paths)
+        if scan_paths is not None
+        else requested_paths
+    )
     detections, findings = _scan_regular_blobs(root, entries, index_scan_paths)
     if scope is not None:
         managed_detections, managed_findings = _scan_worktree_managed_blobs(root, entries, managed_paths)
@@ -1663,6 +1673,7 @@ def scan_repository(
     *,
     baseline_evidence: Any | None = None,
     baseline_evidence_path: Path | str | None = None,
+    paths: list[str] | set[str] | None = None,
 ) -> dict[str, Any]:
     root = root.resolve()
     try:
@@ -1673,7 +1684,8 @@ def scan_repository(
                 baseline_evidence = json.loads(Path(baseline_evidence_path).read_text(encoding="utf-8"))
             except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
                 raise SecretScanError("change_scope_identity", "unreadable baseline evidence") from exc
-        return _scan_repository(root, baseline_evidence)
+        requested_paths = set(paths) if paths is not None else None
+        return _scan_repository(root, baseline_evidence, requested_paths)
     except SecretScanError as exc:
         if baseline_evidence is not None or baseline_evidence_path is not None:
             return _change_scope_error_result(exc)
