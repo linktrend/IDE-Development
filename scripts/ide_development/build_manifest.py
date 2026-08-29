@@ -546,6 +546,10 @@ def build_entries() -> list[dict[str, Any]]:
             ".ide-development/schemas/change-scoped-secret-scan.schema.json",
         ),
         (
+            "schemas/openclaw-customization-admission.schema.json",
+            ".ide-development/schemas/openclaw-customization-admission.schema.json",
+        ),
+        (
             "schemas/repository-ci-contract.schema.json",
             ".ide-development/schemas/repository-ci-contract.schema.json",
         ),

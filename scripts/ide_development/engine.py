@@ -23,6 +23,10 @@ from .io_atomic import atomic_write_bytes
 from .hashing import sha256_file
 from .managed_write_guard import export_candidate
 from .resolution import UpgradeResolution, load_and_validate_resolution
+from .openclaw_customization_admission import (
+    BOUNDARY_REL,
+    admit_openclaw_customization,
+)
 
 
 CONSUMER_CONFIG = Path(".github/linktrend-gitops-consumer.json")
@@ -30,6 +34,7 @@ MANAGED_FAST_WORKFLOW = "Linktrend Fast Checks"
 MANAGED_RUNNER_TYPE = "github-hosted"
 RETIRED_RUNNER_TYPE = "linktrend-private-macos-arm64"
 CI_CONTRACT_MODULE_REL = Path("scripts/gitops/repository_ci_contract.py")
+SECRET_SCAN_MODULE_REL = Path("scripts/gitops/secret_scan.py")
 
 
 def _load_repository_ci_contract_module(package_root: Path):
@@ -239,6 +244,58 @@ def _repository_ci_trigger_audit(package_root: Path, target_root: Path) -> dict[
     return ci_module.installer_audit_repository_ci_triggers(target_root)
 
 
+def _load_secret_scan_module(package_root: Path):
+    """Load the package scanner so admission can pass an explicit path scope."""
+    import sys
+
+    module_path = package_root / SECRET_SCAN_MODULE_REL
+    if not module_path.is_file():
+        raise InvalidPackageError(f"secret scan module missing: {module_path}")
+    module_name = "linktrend_secret_scan"
+    existing = sys.modules.get(module_name)
+    if (
+        existing is not None
+        and getattr(existing, "__file__", None) == str(module_path)
+        and hasattr(existing, "scan_repository")
+    ):
+        return existing
+    package_root_str = str(package_root.resolve())
+    if package_root_str not in sys.path:
+        sys.path.insert(0, package_root_str)
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise InvalidPackageError(f"secret scan module unloadable: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
+    if not hasattr(module, "scan_repository"):
+        sys.modules.pop(module_name, None)
+        raise InvalidPackageError(f"secret scan module missing scanner: {module_path}")
+    return module
+
+
+def _openclaw_admission(package_root: Path, target_root: Path) -> dict[str, Any] | None:
+    """Run scoped admission when the target exposes the OpenClaw boundary."""
+    boundary = target_root / BOUNDARY_REL
+    if not boundary.exists():
+        return None
+    scanner_module = _load_secret_scan_module(package_root)
+
+    def scanner(paths: list[str]) -> dict[str, Any]:
+        return scanner_module.scan_repository(target_root, paths=paths)
+
+    return admit_openclaw_customization(
+        consumer_root=target_root,
+        package_root=package_root,
+        boundary_path=boundary,
+        scanner=scanner,
+    )
+
+
 def _resolve_authorized_upgrade(
     *,
     resolution_manifest: Path | None,
@@ -368,6 +425,7 @@ def run_plan(
     resolution_manifest: Path | None = None,
 ) -> EngineResult:
     package_root, target_root = _prepare(target=target, package=package)
+    openclaw_admission = _openclaw_admission(package_root, target_root)
     recovery = _maybe_recover(target_root, mutate=False)
     manifest = load_manifest(package_root)
     migration = load_migration_catalog(package_root)
@@ -413,6 +471,7 @@ def run_plan(
         normalizedFastWorkflowName=normalized_fast,
         repositoryCiTriggerAudit=ci_trigger_audit,
         managedUpgradeResolution=resolution.to_dict() if resolution else None,
+        openclawAdmission=openclaw_admission,
     )
     return EngineResult(exit_code=exit_code, payload=payload)
 
@@ -426,6 +485,7 @@ def run_install_or_update(
     resolution_manifest: Path | None = None,
 ) -> EngineResult:
     package_root, target_root = _prepare(target=target, package=package)
+    openclaw_admission = _openclaw_admission(package_root, target_root)
     recovery = _maybe_recover(target_root, mutate=not dry_run)
     manifest = load_manifest(package_root)
     migration = load_migration_catalog(package_root)
@@ -487,6 +547,7 @@ def run_install_or_update(
         repositoryCiTriggerAudit=ci_trigger_audit,
         managedUpgradeResolution=resolution.to_dict() if resolution else None,
         managedPackageManifestDigest=package_manifest_digest,
+        openclawAdmission=openclaw_admission,
         candidateExports=_export_conflict_candidates(
             target_root=target_root,
             package_version=manifest.package_version,
