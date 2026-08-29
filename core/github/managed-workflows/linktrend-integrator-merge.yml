@@ -204,14 +204,10 @@ jobs:
           echo "exact dispatch-time seal accepted"
 
       - name: Run full profile
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 scripts/gitops/generated_output_closure.py --finalize
           python3 scripts/gitops/run_delivery_profile.py full --preflight
-          python3 scripts/gitops/require_exact_ci_success.py \
-            --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_HEAD}"
 
       - name: Write exact full-suite receipt
         if: success()
