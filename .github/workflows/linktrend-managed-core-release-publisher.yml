@@ -26,6 +26,14 @@ on:
         description: "Immutable 40-char source SHA (must equal remote default-branch tip)"
         required: true
         type: string
+      baseline_sha:
+        description: "Exact 40-char pre-release baseline SHA"
+        required: true
+        type: string
+      baseline_ref:
+        description: "Named configured remote ref resolving to baseline_sha"
+        required: true
+        type: string
       version:
         description: "Package semver (authorized: 2.5.2)"
         required: false
@@ -125,6 +133,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           SOURCE_SHA: ${{ steps.inputs.outputs.source_sha }}
+          BASELINE_SHA: ${{ inputs.baseline_sha }}
+          BASELINE_REF: ${{ inputs.baseline_ref }}
           VERSION: ${{ steps.inputs.outputs.version }}
           TAG: ${{ steps.inputs.outputs.tag }}
           ACTION: ${{ steps.inputs.outputs.action }}
@@ -143,6 +153,8 @@ jobs:
           python3 scripts/gitops/managed_core_release_publish.py \
             --source-root "${DATA_ROOT}" \
             --source-sha "${SOURCE_SHA}" \
+            --baseline-sha "${BASELINE_SHA}" \
+            --baseline-ref "${BASELINE_REF}" \
             --version "${VERSION}" \
             --tag "${TAG}" \
             --repository "${GITHUB_REPOSITORY}" \
