@@ -168,7 +168,14 @@ def build_portfolio_status(
             if worker.get("provider")
         }
     )
-    capacity = int(state.get("capacity") or 0)
+    raw_capacity = state.get("capacity")
+    if isinstance(raw_capacity, Mapping):
+        capacity = sum(
+            int(raw_capacity.get(provider) or 0) if str(raw_capacity.get(provider) or "").lstrip("-").isdigit() else 0
+            for provider in ("cursor", "luna")
+        )
+    else:
+        capacity = int(raw_capacity or 0)
     maximum_parallelism = bool(capacity and len(active) >= capacity)
     return {
         "schemaVersion": 1,
@@ -196,6 +203,8 @@ def build_portfolio_status(
         "dependency": state.get("dependencyGraph") or {},
         "workerProvider": providers,
         "maximumSafeParallelismInUse": maximum_parallelism,
+        "safeCapacity": dict(state.get("safeCapacity") or {}),
+        "utilizationGap": dict(state.get("utilizationGap") or {}),
         "protectedTruth": dict(protected_truth or {}),
         "heartbeatContinuity": dict(state.get("heartbeatAcceptance") or {
             "status": "PENDING",

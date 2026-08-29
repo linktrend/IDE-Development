@@ -297,6 +297,8 @@ def main(argv: list[str] | None = None) -> int:
         remaining_seconds=args.remaining_seconds,
     )
     print(json.dumps(result, sort_keys=True))
+    if result.get("requiredAction", {}).get("code") == "UTILIZATION_GAP":
+        return 20
     if result.get("dispatchPerformed") or result.get("requiredAction", {}).get("kind") == "DONT_NOTIFY":
         return 0
     return 20

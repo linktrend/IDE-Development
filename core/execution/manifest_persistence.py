@@ -492,6 +492,46 @@ def _safe_action_from(
     value = pending(snapshot.get("safeAction") or snapshot.get("repairAction"))
     if value is not None:
         return value
+    # A portfolio heartbeat may expose accepted dependency-ready packets
+    # rather than a pre-written safeAction. Admit only a provider with a live
+    # safe slot; the caller persists this synthetic intent before dispatching.
+    ready_work = snapshot.get("readyWork")
+    if ready_work is None and isinstance(cursor, Mapping):
+        ready_work = cursor.get("readyWork")
+    capacity = snapshot.get("safeCapacity") or snapshot.get("capacity")
+    if not isinstance(ready_work, list) or not isinstance(capacity, Mapping):
+        return None
+    running = snapshot.get("running")
+    running_by_provider = {"cursor": 0, "luna": 0}
+    if isinstance(running, list):
+        for worker in running:
+            if not isinstance(worker, Mapping):
+                continue
+            provider = str(worker.get("provider") or "").lower()
+            bucket = "luna" if "luna" in provider or "codex" in provider else "cursor"
+            running_by_provider[bucket] += 1
+    for packet in ready_work:
+        if not isinstance(packet, Mapping) or packet.get("accepted") is False:
+            continue
+        provider = str(packet.get("provider") or "cursor").lower()
+        bucket = "luna" if "luna" in provider or "codex" in provider else "cursor"
+        try:
+            limit = int(capacity.get(bucket) or 0)
+        except (TypeError, ValueError):
+            limit = 0
+        if running_by_provider[bucket] >= limit:
+            continue
+        packet_id = str(packet.get("packetId") or packet.get("id") or "").strip()
+        if not packet_id:
+            continue
+        return {
+            "id": "ready-" + packet_id,
+            "safe": True,
+            "action": "dispatch-packet",
+            "packetId": packet_id,
+            "provider": bucket,
+            "payload": dict(packet),
+        }
     return None
 
 
@@ -735,6 +775,23 @@ def reconcile_manifest_heartbeat(
     if requirements:
         requirement = requirements[0]
         action = _safe_action_from(current, snapshot)
+        if action is not None and requirement.get("code") == "compatible_ready_work":
+            current_action = current.get("safeAction")
+            if not isinstance(current_action, Mapping) or current_action.get("safe") is not True:
+                updated = copy.deepcopy(current)
+                updated["safeAction"] = copy.deepcopy(dict(action))
+                persisted = persist_manifest(updated, store, max_attempts=max_attempts)
+                current_record = _read_record(store)
+                if current_record is None:  # pragma: no cover
+                    raise ManifestPersistenceError(
+                        "readback_missing", "ready-work intent readback is missing"
+                    )
+                current = dict(current_record.manifest)
+                action = _safe_action_from(current, snapshot)
+                if action is None:
+                    raise ManifestPersistenceError(
+                        "ready_work_intent_missing", "ready-work intent was not read back"
+                    )
         if action is not None and requirement.get("code") in {
             "expired_lease",
             "persisted_undispatched_safe_intent",
@@ -753,7 +810,7 @@ def reconcile_manifest_heartbeat(
                 "identity": dict(identity),
                 "dispatchable": True,
             }
-        elif requirement.get("code") == UTILIZATION_GAP:
+        elif requirement.get("code") in {"compatible_ready_work", UTILIZATION_GAP}:
             required_action = {
                 "id": _heartbeat_action_id(
                     UTILIZATION_GAP, dict(identity), dict(requirement)
