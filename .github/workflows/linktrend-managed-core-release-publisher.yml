@@ -106,7 +106,9 @@ jobs:
         with:
           ref: ${{ steps.inputs.outputs.source_sha }}
           path: untrusted-source-data
-          fetch-depth: 1
+          # Baseline validation must be able to prove ancestry from the exact
+          # protected release source; a depth-1 checkout hides its parents.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Bind data checkout HEAD to requested source SHA
