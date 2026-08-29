@@ -52,8 +52,12 @@ jobs:
             baseline_ref="origin/${GITHUB_BASE_REF}"
             baseline_sha="${{ github.event.pull_request.base.sha }}"
           else
-            baseline_ref="origin/${GITHUB_REF_NAME}"
             baseline_sha="${{ github.event.before }}"
+            baseline_ref="$(python3 scripts/gitops/generated_output_closure.py \
+              --bind-push-baseline \
+              --push-branch "${GITHUB_REF_NAME}" \
+              --push-before "${baseline_sha}" \
+              --push-after "${{ github.event.after }}" | jq -r .baselineRef)"
           fi
           printf 'LINKTREND_TARGET_BASELINE_REF=%s\n' "${baseline_ref}" >> "${GITHUB_ENV}"
           printf 'LINKTREND_TARGET_BASELINE_SHA=%s\n' "${baseline_sha}" >> "${GITHUB_ENV}"

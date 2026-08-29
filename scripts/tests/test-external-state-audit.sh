@@ -37,6 +37,7 @@ assert p["source"] == "dry-run"
 assert p["statusContext"] == "Linktrend Review Ready"
 assert p["summary"]["ready"] is False
 statuses = {c["id"]: c["status"] for c in p["checks"]}
+checks = {c["id"]: c for c in p["checks"]}
 assert statuses["github_auth.automation_token_secret"] == "unchecked"
 assert statuses["bugbot.user_token_secret"] == "unchecked"
 assert statuses["bugbot.manual_trigger_only"] == "unchecked"
@@ -47,6 +48,10 @@ assert statuses["protection.allow_auto_merge"] == "unchecked"
 assert statuses["carlos.user_token_boundary"] in {"unchecked", "unknown"}
 assert statuses["workflows.required_presence"] in {"unchecked", "unknown"}
 assert statuses["completion.status_context"] == "ok"
+development_expected = checks["protection.development_ruleset"]["expected"]
+assert "Linktrend Branch Source Policy" in development_expected
+for obsolete in ("Cursor Bugbot", "Linktrend Review Gate", "Linktrend Review Ready"):
+    assert obsolete not in development_expected
 assert "LINKTREND_AUTOMATION_TOKEN" in json.dumps(p["checklist"])
 assert p.get("applyRefused") is True
 assert p["mutations"] == []
@@ -58,6 +63,25 @@ assert "BEGIN RSA PRIVATE KEY" not in text
 print("dry-run ok")
 PY
 pass "dry-run default report is unchecked with empty mutations"
+
+# ---- unavailable ruleset capability never resurrects obsolete required contexts ----
+python3 "$PY" report --repo linktrend/Fixture \
+  --fixture-dir "${ROOT}/scripts/tests/fixtures/external-state-wp1/unavailable" \
+  --json-output "${TMP}/unavailable.json" >/dev/null
+python3 - <<PY
+import json
+from pathlib import Path
+p = json.loads(Path("${TMP}/unavailable.json").read_text())
+checks = {c["id"]: c for c in p["checks"]}
+for branch in ("development", "staging", "main"):
+    row = checks[f"protection.{branch}_ruleset"]
+    assert row["status"] == "unavailable"
+    assert "Linktrend Branch Source Policy" in row["expected"]
+    for obsolete in ("Cursor Bugbot", "Linktrend Review Gate", "Linktrend Review Ready"):
+        assert obsolete not in row["expected"]
+print("unavailable capability boundary ok")
+PY
+pass "unavailable protection capability does not require obsolete review contexts"
 
 # verify on dry-run must be not-ready (exit 3)
 set +e
@@ -168,7 +192,7 @@ p = json.loads(Path("${TMP}/drift-out.json").read_text())
 by = {c["id"]: c for c in p["checks"]}
 assert by["bugbot.check_name"]["status"] == "drift"
 assert by["protection.development_ruleset"]["status"] == "drift"
-assert "Linktrend Review Gate" in by["protection.development_ruleset"]["detail"]
+assert "Linktrend Branch Source Policy" in by["protection.development_ruleset"]["detail"]
 assert p["mutations"] == []
 print("drift ok")
 PY

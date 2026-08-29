@@ -3,7 +3,7 @@
 # System-repository only (IDE Development). Not synced to consumers via
 # scripts/sync-managed-workflows.sh — consumers must not publish managed-core.
 #
-# Privileged tag + GitHub Release publication for managed-core v2.5.0.
+# Privileged tag + GitHub Release publication for managed-core v2.5.2.
 # Workflow YAML and publish scripts come from the protected default branch only.
 # The requested source SHA is checked out as data only — never execute untrusted
 # tip code with write credentials.
@@ -27,15 +27,15 @@ on:
         required: true
         type: string
       version:
-        description: "Package semver (authorized: 2.5.0)"
+        description: "Package semver (authorized: 2.5.2)"
         required: false
         type: string
-        default: "2.5.0"
+        default: "2.5.2"
       tag:
         description: "Immutable release tag (must be v<version>)"
         required: false
         type: string
-        default: "v2.5.0"
+        default: "v2.5.2"
       action:
         description: "publish (default) or verify-only"
         required: false
@@ -68,6 +68,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Validate dispatch inputs
@@ -97,6 +98,7 @@ jobs:
         with:
           ref: ${{ steps.inputs.outputs.source_sha }}
           path: untrusted-source-data
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Bind data checkout HEAD to requested source SHA

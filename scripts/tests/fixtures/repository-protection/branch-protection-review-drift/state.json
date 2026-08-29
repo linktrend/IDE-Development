@@ -17,12 +17,10 @@
         "url": "https://api.github.com/repos/linktrend/Fixture/branches/development/protection/required_status_checks",
         "strict": true,
         "contexts": [
-          "Linktrend Review Gate",
           "Verify IDE Development",
           "Linktrend Branch Source Policy"
         ],
         "checks": [
-          {"context": "Linktrend Review Gate", "app_id": -1},
           {"context": "Verify IDE Development", "app_id": -1},
           {"context": "Linktrend Branch Source Policy", "app_id": -1}
         ]

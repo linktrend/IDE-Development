@@ -75,7 +75,10 @@ assert "linktrend-bugbot-requested" in full
 assert "phase-delivery-record.json" not in full, "a tracked record cannot seal its own PR head"
 for required in (
     "full_suite_stale_seal",
-    "full_suite_requires_phase_branch",
+    "full_suite_source_branch_target_invalid",
+    "base.ref == 'development'",
+    "base.ref == 'staging'",
+    "startsWith(github.event.pull_request.head.ref, 'promote/staging/')",
     "full_suite_repository_mismatch",
     "--config-key fastWorkflowName",
     "exact dispatch-time seal accepted",
@@ -97,6 +100,10 @@ assert 'candidate/' not in full
 assert "run_delivery_profile.py full" in full
 assert 'GITHUB_REPOSITORY" = "linktrend/IDE-Development' not in full
 assert "require_exact_ci_success.py" in full
+run_full_block = full.split("      - name: Run full profile\n", 1)[1].split(
+    "      - name: Write exact full-suite receipt", 1
+)[0]
+assert "require_exact_ci_success.py" not in run_full_block
 assert '"Linktrend Fast Checks" and .conclusion' not in full
 
 for name in ("linktrend-development-to-staging.yml", "linktrend-staging-to-main.yml"):

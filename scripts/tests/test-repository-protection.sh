@@ -29,7 +29,6 @@ import repository_protection as rp
 
 dev = rp.managed_baseline("development")
 assert dev == [
-    "Linktrend Review Gate",
     "Verify IDE Development",
     "Linktrend Branch Source Policy",
 ], dev
@@ -42,7 +41,7 @@ assert "Linktrend Review Gate" not in main
 u = rp.union_checks(dev, ["Consumer Custom Lint", "Verify IDE Development"], ["Extra"])
 assert u["preserved"] == ["Consumer Custom Lint", "Extra"], u
 assert "Consumer Custom Lint" in u["desired"]
-assert u["desired"].index("Linktrend Review Gate") == 0
+assert "Linktrend Review Gate" not in u["desired"]
 
 merged = rp.merge_ruleset_rules(
     [
@@ -83,7 +82,8 @@ assert p["branches"]["development"]["action"] == "create"
 assert p["branches"]["staging"]["action"] == "create"
 assert p["branches"]["main"]["action"] == "create"
 dev = p["branches"]["development"]["requiredChecks"]["desired"]
-assert dev[0] == "Linktrend Review Gate"
+assert dev[0] == "Verify IDE Development"
+assert "Linktrend Review Gate" not in dev
 assert "Linktrend Branch Source Policy" in dev
 stg = p["branches"]["staging"]["requiredChecks"]["desired"]
 assert "Linktrend Review Gate" not in stg
@@ -207,7 +207,7 @@ assert rest["users"] == ["ops-bot"]
 assert rest["teams"] == ["release-managers"]
 assert rest["apps"] == ["linktrend-integrator"]
 assert body["required_conversation_resolution"] is True
-assert "Linktrend Review Gate" in body["required_status_checks"]["contexts"]
+assert "Linktrend Review Gate" not in body["required_status_checks"]["contexts"]
 assert "Legacy Check" in body["required_status_checks"]["contexts"]
 print("bp-reviews plan ok")
 PY
@@ -222,7 +222,7 @@ dev = state["branch_protections"]["development"]
 assert dev["required_pull_request_reviews"]["required_approving_review_count"] == 2
 assert dev["restrictions"]["teams"] == ["release-managers"]
 assert dev["required_conversation_resolution"] is True
-assert "Linktrend Review Gate" in dev["required_status_checks"]["contexts"]
+assert "Linktrend Review Gate" not in dev["required_status_checks"]["contexts"]
 # Must not have been forced to null
 assert dev["required_pull_request_reviews"] is not None
 assert dev["restrictions"] is not None
@@ -355,7 +355,6 @@ p = json.loads(Path("${TMP}/plan-bp-review-drift.json").read_text())
 assert p["capability"]["mechanism"] == "branch_protection"
 dev = p["branches"]["development"]
 assert dev["requiredChecks"]["desired"] == [
-    "Linktrend Review Gate",
     "Verify IDE Development",
     "Linktrend Branch Source Policy",
 ], dev["requiredChecks"]["desired"]
@@ -512,7 +511,7 @@ p = json.loads(Path("${TMP}/plan-bp.json").read_text())
 assert p["capability"]["mechanism"] == "branch_protection"
 dev = p["branches"]["development"]
 assert "Legacy Check" in dev["requiredChecks"]["preserved"]
-assert "Linktrend Review Gate" in dev["requiredChecks"]["desired"]
+assert "Linktrend Review Gate" not in dev["requiredChecks"]["desired"]
 assert dev["action"] == "update"
 assert p["branches"]["staging"]["action"] == "create"
 print("bp ok")
