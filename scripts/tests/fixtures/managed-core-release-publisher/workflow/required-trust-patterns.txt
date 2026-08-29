@@ -15,6 +15,7 @@ must|managed_core_release_dispatch.py
 must|managed_core_release_publish.py
 must|--baseline-sha
 must|--baseline-ref
+must|fetch-depth: 0
 must|untrusted-source-data
 must|Bind data checkout HEAD
 must_not|pull_request.head.sha
