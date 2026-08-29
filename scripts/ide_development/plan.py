@@ -62,6 +62,8 @@ class PlanAction:
     classification: str = "missing"
     # Exact os.readlink() string for MIGRATE_SYMLINK (rollback restores it).
     symlink_target: str | None = None
+    # Resolution-bound provider preimage for a one-off consumer migration.
+    provider_source: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -78,6 +80,8 @@ class PlanAction:
             payload["mode"] = self.mode
         if self.symlink_target is not None:
             payload["symlinkTarget"] = self.symlink_target
+        if self.provider_source is not None:
+            payload["providerSource"] = self.provider_source
         return payload
 
 
@@ -413,6 +417,7 @@ def build_plan(
     prior: InstalledState | None,
     dry_run: bool,
     authorized_replacements: frozenset[str] = frozenset(),
+    authorized_provider_migrations: dict[str, str] | None = None,
 ) -> Plan:
     plan = Plan(
         command=command,
@@ -423,6 +428,7 @@ def build_plan(
 
     active_entries = list(manifest.active_entries())
     managed_paths = {e.destination for e in active_entries}
+    provider_migrations = authorized_provider_migrations or {}
 
     # Migratable consumer `.cursor` symlink → physical empty dir (then normal creates).
     migrate_ancestors: set[str] = set()
@@ -512,6 +518,65 @@ def build_plan(
                 source_hash=entry.source_hash,
                 mode=entry.mode,
                 classification=classification,
+            )
+        )
+
+    # A provider-preimage migration is deliberately not a normal manifest
+    # entry: it is admitted only by an exact resolution and is never inferred
+    # for ordinary installs.  Keep the action in the transaction so it gets
+    # the same backup, lease, rollback, and post-install verification rules.
+    for rel, source in sorted(provider_migrations.items()):
+        if rel in managed_paths:
+            plan.conflicts.append(
+                ConflictItem(
+                    ConflictKind.UNKNOWN_CONTENT,
+                    rel,
+                    "provider migration path is already a managed manifest destination",
+                )
+            )
+            continue
+        destination = dest_for(rel)
+        if path_is_symlink(destination) or not destination.is_file():
+            plan.conflicts.append(
+                ConflictItem(
+                    ConflictKind.NOT_A_FILE,
+                    rel,
+                    "provider migration requires an existing regular consumer file",
+                )
+            )
+            continue
+        actual_hash = sha256_file(destination)
+        provider_source = join_under_nofollow(package_root, source)
+        if path_is_symlink(provider_source) or not provider_source.is_file():
+            plan.conflicts.append(
+                ConflictItem(
+                    ConflictKind.UNKNOWN_CONTENT,
+                    rel,
+                    "provider migration preimage is missing or unsafe",
+                )
+            )
+            continue
+        provider_hash = sha256_file(provider_source)
+        if actual_hash == provider_hash:
+            plan.actions.append(
+                PlanAction(
+                    op=OpKind.NOOP,
+                    path=rel,
+                    reason="provider migration already matches exact preimage",
+                    source_hash=provider_hash,
+                    classification="match",
+                    provider_source=source,
+                )
+            )
+            continue
+        plan.actions.append(
+            PlanAction(
+                op=OpKind.REPLACE,
+                path=rel,
+                reason="explicit digest-bound provider migration",
+                source_hash=provider_hash,
+                classification="managed_upgrade",
+                provider_source=source,
             )
         )
 

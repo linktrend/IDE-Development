@@ -26,6 +26,15 @@ PROVIDER_INSTALLER_VERSION = "2.5.2"
 PROVIDER_COMMIT = "2c67523e6b4a0c598224d7905f20343f16254a3f"
 PROVIDER_TREE = "77ee2fdb6203732cf750f25c32920b53ef2c8b9b"
 PROVIDER_OWNERSHIP_CLASSES = frozenset({"managed", "managed-core", "managed-entrypoint"})
+PROVIDER_MIGRATION_PATH = ".github/linktrend-secret-scan-fixtures.json"
+PROVIDER_MIGRATION_SOURCE = (
+    "core/managed-core/migrations/known-bytes/"
+    "linktrading-secret-scan-fixtures-v2.5.2.json"
+)
+PROVIDER_MIGRATION_CONSUMER_COMMIT = "3e35cb314010a4b4f7678faf764947b4dd34807a"
+PROVIDER_MIGRATION_CONSUMER_TREE = "a5c9b0f024b6d78c18ab9a5d35b4935e7a6181d4"
+PROVIDER_MIGRATION_BASELINE = "sha256:cd3a24fef8347d5447b6c657b0329f3640c86150c4976e4eda0ce34cb09352e1"
+PROVIDER_MIGRATION_CURRENT = "sha256:498e1dea0915a09d40eca1379d4e13e52f0027800f2e94aea07bca8374428ec3"
 # These are the only managed files that the IDE provider may supersede in a
 # digest-bound upgrade. Keep this set explicit so a provider manifest cannot
 # become implicit overwrite authority.
@@ -76,6 +85,30 @@ class ConflictResolution:
 
 
 @dataclass(frozen=True)
+class ProviderSupersedesMigration:
+    path: str
+    source: str
+    old_digest: str
+    current_digest: str
+    provider_digest: str
+    old_bytes: int
+    current_bytes: int
+    provider_bytes: int
+    consumer_commit: str
+    consumer_tree: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "path": self.path,
+            "startingConsumer": {"commit": self.consumer_commit, "tree": self.consumer_tree},
+            "installedBaseline": {"bytes": self.old_bytes, "sha256": self.old_digest},
+            "currentConsumer": {"bytes": self.current_bytes, "sha256": self.current_digest},
+            "provider": {"source": self.source, "bytes": self.provider_bytes, "sha256": self.provider_digest},
+            "decision": "provider-supersedes",
+        }
+
+
+@dataclass(frozen=True)
 class UpgradeResolution:
     path: Path
     repository: str
@@ -94,13 +127,18 @@ class UpgradeResolution:
     installed_state_digest: str
     verification: dict[str, Any]
     raw_digest: str
+    provider_migrations: tuple[ProviderSupersedesMigration, ...] = ()
 
     @property
     def paths(self) -> frozenset[str]:
         return frozenset(item.path for item in self.conflicts)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"kind": KIND, "schemaVersion": 2, "repository": self.repository, "targetWorktree": self.target_worktree, "consumer": {"commit": self.commit, "tree": self.tree}, "provider": {"repository": self.provider_repository, "authoritativeRef": self.provider_authoritative_ref, "commit": self.provider_commit, "tree": self.provider_tree, "installerVersion": self.provider_installer_version, "packageSourceDigest": self.provider_source_digest}, "packageVersion": self.package_version, "manifestDigest": self.manifest_digest, "installedStateDigest": self.installed_state_digest, "conflicts": [item.to_dict() for item in self.conflicts], "verification": self.verification, "resolutionDigest": self.raw_digest}
+        return {"kind": KIND, "schemaVersion": 2, "repository": self.repository, "targetWorktree": self.target_worktree, "consumer": {"commit": self.commit, "tree": self.tree}, "provider": {"repository": self.provider_repository, "authoritativeRef": self.provider_authoritative_ref, "commit": self.provider_commit, "tree": self.provider_tree, "installerVersion": self.provider_installer_version, "packageSourceDigest": self.provider_source_digest}, "packageVersion": self.package_version, "manifestDigest": self.manifest_digest, "installedStateDigest": self.installed_state_digest, "conflicts": [item.to_dict() for item in self.conflicts], "providerSupersedesMigrations": [item.to_dict() for item in self.provider_migrations], "verification": self.verification, "resolutionDigest": self.raw_digest}
+
+    @property
+    def provider_migration_sources(self) -> dict[str, str]:
+        return {item.path: item.source for item in self.provider_migrations}
 
 
 def _git(root: Path, *args: str) -> str:
@@ -130,7 +168,10 @@ def _status_paths(root: Path) -> list[str]:
             raise InvalidPackageError("Resolution refuses malformed or rename/copy Git state")
         if line[:2] == "!!":
             continue
-        paths.append(as_posix_rel(line[3:]))
+        # _git() trims the command's surrounding whitespace, so an unstaged
+        # ` M path` record may arrive as `M path`.  Parse after the two status
+        # columns and the separator instead of dropping the first path byte.
+        paths.append(as_posix_rel(line[2:].lstrip(" ")))
     return paths
 
 
@@ -141,6 +182,41 @@ def _path(value: Any) -> str:
     if normalized != value:
         raise InvalidPackageError(f"Resolution path must be normalized: {value!r}")
     return normalized
+
+
+def _resolution_raw(path: Path) -> dict[str, Any]:
+    if not path.is_file() or path.is_symlink():
+        raise InvalidPackageError(f"Resolution manifest must be a physical file: {path}")
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise InvalidPackageError(f"Resolution manifest is not valid JSON: {path}") from exc
+    if not isinstance(raw, dict):
+        raise InvalidPackageError("Resolution manifest must be a JSON object")
+    return raw
+
+
+def load_provider_migration_hints(resolution_path: Path | None) -> dict[str, str]:
+    """Read only the exact source mapping needed to build a migration plan."""
+    if resolution_path is None:
+        return {}
+    raw = _resolution_raw(resolution_path)
+    rows = raw.get("providerSupersedesMigrations", [])
+    if rows == []:
+        return {}
+    if not isinstance(rows, list) or len(rows) != 1:
+        raise InvalidPackageError("Provider supersedes migrations must contain exactly one migration")
+    row = rows[0]
+    if not isinstance(row, dict):
+        raise InvalidPackageError("Provider supersedes migration must be an object")
+    path = _path(row.get("path"))
+    provider = row.get("provider")
+    if path != PROVIDER_MIGRATION_PATH or not isinstance(provider, dict):
+        raise InvalidPackageError("Provider supersedes migration path is not the authorized exact path")
+    source = provider.get("source")
+    if not isinstance(source, str) or source != PROVIDER_MIGRATION_SOURCE:
+        raise InvalidPackageError("Provider supersedes migration source is not the authorized exact preimage")
+    return {path: source}
 
 
 def _canonical_digest(value: Any) -> str:
@@ -234,12 +310,15 @@ def _validate_provider_entry(entry: Any, rel: str) -> None:
         raise InvalidPackageError(f"Provider source/digest is not bound to MANIFEST for {rel}")
 
 
-def _validate_observed_conflict_paths(paths: Iterable[str]) -> frozenset[str]:
+def _validate_observed_conflict_paths(
+    paths: Iterable[str], *, exact_additional_paths: Iterable[str] = ()
+) -> frozenset[str]:
     """Require a non-empty observed subset of the explicit provider allowlist."""
     observed = frozenset(paths)
     if not observed:
         raise InvalidPackageError("Observed conflicts must contain at least one managed path")
-    if not observed.issubset(ALLOWED_CONFLICT_PATHS):
+    additional = frozenset(_path(path) for path in exact_additional_paths)
+    if not observed.issubset(ALLOWED_CONFLICT_PATHS | additional):
         raise InvalidPackageError("Observed conflicts contain an undeclared managed path")
     return observed
 
@@ -274,10 +353,73 @@ def _validate_change_scoped_binding(verification: dict[str, Any]) -> None:
         raise InvalidPackageError("Change-scoped secret-scan evidence digest is stale")
 
 
-def load_and_validate_resolution(resolution_path: Path, *, target_root: Path, package_root: Path, package_version: str, package_manifest_digest: str, prior_package_version: str | None, prior_installed_state_digest: str | None = None, observed_conflicts: Iterable[tuple[str, str, str, str]]) -> UpgradeResolution:
+def _validate_provider_migration(
+    row: Any,
+    *,
+    target_root: Path,
+    package_root: Path,
+    consumer_commit: str,
+    consumer_tree: str,
+    manifest: dict[str, Any],
+) -> ProviderSupersedesMigration:
+    if not isinstance(row, dict) or row.get("decision") != "provider-supersedes":
+        raise InvalidPackageError("Provider supersedes migration decision is invalid")
+    path = _path(row.get("path"))
+    if path != PROVIDER_MIGRATION_PATH:
+        raise InvalidPackageError("Provider supersedes migration path is not authorized")
+    starting = row.get("startingConsumer")
+    if not isinstance(starting, dict) or starting.get("commit") != consumer_commit or starting.get("tree") != consumer_tree:
+        raise InvalidPackageError("Provider supersedes migration starting consumer identity is stale")
+    baseline = row.get("installedBaseline")
+    current = row.get("currentConsumer")
+    provider = row.get("provider")
+    if not isinstance(baseline, dict) or not isinstance(current, dict) or not isinstance(provider, dict):
+        raise InvalidPackageError("Provider supersedes migration file identities are incomplete")
+    old_digest = _digest(baseline.get("sha256"), f"{path}.installedBaseline")
+    current_digest = _digest(current.get("sha256"), f"{path}.currentConsumer")
+    provider_digest = _digest(provider.get("sha256"), f"{path}.provider")
+    if old_digest != PROVIDER_MIGRATION_BASELINE or current_digest != PROVIDER_MIGRATION_CURRENT:
+        raise InvalidPackageError("Provider supersedes migration consumer preimage is not the recorded exact correction")
+    if old_digest == current_digest:
+        raise InvalidPackageError("Provider supersedes migration must describe a distinct dirty correction")
+    source = provider.get("source")
+    if not isinstance(source, str) or _path(source) != PROVIDER_MIGRATION_SOURCE:
+        raise InvalidPackageError("Provider supersedes migration provider source is not exact")
+    provider_source = package_root / source
+    if provider_source.is_symlink() or not provider_source.is_file():
+        raise InvalidPackageError("Provider supersedes migration preimage is missing or unsafe")
+    manifest_sources = {
+        entry.get("source")
+        for entry in manifest.get("files", [])
+        if isinstance(entry, dict)
+    }
+    if source not in manifest_sources:
+        raise InvalidPackageError("Provider supersedes migration preimage is not in the package manifest")
+    if sha256_file(provider_source) != provider_digest or provider_source.stat().st_size != provider.get("bytes"):
+        raise InvalidPackageError("Provider supersedes migration provider preimage is stale")
+    destination = target_root / path
+    if destination.is_symlink() or not destination.is_file():
+        raise InvalidPackageError("Provider supersedes migration consumer path is not a regular file")
+    if sha256_file(destination) != current_digest or destination.stat().st_size != current.get("bytes"):
+        raise InvalidPackageError("Provider supersedes migration current consumer preimage is stale")
+    if not isinstance(baseline.get("bytes"), int) or baseline.get("bytes") < 0:
+        raise InvalidPackageError("Provider supersedes migration baseline byte count is invalid")
+    return ProviderSupersedesMigration(
+        path=path,
+        source=source,
+        old_digest=old_digest,
+        current_digest=current_digest,
+        provider_digest=provider_digest,
+        old_bytes=baseline["bytes"],
+        current_bytes=current["bytes"],
+        provider_bytes=provider["bytes"],
+        consumer_commit=consumer_commit,
+        consumer_tree=consumer_tree,
+    )
+
+
+def load_and_validate_resolution(resolution_path: Path, *, target_root: Path, package_root: Path, package_version: str, package_manifest_digest: str, prior_package_version: str | None, prior_installed_state_digest: str | None = None, observed_conflicts: Iterable[tuple[str, str, str, str]], observed_migrations: Iterable[tuple[str, str, str, str]] = ()) -> UpgradeResolution:
     path = resolution_path.resolve(strict=False)
-    if not path.is_file() or path.is_symlink():
-        raise InvalidPackageError(f"Resolution manifest must be a physical file: {path}")
     try:
         raw_bytes = path.read_bytes()
         raw = json.loads(raw_bytes.decode("utf-8"))
@@ -298,9 +440,23 @@ def load_and_validate_resolution(resolution_path: Path, *, target_root: Path, pa
     actual = (_git(target_root, "rev-parse", "--verify", "HEAD^{commit}"), _git(target_root, "rev-parse", "--verify", "HEAD^{tree}"))
     if (commit, tree) != actual:
         raise InvalidPackageError("Resolution consumer Git identity is stale")
+    migration_rows = raw.get("providerSupersedesMigrations", [])
+    if migration_rows == []:
+        migrations: tuple[ProviderSupersedesMigration, ...] = ()
+    elif not isinstance(migration_rows, list) or len(migration_rows) != 1:
+        raise InvalidPackageError("Provider supersedes migrations must contain exactly one migration")
+    else:
+        migrations = ()  # validated after provider/package identity is available
     status = _status_paths(target_root)
-    if status:
-        raise InvalidPackageError("Resolution requires a clean consumer worktree", details={"paths": status})
+    migration_paths = {
+        _path(row.get("path"))
+        for row in migration_rows
+        if isinstance(row, dict) and row.get("path") is not None
+    }
+    if status and set(status) != migration_paths:
+        raise InvalidPackageError("Resolution requires a clean consumer worktree except for the exact provider migration", details={"paths": status})
+    if migration_rows and migration_paths != {PROVIDER_MIGRATION_PATH}:
+        raise InvalidPackageError("Provider supersedes migration path set is not exact")
     provider = raw.get("provider")
     required_provider = {"repository", "authoritativeRef", "commit", "tree", "installerVersion", "phasePullRequest", "independentVerificationReceipt", "managedPackageManifest"}
     if not isinstance(provider, dict) or not required_provider.issubset(provider):
@@ -328,6 +484,23 @@ def load_and_validate_resolution(resolution_path: Path, *, target_root: Path, pa
     if raw.get("allowedConflictPaths") != sorted(ALLOWED_CONFLICT_PATHS):
         raise InvalidPackageError("Resolution allowedConflictPaths must exactly equal canonical scanner paths")
     expected = {rel: (old, current, provider_hash) for rel, old, current, provider_hash in observed_conflicts}
+    migration_expected = {rel: (old, current, provider_hash) for rel, old, current, provider_hash in observed_migrations}
+    if migration_rows:
+        migration_row = migration_rows[0]
+        migration_provider = migration_row.get("provider") if isinstance(migration_row, dict) else None
+        migration_baseline = migration_row.get("installedBaseline") if isinstance(migration_row, dict) else None
+        migration_current = migration_row.get("currentConsumer") if isinstance(migration_row, dict) else None
+        if not all(isinstance(item, dict) for item in (migration_baseline, migration_current, migration_provider)):
+            raise InvalidPackageError("Provider supersedes migration file identities are incomplete")
+        declared_migration = (
+            _digest(migration_baseline.get("sha256"), f"{PROVIDER_MIGRATION_PATH}.installedBaseline"),
+            _digest(migration_current.get("sha256"), f"{PROVIDER_MIGRATION_PATH}.currentConsumer"),
+            _digest(migration_provider.get("sha256"), f"{PROVIDER_MIGRATION_PATH}.provider"),
+        )
+        if migration_expected != {PROVIDER_MIGRATION_PATH: declared_migration}:
+            raise InvalidPackageError("Provider migration does not exactly match the observed correction")
+    elif migration_expected:
+        raise InvalidPackageError("Observed provider migration is not declared")
     observed_paths = _validate_observed_conflict_paths(expected)
     rows = raw.get("conflicts")
     if not isinstance(rows, list) or len(rows) != len(observed_paths) or {row.get("path") for row in rows if isinstance(row, dict)} != observed_paths:
@@ -389,4 +562,13 @@ def load_and_validate_resolution(resolution_path: Path, *, target_root: Path, pa
         raise InvalidPackageError("Resolution contains deferred or extra paths")
     if prior_package_version is not None and package_version < prior_package_version:
         raise InvalidPackageError("Managed upgrade resolution refuses package downgrade")
-    return UpgradeResolution(path, str(raw.get("repository", "")), target_worktree, commit, tree, str(provider["repository"]), str(provider["authoritativeRef"]), provider_commit, provider_tree, str(provider["installerVersion"]), provider_source_digest, package_version, tuple(sorted(resolutions, key=lambda item: item.path)), package_manifest_digest, baseline_digest, verification, "sha256:" + hashlib.sha256(raw_bytes).hexdigest())
+    if migration_rows:
+        migrations = (_validate_provider_migration(
+            migration_rows[0],
+            target_root=target_root,
+            package_root=package_root,
+            consumer_commit=commit,
+            consumer_tree=tree,
+            manifest=manifest,
+        ),)
+    return UpgradeResolution(path, str(raw.get("repository", "")), target_worktree, commit, tree, str(provider["repository"]), str(provider["authoritativeRef"]), provider_commit, provider_tree, str(provider["installerVersion"]), provider_source_digest, package_version, tuple(sorted(resolutions, key=lambda item: item.path)), package_manifest_digest, baseline_digest, verification, "sha256:" + hashlib.sha256(raw_bytes).hexdigest(), migrations)

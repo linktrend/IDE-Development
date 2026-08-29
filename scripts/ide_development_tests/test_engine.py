@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import stat
+import subprocess
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -18,7 +19,10 @@ from ide_development.constants import (
     EXIT_OK,
 )
 from ide_development.engine import (
+    POST_INSTALL_LARGE_SCAN_BYTES,
     _run_post_install_secret_scan,
+    _post_install_scan_timeout,
+    _total_regular_worktree_bytes,
     run_drift,
     run_install_or_update,
     run_plan,
@@ -45,6 +49,30 @@ from ide_development_tests import TempRepoTestCase, FIXTURE_PACKAGE
 
 
 class EngineTests(TempRepoTestCase):
+    def test_small_worktree_uses_normal_full_scan_timeout(self) -> None:
+        self.assertLess(_total_regular_worktree_bytes(self.target), POST_INSTALL_LARGE_SCAN_BYTES)
+        self.assertEqual(_post_install_scan_timeout(self.target), 60.0)
+
+    def test_total_worktree_bytes_include_untracked_files_for_extended_timeout(self) -> None:
+        tracked = self.target / "tracked-sparse.bin"
+        with tracked.open("wb") as handle:
+            handle.truncate(POST_INSTALL_LARGE_SCAN_BYTES - 4096)
+        subprocess.run(["git", "add", tracked.name], cwd=self.target, check=True, capture_output=True)
+
+        untracked = self.target / "untracked-sparse.bin"
+        with untracked.open("wb") as handle:
+            handle.truncate(8192)
+
+        tracked_bytes = sum(
+            path.lstat().st_size
+            for path in (self.target / "README.md", tracked)
+            if stat.S_ISREG(path.lstat().st_mode)
+        )
+        total_bytes = _total_regular_worktree_bytes(self.target)
+        self.assertLess(tracked_bytes, POST_INSTALL_LARGE_SCAN_BYTES)
+        self.assertGreaterEqual(total_bytes, POST_INSTALL_LARGE_SCAN_BYTES)
+        self.assertEqual(_post_install_scan_timeout(self.target), 300.0)
+
     def test_post_install_scoped_scan_uses_bound_evidence_and_removes_temp_file(self) -> None:
         scanner = self.target / "scripts/gitops/secret_scan.py"
         scanner.parent.mkdir(parents=True)
@@ -77,7 +105,10 @@ class EngineTests(TempRepoTestCase):
         seen: dict[str, object] = {}
 
         def fake_run(args, **kwargs):
+            if args[:3] == ["git", "ls-files", "-z"]:
+                return SimpleNamespace(returncode=0, stdout=b"")
             seen["args"] = args
+            seen["timeout"] = kwargs["timeout"]
             evidence_path = Path(args[args.index("--baseline-evidence") + 1])
             seen["evidence"] = json.loads(evidence_path.read_text(encoding="utf-8"))
             seen["exists_during_scan"] = evidence_path.exists()
@@ -91,6 +122,25 @@ class EngineTests(TempRepoTestCase):
         self.assertTrue(seen["exists_during_scan"])
         evidence_path = Path(seen["args"][seen["args"].index("--baseline-evidence") + 1])
         self.assertFalse(evidence_path.exists())
+
+    def test_post_install_large_consumer_uses_bounded_extended_full_scan_timeout(self) -> None:
+        scanner = self.target / "scripts/gitops/secret_scan.py"
+        scanner.parent.mkdir(parents=True)
+        scanner.write_text("# cleanroom scanner fixture\n", encoding="utf-8")
+        seen: dict[str, object] = {}
+
+        def fake_run(args, **kwargs):
+            seen["args"] = args
+            seen["timeout"] = kwargs["timeout"]
+            return SimpleNamespace(returncode=0)
+
+        with patch("ide_development.engine._post_install_scan_timeout", return_value=300.0):
+            with patch("ide_development.engine.subprocess.run", side_effect=fake_run):
+                result = _run_post_install_secret_scan(target_root=self.target, resolution=None)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["mode"], "full")
+        self.assertEqual(result["timeoutSeconds"], 300.0)
+        self.assertEqual(seen["timeout"], 300.0)
 
     def test_post_install_full_scan_remains_full_and_timeout_is_typed(self) -> None:
         scanner = self.target / "scripts/gitops/secret_scan.py"
@@ -107,6 +157,31 @@ class EngineTests(TempRepoTestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["mode"], "full")
         self.assertEqual(result["errorType"], "timeout")
+        self.assertEqual(result["timeoutSeconds"], 60.0)
+
+    def test_post_install_full_scan_nonzero_exit_remains_fail_closed(self) -> None:
+        scanner = self.target / "scripts/gitops/secret_scan.py"
+        scanner.parent.mkdir(parents=True)
+        scanner.write_text("# cleanroom scanner fixture\n", encoding="utf-8")
+
+        with patch(
+            "ide_development.engine.subprocess.run",
+            return_value=SimpleNamespace(returncode=7),
+        ) as run:
+            result = _run_post_install_secret_scan(target_root=self.target, resolution=None)
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["mode"], "full")
+        self.assertEqual(result["exitCode"], 7)
+        self.assertEqual(result["timeoutSeconds"], 60.0)
+        run.assert_called_once()
+
+    def test_post_install_scan_missing_scanner_remains_fail_closed(self) -> None:
+        result = _run_post_install_secret_scan(target_root=self.target, resolution=None)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["mode"], "full")
+        self.assertEqual(result["errorType"], "missing-scanner")
+
     def test_version(self) -> None:
         result = run_version(package=self.package)
         self.assertEqual(result.exit_code, EXIT_OK)

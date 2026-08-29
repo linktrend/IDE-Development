@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -22,7 +23,11 @@ from .transaction import apply_plan, current_tx_dir, read_journal, recover_inter
 from .io_atomic import atomic_write_bytes
 from .hashing import sha256_file
 from .managed_write_guard import export_candidate
-from .resolution import UpgradeResolution, load_and_validate_resolution
+from .resolution import (
+    UpgradeResolution,
+    load_and_validate_resolution,
+    load_provider_migration_hints,
+)
 
 
 CONSUMER_CONFIG = Path(".github/linktrend-gitops-consumer.json")
@@ -30,6 +35,9 @@ MANAGED_FAST_WORKFLOW = "Linktrend Fast Checks"
 MANAGED_RUNNER_TYPE = "github-hosted"
 RETIRED_RUNNER_TYPE = "linktrend-private-macos-arm64"
 CI_CONTRACT_MODULE_REL = Path("scripts/gitops/repository_ci_contract.py")
+POST_INSTALL_SCAN_TIMEOUT_SECONDS = 60.0
+POST_INSTALL_LARGE_SCAN_TIMEOUT_SECONDS = 300.0
+POST_INSTALL_LARGE_SCAN_BYTES = 512 * 1024 * 1024
 
 
 def _load_repository_ci_contract_module(package_root: Path):
@@ -252,6 +260,7 @@ def _resolve_authorized_upgrade(
         return None
     entries = {entry.destination: entry for entry in manifest.active_entries()}
     observed: list[tuple[str, str, str, str]] = []
+    observed_migrations: list[tuple[str, str, str, str]] = []
     for conflict in plan.conflicts:
         if conflict.kind.value != "hash_mismatch_owned":
             raise InvalidPackageError(
@@ -266,6 +275,26 @@ def _resolve_authorized_upgrade(
         observed.append(
             (conflict.path, prior_file.content_hash, sha256_file(destination), entry.source_hash)
         )
+    migration_rows = []
+    if resolution_manifest is not None:
+        raw = json.loads(resolution_manifest.read_text(encoding="utf-8"))
+        migration_rows = raw.get("providerSupersedesMigrations", [])
+        if migration_rows:
+            row = migration_rows[0]
+            migration_rows = [row]
+            migration_path = row.get("path")
+            baseline = row.get("installedBaseline", {})
+            current = row.get("currentConsumer", {})
+            provider = row.get("provider", {})
+            if migration_path not in {item[0] for item in observed_migrations}:
+                observed_migrations.append(
+                    (
+                        migration_path,
+                        baseline.get("sha256"),
+                        current.get("sha256"),
+                        provider.get("sha256"),
+                    )
+                )
     resolution = load_and_validate_resolution(
         resolution_manifest,
         target_root=target_root,
@@ -279,6 +308,7 @@ def _resolve_authorized_upgrade(
             else None
         ),
         observed_conflicts=observed,
+        observed_migrations=observed_migrations,
     )
     return resolution
 
@@ -312,6 +342,8 @@ def _post_install_verification(
         result["selfScanExitCode"] = scan_exit
     if scan_error_type is not None:
         result["selfScanErrorType"] = scan_error_type
+    if scan.get("timeoutSeconds") is not None:
+        result["selfScanTimeoutSeconds"] = scan["timeoutSeconds"]
     if not all(result[key] in {"pass", "receipt-bound-pass"} for key in ("manifest", "managedHashes", "closure", "selfScan", "cleanroom")):
         raise InvalidPackageError("Post-install managed upgrade verification failed", details=result)
     return result
@@ -327,6 +359,7 @@ def _run_post_install_secret_scan(
 
     scan_args = [sys.executable, str(scanner), "--repo", str(target_root)]
     scan_mode = "full"
+    timeout_seconds = _post_install_scan_timeout(target_root)
     evidence_file: Path | None = None
     scoped = resolution.verification.get("changeScopedSecretScan") if resolution is not None else None
     if scoped is not None:
@@ -343,20 +376,77 @@ def _run_post_install_secret_scan(
             )
             scan_args.extend(["--baseline-evidence", str(evidence_file)])
             result = subprocess.run(
-                scan_args, cwd=target_root, text=True, capture_output=True, timeout=60, check=False
+                scan_args, cwd=target_root, text=True, capture_output=True, timeout=timeout_seconds, check=False
             )
         except subprocess.TimeoutExpired:
-            return {"ok": False, "mode": scan_mode, "errorType": "timeout"}
+            return {"ok": False, "mode": scan_mode, "errorType": "timeout", "timeoutSeconds": timeout_seconds}
         finally:
             evidence_file.unlink(missing_ok=True)
     else:
         try:
             result = subprocess.run(
-                scan_args, cwd=target_root, text=True, capture_output=True, timeout=60, check=False
+                scan_args, cwd=target_root, text=True, capture_output=True, timeout=timeout_seconds, check=False
             )
         except subprocess.TimeoutExpired:
-            return {"ok": False, "mode": scan_mode, "errorType": "timeout"}
-    return {"ok": result.returncode == 0, "mode": scan_mode, "exitCode": result.returncode}
+            return {"ok": False, "mode": scan_mode, "errorType": "timeout", "timeoutSeconds": timeout_seconds}
+    return {
+        "ok": result.returncode == 0,
+        "mode": scan_mode,
+        "exitCode": result.returncode,
+        "timeoutSeconds": timeout_seconds,
+    }
+
+
+def _post_install_scan_timeout(target_root: Path) -> float:
+    """Use a larger bounded budget only for a deterministically large tree.
+
+    The scan remains full and a timeout remains a hard failure.  Count the
+    consumer worktree itself so untracked regular files that are part of the
+    worktree contribute to the deterministic size decision.  Git metadata and
+    symlinks are not worktree content.
+    """
+    try:
+        total_bytes = _total_regular_worktree_bytes(target_root)
+        if total_bytes >= POST_INSTALL_LARGE_SCAN_BYTES:
+            return POST_INSTALL_LARGE_SCAN_TIMEOUT_SECONDS
+    except (OSError, subprocess.SubprocessError):
+        return POST_INSTALL_SCAN_TIMEOUT_SECONDS
+    return POST_INSTALL_SCAN_TIMEOUT_SECONDS
+
+
+def _total_regular_worktree_bytes(target_root: Path) -> int:
+    """Return the total size of regular, non-symlink worktree files.
+
+    ``os.walk`` is ordered explicitly and raises on traversal errors so the
+    timeout decision is reproducible and fail-closed.  ``.git`` is repository
+    metadata rather than consumer worktree content, including the gitfile in
+    a linked worktree.
+    """
+
+    def raise_walk_error(error: OSError) -> None:
+        raise error
+
+    total_bytes = 0
+    for root, directory_names, file_names in os.walk(
+        target_root,
+        topdown=True,
+        onerror=raise_walk_error,
+        followlinks=False,
+    ):
+        root_path = Path(root)
+        directory_names[:] = sorted(
+            name
+            for name in directory_names
+            if name != ".git" and not (root_path / name).is_symlink()
+        )
+        for name in sorted(file_names):
+            if name == ".git":
+                continue
+            candidate = root_path / name
+            metadata = candidate.lstat()
+            if stat.S_ISREG(metadata.st_mode):
+                total_bytes += metadata.st_size
+    return total_bytes
 
 
 def run_plan(
@@ -384,6 +474,7 @@ def run_plan(
         migration=migration,
         prior=prior,
         dry_run=True,
+        authorized_provider_migrations=load_provider_migration_hints(resolution_manifest),
     )
     resolution = _resolve_authorized_upgrade(
         resolution_manifest=resolution_manifest,
@@ -403,6 +494,7 @@ def run_plan(
             prior=prior,
             dry_run=True,
             authorized_replacements=resolution.paths,
+            authorized_provider_migrations=resolution.provider_migration_sources,
         )
     ci_trigger_audit = _repository_ci_trigger_audit(package_root, target_root)
     exit_code = EXIT_CONFLICT if plan.has_conflicts else EXIT_OK
@@ -454,6 +546,7 @@ def run_install_or_update(
         migration=migration,
         prior=prior,
         dry_run=dry_run,
+        authorized_provider_migrations=load_provider_migration_hints(resolution_manifest),
     )
     resolution = _resolve_authorized_upgrade(
         resolution_manifest=resolution_manifest,
@@ -477,6 +570,7 @@ def run_install_or_update(
             prior=prior,
             dry_run=dry_run,
             authorized_replacements=resolution.paths,
+            authorized_provider_migrations=resolution.provider_migration_sources,
         )
     ci_trigger_audit = _repository_ci_trigger_audit(package_root, target_root)
     payload = _plan_payload(

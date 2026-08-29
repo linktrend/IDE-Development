@@ -221,6 +221,14 @@ def apply_action(
             remove_file(dest)
         return
     entry = entries.get(action.path)
+    if action.provider_source is not None:
+        source = join_under(package_root, action.provider_source)
+        if path_is_symlink(source) or not source.is_file():
+            raise ConflictError(
+                f"Provider migration source is missing or unsafe: {action.provider_source}"
+            )
+        copy_file_physical(source, dest, mode="0644")
+        return
     if entry is None:
         raise ConflictError(f"No manifest entry for action path {action.path}")
     source = join_under(package_root, entry.source)
@@ -288,6 +296,11 @@ def build_next_state(
     entries = _entry_map(manifest)
     for action in actions:
         if action.op == OpKind.MIGRATE_SYMLINK:
+            continue
+        if action.provider_source is not None:
+            # Provider-preimage migrations are one-off consumer corrections.
+            # They are protected by the transaction but remain consumer-owned
+            # rather than silently becoming ordinary managed-state entries.
             continue
         if action.op == OpKind.REMOVE:
             files.pop(action.path, None)
@@ -586,6 +599,13 @@ def _apply_plan_unlocked(
             if path_is_symlink(destination) or not destination.is_file() or sha256_file(destination) != item.current_digest:
                 raise ConflictError(
                     "Managed upgrade resolution became stale before apply",
+                    details={"path": item.path},
+                )
+        for item in resolution.provider_migrations:
+            destination = join_under_nofollow(target_root, item.path)
+            if path_is_symlink(destination) or not destination.is_file() or sha256_file(destination) != item.current_digest:
+                raise ConflictError(
+                    "Provider migration became stale before apply",
                     details={"path": item.path},
                 )
         state_path = join_under_nofollow(target_root, ".ide-development/installed-state.json")

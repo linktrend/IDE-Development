@@ -11,6 +11,8 @@ from ide_development.resolution import (
     ALLOWED_CONFLICT_PATHS,
     KIND,
     PROVIDER_COMMIT,
+    PROVIDER_MIGRATION_PATH,
+    PROVIDER_MIGRATION_SOURCE,
     PROVIDER_TREE,
     _canonical_digest,
     _package_source_digest,
@@ -19,6 +21,7 @@ from ide_development.resolution import (
     _path,
     _validate_observed_conflict_paths,
     _validate_change_scoped_binding,
+    load_provider_migration_hints,
     load_and_validate_resolution,
 )
 from ide_development_tests import TempRepoTestCase
@@ -212,6 +215,41 @@ class ResolutionTests(TempRepoTestCase):
         for value in ("../escape", "scripts/../escape", "*"):
             with self.assertRaises(InvalidPackageError):
                 _path(value)
+
+    def test_provider_migration_hint_is_exact_and_non_wildcard(self) -> None:
+        path = Path(self._tmp.name) / "migration.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "providerSupersedesMigrations": [
+                        {
+                            "path": PROVIDER_MIGRATION_PATH,
+                            "provider": {"source": PROVIDER_MIGRATION_SOURCE},
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            load_provider_migration_hints(path),
+            {PROVIDER_MIGRATION_PATH: PROVIDER_MIGRATION_SOURCE},
+        )
+        path.write_text(
+            json.dumps(
+                {
+                    "providerSupersedesMigrations": [
+                        {
+                            "path": "*.json",
+                            "provider": {"source": PROVIDER_MIGRATION_SOURCE},
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaises(InvalidPackageError):
+            load_provider_migration_hints(path)
 
     def test_rejects_resolution_without_exact_conflict_set(self) -> None:
         path = Path(self._tmp.name) / "incomplete.json"
