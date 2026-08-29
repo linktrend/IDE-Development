@@ -22,6 +22,25 @@ from ide_development.openclaw_customization_admission import (  # noqa: E402
     admit_openclaw_customization,
 )
 
+SCHEMA_SOURCE = "core/managed-core/schemas/openclaw-customization-admission.schema.json"
+SCHEMA_DEST = ".ide-development/schemas/openclaw-customization-admission.schema.json"
+# Forbidden whole trees from OpenClaw Prime checkpoint
+# ab288dbe8d5fc64978db8eee9e6507b6372c1880; admission must never check them.
+FORBIDDEN_UPSTREAM_TREES = (
+    "src",
+    "extensions",
+    "ui",
+    "apps",
+    "packages",
+    "test",
+    "qa",
+    "skills",
+    "security",
+    "examples",
+    "config",
+    "deploy",
+)
+
 
 CONSUMER_COMMIT = "a" * 40
 CONSUMER_TREE = "b" * 40
@@ -159,6 +178,39 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
         self.assertEqual(schema["properties"]["installerVersion"]["const"], "2.5.2")
         self.assertIn("checkedPaths", schema["properties"])
         self.assertNotIn("wholeRepositoryBaseline", schema["properties"])
+
+    def test_schema_is_closed_in_generated_manifest(self) -> None:
+        payload = json.loads((ROOT / "core/managed-core/MANIFEST.json").read_text(encoding="utf-8"))
+        sources = {row["source"] for row in payload["files"]}
+        destinations = {row["destination"] for row in payload["files"]}
+        self.assertIn(SCHEMA_SOURCE, sources)
+        self.assertIn(SCHEMA_DEST, destinations)
+
+    def test_openclaw_boundary_kind_fails_closed_without_scanning(self) -> None:
+        _write_manifest(
+            self.manifest_path,
+            {
+                "schemaVersion": 1,
+                "kind": "openclaw-prime-customization-boundary",
+                "repository": "linktrend/openclaw_prime",
+                "installerVersion": "2.5.2",
+                "consumer": {"commit": self.commit, "tree": self.tree},
+                "upstream": {"commit": UPSTREAM_COMMIT, "tree": UPSTREAM_TREE},
+                "customizationPaths": [CUSTOM_PATH],
+                "acceptedFindings": [],
+            },
+        )
+        with self.assertRaisesRegex(Exception, "stale-manifest"):
+            self._admit()
+        self.assertEqual(self.scanned, [])
+
+    def test_forbidden_upstream_trees_are_absent_from_checked_paths(self) -> None:
+        _write_manifest(self.manifest_path, _base_manifest(commit=self.commit, tree=self.tree))
+        result = self._admit()
+        for path in result["checkedPaths"] + self.scanned[0]:
+            first = path.split("/", 1)[0]
+            self.assertNotIn(first, FORBIDDEN_UPSTREAM_TREES)
+            self.assertNotEqual(path, UPSTREAM_PATH)
 
     def test_admits_customization_and_managed_paths_without_scanning_upstream(self) -> None:
         _write_manifest(self.manifest_path, _base_manifest(commit=self.commit, tree=self.tree))

@@ -2852,6 +2852,17 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "core-schemas-openclaw-customization-admission-schema-json",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/schemas/openclaw-customization-admission.schema.json",
+      "sourceHash": "sha256:ef020d9a33f6b6029654df7a80e4d70bc4853988e0161482552d162d96ab16d0",
+      "destination": ".ide-development/schemas/openclaw-customization-admission.schema.json",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "core-schemas-phase-handoff-schema-json",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/schemas/phase-handoff.schema.json",
@@ -4680,7 +4691,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:d6e9683f9cc1d36207cc4c8497ed861e62b9db8440d529fc7a4d386b9e1f3835",
+      "sourceHash": "sha256:972e60fe0829b7b1f9df17250a38da340ff9dc4652c94929e44aa4b4d30aeb13",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",
