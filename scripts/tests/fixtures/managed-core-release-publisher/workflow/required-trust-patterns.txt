@@ -3,6 +3,8 @@
 # kind: must | must_not
 must|workflow_dispatch
 must|source_sha
+must|baseline_sha
+must|baseline_ref
 must|dry_run
 must|github.event.repository.default_branch
 must|persist-credentials: false
@@ -11,6 +13,8 @@ must|contents: write
 must|GH_TOKEN: ${{ github.token }}
 must|managed_core_release_dispatch.py
 must|managed_core_release_publish.py
+must|--baseline-sha
+must|--baseline-ref
 must|untrusted-source-data
 must|Bind data checkout HEAD
 must_not|pull_request.head.sha
