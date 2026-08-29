@@ -51,6 +51,30 @@ def write_manifest(root: Path, payload: dict) -> Path:
 
 
 class RuntimePreflightTests(unittest.TestCase):
+    def test_packaged_manifest_resolves_installed_configuration_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest_file = root / preflight.PACKAGED_MANIFEST_RELATIVE_PATH
+            manifest_file.parent.mkdir(parents=True)
+            self.assertEqual(
+                preflight._required_config_path(
+                    root,
+                    manifest_file,
+                    "core/managed-core/config/generated-output-closure.json",
+                    "requiredConfig",
+                ),
+                root / ".ide-development/config/generated-output-closure.json",
+            )
+            self.assertEqual(
+                preflight._required_config_path(
+                    root,
+                    manifest_file,
+                    ".github/linktrend-delivery-mode.json",
+                    "requiredConfig",
+                ),
+                root / ".ide-development/config/delivery.json",
+            )
+
     def test_checked_in_manifest_is_schema_valid_and_versioned(self) -> None:
         schema = json.loads((ROOT / "core/managed-core/schemas/toolchain-manifest.schema.json").read_text(encoding="utf-8"))
         payload = json.loads((ROOT / "core/managed-core/content/config/toolchain-manifest.json").read_text(encoding="utf-8"))
