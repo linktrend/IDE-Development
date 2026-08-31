@@ -17,6 +17,7 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from ide_development.openclaw_customization_admission import (  # noqa: E402
+    BASELINE_KIND,
     BOUNDARY_KIND,
     BOUNDARY_REL,
     KIND,
@@ -115,16 +116,26 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
     def _scanner(self, result: dict[str, Any] | None = None):
         def scan(paths: list[str]) -> dict[str, Any]:
             self.scanned.append(list(paths))
-            return result or {"ok": True, "findings": []}
+            payload = dict(result or {"ok": True, "findings": []})
+            payload.setdefault("candidateCommit", PRIME_COMMIT)
+            payload.setdefault("candidateGitTree", PRIME_TREE)
+            payload.setdefault("repository", "linktrend/openclaw_prime")
+            payload.setdefault("scannerPolicyVersion", "secret-scan-policy/v1")
+            return payload
 
         return scan
 
-    def _admit(self, *, scanner=None) -> dict[str, Any]:
+    def _admit(self, *, scanner=None, baseline=None, capture=None) -> dict[str, Any]:
         return admit_openclaw_customization(
             consumer_root=self.consumer,
             boundary_path=self.boundary_path,
             scanner=scanner or self._scanner(),
+            pre_install_baseline=baseline,
+            capture_baseline=baseline is None if capture is None else capture,
         )
+
+    def _capture_baseline(self, *, scanner=None) -> dict[str, Any]:
+        return self._admit(scanner=scanner)["preInstallBaseline"]
 
     def test_schema_is_present_and_managed(self) -> None:
         schema = json.loads((ROOT / SCHEMA_REL).read_text(encoding="utf-8"))
@@ -136,6 +147,8 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
     def test_live_boundary_kind_is_admitted_without_stale_manifest_digest(self) -> None:
         result = self._admit()
         self.assertEqual(result["verdict"], "admitted")
+        self.assertEqual(result["baselineComparison"], "captured")
+        self.assertEqual(result["preInstallBaseline"]["kind"], BASELINE_KIND)
         self.assertEqual(result["prime"]["commit"], PRIME_COMMIT)
         self.assertEqual(
             result["upstream"]["classificationPin"]["tree"], UPSTREAM_TREE
@@ -177,6 +190,7 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
         self.assertEqual(self.scanned, [])
 
     def test_new_finding_and_skipped_input_fail_closed(self) -> None:
+        baseline = self._capture_baseline()
         for kind, expected in (("credential_finding", "new-or-changed-finding"), ("skipped_input", "new-skipped-input")):
             with self.subTest(kind=kind):
                 with self.assertRaisesRegex(OpenClawAdmissionError, expected):
@@ -188,16 +202,69 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
                                     {"kind": kind, "path": CUSTOM_PATH, "rule": "test.rule"}
                                 ],
                             }
-                        )
+                        ),
+                        baseline=baseline,
                     )
 
     def test_exact_pre_existing_finding_is_allowed_and_returned_as_object(self) -> None:
         finding = {"kind": "credential_finding", "path": CUSTOM_PATH, "rule": "test.rule"}
-        result = self._admit(
-            scanner=self._scanner({"ok": False, "findings": [finding], "baselineFindings": [finding]})
+        baseline = self._capture_baseline(
+            scanner=self._scanner({"ok": False, "findings": [finding]})
         )
-        self.assertEqual(result["findings"], [finding])
-        self.assertEqual(result["preExistingFindings"], [finding])
+        result = self._admit(
+            scanner=self._scanner({"ok": False, "findings": [finding]}),
+            baseline=baseline,
+        )
+        self.assertEqual(result["baselineComparison"], "compared")
+        self.assertEqual(result["findings"][0]["kind"], finding["kind"])
+        self.assertIn("contentDigest", result["findings"][0])
+
+    def test_pre_existing_skipped_binary_is_allowed_only_when_bytes_are_unchanged(self) -> None:
+        finding = {"kind": "skipped_input", "path": CUSTOM_PATH, "rule": "input.binary"}
+        baseline = self._capture_baseline(scanner=self._scanner({"ok": False, "findings": [finding]}))
+        result = self._admit(
+            scanner=self._scanner({"ok": False, "findings": [finding]}),
+            baseline=baseline,
+        )
+        self.assertEqual(result["findings"][0]["kind"], "skipped_input")
+
+        (self.consumer / CUSTOM_PATH).write_text("changed\n", encoding="utf-8")
+        with self.assertRaisesRegex(OpenClawAdmissionError, "new-skipped-input"):
+            self._admit(
+                scanner=self._scanner({"ok": False, "findings": [finding]}),
+                baseline=baseline,
+            )
+
+    def test_missing_baseline_identity_is_rejected(self) -> None:
+        baseline = self._capture_baseline()
+        del baseline["identity"]["tree"]
+        with self.assertRaisesRegex(OpenClawAdmissionError, "missing-baseline-identity"):
+            self._admit(baseline=baseline, capture=False)
+
+    def test_missing_baseline_is_rejected_before_scanning(self) -> None:
+        with self.assertRaisesRegex(OpenClawAdmissionError, "missing-baseline-identity"):
+            self._admit(capture=False)
+
+    def test_scanner_cannot_supply_its_own_baseline(self) -> None:
+        with self.assertRaisesRegex(OpenClawAdmissionError, "scanner-error"):
+            self._admit(scanner=self._scanner({"baselineFindings": []}))
+
+    def test_finding_outside_scope_is_rejected(self) -> None:
+        with self.assertRaisesRegex(OpenClawAdmissionError, "out-of-scope-finding"):
+            self._admit(
+                scanner=self._scanner(
+                    {
+                        "ok": False,
+                        "findings": [
+                            {
+                                "kind": "skipped_input",
+                                "path": "test/upstream.bin",
+                                "rule": "input.binary",
+                            }
+                        ],
+                    }
+                )
+            )
 
     def test_missing_legacy_inputs_are_omitted_from_scan(self) -> None:
         missing = "core/legacy-package-path.py"
@@ -219,7 +286,7 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
     def test_non_252_installed_state_is_rejected(self) -> None:
         state_path = self.consumer / ".ide-development/installed-state.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
-        state["packageVersion"] = "2.5.1"
+        state["packageVersion"] = "2.5.0"
         state_path.write_text(json.dumps(state) + "\n", encoding="utf-8")
         with self.assertRaisesRegex(OpenClawAdmissionError, "ide-package-version-mismatch"):
             self._admit()
@@ -242,7 +309,14 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
             def scan_repository(root: Path, *, paths: list[str]) -> dict[str, Any]:
                 del root
                 seen.append(list(paths))
-                return {"ok": True, "findings": []}
+                return {
+                    "ok": True,
+                    "findings": [],
+                    "candidateCommit": PRIME_COMMIT,
+                    "candidateGitTree": PRIME_TREE,
+                    "repository": "linktrend/openclaw_prime",
+                    "scannerPolicyVersion": "secret-scan-policy/v1",
+                }
 
         with patch.object(engine, "_load_secret_scan_module", return_value=ScannerModule):
             result = engine._openclaw_admission(ROOT, self.consumer)

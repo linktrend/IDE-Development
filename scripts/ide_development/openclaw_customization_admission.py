@@ -8,6 +8,7 @@ upstream OpenClaw is never scanned and never required to be repaired.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 from pathlib import Path, PurePosixPath
@@ -15,6 +16,8 @@ from typing import Any, Callable, Mapping
 
 from .errors import InvalidPackageError
 KIND = "openclaw-customization-admission"
+BASELINE_KIND = "openclaw-customization-admission-baseline"
+BASELINE_SCHEMA_VERSION = 1
 BOUNDARY_KIND = "openclaw-prime-customization-boundary"
 INSTALLER_VERSION = "2.5.2"
 REPOSITORY = "linktrend/openclaw_prime"
@@ -149,10 +152,6 @@ def _boundary(path: Path) -> dict[str, Any]:
             {"receiptPath": receipt, "paths": [_require_relpath(item, "boundary-invalid") for item in paths]}
         )
 
-    baseline_raw = payload.get("preExistingFindings", [])
-    if not isinstance(baseline_raw, list):
-        raise OpenClawAdmissionError("boundary-invalid")
-    baseline_findings = [_finding(item) for item in baseline_raw]
     declared_missing = ide.get("declaredMissingLocally") or []
     if not isinstance(declared_missing, list):
         raise OpenClawAdmissionError("boundary-invalid")
@@ -179,7 +178,6 @@ def _boundary(path: Path) -> dict[str, Any]:
             "declaredMissingLocally": declared_missing,
         },
         "transaction": {"records": records, "paths": transaction_paths},
-        "preExistingFindings": baseline_findings,
     }
 
 
@@ -215,6 +213,11 @@ def _finding(raw: Any) -> dict[str, Any]:
         if not isinstance(detail, str) or not detail:
             raise OpenClawAdmissionError("scanner-error")
         row["detail"] = detail
+    if "contentDigest" in raw:
+        content_digest = raw["contentDigest"]
+        if not isinstance(content_digest, str) or not DIGEST.fullmatch(content_digest):
+            raise OpenClawAdmissionError("scanner-error")
+        row["contentDigest"] = content_digest
     return row
 
 
@@ -273,14 +276,16 @@ def _owned_paths(root: Path, boundary: Mapping[str, Any]) -> set[str]:
     return paths
 
 
-def _declared_ide_paths(root: Path, boundary: Mapping[str, Any]) -> set[str]:
+def _declared_ide_paths(
+    root: Path, boundary: Mapping[str, Any], *, allowed_versions: set[str]
+) -> set[str]:
     inventory = root / INSTALLED_STATE_REL
     if not inventory.exists():
         return set()
     raw = _load_json(inventory, "ide-inventory-invalid")
     if not isinstance(raw, Mapping) or not isinstance(raw.get("files"), Mapping):
         raise OpenClawAdmissionError("ide-inventory-invalid")
-    if raw.get("packageVersion") != INSTALLER_VERSION:
+    if raw.get("packageVersion") not in allowed_versions:
         raise OpenClawAdmissionError("ide-package-version-mismatch")
     paths: set[str] = set()
     for value in raw["files"]:
@@ -332,59 +337,54 @@ def _run_scanner(scanner: Scanner, paths: list[str]) -> Mapping[str, Any]:
         raise OpenClawAdmissionError("scanner-error")
     if not isinstance(result.get("ok"), bool):
         raise OpenClawAdmissionError("scanner-error")
+    # A post-install scanner cannot smuggle an untrusted baseline alongside
+    # its findings. Baselines are captured before installation and carried by
+    # the transaction caller.
+    if "baselineFindings" in result or "preExistingFindings" in result:
+        raise OpenClawAdmissionError("scanner-error")
     return result
 
 
 def _finding_key(row: Mapping[str, Any]) -> str:
     # Findings are compared after strict shape validation and without secret
-    # values. The digest/line/field binding keeps an old finding from masking
-    # a changed customization.
+    # values. The finding and physical-content digests keep an old finding or
+    # skipped binary from masking a changed customization.
     return json.dumps(dict(sorted(row.items())), sort_keys=True, separators=(",", ":"))
 
 
-def _baseline_findings(
-    *,
-    boundary: Mapping[str, Any],
-    observed_upstream: Mapping[str, Any] | None,
-    scan: Mapping[str, Any],
-) -> dict[str, dict[str, Any]]:
-    rows: list[Any] = list(boundary.get("preExistingFindings") or [])
-    if isinstance(observed_upstream, Mapping):
-        observed = observed_upstream.get("findings") or observed_upstream.get("preExistingFindings") or []
-        if not isinstance(observed, list):
-            raise OpenClawAdmissionError("scanner-error")
-        rows.extend(observed)
-    supplied = scan.get("baselineFindings") or scan.get("preExistingFindings") or []
-    if not isinstance(supplied, list):
+def _scan_identity(scan: Mapping[str, Any]) -> dict[str, str]:
+    """Require the scanner's exact pre-install or candidate Git identity."""
+    commit = scan.get("candidateCommit")
+    tree = scan.get("candidateGitTree")
+    if not isinstance(commit, str) or not HEX40.fullmatch(commit):
+        raise OpenClawAdmissionError("missing-baseline-identity")
+    if not isinstance(tree, str) or not HEX40.fullmatch(tree):
+        raise OpenClawAdmissionError("missing-baseline-identity")
+    repository = scan.get("repository")
+    if repository is not None and repository != REPOSITORY:
+        raise OpenClawAdmissionError("baseline-repository-mismatch")
+    if not isinstance(scan.get("scannerPolicyVersion"), str) or not scan["scannerPolicyVersion"]:
+        raise OpenClawAdmissionError("missing-baseline-identity")
+    return {"commit": commit, "tree": tree}
+
+
+def _content_digest(root: Path, path: str) -> str:
+    candidate = root / Path(path)
+    if candidate.is_symlink() or not candidate.is_file():
         raise OpenClawAdmissionError("scanner-error")
-    rows.extend(supplied)
-    normalized: dict[str, dict[str, Any]] = {}
-    for raw in rows:
-        row = _finding(raw)
-        normalized[_finding_key(row)] = row
-    return normalized
+    try:
+        return "sha256:" + hashlib.sha256(candidate.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise OpenClawAdmissionError("scanner-error") from exc
 
 
-def admit_openclaw_customization(
-    *,
-    consumer_root: Path,
-    package_root: Path | None = None,
-    boundary_path: Path | None = None,
-    manifest_path: Path | None = None,
-    scanner: Scanner,
-    observed_upstream: Mapping[str, Any] | None = None,
-    timeout_seconds: int | None = None,
-) -> dict[str, Any]:
-    """Admit the live boundary's owned and explicitly declared IDE paths."""
-    del package_root, timeout_seconds
-    consumer_root = consumer_root.resolve()
-    path = Path(boundary_path or manifest_path or consumer_root / BOUNDARY_REL)
-    if not path.is_absolute():
-        path = consumer_root / path
-    boundary = _boundary(path)
-
+def _scope_paths(
+    *, consumer_root: Path, boundary: Mapping[str, Any], allowed_versions: set[str]
+) -> tuple[set[str], list[str]]:
     checked_set = _owned_paths(consumer_root, boundary)
-    checked_set.update(_declared_ide_paths(consumer_root, boundary))
+    checked_set.update(
+        _declared_ide_paths(consumer_root, boundary, allowed_versions=allowed_versions)
+    )
     overlay_present, omitted_overlay = _present_paths(
         consumer_root, boundary["ide"]["overlayOnUpstreamExactPaths"]
     )
@@ -396,29 +396,181 @@ def admit_openclaw_customization(
     checked = sorted(checked_set)
     if any(_path_is_forbidden(item, boundary["forbiddenWholeTrees"]) for item in checked):
         raise OpenClawAdmissionError("forbidden-path")
+    omitted = sorted(
+        set(omitted_overlay)
+        | set(omitted_transaction)
+        | set(boundary["ide"]["declaredMissingLocally"])
+    )
+    return checked_set, omitted
 
-    scan = _run_scanner(scanner, checked)
+
+def _scoped_findings(
+    *, consumer_root: Path, boundary: Mapping[str, Any], checked_set: set[str], scan: Mapping[str, Any]
+) -> list[dict[str, Any]]:
     raw_findings = scan.get("findings")
     if not isinstance(raw_findings, list):
         raise OpenClawAdmissionError("scanner-error")
     scoped: list[dict[str, Any]] = []
     for raw in raw_findings:
         row = _finding(raw)
-        if _path_is_forbidden(row["path"], boundary["forbiddenWholeTrees"]):
+        path = row["path"]
+        if _path_is_forbidden(path, boundary["forbiddenWholeTrees"]):
             raise OpenClawAdmissionError("forbidden-path")
-        if row["path"] in checked_set:
-            scoped.append(row)
-    baseline = _baseline_findings(
-        boundary=boundary, observed_upstream=observed_upstream, scan=scan
+        # The scanner is called with an explicit path set. Any finding outside
+        # it is an upstream expansion or scanner contract failure, never an
+        # ignorable extra result.
+        if path not in checked_set:
+            raise OpenClawAdmissionError("out-of-scope-finding")
+        row["contentDigest"] = _content_digest(consumer_root, path)
+        scoped.append(row)
+    return scoped
+
+
+def _baseline_from_scan(
+    *,
+    consumer_root: Path,
+    boundary: Mapping[str, Any],
+    checked_set: set[str],
+    checked: list[str],
+    omitted: list[str],
+    scan: Mapping[str, Any],
+) -> dict[str, Any]:
+    identity = _scan_identity(scan)
+    findings = _scoped_findings(
+        consumer_root=consumer_root, boundary=boundary, checked_set=checked_set, scan=scan
     )
-    new_findings = [row for row in scoped if _finding_key(row) not in baseline]
-    for row in new_findings:
+    return {
+        "schemaVersion": BASELINE_SCHEMA_VERSION,
+        "kind": BASELINE_KIND,
+        "repository": REPOSITORY,
+        "identity": identity,
+        "scannerPolicyVersion": scan["scannerPolicyVersion"],
+        "checkedPaths": checked,
+        "omittedMissingPaths": omitted,
+        "findings": findings,
+        "skippedInputs": [row for row in findings if row["kind"] == SKIPPED_KIND],
+    }
+
+
+def _validate_baseline(
+    *, baseline: Mapping[str, Any], boundary: Mapping[str, Any]
+) -> dict[str, dict[str, Any]]:
+    if not isinstance(baseline, Mapping):
+        raise OpenClawAdmissionError("baseline-invalid")
+    if baseline.get("schemaVersion") != BASELINE_SCHEMA_VERSION or baseline.get("kind") != BASELINE_KIND:
+        raise OpenClawAdmissionError("baseline-invalid")
+    if baseline.get("repository") != REPOSITORY:
+        raise OpenClawAdmissionError("baseline-repository-mismatch")
+    identity = baseline.get("identity")
+    if not isinstance(identity, Mapping):
+        raise OpenClawAdmissionError("missing-baseline-identity")
+    _require_oid(identity.get("commit"), "missing-baseline-identity")
+    _require_oid(identity.get("tree"), "missing-baseline-identity")
+    if not isinstance(baseline.get("scannerPolicyVersion"), str) or not baseline["scannerPolicyVersion"]:
+        raise OpenClawAdmissionError("missing-baseline-identity")
+    checked = baseline.get("checkedPaths")
+    omitted = baseline.get("omittedMissingPaths")
+    findings = baseline.get("findings")
+    skipped = baseline.get("skippedInputs")
+    if not isinstance(checked, list) or not isinstance(omitted, list) or not isinstance(findings, list) or not isinstance(skipped, list):
+        raise OpenClawAdmissionError("baseline-invalid")
+    baseline_paths = {_require_relpath(item, "baseline-invalid") for item in checked}
+    if not baseline_paths:
+        raise OpenClawAdmissionError("baseline-invalid")
+    if any(_path_is_forbidden(path, boundary["forbiddenWholeTrees"]) for path in baseline_paths):
+        raise OpenClawAdmissionError("forbidden-path")
+    for item in omitted:
+        _require_relpath(item, "baseline-invalid")
+    normalized: dict[str, dict[str, Any]] = {}
+    skipped_keys: set[str] = set()
+    for raw in findings:
+        row = _finding(raw)
+        if "contentDigest" not in row:
+            raise OpenClawAdmissionError("missing-baseline-identity")
+        if row["path"] not in baseline_paths:
+            raise OpenClawAdmissionError("baseline-invalid")
+        normalized[_finding_key(row)] = row
         if row["kind"] == SKIPPED_KIND:
-            raise OpenClawAdmissionError("new-skipped-input")
-        raise OpenClawAdmissionError("new-or-changed-finding")
+            skipped_keys.add(_finding_key(row))
+    declared_skipped = {_finding_key(_finding(item)) for item in skipped}
+    if declared_skipped != skipped_keys:
+        raise OpenClawAdmissionError("baseline-invalid")
+    return normalized
+
+
+def admit_openclaw_customization(
+    *,
+    consumer_root: Path,
+    package_root: Path | None = None,
+    boundary_path: Path | None = None,
+    manifest_path: Path | None = None,
+    scanner: Scanner,
+    observed_upstream: Mapping[str, Any] | None = None,
+    pre_install_baseline: Mapping[str, Any] | None = None,
+    capture_baseline: bool = False,
+    timeout_seconds: int | None = None,
+) -> dict[str, Any]:
+    """Compare admission for the live scoped customization paths.
+
+    The caller must pass an exact pre-install snapshot. The explicit
+    ``capture_baseline`` mode is reserved for the pre-install transaction
+    step; scanner output cannot provide its own comparison baseline.
+    """
+    del package_root, timeout_seconds
+    if observed_upstream is not None:
+        if pre_install_baseline is not None:
+            raise OpenClawAdmissionError("baseline-invalid")
+        pre_install_baseline = observed_upstream
+    if capture_baseline and pre_install_baseline is not None:
+        raise OpenClawAdmissionError("baseline-invalid")
+    if pre_install_baseline is None and not capture_baseline:
+        raise OpenClawAdmissionError("missing-baseline-identity")
+    consumer_root = consumer_root.resolve()
+    path = Path(boundary_path or manifest_path or consumer_root / BOUNDARY_REL)
+    if not path.is_absolute():
+        path = consumer_root / path
+    boundary = _boundary(path)
+
+    checked_set, omitted = _scope_paths(
+        consumer_root=consumer_root,
+        boundary=boundary,
+        allowed_versions={INSTALLER_VERSION}
+        if pre_install_baseline is not None
+        else {"2.5.1", INSTALLER_VERSION},
+    )
+    checked = sorted(checked_set)
+
+    scan = _run_scanner(scanner, checked)
+    _scan_identity(scan)
+    scoped = _scoped_findings(
+        consumer_root=consumer_root, boundary=boundary, checked_set=checked_set, scan=scan
+    )
+    if capture_baseline:
+        baseline = _baseline_from_scan(
+            consumer_root=consumer_root,
+            boundary=boundary,
+            checked_set=checked_set,
+            checked=checked,
+            omitted=omitted,
+            scan=scan,
+        )
+        comparison = "captured"
+    else:
+        baseline_findings = _validate_baseline(
+            baseline=pre_install_baseline, boundary=boundary
+        )
+        if scan["scannerPolicyVersion"] != pre_install_baseline["scannerPolicyVersion"]:
+            raise OpenClawAdmissionError("scanner-policy-drift")
+        new_findings = [row for row in scoped if _finding_key(row) not in baseline_findings]
+        for row in new_findings:
+            if row["kind"] == SKIPPED_KIND:
+                raise OpenClawAdmissionError("new-skipped-input")
+            raise OpenClawAdmissionError("new-or-changed-finding")
+        baseline = dict(pre_install_baseline)
+        comparison = "compared"
     # A scanner that failed without producing a finding is still a scanner
     # failure. A false ``ok`` is allowed only when every scoped finding is an
-    # exact pre-existing finding from the completed rollout evidence.
+    # exact pre-existing finding from the captured baseline.
     if scan.get("ok") is not True and not scoped:
         raise OpenClawAdmissionError("scanner-error")
 
@@ -441,12 +593,11 @@ def admit_openclaw_customization(
         },
         "checkedPaths": checked,
         "findings": scoped,
-        "preExistingFindings": sorted(baseline.values(), key=_finding_key),
-        "omittedMissingPaths": sorted(
-            set(omitted_overlay)
-            | set(omitted_transaction)
-            | set(boundary["ide"]["declaredMissingLocally"])
-        ),
+        "preInstallBaseline": baseline,
+        "candidateIdentity": _scan_identity(scan),
+        "scannerPolicyVersion": scan.get("scannerPolicyVersion"),
+        "baselineComparison": comparison,
+        "omittedMissingPaths": omitted,
         "verdict": "admitted",
         "noUpstreamScanOrMutation": True,
     }

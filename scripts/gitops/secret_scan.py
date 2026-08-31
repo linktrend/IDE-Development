@@ -1685,7 +1685,17 @@ def scan_repository(
             except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
                 raise SecretScanError("change_scope_identity", "unreadable baseline evidence") from exc
         requested_paths = set(paths) if paths is not None else None
-        return _scan_repository(root, baseline_evidence, requested_paths)
+        result = _scan_repository(root, baseline_evidence, requested_paths)
+        if paths is not None:
+            commit, tree, repository = _git_identity(root)
+            result.update(
+                {
+                    "candidateCommit": commit,
+                    "candidateGitTree": tree,
+                    "repository": repository,
+                }
+            )
+        return result
     except SecretScanError as exc:
         if baseline_evidence is not None or baseline_evidence_path is not None:
             return _change_scope_error_result(exc)

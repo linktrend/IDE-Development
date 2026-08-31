@@ -279,7 +279,12 @@ def _load_secret_scan_module(package_root: Path):
     return module
 
 
-def _openclaw_admission(package_root: Path, target_root: Path) -> dict[str, Any] | None:
+def _openclaw_admission(
+    package_root: Path,
+    target_root: Path,
+    *,
+    pre_install_baseline: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     """Run scoped admission when the target exposes the OpenClaw boundary."""
     boundary = target_root / BOUNDARY_REL
     if not boundary.exists():
@@ -294,6 +299,8 @@ def _openclaw_admission(package_root: Path, target_root: Path) -> dict[str, Any]
         package_root=package_root,
         boundary_path=boundary,
         scanner=scanner,
+        pre_install_baseline=pre_install_baseline,
+        capture_baseline=pre_install_baseline is None,
     )
 
 
@@ -487,6 +494,11 @@ def run_install_or_update(
 ) -> EngineResult:
     package_root, target_root = _prepare(target=target, package=package)
     openclaw_admission = _openclaw_admission(package_root, target_root)
+    openclaw_baseline = (
+        openclaw_admission.get("preInstallBaseline")
+        if openclaw_admission is not None
+        else None
+    )
     recovery = _maybe_recover(target_root, mutate=not dry_run)
     manifest = load_manifest(package_root)
     migration = load_migration_catalog(package_root)
@@ -564,6 +576,23 @@ def run_install_or_update(
         payload["applied"] = False
         return EngineResult(exit_code=EXIT_OK, payload=payload)
 
+    def post_apply_check() -> dict[str, Any]:
+        verification: dict[str, Any] = {}
+        if resolution is not None:
+            verification.update(
+                _post_install_verification(
+                    target_root=target_root, package_root=package_root, resolution=resolution
+                )
+            )
+        if openclaw_baseline is not None:
+            admission = _openclaw_admission(
+                package_root,
+                target_root,
+                pre_install_baseline=openclaw_baseline,
+            )
+            verification["openclawAdmission"] = admission
+        return verification
+
     result = apply_plan(
         target_root=target_root,
         package_root=package_root,
@@ -572,11 +601,9 @@ def run_install_or_update(
         prior=prior,
         resolution=resolution,
         post_apply_check=(
-            lambda: _post_install_verification(
-                target_root=target_root, package_root=package_root, resolution=resolution
-            )
-            if resolution is not None
-            else {}
+            post_apply_check
+            if resolution is not None or openclaw_baseline is not None
+            else None
         ),
     )
     payload["applied"] = True

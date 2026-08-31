@@ -15,11 +15,16 @@
     "scope",
     "checkedPaths",
     "findings",
+    "preInstallBaseline",
+    "baselineComparison",
+    "candidateIdentity",
+    "scannerPolicyVersion",
     "verdict",
     "noUpstreamScanOrMutation"
   ],
   "$defs": {
     "sha40": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
     "relPath": {
       "type": "string",
       "minLength": 1,
@@ -45,7 +50,43 @@
         "field": { "type": "string", "minLength": 1 },
         "rule": { "type": "string", "minLength": 1 },
         "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
-        "detail": { "type": "string", "minLength": 1 }
+        "detail": { "type": "string", "minLength": 1 },
+        "contentDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "repository",
+        "identity",
+        "scannerPolicyVersion",
+        "checkedPaths",
+        "omittedMissingPaths",
+        "findings",
+        "skippedInputs"
+      ],
+      "properties": {
+        "schemaVersion": { "type": "integer", "const": 1 },
+        "kind": { "type": "string", "const": "openclaw-customization-admission-baseline" },
+        "repository": { "type": "string", "const": "linktrend/openclaw_prime" },
+        "identity": { "$ref": "#/$defs/identity" },
+        "scannerPolicyVersion": { "type": "string", "minLength": 1 },
+        "checkedPaths": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/relPath" },
+          "uniqueItems": true
+        },
+        "omittedMissingPaths": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/relPath" },
+          "uniqueItems": true
+        },
+        "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } },
+        "skippedInputs": { "type": "array", "items": { "$ref": "#/$defs/finding" } }
       }
     }
   },
@@ -186,10 +227,10 @@
       "type": "array",
       "items": { "$ref": "#/$defs/finding" }
     },
-    "preExistingFindings": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/finding" }
-    },
+    "preInstallBaseline": { "$ref": "#/$defs/baseline" },
+    "candidateIdentity": { "$ref": "#/$defs/identity" },
+    "scannerPolicyVersion": { "type": "string", "minLength": 1 },
+    "baselineComparison": { "type": "string", "enum": ["captured", "compared"] },
     "omittedMissingPaths": {
       "type": "array",
       "items": { "$ref": "#/$defs/relPath" },
