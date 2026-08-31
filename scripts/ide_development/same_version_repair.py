@@ -21,6 +21,9 @@ KIND = "ide-managed-same-version-repair"
 SCHEMA_VERSION = 1
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
+OPERATION_REPLACE = "replace"
+OPERATION_ADD = "add"
+OPERATIONS = frozenset({OPERATION_REPLACE, OPERATION_ADD})
 MANIFEST_DEST = f"{MANAGED_CORE_DIR}/MANIFEST.json"
 
 
@@ -28,10 +31,11 @@ MANIFEST_DEST = f"{MANAGED_CORE_DIR}/MANIFEST.json"
 class RepairPath:
     path: str
     source: str
-    old_source_digest: str
-    old_installed_digest: str
+    old_source_digest: str | None
+    old_installed_digest: str | None
     source_digest: str
     source_bytes: int
+    operation: str
 
 
 @dataclass(frozen=True)
@@ -161,9 +165,12 @@ def load_and_validate_same_version_repair(
         if rel in seen or rel == MANIFEST_DEST:
             raise InvalidPackageError("Same-version repair paths contain a duplicate or manifest path")
         seen.add(rel)
+        operation = row.get("operation", OPERATION_REPLACE)
+        if operation not in OPERATIONS:
+            raise InvalidPackageError(f"Same-version repair operation is invalid: {rel}")
         entry = entries.get(rel)
         previous = prior.files.get(rel)
-        if entry is None or previous is None or entry.ownership_class == "external-state":
+        if entry is None or entry.ownership_class == "external-state":
             raise InvalidPackageError(
                 "Same-version repair path is not an IDE-managed file",
                 details={"path": rel},
@@ -171,13 +178,43 @@ def load_and_validate_same_version_repair(
         source_path = row.get("source")
         if source_path != entry.source:
             raise InvalidPackageError(f"Same-version repair source path is not bound to MANIFEST: {rel}")
-        old_source = _digest(row.get("installedSourceDigest"), f"{rel}.installedSourceDigest")
-        old_installed = _digest(row.get("installedDigest"), f"{rel}.installedDigest")
         new_source = _digest(row.get("sourceDigest"), f"{rel}.sourceDigest")
         source_file = join_under_nofollow(package_root, entry.source)
         destination = join_under_nofollow(target_root, rel)
-        if path_is_symlink(source_file) or not source_file.is_file() or path_is_symlink(destination) or not destination.is_file():
-            raise InvalidPackageError("Same-version repair source or destination is missing/unsafe", details={"path": rel})
+        if path_is_symlink(source_file) or not source_file.is_file():
+            raise InvalidPackageError("Same-version repair source is missing/unsafe", details={"path": rel})
+        source_bytes = row.get("sourceBytes")
+        if not isinstance(source_bytes, int) or source_bytes < 0 or source_bytes != source_file.stat().st_size:
+            raise InvalidPackageError(f"Same-version repair source byte identity is stale: {rel}")
+        if new_source != entry.source_hash or sha256_file(source_file) != new_source:
+            raise InvalidPackageError(f"Same-version repair source bytes do not match MANIFEST: {rel}")
+        if operation == OPERATION_ADD:
+            if "installedSourceDigest" in row or "installedDigest" in row:
+                raise InvalidPackageError(
+                    "Same-version repair addition must not declare an installed preimage",
+                    details={"path": rel},
+                )
+            if previous is not None or path_is_symlink(destination) or destination.exists():
+                raise ConflictError(
+                    "Same-version repair refuses an existing collision for a declared addition",
+                    details={"path": rel},
+                )
+            parsed.append(
+                RepairPath(rel, source_path, None, None, new_source, source_bytes, OPERATION_ADD)
+            )
+            continue
+        if previous is None:
+            raise InvalidPackageError(
+                "Same-version repair path is not an IDE-managed file",
+                details={"path": rel},
+            )
+        old_source = _digest(row.get("installedSourceDigest"), f"{rel}.installedSourceDigest")
+        old_installed = _digest(row.get("installedDigest"), f"{rel}.installedDigest")
+        if path_is_symlink(destination) or not destination.is_file():
+            raise InvalidPackageError(
+                "Same-version repair source or destination is missing/unsafe",
+                details={"path": rel},
+            )
         if old_source != previous.source_hash or old_installed != previous.content_hash:
             raise InvalidPackageError(f"Same-version repair installed preimage is stale: {rel}")
         if sha256_file(destination) != old_installed:
@@ -185,14 +222,11 @@ def load_and_validate_same_version_repair(
                 "Same-version repair refuses a consumer file changed after receipt",
                 details={"path": rel},
             )
-        if new_source != entry.source_hash or new_source == old_source:
+        if new_source == old_source:
             raise InvalidPackageError(f"Same-version repair source digest is invalid: {rel}")
-        source_bytes = row.get("sourceBytes")
-        if not isinstance(source_bytes, int) or source_bytes < 0 or source_bytes != source_file.stat().st_size:
-            raise InvalidPackageError(f"Same-version repair source byte identity is stale: {rel}")
-        if sha256_file(source_file) != new_source:
-            raise InvalidPackageError(f"Same-version repair source bytes do not match MANIFEST: {rel}")
-        parsed.append(RepairPath(rel, source_path, old_source, old_installed, new_source, source_bytes))
+        parsed.append(
+            RepairPath(rel, source_path, old_source, old_installed, new_source, source_bytes, OPERATION_REPLACE)
+        )
 
     return SameVersionRepair(
         receipt_path=repair_path.resolve(strict=False),

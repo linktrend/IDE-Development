@@ -375,7 +375,7 @@ def _classify_existing(
     # replace
     if prior_file is None:
         if actual_hash == entry.source_hash:
-            if not modes_match(actual_mode, entry.mode):
+            if not modes_match(actual_mode, read_only_mode(entry.mode)):
                 return OpKind.REPLACE, None, None, "adopt matching content; fix read-only mode", "managed_upgrade"
             return OpKind.NOOP, None, None, "matching unmanaged content", "match"
         if _should_adopt_stale_full_root_workflow(

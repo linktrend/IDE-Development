@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -17,11 +18,15 @@ if str(SCRIPTS) not in sys.path:
 from ide_development.engine import run_install_or_update, run_same_version_repair  # noqa: E402
 from ide_development.errors import ConflictError, InvalidPackageError  # noqa: E402
 from ide_development.hashing import sha256_file  # noqa: E402
+from ide_development.managed_write_guard import is_read_only_mode  # noqa: E402
 from ide_development.manifest import load_manifest  # noqa: E402
 from ide_development.plan import OpKind, PlanAction  # noqa: E402
-from ide_development.state import load_installed_state  # noqa: E402
-from ide_development.transaction import apply_action  # noqa: E402
+from ide_development.state import load_installed_state, prove_read_only_state  # noqa: E402
+from ide_development.transaction import apply_action, rollback_last  # noqa: E402
 from ide_development_tests import FIXTURE_PACKAGE, TempRepoTestCase, make_git_repo  # noqa: E402
+
+OPENCLAW_DEST = ".ide-development/content/doctrine/OPENCLAW-CUSTOMIZATION-ADMISSION.md"
+OPENCLAW_SOURCE = "core/managed-core/content/doctrine/OPENCLAW-CUSTOMIZATION-ADMISSION.md"
 
 
 class SameVersionRepairTests(TempRepoTestCase):
@@ -54,15 +59,41 @@ class SameVersionRepairTests(TempRepoTestCase):
         ).strip()
         return commit, tree
 
-    def _receipt(self, old: Path, new: Path, path: str) -> Path:
+    def _receipt(
+        self,
+        old: Path,
+        new: Path,
+        path: str,
+        *,
+        operation: str = "replace",
+    ) -> Path:
         old_manifest = load_manifest(old)
         new_manifest = load_manifest(new)
         old_state = load_installed_state(self.target)
         assert old_state is not None
-        old_entry = next(e for e in old_manifest.active_entries() if e.destination == path)
         new_entry = next(e for e in new_manifest.active_entries() if e.destination == path)
         commit, tree = self._identity(new)
         source_file = new / new_entry.source
+        row: dict[str, object] = {
+            "path": path,
+            "source": new_entry.source,
+            "sourceDigest": new_entry.source_hash,
+            "sourceBytes": source_file.stat().st_size,
+        }
+        if operation == "add":
+            row["operation"] = "add"
+        else:
+            old_entry = next(
+                (e for e in old_manifest.active_entries() if e.destination == path),
+                None,
+            )
+            previous = old_state.files.get(path)
+            row["installedSourceDigest"] = (
+                old_entry.source_hash if old_entry is not None else "sha256:" + ("0" * 64)
+            )
+            row["installedDigest"] = (
+                previous.content_hash if previous is not None else "sha256:" + ("0" * 64)
+            )
         receipt = Path(self._tmp.name) / "repair.json"
         receipt.write_text(
             json.dumps(
@@ -82,16 +113,7 @@ class SameVersionRepairTests(TempRepoTestCase):
                         "packageVersion": "2.5.2",
                         "manifestDigest": old_state.manifest_hash,
                     },
-                    "paths": [
-                        {
-                            "path": path,
-                            "source": new_entry.source,
-                            "installedSourceDigest": old_entry.source_hash,
-                            "installedDigest": old_state.files[path].content_hash,
-                            "sourceDigest": new_entry.source_hash,
-                            "sourceBytes": source_file.stat().st_size,
-                        }
-                    ],
+                    "paths": [row],
                 },
                 indent=2,
             )
@@ -99,6 +121,77 @@ class SameVersionRepairTests(TempRepoTestCase):
             encoding="utf-8",
         )
         return receipt
+
+    def _commit_package(self, package: Path, message: str) -> None:
+        subprocess.run(["git", "add", "."], cwd=package, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", message],
+            cwd=package,
+            check=True,
+            capture_output=True,
+        )
+
+    def _add_openclaw_admission(self, package: Path) -> Path:
+        source = package / OPENCLAW_SOURCE
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("# OpenClaw Prime customization-only admission\n", encoding="utf-8")
+        manifest_path = package / "core/managed-core/MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["files"].append(
+            {
+                "id": "doctrine-openclaw-customization-admission-md",
+                "ownershipClass": "managed-core",
+                "source": OPENCLAW_SOURCE,
+                "destination": OPENCLAW_DEST,
+                "mode": "0644",
+                "platform": "all",
+                "os": "all",
+                "mergeStrategy": "replace",
+                "sourceHash": sha256_file(source),
+            }
+        )
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        return source
+
+    def _assert_managed_read_only(self) -> None:
+        state = load_installed_state(self.target)
+        assert state is not None
+        prove_read_only_state(self.target, state)
+        for rel, file_state in state.files.items():
+            path = self.target / rel
+            if path.is_file() and not path.is_symlink() and file_state.mutability_policy == "read-only":
+                self.assertTrue(is_read_only_mode(path.stat().st_mode), rel)
+
+    def _git_checkout_managed(self) -> list[str]:
+        state = load_installed_state(self.target)
+        assert state is not None
+        rels = [rel for rel, file_state in state.files.items() if (self.target / rel).is_file()]
+        subprocess.run(["git", "add", "-f", "-A"], cwd=self.target, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "track installed managed files"],
+            cwd=self.target,
+            check=True,
+            capture_output=True,
+        )
+        checkout = subprocess.run(
+            ["git", "checkout", "--", *rels],
+            cwd=self.target,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(checkout.returncode, 0, checkout.stderr)
+        # Git records blobs as 100644; checkout restores owner-writable files.
+        for rel in rels:
+            path = self.target / rel
+            if path.is_file() and not path.is_symlink():
+                os.chmod(path, 0o644)
+        writable = [
+            rel
+            for rel in rels
+            if not is_read_only_mode((self.target / rel).stat().st_mode)
+        ]
+        self.assertTrue(writable, "git checkout must restore writable modes for this proof")
+        return writable
 
     def test_exact_source_repair_replaces_only_receipted_managed_file(self) -> None:
         old = self._package("old-package")
@@ -151,6 +244,64 @@ class SameVersionRepairTests(TempRepoTestCase):
 
         payload["source"]["tree"] = self._identity(new)[1]
         payload["paths"][0]["path"] = "README.md"
+        receipt.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(InvalidPackageError, "not an IDE-managed file"):
+            run_same_version_repair(target=self.target, package=new, repair_manifest=receipt)
+
+    def test_declared_openclaw_addition_and_rollback_after_git_checkout(self) -> None:
+        old = self._package("old-package")
+        self.assertEqual(run_install_or_update(target=self.target, package=old, command="install").exit_code, 0)
+        self._assert_managed_read_only()
+        writable = self._git_checkout_managed()
+        with self.assertRaisesRegex(ConflictError, "read-only after lease closure"):
+            prove_read_only_state(self.target)
+        self.assertTrue(any(not is_read_only_mode((self.target / rel).stat().st_mode) for rel in writable))
+
+        new = self._package("new-package")
+        self._add_openclaw_admission(new)
+        self._commit_package(new, "admit openclaw customization path")
+        receipt = self._receipt(old, new, OPENCLAW_DEST, operation="add")
+        result = run_same_version_repair(
+            target=self.target, package=new, repair_manifest=receipt, dry_run=False
+        )
+        self.assertEqual(result.exit_code, 0, result.payload)
+        created = self.target / OPENCLAW_DEST
+        self.assertEqual(
+            created.read_text(encoding="utf-8"),
+            "# OpenClaw Prime customization-only admission\n",
+        )
+        self.assertTrue(is_read_only_mode(created.stat().st_mode))
+        self._assert_managed_read_only()
+        applied_ops = {item["path"]: item["op"] for item in result.payload["transaction"]["applied"]}
+        self.assertEqual(applied_ops[OPENCLAW_DEST], "create")
+
+        rollback = rollback_last(self.target)
+        self.assertIn(OPENCLAW_DEST, rollback["restored"])
+        self.assertFalse(created.exists())
+        self._assert_managed_read_only()
+
+    def test_addition_rejects_unmanaged_and_existing_collisions(self) -> None:
+        old = self._package("old-package")
+        self.assertEqual(run_install_or_update(target=self.target, package=old, command="install").exit_code, 0)
+        new = self._package("new-package")
+        self._add_openclaw_admission(new)
+        self._commit_package(new, "admit openclaw customization path")
+
+        undeclared = self._receipt(old, new, OPENCLAW_DEST)
+        with self.assertRaisesRegex(InvalidPackageError, "not an IDE-managed file"):
+            run_same_version_repair(target=self.target, package=new, repair_manifest=undeclared)
+
+        colliding = self.target / OPENCLAW_DEST
+        colliding.parent.mkdir(parents=True, exist_ok=True)
+        colliding.write_text("consumer collision\n", encoding="utf-8")
+        receipt = self._receipt(old, new, OPENCLAW_DEST, operation="add")
+        with self.assertRaisesRegex(ConflictError, "existing collision"):
+            run_same_version_repair(target=self.target, package=new, repair_manifest=receipt)
+
+        colliding.unlink()
+        payload = json.loads(receipt.read_text(encoding="utf-8"))
+        payload["paths"][0]["path"] = "README.md"
+        payload["paths"][0]["source"] = "README.md"
         receipt.write_text(json.dumps(payload) + "\n", encoding="utf-8")
         with self.assertRaisesRegex(InvalidPackageError, "not an IDE-managed file"):
             run_same_version_repair(target=self.target, package=new, repair_manifest=receipt)
