@@ -364,7 +364,15 @@ for file in "${MANAGED_FILES[@]}"; do
     continue
   fi
 
+  restore_mode=""
+  if [ -f "$dest" ] && [ ! -w "$dest" ]; then
+    restore_mode="$(stat -c '%a' "$dest" 2>/dev/null || stat -f '%OLp' "$dest")"
+    chmod u+w "$dest" || fail "Unable to grant write for read-only managed workflow: $file"
+  fi
   cp "$rendered" "$dest"
+  if [ -n "$restore_mode" ]; then
+    chmod "$restore_mode" "$dest" || fail "Unable to restore read-only mode for $file"
+  fi
   info "PASS: synced $file"
   copied=$((copied + 1))
 done
