@@ -23,7 +23,10 @@ from .io_atomic import atomic_write_bytes
 from .hashing import sha256_file
 from .managed_write_guard import export_candidate
 from .resolution import UpgradeResolution, load_and_validate_resolution
-from .same_version_repair import load_and_validate_same_version_repair
+from .same_version_repair import (
+    OPERATION_ADD,
+    load_and_validate_same_version_repair,
+)
 from .openclaw_customization_admission import (
     BOUNDARY_REL,
     admit_openclaw_customization,
@@ -652,7 +655,7 @@ def run_same_version_repair(
 
     actions = [
         PlanAction(
-            op=OpKind.REPLACE,
+            op=OpKind.CREATE if item.operation == OPERATION_ADD else OpKind.REPLACE,
             path=item.path,
             entry_id=next(
                 entry.id for entry in manifest.active_entries() if entry.destination == item.path
