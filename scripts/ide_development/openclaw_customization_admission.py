@@ -11,6 +11,7 @@ import json
 import hashlib
 import os
 import re
+import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping
 
@@ -60,6 +61,37 @@ def _identity(raw: Any, code: str) -> dict[str, str]:
         "commit": _require_oid(raw.get("commit"), code),
         "tree": _require_oid(raw.get("tree"), code),
     }
+
+
+def _target_identity(root: Path) -> dict[str, str]:
+    """Resolve the target repository's current ref and full tree object."""
+    try:
+        top_level = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=5,
+        )
+        if top_level.returncode or Path(top_level.stdout.strip()).resolve() != root:
+            raise OpenClawAdmissionError("target-repository-invalid")
+        values: dict[str, str] = {}
+        for name, expression in (("commit", "HEAD^{commit}"), ("tree", "HEAD^{tree}")):
+            result = subprocess.run(
+                ["git", "rev-parse", "--verify", expression],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=5,
+            )
+            if result.returncode:
+                raise OpenClawAdmissionError("target-repository-invalid")
+            values[name] = _require_oid(result.stdout.strip(), "target-repository-invalid")
+        return values
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise OpenClawAdmissionError("target-repository-invalid") from exc
 
 
 def _load_json(path: Path, code: str) -> Any:
@@ -453,7 +485,7 @@ def _baseline_from_scan(
 
 
 def _validate_baseline(
-    *, baseline: Mapping[str, Any], boundary: Mapping[str, Any]
+    *, baseline: Mapping[str, Any], boundary: Mapping[str, Any], target_identity: Mapping[str, str]
 ) -> dict[str, dict[str, Any]]:
     if not isinstance(baseline, Mapping):
         raise OpenClawAdmissionError("baseline-invalid")
@@ -466,6 +498,8 @@ def _validate_baseline(
         raise OpenClawAdmissionError("missing-baseline-identity")
     _require_oid(identity.get("commit"), "missing-baseline-identity")
     _require_oid(identity.get("tree"), "missing-baseline-identity")
+    if dict(identity) != dict(target_identity):
+        raise OpenClawAdmissionError("baseline-identity-mismatch")
     if not isinstance(baseline.get("scannerPolicyVersion"), str) or not baseline["scannerPolicyVersion"]:
         raise OpenClawAdmissionError("missing-baseline-identity")
     checked = baseline.get("checkedPaths")
@@ -540,8 +574,15 @@ def admit_openclaw_customization(
     )
     checked = sorted(checked_set)
 
+    target_identity_before_scan = _target_identity(consumer_root)
+
     scan = _run_scanner(scanner, checked)
-    _scan_identity(scan)
+    target_identity_after_scan = _target_identity(consumer_root)
+    if target_identity_before_scan != target_identity_after_scan:
+        raise OpenClawAdmissionError("target-identity-drift")
+    scan_identity = _scan_identity(scan)
+    if scan_identity != target_identity_after_scan:
+        raise OpenClawAdmissionError("scanner-identity-mismatch")
     scoped = _scoped_findings(
         consumer_root=consumer_root, boundary=boundary, checked_set=checked_set, scan=scan
     )
@@ -557,7 +598,9 @@ def admit_openclaw_customization(
         comparison = "captured"
     else:
         baseline_findings = _validate_baseline(
-            baseline=pre_install_baseline, boundary=boundary
+            baseline=pre_install_baseline,
+            boundary=boundary,
+            target_identity=target_identity_after_scan,
         )
         if scan["scannerPolicyVersion"] != pre_install_baseline["scannerPolicyVersion"]:
             raise OpenClawAdmissionError("scanner-policy-drift")

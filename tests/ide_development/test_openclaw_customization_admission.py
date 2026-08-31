@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -108,6 +109,25 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
             {"schemaVersion": 1, "packageVersion": "2.5.2", "files": {IDE_PATH: {}}},
         )
         self.boundary_path = _write_json(self.consumer, BOUNDARY_REL, _boundary())
+        subprocess.run(["git", "init", "-q"], cwd=self.consumer, check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=self.consumer, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.invalid"],
+            cwd=self.consumer,
+            check=True,
+        )
+        subprocess.run(["git", "add", "."], cwd=self.consumer, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "test target baseline"],
+            cwd=self.consumer,
+            check=True,
+        )
+        self.target_commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD^{commit}"], cwd=self.consumer, text=True
+        ).strip()
+        self.target_tree = subprocess.check_output(
+            ["git", "rev-parse", "HEAD^{tree}"], cwd=self.consumer, text=True
+        ).strip()
         self.scanned: list[list[str]] = []
 
     def tearDown(self) -> None:
@@ -117,8 +137,8 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
         def scan(paths: list[str]) -> dict[str, Any]:
             self.scanned.append(list(paths))
             payload = dict(result or {"ok": True, "findings": []})
-            payload.setdefault("candidateCommit", PRIME_COMMIT)
-            payload.setdefault("candidateGitTree", PRIME_TREE)
+            payload.setdefault("candidateCommit", self.target_commit)
+            payload.setdefault("candidateGitTree", self.target_tree)
             payload.setdefault("repository", "linktrend/openclaw_prime")
             payload.setdefault("scannerPolicyVersion", "secret-scan-policy/v1")
             return payload
@@ -241,6 +261,27 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
         with self.assertRaisesRegex(OpenClawAdmissionError, "missing-baseline-identity"):
             self._admit(baseline=baseline, capture=False)
 
+    def test_shape_valid_tampered_baseline_identity_is_rejected(self) -> None:
+        baseline = self._capture_baseline()
+        baseline["identity"]["commit"] = "f" * 40
+        with self.assertRaisesRegex(OpenClawAdmissionError, "baseline-identity-mismatch"):
+            self._admit(baseline=baseline)
+
+    def test_shape_valid_changed_scanner_identity_is_rejected(self) -> None:
+        baseline = self._capture_baseline()
+        with self.assertRaisesRegex(OpenClawAdmissionError, "scanner-identity-mismatch"):
+            self._admit(
+                baseline=baseline,
+                scanner=self._scanner(
+                    {
+                        "ok": True,
+                        "findings": [],
+                        "candidateCommit": "f" * 40,
+                        "candidateGitTree": "e" * 40,
+                    }
+                ),
+            )
+
     def test_missing_baseline_is_rejected_before_scanning(self) -> None:
         with self.assertRaisesRegex(OpenClawAdmissionError, "missing-baseline-identity"):
             self._admit(capture=False)
@@ -305,15 +346,18 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
         seen: list[list[str]] = []
 
         class ScannerModule:
-            @staticmethod
-            def scan_repository(root: Path, *, paths: list[str]) -> dict[str, Any]:
+            candidate_commit = self.target_commit
+            candidate_tree = self.target_tree
+
+            @classmethod
+            def scan_repository(cls, root: Path, *, paths: list[str]) -> dict[str, Any]:
                 del root
                 seen.append(list(paths))
                 return {
                     "ok": True,
                     "findings": [],
-                    "candidateCommit": PRIME_COMMIT,
-                    "candidateGitTree": PRIME_TREE,
+                    "candidateCommit": cls.candidate_commit,
+                    "candidateGitTree": cls.candidate_tree,
                     "repository": "linktrend/openclaw_prime",
                     "scannerPolicyVersion": "secret-scan-policy/v1",
                 }
