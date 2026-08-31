@@ -23,6 +23,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Protocol, Sequence
 
+try:
+    from scripts.gitops.evidence_rebind import admit_evidence_rebind
+except ModuleNotFoundError:  # pragma: no cover - gitops-on-path execution
+    from evidence_rebind import admit_evidence_rebind
+
 SCHEMA_VERSION = 1
 COMPONENT_KIND = "independent_review_convergence"
 SESSION_KIND = "review-session"
@@ -1130,6 +1135,90 @@ def record_full_evidence(
     }
     session.full_runs.append(run)
     session.full_evidence = {"valid": True, "headSha": head_sha, **run}
+
+
+def rebind_full_evidence(
+    session: ReviewSession,
+    *,
+    source_head_sha: str,
+    exact_head_sha: str,
+    exact_git_tree: str,
+    changed_paths: Sequence[str],
+    generated_paths: Sequence[str],
+    owned_paths: Sequence[str] = (),
+    underlying_source_digest_source: str,
+    underlying_source_digest_head: str,
+    dependency_digest: str,
+    profile_digest: str,
+    workflow_digest: str,
+    source_full_receipt: Mapping[str, Any],
+    narrow_hosted_checks: Mapping[str, Any],
+    scanner: Mapping[str, Any],
+    history: Sequence[Mapping[str, Any]] = (),
+) -> dict[str, Any]:
+    """Reuse accepted source Full evidence for a generated-only exact-head delta.
+
+    This does not record a new Full run. Product, owned-path, scanner, review,
+    and identity failures stay fail closed.
+    """
+
+    source = require_sha(source_head_sha, "sourceHeadSha")
+    head = require_sha(exact_head_sha, "exactHeadSha")
+    tree = require_sha(exact_git_tree, "exactGitTree")
+    if head != session.candidate_sha or tree != session.git_tree:
+        raise ConvergenceError("stale_identity", "evidence-rebind must bind the current exact candidate")
+    prior_heads = {
+        str(session.full_evidence.get("headSha") or ""),
+        str(session.full_evidence.get("priorHeadSha") or ""),
+    }
+    prior_heads.update(str(run.get("headSha") or "") for run in session.full_runs if run.get("coverage") == "cumulative")
+    if source not in prior_heads:
+        raise ConvergenceError("stale_identity", "no independently accepted source Full evidence to rebind")
+    if session.status in {STATUS_HOLD, STATUS_REVIEW_STALLED}:
+        raise ConvergenceError(session.status, "evidence-rebind cannot run while independent review is held or stalled")
+    if not session.focused_checks.get("valid") or session.focused_checks.get("headSha") != head:
+        raise ConvergenceError("narrow_checks_failed", "all narrow hosted checks must pass on the exact head before rebind")
+    if not session.delta_review.get("valid") or session.delta_review.get("headSha") != head:
+        raise ConvergenceError("delta_review_missing", "independent delta review must accept the exact generated delta")
+    identity = source_full_receipt.get("candidateIdentity")
+    source_tree = ""
+    if isinstance(identity, Mapping):
+        source_tree = str(identity.get("gitTree") or "")
+    decision = admit_evidence_rebind(
+        source_commit=source,
+        source_tree=source_tree,
+        exact_head_commit=head,
+        exact_head_tree=tree,
+        changed_paths=changed_paths,
+        generated_paths=generated_paths,
+        owned_paths=owned_paths,
+        underlying_source_digest_source=underlying_source_digest_source,
+        underlying_source_digest_head=underlying_source_digest_head,
+        dependency_digest_source=dependency_digest,
+        dependency_digest_head=dependency_digest,
+        profile_digest_source=profile_digest,
+        profile_digest_head=profile_digest,
+        workflow_digest_source=workflow_digest,
+        workflow_digest_head=workflow_digest,
+        delta_review=session.delta_review,
+        narrow_hosted_checks=narrow_hosted_checks,
+        scanner=scanner,
+        source_full_receipt=source_full_receipt,
+        history=history,
+    )
+    if not decision.allowed:
+        raise ConvergenceError(decision.code, decision.detail)
+    session.full_evidence = {
+        "valid": True,
+        "headSha": head,
+        "gitTree": tree,
+        "reusedFromSourceHead": source,
+        "execution": "rebind",
+        "coverage": "cumulative",
+        "fullSuiteRerun": False,
+        "changedPaths": list(decision.changed_paths),
+    }
+    return dict(session.full_evidence)
 
 
 def _has_continue_until_clean(session: ReviewSession) -> bool:

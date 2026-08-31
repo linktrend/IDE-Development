@@ -28,6 +28,14 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 from urllib.parse import urlparse
 
+try:
+    from scripts.gitops.evidence_rebind import verify_evidence_rebind_receipt
+except ModuleNotFoundError:  # pragma: no cover - package-style vs gitops-on-path
+    try:
+        from ..evidence_rebind import verify_evidence_rebind_receipt
+    except ImportError:
+        from evidence_rebind import verify_evidence_rebind_receipt
+
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -74,6 +82,7 @@ REJECTION_CODES = frozenset(
         "transition_target_mismatch",
         "transition_run_mismatch",
         "receipt_store_invalid",
+        "evidence_rebind_rejected",
     }
 )
 
@@ -878,6 +887,7 @@ def verify_receipt(
     expected_workflow_digest: str | None = None,
     expected_evidence_digests: Mapping[str, str] | None = None,
     transition_receipt: TransitionReceipt | Mapping[str, Any] | None = None,
+    evidence_rebind_receipt: Mapping[str, Any] | None = None,
 ) -> ReceiptVerdict:
     """Verify reusable identity without privileged credentials or network calls."""
 
@@ -890,7 +900,17 @@ def verify_receipt(
         if parsed.candidate_identity.repository != candidate.repository:
             raise ReceiptError("repository_mismatch", "receipt repository does not match candidate")
         receipt_identity = parsed.candidate_identity
-        if receipt_identity.git_tree != candidate.git_tree:
+        if transition_receipt is not None and evidence_rebind_receipt is not None:
+            raise ReceiptError("transition_invalid", "same-tree transition and evidence-rebind cannot authorize the same candidate")
+        if evidence_rebind_receipt is not None:
+            rebind = verify_evidence_rebind_receipt(
+                evidence_rebind_receipt,
+                parsed.to_dict(),
+                candidate.to_dict(),
+            )
+            if not rebind.allowed:
+                raise ReceiptError("evidence_rebind_rejected", rebind.detail or rebind.code)
+        elif receipt_identity.git_tree != candidate.git_tree:
             raise ReceiptError("tree_mismatch", "receipt Git tree does not match candidate")
         if receipt_identity.dependency_digest != candidate.dependency_digest:
             raise ReceiptError("dependency_mismatch", "receipt dependency identity does not match candidate")
@@ -898,7 +918,7 @@ def verify_receipt(
             raise ReceiptError("profile_mismatch", "receipt profile identity does not match candidate")
         if receipt_identity.workflow_digest != candidate.workflow_digest:
             raise ReceiptError("workflow_mismatch", "receipt workflow identity does not match candidate")
-        if transition_receipt is not None:
+        if evidence_rebind_receipt is None and transition_receipt is not None:
             transition_verdict = verify_transition_receipt(
                 transition_receipt,
                 parsed,
@@ -909,7 +929,7 @@ def verify_receipt(
             if not transition_verdict.accepted:
                 rejection = transition_verdict.rejection_code or "transition_invalid"
                 raise ReceiptError(rejection, transition_verdict.message or rejection)
-        elif receipt_identity.head_commit != candidate.head_commit:
+        elif evidence_rebind_receipt is None and receipt_identity.head_commit != candidate.head_commit:
             raise ReceiptError("head_mismatch", "receipt commit does not match candidate")
         if workflow_run_id is not None and parsed.workflow_run_id != workflow_run_id:
             raise ReceiptError("run_mismatch", "receipt workflow run does not match expected run")
@@ -918,7 +938,8 @@ def verify_receipt(
         if workflow_head_commit is not None:
             if not _is_sha(workflow_head_commit):
                 raise ReceiptError("invalid_sha", "workflow head commit is malformed")
-            if receipt_identity.head_commit != workflow_head_commit:
+            expected_head = candidate.head_commit if evidence_rebind_receipt is not None else receipt_identity.head_commit
+            if expected_head != workflow_head_commit:
                 raise ReceiptError("superseded_head", "workflow run head is superseded")
         if runner_label is not None and parsed.runner_label != runner_label:
             raise ReceiptError("unknown_runner", "receipt runner label does not match expected runner")

@@ -94,6 +94,7 @@ def verify_receipt_payload(
     candidate_identity: Mapping[str, Any] | CandidateIdentity,
     required_gate: str,
     transition_receipt: Mapping[str, Any] | None = None,
+    evidence_rebind_receipt: Mapping[str, Any] | None = None,
     **verification: Any,
 ) -> Decision:
     verdict = verify_receipt(
@@ -101,6 +102,7 @@ def verify_receipt_payload(
         candidate_identity,
         required_gate,
         transition_receipt=transition_receipt,
+        evidence_rebind_receipt=evidence_rebind_receipt,
         **verification,
     )
     detail = verdict.message or verdict.code
@@ -137,6 +139,7 @@ def verify_receipt_file(
     expected_workflow_digest: str | None = None,
     expected_evidence_digests: Mapping[str, str] | None = None,
     transition_receipt_path: str | Path | None = None,
+    evidence_rebind_receipt_path: str | Path | None = None,
 ) -> Decision:
     try:
         receipt = load_json(receipt_path)
@@ -157,6 +160,7 @@ def verify_receipt_file(
             identity,
             required_gate,
             transition_receipt=load_json(transition_receipt_path) if transition_receipt_path is not None else None,
+            evidence_rebind_receipt=load_json(evidence_rebind_receipt_path) if evidence_rebind_receipt_path is not None else None,
             workflow_run_id=workflow_run_id,
             workflow_run_attempt=workflow_run_attempt,
             workflow_head_commit=workflow_head_commit,
@@ -361,6 +365,7 @@ def main(argv: list[str] | None = None) -> int:
     verify.add_argument("--command-digest")
     verify.add_argument("--expected-workflow-digest")
     verify.add_argument("--transition-receipt", type=Path)
+    verify.add_argument("--evidence-rebind-receipt", type=Path)
     verify.add_argument("--gate", required=True)
 
     development = commands.add_parser("development")
@@ -396,6 +401,7 @@ def main(argv: list[str] | None = None) -> int:
                 expected_command_digest=args.command_digest,
                 expected_workflow_digest=args.expected_workflow_digest,
                 transition_receipt_path=args.transition_receipt,
+                evidence_rebind_receipt_path=getattr(args, "evidence_rebind_receipt", None),
             )
         elif args.command == "development":
             decision = evaluate_development_gates(load_json(args.input), args.head_sha)

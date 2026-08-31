@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://linktrend.local/managed-core/evidence-rebind-receipt.schema.json",
+  "title": "LiNKtrend exact-head evidence-rebind receipt",
+  "description": "Digest-bound reuse of accepted source Full evidence after a generated-only Phase delta.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "repository",
+    "sourceCommit",
+    "sourceTree",
+    "sourceReceiptDigest",
+    "sourceWorkflowRunId",
+    "sourceWorkflowRunAttempt",
+    "exactHeadCommit",
+    "exactHeadTree",
+    "underlyingSourceDigest",
+    "dependencyDigest",
+    "profileDigest",
+    "workflowDigest",
+    "changedPaths",
+    "generatedPaths",
+    "authenticatedBy",
+    "deltaReviewDigest",
+    "narrowChecksDigest",
+    "scannerDigest",
+    "receiptDigest"
+  ],
+  "properties": {
+    "schemaVersion": {"type": "integer", "const": 1},
+    "kind": {"type": "string", "const": "evidence-rebind-receipt"},
+    "repository": {"type": "string", "pattern": "^[^/\\s]+/[^/\\s]+$"},
+    "sourceCommit": {"$ref": "#/$defs/sha"},
+    "sourceTree": {"$ref": "#/$defs/sha"},
+    "sourceReceiptDigest": {"$ref": "#/$defs/digest"},
+    "sourceWorkflowRunId": {"type": "integer", "minimum": 1},
+    "sourceWorkflowRunAttempt": {"type": "integer", "minimum": 1},
+    "exactHeadCommit": {"$ref": "#/$defs/sha"},
+    "exactHeadTree": {"$ref": "#/$defs/sha"},
+    "underlyingSourceDigest": {"$ref": "#/$defs/digest"},
+    "dependencyDigest": {"$ref": "#/$defs/digest"},
+    "profileDigest": {"$ref": "#/$defs/digest"},
+    "workflowDigest": {"$ref": "#/$defs/digest"},
+    "changedPaths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/repoRelativePath"}
+    },
+    "generatedPaths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/repoRelativePath"}
+    },
+    "authenticatedBy": {"type": "string", "const": "delivery-controller"},
+    "deltaReviewDigest": {"$ref": "#/$defs/digest"},
+    "narrowChecksDigest": {"$ref": "#/$defs/digest"},
+    "scannerDigest": {"$ref": "#/$defs/digest"},
+    "receiptDigest": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "repoRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/|\\\\)(?!.*\\.\\.(?:/|\\\\|$))(?!.*:)[A-Za-z0-9._@+, -]+(?:/[A-Za-z0-9._@+, -]+)*$"
+    }
+  }
+}
