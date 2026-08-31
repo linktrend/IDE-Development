@@ -37,15 +37,35 @@
     "pathRepair": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "source", "installedSourceDigest", "installedDigest", "sourceDigest", "sourceBytes"],
+      "required": ["path", "source", "sourceDigest", "sourceBytes"],
       "properties": {
         "path": { "$ref": "#/$defs/path" },
         "source": { "$ref": "#/$defs/path" },
+        "operation": { "type": "string", "enum": ["replace", "add"] },
         "installedSourceDigest": { "$ref": "#/$defs/digest" },
         "installedDigest": { "$ref": "#/$defs/digest" },
         "sourceDigest": { "$ref": "#/$defs/digest" },
         "sourceBytes": { "type": "integer", "minimum": 0 }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "operation": { "const": "add" } },
+            "required": ["operation"]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "required": ["installedSourceDigest"] },
+                { "required": ["installedDigest"] }
+              ]
+            }
+          },
+          "else": {
+            "required": ["installedSourceDigest", "installedDigest"]
+          }
+        }
+      ]
     }
   },
   "properties": {

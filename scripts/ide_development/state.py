@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .constants import INSTALLED_STATE_REL, SCHEMA_VERSION
-from .errors import InvalidPackageError
+from .errors import ConflictError, InvalidPackageError
 from .hashing import normalize_mode
 from .managed_write_guard import READ_ONLY_POLICY, PRESERVE_REMOVAL_POLICY, is_read_only_mode
 from .io_atomic import atomic_write_bytes
@@ -220,3 +220,18 @@ def validate_read_only_state(target_root: Path, state: InstalledState) -> list[s
         ):
             violations.append(rel)
     return violations
+
+
+def prove_read_only_state(
+    target_root: Path, state: InstalledState | None = None
+) -> None:
+    """Fail closed when any persisted managed file is still writable."""
+    current = state if state is not None else load_installed_state(target_root)
+    if current is None:
+        raise ConflictError("Installed state is required to prove managed read-only")
+    violations = validate_read_only_state(target_root, current)
+    if violations:
+        raise ConflictError(
+            "Managed files must be read-only after lease closure",
+            details={"paths": violations},
+        )
