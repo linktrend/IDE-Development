@@ -27,7 +27,7 @@ from ide_development.engine import (
     run_version,
 )
 from ide_development.hashing import sha256_file
-from ide_development.managed_write_guard import managed_write_lease
+from ide_development.managed_write_guard import is_read_only_mode, managed_write_lease
 from ide_development.transaction import (
     current_tx_dir,
     last_tx_dir,
@@ -462,7 +462,11 @@ class EngineTests(TempRepoTestCase):
             rolled = run_rollback(target=self.target)
             self.assertEqual(rolled.exit_code, EXIT_OK, rolled.payload)
             self.assertEqual(state.read_bytes(), state_bytes)
-            self.assertEqual(stat.S_IMODE(state.stat().st_mode), state_mode)
+            self.assertTrue(is_read_only_mode(state.stat().st_mode))
+            self.assertEqual(
+                stat.S_IMODE(state.stat().st_mode),
+                stat.S_IMODE(state_mode) & ~0o222,
+            )
 
     def test_migration_exact_remove_and_refuse_mismatch(self) -> None:
         obsolete = self.target / ".cursor" / "rules" / "obsolete-generic.mdc"
