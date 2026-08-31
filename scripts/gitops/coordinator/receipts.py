@@ -888,6 +888,10 @@ def verify_receipt(
     expected_evidence_digests: Mapping[str, str] | None = None,
     transition_receipt: TransitionReceipt | Mapping[str, Any] | None = None,
     evidence_rebind_receipt: Mapping[str, Any] | None = None,
+    repository_root: str | os.PathLike[str] | Path | None = None,
+    evidence_rebind_delta_review: Mapping[str, Any] | None = None,
+    evidence_rebind_hosted_checks: Mapping[str, Any] | None = None,
+    evidence_rebind_scanner: Mapping[str, Any] | None = None,
 ) -> ReceiptVerdict:
     """Verify reusable identity without privileged credentials or network calls."""
 
@@ -903,10 +907,16 @@ def verify_receipt(
         if transition_receipt is not None and evidence_rebind_receipt is not None:
             raise ReceiptError("transition_invalid", "same-tree transition and evidence-rebind cannot authorize the same candidate")
         if evidence_rebind_receipt is not None:
+            if repository_root is None:
+                raise ReceiptError("evidence_rebind_rejected", "repository root is required to verify generated-output policy")
             rebind = verify_evidence_rebind_receipt(
                 evidence_rebind_receipt,
                 parsed.to_dict(),
                 candidate.to_dict(),
+                repo_root=repository_root,
+                delta_review=evidence_rebind_delta_review,
+                narrow_hosted_checks=evidence_rebind_hosted_checks,
+                scanner=evidence_rebind_scanner,
             )
             if not rebind.allowed:
                 raise ReceiptError("evidence_rebind_rejected", rebind.detail or rebind.code)

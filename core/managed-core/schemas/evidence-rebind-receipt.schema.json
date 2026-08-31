@@ -26,6 +26,7 @@
     "deltaReviewDigest",
     "narrowChecksDigest",
     "scannerDigest",
+    "generatedPolicyDigest",
     "receiptDigest"
   ],
   "properties": {
@@ -59,6 +60,7 @@
     "deltaReviewDigest": {"$ref": "#/$defs/digest"},
     "narrowChecksDigest": {"$ref": "#/$defs/digest"},
     "scannerDigest": {"$ref": "#/$defs/digest"},
+    "generatedPolicyDigest": {"$ref": "#/$defs/digest"},
     "receiptDigest": {"$ref": "#/$defs/digest"}
   },
   "$defs": {

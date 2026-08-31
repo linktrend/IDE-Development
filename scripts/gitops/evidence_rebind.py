@@ -17,7 +17,12 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, MutableMapping, Sequence
+
+try:
+    from scripts.gitops.generated_output_closure import load_graph
+except ModuleNotFoundError:  # pragma: no cover - gitops-on-path execution
+    from generated_output_closure import load_graph
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -46,8 +51,12 @@ RECEIPT_FIELDS = (
     "deltaReviewDigest",
     "narrowChecksDigest",
     "scannerDigest",
+    "generatedPolicyDigest",
     "receiptDigest",
 )
+REBIND_STATE_FIELD = "evidenceRebinds"
+REBIND_COUNT_FIELD = "evidenceRebindCount"
+MAX_REBINDS = 1
 
 
 class EvidenceRebindError(ValueError):
@@ -148,16 +157,98 @@ def _receipt_field(receipt: Mapping[str, Any], *keys: str) -> Any:
     return None
 
 
-def _check_success(value: Any, *, exact_head: str) -> bool:
-    if isinstance(value, str):
-        return value.strip().lower() in {"success", "passed", "pass"}
+def _check_success(value: Any, *, exact_head: str, exact_tree: str, label: str) -> bool:
     if not isinstance(value, Mapping):
         return False
     conclusion = str(value.get("conclusion") or value.get("status") or value.get("result") or "").strip().lower()
     if conclusion not in {"success", "passed", "pass"}:
         return False
-    head = _sha(value.get("headCommit") or value.get("headSha") or value.get("sha") or exact_head)
-    return head == exact_head
+    head = _sha(value.get("headCommit") or value.get("headSha"))
+    tree = _sha(value.get("gitTree") or value.get("gitTreeSha") or value.get("tree"))
+    if not head or not tree:
+        return False
+    return head == exact_head and tree == exact_tree
+
+
+def _policy_generated_paths(repo_root: Path | str) -> frozenset[str]:
+    try:
+        graph = load_graph(Path(repo_root).resolve())
+        return generated_binding_paths(graph)
+    except Exception as exc:
+        raise EvidenceRebindError("generated_policy_invalid", "repository generated-output policy is unavailable") from exc
+
+
+def _validated_generated_paths(
+    repo_root: Path | str,
+    supplied: Sequence[str] | None,
+) -> tuple[str, ...]:
+    expected = _policy_generated_paths(repo_root)
+    if not expected:
+        raise EvidenceRebindError("generated_policy_invalid", "repository generated-output policy declares no outputs")
+    if supplied is not None and set(_paths(supplied)) != expected:
+        raise EvidenceRebindError(
+            "generated_policy_mismatch",
+            "generated paths must equal the repository generated-output policy",
+        )
+    return tuple(sorted(expected))
+
+
+def _durable_rebind_state(state: Mapping[str, Any]) -> tuple[int, list[Mapping[str, Any]]]:
+    if not isinstance(state, Mapping):
+        raise EvidenceRebindError("transaction_state_missing", "durable transaction/session state is required")
+    raw_records = state.get(REBIND_STATE_FIELD)
+    count = state.get(REBIND_COUNT_FIELD)
+    if not isinstance(raw_records, list) or not isinstance(count, int) or isinstance(count, bool):
+        raise EvidenceRebindError("transaction_state_missing", "durable evidence-rebind state is incomplete")
+    records: list[Mapping[str, Any]] = []
+    for record in raw_records:
+        if not isinstance(record, Mapping):
+            raise EvidenceRebindError("transaction_state_invalid", "durable evidence-rebind records must be objects")
+        records.append(record)
+    if count != len(records) or count < 0:
+        raise EvidenceRebindError("transaction_state_invalid", "durable evidence-rebind count is inconsistent")
+    return count, records
+
+
+def _record_rebind_state(state: MutableMapping[str, Any], receipt: Mapping[str, Any]) -> None:
+    count, records = _durable_rebind_state(state)
+    if count >= MAX_REBINDS:
+        raise EvidenceRebindError("receipt_loop_detected", "only one evidence-rebind is permitted by durable transaction/session state")
+    updated = [dict(item) for item in records]
+    updated.append(
+        {
+            "receiptDigest": receipt["receiptDigest"],
+            "sourceCommit": receipt["sourceCommit"],
+            "exactHeadCommit": receipt["exactHeadCommit"],
+            "exactHeadTree": receipt["exactHeadTree"],
+        }
+    )
+    state[REBIND_STATE_FIELD] = updated
+    state[REBIND_COUNT_FIELD] = len(updated)
+
+
+def _evidence_mapping(
+    value: Any,
+    *,
+    exact_head: str,
+    exact_tree: str,
+    label: str,
+    require_success: bool = True,
+) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise EvidenceRebindError("evidence_missing", f"{label} must be an exact-head evidence mapping")
+    evidence = dict(value)
+    if require_success:
+        valid = _check_success(evidence, exact_head=exact_head, exact_tree=exact_tree, label=label)
+    else:
+        valid = evidence.get("valid") is True and _sha(
+            evidence.get("headCommit") or evidence.get("headSha")
+        ) == exact_head and _sha(
+            evidence.get("gitTree") or evidence.get("gitTreeSha") or evidence.get("tree")
+        ) == exact_tree
+    if not valid:
+        raise EvidenceRebindError("evidence_stale", f"{label} must be accepted and bind exact head commit/tree")
+    return evidence
 
 
 def generated_binding_paths(graph: Any) -> frozenset[str]:
@@ -243,12 +334,13 @@ def _product_identity(document: Mapping[str, Any]) -> tuple[str, str, str, str, 
 
 def admit_evidence_rebind(
     *,
+    repo_root: Path | str,
     source_commit: str,
     source_tree: str,
     exact_head_commit: str,
     exact_head_tree: str,
     changed_paths: Sequence[str],
-    generated_paths: Sequence[str],
+    generated_paths: Sequence[str] | None,
     owned_paths: Sequence[str] = (),
     underlying_source_digest_source: str,
     underlying_source_digest_head: str,
@@ -262,8 +354,9 @@ def admit_evidence_rebind(
     narrow_hosted_checks: Mapping[str, Any],
     scanner: Mapping[str, Any],
     source_full_receipt: Mapping[str, Any],
-    history: Sequence[Mapping[str, Any]] = (),
+    durable_state: Mapping[str, Any],
     required_narrow_checks: Sequence[str] = DEFAULT_NARROW_CHECKS,
+    enforce_rebind_limit: bool = True,
 ) -> RebindDecision:
     """Fail closed unless the exact delta is generated-only and independently accepted."""
 
@@ -278,6 +371,18 @@ def admit_evidence_rebind(
     if source_tree_sha == head_tree:
         return RebindDecision(False, "stale_identity", "generated-only rebind requires a changed Git tree")
 
+    try:
+        rebind_count, _records = _durable_rebind_state(durable_state)
+        if enforce_rebind_limit and rebind_count >= MAX_REBINDS:
+            return RebindDecision(
+                False,
+                "receipt_loop_detected",
+                "only one evidence-rebind is permitted by durable transaction/session state",
+            )
+        policy_generated = _validated_generated_paths(repo_root, generated_paths)
+    except EvidenceRebindError as error:
+        return RebindDecision(False, error.code, error.detail)
+
     receipt = _mapping(source_full_receipt)
     receipt_head = _sha(_receipt_field(receipt, "headCommit", "sourceCommit", "commit"))
     receipt_tree = _sha(_receipt_field(receipt, "gitTree", "gitTreeSha", "tree"))
@@ -287,7 +392,7 @@ def admit_evidence_rebind(
 
     try:
         changed = _paths(changed_paths)
-        generated = set(_paths(generated_paths))
+        generated = set(policy_generated)
         owned = set(_paths(owned_paths)) if owned_paths else set()
     except EvidenceRebindError as error:
         return RebindDecision(False, error.code, error.detail)
@@ -322,8 +427,8 @@ def admit_evidence_rebind(
         return RebindDecision(False, "delta_review_missing", "independent delta review is missing or not accepted", changed_paths=changed)
     review_head = _sha(delta_review.get("headSha") or delta_review.get("headCommit"))
     review_tree = _sha(delta_review.get("gitTree") or delta_review.get("tree"))
-    if review_head != head or (review_tree and review_tree != head_tree):
-        return RebindDecision(False, "delta_review_missing", "independent delta review is not bound to the exact head", changed_paths=changed)
+    if review_head != head or review_tree != head_tree:
+        return RebindDecision(False, "delta_review_missing", "independent delta review is not bound to the exact head commit/tree", changed_paths=changed)
     try:
         review_paths = set(_paths(delta_review.get("paths") or delta_review.get("changedPaths") or ()))
     except EvidenceRebindError as error:
@@ -338,31 +443,12 @@ def admit_evidence_rebind(
     if missing:
         return RebindDecision(False, "narrow_checks_failed", f"required narrow check missing: {missing[0]}", changed_paths=changed)
     for name, value in narrow_hosted_checks.items():
-        if not _check_success(value, exact_head=head):
-            return RebindDecision(False, "narrow_checks_failed", f"narrow hosted check failed: {name}", changed_paths=changed)
+        if not _check_success(value, exact_head=head, exact_tree=head_tree, label=f"hosted check {name}"):
+            return RebindDecision(False, "narrow_checks_failed", f"narrow hosted check is not exact-head evidence: {name}", changed_paths=changed)
 
-    if not isinstance(scanner, Mapping) or not _check_success(scanner, exact_head=head):
-        return RebindDecision(False, "scanner_failure", "secret scanner did not succeed on the exact head", changed_paths=changed)
+    if not isinstance(scanner, Mapping) or not _check_success(scanner, exact_head=head, exact_tree=head_tree, label="scanner"):
+        return RebindDecision(False, "scanner_failure", "secret scanner did not succeed on the exact head commit/tree", changed_paths=changed)
 
-    successor = {
-        "repository": str(_receipt_field(receipt, "repository") or ""),
-        "underlyingSourceDigest": source_underlying,
-        "dependencyDigest": source_dep,
-        "profileDigest": _digest(profile_digest_source),
-        "workflowDigest": _digest(workflow_digest_source),
-    }
-    identity = _product_identity(successor)
-    if identity is None:
-        return RebindDecision(False, "stale_identity", "product identity for loop detection is incomplete", changed_paths=changed)
-    count = sum(1 for prior in history if _product_identity(_mapping(prior)) == identity)
-    if count >= 1:
-        return RebindDecision(
-            False,
-            "receipt_loop_detected",
-            "second generated-only evidence-rebind for unchanged underlying source; stop and diagnose",
-            underlying_source_digest=source_underlying,
-            changed_paths=changed,
-        )
     return RebindDecision(
         True,
         "evidence_rebind_allowed",
@@ -375,14 +461,16 @@ def admit_evidence_rebind(
 def create_evidence_rebind_receipt(
     source_full_receipt: Mapping[str, Any],
     *,
+    repo_root: Path | str,
     exact_head_commit: str,
     exact_head_tree: str,
     underlying_source_digest: str,
     changed_paths: Sequence[str],
-    generated_paths: Sequence[str],
+    generated_paths: Sequence[str] | None,
     delta_review: Mapping[str, Any],
     narrow_hosted_checks: Mapping[str, Any],
     scanner: Mapping[str, Any],
+    durable_state: Mapping[str, Any],
     authenticated_by: str = AUTHENTICATED_BY,
 ) -> dict[str, Any]:
     """Create the digest-bound exact-head evidence-rebind receipt."""
@@ -403,6 +491,24 @@ def create_evidence_rebind_receipt(
         raise EvidenceRebindError("stale_identity", "source workflow attempt is invalid")
     if authenticated_by != AUTHENTICATED_BY:
         raise EvidenceRebindError("stale_identity", "authenticatedBy must be delivery-controller")
+    exact_head = _sha(exact_head_commit)
+    exact_tree = _sha(exact_head_tree)
+    policy_generated = _validated_generated_paths(repo_root, generated_paths)
+    count, _records = _durable_rebind_state(durable_state)
+    if count >= MAX_REBINDS:
+        raise EvidenceRebindError("receipt_loop_detected", "only one evidence-rebind is permitted by durable transaction/session state")
+    _evidence_mapping(
+        delta_review,
+        exact_head=exact_head,
+        exact_tree=exact_tree,
+        label="independent delta review",
+        require_success=False,
+    )
+    if not isinstance(narrow_hosted_checks, Mapping) or not narrow_hosted_checks:
+        raise EvidenceRebindError("evidence_missing", "hosted checks are required")
+    for name, value in narrow_hosted_checks.items():
+        _evidence_mapping(value, exact_head=exact_head, exact_tree=exact_tree, label=f"hosted check {name}")
+    _evidence_mapping(scanner, exact_head=exact_head, exact_tree=exact_tree, label="scanner")
     payload = {
         "schemaVersion": SCHEMA_VERSION,
         "kind": KIND,
@@ -412,18 +518,19 @@ def create_evidence_rebind_receipt(
         "sourceReceiptDigest": source_digest,
         "sourceWorkflowRunId": run_id,
         "sourceWorkflowRunAttempt": attempt,
-        "exactHeadCommit": _sha(exact_head_commit),
-        "exactHeadTree": _sha(exact_head_tree),
+        "exactHeadCommit": exact_head,
+        "exactHeadTree": exact_tree,
         "underlyingSourceDigest": _digest(underlying_source_digest),
         "dependencyDigest": _digest(identity.get("dependencyDigest")),
         "profileDigest": _digest(identity.get("profileDigest")),
         "workflowDigest": _digest(identity.get("workflowDigest")),
         "changedPaths": list(_paths(changed_paths)),
-        "generatedPaths": list(_paths(generated_paths)),
+        "generatedPaths": list(policy_generated),
         "authenticatedBy": authenticated_by,
         "deltaReviewDigest": canonical_digest(_mapping(delta_review)),
         "narrowChecksDigest": canonical_digest(_mapping(narrow_hosted_checks)),
         "scannerDigest": canonical_digest(_mapping(scanner)),
+        "generatedPolicyDigest": canonical_digest({"generatedPaths": list(policy_generated)}),
     }
     if not payload["exactHeadCommit"] or not payload["exactHeadTree"] or not payload["underlyingSourceDigest"]:
         raise EvidenceRebindError("stale_identity", "exact-head or underlying source digest is invalid")
@@ -439,12 +546,11 @@ def verify_evidence_rebind_receipt(
     source_full_receipt: Mapping[str, Any],
     target_identity: Mapping[str, Any],
     *,
-    delta_review: Mapping[str, Any] | None = None,
-    narrow_hosted_checks: Mapping[str, Any] | None = None,
-    scanner: Mapping[str, Any] | None = None,
-    generated_paths: Sequence[str] | None = None,
+    repo_root: Path | str,
+    delta_review: Mapping[str, Any] | None,
+    narrow_hosted_checks: Mapping[str, Any] | None,
+    scanner: Mapping[str, Any] | None,
     owned_paths: Sequence[str] = (),
-    history: Sequence[Mapping[str, Any]] = (),
 ) -> RebindDecision:
     """Verify a signed evidence-rebind against the accepted Full receipt and exact head."""
 
@@ -475,8 +581,42 @@ def verify_evidence_rebind_receipt(
             return RebindDecision(False, "product_source_changed", "evidence-rebind profile identity changed")
         if payload.get("workflowDigest") != identity.get("workflowDigest") or payload.get("workflowDigest") != target.get("workflowDigest"):
             return RebindDecision(False, "product_source_changed", "evidence-rebind workflow identity changed")
-        declared_generated = _paths(generated_paths if generated_paths is not None else payload.get("generatedPaths"))
+        if delta_review is None or narrow_hosted_checks is None or scanner is None:
+            return RebindDecision(False, "evidence_missing", "exact-head review, hosted checks, and scanner evidence are required")
+        if not isinstance(narrow_hosted_checks, Mapping) or not narrow_hosted_checks:
+            return RebindDecision(False, "evidence_missing", "exact-head hosted check mappings are required")
+        policy_generated = _validated_generated_paths(repo_root, payload.get("generatedPaths"))
+        if payload.get("generatedPolicyDigest") != canonical_digest({"generatedPaths": list(policy_generated)}):
+            return RebindDecision(False, "generated_policy_mismatch", "receipt generated paths are not bound to repository policy")
+        if payload.get("deltaReviewDigest") != canonical_digest(_mapping(delta_review)):
+            return RebindDecision(False, "evidence_mismatch", "independent review evidence does not match receipt digest")
+        if payload.get("narrowChecksDigest") != canonical_digest(_mapping(narrow_hosted_checks)):
+            return RebindDecision(False, "evidence_mismatch", "hosted check evidence does not match receipt digest")
+        if payload.get("scannerDigest") != canonical_digest(_mapping(scanner)):
+            return RebindDecision(False, "evidence_mismatch", "scanner evidence does not match receipt digest")
+        _evidence_mapping(
+            delta_review,
+            exact_head=payload["exactHeadCommit"],
+            exact_tree=payload["exactHeadTree"],
+            label="independent delta review",
+            require_success=False,
+        )
+        for name, value in narrow_hosted_checks.items():
+            _evidence_mapping(
+                value,
+                exact_head=payload["exactHeadCommit"],
+                exact_tree=payload["exactHeadTree"],
+                label=f"hosted check {name}",
+            )
+        _evidence_mapping(
+            scanner,
+            exact_head=payload["exactHeadCommit"],
+            exact_tree=payload["exactHeadTree"],
+            label="scanner",
+        )
+        declared_generated = policy_generated
         return admit_evidence_rebind(
+            repo_root=repo_root,
             source_commit=str(payload["sourceCommit"]),
             source_tree=str(payload["sourceTree"]),
             exact_head_commit=str(payload["exactHeadCommit"]),
@@ -492,11 +632,12 @@ def verify_evidence_rebind_receipt(
             profile_digest_head=str(target.get("profileDigest")),
             workflow_digest_source=str(payload["workflowDigest"]),
             workflow_digest_head=str(target.get("workflowDigest")),
-            delta_review=delta_review if isinstance(delta_review, Mapping) else {"valid": True, "headSha": payload["exactHeadCommit"], "gitTree": payload["exactHeadTree"], "paths": payload["changedPaths"]},
-            narrow_hosted_checks=narrow_hosted_checks if isinstance(narrow_hosted_checks, Mapping) else {"fast": "success", "secret-scan": "success"},
-            scanner=scanner if isinstance(scanner, Mapping) else {"conclusion": "success", "headCommit": payload["exactHeadCommit"]},
+            delta_review=delta_review,
+            narrow_hosted_checks=narrow_hosted_checks,
+            scanner=scanner,
             source_full_receipt=source,
-            history=history,
+            durable_state={REBIND_STATE_FIELD: [], REBIND_COUNT_FIELD: 0},
+            enforce_rebind_limit=False,
         )
     except EvidenceRebindError as error:
         return RebindDecision(False, error.code, error.detail)
@@ -505,10 +646,11 @@ def verify_evidence_rebind_receipt(
 def issue_evidence_rebind_receipt(
     source_full_receipt: Mapping[str, Any],
     *,
+    repo_root: Path | str,
     exact_head_commit: str,
     exact_head_tree: str,
     changed_paths: Sequence[str],
-    generated_paths: Sequence[str],
+    generated_paths: Sequence[str] | None,
     owned_paths: Sequence[str] = (),
     underlying_source_digest_source: str,
     underlying_source_digest_head: str,
@@ -521,12 +663,13 @@ def issue_evidence_rebind_receipt(
     delta_review: Mapping[str, Any],
     narrow_hosted_checks: Mapping[str, Any],
     scanner: Mapping[str, Any],
-    history: Sequence[Mapping[str, Any]] = (),
+    durable_state: MutableMapping[str, Any],
     store_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Admit, sign, and optionally persist an exact-head evidence-rebind receipt."""
 
     decision = admit_evidence_rebind(
+        repo_root=repo_root,
         source_commit=str(_receipt_field(_mapping(source_full_receipt), "headCommit")),
         source_tree=str(_receipt_field(_mapping(source_full_receipt), "gitTree")),
         exact_head_commit=exact_head_commit,
@@ -546,12 +689,13 @@ def issue_evidence_rebind_receipt(
         narrow_hosted_checks=narrow_hosted_checks,
         scanner=scanner,
         source_full_receipt=source_full_receipt,
-        history=history,
+        durable_state=durable_state,
     )
     if not decision.allowed:
         raise EvidenceRebindError(decision.code, decision.detail)
     signed = create_evidence_rebind_receipt(
         source_full_receipt,
+        repo_root=repo_root,
         exact_head_commit=exact_head_commit,
         exact_head_tree=exact_head_tree,
         underlying_source_digest=decision.underlying_source_digest or underlying_source_digest_source,
@@ -560,7 +704,9 @@ def issue_evidence_rebind_receipt(
         delta_review=delta_review,
         narrow_hosted_checks=narrow_hosted_checks,
         scanner=scanner,
+        durable_state=durable_state,
     )
+    _record_rebind_state(durable_state, signed)
     if store_path is not None:
         destination = Path(store_path)
         destination.parent.mkdir(parents=True, exist_ok=True)
