@@ -12,6 +12,24 @@
 4. Ordinary Phase merge into `development` requires the exact retained Full receipt bound to that head/tree (`phase_merge_eligibility_with_receipt`).
 5. Controllers must not merge first and obtain a receipt afterward.
 
+## Generated-only evidence-rebind
+
+When independently accepted source already has Full evidence, and the exact
+Phase delta contains only generated fixture/evidence bindings:
+
+1. Independent delta review must accept that exact generated delta.
+2. Every required narrow hosted check and the secret scanner must succeed on
+   the exact head.
+3. Underlying source, dependency, profile, and workflow identities must be
+   unchanged. Owned-path and non-generated file changes fail closed.
+4. One digest-bound `evidence-rebind-receipt` may bind the accepted source
+   Full evidence to the new exact head without rerunning the broad Full suite.
+5. A second generated-only rebind for the same underlying source is a
+   receipt-loop stop. Same-tree protected-merge transitions remain separate
+   and still require an unchanged Git tree.
+
+Agents must not hand-write the receipt. The controller issues and rereads it.
+
 ## Receipt discovery and selection
 
 - Enumerate and classify every candidate artifact before selecting one.
@@ -38,5 +56,6 @@ For an already-integrated, unchanged `development` tree that lacks a retained re
 
 - `docs/contracts/STREAMLINED-DELIVERY.md`
 - `scripts/gitops/coordinator/receipts.py`
+- `scripts/gitops/evidence_rebind.py`
 - `scripts/gitops/promotion_receipt_gate.py`
 - `scripts/gitops/phase_integrator.py`

@@ -528,6 +528,7 @@ def phase_merge_eligibility_with_receipt(
     retained_receipt: Mapping[str, Any] | None,
     conflict: bool = False,
     expected_tree: str | None = None,
+    evidence_rebind_receipt: Mapping[str, Any] | None = None,
 ) -> MergeEligibility:
     """Ordinary Phase merge requires gates plus an exact retained receipt."""
 
@@ -543,7 +544,8 @@ def phase_merge_eligibility_with_receipt(
         parsed = parse_trusted_full_suite_receipt(retained_receipt)
         receipt_head = parsed.candidate_identity.head_commit
         receipt_tree = parsed.candidate_identity.git_tree
-        if not receipt_head or receipt_head != head:
+        rebind = evidence_rebind_receipt if isinstance(evidence_rebind_receipt, Mapping) else None
+        if not receipt_head or (receipt_head != head and rebind is None):
             checks["retainedReceipt"] = False
             failed = [name for name, ok in checks.items() if not ok]
             return MergeEligibility(
@@ -561,8 +563,8 @@ def phase_merge_eligibility_with_receipt(
                     or candidate.get("git_tree")
                 )
         if not live_tree:
-            live_tree = receipt_tree
-        if live_tree and receipt_tree != live_tree:
+            live_tree = receipt_tree if rebind is None else _sha(rebind.get("exactHeadTree"))
+        if live_tree and receipt_tree != live_tree and rebind is None:
             checks["retainedReceipt"] = False
             failed = [name for name, ok in checks.items() if not ok]
             return MergeEligibility(
@@ -579,7 +581,12 @@ def phase_merge_eligibility_with_receipt(
             parsed.candidate_identity.profile_digest,
             parsed.candidate_identity.workflow_digest,
         )
-        verdict = verify_receipt(parsed, live_identity, "full-gate")
+        verdict = verify_receipt(
+            parsed,
+            live_identity,
+            "full-gate",
+            evidence_rebind_receipt=rebind,
+        )
         if not verdict.accepted:
             checks["retainedReceipt"] = False
             failed = [name for name, ok in checks.items() if not ok]

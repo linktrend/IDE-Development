@@ -354,9 +354,11 @@ class BuildManifestPackagingTests(unittest.TestCase):
             "core/managed-core/schemas/routing-registry.schema.json",
             "core/managed-core/schemas/toolchain-manifest.schema.json",
             "core/managed-core/schemas/transition-receipt.schema.json",
+            "core/managed-core/schemas/evidence-rebind-receipt.schema.json",
             "scripts/gitops/mutation_guard.py",
             "scripts/gitops/portfolio_control_loop.py",
             "scripts/gitops/receipt_loop_detector.py",
+            "scripts/gitops/evidence_rebind.py",
             "scripts/gitops/runtime_preflight.py",
         ):
             self.assertIn(rel, sources)

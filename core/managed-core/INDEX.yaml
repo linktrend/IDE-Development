@@ -36,6 +36,7 @@ schemas:
   - schemas/external-state-verify.schema.json
   - schemas/verification-run.schema.json
   - schemas/verification-liveness.schema.json
+  - schemas/evidence-rebind-receipt.schema.json
 examples:
   - examples/manifest.example.json
   - examples/installed-state.example.json
