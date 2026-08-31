@@ -4835,7 +4835,7 @@
       "id": "installer-scripts-ide-development-openclaw-customization-admission-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/openclaw_customization_admission.py",
-      "sourceHash": "sha256:dcdb3375c3cbd068068c0247167dfe593c065094c11779a70626808584e827f5",
+      "sourceHash": "sha256:ec1b6b7d457a9eae14639bf2a73874fbbcddbc7acee2c8afd3ee3eb8f288b69c",
       "destination": "scripts/ide_development/openclaw_customization_admission.py",
       "mode": "0644",
       "platform": "all",

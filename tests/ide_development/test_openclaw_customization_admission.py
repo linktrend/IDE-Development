@@ -28,6 +28,7 @@ from ide_development.openclaw_customization_admission import (  # noqa: E402
     KIND,
     SCHEMA_REL,
     OpenClawAdmissionError,
+    _target_identity,
     admit_openclaw_customization,
 )
 from gitops.coordinator.receipts import (  # noqa: E402
@@ -370,6 +371,33 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
         self.assertEqual(result["candidateIdentity"]["commit"], self.target_commit)
         self.assertEqual(result["candidateIdentity"]["tree"], self.target_tree)
         self.assertNotIn("fullRunReceiptIdentity", result)
+
+    def test_macos_tmp_symlink_equivalent_root_matches_git_toplevel(self) -> None:
+        """Unresolved /tmp-style alias must match Git's resolved toplevel."""
+        private_tmp = self.root / "private" / "tmp"
+        private_tmp.mkdir(parents=True)
+        try:
+            (private_tmp / "consumer").symlink_to(self.consumer)
+            alias_tmp = self.root / "tmp"
+            alias_tmp.symlink_to(private_tmp)
+        except OSError:
+            self.skipTest("symlinks unavailable")
+        unresolved = alias_tmp / "consumer"
+        self.assertNotEqual(str(unresolved), str(unresolved.resolve()))
+        identity = _target_identity(unresolved)
+        self.assertEqual(identity["commit"], self.target_commit)
+        self.assertEqual(identity["tree"], self.target_tree)
+        result = _openclaw_admission(ROOT, unresolved)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["verdict"], "admitted")
+        self.assertEqual(result["candidateIdentity"]["commit"], self.target_commit)
+        self.assertEqual(result["candidateIdentity"]["tree"], self.target_tree)
+        self.assertEqual(result["prime"]["commit"], PRIME_COMMIT)
+        stranger = self.root / "stranger"
+        stranger.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=stranger, check=True)
+        with self.assertRaisesRegex(OpenClawAdmissionError, "target-repository-invalid"):
+            _target_identity(stranger)
 
 
 if __name__ == "__main__":

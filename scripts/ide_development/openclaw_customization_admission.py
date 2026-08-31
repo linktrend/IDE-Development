@@ -16,6 +16,8 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping
 
 from .errors import InvalidPackageError
+from .paths import same_path
+
 KIND = "openclaw-customization-admission"
 BOUNDARY_KIND = "openclaw-prime-customization-boundary"
 INSTALLER_VERSION = "2.5.2"
@@ -70,7 +72,10 @@ def _target_identity(root: Path) -> dict[str, str]:
             ["git", "rev-parse", "--show-toplevel"], cwd=root, text=True,
             capture_output=True, check=False, timeout=5,
         )
-        if top.returncode or Path(top.stdout.strip()).resolve() != root:
+        reported = top.stdout.strip()
+        # Git may emit a realpath (macOS /tmp -> /private/tmp) while callers
+        # still pass the unresolved input. Canonicalize both sides.
+        if top.returncode or not reported or not same_path(Path(reported), root):
             raise OpenClawAdmissionError("target-repository-invalid")
         values = {}
         for name, expression in (("commit", "HEAD^{commit}"), ("tree", "HEAD^{tree}")):
