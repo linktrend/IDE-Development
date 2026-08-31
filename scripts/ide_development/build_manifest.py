@@ -1038,9 +1038,12 @@ def build_entries() -> list[dict[str, Any]]:
             )
         )
 
-    # Hosted workflow templates are staged under the managed package.  The
-    # W2-P1 branch supplies the files; legacy templates are filtered above and
-    # are never copied into consumer .github/workflows by this package.
+    # Hosted workflow templates are staged under the managed package.  GitHub
+    # Actions reads workflow_dispatch inputs from consumer
+    # `.github/workflows/` on the protected default branch, so the live Full
+    # trigger is also a managed github-root destination.  Other hosted
+    # templates stay package-only and are rendered by workflow sync.
+    full_root_workflow = "linktrend-integrator-merge.yml"
     for source in _hosted_workflow_files():
         name = Path(source).name
         entries.append(
@@ -1054,6 +1057,25 @@ def build_entries() -> list[dict[str, Any]]:
                 merge="replace",
                 source_hash=_hash_rel(source),
                 notes="Hosted W2-P1 workflow template; materialized by workflow sync.",
+            )
+        )
+        if name != full_root_workflow:
+            continue
+        entries.append(
+            _entry(
+                entry_id=f"github-root-workflow-{_slug(name)}",
+                ownership="managed-core",
+                source=source,
+                destination=f".github/workflows/{name}",
+                mode="0644",
+                platform="github",
+                merge="replace",
+                source_hash=_hash_rel(source),
+                notes=(
+                    "Live GitHub Actions Full trigger on consumer protected defaults. "
+                    "workflow_dispatch inputs are defined by this path, not "
+                    ".ide-development/workflows/."
+                ),
             )
         )
 

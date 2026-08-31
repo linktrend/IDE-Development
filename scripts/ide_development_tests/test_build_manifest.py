@@ -28,6 +28,11 @@ class BuildManifestPackagingTests(unittest.TestCase):
         missing = REQUIRED_DOCTRINE - names
         self.assertFalse(missing, f"CONTENT_DOCTRINE missing: {sorted(missing)}")
 
+    def test_full_root_workflow_is_packaged_onto_consumer_github(self) -> None:
+        destinations = {row["destination"] for row in bm.build_manifest_object()["files"]}
+        self.assertIn(".ide-development/workflows/linktrend-integrator-merge.yml", destinations)
+        self.assertIn(".github/workflows/linktrend-integrator-merge.yml", destinations)
+
     def test_content_doctrine_sources_exist(self) -> None:
         for src_rel, dest_rel in bm.CONTENT_DOCTRINE:
             self.assertTrue((bm.REPO_ROOT / src_rel).is_file(), src_rel)

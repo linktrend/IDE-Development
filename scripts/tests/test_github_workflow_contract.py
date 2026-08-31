@@ -47,6 +47,18 @@ class GithubWorkflowContractTests(unittest.TestCase):
             managed = (MANAGED / filename).read_text(encoding="utf-8")
             self.assertEqual(live, managed, filename)
 
+    def test_full_trigger_dispatch_inputs_are_declared(self) -> None:
+        required = (
+            "dependency_digest:",
+            "target_baseline_sha:",
+            "target_baseline_ref:",
+        )
+        for directory in (LIVE, MANAGED):
+            text = (directory / "linktrend-integrator-merge.yml").read_text(encoding="utf-8")
+            dispatch = text.split("workflow_dispatch:", 1)[1].split("\nenv:", 1)[0]
+            for name in required:
+                self.assertIn(name, dispatch, f"{directory.name}: missing {name}")
+
     def test_managed_workflows_have_unique_job_contexts(self) -> None:
         for path in sorted(MANAGED.glob("*.yml")):
             document = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
