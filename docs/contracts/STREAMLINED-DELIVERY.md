@@ -30,9 +30,14 @@ pull requests, branch protection, and promotion records.
  receipt for that head/tree, which staging and main reuse without rerunning.
 5. A successful full-suite receipt is reusable only when repository, Git tree,
    dependency, profile, and workflow identities match exactly. A changed tree
-   or dependency invalidates reuse. Exceptional recovery may mint the same
-   receipt schema for an unchanged integrated `development` tree without an
-   empty commit or fake PR (`mode=recovery`).
+   or dependency invalidates reuse. One signed exact-head evidence-rebind may
+   reuse the accepted underlying source Full evidence when the Phase delta is
+   only generated fixture/evidence bindings, independent delta review and all
+   narrow hosted checks pass, and the scanner succeeds. Product, source,
+   dependency, owned-path, missing review, stale identity, scanner, and
+   non-generated-file deltas fail closed and still require Full. Exceptional
+   recovery may mint the same receipt schema for an unchanged integrated
+   `development` tree without an empty commit or fake PR (`mode=recovery`).
 6. Development, staging, and main promotion use the receipt and source-policy
    gates. Promotion does not rerun the full suite when the exact receipt is
    valid. Main still requires Carlos's explicit approval.

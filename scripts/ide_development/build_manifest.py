@@ -180,6 +180,7 @@ HOSTED_TEST_FILES = (
     "scripts/tests/test_linktrend_review_gate.py",
     "scripts/tests/test_promotion_receipt_gate.py",
     "scripts/tests/test_receipt_seal_and_recovery.py",
+    "scripts/tests/test_evidence_rebind.py",
     "scripts/tests/test_delivery_controller.py",
     "scripts/tests/test_atomic_workflow_ruleset_migration.py",
 )
@@ -532,6 +533,10 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "schemas/transition-receipt.schema.json",
             ".ide-development/schemas/transition-receipt.schema.json",
+        ),
+        (
+            "schemas/evidence-rebind-receipt.schema.json",
+            ".ide-development/schemas/evidence-rebind-receipt.schema.json",
         ),
         (
             "schemas/secret-scan-result.schema.json",

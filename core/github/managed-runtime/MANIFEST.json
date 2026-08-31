@@ -32,6 +32,7 @@
     "scripts/gitops/gate_receipt.py",
     "scripts/gitops/generated_output_closure.py",
     "scripts/gitops/receipt_loop_detector.py",
+    "scripts/gitops/evidence_rebind.py",
     "scripts/gitops/heartbeat_controller.py",
     "scripts/gitops/independent_review_convergence.py",
     "scripts/gitops/secret_scan.py",
