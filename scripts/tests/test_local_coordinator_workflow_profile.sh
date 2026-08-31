@@ -68,6 +68,9 @@ done
 # compatibility fixture.
 grep -q '^  pull_request:' "$compat_repo/.github/workflows/linktrend-review-packager.yml"
 grep -q '^  workflow_dispatch:' "$compat_repo/.github/workflows/linktrend-integrator-merge.yml"
+grep -q '^      dependency_digest:' "$compat_repo/.github/workflows/linktrend-integrator-merge.yml"
+grep -q '^      target_baseline_sha:' "$compat_repo/.github/workflows/linktrend-integrator-merge.yml"
+grep -q '^      target_baseline_ref:' "$compat_repo/.github/workflows/linktrend-integrator-merge.yml"
 grep -q '^  pull_request_target:' "$compat_repo/.github/workflows/linktrend-staging-to-main.yml"
 
 if grep -R -n -iE 'create-github-app-token|LINKTREND_(APP|GITHUB_APP)|installation[_-]token' \

@@ -1263,6 +1263,18 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "github-root-workflow-linktrend-integrator-merge-yml",
+      "ownershipClass": "managed-core",
+      "source": "core/github/managed-workflows/linktrend-integrator-merge.yml",
+      "sourceHash": "sha256:f33260afcc8adf30c151838c58a558d6e400b1c4776ce77e5e04b73013d52448",
+      "destination": ".github/workflows/linktrend-integrator-merge.yml",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Live GitHub Actions Full trigger on consumer protected defaults. workflow_dispatch inputs are defined by this path, not .ide-development/workflows/."
+    },
+    {
       "id": "core-index-yaml",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/INDEX.yaml",
@@ -4680,7 +4692,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:972e60fe0829b7b1f9df17250a38da340ff9dc4652c94929e44aa4b4d30aeb13",
+      "sourceHash": "sha256:a6f904aad25baf056b3447d15d754cfc54a6733d3090ca4a9b00da9fb5ebb870",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",
@@ -4823,7 +4835,7 @@
       "id": "installer-scripts-ide-development-plan-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/plan.py",
-      "sourceHash": "sha256:1b1f35f2691c3843f7d056dcf42e50ee0763f8b3593c5a91e9d85c83d4b61712",
+      "sourceHash": "sha256:a733a4dcf40cb057db9aab06887b0e4956940d292240043aadfea88fa96c0c92",
       "destination": "scripts/ide_development/plan.py",
       "mode": "0644",
       "platform": "all",
