@@ -123,6 +123,7 @@ CONTENT_DOCTRINE = (
     ("docs/contracts/REPOSITORY-PROTECTION.md", "content/doctrine/REPOSITORY-PROTECTION.md"),
     ("docs/contracts/STREAMLINED-DELIVERY.md", "content/doctrine/STREAMLINED-DELIVERY.md"),
     ("docs/contracts/SECRET-SCAN-FIXTURES.md", "content/doctrine/SECRET-SCAN-FIXTURES.md"),
+    ("docs/contracts/OPENCLAW-CUSTOMIZATION-ADMISSION.md", "content/doctrine/OPENCLAW-CUSTOMIZATION-ADMISSION.md"),
     ("core/contracts/GENERATED-OUTPUT-CLOSURE.md", "content/doctrine/GENERATED-OUTPUT-CLOSURE.md"),
     (
         "core/contracts/MANIFEST-PERSISTENCE-RECOVERY.md",

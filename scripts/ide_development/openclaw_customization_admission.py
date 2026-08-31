@@ -8,12 +8,16 @@ upstream OpenClaw is never scanned and never required to be repaired.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
+import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping
 
 from .errors import InvalidPackageError
+from .paths import same_path
+
 KIND = "openclaw-customization-admission"
 BOUNDARY_KIND = "openclaw-prime-customization-boundary"
 INSTALLER_VERSION = "2.5.2"
@@ -24,6 +28,8 @@ INSTALLED_STATE_REL = ".ide-development/installed-state.json"
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 SKIPPED_KIND = "skipped_input"
+BASELINE_KIND = "openclaw-customization-admission-baseline"
+BASELINE_SCHEMA_VERSION = 1
 Scanner = Callable[[list[str]], Mapping[str, Any]]
 
 
@@ -57,6 +63,32 @@ def _identity(raw: Any, code: str) -> dict[str, str]:
         "commit": _require_oid(raw.get("commit"), code),
         "tree": _require_oid(raw.get("tree"), code),
     }
+
+
+def _target_identity(root: Path) -> dict[str, str]:
+    """Resolve the exact consumer commit/tree; never accept caller claims."""
+    try:
+        top = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"], cwd=root, text=True,
+            capture_output=True, check=False, timeout=5,
+        )
+        reported = top.stdout.strip()
+        # Git may emit a realpath (macOS /tmp -> /private/tmp) while callers
+        # still pass the unresolved input. Canonicalize both sides.
+        if top.returncode or not reported or not same_path(Path(reported), root):
+            raise OpenClawAdmissionError("target-repository-invalid")
+        values = {}
+        for name, expression in (("commit", "HEAD^{commit}"), ("tree", "HEAD^{tree}")):
+            result = subprocess.run(
+                ["git", "rev-parse", "--verify", expression], cwd=root, text=True,
+                capture_output=True, check=False, timeout=5,
+            )
+            if result.returncode:
+                raise OpenClawAdmissionError("target-repository-invalid")
+            values[name] = _require_oid(result.stdout.strip(), "target-repository-invalid")
+        return values
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise OpenClawAdmissionError("target-repository-invalid") from exc
 
 
 def _load_json(path: Path, code: str) -> Any:
@@ -149,10 +181,6 @@ def _boundary(path: Path) -> dict[str, Any]:
             {"receiptPath": receipt, "paths": [_require_relpath(item, "boundary-invalid") for item in paths]}
         )
 
-    baseline_raw = payload.get("preExistingFindings", [])
-    if not isinstance(baseline_raw, list):
-        raise OpenClawAdmissionError("boundary-invalid")
-    baseline_findings = [_finding(item) for item in baseline_raw]
     declared_missing = ide.get("declaredMissingLocally") or []
     if not isinstance(declared_missing, list):
         raise OpenClawAdmissionError("boundary-invalid")
@@ -179,7 +207,6 @@ def _boundary(path: Path) -> dict[str, Any]:
             "declaredMissingLocally": declared_missing,
         },
         "transaction": {"records": records, "paths": transaction_paths},
-        "preExistingFindings": baseline_findings,
     }
 
 
@@ -215,6 +242,11 @@ def _finding(raw: Any) -> dict[str, Any]:
         if not isinstance(detail, str) or not detail:
             raise OpenClawAdmissionError("scanner-error")
         row["detail"] = detail
+    if "contentDigest" in raw:
+        content_digest = raw["contentDigest"]
+        if not isinstance(content_digest, str) or not DIGEST.fullmatch(content_digest):
+            raise OpenClawAdmissionError("scanner-error")
+        row["contentDigest"] = content_digest
     return row
 
 
@@ -273,14 +305,16 @@ def _owned_paths(root: Path, boundary: Mapping[str, Any]) -> set[str]:
     return paths
 
 
-def _declared_ide_paths(root: Path, boundary: Mapping[str, Any]) -> set[str]:
+def _declared_ide_paths(
+    root: Path, boundary: Mapping[str, Any], *, allowed_versions: set[str]
+) -> set[str]:
     inventory = root / INSTALLED_STATE_REL
     if not inventory.exists():
         return set()
     raw = _load_json(inventory, "ide-inventory-invalid")
     if not isinstance(raw, Mapping) or not isinstance(raw.get("files"), Mapping):
         raise OpenClawAdmissionError("ide-inventory-invalid")
-    if raw.get("packageVersion") != INSTALLER_VERSION:
+    if raw.get("packageVersion") not in allowed_versions:
         raise OpenClawAdmissionError("ide-package-version-mismatch")
     paths: set[str] = set()
     for value in raw["files"]:
@@ -298,6 +332,32 @@ def _declared_ide_paths(root: Path, boundary: Mapping[str, Any]) -> set[str]:
         if candidate.is_file():
             paths.add(path)
     return paths
+
+
+def _package_changed_paths(
+    *, package_root: Path | None, consumer_root: Path, boundary: Mapping[str, Any]
+) -> tuple[set[str], list[str]]:
+    """Resolve present v2.5.2 package destinations inside the IDE boundary."""
+    if package_root is None:
+        raise OpenClawAdmissionError("package-manifest-missing")
+    manifest = package_root / "core/managed-core/MANIFEST.json"
+    if not manifest.is_file() or manifest.is_symlink():
+        manifest = package_root / ".ide-development/MANIFEST.json"
+    payload = _load_json(manifest, "package-manifest-missing")
+    if not isinstance(payload, Mapping) or payload.get("packageVersion") != INSTALLER_VERSION:
+        raise OpenClawAdmissionError("package-version-mismatch")
+    entries = payload.get("files")
+    if not isinstance(entries, list):
+        raise OpenClawAdmissionError("package-manifest-invalid")
+    declared: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            raise OpenClawAdmissionError("package-manifest-invalid")
+        destination = _require_relpath(entry.get("destination"), "package-manifest-invalid")
+        if any(_path_matches(destination, prefix) for prefix in boundary["ide"]["prefixes"]):
+            declared.add(destination)
+    present, missing = _present_paths(consumer_root, sorted(declared))
+    return present, missing
 
 
 def _present_paths(root: Path, paths: list[str]) -> tuple[set[str], list[str]]:
@@ -332,6 +392,10 @@ def _run_scanner(scanner: Scanner, paths: list[str]) -> Mapping[str, Any]:
         raise OpenClawAdmissionError("scanner-error")
     if not isinstance(result.get("ok"), bool):
         raise OpenClawAdmissionError("scanner-error")
+    # Baselines are captured before the transaction by this module. A scanner
+    # cannot smuggle an accepted finding list into the admission decision.
+    if "baselineFindings" in result or "preExistingFindings" in result:
+        raise OpenClawAdmissionError("scanner-error")
     return result
 
 
@@ -342,27 +406,142 @@ def _finding_key(row: Mapping[str, Any]) -> str:
     return json.dumps(dict(sorted(row.items())), sort_keys=True, separators=(",", ":"))
 
 
-def _baseline_findings(
-    *,
-    boundary: Mapping[str, Any],
-    observed_upstream: Mapping[str, Any] | None,
-    scan: Mapping[str, Any],
-) -> dict[str, dict[str, Any]]:
-    rows: list[Any] = list(boundary.get("preExistingFindings") or [])
-    if isinstance(observed_upstream, Mapping):
-        observed = observed_upstream.get("findings") or observed_upstream.get("preExistingFindings") or []
-        if not isinstance(observed, list):
-            raise OpenClawAdmissionError("scanner-error")
-        rows.extend(observed)
-    supplied = scan.get("baselineFindings") or scan.get("preExistingFindings") or []
-    if not isinstance(supplied, list):
+def _scan_identity(scan: Mapping[str, Any]) -> dict[str, str]:
+    commit = scan.get("candidateCommit")
+    tree = scan.get("candidateGitTree")
+    if not isinstance(commit, str) or not HEX40.fullmatch(commit):
+        raise OpenClawAdmissionError("missing-baseline-identity")
+    if not isinstance(tree, str) or not HEX40.fullmatch(tree):
+        raise OpenClawAdmissionError("missing-baseline-identity")
+    if scan.get("repository") not in (None, REPOSITORY):
+        raise OpenClawAdmissionError("baseline-repository-mismatch")
+    policy = scan.get("scannerPolicyVersion")
+    if not isinstance(policy, str) or not policy:
+        raise OpenClawAdmissionError("missing-baseline-identity")
+    return {"commit": commit, "tree": tree}
+
+
+def _content_digest(root: Path, path: str) -> str:
+    candidate = root / Path(path)
+    if candidate.is_symlink() or not candidate.is_file():
         raise OpenClawAdmissionError("scanner-error")
-    rows.extend(supplied)
+    try:
+        return "sha256:" + hashlib.sha256(candidate.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise OpenClawAdmissionError("scanner-error") from exc
+
+
+def _scoped_findings(
+    *, consumer_root: Path, boundary: Mapping[str, Any], checked_set: set[str], scan: Mapping[str, Any]
+) -> list[dict[str, Any]]:
+    raw_findings = scan.get("findings")
+    if not isinstance(raw_findings, list):
+        raise OpenClawAdmissionError("scanner-error")
+    scoped: list[dict[str, Any]] = []
+    for raw in raw_findings:
+        row = _finding(raw)
+        if _path_is_forbidden(row["path"], boundary["forbiddenWholeTrees"]):
+            raise OpenClawAdmissionError("forbidden-path")
+        if row["path"] not in checked_set:
+            raise OpenClawAdmissionError("out-of-scope-finding")
+        row["contentDigest"] = _content_digest(consumer_root, row["path"])
+        scoped.append(row)
+    return scoped
+
+
+def _baseline_from_scan(
+    *, consumer_root: Path, boundary: Mapping[str, Any], checked: list[str], omitted: list[str],
+    checked_set: set[str], scan: Mapping[str, Any]
+) -> dict[str, Any]:
+    return {
+        "schemaVersion": BASELINE_SCHEMA_VERSION,
+        "kind": BASELINE_KIND,
+        "repository": REPOSITORY,
+        "identity": _scan_identity(scan),
+        "scannerPolicyVersion": scan["scannerPolicyVersion"],
+        "checkedPaths": checked,
+        "omittedMissingPaths": omitted,
+        "findings": _scoped_findings(
+            consumer_root=consumer_root, boundary=boundary,
+            checked_set=checked_set, scan=scan,
+        ),
+    }
+
+
+def _validate_baseline(
+    *, baseline: Mapping[str, Any], boundary: Mapping[str, Any],
+    target_identity: Mapping[str, str], checked_set: set[str]
+) -> dict[str, dict[str, Any]]:
+    if (
+        not isinstance(baseline, Mapping)
+        or baseline.get("schemaVersion") != BASELINE_SCHEMA_VERSION
+        or baseline.get("kind") != BASELINE_KIND
+        or baseline.get("repository") != REPOSITORY
+    ):
+        raise OpenClawAdmissionError("baseline-invalid")
+    identity = baseline.get("identity")
+    if not isinstance(identity, Mapping) or dict(identity) != dict(target_identity):
+        raise OpenClawAdmissionError("baseline-identity-mismatch")
+    _scan_identity({"candidateCommit": identity.get("commit"), "candidateGitTree": identity.get("tree"),
+                    "scannerPolicyVersion": baseline.get("scannerPolicyVersion"),
+                    "repository": REPOSITORY})
+    paths = baseline.get("checkedPaths")
+    omitted = baseline.get("omittedMissingPaths")
+    rows = baseline.get("findings")
+    if not isinstance(paths, list) or not isinstance(omitted, list) or not isinstance(rows, list):
+        raise OpenClawAdmissionError("baseline-invalid")
+    baseline_paths = {_require_relpath(item, "baseline-invalid") for item in paths}
+    # A v2.5.2 transaction may add a destination that was absent in the
+    # pre-install tree. That new path is scanned after installation and any
+    # finding on it is necessarily new; it must not be hidden by the baseline.
+    if not baseline_paths.issubset(checked_set):
+        raise OpenClawAdmissionError("baseline-scope-mismatch")
+    for item in omitted:
+        _require_relpath(item, "baseline-invalid")
     normalized: dict[str, dict[str, Any]] = {}
     for raw in rows:
         row = _finding(raw)
-        normalized[_finding_key(row)] = row
+        if row["path"] not in baseline_paths or "contentDigest" not in row:
+            raise OpenClawAdmissionError("baseline-invalid")
+        if row["contentDigest"] != raw.get("contentDigest"):
+            raise OpenClawAdmissionError("baseline-invalid")
+        normalized[_finding_key({**row, "contentDigest": raw["contentDigest"]})] = {
+            **row, "contentDigest": raw["contentDigest"]
+        }
     return normalized
+
+
+def _full_receipt_identity(
+    receipt: Mapping[str, Any] | None, target_identity: Mapping[str, str]
+) -> dict[str, Any] | None:
+    """Pass through only a digest-valid FullSuiteReceipt identity.
+
+    A scoped local scan is never promoted to Full. If a caller supplies a
+    Full receipt, the shared receipt parser verifies schema v2, success,
+    canonical digest, recognized runner, and exact candidate identity.
+    """
+    if receipt is None:
+        return None
+    try:
+        from scripts.gitops.coordinator.receipts import (
+            FullSuiteReceipt, compute_receipt_digest,
+        )
+        parsed = FullSuiteReceipt.from_dict(receipt)
+        if parsed.receipt_digest != compute_receipt_digest(parsed):
+            raise ValueError("receipt digest")
+        identity = parsed.candidate_identity.to_dict()
+    except Exception as exc:
+        raise OpenClawAdmissionError("full-receipt-invalid") from exc
+    if identity.get("repository") != REPOSITORY:
+        raise OpenClawAdmissionError("full-receipt-repository-mismatch")
+    if identity.get("headCommit") != target_identity["commit"] or identity.get("gitTree") != target_identity["tree"]:
+        raise OpenClawAdmissionError("full-receipt-identity-mismatch")
+    return {
+        "candidateIdentity": identity,
+        "workflowRunId": parsed.workflow_run_id,
+        "workflowRunAttempt": parsed.workflow_run_attempt,
+        "receiptDigest": parsed.receipt_digest,
+    }
 
 
 def admit_openclaw_customization(
@@ -373,10 +552,22 @@ def admit_openclaw_customization(
     manifest_path: Path | None = None,
     scanner: Scanner,
     observed_upstream: Mapping[str, Any] | None = None,
+    pre_install_baseline: Mapping[str, Any] | None = None,
+    capture_baseline: bool = False,
+    full_run_receipt: Mapping[str, Any] | None = None,
     timeout_seconds: int | None = None,
 ) -> dict[str, Any]:
-    """Admit the live boundary's owned and explicitly declared IDE paths."""
-    del package_root, timeout_seconds
+    """Admit only owned customizations and present v2.5.2 destinations.
+
+    The pre-install baseline is captured by this module and must be supplied
+    back for comparison. Upstream observations and scanner-provided baseline
+    fields are intentionally not accepted as authority.
+    """
+    del observed_upstream, timeout_seconds
+    if capture_baseline and pre_install_baseline is not None:
+        raise OpenClawAdmissionError("baseline-invalid")
+    if pre_install_baseline is None and not capture_baseline:
+        raise OpenClawAdmissionError("missing-baseline-identity")
     consumer_root = consumer_root.resolve()
     path = Path(boundary_path or manifest_path or consumer_root / BOUNDARY_REL)
     if not path.is_absolute():
@@ -384,7 +575,14 @@ def admit_openclaw_customization(
     boundary = _boundary(path)
 
     checked_set = _owned_paths(consumer_root, boundary)
-    checked_set.update(_declared_ide_paths(consumer_root, boundary))
+    checked_set.update(_declared_ide_paths(
+        consumer_root, boundary,
+        allowed_versions={INSTALLER_VERSION} if pre_install_baseline is not None else {"2.5.1", INSTALLER_VERSION},
+    ))
+    package_paths, omitted_package = _package_changed_paths(
+        package_root=package_root, consumer_root=consumer_root, boundary=boundary
+    )
+    checked_set.update(package_paths)
     overlay_present, omitted_overlay = _present_paths(
         consumer_root, boundary["ide"]["overlayOnUpstreamExactPaths"]
     )
@@ -397,30 +595,43 @@ def admit_openclaw_customization(
     if any(_path_is_forbidden(item, boundary["forbiddenWholeTrees"]) for item in checked):
         raise OpenClawAdmissionError("forbidden-path")
 
+    before = _target_identity(consumer_root)
     scan = _run_scanner(scanner, checked)
-    raw_findings = scan.get("findings")
-    if not isinstance(raw_findings, list):
-        raise OpenClawAdmissionError("scanner-error")
-    scoped: list[dict[str, Any]] = []
-    for raw in raw_findings:
-        row = _finding(raw)
-        if _path_is_forbidden(row["path"], boundary["forbiddenWholeTrees"]):
-            raise OpenClawAdmissionError("forbidden-path")
-        if row["path"] in checked_set:
-            scoped.append(row)
-    baseline = _baseline_findings(
-        boundary=boundary, observed_upstream=observed_upstream, scan=scan
+    after = _target_identity(consumer_root)
+    if before != after:
+        raise OpenClawAdmissionError("target-identity-drift")
+    if _scan_identity(scan) != after:
+        raise OpenClawAdmissionError("scanner-identity-mismatch")
+    scoped = _scoped_findings(
+        consumer_root=consumer_root, boundary=boundary, checked_set=checked_set, scan=scan
     )
-    new_findings = [row for row in scoped if _finding_key(row) not in baseline]
-    for row in new_findings:
-        if row["kind"] == SKIPPED_KIND:
-            raise OpenClawAdmissionError("new-skipped-input")
-        raise OpenClawAdmissionError("new-or-changed-finding")
+    if capture_baseline:
+        baseline = _baseline_from_scan(
+            consumer_root=consumer_root, boundary=boundary, checked_set=checked_set,
+            checked=checked, omitted=sorted(set(omitted_package) | set(omitted_overlay) | set(omitted_transaction) | set(boundary["ide"]["declaredMissingLocally"])), scan=scan,
+        )
+        comparison = "captured"
+    else:
+        baseline_rows = _validate_baseline(
+            baseline=pre_install_baseline, boundary=boundary,
+            target_identity=after, checked_set=checked_set,
+        )
+        if scan["scannerPolicyVersion"] != pre_install_baseline["scannerPolicyVersion"]:
+            raise OpenClawAdmissionError("scanner-policy-drift")
+        for row in scoped:
+            if _finding_key(row) not in baseline_rows:
+                if row["kind"] == SKIPPED_KIND:
+                    raise OpenClawAdmissionError("new-skipped-input")
+                raise OpenClawAdmissionError("new-or-changed-finding")
+        baseline = dict(pre_install_baseline)
+        comparison = "compared"
     # A scanner that failed without producing a finding is still a scanner
     # failure. A false ``ok`` is allowed only when every scoped finding is an
     # exact pre-existing finding from the completed rollout evidence.
     if scan.get("ok") is not True and not scoped:
         raise OpenClawAdmissionError("scanner-error")
+
+    receipt_identity = _full_receipt_identity(full_run_receipt, after)
 
     return {
         "schemaVersion": 1,
@@ -435,15 +646,20 @@ def admit_openclaw_customization(
                 "prefixes": sorted(boundary["ownedPrefixes"]),
                 "exactPaths": sorted(boundary["ownedExactPaths"]),
             },
-            "ideManaged": boundary["ide"],
+            "ideManaged": {**boundary["ide"], "packageChangedPaths": sorted(package_paths)},
             "ideTransactionChanged": boundary["transaction"],
             "forbiddenWholeTrees": sorted(boundary["forbiddenWholeTrees"]),
         },
         "checkedPaths": checked,
         "findings": scoped,
-        "preExistingFindings": sorted(baseline.values(), key=_finding_key),
+        "preInstallBaseline": baseline,
+        "candidateIdentity": after,
+        "scannerPolicyVersion": scan["scannerPolicyVersion"],
+        "baselineComparison": comparison,
+        **({"fullRunReceiptIdentity": receipt_identity} if receipt_identity is not None else {}),
         "omittedMissingPaths": sorted(
-            set(omitted_overlay)
+            set(omitted_package)
+            | set(omitted_overlay)
             | set(omitted_transaction)
             | set(boundary["ide"]["declaredMissingLocally"])
         ),
