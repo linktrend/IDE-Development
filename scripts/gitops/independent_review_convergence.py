@@ -1228,15 +1228,23 @@ def rebind_full_evidence(
             "changedPaths": list(decision.changed_paths),
         }
     )
+    source_run = next(
+        (
+            run
+            for run in session.full_runs
+            if run.get("headSha") == source and run.get("coverage") == "cumulative"
+        ),
+        {},
+    )
     session.full_evidence = {
         "valid": True,
         "headSha": head,
         "gitTree": tree,
-        "reusedFromSourceHead": source,
-        "execution": "rebind",
+        "priorHeadSha": source,
+        "execution": str(source_run.get("execution") or "hosted"),
         "coverage": "cumulative",
-        "fullSuiteRerun": False,
-        "changedPaths": list(decision.changed_paths),
+        "finalCandidate": bool(source_run.get("finalCandidate", True)),
+        "reusedForUnchangedPaths": True,
     }
     return dict(session.full_evidence)
 

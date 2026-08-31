@@ -10,6 +10,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from jsonschema import Draft202012Validator
+
 from scripts.gitops.coordinator import receipts
 from scripts.gitops.evidence_rebind import (
     admit_evidence_rebind,
@@ -535,10 +537,18 @@ class EvidenceRebindConvergenceTests(unittest.TestCase):
             scanner=scanner(HEAD_B, TREE_B),
         )
         self.assertTrue(rebound["valid"])
-        self.assertFalse(rebound["fullSuiteRerun"])
-        self.assertEqual(rebound["reusedFromSourceHead"], HEAD_A)
+        self.assertEqual(rebound["execution"], "hosted")
+        self.assertEqual(rebound["priorHeadSha"], HEAD_A)
+        self.assertTrue(rebound["reusedForUnchangedPaths"])
         self.assertEqual(len(session.full_runs), 1)
         self.assertEqual(session.to_dict()["evidenceRebindCount"], 1)
+        schema = json.loads(
+            (ROOT / "core/managed-core/schemas/review-session.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        errors = list(Draft202012Validator(schema).iter_errors(session.to_dict()))
+        self.assertEqual(errors, [])
         with self.assertRaises(ConvergenceError) as raised:
             rebind_full_evidence(
                 session,
