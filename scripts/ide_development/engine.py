@@ -279,7 +279,13 @@ def _load_secret_scan_module(package_root: Path):
     return module
 
 
-def _openclaw_admission(package_root: Path, target_root: Path) -> dict[str, Any] | None:
+def _openclaw_admission(
+    package_root: Path,
+    target_root: Path,
+    *,
+    pre_install_baseline: dict[str, Any] | None = None,
+    capture_baseline: bool = True,
+) -> dict[str, Any] | None:
     """Run scoped admission when the target exposes the OpenClaw boundary."""
     boundary = target_root / BOUNDARY_REL
     if not boundary.exists():
@@ -294,6 +300,8 @@ def _openclaw_admission(package_root: Path, target_root: Path) -> dict[str, Any]
         package_root=package_root,
         boundary_path=boundary,
         scanner=scanner,
+        pre_install_baseline=pre_install_baseline,
+        capture_baseline=capture_baseline,
     )
 
 
@@ -342,7 +350,11 @@ def _resolve_authorized_upgrade(
 
 
 def _post_install_verification(
-    *, target_root: Path, package_root: Path, resolution: UpgradeResolution | None
+    *,
+    target_root: Path,
+    package_root: Path,
+    resolution: UpgradeResolution | None,
+    openclaw_admission: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Verify the applied package before its transaction is committed."""
     verify = run_verify(target=target_root, package=package_root)
@@ -356,6 +368,14 @@ def _post_install_verification(
     scan_exit = scan.get("exitCode")
     scan_mode = scan["mode"]
     scan_error_type = scan.get("errorType")
+    customization_admission = None
+    if openclaw_admission is not None:
+        customization_admission = _openclaw_admission(
+            package_root,
+            target_root,
+            pre_install_baseline=openclaw_admission["preInstallBaseline"],
+            capture_baseline=False,
+        )
     receipt_ok = resolution is not None and resolution.verification.get("providerReceipt") and resolution.verification.get("providerTreeRequired") is True and resolution.verification.get("consumerTreeRequired") is True and resolution.verification.get("noUpstreamScanOrMutation") is True
     result = {
         "manifest": "pass" if manifest_ok else "fail",
@@ -363,6 +383,7 @@ def _post_install_verification(
         "closure": "pass" if verify.exit_code == EXIT_OK else "fail",
         "selfScan": "pass" if scan_ok else "fail",
         "cleanroom": "receipt-bound-pass" if receipt_ok else "fail",
+        "customizationAdmission": "pass" if customization_admission is not None else "not-applicable",
         "verifyExitCode": verify.exit_code,
         "selfScanMode": scan_mode,
     }
@@ -370,8 +391,13 @@ def _post_install_verification(
         result["selfScanExitCode"] = scan_exit
     if scan_error_type is not None:
         result["selfScanErrorType"] = scan_error_type
-    if not all(result[key] in {"pass", "receipt-bound-pass"} for key in ("manifest", "managedHashes", "closure", "selfScan", "cleanroom")):
+    required = ("manifest", "managedHashes", "closure", "selfScan", "cleanroom")
+    if customization_admission is not None:
+        required += ("customizationAdmission",)
+    if not all(result[key] in {"pass", "receipt-bound-pass"} for key in required):
         raise InvalidPackageError("Post-install managed upgrade verification failed", details=result)
+    if customization_admission is not None:
+        result["openclawAdmission"] = customization_admission
     return result
 
 
@@ -573,9 +599,12 @@ def run_install_or_update(
         resolution=resolution,
         post_apply_check=(
             lambda: _post_install_verification(
-                target_root=target_root, package_root=package_root, resolution=resolution
+                target_root=target_root,
+                package_root=package_root,
+                resolution=resolution,
+                openclaw_admission=openclaw_admission,
             )
-            if resolution is not None
+            if resolution is not None or openclaw_admission is not None
             else {}
         ),
     )

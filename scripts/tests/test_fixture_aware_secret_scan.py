@@ -1178,6 +1178,37 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
         self.assertNotIn("unchanged.py", scanned_paths)
         self.assertIn("changed.py", scanned_paths)
 
+    def test_unchanged_pre_existing_credential_is_permitted(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        git(root, "remote", "add", "origin", "https://github.com/example/change-scoped.git")
+        write_tracked(root, "scripts/gitops/secret_scan.py", "note = \"baseline scanner\"\n")
+        old_secret = "ghp_" + ("A" * 36)
+        write_tracked(root, "unchanged.py", f'token = "{old_secret}"\n')
+        baseline, baseline_tree = commit(root, "baseline credential")
+        git(root, "update-ref", "refs/remotes/origin/development", baseline)
+        baseline_result = scan_repository(root)
+        write_tracked(root, "changed.py", 'note = "ordinary change"\n')
+        candidate, candidate_tree = commit(root, "candidate without new credential")
+        evidence = {
+            "schemaVersion": 1,
+            "kind": CHANGE_SCOPED_KIND,
+            "repository": "example/change-scoped",
+            "authoritativeRemoteRef": "origin/development",
+            "baselineCommit": baseline,
+            "baselineTree": baseline_tree,
+            "candidateCommit": candidate,
+            "candidateGitTree": candidate_tree,
+            "scannerPolicyVersion": SCANNER_POLICY_VERSION,
+            "managedPaths": list(MANAGED_SCANNER_POLICY_PATHS),
+            "configDigest": config_digest(root),
+            "findings": baseline_result["findings"],
+        }
+        result = scan_repository(root, baseline_evidence=evidence)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["inheritedFindingCount"], 1)
+        self.assertEqual(result["inheritedFindings"][0]["path"], "unchanged.py")
+
     def test_unchanged_baseline_fixture_declaration_is_inherited(self) -> None:
         """Unchanged fixture rows are not stale merely because their source is not rescanned."""
         tmp, root = init_repo()
