@@ -529,6 +529,10 @@ def phase_merge_eligibility_with_receipt(
     conflict: bool = False,
     expected_tree: str | None = None,
     evidence_rebind_receipt: Mapping[str, Any] | None = None,
+    repository_root: str | Path | None = None,
+    evidence_rebind_delta_review: Mapping[str, Any] | None = None,
+    evidence_rebind_hosted_checks: Mapping[str, Any] | None = None,
+    evidence_rebind_scanner: Mapping[str, Any] | None = None,
 ) -> MergeEligibility:
     """Ordinary Phase merge requires gates plus an exact retained receipt."""
 
@@ -586,6 +590,10 @@ def phase_merge_eligibility_with_receipt(
             live_identity,
             "full-gate",
             evidence_rebind_receipt=rebind,
+            repository_root=repository_root,
+            evidence_rebind_delta_review=evidence_rebind_delta_review,
+            evidence_rebind_hosted_checks=evidence_rebind_hosted_checks,
+            evidence_rebind_scanner=evidence_rebind_scanner,
         )
         if not verdict.accepted:
             checks["retainedReceipt"] = False

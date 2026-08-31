@@ -23,6 +23,8 @@
     "unattendedCheckpointCycles",
     "terminalCycleCap",
     "infrastructureAttempts",
+    "evidenceRebindCount",
+    "evidenceRebinds",
     "fullEvidence",
     "priorReview",
     "recoveryGeneration",
@@ -99,6 +101,22 @@
       }
     },
     "infrastructureAttempts": { "type": "integer", "minimum": 0, "maximum": 2 },
+    "evidenceRebindCount": { "type": "integer", "minimum": 0, "maximum": 1 },
+    "evidenceRebinds": {
+      "type": "array",
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sourceHeadSha", "exactHeadSha", "exactGitTree", "changedPaths"],
+        "properties": {
+          "sourceHeadSha": { "$ref": "#/$defs/sha40" },
+          "exactHeadSha": { "$ref": "#/$defs/sha40" },
+          "exactGitTree": { "$ref": "#/$defs/sha40" },
+          "changedPaths": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+        }
+      }
+    },
     "infrastructureHead": { "anyOf": [{ "$ref": "#/$defs/sha40" }, { "type": "null" }] },
     "liveReviewer": { "type": ["object", "null"] },
     "fullEvidence": { "$ref": "#/$defs/evidenceBinding" },

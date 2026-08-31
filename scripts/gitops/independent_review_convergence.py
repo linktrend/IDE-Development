@@ -235,6 +235,7 @@ class ReviewSession:
         default_factory=lambda: {"valid": False, "sourceHeadSha": None, "paths": []}
     )
     full_runs: list[dict[str, Any]] = field(default_factory=list)
+    evidence_rebinds: list[dict[str, Any]] = field(default_factory=list)
     splits: list[dict[str, Any]] = field(default_factory=list)
     recovery_generation: int = 0
     no_progress_streak: int = 0
@@ -283,6 +284,8 @@ class ReviewSession:
             "deltaReview": dict(self.delta_review),
             "reusableUnchangedEvidence": dict(self.reusable_unchanged_evidence),
             "fullRuns": list(self.full_runs),
+            "evidenceRebindCount": len(self.evidence_rebinds),
+            "evidenceRebinds": list(self.evidence_rebinds),
             "splits": list(self.splits),
             "recoveryGeneration": self.recovery_generation,
             "noProgressStreak": self.no_progress_streak,
@@ -1140,6 +1143,7 @@ def record_full_evidence(
 def rebind_full_evidence(
     session: ReviewSession,
     *,
+    repo_root: Path | str,
     source_head_sha: str,
     exact_head_sha: str,
     exact_git_tree: str,
@@ -1154,7 +1158,6 @@ def rebind_full_evidence(
     source_full_receipt: Mapping[str, Any],
     narrow_hosted_checks: Mapping[str, Any],
     scanner: Mapping[str, Any],
-    history: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     """Reuse accepted source Full evidence for a generated-only exact-head delta.
 
@@ -1174,6 +1177,11 @@ def rebind_full_evidence(
     prior_heads.update(str(run.get("headSha") or "") for run in session.full_runs if run.get("coverage") == "cumulative")
     if source not in prior_heads:
         raise ConvergenceError("stale_identity", "no independently accepted source Full evidence to rebind")
+    if session.evidence_rebinds:
+        raise ConvergenceError(
+            "receipt_loop_detected",
+            "only one evidence-rebind is permitted by durable review-session state",
+        )
     if session.status in {STATUS_HOLD, STATUS_REVIEW_STALLED}:
         raise ConvergenceError(session.status, "evidence-rebind cannot run while independent review is held or stalled")
     if not session.focused_checks.get("valid") or session.focused_checks.get("headSha") != head:
@@ -1185,6 +1193,7 @@ def rebind_full_evidence(
     if isinstance(identity, Mapping):
         source_tree = str(identity.get("gitTree") or "")
     decision = admit_evidence_rebind(
+        repo_root=repo_root,
         source_commit=source,
         source_tree=source_tree,
         exact_head_commit=head,
@@ -1204,10 +1213,18 @@ def rebind_full_evidence(
         narrow_hosted_checks=narrow_hosted_checks,
         scanner=scanner,
         source_full_receipt=source_full_receipt,
-        history=history,
+        durable_state=session.to_dict(),
     )
     if not decision.allowed:
         raise ConvergenceError(decision.code, decision.detail)
+    session.evidence_rebinds.append(
+        {
+            "sourceHeadSha": source,
+            "exactHeadSha": head,
+            "exactGitTree": tree,
+            "changedPaths": list(decision.changed_paths),
+        }
+    )
     session.full_evidence = {
         "valid": True,
         "headSha": head,

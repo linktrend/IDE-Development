@@ -39,6 +39,7 @@ DEP = "sha256:" + "d" * 64
 PROFILE = "sha256:" + "a" * 64
 WORKFLOW = "sha256:" + "b" * 64
 GENERATED = ".github/linktrend-secret-scan-fixtures.json"
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def sha(number: int) -> str:
@@ -78,20 +79,21 @@ def review_payload(head: str, tree: str, paths: list[str] | None = None) -> dict
     }
 
 
-def checks(head: str) -> dict[str, object]:
+def checks(head: str, tree: str = sha(4)) -> dict[str, object]:
     return {
-        "fast": {"conclusion": "success", "headCommit": head},
-        "secret-scan": {"conclusion": "success", "headCommit": head},
+        "fast": {"conclusion": "success", "headCommit": head, "gitTree": tree},
+        "secret-scan": {"conclusion": "success", "headCommit": head, "gitTree": tree},
     }
 
 
-def scanner(head: str) -> dict[str, object]:
-    return {"conclusion": "success", "headCommit": head}
+def scanner(head: str, tree: str = sha(4)) -> dict[str, object]:
+    return {"conclusion": "success", "headCommit": head, "gitTree": tree}
 
 
 def issue_from_kwargs(kwargs: dict[str, object]) -> dict[str, object]:
     return issue_evidence_rebind_receipt(
         kwargs["source_full_receipt"],
+        repo_root=ROOT,
         exact_head_commit=kwargs["exact_head_commit"],
         exact_head_tree=kwargs["exact_head_tree"],
         changed_paths=kwargs["changed_paths"],
@@ -108,7 +110,7 @@ def issue_from_kwargs(kwargs: dict[str, object]) -> dict[str, object]:
         delta_review=kwargs["delta_review"],
         narrow_hosted_checks=kwargs["narrow_hosted_checks"],
         scanner=kwargs["scanner"],
-        history=kwargs.get("history") or (),
+        durable_state=kwargs.get("durable_state") or {"evidenceRebinds": [], "evidenceRebindCount": 0},
     )
 
 
@@ -118,6 +120,7 @@ def admit_kwargs(**overrides: object) -> dict[str, object]:
     source_tree = sha(3)
     head_tree = sha(4)
     payload = {
+        "repo_root": ROOT,
         "source_commit": source,
         "source_tree": source_tree,
         "exact_head_commit": head,
@@ -137,7 +140,7 @@ def admit_kwargs(**overrides: object) -> dict[str, object]:
         "narrow_hosted_checks": checks(head),
         "scanner": scanner(head),
         "source_full_receipt": full_receipt(head=source, tree=source_tree),
-        "history": (),
+        "durable_state": {"evidenceRebinds": [], "evidenceRebindCount": 0},
     }
     payload.update(overrides)
     return payload
@@ -173,9 +176,59 @@ class EvidenceRebindAdmissionTests(unittest.TestCase):
         narrow = admit_evidence_rebind(**admit_kwargs(narrow_hosted_checks={"fast": "success"}))
         self.assertEqual(narrow.code, "narrow_checks_failed")
 
+    def test_raw_success_strings_and_missing_exact_trees_are_rejected(self) -> None:
+        raw_checks = admit_evidence_rebind(
+            **admit_kwargs(
+                narrow_hosted_checks={"fast": "success", "secret-scan": "success"}
+            )
+        )
+        self.assertFalse(raw_checks.allowed)
+        self.assertEqual(raw_checks.code, "narrow_checks_failed")
+        missing_tree = admit_evidence_rebind(
+            **admit_kwargs(
+                delta_review={"valid": True, "headSha": sha(2), "paths": [GENERATED]}
+            )
+        )
+        self.assertFalse(missing_tree.allowed)
+        self.assertEqual(missing_tree.code, "delta_review_missing")
+        missing_scan_tree = admit_evidence_rebind(
+            **admit_kwargs(scanner={"conclusion": "success", "headCommit": sha(2)})
+        )
+        self.assertFalse(missing_scan_tree.allowed)
+        self.assertEqual(missing_scan_tree.code, "scanner_failure")
+
+    def test_generated_paths_must_match_repository_policy(self) -> None:
+        decision = admit_evidence_rebind(**admit_kwargs(generated_paths=["src/app.py"]))
+        self.assertFalse(decision.allowed)
+        self.assertEqual(decision.code, "generated_policy_mismatch")
+
+    def test_receipt_verification_requires_supplied_exact_evidence(self) -> None:
+        kwargs = admit_kwargs()
+        signed = issue_from_kwargs(kwargs)
+        target = dict(kwargs["source_full_receipt"]["candidateIdentity"])
+        target.update({"headCommit": signed["exactHeadCommit"], "gitTree": signed["exactHeadTree"]})
+        decision = verify_evidence_rebind_receipt(
+            signed,
+            kwargs["source_full_receipt"],
+            target,
+            repo_root=ROOT,
+            delta_review=None,
+            narrow_hosted_checks=None,
+            scanner=None,
+        )
+        self.assertFalse(decision.allowed)
+        self.assertEqual(decision.code, "evidence_missing")
+
     def test_second_rebind_for_same_underlying_source_is_a_loop(self) -> None:
         first = issue_from_kwargs(admit_kwargs())
-        stopped = admit_evidence_rebind(**admit_kwargs(history=[first]))
+        stopped = admit_evidence_rebind(
+            **admit_kwargs(
+                durable_state={
+                    "evidenceRebinds": [{"receiptDigest": first["receiptDigest"]}],
+                    "evidenceRebindCount": 1,
+                }
+            )
+        )
         self.assertFalse(stopped.allowed)
         self.assertEqual(stopped.code, "receipt_loop_detected")
 
@@ -199,6 +252,10 @@ class EvidenceRebindReceiptTests(unittest.TestCase):
             "full-gate",
             evidence_rebind_receipt=signed,
             workflow_head_commit=signed["exactHeadCommit"],
+            repository_root=ROOT,
+            evidence_rebind_delta_review=kwargs["delta_review"],
+            evidence_rebind_hosted_checks=kwargs["narrow_hosted_checks"],
+            evidence_rebind_scanner=kwargs["scanner"],
         )
         self.assertTrue(reused.accepted, reused.message)
         self.assertEqual(reused.source_commit, signed["sourceCommit"])
@@ -217,6 +274,7 @@ class EvidenceRebindReceiptTests(unittest.TestCase):
         source_receipt = kwargs["source_full_receipt"]
         signed = create_evidence_rebind_receipt(
             source_receipt,
+            repo_root=ROOT,
             exact_head_commit=kwargs["exact_head_commit"],
             exact_head_tree=kwargs["exact_head_tree"],
             underlying_source_digest=UNDERLYING,
@@ -225,13 +283,22 @@ class EvidenceRebindReceiptTests(unittest.TestCase):
             delta_review=kwargs["delta_review"],
             narrow_hosted_checks=kwargs["narrow_hosted_checks"],
             scanner=kwargs["scanner"],
+            durable_state={"evidenceRebinds": [], "evidenceRebindCount": 0},
         )
         forged = dict(signed)
         forged["changedPaths"] = ["src/app.py"]
         target = dict(source_receipt["candidateIdentity"])
         target["headCommit"] = signed["exactHeadCommit"]
         target["gitTree"] = signed["exactHeadTree"]
-        digest = verify_evidence_rebind_receipt(forged, source_receipt, target)
+        digest = verify_evidence_rebind_receipt(
+            forged,
+            source_receipt,
+            target,
+            repo_root=ROOT,
+            delta_review=kwargs["delta_review"],
+            narrow_hosted_checks=kwargs["narrow_hosted_checks"],
+            scanner=kwargs["scanner"],
+        )
         self.assertFalse(digest.allowed)
         self.assertEqual(digest.code, "stale_identity")
 
@@ -261,6 +328,10 @@ class EvidenceRebindReceiptTests(unittest.TestCase):
             retained_receipt=source_receipt,
             expected_tree=tree,
             evidence_rebind_receipt=signed,
+            repository_root=ROOT,
+            evidence_rebind_delta_review=kwargs["delta_review"],
+            evidence_rebind_hosted_checks=kwargs["narrow_hosted_checks"],
+            evidence_rebind_scanner=kwargs["scanner"],
         )
         self.assertTrue(ok.eligible, ok.detail)
 
@@ -308,6 +379,7 @@ class EvidenceRebindConvergenceTests(unittest.TestCase):
         )
         rebound = rebind_full_evidence(
             session,
+            repo_root=ROOT,
             source_head_sha=HEAD_A,
             exact_head_sha=HEAD_B,
             exact_git_tree=TREE_B,
@@ -320,13 +392,34 @@ class EvidenceRebindConvergenceTests(unittest.TestCase):
             profile_digest=PROFILE,
             workflow_digest=WORKFLOW,
             source_full_receipt=source_receipt,
-            narrow_hosted_checks=checks(HEAD_B),
-            scanner=scanner(HEAD_B),
+            narrow_hosted_checks=checks(HEAD_B, TREE_B),
+            scanner=scanner(HEAD_B, TREE_B),
         )
         self.assertTrue(rebound["valid"])
         self.assertFalse(rebound["fullSuiteRerun"])
         self.assertEqual(rebound["reusedFromSourceHead"], HEAD_A)
         self.assertEqual(len(session.full_runs), 1)
+        self.assertEqual(session.to_dict()["evidenceRebindCount"], 1)
+        with self.assertRaises(ConvergenceError) as raised:
+            rebind_full_evidence(
+                session,
+                repo_root=ROOT,
+                source_head_sha=HEAD_A,
+                exact_head_sha=HEAD_B,
+                exact_git_tree=TREE_B,
+                changed_paths=[GENERATED],
+                generated_paths=[GENERATED],
+                owned_paths=["src/app.py"],
+                underlying_source_digest_source=UNDERLYING,
+                underlying_source_digest_head=UNDERLYING,
+                dependency_digest=DEP,
+                profile_digest=PROFILE,
+                workflow_digest=WORKFLOW,
+                source_full_receipt=source_receipt,
+                narrow_hosted_checks=checks(HEAD_B, TREE_B),
+                scanner=scanner(HEAD_B, TREE_B),
+            )
+        self.assertEqual(raised.exception.code, "receipt_loop_detected")
 
     def test_product_repair_cannot_rebind_full_evidence(self) -> None:
         session, entries, _clock = open_default(require_full_before_review=True)
@@ -358,6 +451,7 @@ class EvidenceRebindConvergenceTests(unittest.TestCase):
         with self.assertRaises(ConvergenceError) as raised:
             rebind_full_evidence(
                 session,
+                repo_root=ROOT,
                 source_head_sha=HEAD_A,
                 exact_head_sha=HEAD_B,
                 exact_git_tree=TREE_B,
