@@ -111,7 +111,8 @@ class SameVersionRepairTests(TempRepoTestCase):
                     },
                     "installed": {
                         "packageVersion": "2.5.2",
-                        "manifestDigest": old_state.manifest_hash,
+                        "manifestDigest": old_state.manifest_hash
+                        or sha256_file(self.target / ".ide-development/MANIFEST.json"),
                     },
                     "paths": [row],
                 },
@@ -304,6 +305,116 @@ class SameVersionRepairTests(TempRepoTestCase):
         payload["paths"][0]["source"] = "README.md"
         receipt.write_text(json.dumps(payload) + "\n", encoding="utf-8")
         with self.assertRaisesRegex(InvalidPackageError, "not an IDE-managed file"):
+            run_same_version_repair(target=self.target, package=new, repair_manifest=receipt)
+
+    def test_matching_managed_add_collision_is_noop_and_derives_missing_manifest_hash(self) -> None:
+        old = self._package("old-package")
+        self._add_openclaw_admission(old)
+        self._commit_package(old, "admit existing managed path")
+        self.assertEqual(
+            run_install_or_update(target=self.target, package=old, command="install").exit_code,
+            0,
+        )
+        created = self.target / OPENCLAW_DEST
+        before_bytes = created.read_bytes()
+        before_mode = created.stat().st_mode & 0o7777
+
+        new = self._package("new-package")
+        self._add_openclaw_admission(new)
+        changed_source = new / "core/managed-core/files/CORE.txt"
+        changed_source.write_text("same-version manifest repair\n", encoding="utf-8")
+        manifest_path = new / "core/managed-core/MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for entry in manifest["files"]:
+            if entry["id"] == "managed-core-readme":
+                entry["sourceHash"] = sha256_file(changed_source)
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        self._commit_package(new, "change unrelated managed source")
+
+        state_path = self.target / ".ide-development/installed-state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        os.chmod(state_path, 0o644)
+        state.pop("manifestHash")
+        state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+        receipt = self._receipt(old, new, OPENCLAW_DEST, operation="add")
+        result = run_same_version_repair(
+            target=self.target, package=new, repair_manifest=receipt, dry_run=False
+        )
+        self.assertEqual(result.exit_code, 0, result.payload)
+        action = next(item for item in result.payload["actions"] if item["path"] == OPENCLAW_DEST)
+        self.assertEqual(action["op"], "noop")
+        self.assertEqual(created.read_bytes(), before_bytes)
+        self.assertEqual(created.stat().st_mode & 0o7777, before_mode)
+        self.assertEqual(
+            json.loads(state_path.read_text(encoding="utf-8"))["manifestHash"],
+            sha256_file(new / "core/managed-core/MANIFEST.json"),
+        )
+        self.assertNotIn(
+            OPENCLAW_DEST,
+            {item["path"] for item in result.payload["transaction"]["applied"]},
+        )
+
+    def test_matching_bytes_with_wrong_mode_or_provenance_still_fails(self) -> None:
+        old = self._package("old-package")
+        self._add_openclaw_admission(old)
+        self._commit_package(old, "admit existing managed path")
+        self.assertEqual(
+            run_install_or_update(target=self.target, package=old, command="install").exit_code,
+            0,
+        )
+        new = self._package("new-package")
+        self._add_openclaw_admission(new)
+        changed_source = new / "core/managed-core/files/CORE.txt"
+        changed_source.write_text("manifest identity changes\n", encoding="utf-8")
+        manifest_path = new / "core/managed-core/MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for entry in manifest["files"]:
+            if entry["id"] == "managed-core-readme":
+                entry["sourceHash"] = sha256_file(changed_source)
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        self._commit_package(new, "change unrelated managed source")
+        receipt = self._receipt(old, new, OPENCLAW_DEST, operation="add")
+
+        os.chmod(self.target / OPENCLAW_DEST, 0o644)
+        with self.assertRaisesRegex(ConflictError, "existing collision"):
+            run_same_version_repair(target=self.target, package=new, repair_manifest=receipt)
+
+        os.chmod(self.target / OPENCLAW_DEST, 0o444)
+        state_path = self.target / ".ide-development/installed-state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        os.chmod(state_path, 0o644)
+        state["files"][OPENCLAW_DEST]["owner"] = "unmanaged-consumer"
+        state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(ConflictError, "existing collision"):
+            run_same_version_repair(target=self.target, package=new, repair_manifest=receipt)
+
+    def test_missing_manifest_hash_without_exact_managed_preimage_fails(self) -> None:
+        old = self._package("old-package")
+        self.assertEqual(
+            run_install_or_update(target=self.target, package=old, command="install").exit_code,
+            0,
+        )
+        new = self._package("new-package")
+        source = new / "core/managed-core/files/CORE.txt"
+        source.write_text("manifest preimage ambiguity\n", encoding="utf-8")
+        manifest_path = new / "core/managed-core/MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for entry in manifest["files"]:
+            if entry["id"] == "managed-core-readme":
+                entry["sourceHash"] = sha256_file(source)
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        self._commit_package(new, "repair source")
+        receipt = self._receipt(old, new, ".ide-development/CORE.txt")
+        state_path = self.target / ".ide-development/installed-state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        os.chmod(state_path, 0o644)
+        state.pop("manifestHash")
+        state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(InvalidPackageError, "manifestHash is missing"):
+            run_install_or_update(target=self.target, package=old, command="update")
+        (self.target / ".ide-development/MANIFEST.json").unlink()
+        with self.assertRaisesRegex(InvalidPackageError, "cannot be exactly derived"):
             run_same_version_repair(target=self.target, package=new, repair_manifest=receipt)
 
     def test_managed_write_without_lease_fails_closed(self) -> None:
