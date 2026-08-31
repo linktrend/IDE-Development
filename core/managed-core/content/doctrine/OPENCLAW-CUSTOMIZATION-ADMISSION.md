@@ -13,8 +13,10 @@ require repair of untouched `openclaw/openclaw` upstream trees.
 The consumer boundary is evidence, not a permission to broaden scope. The
 module rejects forbidden paths, scanner findings outside the exact checked
 set, missing or mismatched package identity, scanner-supplied baselines, and
-target commit/tree drift. Missing local destinations are recorded as omitted;
-they are not silently treated as scanned.
+target commit/tree drift. The packaged scanner path-scoped result, or the
+installer adapter, must bind the real HEAD `candidateCommit`/`candidateGitTree`;
+admission does not invent those fields. Missing local destinations are
+recorded as omitted; they are not silently treated as scanned.
 
 Admission uses two ordinary issue/Phase calls:
 

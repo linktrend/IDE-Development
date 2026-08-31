@@ -19,6 +19,9 @@ SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+from gitops.secret_scan import scan_repository as packaged_scan_repository  # noqa: E402
+from ide_development import engine as installer_engine  # noqa: E402
+from ide_development.engine import _openclaw_admission  # noqa: E402
 from ide_development.openclaw_customization_admission import (  # noqa: E402
     BOUNDARY_KIND,
     BOUNDARY_REL,
@@ -318,8 +321,6 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
             )
 
     def test_official_installer_helper_calls_scoped_admission(self) -> None:
-        from ide_development import engine
-
         seen: list[list[str]] = []
 
         class ScannerModule:
@@ -330,16 +331,45 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
                 return {
                     "ok": True,
                     "findings": [],
-                    "candidateCommit": self.target_commit,
-                    "candidateGitTree": self.target_tree,
-                    "repository": "linktrend/openclaw_prime",
                     "scannerPolicyVersion": "secret-scan-policy/v1",
                 }
 
-        with patch.object(engine, "_load_secret_scan_module", return_value=ScannerModule):
-            result = engine._openclaw_admission(ROOT, self.consumer)
+        with patch.object(installer_engine, "_load_secret_scan_module", return_value=ScannerModule):
+            result = installer_engine._openclaw_admission(ROOT, self.consumer)
         self.assertEqual(result["verdict"], "admitted")
         self.assertEqual(seen, [result["checkedPaths"]])
+        self.assertEqual(result["candidateIdentity"]["commit"], self.target_commit)
+        self.assertEqual(result["candidateIdentity"]["tree"], self.target_tree)
+
+    def test_real_packaged_scanner_admits_prime_shaped_consumer(self) -> None:
+        captured: list[dict[str, Any]] = []
+
+        def scanner(paths: list[str]) -> dict[str, Any]:
+            result = packaged_scan_repository(self.consumer, paths=paths)
+            captured.append(result)
+            return result
+
+        admitted = self._admit(scanner=scanner)
+        self.assertEqual(admitted["verdict"], "admitted")
+        self.assertEqual(admitted["candidateIdentity"]["commit"], self.target_commit)
+        self.assertEqual(admitted["candidateIdentity"]["tree"], self.target_tree)
+        self.assertEqual(admitted["baselineComparison"], "captured")
+        self.assertNotIn("fullRunReceiptIdentity", admitted)
+        self.assertEqual(len(captured), 1)
+        scan = captured[0]
+        self.assertEqual(scan["candidateCommit"], self.target_commit)
+        self.assertEqual(scan["candidateGitTree"], self.target_tree)
+        self.assertEqual(scan["repository"], "linktrend/openclaw_prime")
+        self.assertNotIn("scanMode", scan)
+        self.assertTrue(scan["ok"], scan)
+
+    def test_official_installer_real_scanner_binds_head_identity(self) -> None:
+        result = _openclaw_admission(ROOT, self.consumer)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["verdict"], "admitted")
+        self.assertEqual(result["candidateIdentity"]["commit"], self.target_commit)
+        self.assertEqual(result["candidateIdentity"]["tree"], self.target_tree)
+        self.assertNotIn("fullRunReceiptIdentity", result)
 
 
 if __name__ == "__main__":

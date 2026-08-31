@@ -27,6 +27,7 @@ from .same_version_repair import load_and_validate_same_version_repair
 from .openclaw_customization_admission import (
     BOUNDARY_REL,
     admit_openclaw_customization,
+    _target_identity,
 )
 
 
@@ -293,7 +294,13 @@ def _openclaw_admission(
     scanner_module = _load_secret_scan_module(package_root)
 
     def scanner(paths: list[str]) -> dict[str, Any]:
-        return scanner_module.scan_repository(target_root, paths=paths)
+        result = dict(scanner_module.scan_repository(target_root, paths=paths))
+        identity = _target_identity(target_root)
+        if not isinstance(result.get("candidateCommit"), str):
+            result["candidateCommit"] = identity["commit"]
+        if not isinstance(result.get("candidateGitTree"), str):
+            result["candidateGitTree"] = identity["tree"]
+        return result
 
     return admit_openclaw_customization(
         consumer_root=target_root,

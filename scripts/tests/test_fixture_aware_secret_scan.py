@@ -11,6 +11,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from jsonschema import Draft202012Validator
+
 from scripts.gitops import secret_scan as secret_scan_mod
 from scripts.gitops.secret_scan import (
     DECLARATION_REL,
@@ -1554,6 +1556,33 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
         result = scan_repository(root, baseline_evidence=evidence)
         self.assertFalse(result["ok"])
         self.assertTrue(any(row["rule"] == "change_scope.paths" for row in result["findings"]))
+
+    def test_path_scoped_result_emits_real_head_identity(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        git(root, "remote", "add", "origin", "https://github.com/linktrend/openclaw_prime.git")
+        write_tracked(root, "linkbots/owned.md", "owned customization\n")
+        write_tracked(root, "other.py", "note = \"unrelated\"\n")
+        commit(root, "prime-shaped files")
+        result = scan_repository(root, paths=["linkbots/owned.md"])
+        schema = json.loads(RESULT_SCHEMA.read_text(encoding="utf-8"))
+        self.assertEqual(list(Draft202012Validator(schema).iter_errors(result)), [])
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["candidateCommit"], sha(root))
+        self.assertEqual(result["candidateGitTree"], tree(root))
+        self.assertEqual(result["repository"], "linktrend/openclaw_prime")
+        self.assertNotIn("scanMode", result)
+        self.assertFalse(any(row["path"] == "other.py" for row in result["findings"]))
+
+    def test_full_scan_omits_candidate_commit_identity(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        git(root, "remote", "add", "origin", "https://github.com/example/full-scan.git")
+        result = scan_repository(root)
+        self.assertNotIn("candidateCommit", result)
+        self.assertNotIn("candidateGitTree", result)
+        self.assertNotIn("scanMode", result)
+        self.assertNotIn("repository", result)
 
     def test_extracted_managed_root_uses_packaged_policy_paths(self) -> None:
         tmp, root = init_repo()

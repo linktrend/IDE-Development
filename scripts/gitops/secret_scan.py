@@ -1671,6 +1671,18 @@ def _scan_repository(
     )
     findings.extend(_run_repository_scanners(root))
     if scope is None:
+        if requested_paths is not None:
+            # Path-scoped callers (OpenClaw admission) require HEAD commit/tree.
+            # Full repository scans keep omitting those fields so they cannot
+            # be mistaken for change-scoped or receipt-bound Full evidence.
+            commit, git_tree, repository = _git_identity(root)
+            return make_result(
+                content_tree=content_tree,
+                findings=findings,
+                candidate_commit=commit,
+                candidate_git_tree=git_tree,
+                repository=repository,
+            )
         return make_result(content_tree=content_tree, findings=findings)
     return make_result(
         content_tree=content_tree,

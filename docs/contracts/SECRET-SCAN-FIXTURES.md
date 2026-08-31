@@ -12,6 +12,9 @@ Managed Fast and Full execute `python3 scripts/gitops/secret_scan.py` over
 every tracked regular blob. The candidate tree is computed from git index
 object identities (`ls-files -s`) so directory symlinks, gitlinks, and
 option-like paths are not followed. Suffix classes are never skipped.
+A path-scoped `scan_repository(..., paths=...)` result binds the real HEAD
+`candidateCommit` and `candidateGitTree` (and origin repository). Full scans
+still omit those fields and are never relabeled as change-scoped.
 Text is decoded as UTF-8 or UTF-16 (LE/BE, BOM or heuristic). Undecodable
 or oversized blobs and repository-scanner timeouts are aggregated typed
 failures, not silent ignores.
