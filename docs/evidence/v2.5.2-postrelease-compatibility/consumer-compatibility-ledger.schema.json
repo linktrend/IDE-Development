@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://linktrend.local/docs/evidence/v2.5.2-postrelease-compatibility/consumer-compatibility-ledger.schema.json",
+  "title": "v2.5.2 post-release consumer compatibility / rollout ledger",
+  "description": "Point-in-time reconciliation of consumer installation receipts against the immutable published v2.5.2 package identity. Observation only; does not authorize install, promotion, or consumer mutation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "packageVersion",
+    "observedAt",
+    "repository",
+    "releasedIdentity",
+    "sourceLineObservation",
+    "scope",
+    "consumers",
+    "overallVerdict",
+    "failClosedReasons"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "kind": {
+      "type": "string",
+      "const": "ide-development-v2.5.2-postrelease-consumer-compatibility-ledger"
+    },
+    "packageVersion": { "type": "string", "const": "2.5.2" },
+    "observedAt": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "repository": { "type": "string", "const": "linktrend/IDE-Development" },
+    "issue": { "type": "integer", "minimum": 1 },
+    "releasedIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tag",
+        "sourceCommit",
+        "sourceTree",
+        "manifestHash",
+        "packageName",
+        "packageVersion",
+        "publisher",
+        "publicationStatus",
+        "releaseUrl",
+        "releaseId",
+        "archives",
+        "protectedMain"
+      ],
+      "properties": {
+        "tag": { "type": "string", "const": "v2.5.2" },
+        "sourceCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "sourceTree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "manifestHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "packageName": { "type": "string", "const": "ide-development-managed-core" },
+        "packageVersion": { "type": "string", "const": "2.5.2" },
+        "publisher": {
+          "type": "string",
+          "const": "linktrend-managed-core-release-publisher"
+        },
+        "publicationStatus": { "type": "string", "const": "published" },
+        "releaseUrl": { "type": "string", "minLength": 1 },
+        "releaseId": { "type": "integer", "minimum": 1 },
+        "archives": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["format", "name", "sha256", "bytes", "locallyVerified"],
+            "properties": {
+              "format": { "type": "string", "enum": ["tar.gz", "zip"] },
+              "name": { "type": "string", "minLength": 1 },
+              "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+              "bytes": { "type": "integer", "minimum": 1 },
+              "locallyVerified": { "type": "boolean" }
+            }
+          }
+        },
+        "protectedMain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ref", "commit", "tree", "matchesReleasedIdentity"],
+          "properties": {
+            "ref": { "type": "string", "const": "origin/main" },
+            "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+            "tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+            "matchesReleasedIdentity": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "sourceLineObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "commit",
+        "tree",
+        "manifestHash",
+        "matchesReleasedIdentity",
+        "notes"
+      ],
+      "properties": {
+        "ref": { "type": "string" },
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "manifestHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "matchesReleasedIdentity": { "type": "boolean" },
+        "notes": { "type": "string", "minLength": 1 }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "reinstallConsumers",
+        "duplicateRolloutWorker",
+        "alterImmutableReleaseFiles",
+        "vps",
+        "liveTrading",
+        "liveLisa",
+        "stagingPromotion",
+        "mainPromotion",
+        "production",
+        "fullSuite"
+      ],
+      "properties": {
+        "mode": { "type": "string", "const": "observation-only" },
+        "reinstallConsumers": { "type": "boolean", "const": false },
+        "duplicateRolloutWorker": { "type": "boolean", "const": false },
+        "alterImmutableReleaseFiles": { "type": "boolean", "const": false },
+        "vps": { "type": "boolean", "const": false },
+        "liveTrading": { "type": "boolean", "const": false },
+        "liveLisa": { "type": "boolean", "const": false },
+        "stagingPromotion": { "type": "boolean", "const": false },
+        "mainPromotion": { "type": "boolean", "const": false },
+        "production": { "type": "boolean", "const": false },
+        "fullSuite": { "type": "boolean", "const": false }
+      }
+    },
+    "consumers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["order", "repository", "refs"],
+        "properties": {
+          "order": { "type": "integer", "minimum": 1 },
+          "repository": {
+            "type": "string",
+            "pattern": "^linktrend/[A-Za-z0-9_.-]+$"
+          },
+          "refs": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["development"],
+            "properties": {
+              "development": { "$ref": "#/$defs/refObservation" },
+              "staging": { "$ref": "#/$defs/refObservation" },
+              "main": { "$ref": "#/$defs/refObservation" }
+            }
+          }
+        }
+      }
+    },
+    "overallVerdict": {
+      "type": "string",
+      "enum": ["match", "fail_closed"]
+    },
+    "failClosedReasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "released_identity_mismatch",
+          "consumer_manifest_hash_mismatch",
+          "portfolio_observation_incomplete"
+        ]
+      }
+    },
+    "notes": { "type": "string" }
+  },
+  "$defs": {
+    "refObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "match",
+            "mismatch",
+            "older_package",
+            "observation_unavailable",
+            "not_in_scope_protected_promotion"
+          ]
+        },
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "packageVersion": { "type": "string" },
+        "manifestHash": { "type": ["string", "null"] },
+        "installedManifestSha256": { "type": ["string", "null"] },
+        "installedAt": { "type": ["string", "null"] },
+        "lastTransactionId": { "type": ["string", "null"] },
+        "reason": { "type": "string" }
+      }
+    }
+  }
+}

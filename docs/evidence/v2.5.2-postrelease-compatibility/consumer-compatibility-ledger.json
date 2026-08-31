@@ -1,0 +1,296 @@
+{
+  "schemaVersion": 1,
+  "kind": "ide-development-v2.5.2-postrelease-consumer-compatibility-ledger",
+  "packageVersion": "2.5.2",
+  "observedAt": "2026-08-31T22:14:00Z",
+  "repository": "linktrend/IDE-Development",
+  "issue": 471,
+  "releasedIdentity": {
+    "tag": "v2.5.2",
+    "sourceCommit": "5a64f7f03d3463804b424cc59c4ee048473d9a51",
+    "sourceTree": "d2188157f2c32f5ba9c0cf6a5a60c7553cdce58a",
+    "manifestHash": "sha256:a40ef247933c1f3d8efb43f951ee5443a32c3c121e139d0c91d82ad8cd54c384",
+    "packageName": "ide-development-managed-core",
+    "packageVersion": "2.5.2",
+    "publisher": "linktrend-managed-core-release-publisher",
+    "publicationStatus": "published",
+    "releaseUrl": "https://github.com/linktrend/IDE-Development/releases/tag/v2.5.2",
+    "releaseId": 378919561,
+    "archives": [
+      {
+        "format": "tar.gz",
+        "name": "ide-development-managed-core-2.5.2.tar.gz",
+        "sha256": "sha256:f07224ab119c95ef33ebbebc8665bf11ac8db13b7e66ba550d8888dc8fae3569",
+        "bytes": 768948,
+        "locallyVerified": true
+      },
+      {
+        "format": "zip",
+        "name": "ide-development-managed-core-2.5.2.zip",
+        "sha256": "sha256:c3d736b7e02d5b95b014002674bc68989135cceedbdc114fd18374e6df5a55f9",
+        "bytes": 929374,
+        "locallyVerified": true
+      }
+    ],
+    "protectedMain": {
+      "ref": "origin/main",
+      "commit": "5a64f7f03d3463804b424cc59c4ee048473d9a51",
+      "tree": "d2188157f2c32f5ba9c0cf6a5a60c7553cdce58a",
+      "matchesReleasedIdentity": true
+    }
+  },
+  "sourceLineObservation": {
+    "ref": "origin/development",
+    "commit": "63a40aafc7da3684c42a3897c5c85ec013cb7686",
+    "tree": "be18cecdea03c48a4a866b48182f3187d0169593",
+    "manifestHash": "sha256:e86ce16d48194f75f48b51aaf2fcf31dc6737391aa8cd967ad904571b8c67c83",
+    "matchesReleasedIdentity": false,
+    "notes": "Protected development is ahead of the immutable v2.5.2 tag after later accepted repairs. That line is not the released package. Consumers must bind receipts to the tag/main identity, not to development VERSION text."
+  },
+  "scope": {
+    "mode": "observation-only",
+    "reinstallConsumers": false,
+    "duplicateRolloutWorker": false,
+    "alterImmutableReleaseFiles": false,
+    "vps": false,
+    "liveTrading": false,
+    "liveLisa": false,
+    "stagingPromotion": false,
+    "mainPromotion": false,
+    "production": false,
+    "fullSuite": false
+  },
+  "consumers": [
+    {
+      "order": 1,
+      "repository": "linktrend/openclaw_prime",
+      "refs": {
+        "development": {
+          "status": "match",
+          "commit": "452a7f1f31b1d1947d4bb992f91457e5a238ea31",
+          "tree": "56c96716ede75bdc896791ec2098cf1bf2594bb6",
+          "packageVersion": "2.5.2",
+          "manifestHash": "sha256:a40ef247933c1f3d8efb43f951ee5443a32c3c121e139d0c91d82ad8cd54c384",
+          "installedManifestSha256": "sha256:a40ef247933c1f3d8efb43f951ee5443a32c3c121e139d0c91d82ad8cd54c384",
+          "installedAt": "2026-08-29T08:41:05Z",
+          "lastTransactionId": "f67583e3-19f3-4471-b6ed-ec646efff95f"
+        },
+        "staging": {
+          "status": "older_package",
+          "commit": "afbc7fdeab4387fda1ae7f617ac6c225813a0022",
+          "tree": "c5d6b6d75066915b433e6f92d223b7bcb821d6fc",
+          "packageVersion": "2.5.1",
+          "manifestHash": null,
+          "installedManifestSha256": null,
+          "installedAt": "2026-08-22T07:14:00Z",
+          "lastTransactionId": null,
+          "reason": "Protected promotion is out of scope for this packet."
+        },
+        "main": {
+          "status": "older_package",
+          "commit": "ae397be1e601307b50d593c195ab9777c8400492",
+          "tree": "c5d6b6d75066915b433e6f92d223b7bcb821d6fc",
+          "packageVersion": "2.5.1",
+          "manifestHash": null,
+          "installedManifestSha256": null,
+          "installedAt": "2026-08-22T07:14:00Z",
+          "lastTransactionId": null,
+          "reason": "Protected promotion is out of scope for this packet."
+        }
+      }
+    },
+    {
+      "order": 2,
+      "repository": "linktrend/LiNKplatform",
+      "refs": {
+        "development": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404 for development/staging/main; this packet did not mutate the consumer."
+        },
+        "staging": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404."
+        },
+        "main": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404."
+        }
+      }
+    },
+    {
+      "order": 3,
+      "repository": "linktrend/LiNKskills",
+      "refs": {
+        "development": {
+          "status": "match",
+          "commit": "7fe43b3339e0972d2e839c019a6c70b3996e0c5d",
+          "tree": "39a826ed1f9119e75431d148bccc13462ed6f354",
+          "packageVersion": "2.5.2",
+          "manifestHash": "sha256:a40ef247933c1f3d8efb43f951ee5443a32c3c121e139d0c91d82ad8cd54c384",
+          "installedManifestSha256": "sha256:a40ef247933c1f3d8efb43f951ee5443a32c3c121e139d0c91d82ad8cd54c384",
+          "installedAt": "2026-08-29T08:18:29Z",
+          "lastTransactionId": "b66fadd4-2e81-438a-a60e-e8adfcfb5468"
+        },
+        "staging": {
+          "status": "older_package",
+          "commit": "dfe6ba30ecdccf454d617922b5b7ff1b70fcacfe",
+          "tree": "c1cb814cc409672d8f5c72fda212c36d177e95db",
+          "packageVersion": "2.5.1",
+          "manifestHash": null,
+          "reason": "Protected promotion is out of scope for this packet."
+        },
+        "main": {
+          "status": "older_package",
+          "commit": "2c989ea1f65fad7d5030b242d3b5db14b6aa183a",
+          "tree": "c1cb814cc409672d8f5c72fda212c36d177e95db",
+          "packageVersion": "2.5.1",
+          "manifestHash": null,
+          "reason": "Protected promotion is out of scope for this packet."
+        }
+      }
+    },
+    {
+      "order": 4,
+      "repository": "linktrend/LiNKbrain",
+      "refs": {
+        "development": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404 for development/staging/main; this packet did not mutate the consumer."
+        },
+        "staging": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404."
+        },
+        "main": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404."
+        }
+      }
+    },
+    {
+      "order": 5,
+      "repository": "linktrend/LiNKsites",
+      "refs": {
+        "development": {
+          "status": "mismatch",
+          "commit": "39b2ed51c05c87be08aef2344e106bfdcfd98a6e",
+          "tree": "6067be255b19a101feb688e4d22b13ac5573b122",
+          "packageVersion": "2.5.2",
+          "manifestHash": "sha256:b18da538fec322fc49989288d6aedeea92dd4e477ef1e65f222b9d44cbe54c61",
+          "installedManifestSha256": "sha256:b18da538fec322fc49989288d6aedeea92dd4e477ef1e65f222b9d44cbe54c61",
+          "installedAt": "2026-08-31T05:00:48Z",
+          "lastTransactionId": "0d420daf-9a18-4847-aec1-65520b52afd5",
+          "reason": "Version text is 2.5.2 but installed MANIFEST bytes/hash do not equal the immutable published release. Fail closed. No reinstall from this packet."
+        },
+        "staging": {
+          "status": "older_package",
+          "commit": "04f75477401daba4763352ddef3c238c37a97002",
+          "tree": "2a97aec332cdb6497baa4a72d2579a76a096cf06",
+          "packageVersion": "2.5.1",
+          "manifestHash": null,
+          "reason": "Protected promotion is out of scope for this packet."
+        },
+        "main": {
+          "status": "older_package",
+          "commit": "d8d3d7f48d5a10164d6ebdac7f90fff522cb444f",
+          "tree": "2a97aec332cdb6497baa4a72d2579a76a096cf06",
+          "packageVersion": "2.5.1",
+          "manifestHash": null,
+          "reason": "Protected promotion is out of scope for this packet."
+        }
+      }
+    },
+    {
+      "order": 6,
+      "repository": "linktrend/LiNKdeveloper",
+      "refs": {
+        "development": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404 for development/staging/main; this packet did not mutate the consumer."
+        },
+        "staging": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404."
+        },
+        "main": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404."
+        }
+      }
+    },
+    {
+      "order": 7,
+      "repository": "linktrend/LiNKlibraries",
+      "refs": {
+        "development": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404 for development/staging/main; this packet did not mutate the consumer."
+        },
+        "staging": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404."
+        },
+        "main": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404."
+        }
+      }
+    },
+    {
+      "order": 8,
+      "repository": "linktrend/LiNKautowork",
+      "refs": {
+        "development": {
+          "status": "match",
+          "commit": "f75656930eb4d82827e480f00a435069c501503e",
+          "tree": "013f609cc432e7194388b6ffd09e32f71ac6e672",
+          "packageVersion": "2.5.2",
+          "manifestHash": "sha256:a40ef247933c1f3d8efb43f951ee5443a32c3c121e139d0c91d82ad8cd54c384",
+          "installedManifestSha256": "sha256:a40ef247933c1f3d8efb43f951ee5443a32c3c121e139d0c91d82ad8cd54c384",
+          "installedAt": "2026-08-29T08:18:00Z",
+          "lastTransactionId": "ea230a9b-e92f-4041-93f4-983ae8126634"
+        },
+        "staging": {
+          "status": "older_package",
+          "commit": "d69c02ef070dcad7795735e50f8d44082351cdb9",
+          "tree": "3380d3933080aa04d9e8b4f780da459671e1e6d6",
+          "packageVersion": "2.5.0",
+          "manifestHash": null,
+          "reason": "Protected promotion is out of scope for this packet."
+        },
+        "main": {
+          "status": "older_package",
+          "commit": "ee54d9c00c3659c950e8d2beaeb804131b0d0e8b",
+          "tree": "0502aa8cabe145925b234ced55993f8bb89710d7",
+          "packageVersion": "2.5.1",
+          "manifestHash": null,
+          "reason": "Protected promotion is out of scope for this packet."
+        }
+      }
+    },
+    {
+      "order": 9,
+      "repository": "linktrend/LiNKtrading-codebase",
+      "refs": {
+        "development": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404 for development/staging/main; this packet did not mutate the consumer."
+        },
+        "staging": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404."
+        },
+        "main": {
+          "status": "observation_unavailable",
+          "reason": "GitHub API returned HTTP 404."
+        }
+      }
+    }
+  ],
+  "overallVerdict": "fail_closed",
+  "failClosedReasons": [
+    "portfolio_observation_incomplete",
+    "consumer_manifest_hash_mismatch"
+  ],
+  "notes": "Released tag/main/archive/manifest identity agrees. This packet recorded receipts only. It did not reinstall consumers, duplicate an active rollout worker, alter immutable release files, or run a Full suite. linktrend/LiNKsites development claims packageVersion 2.5.2 with a different MANIFEST digest and is a fail-closed mismatch. Five locked-order consumers were not readable through this token (HTTP 404). Staging/main older packages are recorded and were not promoted."
+}
