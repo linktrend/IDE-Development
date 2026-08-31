@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Fail-closed receipt and promotion decisions for the thin GitHub fallback.
 
-This module is deliberately side-effect free for receipt, gate, approval, and
-duplicate-candidate decisions.  The only mutating helper is ``cancel_obsolete``;
-it sends non-blocking GitHub run-cancel requests and never waits for completion.
-No command in this file creates a PR, merges, promotes, or applies a ruleset.
-Receipt verification itself requires no credential.  A later trusted workflow
-boundary may use GitHub's built-in ``GITHUB_TOKEN`` only with explicit
-least-privilege read permissions; it must not mint or consume the former
-custom-App token here.
+This module is side-effect free for ordinary gate, approval, and
+duplicate-candidate decisions. Evidence-rebind receipt verification performs
+the required atomic update of its external durable transaction/session state.
+The only other mutating helper is ``cancel_obsolete``; it sends non-blocking
+GitHub run-cancel requests and never waits for completion. No command in this
+file creates a PR, merges, promotes, or applies a ruleset. Receipt verification
+itself requires no credential. A later trusted workflow boundary may use
+GitHub's built-in ``GITHUB_TOKEN`` only with explicit least-privilege read
+permissions; it must not mint or consume the former custom-App token here.
 """
 
 from __future__ import annotations
@@ -140,6 +141,10 @@ def verify_receipt_file(
     expected_evidence_digests: Mapping[str, str] | None = None,
     transition_receipt_path: str | Path | None = None,
     evidence_rebind_receipt_path: str | Path | None = None,
+    evidence_rebind_delta_review_path: str | Path | None = None,
+    evidence_rebind_hosted_checks_path: str | Path | None = None,
+    evidence_rebind_scanner_path: str | Path | None = None,
+    evidence_rebind_state_path: str | Path | None = None,
 ) -> Decision:
     try:
         receipt = load_json(receipt_path)
@@ -159,8 +164,13 @@ def verify_receipt_file(
             receipt,
             identity,
             required_gate,
+            repository_root=repo_path,
             transition_receipt=load_json(transition_receipt_path) if transition_receipt_path is not None else None,
             evidence_rebind_receipt=load_json(evidence_rebind_receipt_path) if evidence_rebind_receipt_path is not None else None,
+            evidence_rebind_delta_review=load_json(evidence_rebind_delta_review_path) if evidence_rebind_delta_review_path is not None else None,
+            evidence_rebind_hosted_checks=load_json(evidence_rebind_hosted_checks_path) if evidence_rebind_hosted_checks_path is not None else None,
+            evidence_rebind_scanner=load_json(evidence_rebind_scanner_path) if evidence_rebind_scanner_path is not None else None,
+            evidence_rebind_state_path=evidence_rebind_state_path,
             workflow_run_id=workflow_run_id,
             workflow_run_attempt=workflow_run_attempt,
             workflow_head_commit=workflow_head_commit,
@@ -366,6 +376,10 @@ def main(argv: list[str] | None = None) -> int:
     verify.add_argument("--expected-workflow-digest")
     verify.add_argument("--transition-receipt", type=Path)
     verify.add_argument("--evidence-rebind-receipt", type=Path)
+    verify.add_argument("--evidence-rebind-delta-review", type=Path)
+    verify.add_argument("--evidence-rebind-hosted-checks", type=Path)
+    verify.add_argument("--evidence-rebind-scanner", type=Path)
+    verify.add_argument("--evidence-rebind-state", type=Path)
     verify.add_argument("--gate", required=True)
 
     development = commands.add_parser("development")
@@ -402,6 +416,10 @@ def main(argv: list[str] | None = None) -> int:
                 expected_workflow_digest=args.expected_workflow_digest,
                 transition_receipt_path=args.transition_receipt,
                 evidence_rebind_receipt_path=getattr(args, "evidence_rebind_receipt", None),
+                evidence_rebind_delta_review_path=getattr(args, "evidence_rebind_delta_review", None),
+                evidence_rebind_hosted_checks_path=getattr(args, "evidence_rebind_hosted_checks", None),
+                evidence_rebind_scanner_path=getattr(args, "evidence_rebind_scanner", None),
+                evidence_rebind_state_path=getattr(args, "evidence_rebind_state", None),
             )
         elif args.command == "development":
             decision = evaluate_development_gates(load_json(args.input), args.head_sha)

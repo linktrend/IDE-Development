@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterable, Mapping
@@ -21,6 +22,7 @@ GRAPH_RELATIVE_PATH = "core/managed-core/config/generated-output-closure.json"
 PACKAGED_GRAPH_RELATIVE_PATH = ".ide-development/config/generated-output-closure.json"
 DEFAULT_GRAPH_EXCLUSIONS = frozenset({".github/linktrend-secret-scan-fixtures.json"})
 DEFAULT_MAX_PASSES = 3
+GENERATED_OUTPUT_VERIFY_TIMEOUT_SECONDS = 120.0
 BASELINE_SHA_ENV = "LINKTREND_TARGET_BASELINE_SHA"
 BASELINE_REF_ENV = "LINKTREND_TARGET_BASELINE_REF"
 SHA40 = r"[0-9a-f]{40}"
@@ -555,8 +557,12 @@ def close_generated_outputs(
     graph_path: str = GRAPH_RELATIVE_PATH,
     post_generation_hook: Callable[[], None] | None = None,
     _require_clean_outputs: bool = True,
+    timeout_seconds: float = GENERATED_OUTPUT_VERIFY_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
     root = Path(repo_root).resolve()
+    if timeout_seconds <= 0:
+        raise ClosureError("verification_timeout", "generated-output verification budget must be positive")
+    deadline = time.monotonic() + timeout_seconds
     graph = load_graph(root, graph_path)
     audit = audit_dogfood_improvement_closure(root, graph=graph, graph_path=graph_path)
     exclusions = _expanded_exclusions(root, graph)
@@ -578,6 +584,17 @@ def close_generated_outputs(
     passes = 0
     for passes in range(1, graph.max_passes + 1):
         for spec in graph.ordered_outputs():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise _diagnostic(
+                    "verification_timeout",
+                    spec,
+                    expected_digest=output_before.get(spec.output),
+                    observed_digest=_output_digests(root, graph).get(spec.output),
+                    expected_tree=tree_before,
+                    observed_tree=observed_tree,
+                    detail="generated-output verification exceeded its bounded time budget",
+                )
             try:
                 completed = subprocess.run(
                     list(spec.generator),
@@ -585,7 +602,18 @@ def close_generated_outputs(
                     text=True,
                     capture_output=True,
                     check=False,
+                    timeout=remaining,
                 )
+            except subprocess.TimeoutExpired as exc:
+                raise _diagnostic(
+                    "verification_timeout",
+                    spec,
+                    expected_digest=output_before.get(spec.output),
+                    observed_digest=_output_digests(root, graph).get(spec.output),
+                    expected_tree=tree_before,
+                    observed_tree=observed_tree,
+                    detail=f"generated-output generator exceeded {timeout_seconds:g}s budget",
+                ) from exc
             except OSError as exc:
                 raise _diagnostic(
                     "generator_failure",
@@ -1017,8 +1045,12 @@ def verify_generated_outputs(
     repo_root: Path | str,
     *,
     graph_path: str = GRAPH_RELATIVE_PATH,
+    timeout_seconds: float = GENERATED_OUTPUT_VERIFY_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
     root = Path(repo_root).resolve()
+    if timeout_seconds <= 0:
+        raise ClosureError("verification_timeout", "generated-output verification budget must be positive")
+    started = time.monotonic()
     graph = load_graph(root, graph_path)
     audit = audit_dogfood_improvement_closure(root, graph=graph, graph_path=graph_path)
     dirty = sorted(rel for rel in _declared_output_paths(root, graph) if _git_dirty(root, rel))
@@ -1028,10 +1060,14 @@ def verify_generated_outputs(
     with tempfile.TemporaryDirectory(prefix="pkt08-closure-") as temp:
         clone = Path(temp) / "repo"
         _copy_for_verify(root, clone)
+        remaining = timeout_seconds - (time.monotonic() - started)
+        if remaining <= 0:
+            raise ClosureError("verification_timeout", "generated-output verification exceeded its bounded time budget")
         expected_result = close_generated_outputs(
             clone,
             graph_path=graph_path,
             _require_clean_outputs=False,
+            timeout_seconds=remaining,
         )
         expected = _output_digests(clone, graph)
     mismatched_paths = sorted(

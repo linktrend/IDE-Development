@@ -1,10 +1,11 @@
 """Pure exact-content identities and FullSuiteReceipt handling.
 
-Receipt creation and verification are deliberately local and side-effect free:
-they do not call GitHub, read credentials, mint installation tokens, or depend
-on a custom GitHub App.  The later workflow boundary may use GitHub's built-in
-``GITHUB_TOKEN`` with explicit least-privilege permissions; that boundary is not
-part of this module.
+Receipt creation and verification are deliberately local: they do not call
+GitHub, read credentials, mint installation tokens, or depend on a custom
+GitHub App. Evidence-rebind verification additionally performs the required
+atomic update of its external durable transaction/session state. The later
+workflow boundary may use GitHub's built-in ``GITHUB_TOKEN`` with explicit
+least-privilege permissions; that boundary is not part of this module.
 
 The receipt schema is versioned independently of older W1-P2 receipts.  A
 schemaVersion 1 receipt is rejected explicitly and is never silently trusted.
@@ -29,12 +30,30 @@ from typing import Any, Mapping, Sequence
 from urllib.parse import urlparse
 
 try:
-    from scripts.gitops.evidence_rebind import verify_evidence_rebind_receipt
+    from scripts.gitops.evidence_rebind import (
+        EvidenceRebindError,
+        load_rebind_state,
+        persist_rebind_state,
+        rebind_state_lock,
+        verify_evidence_rebind_receipt,
+    )
 except ModuleNotFoundError:  # pragma: no cover - package-style vs gitops-on-path
     try:
-        from ..evidence_rebind import verify_evidence_rebind_receipt
+        from ..evidence_rebind import (
+            EvidenceRebindError,
+            load_rebind_state,
+            persist_rebind_state,
+            rebind_state_lock,
+            verify_evidence_rebind_receipt,
+        )
     except ImportError:
-        from evidence_rebind import verify_evidence_rebind_receipt
+        from evidence_rebind import (
+            EvidenceRebindError,
+            load_rebind_state,
+            persist_rebind_state,
+            rebind_state_lock,
+            verify_evidence_rebind_receipt,
+        )
 
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -892,6 +911,7 @@ def verify_receipt(
     evidence_rebind_delta_review: Mapping[str, Any] | None = None,
     evidence_rebind_hosted_checks: Mapping[str, Any] | None = None,
     evidence_rebind_scanner: Mapping[str, Any] | None = None,
+    evidence_rebind_state_path: str | os.PathLike[str] | Path | None = None,
 ) -> ReceiptVerdict:
     """Verify reusable identity without privileged credentials or network calls."""
 
@@ -907,19 +927,31 @@ def verify_receipt(
         if transition_receipt is not None and evidence_rebind_receipt is not None:
             raise ReceiptError("transition_invalid", "same-tree transition and evidence-rebind cannot authorize the same candidate")
         if evidence_rebind_receipt is not None:
-            if repository_root is None:
-                raise ReceiptError("evidence_rebind_rejected", "repository root is required to verify generated-output policy")
-            rebind = verify_evidence_rebind_receipt(
-                evidence_rebind_receipt,
-                parsed.to_dict(),
-                candidate.to_dict(),
-                repo_root=repository_root,
-                delta_review=evidence_rebind_delta_review,
-                narrow_hosted_checks=evidence_rebind_hosted_checks,
-                scanner=evidence_rebind_scanner,
-            )
+            if repository_root is None or evidence_rebind_state_path is None:
+                raise ReceiptError(
+                    "evidence_rebind_rejected",
+                    "repository root and durable evidence-rebind state are required",
+                )
+            with rebind_state_lock(evidence_rebind_state_path):
+                rebind_state = load_rebind_state(evidence_rebind_state_path)
+                try:
+                    rebind = verify_evidence_rebind_receipt(
+                        evidence_rebind_receipt,
+                        parsed.to_dict(),
+                        candidate.to_dict(),
+                        repo_root=repository_root,
+                        delta_review=evidence_rebind_delta_review,
+                        narrow_hosted_checks=evidence_rebind_hosted_checks,
+                        scanner=evidence_rebind_scanner,
+                        durable_state=rebind_state,
+                    )
+                finally:
+                    persist_rebind_state(evidence_rebind_state_path, rebind_state)
             if not rebind.allowed:
-                raise ReceiptError("evidence_rebind_rejected", rebind.detail or rebind.code)
+                raise ReceiptError(
+                    "evidence_rebind_rejected",
+                    f"{rebind.code}: {rebind.detail or rebind.code}",
+                )
         elif receipt_identity.git_tree != candidate.git_tree:
             raise ReceiptError("tree_mismatch", "receipt Git tree does not match candidate")
         if receipt_identity.dependency_digest != candidate.dependency_digest:
@@ -967,7 +999,7 @@ def verify_receipt(
             source_commit=receipt_identity.head_commit,
             promotion_commit=candidate.head_commit,
         )
-    except ReceiptError as error:
+    except (ReceiptError, EvidenceRebindError) as error:
         return _reject(error)
 
 

@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, MutableMapping, Sequence
@@ -56,6 +58,9 @@ RECEIPT_FIELDS = (
 )
 REBIND_STATE_FIELD = "evidenceRebinds"
 REBIND_COUNT_FIELD = "evidenceRebindCount"
+VERIFIED_STATE_FIELD = "verifiedEvidenceRebinds"
+STATE_SCHEMA_VERSION = 1
+STATE_KIND = "evidence-rebind-state"
 MAX_REBINDS = 1
 
 
@@ -170,6 +175,16 @@ def _check_success(value: Any, *, exact_head: str, exact_tree: str, label: str) 
     return head == exact_head and tree == exact_tree
 
 
+def new_rebind_state() -> dict[str, Any]:
+    return {
+        "schemaVersion": STATE_SCHEMA_VERSION,
+        "kind": STATE_KIND,
+        REBIND_STATE_FIELD: [],
+        REBIND_COUNT_FIELD: 0,
+        VERIFIED_STATE_FIELD: [],
+    }
+
+
 def _policy_generated_paths(repo_root: Path | str) -> frozenset[str]:
     try:
         graph = load_graph(Path(repo_root).resolve())
@@ -204,14 +219,28 @@ def _durable_rebind_state(state: Mapping[str, Any]) -> tuple[int, list[Mapping[s
     for record in raw_records:
         if not isinstance(record, Mapping):
             raise EvidenceRebindError("transaction_state_invalid", "durable evidence-rebind records must be objects")
+        if not _digest(record.get("receiptDigest")):
+            raise EvidenceRebindError("transaction_state_invalid", "durable evidence-rebind records require a receipt digest")
         records.append(record)
     if count != len(records) or count < 0:
         raise EvidenceRebindError("transaction_state_invalid", "durable evidence-rebind count is inconsistent")
     return count, records
 
 
-def _record_rebind_state(state: MutableMapping[str, Any], receipt: Mapping[str, Any]) -> None:
+def _validate_rebind_state(state: Mapping[str, Any]) -> tuple[int, list[Mapping[str, Any]], list[str]]:
     count, records = _durable_rebind_state(state)
+    if state.get("schemaVersion") != STATE_SCHEMA_VERSION or state.get("kind") != STATE_KIND:
+        raise EvidenceRebindError("transaction_state_invalid", "durable evidence-rebind state identity is invalid")
+    verified = state.get(VERIFIED_STATE_FIELD)
+    if not isinstance(verified, list) or any(not _digest(item) for item in verified):
+        raise EvidenceRebindError("transaction_state_invalid", "verified evidence-rebind digests are invalid")
+    if len(set(verified)) != len(verified):
+        raise EvidenceRebindError("transaction_state_invalid", "verified evidence-rebind digests must be unique")
+    return count, records, list(verified)
+
+
+def _record_rebind_state(state: MutableMapping[str, Any], receipt: Mapping[str, Any]) -> None:
+    count, records, verified = _validate_rebind_state(state)
     if count >= MAX_REBINDS:
         raise EvidenceRebindError("receipt_loop_detected", "only one evidence-rebind is permitted by durable transaction/session state")
     updated = [dict(item) for item in records]
@@ -225,6 +254,74 @@ def _record_rebind_state(state: MutableMapping[str, Any], receipt: Mapping[str, 
     )
     state[REBIND_STATE_FIELD] = updated
     state[REBIND_COUNT_FIELD] = len(updated)
+    state[VERIFIED_STATE_FIELD] = verified
+
+
+def _record_rebind_verification(state: MutableMapping[str, Any], receipt_digest: str) -> None:
+    count, records, verified = _validate_rebind_state(state)
+    del count, records
+    digest = _digest(receipt_digest)
+    if not digest:
+        raise EvidenceRebindError("transaction_state_invalid", "verified receipt digest is invalid")
+    if digest in verified:
+        raise EvidenceRebindError("receipt_replay", "the same signed evidence-rebind receipt cannot verify twice")
+    state[VERIFIED_STATE_FIELD] = [*verified, digest]
+
+
+def load_rebind_state(path: str | Path) -> dict[str, Any]:
+    destination = Path(path)
+    try:
+        payload = json.loads(destination.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise EvidenceRebindError("transaction_state_missing", "durable evidence-rebind transaction/session state cannot be loaded") from exc
+    if not isinstance(payload, Mapping):
+        raise EvidenceRebindError("transaction_state_invalid", "durable evidence-rebind state must be an object")
+    state = dict(payload)
+    _validate_rebind_state(state)
+    return state
+
+
+def persist_rebind_state(path: str | Path, state: Mapping[str, Any]) -> Path:
+    destination = Path(path)
+    if destination.is_symlink():
+        raise EvidenceRebindError("transaction_state_invalid", "durable evidence-rebind state path must not be a symlink")
+    state_copy = dict(state)
+    _validate_rebind_state(state_copy)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=f".{destination.name}.", suffix=".tmp", dir=str(destination.parent))
+    temporary_path = Path(temporary)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(canonical_json_bytes(state_copy).decode("utf-8"))
+            handle.flush()
+            os.fsync(handle.fileno())
+        if destination.is_symlink():
+            raise EvidenceRebindError("transaction_state_invalid", "durable evidence-rebind state path became a symlink")
+        os.replace(temporary_path, destination)
+    except Exception:
+        try:
+            temporary_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+    return destination
+
+
+@contextmanager
+def rebind_state_lock(path: str | Path):
+    """Serialize durable state read, verification, and persistence."""
+
+    import fcntl
+
+    lock_path = Path(path).with_name(f".{Path(path).name}.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
 
 
 def _evidence_mapping(
@@ -281,9 +378,29 @@ def git_rev_parse(repo: Path, rev: str) -> str:
     return value
 
 
+def git_commit_tree(repo: Path | str, commit: str) -> tuple[str, str]:
+    """Resolve a commit and its tree strictly from the local Git object database."""
+
+    root = Path(repo).resolve()
+    resolved_commit = git_rev_parse(root, f"{commit}^{{commit}}")
+    resolved_tree = git_rev_parse(root, f"{resolved_commit}^{{tree}}")
+    return resolved_commit, resolved_tree
+
+
 def git_changed_paths(repo: Path, source_commit: str, head_commit: str) -> tuple[str, ...]:
     result = subprocess.run(
-        ["git", "-C", str(repo), "diff-tree", "--no-commit-id", "-r", "--name-only", "--no-renames", f"{source_commit}..{head_commit}"],
+        [
+            "git",
+            "-C",
+            str(repo),
+            "diff-tree",
+            "--no-commit-id",
+            "-r",
+            "--name-only",
+            "--no-renames",
+            f"{source_commit}^{{tree}}",
+            f"{head_commit}^{{tree}}",
+        ],
         check=False,
         capture_output=True,
         text=True,
@@ -293,7 +410,7 @@ def git_changed_paths(repo: Path, source_commit: str, head_commit: str) -> tuple
     rows = [line.strip() for line in (result.stdout or "").splitlines() if line.strip()]
     if not rows:
         raise EvidenceRebindError("stale_identity", "evidence-rebind requires a non-empty generated delta")
-    return _paths(rows)
+    return _paths(sorted(set(rows)))
 
 
 def underlying_source_digest(repo: Path, commit: str, generated_paths: Sequence[str]) -> str:
@@ -339,7 +456,7 @@ def admit_evidence_rebind(
     source_tree: str,
     exact_head_commit: str,
     exact_head_tree: str,
-    changed_paths: Sequence[str],
+    changed_paths: Sequence[str] | None,
     generated_paths: Sequence[str] | None,
     owned_paths: Sequence[str] = (),
     underlying_source_digest_source: str,
@@ -356,7 +473,7 @@ def admit_evidence_rebind(
     source_full_receipt: Mapping[str, Any],
     durable_state: Mapping[str, Any],
     required_narrow_checks: Sequence[str] = DEFAULT_NARROW_CHECKS,
-    enforce_rebind_limit: bool = True,
+    receipt_digest: str | None = None,
 ) -> RebindDecision:
     """Fail closed unless the exact delta is generated-only and independently accepted."""
 
@@ -366,14 +483,29 @@ def admit_evidence_rebind(
     head_tree = _sha(exact_head_tree)
     if not source or not source_tree_sha or not head or not head_tree:
         return RebindDecision(False, "stale_identity", "source or exact-head identity is incomplete")
+    try:
+        trusted_source, trusted_source_tree = git_commit_tree(repo_root, source)
+        trusted_head, trusted_head_tree = git_commit_tree(repo_root, head)
+    except EvidenceRebindError as error:
+        return RebindDecision(False, error.code, error.detail)
+    if source != trusted_source or source_tree_sha != trusted_source_tree:
+        return RebindDecision(False, "stale_identity", "source identity does not match trusted Git commit/tree objects")
+    if head != trusted_head or head_tree != trusted_head_tree:
+        return RebindDecision(False, "stale_identity", "exact-head identity does not match trusted Git commit/tree objects")
     if source == head:
         return RebindDecision(False, "stale_identity", "evidence-rebind requires a distinct exact head")
     if source_tree_sha == head_tree:
         return RebindDecision(False, "stale_identity", "generated-only rebind requires a changed Git tree")
 
     try:
-        rebind_count, _records = _durable_rebind_state(durable_state)
-        if enforce_rebind_limit and rebind_count >= MAX_REBINDS:
+        rebind_count, records, _verified = _validate_rebind_state(durable_state)
+        existing_digest = _digest(receipt_digest)
+        issued_digests = {
+            _digest(record.get("receiptDigest"))
+            for record in records
+            if isinstance(record, Mapping)
+        }
+        if rebind_count >= MAX_REBINDS and existing_digest not in issued_digests:
             return RebindDecision(
                 False,
                 "receipt_loop_detected",
@@ -391,7 +523,9 @@ def admit_evidence_rebind(
         return RebindDecision(False, "stale_identity", "Full evidence is not bound to the independently accepted source")
 
     try:
-        changed = _paths(changed_paths)
+        # The caller's path list is intentionally ignored.  The complete set
+        # comes from the trusted source/head tree objects above.
+        changed = git_changed_paths(Path(repo_root).resolve(), source, head)
         generated = set(policy_generated)
         owned = set(_paths(owned_paths)) if owned_paths else set()
     except EvidenceRebindError as error:
@@ -493,8 +627,15 @@ def create_evidence_rebind_receipt(
         raise EvidenceRebindError("stale_identity", "authenticatedBy must be delivery-controller")
     exact_head = _sha(exact_head_commit)
     exact_tree = _sha(exact_head_tree)
+    trusted_source, trusted_source_tree = git_commit_tree(repo_root, source_commit)
+    if source_commit != trusted_source or source_tree != trusted_source_tree:
+        raise EvidenceRebindError("stale_identity", "source identity does not match trusted Git commit/tree objects")
+    trusted_head, trusted_tree = git_commit_tree(repo_root, exact_head)
+    if exact_head != trusted_head or exact_tree != trusted_tree:
+        raise EvidenceRebindError("stale_identity", "exact-head identity does not match trusted Git commit/tree objects")
+    derived_changed = git_changed_paths(Path(repo_root).resolve(), source_commit, exact_head)
     policy_generated = _validated_generated_paths(repo_root, generated_paths)
-    count, _records = _durable_rebind_state(durable_state)
+    count, _records, _verified = _validate_rebind_state(durable_state)
     if count >= MAX_REBINDS:
         raise EvidenceRebindError("receipt_loop_detected", "only one evidence-rebind is permitted by durable transaction/session state")
     _evidence_mapping(
@@ -524,7 +665,7 @@ def create_evidence_rebind_receipt(
         "dependencyDigest": _digest(identity.get("dependencyDigest")),
         "profileDigest": _digest(identity.get("profileDigest")),
         "workflowDigest": _digest(identity.get("workflowDigest")),
-        "changedPaths": list(_paths(changed_paths)),
+        "changedPaths": list(derived_changed),
         "generatedPaths": list(policy_generated),
         "authenticatedBy": authenticated_by,
         "deltaReviewDigest": canonical_digest(_mapping(delta_review)),
@@ -550,6 +691,7 @@ def verify_evidence_rebind_receipt(
     delta_review: Mapping[str, Any] | None,
     narrow_hosted_checks: Mapping[str, Any] | None,
     scanner: Mapping[str, Any] | None,
+    durable_state: MutableMapping[str, Any],
     owned_paths: Sequence[str] = (),
 ) -> RebindDecision:
     """Verify a signed evidence-rebind against the accepted Full receipt and exact head."""
@@ -564,6 +706,16 @@ def verify_evidence_rebind_receipt(
         unsigned = {key: value for key, value in payload.items() if key != "receiptDigest"}
         if supplied != canonical_digest(unsigned):
             return RebindDecision(False, "stale_identity", "evidence-rebind receiptDigest does not match canonical bytes")
+        _count, records, verified = _validate_rebind_state(durable_state)
+        issued_digests = {
+            _digest(record.get("receiptDigest"))
+            for record in records
+            if isinstance(record, Mapping)
+        }
+        if supplied not in issued_digests:
+            return RebindDecision(False, "transaction_state_missing", "signed evidence-rebind receipt is not recorded in durable transaction/session state")
+        if supplied in verified:
+            return RebindDecision(False, "receipt_replay", "the same signed evidence-rebind receipt cannot verify twice")
         source = _mapping(source_full_receipt)
         identity = _identity_from_receipt(source)
         target = _mapping(target_identity)
@@ -615,13 +767,14 @@ def verify_evidence_rebind_receipt(
             label="scanner",
         )
         declared_generated = policy_generated
-        return admit_evidence_rebind(
+        decision = admit_evidence_rebind(
             repo_root=repo_root,
             source_commit=str(payload["sourceCommit"]),
             source_tree=str(payload["sourceTree"]),
             exact_head_commit=str(payload["exactHeadCommit"]),
             exact_head_tree=str(payload["exactHeadTree"]),
-            changed_paths=_paths(payload.get("changedPaths")),
+            # changedPaths is receipt output, never an authority for admission.
+            changed_paths=None,
             generated_paths=declared_generated,
             owned_paths=owned_paths,
             underlying_source_digest_source=str(payload["underlyingSourceDigest"]),
@@ -636,9 +789,13 @@ def verify_evidence_rebind_receipt(
             narrow_hosted_checks=narrow_hosted_checks,
             scanner=scanner,
             source_full_receipt=source,
-            durable_state={REBIND_STATE_FIELD: [], REBIND_COUNT_FIELD: 0},
-            enforce_rebind_limit=False,
+            durable_state=durable_state,
+            receipt_digest=str(payload["receiptDigest"]),
         )
+        if not decision.allowed:
+            return decision
+        _record_rebind_verification(durable_state, str(payload["receiptDigest"]))
+        return decision
     except EvidenceRebindError as error:
         return RebindDecision(False, error.code, error.detail)
 
@@ -665,6 +822,7 @@ def issue_evidence_rebind_receipt(
     scanner: Mapping[str, Any],
     durable_state: MutableMapping[str, Any],
     store_path: str | Path | None = None,
+    state_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Admit, sign, and optionally persist an exact-head evidence-rebind receipt."""
 
@@ -707,6 +865,8 @@ def issue_evidence_rebind_receipt(
         durable_state=durable_state,
     )
     _record_rebind_state(durable_state, signed)
+    if state_path is not None:
+        persist_rebind_state(state_path, durable_state)
     if store_path is not None:
         destination = Path(store_path)
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -730,8 +890,13 @@ __all__ = [
     "create_evidence_rebind_receipt",
     "generated_binding_paths",
     "git_changed_paths",
+    "git_commit_tree",
     "git_rev_parse",
     "issue_evidence_rebind_receipt",
+    "load_rebind_state",
+    "new_rebind_state",
     "underlying_source_digest",
+    "persist_rebind_state",
+    "rebind_state_lock",
     "verify_evidence_rebind_receipt",
 ]

@@ -533,6 +533,7 @@ def phase_merge_eligibility_with_receipt(
     evidence_rebind_delta_review: Mapping[str, Any] | None = None,
     evidence_rebind_hosted_checks: Mapping[str, Any] | None = None,
     evidence_rebind_scanner: Mapping[str, Any] | None = None,
+    evidence_rebind_state_path: str | Path | None = None,
 ) -> MergeEligibility:
     """Ordinary Phase merge requires gates plus an exact retained receipt."""
 
@@ -594,6 +595,7 @@ def phase_merge_eligibility_with_receipt(
             evidence_rebind_delta_review=evidence_rebind_delta_review,
             evidence_rebind_hosted_checks=evidence_rebind_hosted_checks,
             evidence_rebind_scanner=evidence_rebind_scanner,
+            evidence_rebind_state_path=evidence_rebind_state_path,
         )
         if not verdict.accepted:
             checks["retainedReceipt"] = False

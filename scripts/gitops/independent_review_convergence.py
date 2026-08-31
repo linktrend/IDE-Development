@@ -24,9 +24,9 @@ from pathlib import Path
 from typing import Any, Mapping, Protocol, Sequence
 
 try:
-    from scripts.gitops.evidence_rebind import admit_evidence_rebind
+    from scripts.gitops.evidence_rebind import admit_evidence_rebind, new_rebind_state
 except ModuleNotFoundError:  # pragma: no cover - gitops-on-path execution
-    from evidence_rebind import admit_evidence_rebind
+    from evidence_rebind import admit_evidence_rebind, new_rebind_state
 
 SCHEMA_VERSION = 1
 COMPONENT_KIND = "independent_review_convergence"
@@ -1192,6 +1192,9 @@ def rebind_full_evidence(
     source_tree = ""
     if isinstance(identity, Mapping):
         source_tree = str(identity.get("gitTree") or "")
+    durable_state = new_rebind_state()
+    durable_state["evidenceRebinds"] = list(session.evidence_rebinds)
+    durable_state["evidenceRebindCount"] = len(session.evidence_rebinds)
     decision = admit_evidence_rebind(
         repo_root=repo_root,
         source_commit=source,
@@ -1213,7 +1216,7 @@ def rebind_full_evidence(
         narrow_hosted_checks=narrow_hosted_checks,
         scanner=scanner,
         source_full_receipt=source_full_receipt,
-        durable_state=session.to_dict(),
+        durable_state=durable_state,
     )
     if not decision.allowed:
         raise ConvergenceError(decision.code, decision.detail)

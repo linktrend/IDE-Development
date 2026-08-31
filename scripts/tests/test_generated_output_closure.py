@@ -387,6 +387,24 @@ class GeneratedOutputGraphTests(unittest.TestCase):
         with self.assertRaisesRegex(ClosureError, "dirty_output"):
             verify_generated_outputs(root, graph_path="closure.json")
 
+    def test_full_generated_output_verification_has_a_bounded_timeout(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        generator = script(
+            root,
+            "slow.py",
+            "import time\n"
+            "time.sleep(1)\n"
+            "from pathlib import Path\n"
+            "Path('generated.out').write_text('stable\\n', encoding='utf-8')\n",
+        )
+        write(root, "source.txt", "source\n")
+        write(root, "generated.out", "stable\n")
+        write_graph(root, graph([output("generated.out", generator)]))
+        commit(root, "bounded verifier fixture")
+        with self.assertRaisesRegex(ClosureError, "verification_timeout"):
+            verify_generated_outputs(root, graph_path="closure.json", timeout_seconds=0.05)
+
     def test_generated_outputs_are_excluded_from_candidate_tree(self) -> None:
         tmp, root = init_repo()
         self.addCleanup(tmp.cleanup)
