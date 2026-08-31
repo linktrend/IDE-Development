@@ -11,6 +11,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from jsonschema import Draft202012Validator
+
 from scripts.gitops import secret_scan as secret_scan_mod
 from scripts.gitops.secret_scan import (
     DECLARATION_REL,
@@ -1178,6 +1180,37 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
         self.assertNotIn("unchanged.py", scanned_paths)
         self.assertIn("changed.py", scanned_paths)
 
+    def test_unchanged_pre_existing_credential_is_permitted(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        git(root, "remote", "add", "origin", "https://github.com/example/change-scoped.git")
+        write_tracked(root, "scripts/gitops/secret_scan.py", "note = \"baseline scanner\"\n")
+        old_secret = "ghp_" + ("A" * 36)
+        write_tracked(root, "unchanged.py", f'token = "{old_secret}"\n')
+        baseline, baseline_tree = commit(root, "baseline credential")
+        git(root, "update-ref", "refs/remotes/origin/development", baseline)
+        baseline_result = scan_repository(root)
+        write_tracked(root, "changed.py", 'note = "ordinary change"\n')
+        candidate, candidate_tree = commit(root, "candidate without new credential")
+        evidence = {
+            "schemaVersion": 1,
+            "kind": CHANGE_SCOPED_KIND,
+            "repository": "example/change-scoped",
+            "authoritativeRemoteRef": "origin/development",
+            "baselineCommit": baseline,
+            "baselineTree": baseline_tree,
+            "candidateCommit": candidate,
+            "candidateGitTree": candidate_tree,
+            "scannerPolicyVersion": SCANNER_POLICY_VERSION,
+            "managedPaths": list(MANAGED_SCANNER_POLICY_PATHS),
+            "configDigest": config_digest(root),
+            "findings": baseline_result["findings"],
+        }
+        result = scan_repository(root, baseline_evidence=evidence)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["inheritedFindingCount"], 1)
+        self.assertEqual(result["inheritedFindings"][0]["path"], "unchanged.py")
+
     def test_unchanged_baseline_fixture_declaration_is_inherited(self) -> None:
         """Unchanged fixture rows are not stale merely because their source is not rescanned."""
         tmp, root = init_repo()
@@ -1523,6 +1556,33 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
         result = scan_repository(root, baseline_evidence=evidence)
         self.assertFalse(result["ok"])
         self.assertTrue(any(row["rule"] == "change_scope.paths" for row in result["findings"]))
+
+    def test_path_scoped_result_emits_real_head_identity(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        git(root, "remote", "add", "origin", "https://github.com/linktrend/openclaw_prime.git")
+        write_tracked(root, "linkbots/owned.md", "owned customization\n")
+        write_tracked(root, "other.py", "note = \"unrelated\"\n")
+        commit(root, "prime-shaped files")
+        result = scan_repository(root, paths=["linkbots/owned.md"])
+        schema = json.loads(RESULT_SCHEMA.read_text(encoding="utf-8"))
+        self.assertEqual(list(Draft202012Validator(schema).iter_errors(result)), [])
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["candidateCommit"], sha(root))
+        self.assertEqual(result["candidateGitTree"], tree(root))
+        self.assertEqual(result["repository"], "linktrend/openclaw_prime")
+        self.assertNotIn("scanMode", result)
+        self.assertFalse(any(row["path"] == "other.py" for row in result["findings"]))
+
+    def test_full_scan_omits_candidate_commit_identity(self) -> None:
+        tmp, root = init_repo()
+        self.addCleanup(tmp.cleanup)
+        git(root, "remote", "add", "origin", "https://github.com/example/full-scan.git")
+        result = scan_repository(root)
+        self.assertNotIn("candidateCommit", result)
+        self.assertNotIn("candidateGitTree", result)
+        self.assertNotIn("scanMode", result)
+        self.assertNotIn("repository", result)
 
     def test_extracted_managed_root_uses_packaged_policy_paths(self) -> None:
         tmp, root = init_repo()

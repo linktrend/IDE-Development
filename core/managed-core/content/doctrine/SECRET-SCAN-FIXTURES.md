@@ -1,6 +1,6 @@
 # Fixture-aware secret scanning
 
-**Status:** Active for `v2.4.0` Update 10.
+**Status:** Active for protected IDE `v2.5.2` (issue #464 repair).
 **Scanner:** `scripts/gitops/secret_scan.py`
 **Migration helper:** `scripts/gitops/secret_scan_migrate.py`
 **Declaration:** `.github/linktrend-secret-scan-fixtures.json`
@@ -12,6 +12,9 @@ Managed Fast and Full execute `python3 scripts/gitops/secret_scan.py` over
 every tracked regular blob. The candidate tree is computed from git index
 object identities (`ls-files -s`) so directory symlinks, gitlinks, and
 option-like paths are not followed. Suffix classes are never skipped.
+A path-scoped `scan_repository(..., paths=...)` result binds the real HEAD
+`candidateCommit` and `candidateGitTree` (and origin repository). Full scans
+still omit those fields and are never relabeled as change-scoped.
 Text is decoded as UTF-8 or UTF-16 (LE/BE, BOM or heuristic). Undecodable
 or oversized blobs and repository-scanner timeouts are aggregated typed
 failures, not silent ignores.
@@ -58,6 +61,13 @@ proof for changed, deleted, renamed, or ambiguous paths. Missing or stale
 identity, policy/path/config mismatch, unreadable relevant text, and real
 credentials block. Source checkouts and extracted `.ide-development` packages
 resolve their own managed path layout; there is no broad upstream-path ignore.
+
+For a change-scoped result, inherited rows are emitted again under
+`inheritedFindings` and remain visible in `findings`, but are excluded from the
+current blocking calculation. A credential or other blocking row found in the
+changed/managed path set still makes `ok=false`. This is an exact baseline-row
+acceptance rule, not an allowlist, path exclusion, or suppression of the
+repository-owned scanners.
 
 ### Transactional managed upgrades
 

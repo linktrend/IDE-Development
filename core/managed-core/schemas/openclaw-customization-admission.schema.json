@@ -15,6 +15,10 @@
     "scope",
     "checkedPaths",
     "findings",
+    "preInstallBaseline",
+    "candidateIdentity",
+    "scannerPolicyVersion",
+    "baselineComparison",
     "verdict",
     "noUpstreamScanOrMutation"
   ],
@@ -37,6 +41,7 @@
     "finding": {
       "type": "object",
       "additionalProperties": false,
+      "additionalProperties": false,
       "required": ["kind", "path", "rule"],
       "properties": {
         "kind": { "type": "string", "minLength": 1 },
@@ -45,7 +50,37 @@
         "field": { "type": "string", "minLength": 1 },
         "rule": { "type": "string", "minLength": 1 },
         "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
-        "detail": { "type": "string", "minLength": 1 }
+        "detail": { "type": "string", "minLength": 1 },
+        "contentDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "kind", "repository", "identity", "scannerPolicyVersion", "checkedPaths", "omittedMissingPaths", "findings"],
+      "properties": {
+        "schemaVersion": { "type": "integer", "const": 1 },
+        "kind": { "type": "string", "const": "openclaw-customization-admission-baseline" },
+        "repository": { "type": "string", "const": "linktrend/openclaw_prime" },
+        "identity": { "$ref": "#/$defs/identity" },
+        "scannerPolicyVersion": { "type": "string", "minLength": 1 },
+        "checkedPaths": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/relPath" }, "uniqueItems": true },
+        "omittedMissingPaths": { "type": "array", "items": { "$ref": "#/$defs/relPath" }, "uniqueItems": true },
+        "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } }
+      }
+    },
+    "fullCandidateIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "sourceBranch", "headCommit", "gitTree", "dependencyDigest", "profileDigest", "workflowDigest"],
+      "properties": {
+        "repository": { "type": "string", "const": "linktrend/openclaw_prime" },
+        "sourceBranch": { "type": "string", "minLength": 1 },
+        "headCommit": { "$ref": "#/$defs/sha40" },
+        "gitTree": { "$ref": "#/$defs/sha40" },
+        "dependencyDigest": { "$ref": "#/$defs/digest" },
+        "profileDigest": { "$ref": "#/$defs/digest" },
+        "workflowDigest": { "$ref": "#/$defs/digest" }
       }
     }
   },
@@ -117,7 +152,8 @@
             "destinationCount",
             "prefixes",
             "overlayOnUpstreamExactPaths",
-            "declaredMissingLocally"
+            "declaredMissingLocally",
+            "packageChangedPaths"
           ],
           "properties": {
             "inventoryPath": { "$ref": "#/$defs/relPath" },
@@ -135,6 +171,11 @@
               "uniqueItems": true
             },
             "declaredMissingLocally": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/relPath" },
+              "uniqueItems": true
+            },
+            "packageChangedPaths": {
               "type": "array",
               "items": { "$ref": "#/$defs/relPath" },
               "uniqueItems": true
@@ -189,6 +230,21 @@
     "preExistingFindings": {
       "type": "array",
       "items": { "$ref": "#/$defs/finding" }
+    },
+    "preInstallBaseline": { "$ref": "#/$defs/baseline" },
+    "candidateIdentity": { "$ref": "#/$defs/identity" },
+    "scannerPolicyVersion": { "type": "string", "minLength": 1 },
+    "baselineComparison": { "type": "string", "enum": ["captured", "compared"] },
+    "fullRunReceiptIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidateIdentity", "workflowRunId", "workflowRunAttempt", "receiptDigest"],
+      "properties": {
+        "candidateIdentity": { "$ref": "#/$defs/fullCandidateIdentity" },
+        "workflowRunId": { "type": "integer", "minimum": 1 },
+        "workflowRunAttempt": { "type": "integer", "minimum": 1 },
+        "receiptDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+      }
     },
     "omittedMissingPaths": {
       "type": "array",

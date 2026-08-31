@@ -24,6 +24,7 @@ schemas:
   - schemas/secret-scan-result.schema.json
   - schemas/managed-upgrade-resolution.schema.json
   - schemas/change-scoped-secret-scan.schema.json
+  - schemas/openclaw-customization-admission.schema.json
   - schemas/generated-output-closure.schema.json
   - schemas/manifest-persistence.schema.json
   - schemas/transactional-dispatch.schema.json
