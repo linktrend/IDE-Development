@@ -104,7 +104,7 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
         _write_json(
             self.consumer,
             ".ide-development/installed-state.json",
-            {"schemaVersion": 1, "packageVersion": "2.5.1", "files": {IDE_PATH: {}}},
+            {"schemaVersion": 1, "packageVersion": "2.5.2", "files": {IDE_PATH: {}}},
         )
         self.boundary_path = _write_json(self.consumer, BOUNDARY_REL, _boundary())
         self.scanned: list[list[str]] = []
@@ -190,6 +190,39 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
                             }
                         )
                     )
+
+    def test_exact_pre_existing_finding_is_allowed_and_returned_as_object(self) -> None:
+        finding = {"kind": "credential_finding", "path": CUSTOM_PATH, "rule": "test.rule"}
+        result = self._admit(
+            scanner=self._scanner({"ok": False, "findings": [finding], "baselineFindings": [finding]})
+        )
+        self.assertEqual(result["findings"], [finding])
+        self.assertEqual(result["preExistingFindings"], [finding])
+
+    def test_missing_legacy_inputs_are_omitted_from_scan(self) -> None:
+        missing = "core/legacy-package-path.py"
+        boundary = copy.deepcopy(_boundary())
+        boundary["ideManaged"]["declaredMissingLocally"] = ["core"]
+        boundary["ideTransactionChanged"]["paths"].append(missing)
+        self.boundary_path.write_text(json.dumps(boundary) + "\n", encoding="utf-8")
+        result = self._admit()
+        self.assertNotIn(missing, result["checkedPaths"])
+        self.assertIn(missing, result["omittedMissingPaths"])
+        self.assertIn("core", result["omittedMissingPaths"])
+
+    def test_scanner_failure_and_timeout_fail_closed(self) -> None:
+        with self.assertRaisesRegex(OpenClawAdmissionError, "scanner-error"):
+            self._admit(scanner=self._scanner({"ok": False, "findings": []}))
+        with self.assertRaisesRegex(OpenClawAdmissionError, "scanner-timeout"):
+            self._admit(scanner=self._scanner({"ok": False, "errorType": "timeout", "findings": []}))
+
+    def test_non_252_installed_state_is_rejected(self) -> None:
+        state_path = self.consumer / ".ide-development/installed-state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["packageVersion"] = "2.5.1"
+        state_path.write_text(json.dumps(state) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(OpenClawAdmissionError, "ide-package-version-mismatch"):
+            self._admit()
 
     def test_forbidden_scanner_finding_is_rejected(self) -> None:
         with self.assertRaisesRegex(OpenClawAdmissionError, "forbidden-path"):
