@@ -182,7 +182,11 @@ def _validate_package_identity(manifest: Manifest, prior: Any | None) -> str:
     digest = sha256_file(manifest.path)
     if prior is None or prior.package_version != manifest.package_version:
         return digest
-    if prior.manifest_hash is not None and prior.manifest_hash != digest:
+    if prior.manifest_hash is None:
+        raise InvalidPackageError(
+            "Installed-state manifestHash is missing; use an exact same-version repair"
+        )
+    if prior.manifest_hash != digest:
         raise InvalidPackageError(
             "Managed package version collision: manifest bytes changed for an installed version",
             details={
@@ -655,7 +659,13 @@ def run_same_version_repair(
 
     actions = [
         PlanAction(
-            op=OpKind.CREATE if item.operation == OPERATION_ADD else OpKind.REPLACE,
+            op=(
+                OpKind.NOOP
+                if item.noop
+                else OpKind.CREATE
+                if item.operation == OPERATION_ADD
+                else OpKind.REPLACE
+            ),
             path=item.path,
             entry_id=next(
                 entry.id for entry in manifest.active_entries() if entry.destination == item.path
