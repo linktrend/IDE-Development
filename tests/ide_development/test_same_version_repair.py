@@ -20,13 +20,62 @@ from ide_development.errors import ConflictError, InvalidPackageError  # noqa: E
 from ide_development.hashing import sha256_file  # noqa: E402
 from ide_development.managed_write_guard import is_read_only_mode  # noqa: E402
 from ide_development.manifest import load_manifest  # noqa: E402
-from ide_development.plan import OpKind, PlanAction  # noqa: E402
+from ide_development.plan import FULL_ROOT_WORKFLOW_REL, OpKind, PlanAction  # noqa: E402
 from ide_development.state import load_installed_state, prove_read_only_state  # noqa: E402
 from ide_development.transaction import apply_action, rollback_last  # noqa: E402
 from ide_development_tests import FIXTURE_PACKAGE, TempRepoTestCase, make_git_repo  # noqa: E402
 
 OPENCLAW_DEST = ".ide-development/content/doctrine/OPENCLAW-CUSTOMIZATION-ADMISSION.md"
 OPENCLAW_SOURCE = "core/managed-core/content/doctrine/OPENCLAW-CUSTOMIZATION-ADMISSION.md"
+GITHUB_ROOT_SOURCE = "core/github/managed-workflows/linktrend-integrator-merge.yml"
+COMPATIBLE_FULL_WORKFLOW = """name: Linktrend Full Suite
+
+on:
+  workflow_dispatch:
+    inputs:
+      dependency_digest:
+        description: "exact dependency digest"
+        required: false
+        type: string
+      target_baseline_sha:
+        description: "exact baseline sha"
+        required: false
+        type: string
+      target_baseline_ref:
+        description: "exact baseline ref"
+        required: false
+        type: string
+
+jobs:
+  full:
+    name: Linktrend Full Suite
+    if: github.event.label.name == 'linktrend-full-suite'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - run: echo compatible
+"""
+STALE_FULL_WORKFLOW = """name: Linktrend Full Suite
+
+on:
+  pull_request:
+    branches: [development]
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "phase for a normal sealed candidate"
+        required: false
+        default: "phase"
+        type: string
+
+jobs:
+  full:
+    name: Linktrend Full Suite
+    if: github.event.label.name == 'linktrend-full-suite'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - run: echo stale
+"""
 
 
 class SameVersionRepairTests(TempRepoTestCase):
@@ -146,6 +195,28 @@ class SameVersionRepairTests(TempRepoTestCase):
                 "destination": OPENCLAW_DEST,
                 "mode": "0644",
                 "platform": "all",
+                "os": "all",
+                "mergeStrategy": "replace",
+                "sourceHash": sha256_file(source),
+            }
+        )
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        return source
+
+    def _add_github_root_workflow(self, package: Path) -> Path:
+        source = package / GITHUB_ROOT_SOURCE
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text(COMPATIBLE_FULL_WORKFLOW, encoding="utf-8")
+        manifest_path = package / "core/managed-core/MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["files"].append(
+            {
+                "id": "github-root-workflow-linktrend-integrator-merge-yml",
+                "ownershipClass": "managed-core",
+                "source": GITHUB_ROOT_SOURCE,
+                "destination": FULL_ROOT_WORKFLOW_REL,
+                "mode": "0644",
+                "platform": "github",
                 "os": "all",
                 "mergeStrategy": "replace",
                 "sourceHash": sha256_file(source),
@@ -306,6 +377,98 @@ class SameVersionRepairTests(TempRepoTestCase):
         receipt.write_text(json.dumps(payload) + "\n", encoding="utf-8")
         with self.assertRaisesRegex(InvalidPackageError, "not an IDE-managed file"):
             run_same_version_repair(target=self.target, package=new, repair_manifest=receipt)
+
+    def _github_root_repair_packages(self) -> tuple[Path, Path]:
+        old = self._package("old-package")
+        self.assertEqual(run_install_or_update(target=self.target, package=old, command="install").exit_code, 0)
+        new = self._package("new-package")
+        self._add_github_root_workflow(new)
+        self._commit_package(new, "admit github-root full trigger")
+        return old, new
+
+    def test_matching_unmanaged_non_workflow_add_still_conflicts(self) -> None:
+        old = self._package("old-package")
+        self.assertEqual(run_install_or_update(target=self.target, package=old, command="install").exit_code, 0)
+        new = self._package("new-package")
+        self._add_openclaw_admission(new)
+        self._commit_package(new, "admit openclaw customization path")
+        colliding = self.target / OPENCLAW_DEST
+        colliding.parent.mkdir(parents=True, exist_ok=True)
+        colliding.write_text("# OpenClaw Prime customization-only admission\n", encoding="utf-8")
+        os.chmod(colliding, 0o444)
+        receipt = self._receipt(old, new, OPENCLAW_DEST, operation="add")
+        with self.assertRaisesRegex(ConflictError, "existing collision"):
+            run_same_version_repair(target=self.target, package=new, repair_manifest=receipt)
+
+    def test_unmanaged_matching_github_root_add_claims_read_only_ownership(self) -> None:
+        old, new = self._github_root_repair_packages()
+        live = self.target / FULL_ROOT_WORKFLOW_REL
+        live.parent.mkdir(parents=True, exist_ok=True)
+        live.write_text(COMPATIBLE_FULL_WORKFLOW, encoding="utf-8")
+        os.chmod(live, 0o644)
+        receipt = self._receipt(old, new, FULL_ROOT_WORKFLOW_REL, operation="add")
+        result = run_same_version_repair(
+            target=self.target, package=new, repair_manifest=receipt, dry_run=False
+        )
+        self.assertEqual(result.exit_code, 0, result.payload)
+        self.assertEqual(live.read_text(encoding="utf-8"), COMPATIBLE_FULL_WORKFLOW)
+        self.assertTrue(is_read_only_mode(live.stat().st_mode))
+        state = load_installed_state(self.target)
+        assert state is not None
+        owned = state.files[FULL_ROOT_WORKFLOW_REL]
+        self.assertEqual(owned.ownership_class, "managed-core")
+        self.assertEqual(owned.id, "github-root-workflow-linktrend-integrator-merge-yml")
+        applied = {item["path"]: item["op"] for item in result.payload["transaction"]["applied"]}
+        self.assertEqual(applied[FULL_ROOT_WORKFLOW_REL], "create")
+
+    def test_unmanaged_exact_github_root_add_is_noop(self) -> None:
+        old, new = self._github_root_repair_packages()
+        live = self.target / FULL_ROOT_WORKFLOW_REL
+        live.parent.mkdir(parents=True, exist_ok=True)
+        live.write_text(COMPATIBLE_FULL_WORKFLOW, encoding="utf-8")
+        os.chmod(live, 0o444)
+        before_mode = live.stat().st_mode & 0o7777
+        receipt = self._receipt(old, new, FULL_ROOT_WORKFLOW_REL, operation="add")
+        result = run_same_version_repair(
+            target=self.target, package=new, repair_manifest=receipt, dry_run=False
+        )
+        self.assertEqual(result.exit_code, 0, result.payload)
+        action = next(item for item in result.payload["actions"] if item["path"] == FULL_ROOT_WORKFLOW_REL)
+        self.assertEqual(action["op"], "noop")
+        self.assertEqual(live.stat().st_mode & 0o7777, before_mode)
+        self.assertNotIn(
+            FULL_ROOT_WORKFLOW_REL,
+            {item["path"] for item in result.payload["transaction"]["applied"]},
+        )
+        state = load_installed_state(self.target)
+        assert state is not None
+        self.assertEqual(state.files[FULL_ROOT_WORKFLOW_REL].ownership_class, "managed-core")
+
+    def test_unmanaged_stale_full_github_root_add_is_replaced(self) -> None:
+        old, new = self._github_root_repair_packages()
+        live = self.target / FULL_ROOT_WORKFLOW_REL
+        live.parent.mkdir(parents=True, exist_ok=True)
+        live.write_text(STALE_FULL_WORKFLOW, encoding="utf-8")
+        os.chmod(live, 0o644)
+        receipt = self._receipt(old, new, FULL_ROOT_WORKFLOW_REL, operation="add")
+        result = run_same_version_repair(
+            target=self.target, package=new, repair_manifest=receipt, dry_run=False
+        )
+        self.assertEqual(result.exit_code, 0, result.payload)
+        self.assertEqual(live.read_text(encoding="utf-8"), COMPATIBLE_FULL_WORKFLOW)
+        self.assertTrue(is_read_only_mode(live.stat().st_mode))
+        applied = {item["path"]: item["op"] for item in result.payload["transaction"]["applied"]}
+        self.assertEqual(applied[FULL_ROOT_WORKFLOW_REL], "create")
+
+    def test_unrelated_unmanaged_github_root_add_still_conflicts(self) -> None:
+        old, new = self._github_root_repair_packages()
+        live = self.target / FULL_ROOT_WORKFLOW_REL
+        live.parent.mkdir(parents=True, exist_ok=True)
+        live.write_text("name: Consumer CI\non: push\njobs: {}\n", encoding="utf-8")
+        receipt = self._receipt(old, new, FULL_ROOT_WORKFLOW_REL, operation="add")
+        with self.assertRaisesRegex(ConflictError, "existing collision"):
+            run_same_version_repair(target=self.target, package=new, repair_manifest=receipt)
+        self.assertEqual(live.read_text(encoding="utf-8"), "name: Consumer CI\non: push\njobs: {}\n")
 
     def test_matching_managed_add_collision_is_noop_and_derives_missing_manifest_hash(self) -> None:
         old = self._package("old-package")
