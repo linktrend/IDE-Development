@@ -16,6 +16,11 @@ from .hashing import modes_match, normalize_mode, sha256_file
 from .managed_write_guard import is_read_only_mode, read_only_mode
 from .manifest import Manifest
 from .paths import as_posix_rel, join_under_nofollow, path_is_symlink
+from .plan import (
+    FULL_ROOT_WORKFLOW_REL,
+    is_stale_full_root_workflow,
+    required_full_dispatch_inputs_present,
+)
 from .state import InstalledState
 
 KIND = "ide-managed-same-version-repair"
@@ -26,6 +31,7 @@ OPERATION_REPLACE = "replace"
 OPERATION_ADD = "add"
 OPERATIONS = frozenset({OPERATION_REPLACE, OPERATION_ADD})
 MANIFEST_DEST = f"{MANAGED_CORE_DIR}/MANIFEST.json"
+GITHUB_ROOT_WORKFLOW_PREFIX = ".github/workflows/"
 
 
 @dataclass(frozen=True)
@@ -178,6 +184,91 @@ def _add_collision_is_exact_noop(
     return True
 
 
+def _is_managed_github_root_workflow(rel: str, entry: Any) -> bool:
+    """True for a replace-owned file that lives on the GitHub Actions root."""
+    name = rel[len(GITHUB_ROOT_WORKFLOW_PREFIX) :] if rel.startswith(GITHUB_ROOT_WORKFLOW_PREFIX) else ""
+    return (
+        bool(name)
+        and "/" not in name
+        and "\\" not in name
+        and entry.ownership_class == "managed-core"
+        and entry.merge_strategy == "replace"
+    )
+
+
+def _should_adopt_unmanaged_stale_full_root(
+    *,
+    rel: str,
+    destination: Path,
+    package_root: Path,
+    entry: Any,
+) -> bool:
+    """Mirror install/update: replace an unmanaged stale Full trigger."""
+    if rel != FULL_ROOT_WORKFLOW_REL or not _is_managed_github_root_workflow(rel, entry):
+        return False
+    try:
+        current = destination.read_text(encoding="utf-8")
+        desired = (package_root / entry.source).read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return False
+    return is_stale_full_root_workflow(current) and required_full_dispatch_inputs_present(desired)
+
+
+def _classify_add_collision(
+    *,
+    rel: str,
+    destination: Path,
+    previous: Any,
+    entry: Any,
+    package_root: Path,
+    package_version: str,
+) -> str:
+    """Return 'noop' or 'claim', or raise for a true consumer collision."""
+    if path_is_symlink(destination):
+        raise ConflictError(
+            "Same-version repair refuses an existing collision for a declared addition",
+            details={"path": rel},
+        )
+    if previous is not None:
+        if _add_collision_is_exact_noop(
+            destination=destination,
+            previous=previous,
+            entry=entry,
+            package_version=package_version,
+        ):
+            return "noop"
+        raise ConflictError(
+            "Same-version repair refuses an existing collision for a declared addition",
+            details={"path": rel},
+        )
+    if not destination.exists():
+        return "claim"
+    if not destination.is_file():
+        raise ConflictError(
+            "Same-version repair refuses an existing collision for a declared addition",
+            details={"path": rel},
+        )
+    expected_mode = read_only_mode(entry.mode)
+    if (
+        _is_managed_github_root_workflow(rel, entry)
+        and sha256_file(destination) == entry.source_hash
+    ):
+        if modes_match(destination.stat().st_mode & 0o7777, expected_mode):
+            return "noop"
+        return "claim"
+    if _should_adopt_unmanaged_stale_full_root(
+        rel=rel,
+        destination=destination,
+        package_root=package_root,
+        entry=entry,
+    ):
+        return "claim"
+    raise ConflictError(
+        "Same-version repair refuses an existing collision for a declared addition",
+        details={"path": rel},
+    )
+
+
 def load_and_validate_same_version_repair(
     repair_path: Path,
     *,
@@ -277,19 +368,14 @@ def load_and_validate_same_version_repair(
                     "Same-version repair addition must not declare an installed preimage",
                     details={"path": rel},
                 )
-            noop = False
-            if previous is not None or path_is_symlink(destination) or destination.exists():
-                if previous is None or not _add_collision_is_exact_noop(
-                    destination=destination,
-                    previous=previous,
-                    entry=entry,
-                    package_version=manifest.package_version,
-                ):
-                    raise ConflictError(
-                        "Same-version repair refuses an existing collision for a declared addition",
-                        details={"path": rel},
-                    )
-                noop = True
+            disposition = _classify_add_collision(
+                rel=rel,
+                destination=destination,
+                previous=previous,
+                entry=entry,
+                package_root=package_root,
+                package_version=manifest.package_version,
+            )
             parsed.append(
                 RepairPath(
                     rel,
@@ -299,7 +385,7 @@ def load_and_validate_same_version_repair(
                     new_source,
                     source_bytes,
                     OPERATION_ADD,
-                    noop,
+                    disposition == "noop",
                 )
             )
             continue
