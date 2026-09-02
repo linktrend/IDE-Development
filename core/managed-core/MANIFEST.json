@@ -4890,7 +4890,7 @@
       "id": "installer-scripts-ide-development-same-version-repair-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/same_version_repair.py",
-      "sourceHash": "sha256:b6a15b738d1579b6f3be9c90727794d30c8ef62c011c90cb183879be7508e8b3",
+      "sourceHash": "sha256:cbdde1c755c3e427910d1946346416de98f4c19adb5f6b624a79e3d3571f11e3",
       "destination": "scripts/ide_development/same_version_repair.py",
       "mode": "0644",
       "platform": "all",
