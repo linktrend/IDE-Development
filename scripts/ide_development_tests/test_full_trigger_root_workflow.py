@@ -63,6 +63,12 @@ class FullTriggerContractTests(unittest.TestCase):
         text = SOURCE_WORKFLOW.read_text(encoding="utf-8")
         self.assertTrue(required_full_dispatch_inputs_present(text), text)
         self.assertFalse(is_stale_full_root_workflow(text))
+        self.assertIn("inputs.target_baseline_sha || github.event.pull_request.base.sha", text)
+        self.assertIn("github.event_name == 'workflow_dispatch' && 'origin/development'", text)
+        self.assertNotIn(
+            "inputs.target_baseline_ref || format('origin/{0}', github.event.pull_request.base.ref)",
+            text,
+        )
 
     def test_linksites_shape_is_classified_stale(self) -> None:
         self.assertTrue(is_stale_full_root_workflow(STALE_WORKFLOW))
