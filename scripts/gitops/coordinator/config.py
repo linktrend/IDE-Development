@@ -150,6 +150,9 @@ class ReviewConfig:
 class DeliveryConfig:
     schema_version: int = 2
     mode: str = DEFAULT_DELIVERY_MODE
+    # Retained for legacy/configured Phase consumers.  The hosted serialized
+    # profile intentionally does not emit this compatibility field.
+    phase_branch_prefix: str = DEFAULT_PHASE_PREFIX
     compute: ComputeConfig = ComputeConfig()
     profiles: Mapping[str, TestProfile] = ()
     promotion: PromotionConfig = PromotionConfig()
@@ -164,10 +167,6 @@ class DeliveryConfig:
     @property
     def delivery_mode(self) -> str:
         return self.mode
-
-    @property
-    def phase_branch_prefix(self) -> str:
-        return DEFAULT_PHASE_PREFIX
 
     @property
     def test_profiles(self) -> Mapping[str, TestProfile]:
@@ -451,7 +450,11 @@ def _review(value: Any) -> ReviewConfig:
     return ReviewConfig()
 
 
-def _new_config(payload: Mapping[str, Any]) -> DeliveryConfig:
+def _new_config(
+    payload: Mapping[str, Any],
+    *,
+    phase_branch_prefix: str = DEFAULT_PHASE_PREFIX,
+) -> DeliveryConfig:
     expected = {"schemaVersion", "mode", "compute", "profiles", "promotion", "review"}
     optional = {
         "amendment",
@@ -478,6 +481,7 @@ def _new_config(payload: Mapping[str, Any]) -> DeliveryConfig:
     profiles = {name: _profile(raw_profiles[name], name=name) for name in ("fast", "full", "release")}
     return DeliveryConfig(
         mode=payload["mode"],
+        phase_branch_prefix=phase_branch_prefix,
         compute=_compute(payload["compute"]),
         profiles=profiles,
         promotion=_promotion(payload["promotion"]),
@@ -493,7 +497,7 @@ def _migrate_legacy(payload: Mapping[str, Any]) -> DeliveryConfig:
         allowed = {"schemaVersion", "deliveryMode", "phaseBranchPrefix"}
         if set(payload) - allowed:
             _fail("unknown_field", "remove unknown legacy configuration properties", "configuration")
-        _legacy_phase_prefix(payload.get("phaseBranchPrefix"))
+        phase_branch_prefix = _legacy_phase_prefix(payload.get("phaseBranchPrefix"))
         mode = payload.get("deliveryMode", MODE_PHASE_INTEGRATION)
         if mode not in {MODE_ISSUE_PR, MODE_PHASE_INTEGRATION}:
             _fail("invalid_delivery_mode", "legacy deliveryMode must be issue-pr or phase-integration", "deliveryMode")
@@ -513,7 +517,7 @@ def _migrate_legacy(payload: Mapping[str, Any]) -> DeliveryConfig:
                 "legacy streamlined configuration must contain its complete documented fields",
                 "configuration",
             )
-        _legacy_phase_prefix(payload.get("phaseBranchPrefix"))
+        phase_branch_prefix = _legacy_phase_prefix(payload.get("phaseBranchPrefix"))
         mode = payload["deliveryMode"]
         if mode not in {MODE_ISSUE_PR, MODE_PHASE_INTEGRATION}:
             _fail("invalid_delivery_mode", "legacy deliveryMode must be issue-pr or phase-integration", "deliveryMode")
@@ -557,7 +561,7 @@ def _migrate_legacy(payload: Mapping[str, Any]) -> DeliveryConfig:
         "promotion": PromotionConfig().to_dict(),
         "review": ReviewConfig().to_dict(),
     }
-    return _new_config(migrated)
+    return _new_config(migrated, phase_branch_prefix=phase_branch_prefix)
 
 
 def _default_payload() -> dict[str, Any]:

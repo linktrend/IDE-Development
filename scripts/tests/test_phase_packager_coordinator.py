@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from jsonschema import Draft202012Validator, RefResolver
 
@@ -120,13 +121,15 @@ class Fixture:
             coordinator.AcceptedSource(branch=item.branch, sha=item.sha, order=index)
             for index, item in enumerate(sources, start=1)
         ]
+        prefix = kwargs.get("phase_branch_prefix")
         return coordinator.assemble_phase(
             repo=self.work,
             repository="owner/name",
             sources=ordered,
             github=kwargs.get("github", self.github),
-            pusher=kwargs.get("pusher", coordinator.GitPushAdapter()),
+            pusher=kwargs.get("pusher", coordinator.GitPushAdapter(prefix or coordinator.DEFAULT_PHASE_PREFIX)),
             phase_branch=kwargs.get("phase_branch", "phase/next"),
+            phase_branch_prefix=prefix,
             require_evidence=kwargs.get("require_evidence", True),
             expected_repository=kwargs.get("expected_repository", "owner/name"),
             require_live_pr=kwargs.get("require_live_pr", False),
@@ -207,6 +210,50 @@ class PhasePackagerCoordinatorTests(unittest.TestCase):
         self.assertEqual(detail, "handoff_stale_head")
         ok, detail = coordinator.consume_handoff(updated["handoff"], live_head=updated["headSha"], live_tree=updated["gitTree"])
         self.assertTrue(ok, detail)
+
+    def test_custom_phase_prefix_is_bound_in_coordinator_pusher_and_generated_outputs(self) -> None:
+        one = self.fx.accept_issue(50, "custom-prefix.txt", "custom\n")
+        result = self.fx.assemble(
+            [one],
+            phase_branch="wave/next",
+            phase_branch_prefix="wave/",
+            pusher=coordinator.GitPushAdapter("wave/"),
+        )
+        self.assertEqual(result["phaseBranch"], "wave/next")
+        self.assertEqual(remote_sha(self.fx.work, "wave/next"), result["headSha"])
+        for schema_name, payload in (
+            ("phase-record.schema.json", result["record"]),
+            ("phase-handoff.schema.json", result["handoff"]),
+        ):
+            schema_path = ROOT / "core/managed-core/schemas" / schema_name
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            errors = list(Draft202012Validator(schema).iter_errors(payload))
+            self.assertEqual(errors, [], schema_name)
+
+    def test_configured_custom_phase_prefix_is_loaded_by_assembly(self) -> None:
+        one = self.fx.accept_issue(51, "configured-prefix.txt", "configured\n")
+        write(
+            self.fx.work / ".github/linktrend-delivery-mode.json",
+            json.dumps({"schemaVersion": 1, "deliveryMode": "phase-integration", "phaseBranchPrefix": "candidate/"}),
+        )
+        result = self.fx.assemble(
+            [one],
+            phase_branch="candidate/next",
+            pusher=coordinator.GitPushAdapter("candidate/"),
+        )
+        self.assertEqual(result["phaseBranch"], "candidate/next")
+        self.assertEqual(remote_sha(self.fx.work, "candidate/next"), result["headSha"])
+
+    def test_retained_sources_must_be_exact_leading_prefix_before_push(self) -> None:
+        first = self.fx.accept_issue(52, "prefix-first.txt", "first\n")
+        second = self.fx.accept_issue(53, "prefix-second.txt", "second\n")
+        third = self.fx.accept_issue(54, "prefix-third.txt", "third\n")
+        created = self.fx.assemble([first, second])
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "retained accepted issues must remain"):
+            self.fx.assemble([first, third, second])
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+        self.assertEqual(created["record"]["dependencyOrder"], [first.branch, second.branch])
 
     def test_same_issue_long_linear_successor_fast_forwards_and_reuses_pr(self) -> None:
         first = self.fx.accept_issue_history(34, "linear.txt", ["one\n", "two\n", "three\n", "four\n"])
@@ -723,6 +770,45 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
         self.assertNotIn("example.invalid", json.dumps(payload))
         self.assertEqual(remote_sha(self.fx.work, "phase/next"), "")
 
+    def test_cli_wires_configured_phase_prefix_to_production_adapters(self) -> None:
+        source = self.fx.accept_issue(58, "cli-prefix.txt", "cli prefix\n")
+        write(
+            self.fx.work / ".github/linktrend-delivery-mode.json",
+            json.dumps({"schemaVersion": 1, "deliveryMode": "phase-integration", "phaseBranchPrefix": "candidate/"}),
+        )
+        observed: dict[str, object] = {}
+
+        def fake_resolve(repository: str, *, phase_branch_prefix: str):
+            observed["adapterRepository"] = repository
+            observed["adapterPrefix"] = phase_branch_prefix
+            return self.fx.github, coordinator.GitPushAdapter(phase_branch_prefix)
+
+        def fake_assemble(**kwargs):
+            observed.update(kwargs)
+            return {"ok": True}
+
+        stdout = io.StringIO()
+        with patch.object(coordinator, "resolve_production_adapters", fake_resolve), patch.object(
+            coordinator, "assemble_phase", fake_assemble
+        ), contextlib.redirect_stdout(stdout):
+            code = coordinator.main(
+                [
+                    "assemble",
+                    "--repository",
+                    "owner/name",
+                    "--repo-path",
+                    str(self.fx.work),
+                    "--accept",
+                    f"{source.branch}@{source.sha}",
+                    "--no-evidence",
+                ]
+            )
+        self.assertEqual(code, 0)
+        self.assertEqual(observed["adapterRepository"], "owner/name")
+        self.assertEqual(observed["adapterPrefix"], "candidate/")
+        self.assertEqual(observed["phase_branch_prefix"], "candidate/")
+        self.assertEqual(observed["phase_branch"], "candidate/next")
+
     def test_production_success_rejects_example_invalid_pr(self) -> None:
         one = self.fx.accept_issue(22, "livepr.txt", "live\n")
         with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_phase_pr"):
@@ -751,6 +837,36 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
                         "html_url": url,
                         "draft": draft,
                         "head": {"ref": "phase/next", "sha": head_sha},
+                        "base": {"ref": "development"},
+                    }
+                )
+                return dict(created)
+            if method == "PATCH":
+                return dict(created)
+            raise AssertionError(f"unexpected GitHub call {method} {request_url}")
+
+        return coordinator.LiveGitHub(
+            repository="owner/name",
+            automation_token="ltfx.coordinator.auto_token.v1",
+            user_token="ltfx.coordinator.user_token.v1",
+            transport=transport,
+        )
+
+    def _live_transport_with_head_variant(self, *, draft, head_variant: str):
+        created: dict[str, object] = {}
+
+        def transport(method: str, request_url: str, token: str, body):
+            if method == "GET" and "/pulls?" in request_url:
+                return [dict(created)] if created else []
+            if method == "POST" and request_url.endswith("/pulls"):
+                assembled = remote_sha(self.fx.work, "phase/next")
+                head = {} if head_variant == "missing" else {"sha": head_variant or assembled}
+                created.update(
+                    {
+                        "number": 43,
+                        "html_url": "https://github.com/owner/name/pull/43",
+                        "draft": draft,
+                        "head": {"ref": "phase/next", **head},
                         "base": {"ref": "development"},
                     }
                 )
@@ -846,6 +962,9 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
             "https://github.com/owner/name.git/extra",
             "ssh://git@github.com.evil/owner/name.git",
             "git@github.com:owner/../name.git",
+            "git@github.com:../name.git",
+            "https://github.com/../name.git",
+            "https://github.com/owner/..git",
             "file:///tmp/owner/name.git",
         )
         for url in valid:
@@ -880,6 +999,82 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
                 require_live_pr=True,
                 require_evidence=False,
             )
+
+    def test_live_github_rejects_malformed_draft_without_residual_new_phase_ref(self) -> None:
+        for index, draft in enumerate(("false", 0, 1, None), start=1):
+            with self.subTest(draft=draft):
+                ready = self.fx.accept_issue(55 + index, f"malformed-draft-{index}.txt", "malformed draft\n")
+                with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_phase_pr"):
+                    self.fx.assemble(
+                        [ready],
+                        github=self._live_transport(
+                            url=f"https://github.com/owner/name/pull/{55 + index}",
+                            draft=draft,
+                        ),
+                        require_live_pr=True,
+                        require_evidence=False,
+                    )
+                self.assertEqual(remote_sha(self.fx.work, "phase/next"), "")
+
+    def test_live_github_requires_exact_lowercase_nonzero_head_and_rolls_back_new_ref(self) -> None:
+        for index, (label, head_variant) in enumerate(
+            (
+            ("missing", "missing"),
+            ("malformed", "not-a-sha"),
+            ("uppercase", "A" * 40),
+            ("zero", "0" * 40),
+            ("mismatch", "a" * 40),
+            ),
+            start=1,
+        ):
+            with self.subTest(label=label):
+                ready = self.fx.accept_issue(60 + index, f"head-{label}.txt", f"{label}\n")
+                phase_branch = f"phase/{label}"
+                live = self._live_transport_with_head_variant(
+                    draft=True,
+                    head_variant=head_variant,
+                )
+                with self.assertRaisesRegex(coordinator.CoordinatorError, "stale_phase_pr"):
+                    self.fx.assemble(
+                        [ready],
+                        github=live,
+                        phase_branch=phase_branch,
+                        require_live_pr=True,
+                        require_evidence=False,
+                    )
+                self.assertEqual(remote_sha(self.fx.work, phase_branch), "")
+
+    def test_successor_live_witness_failure_restores_preexisting_phase_ref(self) -> None:
+        first = self.fx.accept_issue_history(57, "successor-witness.txt", ["one\n", "two\n", "three\n"])
+        created = self.fx.assemble([first])
+        successor = self.fx.advance_issue(first, "successor-witness.txt", "four\n")
+
+        class BadHeadAfterPush:
+            repository = "owner/name"
+
+            def __init__(self, wrapped):
+                self.wrapped = wrapped
+
+            def list_open_phase_prs(self, **kwargs):
+                return self.wrapped.list_open_phase_prs(**kwargs)
+
+            def ensure_draft_phase_pr(self, **kwargs):
+                result = self.wrapped.ensure_draft_phase_pr(**kwargs)
+                result["headSha"] = "not-a-sha"
+                return result
+
+            def __getattr__(self, name: str):
+                return getattr(self.wrapped, name)
+
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "stale_phase_pr"):
+            self.fx.assemble(
+                [successor],
+                github=BadHeadAfterPush(self.fx.github),
+                require_evidence=False,
+            )
+        self.assertEqual(before, created["headSha"])
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
 
     def test_live_github_success_requires_real_draft_pr_and_remote_sha(self) -> None:
         one = self.fx.accept_issue(30, "goodpr.txt", "goodpr\n")
