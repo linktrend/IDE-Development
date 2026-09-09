@@ -3683,7 +3683,7 @@
       "id": "test-test-phase-packager-coordinator-py",
       "ownershipClass": "managed-core",
       "source": "scripts/tests/test_phase_packager_coordinator.py",
-      "sourceHash": "sha256:783a515b6ee0e0c1acb67f9812c2e22978c912a6324a372d0834d1e1c0b59876",
+      "sourceHash": "sha256:2f45f5ce805e659dc73b63e9fc1c54f501194ca7d3dc0d794905ad675f826f8f",
       "destination": ".ide-development/tests/test_phase_packager_coordinator.py",
       "mode": "0644",
       "platform": "github",
