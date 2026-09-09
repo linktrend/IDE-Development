@@ -11,7 +11,9 @@ adapter, or refuses without credentials and configuration. Success requires a
 verified remote ``phase/*`` ref at the exact assembled head plus one real draft
 Phase PR identity. Tests inject ``MemoryGitHub``; the production CLI never
 does. Existing Phase state is preserved: unique or drifted Phase work is
-rejected instead of reset. Assembly runs in an isolated worktree and writes
+rejected instead of reset, except for a strictly proven same-issue reviewed
+descendant of an unsealed coordinator-owned Phase. Assembly runs in an
+isolated worktree and writes
 coordinator state under the git common directory, outside the caller
 checkout. This module never pushes
 ``development``/``staging``/``main``, never seals a candidate, and never
@@ -755,6 +757,235 @@ def _unique_phase_commits(
     return unique
 
 
+def _phase_record_sources(previous: Mapping[str, Any], *, phase_branch: str) -> list[AcceptedSource]:
+    """Parse the exact accepted mapping retained for an existing Phase.
+
+    The record is an identity witness, not ownership proof. Its mapping is
+    nevertheless strict: all fields used to order and identify accepted
+    sources must be present, unique, and mutually consistent before the Git
+    graph can be considered.
+    """
+
+    if (
+        previous.get("schemaVersion") != 1
+        or previous.get("kind") != "phase-record"
+        or previous.get("deliveryMode") != MODE_PHASE_INTEGRATION
+        or previous.get("component") != COMPONENT_KIND
+        or previous.get("phaseBranch") != phase_branch
+        or previous.get("sealed") is not False
+    ):
+        raise CoordinatorError("invalid_phase_record", "retained Phase record is not an unsealed coordinator record")
+
+    rows = previous.get("acceptedCommits")
+    issues = previous.get("acceptedIssues")
+    order_rows = previous.get("dependencyOrder")
+    if not isinstance(rows, list) or not rows or not isinstance(issues, list) or len(issues) != len(rows):
+        raise CoordinatorError("invalid_phase_record", "accepted Phase mapping is missing or malformed")
+    if not isinstance(order_rows, list) or len(order_rows) != len(rows):
+        raise CoordinatorError("invalid_phase_record", "Phase dependency order is missing or malformed")
+
+    parsed: list[AcceptedSource] = []
+    seen_branches: set[str] = set()
+    seen_numbers: set[str] = set()
+    seen_shas: set[str] = set()
+    for expected_order, (row, issue_row) in enumerate(zip(rows, issues), start=1):
+        if not isinstance(row, Mapping) or set(row) != {"branch", "sha", "order"}:
+            raise CoordinatorError("invalid_phase_record", f"acceptedCommits[{expected_order - 1}] is malformed")
+        branch = str(row.get("branch") or "")
+        sha = normalize_sha(str(row.get("sha") or ""))
+        order = row.get("order")
+        if (
+            not isinstance(order, int)
+            or isinstance(order, bool)
+            or order != expected_order
+            or not ISSUE_BRANCH_RE.fullmatch(branch)
+            or not is_valid_sha(sha)
+        ):
+            raise CoordinatorError("invalid_phase_record", f"acceptedCommits[{expected_order - 1}] identity is invalid")
+        issue_number = IssueTip(branch, sha).issue_number
+        if branch in seen_branches or issue_number in seen_numbers or sha in seen_shas:
+            raise CoordinatorError("invalid_phase_record", f"duplicate accepted mapping: {branch}")
+        if (
+            not isinstance(issue_row, Mapping)
+            or str(issue_row.get("branch") or "") != branch
+            or normalize_sha(str(issue_row.get("sha") or "")) != sha
+            or issue_row.get("order") != expected_order
+            or issue_row.get("accepted") is not True
+            or issue_row.get("included") is not True
+            or normalize_sha(str(issue_row.get("acceptanceSha") or "")) != sha
+        ):
+            raise CoordinatorError("invalid_phase_record", f"acceptedIssues[{expected_order - 1}] mismatches acceptedCommits")
+        if order_rows[expected_order - 1] != branch:
+            raise CoordinatorError("invalid_phase_record", "dependency order mismatches accepted mapping")
+        seen_branches.add(branch)
+        seen_numbers.add(issue_number)
+        seen_shas.add(sha)
+        parsed.append(AcceptedSource(branch=branch, sha=sha, order=order))
+    return parsed
+
+
+def _phase_pr_url_matches_repository(url: str, repository: str, number: int) -> bool:
+    parsed = urllib.parse.urlparse(url)
+    return parsed.path.rstrip("/") == f"/{repository}/pull/{number}"
+
+
+def _assert_phase_pr_identity(
+    pr: Mapping[str, Any],
+    *,
+    repository: str,
+    phase_branch: str,
+    base: str,
+    head: str,
+    retained: Mapping[str, Any] | None = None,
+) -> None:
+    """Require one exact draft PR identity; callers decide live URL policy."""
+
+    if not isinstance(pr, Mapping):
+        raise CoordinatorError("invalid_phase_pr", "Phase PR readback was not an object")
+    number = pr.get("number")
+    url = str(pr.get("url") or "")
+    if not isinstance(number, int) or isinstance(number, bool) or number < 1:
+        raise CoordinatorError("invalid_phase_pr", "Phase PR number is required")
+    if not url or not _phase_pr_url_matches_repository(url, repository, number):
+        raise CoordinatorError("cross_repository_phase_pr", url or "missing Phase PR URL")
+    if pr.get("head") != phase_branch or pr.get("base") != base:
+        raise CoordinatorError("phase_pr_identity_mismatch", "Phase PR branch/base does not match the retained Phase")
+    if pr.get("isDraft") is not True:
+        raise CoordinatorError("phase_pr_not_draft", str(number))
+    reported_head = normalize_sha(str(pr.get("headSha") or ""))
+    if not is_valid_sha(reported_head) or reported_head != normalize_sha(head):
+        raise CoordinatorError("stale_phase_pr", f"pr_head={reported_head}:expected={normalize_sha(head)}")
+    if retained is not None and (
+        retained.get("number") != number
+        or str(retained.get("url") or "") != url
+        or retained.get("isDraft") is not True
+        or retained.get("base") != base
+        or retained.get("head") != phase_branch
+    ):
+        raise CoordinatorError("phase_pr_identity_mismatch", "live Phase PR differs from retained record")
+
+
+def _validate_existing_phase_record(
+    repo: Path,
+    *,
+    repository: str,
+    phase_branch: str,
+    development: str,
+    development_sha: str,
+    existing_phase: str,
+    previous: Mapping[str, Any] | None,
+    github: GitHubPort,
+) -> list[AcceptedSource]:
+    """Validate all mutable witnesses before allowing an existing Phase move."""
+
+    if previous is None:
+        raise CoordinatorError("phase_record_missing", phase_branch)
+    if (
+        normalize_sha(str(previous.get("baseSha") or "")) != normalize_sha(development_sha)
+        or normalize_sha(str(previous.get("immutableBaseSha") or "")) != normalize_sha(development_sha)
+        or normalize_sha(str(previous.get("headSha") or "")) != normalize_sha(existing_phase)
+    ):
+        raise CoordinatorError("invalid_phase_record", "retained Phase base/head does not match live refs")
+    expected_tree = normalize_sha(_git(repo, "rev-parse", f"{existing_phase}^{{tree}}"))
+    if normalize_sha(str(previous.get("gitTree") or "")) != expected_tree:
+        raise CoordinatorError("invalid_phase_record", "retained Phase tree does not match live ref")
+
+    retained_sources = _phase_record_sources(previous, phase_branch=phase_branch)
+    expected_revision = _candidate_revision(repository, phase_branch, development_sha, retained_sources)
+    if str(previous.get("candidateRevision") or "") != expected_revision:
+        raise CoordinatorError("invalid_phase_record", "retained Phase revision does not match accepted mapping")
+
+    retained_pr = previous.get("phasePr")
+    if not isinstance(retained_pr, Mapping):
+        raise CoordinatorError("invalid_phase_record", "retained Phase PR identity is missing")
+    live_prs = github.list_open_phase_prs(repository=repository, head=phase_branch, base=development)
+    if not isinstance(live_prs, list) or any(not isinstance(row, Mapping) for row in live_prs):
+        raise CoordinatorError("invalid_phase_pr", "Phase PR readback was malformed")
+    if len(live_prs) != 1:
+        raise CoordinatorError("duplicate_phase_pr", json.dumps([row.get("number") for row in live_prs]))
+    _assert_phase_pr_identity(
+        live_prs[0],
+        repository=repository,
+        phase_branch=phase_branch,
+        base=development,
+        head=existing_phase,
+        retained=retained_pr,
+    )
+    return retained_sources
+
+
+def _prove_coordinator_owned_phase(
+    repo: Path,
+    *,
+    development_sha: str,
+    phase_sha: str,
+    accepted_sources: list[AcceptedSource],
+) -> None:
+    """Prove the old Phase is exactly the coordinator's ordered merge chain."""
+
+    if not _is_ancestor(repo, development_sha, phase_sha):
+        raise CoordinatorError("unique_phase_divergence", "Phase head is not descended from its immutable base")
+
+    chain: list[tuple[str, str, str, str]] = []
+    cursor = normalize_sha(phase_sha)
+    seen: set[str] = set()
+    while cursor != normalize_sha(development_sha):
+        if cursor in seen or not _object_exists(repo, cursor):
+            raise CoordinatorError("unique_phase_divergence", "Phase first-parent chain is malformed")
+        seen.add(cursor)
+        parents = _git(repo, "show", "-s", "--format=%P", cursor, check=False).split()
+        message = _git(repo, "show", "-s", "--format=%B", cursor, check=False)
+        if len(parents) != 2:
+            raise CoordinatorError("unique_phase_divergence", f"unrecognized Phase commit {cursor}")
+        chain.append((cursor, normalize_sha(parents[0]), normalize_sha(parents[1]), message))
+        cursor = normalize_sha(parents[0])
+        if len(seen) > len(accepted_sources):
+            raise CoordinatorError("unique_phase_divergence", "Phase contains extra coordinator commits")
+
+    chronological = list(reversed(chain))
+    if len(chronological) != len(accepted_sources):
+        raise CoordinatorError("unique_phase_divergence", "Phase merge count does not match retained accepted mapping")
+    expected_parent = normalize_sha(development_sha)
+    expected_merges: set[str] = set()
+    for (merge_sha, first_parent, second_parent, message), source in zip(chronological, accepted_sources):
+        if (
+            first_parent != expected_parent
+            or second_parent != normalize_sha(source.sha)
+            or message != f"phase: include {source.branch}"
+        ):
+            raise CoordinatorError("unique_phase_divergence", f"tampered coordinator merge {merge_sha}")
+        expected_merges.add(merge_sha)
+        expected_parent = merge_sha
+
+    source_ancestry: set[str] = set()
+    for source in accepted_sources:
+        source_ancestry.update(_git(repo, "rev-list", source.sha, check=False).split())
+    phase_commits = set(_git(repo, "rev-list", f"{development_sha}..{phase_sha}", check=False).split())
+    unexpected = sorted(phase_commits - source_ancestry - expected_merges)
+    if unexpected:
+        raise CoordinatorError("unique_phase_divergence", "Phase contains unmapped commits: " + ",".join(unexpected))
+
+
+def _prove_same_issue_descendants(
+    repo: Path,
+    *,
+    prior: list[AcceptedSource],
+    current: list[AcceptedSource],
+    phase_sha: str,
+) -> None:
+    """Allow only the same ordered issue branches at exact reviewed descendants."""
+
+    if len(prior) != len(current) or [item.branch for item in prior] != [item.branch for item in current]:
+        raise CoordinatorError("unique_phase_divergence", "accepted issues were dropped, duplicated, or reordered")
+    if len({item.sha for item in current}) != len(current):
+        raise CoordinatorError("unique_phase_divergence", "accepted successor SHAs are duplicated")
+    for old, new in zip(prior, current):
+        if new.sha != old.sha and not _is_ancestor(repo, old.sha, new.sha):
+            raise CoordinatorError("unique_phase_divergence", f"rewritten or non-descendant source: {new.branch}")
+        if new.sha != old.sha and _is_ancestor(repo, new.sha, phase_sha):
+            raise CoordinatorError("unique_phase_divergence", f"successor is already ambiguous in Phase: {new.branch}")
+
+
 def _existing_phase_shas(repo: Path, remote: str, phase_branch: str) -> tuple[str, str]:
     local = _local_sha(repo, phase_branch)
     remote_sha = _remote_sha(repo, remote, phase_branch)
@@ -1035,13 +1266,20 @@ def assemble_phase(
     record_path = state_dir / "phase-delivery-record.json"
     previous = None
     if record_path.is_file():
-        previous = json.loads(record_path.read_text(encoding="utf-8"))
+        try:
+            loaded_previous = json.loads(record_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise CoordinatorError("invalid_phase_record", f"cannot parse retained Phase record: {exc}") from exc
+        if not isinstance(loaded_previous, Mapping):
+            raise CoordinatorError("invalid_phase_record", "retained Phase record is not an object")
+        previous = loaded_previous
         if previous.get("phaseBranch") not in {None, phase_branch} and previous.get("phaseBranch") != phase_branch:
             raise CoordinatorError("duplicate_active_phase", str(previous.get("phaseBranch")))
 
     local_phase, remote_phase = _existing_phase_shas(repo, remote, phase_branch)
     existing_phase = remote_phase or local_phase
     accepted_shas = {source.sha for source in ordered}
+    retained_sources: list[AcceptedSource] | None = None
     if existing_phase:
         unique = _unique_phase_commits(
             repo,
@@ -1051,10 +1289,62 @@ def assemble_phase(
         )
         remaining = _remaining_sources(repo, existing_phase, ordered)
         if unique:
-            raise CoordinatorError(
-                "unique_phase_divergence",
-                f"{phase_branch}:{existing_phase}:{','.join(unique)}",
+            if previous is None:
+                raise CoordinatorError(
+                    "unique_phase_divergence",
+                    f"{phase_branch}:{existing_phase}:{','.join(unique)}",
+                )
+            try:
+                retained_sources = _validate_existing_phase_record(
+                    repo,
+                    repository=repository,
+                    phase_branch=phase_branch,
+                    development=development,
+                    development_sha=development_sha,
+                    existing_phase=existing_phase,
+                    previous=previous,
+                    github=github,
+                )
+            except CoordinatorError as exc:
+                # Preserve the established divergence classification when the
+                # live ref itself contains an unrecorded manual commit.
+                if (
+                    exc.code == "invalid_phase_record"
+                    and normalize_sha(str(previous.get("headSha") or "")) != normalize_sha(existing_phase)
+                ):
+                    raise CoordinatorError("unique_phase_divergence", f"{phase_branch}:{existing_phase}") from exc
+                raise
+            retained_branches = {source.branch for source in retained_sources}
+            current_retained_order = [source.branch for source in ordered if source.branch in retained_branches]
+            if current_retained_order != [source.branch for source in retained_sources]:
+                raise CoordinatorError("unique_phase_divergence", "retained accepted issues were dropped or reordered")
+            _prove_coordinator_owned_phase(
+                repo,
+                development_sha=development_sha,
+                phase_sha=existing_phase,
+                accepted_sources=retained_sources,
             )
+            _prove_same_issue_descendants(
+                repo,
+                prior=retained_sources,
+                current=ordered,
+                phase_sha=existing_phase,
+            )
+        elif previous is not None:
+            retained_sources = _validate_existing_phase_record(
+                repo,
+                repository=repository,
+                phase_branch=phase_branch,
+                development=development,
+                development_sha=development_sha,
+                existing_phase=existing_phase,
+                previous=previous,
+                github=github,
+            )
+            retained_branches = {source.branch for source in retained_sources}
+            current_retained_order = [source.branch for source in ordered if source.branch in retained_branches]
+            if current_retained_order != [source.branch for source in retained_sources]:
+                raise CoordinatorError("unique_phase_divergence", "retained accepted issues were dropped or reordered")
         start_sha = existing_phase
     else:
         remaining = list(ordered)
@@ -1111,12 +1401,28 @@ def assemble_phase(
         body=body,
         record=record,
     )
+    _assert_phase_pr_identity(
+        pr,
+        repository=repository,
+        phase_branch=phase_branch,
+        base=development,
+        head=head,
+        retained=(previous or {}).get("phasePr") if existing_phase and isinstance(previous, Mapping) else None,
+    )
     _assert_live_phase_pr_optional(pr, require_live_pr=require_live_pr)
     open_prs = github.list_open_phase_prs(repository=repository, head=phase_branch, base=development)
     if len(open_prs) != 1:
         raise CoordinatorError("duplicate_phase_pr", json.dumps([row.get("number") for row in open_prs]))
     if open_prs[0].get("number") != pr.get("number"):
         raise CoordinatorError("duplicate_phase_pr", "stable Phase PR identity drifted")
+    _assert_phase_pr_identity(
+        open_prs[0],
+        repository=repository,
+        phase_branch=phase_branch,
+        base=development,
+        head=head,
+        retained=(previous or {}).get("phasePr") if existing_phase and isinstance(previous, Mapping) else None,
+    )
     record["phasePr"] = {
         "number": pr["number"],
         "url": pr["url"],
