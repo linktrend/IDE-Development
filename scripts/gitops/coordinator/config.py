@@ -150,8 +150,8 @@ class ReviewConfig:
 class DeliveryConfig:
     schema_version: int = 2
     mode: str = DEFAULT_DELIVERY_MODE
-    # Retained for legacy/configured Phase consumers.  The hosted serialized
-    # profile intentionally does not emit this compatibility field.
+    # The effective prefix is part of hosted configuration identity. Legacy
+    # inputs may omit it and receive the documented default.
     phase_branch_prefix: str = DEFAULT_PHASE_PREFIX
     compute: ComputeConfig = ComputeConfig()
     profiles: Mapping[str, TestProfile] = ()
@@ -216,6 +216,7 @@ class DeliveryConfig:
         return {
             "schemaVersion": 2,
             "mode": self.mode,
+            "phaseBranchPrefix": self.phase_branch_prefix,
             "compute": self.compute.to_dict(),
             "profiles": {
                 name: self.profiles[name].to_dict()
@@ -321,6 +322,18 @@ def _legacy_phase_prefix(value: Any) -> str:
             "phaseBranchPrefix",
         )
     return value if value.endswith("/") else value + "/"
+
+
+def _hosted_phase_prefix(value: Any) -> str:
+    """Validate the hosted v2 prefix without changing its effective value."""
+
+    if not isinstance(value, str) or not re.fullmatch(r"^[A-Za-z0-9._-]+/$", value):
+        _fail(
+            "invalid_phase_prefix",
+            "phaseBranchPrefix must be a safe relative prefix ending with '/'",
+            "phaseBranchPrefix",
+        )
+    return value
 
 
 def _profile(value: Any, *, name: str) -> TestProfile:
@@ -457,6 +470,7 @@ def _new_config(
 ) -> DeliveryConfig:
     expected = {"schemaVersion", "mode", "compute", "profiles", "promotion", "review"}
     optional = {
+        "phaseBranchPrefix",
         "amendment",
         "issueCheckpoint",
         "publisherAuthority",
@@ -475,6 +489,8 @@ def _new_config(
         _fail("unsupported_schema", "schemaVersion must be 2 for the hosted profile", "schemaVersion")
     if payload["mode"] not in {MODE_ISSUE_PR, MODE_PHASE_INTEGRATION}:
         _fail("invalid_delivery_mode", "mode must be issue-pr or phase-integration", "mode")
+    if "phaseBranchPrefix" in payload:
+        phase_branch_prefix = _hosted_phase_prefix(payload.get("phaseBranchPrefix"))
     raw_profiles = payload["profiles"]
     if not isinstance(raw_profiles, dict) or set(raw_profiles) != {"fast", "full", "release"}:
         _fail("unknown_or_missing_field", "profiles must contain fast, full, and release", "profiles")

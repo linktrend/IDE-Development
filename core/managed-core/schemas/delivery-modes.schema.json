@@ -203,15 +203,16 @@
     },
     "hostedIdentity": {
       "type": "array",
-      "minItems": 5,
-      "maxItems": 5,
+      "minItems": 6,
+      "maxItems": 6,
       "uniqueItems": true,
       "items": {
         "type": "string",
-        "enum": ["repository", "gitTree", "dependencyDigest", "profileDigest", "workflowDigest"]
+        "enum": ["repository", "headCommit", "gitTree", "dependencyDigest", "profileDigest", "workflowDigest"]
       },
       "allOf": [
         { "contains": { "const": "repository" } },
+        { "contains": { "const": "headCommit" } },
         { "contains": { "const": "gitTree" } },
         { "contains": { "const": "dependencyDigest" } },
         { "contains": { "const": "profileDigest" } },
@@ -225,6 +226,11 @@
       "properties": {
         "schemaVersion": { "type": "integer", "const": 2 },
         "mode": { "$ref": "#/$defs/deliveryModeId" },
+        "phaseBranchPrefix": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+/$",
+          "default": "phase/"
+        },
         "compute": {
           "type": "object",
           "additionalProperties": false,

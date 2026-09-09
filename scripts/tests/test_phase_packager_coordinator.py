@@ -836,6 +836,18 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
         def transport(method: str, request_url: str, token: str, body):
             if method == "GET" and "/pulls?" in request_url:
                 return [dict(created)] if created else []
+            if method == "GET" and request_url.endswith("/pulls/42"):
+                readback = dict(created)
+                readback.update(
+                    {
+                        "html_url": "https://github.com/owner/name/pull/42",
+                        "draft": created.get("draft") if isinstance(created.get("draft"), bool) else True,
+                        "head": {"ref": "phase/next", "sha": remote_sha(self.fx.work, "phase/next")},
+                        "base": {"ref": "development"},
+                        "state": created.get("state", "open"),
+                    }
+                )
+                return readback
             if method == "POST" and request_url.endswith("/pulls"):
                 head_sha = sha or remote_sha(self.fx.work, "phase/next")
                 head = {} if head_variant == "missing" else {"sha": head_variant or head_sha}
@@ -846,10 +858,17 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
                         "draft": draft,
                         "head": {"ref": "phase/next", **head},
                         "base": {"ref": "development"},
+                        "title": body.get("title") if isinstance(body, dict) else "Phase: phase/next",
+                        "body": body.get("body") if isinstance(body, dict) else "",
+                        "state": "open",
                     }
                 )
                 return dict(created)
             if method == "PATCH":
+                if isinstance(body, dict) and body.get("state") == "closed":
+                    created["state"] = "closed"
+                elif isinstance(body, dict):
+                    created.update({key: body[key] for key in ("title", "body") if key in body})
                 return dict(created)
             raise AssertionError(f"unexpected GitHub call {method} {request_url}")
 
@@ -859,6 +878,176 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
             user_token="ltfx.coordinator.user_token.v1",
             transport=transport,
         )
+
+    def test_live_draft_fields_must_be_unambiguous_booleans(self) -> None:
+        live = self._live_transport(url="https://github.com/owner/name/pull/42", draft=True)
+        valid = {
+            "number": 42,
+            "html_url": "https://github.com/owner/name/pull/42",
+            "head": {"ref": "phase/next", "sha": "a" * 40},
+            "base": {"ref": "development"},
+        }
+        for fields in (
+            {"draft": True, "isDraft": False},
+            {"draft": "true"},
+            {"draft": 1},
+            {"draft": None},
+            {"draft": True, "isDraft": "true"},
+            {},
+        ):
+            with self.subTest(fields=fields):
+                with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_phase_pr"):
+                    live._pr_identity(dict(valid, **fields), created=False)
+
+    def test_live_pr_lists_reject_malformed_mixed_entries(self) -> None:
+        def transport(method: str, request_url: str, token: str, body):
+            if method == "GET" and "/pulls?" in request_url:
+                return [
+                    {
+                        "number": 7,
+                        "html_url": "https://github.com/owner/name/pull/7",
+                        "draft": True,
+                        "head": {"ref": "phase/next", "sha": "a" * 40},
+                        "base": {"ref": "development"},
+                    },
+                    "malformed-entry",
+                ]
+            raise AssertionError(f"unexpected GitHub call {method} {request_url}")
+
+        live = coordinator.LiveGitHub(
+            repository="owner/name",
+            automation_token="auto",
+            user_token="user",
+            transport=transport,
+        )
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_phase_pr"):
+            live.list_open_phase_prs(repository="owner/name", head="phase/next", base="development")
+
+    def test_new_pr_and_phase_ref_are_compensated_after_state_write_failure(self) -> None:
+        one = self.fx.accept_issue(70, "transaction-new.txt", "new transaction\n")
+        with patch.object(coordinator, "_write_isolated_state", side_effect=OSError("state write failed")):
+            with self.assertRaisesRegex(OSError, "state write failed"):
+                self.fx.assemble([one], phase_branch="phase/transaction-new")
+        self.assertEqual(self.fx.github.prs, {})
+        self.assertEqual(remote_sha(self.fx.work, "phase/transaction-new"), "")
+        self.assertEqual(
+            git(self.fx.work, "rev-parse", "--verify", "refs/remotes/origin/phase/transaction-new", check=False),
+            "",
+        )
+
+    def test_live_new_pr_compensation_order_is_readback_close_readback(self) -> None:
+        one = self.fx.accept_issue(74, "live-transaction.txt", "live transaction\n")
+        calls: list[str] = []
+        created: dict[str, object] = {}
+
+        def transport(method: str, request_url: str, token: str, body):
+            if method == "GET" and "/pulls?" in request_url:
+                calls.append("GET:list")
+                return [dict(created)] if created else []
+            if method == "POST" and request_url.endswith("/pulls"):
+                calls.append("POST:create")
+                created.update(
+                    {
+                        "number": 74,
+                        "html_url": "https://github.com/owner/name/pull/74",
+                        "draft": True,
+                        "head": {"ref": "phase/live-transaction", "sha": remote_sha(self.fx.work, "phase/live-transaction")},
+                        "base": {"ref": "development"},
+                        "title": body["title"],
+                        "body": body["body"],
+                        "state": "open",
+                    }
+                )
+                return dict(created)
+            if method == "GET" and request_url.endswith("/pulls/74"):
+                calls.append("GET:item")
+                return dict(created)
+            if method == "PATCH" and request_url.endswith("/pulls/74"):
+                calls.append("PATCH:close")
+                created["state"] = "closed"
+                return dict(created)
+            raise AssertionError(f"unexpected GitHub call {method} {request_url}")
+
+        live = coordinator.LiveGitHub(
+            repository="owner/name",
+            automation_token="auto",
+            user_token="user",
+            transport=transport,
+        )
+        with patch.object(coordinator, "_write_isolated_state", side_effect=OSError("state write failed")):
+            with self.assertRaisesRegex(OSError, "state write failed"):
+                self.fx.assemble(
+                    [one],
+                    github=live,
+                    phase_branch="phase/live-transaction",
+                    require_live_pr=True,
+                    require_evidence=False,
+                )
+        self.assertEqual(
+            calls,
+            ["GET:list", "GET:list", "POST:create", "GET:list", "GET:item", "PATCH:close", "GET:item"],
+        )
+        self.assertEqual(created["state"], "closed")
+        self.assertEqual(remote_sha(self.fx.work, "phase/live-transaction"), "")
+
+    def test_existing_pr_and_phase_ref_restore_exact_state_after_state_write_failure(self) -> None:
+        first = self.fx.accept_issue_history(71, "transaction-existing.txt", ["one\n", "two\n", "three\n"])
+        created = self.fx.assemble([first])
+        key = "owner/name|phase/next|development"
+        prior_pr = json.loads(json.dumps(self.fx.github.prs[key]))
+        prior_tracking = git(self.fx.work, "rev-parse", "refs/remotes/origin/phase/next")
+        successor = self.fx.advance_issue(first, "transaction-existing.txt", "four\n")
+        with patch.object(coordinator, "_write_isolated_state", side_effect=OSError("state write failed")):
+            with self.assertRaisesRegex(OSError, "state write failed"):
+                self.fx.assemble([successor])
+        self.assertEqual(self.fx.github.prs[key], prior_pr)
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), created["headSha"])
+        self.assertEqual(git(self.fx.work, "rev-parse", "refs/remotes/origin/phase/next"), prior_tracking)
+
+    def test_compensation_failure_is_explicit_and_ref_is_still_attempted(self) -> None:
+        one = self.fx.accept_issue(72, "compensation-failure.txt", "compensation\n")
+
+        class Uncompensable:
+            repository = "owner/name"
+
+            def __init__(self, wrapped):
+                self.wrapped = wrapped
+
+            def __getattr__(self, name: str):
+                return getattr(self.wrapped, name)
+
+            def rollback_phase_pr(self, mutation):
+                raise coordinator.CoordinatorError("pr_compensation_failed", "synthetic close readback failure")
+
+        with patch.object(coordinator, "_write_isolated_state", side_effect=OSError("state write failed")):
+            with self.assertRaisesRegex(coordinator.CoordinatorError, "pr_compensation_failed"):
+                self.fx.assemble([one], github=Uncompensable(self.fx.github), phase_branch="phase/compensation")
+        self.assertEqual(remote_sha(self.fx.work, "phase/compensation"), "")
+        self.assertEqual(
+            git(self.fx.work, "rev-parse", "--verify", "refs/remotes/origin/phase/compensation", check=False),
+            "",
+        )
+
+    def test_new_ref_replacement_race_is_not_deleted_and_tracking_witness_is_cleaned(self) -> None:
+        one = self.fx.accept_issue(73, "ref-race.txt", "race\n")
+        alternate = self.fx.development_sha()
+
+        class RacingPusher:
+            def push_phase_ref(self, repo, remote, branch, sha):
+                verified = coordinator.GitPushAdapter().push_phase_ref(repo, remote, branch, sha)
+                git(repo, "push", "-q", "--force", "--", remote, f"{alternate}:refs/heads/{branch}")
+                git(repo, "update-ref", f"refs/remotes/{remote}/{branch}", verified)
+                return verified
+
+        with patch.object(coordinator, "_write_isolated_state", side_effect=OSError("state write failed")):
+            with self.assertRaisesRegex(coordinator.CoordinatorError, "phase_ref_rollback_failed"):
+                self.fx.assemble([one], phase_branch="phase/ref-race", pusher=RacingPusher())
+        self.assertEqual(remote_sha(self.fx.work, "phase/ref-race"), alternate)
+        self.assertEqual(
+            git(self.fx.work, "rev-parse", "--verify", "refs/remotes/origin/phase/ref-race", check=False),
+            "",
+        )
+        self.assertIn("--force-with-lease=refs/heads/{phase_branch}:{current}", inspect.getsource(coordinator._rollback_phase_ref))
 
     def test_live_github_rejects_example_invalid_pr_url(self) -> None:
         invalid = self.fx.accept_issue(28, "badurl.txt", "badurl\n")
@@ -943,6 +1132,13 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
             "git@github.com:../name.git",
             "https://github.com/../name.git",
             "https://github.com/owner/..git",
+            "https://github.com//owner/name.git",
+            "https://github.com///owner/name.git",
+            "https://github.com/owner//name.git",
+            "https://github.com/owner/....git",
+            "https://github.com/%2Fowner/name.git",
+            "https://github.com/owner/%2E%2E.git",
+            "git@github.com:owner/....git",
             "file:///tmp/owner/name.git",
         )
         for url in valid:

@@ -23,6 +23,7 @@ starts Full.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -141,6 +142,9 @@ class GitHubPort(Protocol):
     def list_open_phase_prs(self, *, repository: str, head: str, base: str) -> list[dict[str, Any]]:
         ...
 
+    def rollback_phase_pr(self, mutation: "PhasePrMutation") -> None:
+        ...
+
     def completion_bound(
         self,
         sha: str,
@@ -153,6 +157,19 @@ class GitHubPort(Protocol):
 
     def dispatch_workflow(self, name: str, inputs: Mapping[str, Any]) -> None:
         ...
+
+
+@dataclass(frozen=True)
+class PhasePrMutation:
+    """External PR mutation plus the exact state required to compensate it."""
+
+    repository: str
+    number: int
+    created: bool
+    prior: Mapping[str, Any] | None
+    expected: Mapping[str, Any]
+    head: str
+    base: str
 
 
 class PushPort(Protocol):
@@ -174,6 +191,7 @@ class MemoryGitHub:
     workflow_dispatches: list[dict[str, Any]] = field(default_factory=list)
     ensure_calls: int = 0
     next_number: int = 1
+    last_phase_pr_mutation: PhasePrMutation | None = None
 
     def _key(self, repository: str, head: str, base: str) -> str:
         return f"{repository}|{head}|{base}"
@@ -192,9 +210,27 @@ class MemoryGitHub:
         if repository != self.repository:
             raise CoordinatorError("wrong_repository", repository)
         self.ensure_calls += 1
+        self.last_phase_pr_mutation = None
         key = self._key(repository, head, base)
         existing = self.prs.get(key)
         if existing:
+            prior = copy.deepcopy(existing)
+            self.last_phase_pr_mutation = PhasePrMutation(
+                repository=repository,
+                number=int(existing["number"]),
+                created=False,
+                prior=prior,
+                expected={
+                    "number": int(existing["number"]),
+                    "url": existing["url"],
+                    "head": head,
+                    "base": base,
+                    "headSha": normalize_sha(head_sha),
+                    "isDraft": True,
+                },
+                head=head,
+                base=base,
+            )
             existing["headSha"] = normalize_sha(head_sha)
             existing["body"] = body
             existing["record"] = dict(record)
@@ -214,12 +250,48 @@ class MemoryGitHub:
         }
         self.next_number += 1
         self.prs[key] = pr
+        self.last_phase_pr_mutation = PhasePrMutation(
+            repository=repository,
+            number=pr["number"],
+            created=True,
+            prior=None,
+            expected={
+                "number": pr["number"],
+                "url": pr["url"],
+                "head": head,
+                "base": base,
+                "headSha": normalize_sha(head_sha),
+                "isDraft": True,
+            },
+            head=head,
+            base=base,
+        )
         return dict(pr)
 
     def list_open_phase_prs(self, *, repository: str, head: str, base: str) -> list[dict[str, Any]]:
         key = self._key(repository, head, base)
         found = self.prs.get(key)
         return [dict(found)] if found else []
+
+    def rollback_phase_pr(self, mutation: PhasePrMutation) -> None:
+        if mutation.repository != self.repository:
+            raise CoordinatorError("pr_compensation_failed", "repository identity mismatch")
+        key = self._key(mutation.repository, mutation.head, mutation.base)
+        current = self.prs.get(key)
+        if not isinstance(current, dict) or current.get("number") != mutation.number:
+            raise CoordinatorError("pr_compensation_failed", "target PR identity is not present")
+        if mutation.created:
+            if not _phase_pr_identity_matches(current, mutation.expected):
+                raise CoordinatorError("pr_compensation_failed", "created PR identity changed before close")
+            del self.prs[key]
+            if self.prs.get(key) is not None:
+                raise CoordinatorError("pr_compensation_failed", "created PR remained after close")
+            return
+        if mutation.prior is None or not _phase_pr_identity_matches(current, mutation.expected):
+            raise CoordinatorError("pr_compensation_failed", "existing PR identity changed before restore")
+        self.prs[key] = copy.deepcopy(dict(mutation.prior))
+        if self.prs.get(key) != mutation.prior:
+            raise CoordinatorError("pr_compensation_failed", "existing PR state was not restored exactly")
 
     def completion_bound(
         self,
@@ -306,25 +378,34 @@ class LiveGitHub:
     ensure_calls: int = 0
     labels: list[tuple[int, str]] = field(default_factory=list)
     workflow_dispatches: list[dict[str, Any]] = field(default_factory=list)
+    last_phase_pr_mutation: PhasePrMutation | None = None
 
     def _request(self, method: str, url: str, token: str, body: Mapping[str, Any] | None = None) -> Any:
         if self.transport is not None:
             return self.transport(method, url, token, body)
         return _github_api(method, url, token, body)
 
+    @staticmethod
+    def _draft_value(payload: Mapping[str, Any]) -> bool:
+        has_draft = "draft" in payload
+        has_is_draft = "isDraft" in payload
+        if not has_draft and not has_is_draft:
+            raise CoordinatorError("invalid_phase_pr", "live pull draft field is missing")
+        draft = payload.get("draft") if has_draft else payload.get("isDraft")
+        if type(draft) is not bool:
+            raise CoordinatorError("invalid_phase_pr", "live pull draft field must be boolean")
+        if has_draft and has_is_draft:
+            is_draft = payload.get("isDraft")
+            if type(is_draft) is not bool or is_draft != draft:
+                raise CoordinatorError("invalid_phase_pr", "live pull draft fields conflict")
+        return draft
+
     def _pr_identity(self, payload: Mapping[str, Any], *, created: bool) -> dict[str, Any]:
         html_url = str(payload.get("html_url") or payload.get("url") or "")
         number = payload.get("number")
         if not isinstance(number, int) or isinstance(number, bool) or number < 1:
             raise CoordinatorError("invalid_phase_pr", "missing live pull number")
-        if "draft" in payload:
-            draft = payload.get("draft")
-        elif "isDraft" in payload:
-            draft = payload.get("isDraft")
-        else:
-            raise CoordinatorError("invalid_phase_pr", "live pull draft field is missing")
-        if type(draft) is not bool:
-            raise CoordinatorError("invalid_phase_pr", "live pull draft field must be boolean")
+        draft = self._draft_value(payload)
         raw_head = ""
         if isinstance(payload.get("head"), Mapping):
             raw_head = payload["head"].get("sha", "")
@@ -339,6 +420,69 @@ class LiveGitHub:
             "headSha": raw_head,
             "created": created,
         }
+
+    def _pull(self, repository: str, number: int) -> Mapping[str, Any]:
+        payload = self._request(
+            "GET",
+            f"https://api.github.com/repos/{repository}/pulls/{number}",
+            self.automation_token,
+        )
+        if not isinstance(payload, Mapping):
+            raise CoordinatorError("pr_compensation_failed", "PR readback was not an object")
+        return payload
+
+    def _phase_pr_mutation_from_created_response(
+        self,
+        *,
+        repository: str,
+        head: str,
+        base: str,
+        head_sha: str,
+        payload: Any,
+    ) -> PhasePrMutation:
+        number = payload.get("number") if isinstance(payload, Mapping) else None
+        if not isinstance(number, int) or isinstance(number, bool) or number < 1:
+            listed = self._request(
+                "GET",
+                (
+                    f"https://api.github.com/repos/{repository}/pulls?"
+                    + urllib.parse.urlencode(
+                        {"head": f"{repository.split('/', 1)[0]}:{head}", "base": base, "state": "open"}
+                    )
+                ),
+                self.automation_token,
+            )
+            if not isinstance(listed, list) or any(not isinstance(row, Mapping) for row in listed):
+                raise CoordinatorError("phase_pr_compensation_unproven", "created PR identity could not be read back")
+            candidates: list[dict[str, Any]] = []
+            for row in listed:
+                identity = self._pr_identity(row, created=False)
+                if (
+                    identity.get("head") == head
+                    and identity.get("base") == base
+                    and identity.get("headSha") == normalize_sha(head_sha)
+                ):
+                    candidates.append(identity)
+            if len(candidates) != 1:
+                raise CoordinatorError("phase_pr_compensation_unproven", "created PR identity is not unique")
+            number = candidates[0]["number"]
+            payload = candidates[0]
+        expected = {
+            "number": number,
+            "url": f"https://github.com/{repository}/pull/{number}",
+            "head": head,
+            "base": base,
+            "headSha": normalize_sha(head_sha),
+        }
+        return PhasePrMutation(
+            repository=repository,
+            number=number,
+            created=True,
+            prior=None,
+            expected=expected,
+            head=head,
+            base=base,
+        )
 
     def ensure_draft_phase_pr(
         self,
@@ -356,6 +500,7 @@ class LiveGitHub:
         if not self.automation_token or not self.user_token:
             raise CoordinatorError("missing_github_credentials", "live GitHub adapter requires automation and PR-create tokens")
         self.ensure_calls += 1
+        self.last_phase_pr_mutation = None
         owner = repository.split("/", 1)[0]
         listed = self._request(
             "GET",
@@ -367,6 +512,8 @@ class LiveGitHub:
         )
         if not isinstance(listed, list):
             raise CoordinatorError("github_api_failed", "pull list was not an array")
+        if any(not isinstance(row, Mapping) for row in listed):
+            raise CoordinatorError("invalid_phase_pr", "pull list contained a non-object entry")
         if len(listed) > 1:
             raise CoordinatorError("duplicate_phase_pr", json.dumps([row.get("number") for row in listed]))
         if listed:
@@ -377,6 +524,24 @@ class LiveGitHub:
             existing_identity = self._pr_identity(existing, created=False)
             if existing_identity["isDraft"] is not True:
                 raise CoordinatorError("phase_pr_not_draft", str(number))
+            if "title" not in existing or "body" not in existing or not isinstance(existing.get("title"), str):
+                raise CoordinatorError("invalid_phase_pr", "existing pull mutable state is missing")
+            self.last_phase_pr_mutation = PhasePrMutation(
+                repository=repository,
+                number=number,
+                created=False,
+                prior=copy.deepcopy(dict(existing)),
+                expected={
+                    "number": number,
+                    "url": existing_identity["url"],
+                    "head": existing_identity["head"],
+                    "base": existing_identity["base"],
+                    "headSha": normalize_sha(existing_identity["headSha"]),
+                    "isDraft": True,
+                },
+                head=head,
+                base=base,
+            )
             updated = self._request(
                 "PATCH",
                 f"https://api.github.com/repos/{repository}/pulls/{number}",
@@ -384,25 +549,81 @@ class LiveGitHub:
                 {"title": title, "body": body},
             )
             if not isinstance(updated, Mapping):
-                updated = existing
+                raise CoordinatorError("invalid_phase_pr", "update response was not an object")
             identity = self._pr_identity(updated if isinstance(updated, Mapping) else existing, created=False)
             return self._bound_live_pr(identity, head_sha)
-        created = self._request(
-            "POST",
-            f"https://api.github.com/repos/{repository}/pulls",
-            self.user_token,
-            {
-                "title": title,
-                "body": body,
-                "head": head,
-                "base": base,
-                "draft": True,
-            },
+        try:
+            created = self._request(
+                "POST",
+                f"https://api.github.com/repos/{repository}/pulls",
+                self.user_token,
+                {
+                    "title": title,
+                    "body": body,
+                    "head": head,
+                    "base": base,
+                    "draft": True,
+                },
+            )
+        except Exception as exc:
+            try:
+                self.last_phase_pr_mutation = self._phase_pr_mutation_from_created_response(
+                    repository=repository, head=head, base=base, head_sha=head_sha, payload=None
+                )
+            except CoordinatorError as recovery_exc:
+                raise CoordinatorError(
+                    "phase_pr_compensation_unproven",
+                    f"POST outcome is ambiguous; {recovery_exc.detail}; original={exc}",
+                ) from exc
+            raise
+        self.last_phase_pr_mutation = self._phase_pr_mutation_from_created_response(
+            repository=repository, head=head, base=base, head_sha=head_sha, payload=created
         )
         if not isinstance(created, Mapping):
             raise CoordinatorError("invalid_phase_pr", "create response was not an object")
         identity = self._pr_identity(created, created=True)
         return self._bound_live_pr(identity, head_sha)
+
+    def rollback_phase_pr(self, mutation: PhasePrMutation) -> None:
+        if mutation.repository != self.repository:
+            raise CoordinatorError("pr_compensation_failed", "repository identity mismatch")
+        current_payload = self._pull(mutation.repository, mutation.number)
+        current = self._pr_identity(current_payload, created=False)
+        if not _phase_pr_identity_matches(current, mutation.expected):
+            raise CoordinatorError("pr_compensation_failed", "PR identity changed before compensation")
+        if mutation.created:
+            closed = self._request(
+                "PATCH",
+                f"https://api.github.com/repos/{mutation.repository}/pulls/{mutation.number}",
+                self.automation_token,
+                {"state": "closed"},
+            )
+            if not isinstance(closed, Mapping) or closed.get("state") != "closed":
+                raise CoordinatorError("pr_compensation_failed", "close response was not verified")
+            verified = self._pull(mutation.repository, mutation.number)
+            if verified.get("state") != "closed":
+                raise CoordinatorError("pr_compensation_failed", "created PR remained open after close")
+            final = self._pr_identity(verified, created=False)
+            if not _phase_pr_identity_matches(final, mutation.expected):
+                raise CoordinatorError("pr_compensation_failed", "closed PR identity changed")
+            return
+        prior = mutation.prior
+        if not isinstance(prior, Mapping) or "title" not in prior or "body" not in prior:
+            raise CoordinatorError("pr_compensation_failed", "prior PR mutable state is unavailable")
+        restored = self._request(
+            "PATCH",
+            f"https://api.github.com/repos/{mutation.repository}/pulls/{mutation.number}",
+            self.automation_token,
+            {"title": prior["title"], "body": prior["body"]},
+        )
+        if not isinstance(restored, Mapping):
+            raise CoordinatorError("pr_compensation_failed", "restore response was not an object")
+        verified = self._pull(mutation.repository, mutation.number)
+        final = self._pr_identity(verified, created=False)
+        if not _phase_pr_identity_matches(final, mutation.expected):
+            raise CoordinatorError("pr_compensation_failed", "restored PR identity changed")
+        if verified.get("title") != prior["title"] or verified.get("body") != prior["body"]:
+            raise CoordinatorError("pr_compensation_failed", "existing PR mutable state was not restored")
 
     def _bound_live_pr(self, identity: dict[str, Any], head_sha: str) -> dict[str, Any]:
         """Keep GitHub's draft/URL identity; never forge a successful draft PR."""
@@ -436,7 +657,9 @@ class LiveGitHub:
         )
         if not isinstance(listed, list):
             raise CoordinatorError("github_api_failed", "pull list was not an array")
-        return [self._pr_identity(row, created=False) for row in listed if isinstance(row, Mapping)]
+        if any(not isinstance(row, Mapping) for row in listed):
+            raise CoordinatorError("invalid_phase_pr", "pull list contained a non-object entry")
+        return [self._pr_identity(row, created=False) for row in listed]
 
     def completion_bound(
         self,
@@ -502,6 +725,18 @@ def assert_live_phase_pr(pr: Mapping[str, Any]) -> None:
         raise CoordinatorError("stale_phase_pr", f"pr_head={head_sha!r}")
 
 
+def _phase_pr_identity_matches(current: Mapping[str, Any], expected: Mapping[str, Any]) -> bool:
+    """Compare only immutable PR identity fields before a compensation write."""
+
+    for key in ("number", "url", "head", "base"):
+        if key in expected and current.get(key) != expected.get(key):
+            return False
+    for key in ("isDraft", "headSha"):
+        if key in expected and current.get(key) != expected.get(key):
+            return False
+    return True
+
+
 @dataclass(frozen=True)
 class AcceptedSource:
     branch: str
@@ -532,8 +767,21 @@ def _normalize_repository(value: str) -> str:
     if not isinstance(value, str) or value != value.strip() or not REPOSITORY_RE.fullmatch(value):
         raise CoordinatorError("invalid_repository", "repository must be the exact GitHub owner/name identity")
     owner, name = value.split("/", 1)
-    if owner in {".", ".."} or name in {".", ".."}:
+    if _ambiguous_repository_segment(owner) or _ambiguous_repository_segment(name):
         raise CoordinatorError("invalid_repository", "repository path segments are ambiguous")
+    return value
+
+
+def _ambiguous_repository_segment(value: str) -> bool:
+    return not value or value in {".", ".."} or set(value) == {"."}
+
+
+def _parse_repository_segments(value: str) -> str | None:
+    if "%" in value or value.count("/") != 1 or not REPOSITORY_RE.fullmatch(value):
+        return None
+    owner, repository = value.split("/", 1)
+    if _ambiguous_repository_segment(owner) or _ambiguous_repository_segment(repository):
+        return None
     return value
 
 
@@ -567,15 +815,13 @@ def _repository_from_remote_url(value: str) -> str | None:
                 or port not in {None, 22}
             ):
                 return None
-        owner_repo = parsed.path.lstrip("/")
+        path = parsed.path
+        if not path.startswith("/") or path.startswith("//"):
+            return None
+        owner_repo = path[1:]
     if owner_repo.endswith(".git"):
         owner_repo = owner_repo[:-4]
-    if owner_repo.count("/") != 1 or not REPOSITORY_RE.fullmatch(owner_repo):
-        return None
-    owner, repository = owner_repo.split("/", 1)
-    if owner in {".", ".."} or repository in {".", ".."}:
-        return None
-    return owner_repo
+    return _parse_repository_segments(owner_repo)
 
 
 def _validate_local_remote_repository(repo: Path, remote: str, repository: str) -> str:
@@ -848,6 +1094,16 @@ def _coordinator_state_dir(repo: Path, phase_branch: str) -> Path:
 def _local_sha(repo: Path, branch: str) -> str:
     value = _git(repo, "rev-parse", "--verify", f"refs/heads/{branch}", check=False)
     return normalize_sha(value) if is_valid_sha(value) else ""
+
+
+def _remote_tracking_sha(repo: Path, remote: str, branch: str) -> str:
+    ref = f"refs/remotes/{remote}/{branch}"
+    value = _git(repo, "rev-parse", "--verify", ref, check=False)
+    if not value:
+        return ""
+    if not is_valid_sha(value):
+        raise CoordinatorError("invalid_phase_tracking_ref", f"{ref}={value}")
+    return normalize_sha(value)
 
 
 def _assert_live_phase_pr_optional(pr: Mapping[str, Any], *, require_live_pr: bool) -> None:
@@ -1182,6 +1438,7 @@ def _rollback_phase_ref(
     expected_remote_sha: str,
     *,
     phase_branch_prefix: str,
+    prior_tracking_sha: str = "",
 ) -> None:
     """Restore only the non-protected Phase ref after a failed transaction."""
 
@@ -1189,28 +1446,59 @@ def _rollback_phase_ref(
         raise CoordinatorError("phase_ref_rollback_failed", phase_branch)
     current = _remote_sha(repo, remote, phase_branch)
     prior = normalize_sha(prior_remote_sha)
-    if current == prior:
-        return
-    if current != normalize_sha(expected_remote_sha):
-        raise CoordinatorError(
-            "phase_ref_rollback_failed",
-            f"{phase_branch}:ref changed to an unexpected SHA",
-        )
-    if prior:
+    rollback_errors: list[str] = []
+    if current != prior and current != normalize_sha(expected_remote_sha):
+        rollback_errors.append(f"{phase_branch}:ref changed to an unexpected SHA")
+    elif current != prior and prior:
         if not is_valid_sha(prior) or not is_valid_sha(current):
-            raise CoordinatorError("phase_ref_rollback_failed", f"{phase_branch}:invalid rollback identity")
-        _git(
-            repo,
-            "push",
-            f"--force-with-lease=refs/heads/{phase_branch}:{current}",
-            "--",
-            remote,
-            f"{prior}:refs/heads/{phase_branch}",
-        )
-    elif current:
-        _git(repo, "push", "--delete", "--", remote, phase_branch)
+            rollback_errors.append(f"{phase_branch}:invalid rollback identity")
+        else:
+            try:
+                _git(
+                    repo,
+                    "push",
+                    f"--force-with-lease=refs/heads/{phase_branch}:{current}",
+                    "--",
+                    remote,
+                    f"{prior}:refs/heads/{phase_branch}",
+                )
+            except CoordinatorError as exc:
+                rollback_errors.append(exc.detail)
+    elif current != prior and current:
+        # A newly-created ref is deleted only if the remote still contains the
+        # exact SHA we created.  An intervening replacement must survive.
+        try:
+            _git(
+                repo,
+                "push",
+                f"--force-with-lease=refs/heads/{phase_branch}:{current}",
+                "--",
+                remote,
+                f":refs/heads/{phase_branch}",
+            )
+        except CoordinatorError as exc:
+            rollback_errors.append(exc.detail)
     if _remote_sha(repo, remote, phase_branch) != prior:
-        raise CoordinatorError("phase_ref_rollback_failed", f"{phase_branch}:remote ref was not restored")
+        rollback_errors.append(f"{phase_branch}:remote ref was not restored")
+    current_tracking = _remote_tracking_sha(repo, remote, phase_branch)
+    expected_tracking = normalize_sha(expected_remote_sha)
+    prior_tracking = normalize_sha(prior_tracking_sha)
+    if current_tracking != prior_tracking:
+        if current_tracking != expected_tracking:
+            rollback_errors.append(f"{phase_branch}:local tracking ref changed unexpectedly")
+        else:
+            tracking_ref = f"refs/remotes/{remote}/{phase_branch}"
+            try:
+                if prior_tracking:
+                    _git(repo, "update-ref", tracking_ref, prior_tracking, current_tracking)
+                else:
+                    _git(repo, "update-ref", "-d", tracking_ref, current_tracking)
+            except CoordinatorError as exc:
+                rollback_errors.append(exc.detail)
+    if _remote_tracking_sha(repo, remote, phase_branch) != prior_tracking:
+        rollback_errors.append(f"{phase_branch}:local tracking ref was not restored")
+    if rollback_errors:
+        raise CoordinatorError("phase_ref_rollback_failed", "; ".join(rollback_errors))
 
 
 def _assemble_in_worktree(
@@ -1609,7 +1897,9 @@ def assemble_phase(
                     f"pr_head={preflight_head!r}:expected={normalize_sha(head)}",
                 )
 
+    prior_tracking_sha = _remote_tracking_sha(repo, remote, phase_branch)
     phase_ref_attempted = remote_phase != head
+    pr_mutation: PhasePrMutation | None = None
     try:
         if remote_phase == head:
             verified = remote_phase
@@ -1644,6 +1934,7 @@ def assemble_phase(
             body=body,
             record=record,
         )
+        pr_mutation = getattr(github, "last_phase_pr_mutation", None)
         _assert_phase_pr_identity(
             pr,
             repository=repository,
@@ -1654,6 +1945,8 @@ def assemble_phase(
         )
         _assert_live_phase_pr_optional(pr, require_live_pr=require_live_pr)
         open_prs = github.list_open_phase_prs(repository=repository, head=phase_branch, base=development)
+        if not isinstance(open_prs, list) or any(not isinstance(row, Mapping) for row in open_prs):
+            raise CoordinatorError("invalid_phase_pr", "Phase PR readback was malformed")
         if len(open_prs) != 1:
             raise CoordinatorError("duplicate_phase_pr", json.dumps([row.get("number") for row in open_prs]))
         if open_prs[0].get("number") != pr.get("number"):
@@ -1732,6 +2025,14 @@ def assemble_phase(
             result["providerConsumerHandoff"] = dict(provider_consumer_handoff)
         return result
     except Exception as exc:
+        compensation_errors: list[CoordinatorError] = []
+        if pr_mutation is None:
+            pr_mutation = getattr(github, "last_phase_pr_mutation", None)
+        if pr_mutation is not None:
+            try:
+                github.rollback_phase_pr(pr_mutation)
+            except CoordinatorError as compensation_exc:
+                compensation_errors.append(compensation_exc)
         if phase_ref_attempted:
             try:
                 _rollback_phase_ref(
@@ -1741,12 +2042,16 @@ def assemble_phase(
                     remote_phase,
                     head,
                     phase_branch_prefix=phase_branch_prefix,
+                    prior_tracking_sha=prior_tracking_sha,
                 )
             except CoordinatorError as rollback_exc:
-                raise CoordinatorError(
-                    "phase_ref_rollback_failed",
-                    f"{rollback_exc.detail}; original={exc}",
-                ) from exc
+                compensation_errors.append(rollback_exc)
+        if compensation_errors:
+            if len(compensation_errors) == 1:
+                failure = compensation_errors[0]
+                raise CoordinatorError(failure.code, f"{failure.detail}; original={exc}") from exc
+            detail = "; ".join(f"{item.code}: {item.detail}" for item in compensation_errors)
+            raise CoordinatorError("transaction_rollback_failed", f"{detail}; original={exc}") from exc
         raise
 
 
