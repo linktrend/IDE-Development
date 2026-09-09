@@ -57,8 +57,11 @@ on:
         type: string
 
 env:
-  LINKTREND_TARGET_BASELINE_SHA: ${{ github.event.pull_request.base.sha || inputs.target_baseline_sha }}
-  LINKTREND_TARGET_BASELINE_REF: ${{ inputs.target_baseline_ref || format('origin/{0}', github.event.pull_request.base.ref) }}
+  # A workflow_dispatch event has no pull_request object. Keep the supplied
+  # immutable baseline authoritative and use development only as the safe
+  # phase default; never manufacture the invalid ref "origin/".
+  LINKTREND_TARGET_BASELINE_SHA: ${{ inputs.target_baseline_sha || github.event.pull_request.base.sha }}
+  LINKTREND_TARGET_BASELINE_REF: ${{ inputs.target_baseline_ref || (github.event_name == 'workflow_dispatch' && 'origin/development') || format('origin/{0}', github.event.pull_request.base.ref) }}
 
 permissions: {}
 

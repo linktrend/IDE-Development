@@ -64,6 +64,9 @@ assert "name: Linktrend Full Suite" in full
 assert "types: [labeled]" in full
 assert "github.event.label.name == 'linktrend-full-suite'" in full
 assert "workflow_dispatch:" in full
+assert "dependency_digest:" in full
+assert "target_baseline_sha:" in full
+assert "target_baseline_ref:" in full
 assert 'mode == \'reconciled\'' in full
 assert 'promotable": False' in Path("scripts/gitops/verify_reconciled_tree.py").read_text(encoding="utf-8")
 assert 'checks_json="${RUNNER_TEMP}/linktrend-reconciled-checks.json"' in full

@@ -12,15 +12,28 @@ from typing import Any, Callable
 
 from .constants import INSTALLED_STATE_REL, MANAGED_CORE_DIR
 from .errors import ConflictError, RollbackError
-from .hashing import normalize_mode, sha256_file
-from .managed_write_guard import WriteLease, is_read_only_mode, managed_write_lease, read_only_mode
+from .hashing import mode_int, normalize_mode, sha256_file
+from .managed_write_guard import (
+    READ_ONLY_POLICY,
+    WriteLease,
+    is_read_only_mode,
+    managed_write_lease,
+    read_only_mode,
+)
 from .io_atomic import atomic_write_bytes, copy_file_physical, read_file_bytes, remove_file
 from .lock import exclusive_transaction_lock
 from .manifest import Manifest, ManifestEntry
 from .paths import encode_backup_name, git_meta_dir, join_under, join_under_nofollow, path_is_symlink
 from .plan import OpKind, Plan, PlanAction
 from .resolution import UpgradeResolution
-from .state import FileState, InstalledState, save_installed_state, utc_now
+from .state import (
+    FileState,
+    InstalledState,
+    load_installed_state,
+    prove_read_only_state,
+    save_installed_state,
+    utc_now,
+)
 from .symlink_migrate import (
     apply_migrate_symlink,
     is_under_any,
@@ -104,6 +117,44 @@ def write_journal(tx_dir: Path, payload: dict[str, Any]) -> None:
 
 def _entry_map(manifest: Manifest) -> dict[str, ManifestEntry]:
     return {e.destination: e for e in manifest.active_entries()}
+
+
+def _managed_lease_paths(
+    *,
+    manifest: Manifest,
+    prior: InstalledState | None,
+    mutating: list[PlanAction],
+    extra: set[str] | None = None,
+) -> set[str]:
+    """Lease every managed destination so closure can strip leftover write bits."""
+    paths = {action.path for action in mutating}
+    paths.update({MANIFEST_DEST, str(INSTALLED_STATE_REL)})
+    if extra:
+        paths.update(path for path in extra if isinstance(path, str) and path)
+    if prior is not None:
+        for rel, file_state in prior.files.items():
+            if file_state.mutability_policy == READ_ONLY_POLICY:
+                paths.add(rel)
+    for entry in manifest.active_entries():
+        if entry.ownership_class != "external-state":
+            paths.add(entry.destination)
+    return paths
+
+
+def _enforce_managed_read_only(
+    target_root: Path, state: InstalledState, *, lease: WriteLease
+) -> None:
+    """Strip write bits from every persisted managed file while the lease is live."""
+    for rel, file_state in state.files.items():
+        if file_state.mutability_policy != READ_ONLY_POLICY:
+            continue
+        path = join_under_nofollow(target_root, rel)
+        if path_is_symlink(path) or not path.is_file():
+            continue
+        _authorize_managed_write(lease, rel)
+        current = path.stat().st_mode & 0o7777
+        if not is_read_only_mode(current):
+            os.chmod(path, mode_int(read_only_mode(current)))
 
 
 def backup_migrate_symlink(target_root: Path, action: PlanAction) -> BackupRecord:
@@ -466,15 +517,20 @@ def apply_plan(
         )
 
     with exclusive_transaction_lock(target_root):
-        lease_paths = {action.path for action in plan.mutating_actions}
-        lease_paths.update({MANIFEST_DEST, ".ide-development/installed-state.json"})
         pending = read_journal(current_tx_dir(target_root))
+        extra: set[str] = set()
         if isinstance(pending, dict):
-            lease_paths.update(
+            extra.update(
                 record.get("path")
                 for record in pending.get("backups") or []
                 if isinstance(record, dict) and isinstance(record.get("path"), str)
             )
+        lease_paths = _managed_lease_paths(
+            manifest=manifest,
+            prior=prior,
+            mutating=plan.mutating_actions,
+            extra=extra,
+        )
         with managed_write_lease(
             target_root=target_root,
             paths=lease_paths,
@@ -485,7 +541,7 @@ def apply_plan(
             make_writable=False,
             finalize_read_only=True,
         ) as lease:
-            return _apply_plan_unlocked(
+            result = _apply_plan_unlocked(
                 target_root=target_root,
                 package_root=package_root,
                 manifest=manifest,
@@ -495,6 +551,8 @@ def apply_plan(
                 post_apply_check=post_apply_check,
                 write_lease=lease,
             )
+        prove_read_only_state(target_root)
+        return result
 
 
 def _apply_plan_unlocked(
@@ -533,6 +591,7 @@ def _apply_plan_unlocked(
             and prior_manifest.content_hash == manifest_hash
             and prior.manifest_hash == manifest_hash
         ):
+            _enforce_managed_read_only(target_root, prior, lease=write_lease)
             return {
                 "transactionId": None,
                 "applied": [],
@@ -567,6 +626,7 @@ def _apply_plan_unlocked(
             merge_strategy="replace",
         )
         _save_installed_state(target_root, next_state, lease=write_lease)
+        _enforce_managed_read_only(target_root, next_state, lease=write_lease)
         return {
             "transactionId": None,
             "applied": [],
@@ -721,6 +781,7 @@ def _apply_plan_unlocked(
             merge_strategy="replace",
         )
         _save_installed_state(target_root, next_state, lease=write_lease)
+        _enforce_managed_read_only(target_root, next_state, lease=write_lease)
 
         post_verification = post_apply_check() if post_apply_check is not None else None
         if post_verification is not None:
@@ -785,6 +846,18 @@ def rollback_last(target_root: Path) -> dict[str, Any]:
                 if isinstance(record, dict) and isinstance(record.get("path"), str)
             )
         paths.add(".ide-development/installed-state.json")
+        current_state = load_installed_state(target_root)
+        if current_state is not None:
+            paths.update(
+                rel
+                for rel, file_state in current_state.files.items()
+                if file_state.mutability_policy == READ_ONLY_POLICY
+            )
+        prior_state = journal.get("priorInstalledState")
+        if isinstance(prior_state, dict):
+            files = prior_state.get("files") or {}
+            if isinstance(files, dict):
+                paths.update(str(path) for path in files)
         manifest = join_under_nofollow(target_root, MANIFEST_DEST)
         manifest_digest = journal.get("manifestDigest")
         if not isinstance(manifest_digest, str):
@@ -797,9 +870,11 @@ def rollback_last(target_root: Path) -> dict[str, Any]:
             manifest_digest=manifest_digest,
             transaction_id=f"rollback-{journal.get('transactionId') or uuid.uuid4()}",
             make_writable=False,
-            finalize_read_only=False,
+            finalize_read_only=True,
         ) as lease:
-            return _rollback_last_unlocked(target_root, lease=lease)
+            result = _rollback_last_unlocked(target_root, lease=lease)
+        prove_read_only_state(target_root)
+        return result
 
 
 def _rollback_last_unlocked(
@@ -845,6 +920,12 @@ def _rollback_last_unlocked(
         _save_installed_state(target_root, state, lease=lease)
     elif not backups:
         pass
+
+    restored = load_installed_state(target_root)
+    if restored is not None:
+        if lease is None:
+            raise ConflictError("Managed rollback requires an active lease")
+        _enforce_managed_read_only(target_root, restored, lease=lease)
 
     marker = {
         "rolledBackAt": utc_now(),

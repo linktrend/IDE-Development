@@ -1,5 +1,14 @@
 # IDE Development v2.5.1 completed baseline and v2.5.2 requirements queue
 
+> **Governed amendment (2026-08-31):** Issue [#464](https://github.com/linktrend/IDE-Development/issues/464)
+> is the single owner for the narrow v2.5.2 protocol repair covering exact
+> change-scoped secret-scan baseline acceptance and OpenClaw Prime
+> customization-only admission. The authoritative implementation is the
+> protected package source and schema named in
+> `docs/contracts/SECRET-SCAN-FIXTURES.md` and
+> `docs/contracts/OPENCLAW-CUSTOMIZATION-ADMISSION.md`. No consumer rollout or
+> fabricated Full receipt is authorized by this amendment.
+
 **Status:** v2.5.1 COMPLETED; provisional v2.5.2 requirements collection STARTED but not frozen, released, or authorized for rollout
 **Baseline issue:** #339
 **Successor requirements issue:** #427

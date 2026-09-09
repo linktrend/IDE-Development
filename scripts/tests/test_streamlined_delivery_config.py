@@ -9,6 +9,8 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
+from jsonschema import Draft202012Validator
+
 from scripts.gitops.coordinator.config import ConfigError, config_digest, load_delivery_config
 from scripts.gitops.coordinator.state import (
     CandidateIdentity,
@@ -119,6 +121,33 @@ class DeliveryConfigTests(unittest.TestCase):
         self.assertEqual(first.compute.runner, "ubuntu-24.04-arm")
         self.assertIsInstance(first.compute.runner, str)
         self.assertEqual(first.test_profiles["fast"].commands, (("scripts/check.sh", "--fast"),))
+
+    def test_hosted_prefix_round_trips_and_separates_configuration_identity(self) -> None:
+        custom = hosted_payload()
+        custom["phaseBranchPrefix"] = "candidate/"
+        configured = load_delivery_config(custom)
+        serialized = configured.to_dict()
+        self.assertEqual(serialized["phaseBranchPrefix"], "candidate/")
+        reloaded = load_delivery_config(serialized)
+        self.assertEqual(reloaded.phase_branch_prefix, "candidate/")
+        self.assertEqual(config_digest(configured), config_digest(reloaded))
+        self.assertNotEqual(config_digest(configured), config_digest(load_delivery_config(hosted_payload())))
+
+        schema = json.loads(
+            (Path(__file__).resolve().parents[2] / "core/managed-core/schemas/delivery-modes.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(list(Draft202012Validator(schema).iter_errors(serialized)), [])
+        omitted = load_delivery_config(hosted_payload())
+        self.assertEqual(omitted.phase_branch_prefix, "phase/")
+
+    def test_hosted_prefix_uses_schema_safe_grammar(self) -> None:
+        for value in ("candidate", "/candidate/", "candidate//", "candidate space/", 7, None):
+            payload = hosted_payload()
+            payload["phaseBranchPrefix"] = value
+            with self.subTest(value=value):
+                self.assert_config_rejected(payload, "invalid_phase_prefix", "phaseBranchPrefix")
 
     def assert_config_rejected(self, payload: dict, code: str, path: str | None = None) -> None:
         with self.assertRaises(ConfigError) as raised:
