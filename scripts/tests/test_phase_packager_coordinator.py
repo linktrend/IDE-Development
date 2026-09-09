@@ -213,6 +213,10 @@ class PhasePackagerCoordinatorTests(unittest.TestCase):
 
     def test_custom_phase_prefix_is_bound_in_coordinator_pusher_and_generated_outputs(self) -> None:
         one = self.fx.accept_issue(50, "custom-prefix.txt", "custom\n")
+        write(
+            self.fx.work / ".github/linktrend-delivery-mode.json",
+            json.dumps({"schemaVersion": 1, "deliveryMode": "phase-integration", "phaseBranchPrefix": "wave/"}),
+        )
         result = self.fx.assemble(
             [one],
             phase_branch="wave/next",
@@ -868,7 +872,7 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
                 if isinstance(body, dict) and body.get("state") == "closed":
                     created["state"] = "closed"
                 elif isinstance(body, dict):
-                    created.update({key: body[key] for key in ("title", "body") if key in body})
+                    created.update({key: body[key] for key in ("title", "body", "state") if key in body})
                 return dict(created)
             raise AssertionError(f"unexpected GitHub call {method} {request_url}")
 
@@ -886,6 +890,7 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
             "html_url": "https://github.com/owner/name/pull/42",
             "head": {"ref": "phase/next", "sha": "a" * 40},
             "base": {"ref": "development"},
+            "state": "open",
         }
         for fields in (
             {"draft": True, "isDraft": False},
@@ -907,6 +912,7 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
                         "number": 7,
                         "html_url": "https://github.com/owner/name/pull/7",
                         "draft": True,
+                        "state": "open",
                         "head": {"ref": "phase/next", "sha": "a" * 40},
                         "base": {"ref": "development"},
                     },
@@ -1028,6 +1034,186 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
             "",
         )
 
+    def test_explicit_phase_prefix_mismatch_is_rejected_before_ref_or_pr_movement(self) -> None:
+        one = self.fx.accept_issue(80, "prefix-mismatch.txt", "mismatch\n")
+
+        class CountingPusher:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def push_phase_ref(self, *args, **kwargs):
+                self.calls += 1
+                return coordinator.GitPushAdapter("wave/").push_phase_ref(*args, **kwargs)
+
+        pusher = CountingPusher()
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "phase_prefix_mismatch"):
+            self.fx.assemble(
+                [one],
+                phase_branch="wave/next",
+                phase_branch_prefix="wave/",
+                pusher=pusher,
+            )
+        self.assertEqual(pusher.calls, 0)
+        self.assertEqual(self.fx.github.ensure_calls, 0)
+        self.assertEqual(self.fx.github.prs, {})
+        self.assertEqual(remote_sha(self.fx.work, "wave/next"), "")
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), "")
+
+    def test_omitted_phase_prefix_still_loads_repository_config(self) -> None:
+        one = self.fx.accept_issue(81, "prefix-omit.txt", "omit\n")
+        result = self.fx.assemble([one])
+        self.assertEqual(result["phaseBranch"], "phase/next")
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), result["headSha"])
+
+    def test_generic_compensation_exception_still_rolls_back_phase_ref(self) -> None:
+        one = self.fx.accept_issue(82, "generic-compensation.txt", "generic\n")
+
+        class BrokenTransport:
+            repository = "owner/name"
+
+            def __init__(self, wrapped):
+                self.wrapped = wrapped
+
+            def __getattr__(self, name: str):
+                return getattr(self.wrapped, name)
+
+            def rollback_phase_pr(self, mutation):
+                raise RuntimeError("simulated transport reset")
+
+        with patch.object(coordinator, "_write_isolated_state", side_effect=OSError("state write failed")):
+            with self.assertRaisesRegex(coordinator.CoordinatorError, "pr_compensation_failed") as raised:
+                self.fx.assemble(
+                    [one],
+                    github=BrokenTransport(self.fx.github),
+                    phase_branch="phase/generic-compensation",
+                )
+        self.assertIn("RuntimeError", str(raised.exception))
+        self.assertIn("state write failed", str(raised.exception))
+        self.assertEqual(remote_sha(self.fx.work, "phase/generic-compensation"), "")
+        self.assertEqual(
+            git(self.fx.work, "rev-parse", "--verify", "refs/remotes/origin/phase/generic-compensation", check=False),
+            "",
+        )
+
+    def test_live_created_mutation_binds_draft_and_open_state(self) -> None:
+        one = self.fx.accept_issue(83, "created-identity.txt", "created identity\n")
+        live = self._live_transport(url="https://github.com/owner/name/pull/42", draft=True)
+        result = self.fx.assemble(
+            [one],
+            github=live,
+            require_live_pr=True,
+            require_evidence=False,
+        )
+        mutation = live.last_phase_pr_mutation
+        self.assertIsNotNone(mutation)
+        self.assertTrue(mutation.created)
+        self.assertIs(mutation.expected["isDraft"], True)
+        self.assertEqual(mutation.expected["state"], "open")
+        self.assertEqual(result["phasePr"]["number"], 42)
+
+    def test_created_pr_actor_draft_race_does_not_close_changed_pr(self) -> None:
+        one = self.fx.accept_issue(84, "created-race.txt", "created race\n")
+        calls: list[str] = []
+        created: dict[str, object] = {}
+
+        def transport(method: str, request_url: str, token: str, body):
+            if method == "GET" and "/pulls?" in request_url:
+                calls.append("GET:list")
+                return [dict(created)] if created else []
+            if method == "POST" and request_url.endswith("/pulls"):
+                calls.append("POST:create")
+                created.update(
+                    {
+                        "number": 84,
+                        "html_url": "https://github.com/owner/name/pull/84",
+                        "draft": True,
+                        "head": {
+                            "ref": "phase/created-race",
+                            "sha": remote_sha(self.fx.work, "phase/created-race"),
+                        },
+                        "base": {"ref": "development"},
+                        "title": body["title"],
+                        "body": body["body"],
+                        "state": "open",
+                    }
+                )
+                return dict(created)
+            if method == "GET" and request_url.endswith("/pulls/84"):
+                calls.append("GET:item")
+                return dict(created)
+            if method == "PATCH" and request_url.endswith("/pulls/84"):
+                calls.append(f"PATCH:{body}")
+                raise AssertionError("must not mutate another actor's changed PR")
+            raise AssertionError(f"unexpected GitHub call {method} {request_url}")
+
+        live = coordinator.LiveGitHub(
+            repository="owner/name",
+            automation_token="auto",
+            user_token="user",
+            transport=transport,
+        )
+
+        def fail_after_create(*args, **kwargs):
+            created["draft"] = False
+            created["state"] = "open"
+            raise OSError("state write failed")
+
+        with patch.object(coordinator, "_write_isolated_state", side_effect=fail_after_create):
+            with self.assertRaisesRegex(coordinator.CoordinatorError, "pr_compensation_failed"):
+                self.fx.assemble(
+                    [one],
+                    github=live,
+                    phase_branch="phase/created-race",
+                    require_live_pr=True,
+                    require_evidence=False,
+                )
+        self.assertNotIn("PATCH:close", "".join(calls))
+        self.assertFalse(any(item.startswith("PATCH:") for item in calls))
+        self.assertEqual(created["state"], "open")
+        self.assertIs(created["draft"], False)
+        self.assertEqual(remote_sha(self.fx.work, "phase/created-race"), "")
+
+    def test_existing_pr_actor_state_race_does_not_reopen_or_restore(self) -> None:
+        first = self.fx.accept_issue_history(85, "existing-race.txt", ["one\n", "two\n", "three\n"])
+        created = self.fx.assemble([first])
+        key = "owner/name|phase/next|development"
+        prior_pr = json.loads(json.dumps(self.fx.github.prs[key]))
+        successor = self.fx.advance_issue(first, "existing-race.txt", "four\n")
+
+        class ActorRace:
+            repository = "owner/name"
+
+            def __init__(self, wrapped):
+                self.wrapped = wrapped
+
+            def __getattr__(self, name: str):
+                return getattr(self.wrapped, name)
+
+            def rollback_phase_pr(self, mutation):
+                self.wrapped.prs[key]["state"] = "closed"
+                self.wrapped.prs[key]["isDraft"] = True
+                self.wrapped.rollback_phase_pr(mutation)
+
+        with patch.object(coordinator, "_write_isolated_state", side_effect=OSError("state write failed")):
+            with self.assertRaisesRegex(coordinator.CoordinatorError, "pr_compensation_failed"):
+                self.fx.assemble([successor], github=ActorRace(self.fx.github))
+        self.assertEqual(self.fx.github.prs[key]["state"], "closed")
+        self.assertNotEqual(self.fx.github.prs[key], prior_pr)
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), created["headSha"])
+
+    def test_retained_accepted_issues_order_rejects_bool_true(self) -> None:
+        first = self.fx.accept_issue(86, "bool-order.txt", "bool-order\n")
+        created = self.fx.assemble([first])
+        path, record = self.fx.phase_record(created)
+        self.assertEqual(record["acceptedIssues"][0]["order"], 1)
+        record["acceptedIssues"][0]["order"] = True
+        write(path, json.dumps(record, indent=2) + "\n")
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_phase_record"):
+            self.fx.assemble([first])
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+        self.assertEqual(self.fx.github.prs["owner/name|phase/next|development"]["number"], created["phasePr"]["number"])
+
     def test_new_ref_replacement_race_is_not_deleted_and_tracking_witness_is_cleaned(self) -> None:
         one = self.fx.accept_issue(73, "ref-race.txt", "race\n")
         alternate = self.fx.development_sha()
@@ -1073,6 +1259,7 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
                         "number": created["phasePr"]["number"],
                         "html_url": "https://evil.example/owner/name/pull/1",
                         "draft": True,
+                        "state": "open",
                         "head": {"ref": "phase/next", "sha": created["headSha"]},
                         "base": {"ref": "development"},
                     }
