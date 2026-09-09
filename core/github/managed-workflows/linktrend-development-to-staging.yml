@@ -46,10 +46,12 @@ jobs:
         id: receipt
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_SOURCE_BRANCH: development
         run: |
           set -euo pipefail
           pr_body=""
           test -n "${PR_NUMBER}" || { echo "receipt_gate_pr_number_missing"; exit 1; }
+          test -n "${GITHUB_REPOSITORY}" || { echo "receipt_gate_repository_missing"; exit 1; }
           pr_body="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .body)"
           export PR_BODY="${pr_body}"
           coordinates="$(python3 - <<'PY'
@@ -59,17 +61,38 @@ jobs:
               raise SystemExit("receipt_gate_promotion_marker_missing")
           marker = json.loads(match.group(1))
           run_id = str(marker.get("fullRunId") or "").strip()
+          attempt = str(marker.get("fullRunAttempt") or "").strip()
+          digest = str(marker.get("transitionReceiptDigest") or "").strip().lower()
+          source_branch = str(marker.get("sourceBranch") or "").strip()
+          expected_source = os.environ.get("EXPECTED_SOURCE_BRANCH", "")
+          if source_branch != expected_source:
+              raise SystemExit("receipt_gate_source_branch_mismatch")
           artifact = ""
           if not run_id.isdigit() or int(run_id) < 1:
               raise SystemExit("receipt_gate_full_run_invalid")
-          print(json.dumps({"runId": run_id, "artifactName": artifact}))
+          if not attempt.isdigit() or int(attempt) < 1:
+              raise SystemExit("receipt_gate_full_run_attempt_invalid")
+          if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+              raise SystemExit("receipt_gate_transition_digest_missing")
+          print(json.dumps({
+              "runId": run_id,
+              "runAttempt": attempt,
+              "artifactName": artifact,
+              "transitionDigest": digest,
+              "sourceBranch": source_branch,
+          }))
           PY
           )"
           run_id="$(jq -r .runId <<<"${coordinates}")"
+          run_attempt="$(jq -r .runAttempt <<<"${coordinates}")"
           requested_name="$(jq -r .artifactName <<<"${coordinates}")"
+          transition_digest="$(jq -r .transitionDigest <<<"${coordinates}")"
+          source_branch="$(jq -r .sourceBranch <<<"${coordinates}")"
           run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
           jq -e '.path == ".github/workflows/linktrend-integrator-merge.yml" and .event == "pull_request" and .conclusion == "success"' <<<"${run}" >/dev/null \
             || { echo "receipt_gate_full_run_not_reusable=${run_id}"; exit 1; }
+          jq -e --argjson attempt "${run_attempt}" '.run_attempt == $attempt' <<<"${run}" >/dev/null \
+            || { echo "receipt_gate_full_run_attempt_mismatch=${run_id}"; exit 1; }
           artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")"
           artifact_name="$(jq -r --arg requested "${requested_name}" --arg suffix "-${run_id}" '
             [.artifacts[] | select(.expired == false)
@@ -79,7 +102,8 @@ jobs:
             | if length == 1 then .[0].name else empty end
           ' <<<"${artifacts}")"
           test -n "${artifact_name}" || { echo "receipt_gate_artifact_not_unique_or_missing=${run_id}"; exit 1; }
-          printf 'run_id=%s\nartifact_name=%s\n' "${run_id}" "${artifact_name}" >> "$GITHUB_OUTPUT"
+          printf 'run_id=%s\nrun_attempt=%s\nartifact_name=%s\ntransition_digest=%s\nsource_branch=%s\n' \
+            "${run_id}" "${run_attempt}" "${artifact_name}" "${transition_digest}" "${source_branch}" >> "$GITHUB_OUTPUT"
 
       - name: Fetch exact promotion candidate without executing it
         run: |
@@ -98,16 +122,45 @@ jobs:
           run-id: ${{ steps.receipt.outputs.run_id }}
           github-token: ${{ github.token }}
 
+      - name: Fetch exact immutable transition receipt
+        env:
+          TRANSITION_DIGEST: ${{ steps.receipt.outputs.transition_digest }}
+        run: |
+          set -euo pipefail
+          test -n "${TRANSITION_DIGEST}" || { echo "receipt_gate_transition_digest_missing"; exit 1; }
+          ref_leaf="${TRANSITION_DIGEST/sha256:/sha256-}"
+          ref_json="$(gh api "repos/${GITHUB_REPOSITORY}/git/refs/linktrend/transition-receipts/${ref_leaf}")"
+          jq -e --arg leaf "${ref_leaf}" '.object.type == "blob" and (.ref | endswith("/" + $leaf))' <<<"${ref_json}" >/dev/null \
+            || { echo "receipt_gate_transition_ref_not_unique_or_missing"; exit 1; }
+          blob_sha="$(jq -r '.object.sha' <<<"${ref_json}")"
+          test -n "${blob_sha}" || { echo "receipt_gate_transition_blob_missing"; exit 1; }
+          gh api "repos/${GITHUB_REPOSITORY}/git/blobs/${blob_sha}" > transition-blob.json
+          python3 "$GITHUB_WORKSPACE/scripts/gitops/promotion_receipt_gate.py" load-transition \
+            --input transition-blob.json \
+            --github-blob \
+            --expected-digest "${TRANSITION_DIGEST}" \
+            --output transition-receipt.json
+
       - name: Verify receipt identity and branch policy result
         env:
           RECEIPT_RUN_ID: ${{ steps.receipt.outputs.run_id }}
+          RECEIPT_RUN_ATTEMPT: ${{ steps.receipt.outputs.run_attempt }}
+          TRANSITION_DIGEST: ${{ steps.receipt.outputs.transition_digest }}
+          SOURCE_BRANCH: ${{ steps.receipt.outputs.source_branch }}
         run: |
           set -euo pipefail
           candidate_dir="$(cat candidate-dir.txt)"
-          python3 "$GITHUB_WORKSPACE/scripts/gitops/gate_receipt.py" verify \
+          # Direct-head Full receipt checks remain fail-closed via coordinator.receipts /
+          # gate_receipt.py identity. Commit-changing protected reuse requires
+          # promotion_receipt_gate.py --transition-receipt from a trusted git-ref blob.
+          python3 "$GITHUB_WORKSPACE/scripts/gitops/promotion_receipt_gate.py" verify \
             --receipt receipt-artifact/full-suite-receipt.json \
             --repo "${candidate_dir}" \
             --profile full \
             --workflow-run-id "${RECEIPT_RUN_ID}" \
+            --workflow-run-attempt "${RECEIPT_RUN_ATTEMPT}" \
+            --transition-receipt transition-receipt.json \
+            --expected-transition-digest "${TRANSITION_DIGEST}" \
+            --source-branch "${SOURCE_BRANCH}" \
             --gate full-gate
-          echo "Linktrend Receipt Gate passed: exact tree/dependency/profile/workflow identity reused; no full suite rerun."
+          echo "Linktrend Receipt Gate passed: exact tree/dependency/profile/workflow identity reused with canonical transition receipt; no full suite rerun."

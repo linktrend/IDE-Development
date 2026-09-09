@@ -8,6 +8,8 @@ from pathlib import Path
 
 from scripts.gitops.coordinator import receipts
 from scripts.gitops.promotion_receipt_gate import (
+    ReceiptError,
+    bind_authenticated_transition_evidence,
     canonical_digest,
     evaluate_automatic_main,
     evaluate_development_gates,
@@ -206,6 +208,177 @@ class PromotionReceiptGateTests(unittest.TestCase):
         self.assertEqual(automatic.promotion_commit, self.identity.head_commit)
         self.assertEqual(automatic.to_dict()["status"], "PASS")
         self.assertIn("receiptLookupKey", automatic.to_dict())
+
+    def test_protected_merge_reuses_full_receipt_only_with_canonical_transition(self) -> None:
+        old_commit = self.identity.head_commit
+        git(self.repo, "commit", "--allow-empty", "-qm", "protected merge")
+        new_commit = git(self.repo, "rev-parse", "HEAD")
+        self.assertNotEqual(old_commit, new_commit)
+        self.assertEqual(
+            verify_receipt_file(self.receipt, repo_path=self.repo, dependencies=["deps.lock"]).code,
+            "head_mismatch",
+        )
+        transition = receipts.create_transition_receipt(
+            json.loads(self.receipt.read_text(encoding="utf-8")),
+            target_branch="development",
+            target_commit=new_commit,
+            target_tree=self.identity.git_tree,
+        )
+        transition_path = self.root / "transition.json"
+        transition_path.write_text(json.dumps(transition.to_dict()), encoding="utf-8")
+        accepted = verify_receipt_file(
+            self.receipt,
+            repo_path=self.repo,
+            dependencies=["deps.lock"],
+            transition_receipt_path=transition_path,
+            expected_transition_digest=transition.receipt_digest,
+            source_branch="development",
+            workflow_run_id=301,
+            workflow_run_attempt=1,
+        )
+        self.assertTrue(accepted.accepted, accepted.detail)
+        self.assertEqual(accepted.promotion_commit, new_commit)
+
+        forged = dict(transition.to_dict(), receiptDigest="sha256:" + ("a" * 64))
+        forged_path = self.root / "forged.json"
+        forged_path.write_text(json.dumps(forged), encoding="utf-8")
+        self.assertEqual(
+            verify_receipt_file(
+                self.receipt,
+                repo_path=self.repo,
+                dependencies=["deps.lock"],
+                transition_receipt_path=forged_path,
+                expected_transition_digest=transition.receipt_digest,
+                source_branch="development",
+            ).code,
+            "transition_digest_mismatch",
+        )
+        self.assertEqual(
+            verify_receipt_file(
+                self.receipt,
+                repo_path=self.repo,
+                dependencies=["deps.lock"],
+                expected_transition_digest=transition.receipt_digest,
+                source_branch="development",
+            ).code,
+            "transition_invalid",
+        )
+
+        completed = subprocess.run(
+            [
+                "python3",
+                str(Path(__file__).resolve().parents[1] / "gitops" / "promotion_receipt_gate.py"),
+                "verify",
+                "--receipt",
+                str(self.receipt),
+                "--repo",
+                str(self.repo),
+                "--dependency",
+                "deps.lock",
+                "--transition-receipt",
+                str(transition_path),
+                "--expected-transition-digest",
+                transition.receipt_digest,
+                "--source-branch",
+                "development",
+                "--workflow-run-id",
+                "301",
+                "--workflow-run-attempt",
+                "1",
+                "--gate",
+                "full-gate",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        payload = json.loads(completed.stdout)
+        self.assertTrue(payload["accepted"])
+
+    def test_authenticated_transition_channel_rejects_adversarial_evidence(self) -> None:
+        transition = receipts.create_transition_receipt(
+            json.loads(self.receipt.read_text(encoding="utf-8")),
+            target_branch="development",
+            target_commit=self.identity.head_commit,
+            target_tree=self.identity.git_tree,
+        )
+        digest = transition.receipt_digest
+        ref = receipts.transition_git_ref(digest)
+        good = {
+            "channel": "github.git.ref",
+            "repository": self.identity.repository,
+            "ref": ref,
+            "objectType": "blob",
+            "expired": False,
+            "payload": transition.to_dict(),
+        }
+        loaded = bind_authenticated_transition_evidence(
+            good,
+            expected_digest=digest,
+            expected_repository=self.identity.repository,
+            expected_commit=self.identity.head_commit,
+            expected_target_branch="development",
+        )
+        self.assertEqual(loaded["receiptDigest"], digest)
+
+        with self.assertRaises(ReceiptError) as missing:
+            bind_authenticated_transition_evidence(
+                {"channel": "github.git.ref", "candidates": []},
+                expected_digest=digest,
+                expected_repository=self.identity.repository,
+            )
+        self.assertEqual(missing.exception.code, "transition_invalid")
+
+        with self.assertRaises(ReceiptError) as expired:
+            bind_authenticated_transition_evidence(
+                dict(good, expired=True),
+                expected_digest=digest,
+                expected_repository=self.identity.repository,
+            )
+        self.assertEqual(expired.exception.code, "transition_expired")
+
+        with self.assertRaises(ReceiptError) as ambiguous:
+            bind_authenticated_transition_evidence(
+                {"channel": "github.git.ref", "candidates": [good, dict(good)]},
+                expected_digest=digest,
+                expected_repository=self.identity.repository,
+            )
+        self.assertEqual(ambiguous.exception.code, "transition_ambiguous")
+
+        with self.assertRaises(ReceiptError) as wrong_repo:
+            bind_authenticated_transition_evidence(
+                dict(good, repository="evil/fork"),
+                expected_digest=digest,
+                expected_repository=self.identity.repository,
+            )
+        self.assertEqual(wrong_repo.exception.code, "transition_identity_mismatch")
+
+        with self.assertRaises(ReceiptError) as forged:
+            bind_authenticated_transition_evidence(
+                dict(good, payload=dict(transition.to_dict(), targetCommit="a" * 40)),
+                expected_digest=digest,
+                expected_repository=self.identity.repository,
+            )
+        self.assertEqual(forged.exception.code, "transition_digest_mismatch")
+
+        raced = subprocess.run(
+            [
+                "python3",
+                str(Path(__file__).resolve().parents[1] / "gitops" / "promotion_receipt_gate.py"),
+                "bind-transition",
+                "--evidence",
+                str(self.root / "missing.json"),
+                "--expected-digest",
+                digest,
+                "--expected-repository",
+                self.identity.repository,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(raced.returncode, 0)
 
 
 if __name__ == "__main__":

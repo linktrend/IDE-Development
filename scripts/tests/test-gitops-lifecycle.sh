@@ -50,6 +50,25 @@ pass "No job-level env context in promote workflows"
 
 python3 - "$ROOT" <<'PY'
 from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+for rel in (
+    "core/github/managed-workflows/linktrend-development-to-staging.yml",
+    "core/github/managed-workflows/linktrend-staging-to-main.yml",
+    ".github/workflows/linktrend-development-to-staging.yml",
+    ".github/workflows/linktrend-staging-to-main.yml",
+):
+    text = (root / rel).read_text(encoding="utf-8")
+    assert "promotion_receipt_gate.py" in text, rel
+    assert "--transition-receipt" in text, rel
+    assert "git/refs/linktrend/transition-receipts/" in text, rel
+    assert "gate_receipt.py" in text, rel
+print("promotion workflows bind canonical transition receipts")
+PY
+pass "Promotion workflows bind canonical transition receipts"
+
+python3 - "$ROOT" <<'PY'
+from pathlib import Path
 import json, sys
 
 root = Path(sys.argv[1])

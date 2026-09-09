@@ -109,8 +109,14 @@ class GithubWorkflowContractTests(unittest.TestCase):
     def test_source_policy_and_checkouts_are_bounded(self) -> None:
         source = (LIVE / "branch-source-policy.yml").read_text(encoding="utf-8")
         self.assertIn("branches: [development]", source)
+        promotion = (
+            "linktrend-development-to-staging.yml",
+            "linktrend-staging-to-main.yml",
+            "branch-source-policy.yml",
+        )
         for directory in (LIVE, MANAGED):
-            for path in directory.glob("*.yml"):
+            for filename in promotion:
+                path = directory / filename
                 text = path.read_text(encoding="utf-8")
                 self.assertNotIn("fetch-depth: 0", text, path.name)
                 for line in text.splitlines():
@@ -123,6 +129,23 @@ class GithubWorkflowContractTests(unittest.TestCase):
             "needs: branch-source-policy",
             (MANAGED / "linktrend-development-to-staging.yml").read_text(),
         )
+
+    def test_promotion_receipt_gate_requires_authenticated_transition_receipt(self) -> None:
+        for filename in (
+            "linktrend-development-to-staging.yml",
+            "linktrend-staging-to-main.yml",
+        ):
+            for directory in (LIVE, MANAGED):
+                text = (directory / filename).read_text(encoding="utf-8")
+                self.assertIn("promotion_receipt_gate.py", text)
+                self.assertIn("--transition-receipt", text)
+                self.assertIn("git/refs/linktrend/transition-receipts/", text)
+                self.assertIn("EXPECTED_SOURCE_BRANCH", text)
+                self.assertIn("gate_receipt.py", text)
+                self.assertNotIn("github.event.pull_request.body", text)
+                self.assertIn("persist-credentials: false", text)
+                self.assertIn("pull_request_target:", text)
+                self.assertNotIn("workflow_dispatch:", text)
 
 
 if __name__ == "__main__":

@@ -73,6 +73,8 @@ REJECTION_CODES = frozenset(
         "transition_tree_mismatch",
         "transition_target_mismatch",
         "transition_run_mismatch",
+        "transition_expired",
+        "transition_ambiguous",
         "receipt_store_invalid",
     }
 )
@@ -623,6 +625,31 @@ def compute_transition_digest(receipt: TransitionReceipt | Mapping[str, Any]) ->
     return canonical_digest(parsed.to_dict(include_digest=False))
 
 
+TRANSITION_GIT_REF_PREFIX = "refs/linktrend/transition-receipts/"
+
+
+def transition_git_ref(digest: str) -> str:
+    """Return the immutable git-ref name that retains a transition receipt blob."""
+
+    value = _string(digest).strip().lower()
+    if not _is_digest(value):
+        raise ReceiptError("transition_digest_mismatch", "transition digest is invalid")
+    return f"{TRANSITION_GIT_REF_PREFIX}{value.replace(':', '-', 1)}"
+
+
+def load_verified_transition(payload: Any, expected_digest: str) -> dict[str, Any]:
+    """Parse transition JSON and require its canonical digest to equal the coordinate."""
+
+    expected = _string(expected_digest).strip().lower()
+    if not _is_digest(expected):
+        raise ReceiptError("transition_digest_mismatch", "expected transition digest is invalid")
+    parsed = TransitionReceipt.from_dict(payload)
+    computed = compute_transition_digest(parsed)
+    if parsed.receipt_digest != expected or computed != expected:
+        raise ReceiptError("transition_digest_mismatch", "transition receiptDigest does not match canonical bytes")
+    return parsed.to_dict()
+
+
 def create_transition_receipt(
     source_receipt: FullSuiteReceipt | Mapping[str, Any],
     *,
@@ -962,6 +989,7 @@ __all__ = [
     "GateReceipt",
     "TransitionReceipt",
     "RECOGNIZED_RUNNER_LABELS",
+    "TRANSITION_GIT_REF_PREFIX",
     "TRANSITION_RECEIPT_SCHEMA_VERSION",
     "ReceiptError",
     "ReceiptVerdict",
@@ -974,7 +1002,9 @@ __all__ = [
     "create_transition_receipt",
     "default_receipt_store_root",
     "load_json",
+    "load_verified_transition",
     "receipt_lookup_key",
+    "transition_git_ref",
     "store_receipt",
     "store_transition_receipt",
     "validate_receipt_store_root",

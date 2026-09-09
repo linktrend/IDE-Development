@@ -32,7 +32,9 @@ from coordinator.receipts import (  # noqa: E402
     compute_candidate_identity,
     compute_receipt_digest,
     load_json,
+    load_verified_transition,
     receipt_lookup_key,
+    transition_git_ref,
     verify_receipt,
 )
 
@@ -89,6 +91,63 @@ def canonical_digest(payload: Mapping[str, Any]) -> str:
     return receipt_canonical_digest(payload)
 
 
+def resolved_profile_files(repo: str | Path, explicit: Sequence[str] = ()) -> list[str]:
+    """Bind the same delivery-mode file the Full runner used."""
+
+    if explicit:
+        return [str(path) for path in explicit]
+    root = Path(repo)
+    for relative in (".github/linktrend-delivery-mode.json", ".ide-development/config/delivery.json"):
+        if (root / relative).is_file():
+            return [relative]
+    return []
+
+
+def bind_authenticated_transition_evidence(
+    evidence: Mapping[str, Any] | None,
+    *,
+    expected_digest: str,
+    expected_repository: str,
+    expected_commit: str | None = None,
+    expected_target_branch: str | None = None,
+) -> dict[str, Any]:
+    """Accept one immutable git-ref blob; fail closed on every other shape."""
+
+    if not isinstance(evidence, Mapping):
+        raise ReceiptError("transition_invalid", "transition evidence is missing")
+    if evidence.get("expired") is True:
+        raise ReceiptError("transition_expired", "transition evidence is expired")
+    if str(evidence.get("channel") or "") != "github.git.ref":
+        raise ReceiptError("transition_invalid", "transition evidence channel is not github.git.ref")
+    candidates = evidence.get("candidates", [evidence])
+    if not isinstance(candidates, list):
+        raise ReceiptError("transition_invalid", "transition evidence candidates are invalid")
+    if not candidates:
+        raise ReceiptError("transition_invalid", "transition evidence is missing")
+    if len(candidates) != 1:
+        raise ReceiptError("transition_ambiguous", "transition evidence is not unique")
+    row = candidates[0]
+    if not isinstance(row, Mapping):
+        raise ReceiptError("transition_invalid", "transition evidence is invalid")
+    if row.get("expired") is True:
+        raise ReceiptError("transition_expired", "transition evidence is expired")
+    if str(row.get("repository") or "") != expected_repository:
+        raise ReceiptError("transition_identity_mismatch", "transition evidence repository differs")
+    if str(row.get("objectType") or "") != "blob":
+        raise ReceiptError("transition_invalid", "transition evidence is not an immutable blob")
+    expected_ref = transition_git_ref(expected_digest)
+    if str(row.get("ref") or "") != expected_ref:
+        raise ReceiptError("transition_digest_mismatch", "transition git ref does not match digest")
+    loaded = load_verified_transition(row.get("payload"), expected_digest)
+    if str(loaded.get("repository") or "") != expected_repository:
+        raise ReceiptError("transition_identity_mismatch", "transition repository differs")
+    if expected_commit and str(loaded.get("targetCommit") or "") != expected_commit:
+        raise ReceiptError("transition_target_mismatch", "transition target commit differs")
+    if expected_target_branch and str(loaded.get("targetBranch") or "") != expected_target_branch:
+        raise ReceiptError("transition_target_mismatch", "transition target branch differs")
+    return loaded
+
+
 def verify_receipt_payload(
     receipt: Mapping[str, Any],
     candidate_identity: Mapping[str, Any] | CandidateIdentity,
@@ -137,9 +196,19 @@ def verify_receipt_file(
     expected_workflow_digest: str | None = None,
     expected_evidence_digests: Mapping[str, str] | None = None,
     transition_receipt_path: str | Path | None = None,
+    expected_transition_digest: str | None = None,
+    source_branch: str | None = None,
 ) -> Decision:
     try:
         receipt = load_json(receipt_path)
+        transition_receipt = None
+        if transition_receipt_path is not None:
+            transition_receipt = load_verified_transition(
+                load_json(transition_receipt_path),
+                expected_transition_digest or "",
+            ) if expected_transition_digest else load_json(transition_receipt_path)
+        elif expected_transition_digest:
+            return Decision(False, "transition_invalid", "canonical transition receipt is missing")
         if identity_path is not None:
             identity = load_json(identity_path)
         elif repo_path is not None:
@@ -147,8 +216,9 @@ def verify_receipt_file(
                 repo_path,
                 dependencies,
                 profile,
-                profile_files=profile_files,
+                profile_files=resolved_profile_files(repo_path, profile_files),
                 workflow_files=workflow_files,
+                source_branch=source_branch,
             )
         else:
             return Decision(False, "identity_missing", "candidate identity or checkout is required")
@@ -156,7 +226,7 @@ def verify_receipt_file(
             receipt,
             identity,
             required_gate,
-            transition_receipt=load_json(transition_receipt_path) if transition_receipt_path is not None else None,
+            transition_receipt=transition_receipt,
             workflow_run_id=workflow_run_id,
             workflow_run_attempt=workflow_run_attempt,
             workflow_head_commit=workflow_head_commit,
@@ -361,7 +431,23 @@ def main(argv: list[str] | None = None) -> int:
     verify.add_argument("--command-digest")
     verify.add_argument("--expected-workflow-digest")
     verify.add_argument("--transition-receipt", type=Path)
+    verify.add_argument("--expected-transition-digest")
+    verify.add_argument("--source-branch")
     verify.add_argument("--gate", required=True)
+
+    bind_transition = commands.add_parser("bind-transition")
+    bind_transition.add_argument("--evidence", required=True, type=Path)
+    bind_transition.add_argument("--expected-digest", required=True)
+    bind_transition.add_argument("--expected-repository", required=True)
+    bind_transition.add_argument("--expected-commit")
+    bind_transition.add_argument("--expected-target-branch")
+    bind_transition.add_argument("--output", type=Path)
+
+    load_transition = commands.add_parser("load-transition")
+    load_transition.add_argument("--input", required=True, type=Path)
+    load_transition.add_argument("--expected-digest", required=True)
+    load_transition.add_argument("--github-blob", action="store_true")
+    load_transition.add_argument("--output", required=True, type=Path)
 
     development = commands.add_parser("development")
     development.add_argument("--input", required=True, type=Path)
@@ -381,6 +467,42 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     try:
+        if args.command == "load-transition":
+            payload = load_json(args.input)
+            if args.github_blob:
+                if not isinstance(payload, Mapping):
+                    raise ReceiptError("transition_invalid", "GitHub blob payload is invalid")
+                if payload.get("truncated") is True:
+                    raise ReceiptError("transition_invalid", "GitHub blob payload is truncated")
+                encoding = str(payload.get("encoding") or "").strip().lower()
+                content = payload.get("content")
+                if not isinstance(content, str) or not content:
+                    raise ReceiptError("transition_invalid", "GitHub blob content is missing")
+                if encoding == "base64":
+                    import base64
+
+                    raw = base64.b64decode(content, validate=False)
+                    payload = json.loads(raw.decode("utf-8"))
+                elif encoding in {"utf-8", "utf8"}:
+                    payload = json.loads(content)
+                else:
+                    raise ReceiptError("transition_invalid", "GitHub blob encoding is unsupported")
+            loaded = load_verified_transition(payload, args.expected_digest)
+            args.output.write_text(json.dumps(loaded, sort_keys=True) + "\n", encoding="utf-8")
+            _print({"accepted": True, "code": "accepted", "receiptDigest": loaded["receiptDigest"]})
+            return 0
+        if args.command == "bind-transition":
+            loaded = bind_authenticated_transition_evidence(
+                load_json(args.evidence),
+                expected_digest=args.expected_digest,
+                expected_repository=args.expected_repository,
+                expected_commit=args.expected_commit,
+                expected_target_branch=args.expected_target_branch,
+            )
+            if args.output is not None:
+                args.output.write_text(json.dumps(loaded, sort_keys=True) + "\n", encoding="utf-8")
+            _print({"accepted": True, "code": "accepted", "receiptDigest": loaded["receiptDigest"]})
+            return 0
         if args.command == "verify":
             decision = verify_receipt_file(
                 args.receipt, identity_path=args.identity, repo_path=args.repo,
@@ -396,6 +518,8 @@ def main(argv: list[str] | None = None) -> int:
                 expected_command_digest=args.command_digest,
                 expected_workflow_digest=args.expected_workflow_digest,
                 transition_receipt_path=args.transition_receipt,
+                expected_transition_digest=args.expected_transition_digest,
+                source_branch=args.source_branch,
             )
         elif args.command == "development":
             decision = evaluate_development_gates(load_json(args.input), args.head_sha)
@@ -410,6 +534,8 @@ def main(argv: list[str] | None = None) -> int:
             cancelled = cancel_obsolete(args.repository, args.branch, args.live_sha)
             _print({"accepted": True, "code": "cancel_requested", "cancelled": cancelled})
             return 0
+    except ReceiptError as exc:
+        decision = Decision(False, exc.code, str(exc))
     except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
         decision = Decision(False, "blocked", str(exc))
     _print(decision.to_dict())

@@ -85,6 +85,9 @@ if grep -nE 'push origin HEAD:(staging|main)' scripts/gitops/promote_*.sh "$STG"
   fail "direct push remains"
 fi
 grep -q 'Linktrend Receipt Gate' "$STG" || fail "staging receipt gate missing"
+grep -q 'promotion_receipt_gate.py' "$STG" || fail "staging must verify via promotion_receipt_gate"
+grep -q 'promotion_receipt_gate.py' "$MAIN" || fail "main must verify via promotion_receipt_gate"
+grep -q 'git/refs/linktrend/transition-receipts/' "$STG" || fail "staging must fetch git-ref transition"
 pass "No direct push; receipt-gated promotion"
 
 # ---- Trust boundary: write-capable workflows ----

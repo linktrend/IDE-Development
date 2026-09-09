@@ -39,9 +39,12 @@ try:
         verify_receipt_payload,
     )
     from scripts.gitops.coordinator.receipts import (
+        canonical_json_bytes,
         compute_receipt_digest,
         compute_transition_digest,
         create_transition_receipt,
+        load_verified_transition,
+        transition_git_ref,
     )
     from scripts.gitops.github_auth import GitHubAuthError, resolve_phase_api_token
     from scripts.gitops.administrator_recovery import MemoryProtection, recover_phase_merge
@@ -54,7 +57,14 @@ except ModuleNotFoundError:  # pragma: no cover - script-style execution
         evaluate_release_path,
         verify_receipt_payload,
     )
-    from coordinator.receipts import compute_receipt_digest, compute_transition_digest, create_transition_receipt  # type: ignore
+    from coordinator.receipts import (  # type: ignore
+        canonical_json_bytes,
+        compute_receipt_digest,
+        compute_transition_digest,
+        create_transition_receipt,
+        load_verified_transition,
+        transition_git_ref,
+    )
     from github_auth import GitHubAuthError, resolve_phase_api_token  # type: ignore
     from administrator_recovery import MemoryProtection, recover_phase_merge  # type: ignore
 
@@ -228,6 +238,9 @@ class GitHubPort(Protocol):
     def push_protected(self, *, repository: str, branch: str, sha: str) -> None:
         ...
 
+    def publish_transition_receipt(self, *, repository: str, transition: Mapping[str, Any]) -> str:
+        ...
+
 
 @dataclass
 class MemoryGitHub:
@@ -240,6 +253,7 @@ class MemoryGitHub:
     deleted_refs: list[str] = field(default_factory=list)
     protected_push_attempts: list[dict[str, str]] = field(default_factory=list)
     merge_rejections: dict[int, str] = field(default_factory=dict)
+    transition_refs: dict[str, dict[str, Any]] = field(default_factory=dict)
     next_number: int = 1
     require_admin_bypass: bool = False
 
@@ -344,6 +358,17 @@ class MemoryGitHub:
             {"repository": repository, "branch": branch, "sha": normalize_sha(sha)}
         )
         raise ControllerError("direct_push_forbidden", branch)
+
+    def publish_transition_receipt(self, *, repository: str, transition: Mapping[str, Any]) -> str:
+        if repository != self.repository:
+            raise ControllerError("wrong_repository", repository)
+        loaded = load_verified_transition(transition, str(transition.get("receiptDigest") or ""))
+        ref = transition_git_ref(str(loaded["receiptDigest"]))
+        existing = self.transition_refs.get(ref)
+        if existing is not None and existing != loaded:
+            raise ControllerError("transition_receipt_raced", ref)
+        self.transition_refs[ref] = loaded
+        return ref
 
 
 def _github_api(
@@ -603,6 +628,79 @@ class LiveGitHub:
 
     def push_protected(self, *, repository: str, branch: str, sha: str) -> None:
         raise ControllerError("direct_push_forbidden", branch)
+
+    def publish_transition_receipt(self, *, repository: str, transition: Mapping[str, Any]) -> str:
+        if repository != self.repository:
+            raise ControllerError("wrong_repository", repository)
+        loaded = load_verified_transition(transition, str(transition.get("receiptDigest") or ""))
+        ref = transition_git_ref(str(loaded["receiptDigest"]))
+        blob_api = f"https://api.github.com/repos/{repository}/git/blobs"
+        ref_api = f"https://api.github.com/repos/{repository}/git/refs/{ref.removeprefix('refs/')}"
+        canonical = canonical_json_bytes(loaded).decode("utf-8")
+        try:
+            existing = self._request("GET", ref_api)
+        except ControllerError as exc:
+            if "404" not in exc.detail and "not found" not in exc.detail.lower():
+                raise
+            existing = None
+        if isinstance(existing, Mapping):
+            obj = existing.get("object") if isinstance(existing.get("object"), Mapping) else {}
+            if str(obj.get("type") or "") != "blob":
+                raise ControllerError("transition_receipt_raced", ref)
+            blob = self._request("GET", f"https://api.github.com/repos/{repository}/git/blobs/{obj.get('sha')}")
+            if not isinstance(blob, Mapping) or blob.get("truncated") is True:
+                raise ControllerError("transition_receipt_failed", "existing transition blob is unreadable")
+            encoding = str(blob.get("encoding") or "").strip().lower()
+            content = blob.get("content")
+            if not isinstance(content, str):
+                raise ControllerError("transition_receipt_failed", "existing transition blob is empty")
+            if encoding == "base64":
+                import base64
+
+                observed = base64.b64decode(content, validate=False).decode("utf-8")
+            else:
+                observed = content
+            if observed != canonical:
+                raise ControllerError("transition_receipt_raced", ref)
+            return ref
+        created = self._request("POST", blob_api, {"content": canonical, "encoding": "utf-8"})
+        if not isinstance(created, Mapping) or not created.get("sha"):
+            raise ControllerError("transition_receipt_failed", "GitHub did not retain the transition blob")
+        self._request(
+            "POST",
+            f"https://api.github.com/repos/{repository}/git/refs",
+            {"ref": ref, "sha": str(created["sha"])},
+        )
+        verified = self._request("GET", ref_api)
+        if not isinstance(verified, Mapping):
+            raise ControllerError("transition_receipt_failed", "transition git ref missing after write")
+        return ref
+
+
+def _receipt_head_commit(receipt: Mapping[str, Any]) -> str:
+    identity = receipt.get("candidateIdentity") if isinstance(receipt.get("candidateIdentity"), Mapping) else {}
+    return normalize_sha(str(identity.get("headCommit") or ""))
+
+
+def _require_transition_for_changed_head(
+    receipt: Mapping[str, Any],
+    candidate_sha: str,
+    transition_receipt: Mapping[str, Any] | None,
+) -> None:
+    if _receipt_head_commit(receipt) == normalize_sha(candidate_sha):
+        return
+    if transition_receipt is None:
+        raise ControllerError(
+            "transition_receipt_missing",
+            "protected merge changed commit identity; canonical transition receipt is required",
+        )
+
+
+def _publish_transition(github: GitHubPort, repository: str, transition: Mapping[str, Any]) -> str:
+    publisher = getattr(github, "publish_transition_receipt", None)
+    if publisher is None:
+        raise ControllerError("transition_receipt_failed", "GitHub adapter cannot retain a canonical transition receipt")
+    return str(publisher(repository=repository, transition=transition))
 
 
 def resolve_production_github(repository: str) -> LiveGitHub:
@@ -909,6 +1007,7 @@ def merge_to_development(
         result["gitTree"] = target_tree
         result["transitionReceipt"] = transition
         result["transitionReceiptDigest"] = transition["receiptDigest"]
+        result["transitionReceiptRef"] = _publish_transition(github, repository, transition)
     return result
 
 
@@ -939,6 +1038,7 @@ def promote_to_staging(
     )
     if full_suite_invoked or bool(release_gate.get("fullSuiteInvoked")):
         raise ControllerError("full_suite_reentered", "staging must reuse the matching receipt")
+    _require_transition_for_changed_head(receipt, candidate_sha, transition_receipt)
     release = evaluate_release_path({**dict(release_gate), "fullSuiteInvoked": False})
     if not release.accepted:
         raise ControllerError(release.code, release.detail)
@@ -1014,6 +1114,7 @@ def promote_to_staging(
         "receiptReused": True,
         "transitionReceipt": protected_transition,
         "transitionReceiptDigest": protected_transition["receiptDigest"],
+        "transitionReceiptRef": _publish_transition(github, repository, protected_transition),
         "component": COMPONENT_KIND,
     }
     return result
@@ -1042,6 +1143,7 @@ def prepare_main_promotion(
         candidate_sha=candidate_sha,
         source_sha=staging_sha,
     )
+    _require_transition_for_changed_head(receipt, candidate_sha, transition_receipt)
     release = evaluate_release_path({**dict(release_gate), "fullSuiteInvoked": False})
     if not release.accepted:
         raise ControllerError(release.code, release.detail)

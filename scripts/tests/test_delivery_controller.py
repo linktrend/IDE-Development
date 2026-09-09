@@ -301,6 +301,45 @@ class DeliveryControllerTests(unittest.TestCase):
                 full_suite_invoked=True,
             )
 
+    def test_changed_head_without_transition_receipt_is_rejected(self) -> None:
+        changed = _sha(44)
+        identity = dict(self.identity, sourceBranch="development", headCommit=changed)
+        with self.assertRaisesRegex(controller.ControllerError, "transition_receipt_missing"):
+            controller.promote_to_staging(
+                github=self.github,
+                repository="owner/name",
+                development_sha=changed,
+                staging_sha=_sha(7),
+                candidate_sha=changed,
+                candidate_tree=self.tree,
+                receipt=self.receipt,
+                candidate_identity=identity,
+                release_gate={"status": "passed", "testProfile": "release"},
+                role="operator",
+            )
+        with self.assertRaisesRegex(controller.ControllerError, "transition_receipt_missing"):
+            controller.prepare_main_promotion(
+                github=self.github,
+                repository="owner/name",
+                staging_sha=changed,
+                main_sha=_sha(6),
+                candidate_sha=changed,
+                receipt=self.receipt,
+                candidate_identity=identity,
+                release_gate={"status": "passed", "testProfile": "release"},
+                role="operator",
+            )
+
+    def test_protected_merge_publishes_canonical_transition_git_ref(self) -> None:
+        result = self._deliver()
+        digest = result["transitionReceiptDigest"]
+        ref = result["transitionReceiptRef"]
+        self.assertEqual(ref, receipts.transition_git_ref(digest))
+        stored = self.github.transition_refs[ref]
+        self.assertEqual(stored["targetCommit"], result["mergeCommitSha"])
+        self.assertEqual(stored["targetTree"], self.tree)
+        self.assertEqual(stored["sourceReceiptDigest"], self.receipt["receiptDigest"])
+
     def test_staged_rollout_uses_configured_stage_names_on_critical_path(self) -> None:
         rollout = controller.StagedRolloutConfig.from_mapping(
             {
