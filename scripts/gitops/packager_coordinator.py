@@ -757,7 +757,9 @@ def _unique_phase_commits(
     return unique
 
 
-def _phase_record_sources(previous: Mapping[str, Any], *, phase_branch: str) -> list[AcceptedSource]:
+def _phase_record_sources(
+    previous: Mapping[str, Any], *, repository: str, phase_branch: str
+) -> list[AcceptedSource]:
     """Parse the exact accepted mapping retained for an existing Phase.
 
     The record is an identity witness, not ownership proof. Its mapping is
@@ -766,15 +768,21 @@ def _phase_record_sources(previous: Mapping[str, Any], *, phase_branch: str) -> 
     graph can be considered.
     """
 
+    expected_phase_id = phase_branch.split("/", 1)[-1]
     if (
         previous.get("schemaVersion") != 1
         or previous.get("kind") != "phase-record"
         or previous.get("deliveryMode") != MODE_PHASE_INTEGRATION
         or previous.get("component") != COMPONENT_KIND
+        or previous.get("repository") != repository
+        or previous.get("phaseId") != expected_phase_id
         or previous.get("phaseBranch") != phase_branch
         or previous.get("sealed") is not False
     ):
-        raise CoordinatorError("invalid_phase_record", "retained Phase record is not an unsealed coordinator record")
+        raise CoordinatorError(
+            "invalid_phase_record",
+            "retained Phase repository/phase identity is missing or mismatched",
+        )
 
     rows = previous.get("acceptedCommits")
     issues = previous.get("acceptedIssues")
@@ -890,7 +898,9 @@ def _validate_existing_phase_record(
     if normalize_sha(str(previous.get("gitTree") or "")) != expected_tree:
         raise CoordinatorError("invalid_phase_record", "retained Phase tree does not match live ref")
 
-    retained_sources = _phase_record_sources(previous, phase_branch=phase_branch)
+    retained_sources = _phase_record_sources(
+        previous, repository=repository, phase_branch=phase_branch
+    )
     expected_revision = _candidate_revision(repository, phase_branch, development_sha, retained_sources)
     if str(previous.get("candidateRevision") or "") != expected_revision:
         raise CoordinatorError("invalid_phase_record", "retained Phase revision does not match accepted mapping")

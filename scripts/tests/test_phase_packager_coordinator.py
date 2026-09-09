@@ -323,6 +323,36 @@ class PhasePackagerCoordinatorTests(unittest.TestCase):
             self.fx.assemble([successor])
         self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
 
+    def test_reconciliation_rejects_retained_repository_and_phase_identity_tamper_without_push(self) -> None:
+        first = self.fx.accept_issue_history(43, "record-identity.txt", ["one\n", "two\n", "three\n"])
+        created = self.fx.assemble([first])
+        successor = self.fx.advance_issue(first, "record-identity.txt", "four\n")
+        path, baseline = self.fx.phase_record(created)
+        self.assertEqual(baseline["repository"], "owner/name")
+        self.assertEqual(baseline["phaseBranch"], "phase/next")
+        self.assertEqual(baseline["phaseId"], "next")
+
+        cases = (
+            ("repository tamper", {"repository": "other/name"}, ()),
+            ("repository missing", {}, ("repository",)),
+            ("phaseId tamper", {"phaseId": "other"}, ()),
+            ("phaseId missing", {}, ("phaseId",)),
+            ("phaseBranch tamper", {"phaseBranch": "phase/other"}, ()),
+            ("phaseBranch missing", {}, ("phaseBranch",)),
+        )
+        for label, updates, removals in cases:
+            with self.subTest(label=label):
+                record = dict(baseline)
+                record.update(updates)
+                for key in removals:
+                    record.pop(key, None)
+                write(path, json.dumps(record, indent=2) + "\n")
+                before = remote_sha(self.fx.work, "phase/next")
+                with self.assertRaises(coordinator.CoordinatorError) as raised:
+                    self.fx.assemble([successor])
+                self.assertIn(raised.exception.code, {"invalid_phase_record", "duplicate_active_phase"})
+                self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+
     def test_reconciliation_rejects_duplicate_live_phase_pr_before_push(self) -> None:
         first = self.fx.accept_issue_history(42, "duplicate-pr.txt", ["one\n", "two\n", "three\n"])
         created = self.fx.assemble([first])
