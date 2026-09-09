@@ -95,6 +95,7 @@ PROTECTED_BRANCHES = frozenset({"development", "staging", "main"})
 ISSUE_BRANCH_RE = re.compile(r"^issue/([1-9][0-9]{0,8})-[a-z0-9]+(?:-[a-z0-9]+)*$")
 ACCEPT_RE = re.compile(r"^([^@=]+)[@=]([0-9a-fA-F]{40})$")
 LIVE_PR_URL_RE = re.compile(r"^https://github\.com/[^/]+/[^/]+/pull/[1-9][0-9]*$")
+REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 AGENT_ENV_KEYS = (
     "CURSOR_AGENT",
     "CODEX_HOME",
@@ -199,7 +200,7 @@ class MemoryGitHub:
             return dict(existing)
         pr = {
             "number": self.next_number,
-            "url": f"https://example.invalid/{repository}/pull/{self.next_number}",
+            "url": f"https://github.com/{repository}/pull/{self.next_number}",
             "isDraft": True,
             "head": head,
             "base": base,
@@ -486,6 +487,86 @@ def _git(repo: Path, *args: str, check: bool = True) -> str:
         detail = (result.stderr or result.stdout or "git command failed").strip()
         raise CoordinatorError("git_failed", detail[:400])
     return (result.stdout or "").strip()
+
+
+def _normalize_repository(value: str) -> str:
+    """Validate the exact owner/repository identity used by GitHub APIs."""
+
+    if not isinstance(value, str) or value != value.strip() or not REPOSITORY_RE.fullmatch(value):
+        raise CoordinatorError("invalid_repository", "repository must be the exact GitHub owner/name identity")
+    owner, name = value.split("/", 1)
+    if owner in {".", ".."} or name in {".", ".."}:
+        raise CoordinatorError("invalid_repository", "repository path segments are ambiguous")
+    return value
+
+
+def _repository_from_remote_url(value: str) -> str | None:
+    """Return a GitHub owner/name only for an unambiguous documented remote."""
+
+    if not isinstance(value, str):
+        return None
+    raw = value.strip()
+    if raw != value or not raw:
+        return None
+    scp = re.fullmatch(r"[A-Za-z0-9._-]+@github\.com:(.+)", raw)
+    if scp:
+        owner_repo = scp.group(1)
+    else:
+        try:
+            parsed = urllib.parse.urlsplit(raw)
+            port = parsed.port
+        except ValueError:
+            return None
+        if parsed.scheme not in {"https", "ssh"} or parsed.query or parsed.fragment or parsed.password is not None:
+            return None
+        if parsed.scheme == "https":
+            if parsed.netloc not in {"github.com", "github.com:443"} or parsed.username is not None:
+                return None
+        else:
+            if (
+                not re.fullmatch(r"[A-Za-z0-9._-]+@github\.com(?::22)?", parsed.netloc)
+                or parsed.username is None
+                or not re.fullmatch(r"[A-Za-z0-9._-]+", parsed.username)
+                or port not in {None, 22}
+            ):
+                return None
+        owner_repo = parsed.path.lstrip("/")
+    if owner_repo.endswith(".git"):
+        owner_repo = owner_repo[:-4]
+    if owner_repo.count("/") != 1 or not REPOSITORY_RE.fullmatch(owner_repo):
+        return None
+    return owner_repo
+
+
+def _validate_local_remote_repository(repo: Path, remote: str, repository: str) -> str:
+    """Bind API identity to the exact remote used for push and readback."""
+
+    expected = _normalize_repository(repository)
+    if not isinstance(remote, str) or not re.fullmatch(r"[A-Za-z0-9._-]+", remote):
+        raise CoordinatorError("invalid_remote", "remote name is malformed")
+    configured: dict[str, str] = {}
+    for role, config_key in (
+        ("push", f"remote.{remote}.pushurl"),
+        ("readback", f"remote.{remote}.url"),
+    ):
+        raw = _git(repo, "config", "--get-all", config_key, check=False)
+        if role == "push" and not raw:
+            raw = _git(repo, "config", "--get-all", f"remote.{remote}.url", check=False)
+        urls = [line.strip() for line in raw.splitlines() if line.strip()]
+        if len(urls) != 1:
+            raise CoordinatorError("invalid_remote", f"origin {role} URL is missing or ambiguous")
+        identity = _repository_from_remote_url(urls[0])
+        if identity is None:
+            raise CoordinatorError("invalid_remote", f"origin {role} URL is not an unambiguous GitHub remote")
+        configured[role] = identity
+    if configured["push"] != configured["readback"]:
+        raise CoordinatorError("remote_repository_mismatch", "push and readback remotes identify different repositories")
+    if configured["push"] != expected:
+        raise CoordinatorError(
+            "wrong_repository",
+            f"local remote={configured['push']}:requested={expected}",
+        )
+    return configured["push"]
 
 
 def parse_accept(raw: str, order: int) -> AcceptedSource:
@@ -833,8 +914,7 @@ def _phase_record_sources(
 
 
 def _phase_pr_url_matches_repository(url: str, repository: str, number: int) -> bool:
-    parsed = urllib.parse.urlparse(url)
-    return parsed.path.rstrip("/") == f"/{repository}/pull/{number}"
+    return url == f"https://github.com/{repository}/pull/{number}"
 
 
 def _assert_phase_pr_identity(
@@ -843,7 +923,7 @@ def _assert_phase_pr_identity(
     repository: str,
     phase_branch: str,
     base: str,
-    head: str,
+    head: str | None,
     retained: Mapping[str, Any] | None = None,
 ) -> None:
     """Require one exact draft PR identity; callers decide live URL policy."""
@@ -860,9 +940,10 @@ def _assert_phase_pr_identity(
         raise CoordinatorError("phase_pr_identity_mismatch", "Phase PR branch/base does not match the retained Phase")
     if pr.get("isDraft") is not True:
         raise CoordinatorError("phase_pr_not_draft", str(number))
-    reported_head = normalize_sha(str(pr.get("headSha") or ""))
-    if not is_valid_sha(reported_head) or reported_head != normalize_sha(head):
-        raise CoordinatorError("stale_phase_pr", f"pr_head={reported_head}:expected={normalize_sha(head)}")
+    if head is not None:
+        reported_head = normalize_sha(str(pr.get("headSha") or ""))
+        if not is_valid_sha(reported_head) or reported_head != normalize_sha(head):
+            raise CoordinatorError("stale_phase_pr", f"pr_head={reported_head}:expected={normalize_sha(head)}")
     if retained is not None and (
         retained.get("number") != number
         or str(retained.get("url") or "") != url
@@ -1224,6 +1305,7 @@ def assemble_phase(
 ) -> dict[str, Any]:
     """Create or update exactly one Phase branch and draft PR representation."""
 
+    _normalize_repository(repository)
     if expected_repository and expected_repository != repository:
         raise CoordinatorError("wrong_repository", f"expected={expected_repository}:got={repository}")
     if repository != getattr(github, "repository", repository):
@@ -1238,12 +1320,22 @@ def assemble_phase(
         raise CoordinatorError("invalid_phase_branch", phase_branch)
     if development in {"staging", "main"}:
         raise CoordinatorError("protected_base", development)
+    _validate_local_remote_repository(repo, remote, repository)
 
     seen_branches: set[str] = set()
     seen_numbers: set[str] = set()
     seen_shas: set[str] = set()
     ordered: list[AcceptedSource] = []
-    for source in sources:
+    for expected_order, source in enumerate(sources, start=1):
+        if (
+            not isinstance(source.order, int)
+            or isinstance(source.order, bool)
+            or source.order != expected_order
+        ):
+            raise CoordinatorError(
+                "invalid_source_order",
+                f"{source.branch}:order={source.order!r}:expected={expected_order}",
+            )
         issue = IssueTip(source.branch, source.sha, acceptance_sha=source.sha, live_sha=source.sha)
         number = issue.issue_number
         if source.branch in seen_branches or number in seen_numbers:
@@ -1370,6 +1462,25 @@ def assemble_phase(
     for source in ordered:
         if not _is_ancestor(repo, source.sha, head):
             raise CoordinatorError("unrelated_commits", source.branch)
+
+    # A pre-existing live PR is a mutable identity witness. Validate its
+    # canonical URL and repository/branch/base identity before moving a new
+    # Phase tip. Retained Phase records already perform this check while
+    # proving an existing Phase, but a live PR can exist before its ref does.
+    if not existing_phase:
+        preflight_prs = github.list_open_phase_prs(repository=repository, head=phase_branch, base=development)
+        if not isinstance(preflight_prs, list) or any(not isinstance(row, Mapping) for row in preflight_prs):
+            raise CoordinatorError("invalid_phase_pr", "Phase PR readback was malformed")
+        if len(preflight_prs) > 1:
+            raise CoordinatorError("duplicate_phase_pr", json.dumps([row.get("number") for row in preflight_prs]))
+        if preflight_prs:
+            _assert_phase_pr_identity(
+                preflight_prs[0],
+                repository=repository,
+                phase_branch=phase_branch,
+                base=development,
+                head=None,
+            )
 
     if remote_phase == head:
         verified = remote_phase

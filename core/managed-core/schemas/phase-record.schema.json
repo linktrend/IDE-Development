@@ -37,7 +37,7 @@
     "deliveryMode": { "type": "string", "const": "phase-integration" },
     "repository": { "type": "string", "pattern": "^[^/\\s]+/[^/\\s]+$" },
     "phaseId": { "type": "string", "minLength": 1 },
-    "phaseBranch": { "type": "string", "pattern": "^phase/[A-Za-z0-9._-]+$" },
+    "phaseBranch": { "type": "string", "pattern": "^phase/[a-z0-9]+(?:-[a-z0-9]+)*$" },
     "baseSha": { "$ref": "#/$defs/sha40" },
     "immutableBaseSha": { "$ref": "#/$defs/sha40" },
     "headSha": { "$ref": "#/$defs/sha40" },

@@ -37,7 +37,7 @@
     "schemaVersion": { "type": "integer", "const": 1 },
     "kind": { "type": "string", "const": "phase-handoff" },
     "repository": { "type": "string", "pattern": "^[^/\\s]+/[^/\\s]+$" },
-    "phaseBranch": { "type": "string", "pattern": "^phase/[A-Za-z0-9._-]+$" },
+    "phaseBranch": { "type": "string", "pattern": "^phase/[a-z0-9]+(?:-[a-z0-9]+)*$" },
     "phasePr": {
       "type": "object",
       "additionalProperties": true,

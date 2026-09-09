@@ -53,7 +53,8 @@ class Fixture:
         git(self.work, "init", "-q", "-b", "development")
         git(self.work, "config", "user.email", "packager@example.invalid")
         git(self.work, "config", "user.name", "Phase Packager tests")
-        git(self.work, "remote", "add", "origin", str(self.origin))
+        git(self.work, "remote", "add", "origin", "https://github.com/owner/name.git")
+        git(self.work, "config", "url." + self.origin.as_uri() + ".insteadOf", "https://github.com/owner/name.git")
         write(self.work / "base.txt", "base\n")
         git(self.work, "add", "base.txt")
         git(self.work, "commit", "-qm", "base")
@@ -434,6 +435,21 @@ class PhasePackagerCoordinatorTests(unittest.TestCase):
         with self.assertRaisesRegex(coordinator.CoordinatorError, "missing_commit"):
             self.fx.assemble([coordinator.AcceptedSource("issue/9-missing", "a" * 40, 1)])
 
+    def test_invalid_source_order_cannot_move_phase_ref(self) -> None:
+        ready = self.fx.accept_issue(10, "order.txt", "order\n")
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_source_order"):
+            coordinator.assemble_phase(
+                repo=self.fx.work,
+                repository="owner/name",
+                sources=[coordinator.AcceptedSource(ready.branch, ready.sha, 99)],
+                github=self.fx.github,
+                pusher=coordinator.GitPushAdapter(),
+                phase_branch="phase/next",
+                expected_repository="owner/name",
+            )
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+
         bare = self.fx.accept_issue(10, "noevidence.txt", "x\n", ready=False)
         with self.assertRaisesRegex(coordinator.CoordinatorError, "evidence_missing"):
             self.fx.assemble([bare])
@@ -713,6 +729,14 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
             self.fx.assemble([one], require_live_pr=True)
         self.assertEqual(remote_sha(self.fx.work, "phase/next"), "")
 
+    def test_malformed_phase_branch_cannot_move_any_phase_ref(self) -> None:
+        one = self.fx.accept_issue(27, "badbranch.txt", "badbranch\n")
+        for phase_branch in ("phase/", "phase/a/b", "phase/-", "phase/.", "phase/a..b", "phase/a~b"):
+            with self.subTest(phase_branch=phase_branch):
+                with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_phase_branch"):
+                    self.fx.assemble([one], phase_branch=phase_branch, require_evidence=False)
+                self.assertEqual(remote_sha(self.fx.work, phase_branch), "")
+
     def _live_transport(self, *, url: str, draft: bool, sha: str | None = None):
         created: dict[str, object] = {}
 
@@ -751,6 +775,105 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
                 require_live_pr=True,
                 require_evidence=False,
             )
+
+    def test_live_invalid_pr_url_is_rejected_before_successor_push(self) -> None:
+        first = self.fx.accept_issue_history(45, "live-identity.txt", ["one\n", "two\n", "three\n"])
+        created = self.fx.assemble([first])
+        successor = self.fx.advance_issue(first, "live-identity.txt", "four\n")
+        calls: list[str] = []
+
+        def transport(method: str, request_url: str, token: str, body):
+            calls.append(method)
+            if method == "GET" and "/pulls?" in request_url:
+                return [
+                    {
+                        "number": created["phasePr"]["number"],
+                        "html_url": "https://evil.example/owner/name/pull/1",
+                        "draft": True,
+                        "head": {"ref": "phase/next", "sha": created["headSha"]},
+                        "base": {"ref": "development"},
+                    }
+                ]
+            raise AssertionError(f"unexpected GitHub call {method} {request_url}")
+
+        live = coordinator.LiveGitHub(
+            repository="owner/name",
+            automation_token="ltfx.coordinator.auto_token.v1",
+            user_token="ltfx.coordinator.user_token.v1",
+            transport=transport,
+        )
+
+        class CountingPusher:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def push_phase_ref(self, *args, **kwargs):
+                self.calls += 1
+                return coordinator.GitPushAdapter().push_phase_ref(*args, **kwargs)
+
+        pusher = CountingPusher()
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "cross_repository_phase_pr"):
+            self.fx.assemble(
+                [successor],
+                github=live,
+                pusher=pusher,
+                require_live_pr=True,
+                require_evidence=False,
+            )
+        self.assertEqual(pusher.calls, 0)
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+        self.assertEqual(calls, ["GET"])
+
+    def test_local_origin_repository_mismatch_cannot_move_phase_ref(self) -> None:
+        one = self.fx.accept_issue(46, "remote-mismatch.txt", "remote mismatch\n")
+        git(self.fx.work, "remote", "set-url", "origin", "https://github.com/other/name.git")
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "wrong_repository"):
+            self.fx.assemble([one], require_evidence=False)
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+
+    def test_remote_identity_parser_rejects_ambiguous_github_forms(self) -> None:
+        valid = (
+            "https://github.com/owner/name.git",
+            "https://github.com:443/owner/name.git",
+            "ssh://git@github.com/owner/name.git",
+            "ssh://org-123@github.com:22/owner/name.git",
+            "git@github.com:owner/name.git",
+            "org-123@github.com:owner/name.git",
+        )
+        invalid = (
+            "https://user:secret@github.com/owner/name.git",
+            "https://github.com.evil/owner/name.git",
+            "https://GITHUB.com/owner/name.git",
+            "https://github.com/owner/name.git?x=1",
+            "https://github.com/owner/name.git/extra",
+            "ssh://git@github.com.evil/owner/name.git",
+            "git@github.com:owner/../name.git",
+            "file:///tmp/owner/name.git",
+        )
+        for url in valid:
+            with self.subTest(url=url):
+                self.assertEqual(coordinator._repository_from_remote_url(url), "owner/name")
+        for url in invalid:
+            with self.subTest(url=url):
+                self.assertIsNone(coordinator._repository_from_remote_url(url))
+
+    def test_phase_pr_url_identity_is_canonical_and_exact(self) -> None:
+        self.assertTrue(coordinator._phase_pr_url_matches_repository(
+            "https://github.com/owner/name/pull/7", "owner/name", 7
+        ))
+        for url in (
+            "https://evil.example/owner/name/pull/7",
+            "http://github.com/owner/name/pull/7",
+            "https://github.com/Owner/name/pull/7",
+            "https://github.com/owner/name/pull/8",
+            "https://github.com/owner/name/pull/7?x=1",
+            "https://github.com/owner/name/pull/7#fragment",
+            "https://github.com/owner/name/pull/7/",
+        ):
+            with self.subTest(url=url):
+                self.assertFalse(coordinator._phase_pr_url_matches_repository(url, "owner/name", 7))
 
     def test_live_github_rejects_non_draft_pr(self) -> None:
         ready = self.fx.accept_issue(29, "nondraft.txt", "nondraft\n")
