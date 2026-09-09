@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://linktrend.local/managed-core/phase-handoff.schema.json",
   "title": "Exact Phase handoff consumed by the delivery controller",
-  "description": "Update 2 consumes this identity without rediscovery. A later Phase head invalidates it.",
+  "description": "Update 2 consumes this identity without rediscovery. A later Phase head invalidates it. The schema accepts the safe configured prefix shape; the coordinator binds phaseBranch to the repository's exact phaseBranchPrefix and applies the strict lowercase slug suffix grammar.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -37,7 +37,7 @@
     "schemaVersion": { "type": "integer", "const": 1 },
     "kind": { "type": "string", "const": "phase-handoff" },
     "repository": { "type": "string", "pattern": "^[^/\\s]+/[^/\\s]+$" },
-    "phaseBranch": { "type": "string", "pattern": "^phase/[A-Za-z0-9._-]+$" },
+    "phaseBranch": { "type": "string", "pattern": "^[A-Za-z0-9._-]+/[a-z0-9]+(?:-[a-z0-9]+)*$" },
     "phasePr": {
       "type": "object",
       "additionalProperties": true,

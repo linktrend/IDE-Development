@@ -5,12 +5,14 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import io
+import inspect
 import json
 import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from jsonschema import Draft202012Validator, RefResolver
 
@@ -52,7 +54,8 @@ class Fixture:
         git(self.work, "init", "-q", "-b", "development")
         git(self.work, "config", "user.email", "packager@example.invalid")
         git(self.work, "config", "user.name", "Phase Packager tests")
-        git(self.work, "remote", "add", "origin", str(self.origin))
+        git(self.work, "remote", "add", "origin", "https://github.com/owner/name.git")
+        git(self.work, "config", "url." + self.origin.as_uri() + ".insteadOf", "https://github.com/owner/name.git")
         write(self.work / "base.txt", "base\n")
         git(self.work, "add", "base.txt")
         git(self.work, "commit", "-qm", "base")
@@ -80,18 +83,53 @@ class Fixture:
             self.github.evidence[sha] = {"schemaVersion": 1, "headSha": sha, "classification": "tests"}
         return source
 
+    def accept_issue_history(self, number: int, filename: str, contents: list[str]) -> coordinator.AcceptedSource:
+        branch = f"issue/{number}-{filename.split('.')[0]}"
+        git(self.work, "checkout", "-B", branch, "development")
+        for index, content in enumerate(contents, start=1):
+            write(self.work / filename, content)
+            git(self.work, "add", filename)
+            git(self.work, "commit", "-qm", f"issue {number} step {index}")
+        sha = git(self.work, "rev-parse", "HEAD")
+        git(self.work, "push", "-q", "-u", "origin", branch)
+        git(self.work, "checkout", "development")
+        source = coordinator.AcceptedSource(branch=branch, sha=sha, order=number)
+        self.github.ready_shas.add(sha)
+        self.github.evidence[sha] = {"schemaVersion": 1, "headSha": sha, "classification": "tests"}
+        return source
+
+    def advance_issue(self, source: coordinator.AcceptedSource, filename: str, content: str) -> coordinator.AcceptedSource:
+        git(self.work, "checkout", source.branch)
+        write(self.work / filename, content)
+        git(self.work, "add", filename)
+        git(self.work, "commit", "-qm", f"advance {source.branch}")
+        sha = git(self.work, "rev-parse", "HEAD")
+        git(self.work, "push", "-q", "origin", source.branch)
+        git(self.work, "checkout", "development")
+        successor = coordinator.AcceptedSource(branch=source.branch, sha=sha, order=source.order)
+        self.github.ready_shas.add(sha)
+        self.github.evidence[sha] = {"schemaVersion": 1, "headSha": sha, "classification": "tests"}
+        return successor
+
+    def phase_record(self, result: dict[str, object]) -> tuple[Path, dict[str, object]]:
+        state_dir = Path(str(result["stateDir"]))
+        path = state_dir / "phase-delivery-record.json"
+        return path, json.loads(path.read_text(encoding="utf-8"))
+
     def assemble(self, sources: list[coordinator.AcceptedSource], **kwargs):
         ordered = [
             coordinator.AcceptedSource(branch=item.branch, sha=item.sha, order=index)
             for index, item in enumerate(sources, start=1)
         ]
+        prefix = kwargs.get("phase_branch_prefix")
         return coordinator.assemble_phase(
             repo=self.work,
             repository="owner/name",
             sources=ordered,
             github=kwargs.get("github", self.github),
-            pusher=kwargs.get("pusher", coordinator.GitPushAdapter()),
+            pusher=kwargs.get("pusher", coordinator.GitPushAdapter(prefix or coordinator.DEFAULT_PHASE_PREFIX)),
             phase_branch=kwargs.get("phase_branch", "phase/next"),
+            phase_branch_prefix=prefix,
             require_evidence=kwargs.get("require_evidence", True),
             expected_repository=kwargs.get("expected_repository", "owner/name"),
             require_live_pr=kwargs.get("require_live_pr", False),
@@ -173,6 +211,246 @@ class PhasePackagerCoordinatorTests(unittest.TestCase):
         ok, detail = coordinator.consume_handoff(updated["handoff"], live_head=updated["headSha"], live_tree=updated["gitTree"])
         self.assertTrue(ok, detail)
 
+    def test_custom_phase_prefix_is_bound_in_coordinator_pusher_and_generated_outputs(self) -> None:
+        one = self.fx.accept_issue(50, "custom-prefix.txt", "custom\n")
+        write(
+            self.fx.work / ".github/linktrend-delivery-mode.json",
+            json.dumps({"schemaVersion": 1, "deliveryMode": "phase-integration", "phaseBranchPrefix": "wave/"}),
+        )
+        result = self.fx.assemble(
+            [one],
+            phase_branch="wave/next",
+            phase_branch_prefix="wave/",
+            pusher=coordinator.GitPushAdapter("wave/"),
+        )
+        self.assertEqual(result["phaseBranch"], "wave/next")
+        self.assertEqual(remote_sha(self.fx.work, "wave/next"), result["headSha"])
+        for schema_name, payload in (
+            ("phase-record.schema.json", result["record"]),
+            ("phase-handoff.schema.json", result["handoff"]),
+        ):
+            schema_path = ROOT / "core/managed-core/schemas" / schema_name
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            errors = list(Draft202012Validator(schema).iter_errors(payload))
+            self.assertEqual(errors, [], schema_name)
+
+    def test_configured_custom_phase_prefix_is_loaded_by_assembly(self) -> None:
+        one = self.fx.accept_issue(51, "configured-prefix.txt", "configured\n")
+        write(
+            self.fx.work / ".github/linktrend-delivery-mode.json",
+            json.dumps({"schemaVersion": 1, "deliveryMode": "phase-integration", "phaseBranchPrefix": "candidate/"}),
+        )
+        result = self.fx.assemble(
+            [one],
+            phase_branch="candidate/next",
+            pusher=coordinator.GitPushAdapter("candidate/"),
+        )
+        self.assertEqual(result["phaseBranch"], "candidate/next")
+        self.assertEqual(remote_sha(self.fx.work, "candidate/next"), result["headSha"])
+
+    def test_retained_sources_must_be_exact_leading_prefix_before_push(self) -> None:
+        first = self.fx.accept_issue(52, "prefix-first.txt", "first\n")
+        second = self.fx.accept_issue(53, "prefix-second.txt", "second\n")
+        third = self.fx.accept_issue(54, "prefix-third.txt", "third\n")
+        created = self.fx.assemble([first, second])
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "retained accepted issues must remain"):
+            self.fx.assemble([first, third, second])
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+        self.assertEqual(created["record"]["dependencyOrder"], [first.branch, second.branch])
+
+    def test_same_issue_long_linear_successor_fast_forwards_and_reuses_pr(self) -> None:
+        first = self.fx.accept_issue_history(34, "linear.txt", ["one\n", "two\n", "three\n", "four\n"])
+        created = self.fx.assemble([first])
+        successor = self.fx.advance_issue(first, "linear.txt", "five\n")
+        updated = self.fx.assemble([successor])
+        self.assertEqual(updated["action"], "updated")
+        self.assertEqual(updated["phasePr"], created["phasePr"])
+        self.assertEqual(updated["phasePr"]["number"], 1)
+        self.assertNotEqual(updated["headSha"], created["headSha"])
+        self.assertTrue(coordinator._is_ancestor(self.fx.work, created["headSha"], updated["headSha"]))
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), updated["headSha"])
+        self.assertEqual(updated["remoteSha"], updated["headSha"])
+        self.assertNotEqual(updated["candidateRevision"], created["candidateRevision"])
+        self.assertEqual(updated["record"]["invalidatedFromSha"], created["headSha"])
+        self.assertEqual(updated["record"]["fast"]["status"], "invalidated")
+        ok, detail = coordinator.consume_handoff(created["handoff"], live_head=updated["headSha"])
+        self.assertFalse(ok)
+        self.assertEqual(detail, "handoff_stale_head")
+
+    def test_one_successor_among_multiple_accepted_issues_preserves_order(self) -> None:
+        first = self.fx.accept_issue_history(35, "first-long.txt", ["1\n", "2\n", "3\n"])
+        second = self.fx.accept_issue_history(36, "second-long.txt", ["a\n", "b\n", "c\n"])
+        created = self.fx.assemble([first, second])
+        successor = self.fx.advance_issue(second, "second-long.txt", "d\n")
+        updated = self.fx.assemble([first, successor])
+        self.assertEqual([row["branch"] for row in updated["acceptedCommits"]], [first.branch, second.branch])
+        self.assertEqual(updated["phasePr"]["number"], created["phasePr"]["number"])
+        self.assertTrue(coordinator._is_ancestor(self.fx.work, created["headSha"], updated["headSha"]))
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), updated["headSha"])
+
+    def test_successor_invalidates_old_receipt_and_gate_identity_without_copying_proof(self) -> None:
+        first = self.fx.accept_issue_history(37, "proof.txt", ["old-1\n", "old-2\n", "old-3\n"])
+        created = self.fx.assemble([first])
+        path, record = self.fx.phase_record(created)
+        old_head = str(created["headSha"])
+        record.update(
+            {
+                "sealed": False,
+                "sealedSha": old_head,
+                "candidateId": "sha256:" + ("a" * 64),
+                "candidateIdentity": {"sourceSha": old_head},
+                "retainedReceipt": {"headSha": old_head, "gitTree": created["gitTree"]},
+                "fast": {"status": "passed", "sha": old_head},
+                "bugbot": {"status": "passed", "sha": old_head},
+                "full": {"status": "passed", "sha": old_head},
+                "staging": {"status": "passed", "sha": old_head},
+                "release": {"status": "passed", "sha": old_head},
+            }
+        )
+        write(path, json.dumps(record, indent=2) + "\n")
+        successor = self.fx.advance_issue(first, "proof.txt", "new\n")
+        updated = self.fx.assemble([successor])
+        fresh = updated["record"]
+        self.assertFalse(fresh["sealed"])
+        self.assertIsNone(fresh["candidateId"])
+        self.assertIsNone(fresh["candidateIdentity"])
+        self.assertIsNone(fresh["sealedSha"])
+        for gate in ("fast", "bugbot", "full", "staging", "release"):
+            self.assertEqual(fresh[gate]["status"], "invalidated")
+            self.assertNotIn("sha", fresh[gate])
+        self.assertNotIn("retainedReceipt", fresh)
+        self.assertNotEqual(updated["handoff"]["headCommit"], old_head)
+        self.assertFalse(fresh["fullMayStart"]["allowed"])
+
+    def test_reconciliation_rejects_omitted_duplicate_and_rewritten_sources_without_push(self) -> None:
+        first = self.fx.accept_issue_history(38, "omit.txt", ["old\n", "older\n", "oldest\n"])
+        created = self.fx.assemble([first])
+        second = self.fx.accept_issue(39, "other.txt", "other\n")
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "unique_phase_divergence"):
+            self.fx.assemble([second])
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "duplicate_issue"):
+            self.fx.assemble([first, coordinator.AcceptedSource(first.branch, first.sha, 2)])
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+
+        git(self.fx.work, "checkout", "-B", first.branch, "development")
+        write(self.fx.work / "omit.txt", "rewritten\n")
+        git(self.fx.work, "add", "omit.txt")
+        git(self.fx.work, "commit", "-qm", "rewritten source")
+        rewritten = git(self.fx.work, "rev-parse", "HEAD")
+        git(self.fx.work, "push", "-q", "--force", "origin", first.branch)
+        git(self.fx.work, "checkout", "development")
+        self.fx.github.ready_shas.add(rewritten)
+        self.fx.github.evidence[rewritten] = {"schemaVersion": 1, "headSha": rewritten, "classification": "tests"}
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "unique_phase_divergence"):
+            self.fx.assemble([coordinator.AcceptedSource(first.branch, rewritten, 1)])
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+
+    def test_reconciliation_rejects_record_mismatch_and_stale_or_cross_repository_pr(self) -> None:
+        first = self.fx.accept_issue_history(40, "identity.txt", ["one\n", "two\n", "three\n"])
+        created = self.fx.assemble([first])
+        successor = self.fx.advance_issue(first, "identity.txt", "four\n")
+        path, record = self.fx.phase_record(created)
+        record["candidateRevision"] = "tampered"
+        write(path, json.dumps(record, indent=2) + "\n")
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_phase_record"):
+            self.fx.assemble([successor])
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+        write(path, "{\n")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_phase_record"):
+            self.fx.assemble([successor])
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+        write(path, json.dumps({**record, "candidateRevision": created["candidateRevision"]}, indent=2) + "\n")
+        key = "owner/name|phase/next|development"
+        self.fx.github.prs[key]["headSha"] = "a" * 40
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "stale_phase_pr"):
+            self.fx.assemble([successor])
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+        self.fx.github.prs[key]["headSha"] = created["headSha"]
+        self.fx.github.prs[key]["url"] = "https://github.com/other/repo/pull/1"
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "cross_repository_phase_pr"):
+            self.fx.assemble([successor])
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+
+    def test_reconciliation_rejects_retained_repository_and_phase_identity_tamper_without_push(self) -> None:
+        first = self.fx.accept_issue_history(43, "record-identity.txt", ["one\n", "two\n", "three\n"])
+        created = self.fx.assemble([first])
+        successor = self.fx.advance_issue(first, "record-identity.txt", "four\n")
+        path, baseline = self.fx.phase_record(created)
+        self.assertEqual(baseline["repository"], "owner/name")
+        self.assertEqual(baseline["phaseBranch"], "phase/next")
+        self.assertEqual(baseline["phaseId"], "next")
+
+        cases = (
+            ("repository tamper", {"repository": "other/name"}, ()),
+            ("repository missing", {}, ("repository",)),
+            ("phaseId tamper", {"phaseId": "other"}, ()),
+            ("phaseId missing", {}, ("phaseId",)),
+            ("phaseBranch tamper", {"phaseBranch": "phase/other"}, ()),
+            ("phaseBranch missing", {}, ("phaseBranch",)),
+        )
+        for label, updates, removals in cases:
+            with self.subTest(label=label):
+                record = dict(baseline)
+                record.update(updates)
+                for key in removals:
+                    record.pop(key, None)
+                write(path, json.dumps(record, indent=2) + "\n")
+                before = remote_sha(self.fx.work, "phase/next")
+                with self.assertRaises(coordinator.CoordinatorError) as raised:
+                    self.fx.assemble([successor])
+                self.assertIn(raised.exception.code, {"invalid_phase_record", "duplicate_active_phase"})
+                self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+
+    def test_reconciliation_rejects_duplicate_live_phase_pr_before_push(self) -> None:
+        first = self.fx.accept_issue_history(42, "duplicate-pr.txt", ["one\n", "two\n", "three\n"])
+        created = self.fx.assemble([first])
+        successor = self.fx.advance_issue(first, "duplicate-pr.txt", "four\n")
+
+        class DuplicateGitHub:
+            repository = "owner/name"
+
+            def __init__(self, wrapped: coordinator.MemoryGitHub) -> None:
+                self.wrapped = wrapped
+
+            def list_open_phase_prs(self, **kwargs):
+                rows = self.wrapped.list_open_phase_prs(**kwargs)
+                return rows + [dict(rows[0])] if rows else rows
+
+            def __getattr__(self, name: str):
+                return getattr(self.wrapped, name)
+
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "duplicate_phase_pr"):
+            self.fx.assemble([successor], github=DuplicateGitHub(self.fx.github))
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+        self.assertEqual(created["phasePr"]["number"], 1)
+
+    def test_reconciliation_rejects_tampered_merge_and_manual_force_is_not_available(self) -> None:
+        first = self.fx.accept_issue_history(41, "tamper.txt", ["one\n", "two\n", "three\n"])
+        created = self.fx.assemble([first])
+        successor = self.fx.advance_issue(first, "tamper.txt", "four\n")
+        git(self.fx.work, "checkout", "-B", "phase/next", created["headSha"])
+        git(self.fx.work, "commit", "--amend", "-qm", "tampered phase merge")
+        tampered = git(self.fx.work, "rev-parse", "HEAD")
+        git(self.fx.work, "push", "-q", "--force", "origin", "phase/next")
+        git(self.fx.work, "checkout", "development")
+        path, record = self.fx.phase_record(created)
+        record["headSha"] = tampered
+        record["gitTree"] = git(self.fx.work, "rev-parse", f"{tampered}^{{tree}}")
+        write(path, json.dumps(record, indent=2) + "\n")
+        self.fx.github.prs["owner/name|phase/next|development"]["headSha"] = tampered
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "unique_phase_divergence"):
+            self.fx.assemble([successor])
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+        signature = inspect.signature(coordinator.GitPushAdapter.push_phase_ref)
+        self.assertNotIn("force", signature.parameters)
+        self.assertNotIn("--force", inspect.getsource(coordinator.GitPushAdapter.push_phase_ref))
+
     def test_rejects_uncommitted_unpushed_wrong_repo_stale_missing(self) -> None:
         ready = self.fx.accept_issue(6, "ready.txt", "ready\n")
         git(self.fx.work, "checkout", ready.branch)
@@ -207,6 +485,21 @@ class PhasePackagerCoordinatorTests(unittest.TestCase):
 
         with self.assertRaisesRegex(coordinator.CoordinatorError, "missing_commit"):
             self.fx.assemble([coordinator.AcceptedSource("issue/9-missing", "a" * 40, 1)])
+
+    def test_invalid_source_order_cannot_move_phase_ref(self) -> None:
+        ready = self.fx.accept_issue(10, "order.txt", "order\n")
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_source_order"):
+            coordinator.assemble_phase(
+                repo=self.fx.work,
+                repository="owner/name",
+                sources=[coordinator.AcceptedSource(ready.branch, ready.sha, 99)],
+                github=self.fx.github,
+                pusher=coordinator.GitPushAdapter(),
+                phase_branch="phase/next",
+                expected_repository="owner/name",
+            )
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
 
         bare = self.fx.accept_issue(10, "noevidence.txt", "x\n", ready=False)
         with self.assertRaisesRegex(coordinator.CoordinatorError, "evidence_missing"):
@@ -481,31 +774,105 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
         self.assertNotIn("example.invalid", json.dumps(payload))
         self.assertEqual(remote_sha(self.fx.work, "phase/next"), "")
 
+    def test_cli_wires_configured_phase_prefix_to_production_adapters(self) -> None:
+        source = self.fx.accept_issue(58, "cli-prefix.txt", "cli prefix\n")
+        write(
+            self.fx.work / ".github/linktrend-delivery-mode.json",
+            json.dumps({"schemaVersion": 1, "deliveryMode": "phase-integration", "phaseBranchPrefix": "candidate/"}),
+        )
+        observed: dict[str, object] = {}
+
+        def fake_resolve(repository: str, *, phase_branch_prefix: str):
+            observed["adapterRepository"] = repository
+            observed["adapterPrefix"] = phase_branch_prefix
+            return self.fx.github, coordinator.GitPushAdapter(phase_branch_prefix)
+
+        def fake_assemble(**kwargs):
+            observed.update(kwargs)
+            return {"ok": True}
+
+        stdout = io.StringIO()
+        with patch.object(coordinator, "resolve_production_adapters", fake_resolve), patch.object(
+            coordinator, "assemble_phase", fake_assemble
+        ), contextlib.redirect_stdout(stdout):
+            code = coordinator.main(
+                [
+                    "assemble",
+                    "--repository",
+                    "owner/name",
+                    "--repo-path",
+                    str(self.fx.work),
+                    "--accept",
+                    f"{source.branch}@{source.sha}",
+                    "--no-evidence",
+                ]
+            )
+        self.assertEqual(code, 0)
+        self.assertEqual(observed["adapterRepository"], "owner/name")
+        self.assertEqual(observed["adapterPrefix"], "candidate/")
+        self.assertEqual(observed["phase_branch_prefix"], "candidate/")
+        self.assertEqual(observed["phase_branch"], "candidate/next")
+
     def test_production_success_rejects_example_invalid_pr(self) -> None:
         one = self.fx.accept_issue(22, "livepr.txt", "live\n")
         with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_phase_pr"):
             self.fx.assemble([one], require_live_pr=True)
         self.assertEqual(remote_sha(self.fx.work, "phase/next"), "")
 
-    def _live_transport(self, *, url: str, draft: bool, sha: str | None = None):
+    def test_malformed_phase_branch_cannot_move_any_phase_ref(self) -> None:
+        one = self.fx.accept_issue(27, "badbranch.txt", "badbranch\n")
+        for phase_branch in ("phase/", "phase/a/b", "phase/-", "phase/.", "phase/a..b", "phase/a~b"):
+            with self.subTest(phase_branch=phase_branch):
+                with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_phase_branch"):
+                    self.fx.assemble([one], phase_branch=phase_branch, require_evidence=False)
+                self.assertEqual(remote_sha(self.fx.work, phase_branch), "")
+
+    def _live_transport(
+        self,
+        *,
+        url: str,
+        draft: bool,
+        sha: str | None = None,
+        head_variant: str | None = None,
+    ):
         created: dict[str, object] = {}
 
         def transport(method: str, request_url: str, token: str, body):
             if method == "GET" and "/pulls?" in request_url:
                 return [dict(created)] if created else []
+            if method == "GET" and request_url.endswith("/pulls/42"):
+                readback = dict(created)
+                readback.update(
+                    {
+                        "html_url": "https://github.com/owner/name/pull/42",
+                        "draft": created.get("draft") if isinstance(created.get("draft"), bool) else True,
+                        "head": {"ref": "phase/next", "sha": remote_sha(self.fx.work, "phase/next")},
+                        "base": {"ref": "development"},
+                        "state": created.get("state", "open"),
+                    }
+                )
+                return readback
             if method == "POST" and request_url.endswith("/pulls"):
                 head_sha = sha or remote_sha(self.fx.work, "phase/next")
+                head = {} if head_variant == "missing" else {"sha": head_variant or head_sha}
                 created.update(
                     {
                         "number": 42,
                         "html_url": url,
                         "draft": draft,
-                        "head": {"ref": "phase/next", "sha": head_sha},
+                        "head": {"ref": "phase/next", **head},
                         "base": {"ref": "development"},
+                        "title": body.get("title") if isinstance(body, dict) else "Phase: phase/next",
+                        "body": body.get("body") if isinstance(body, dict) else "",
+                        "state": "open",
                     }
                 )
                 return dict(created)
             if method == "PATCH":
+                if isinstance(body, dict) and body.get("state") == "closed":
+                    created["state"] = "closed"
+                elif isinstance(body, dict):
+                    created.update({key: body[key] for key in ("title", "body", "state") if key in body})
                 return dict(created)
             raise AssertionError(f"unexpected GitHub call {method} {request_url}")
 
@@ -515,6 +882,358 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
             user_token="ltfx.coordinator.user_token.v1",
             transport=transport,
         )
+
+    def test_live_draft_fields_must_be_unambiguous_booleans(self) -> None:
+        live = self._live_transport(url="https://github.com/owner/name/pull/42", draft=True)
+        valid = {
+            "number": 42,
+            "html_url": "https://github.com/owner/name/pull/42",
+            "head": {"ref": "phase/next", "sha": "a" * 40},
+            "base": {"ref": "development"},
+            "state": "open",
+        }
+        for fields in (
+            {"draft": True, "isDraft": False},
+            {"draft": "true"},
+            {"draft": 1},
+            {"draft": None},
+            {"draft": True, "isDraft": "true"},
+            {},
+        ):
+            with self.subTest(fields=fields):
+                with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_phase_pr"):
+                    live._pr_identity(dict(valid, **fields), created=False)
+
+    def test_live_pr_lists_reject_malformed_mixed_entries(self) -> None:
+        def transport(method: str, request_url: str, token: str, body):
+            if method == "GET" and "/pulls?" in request_url:
+                return [
+                    {
+                        "number": 7,
+                        "html_url": "https://github.com/owner/name/pull/7",
+                        "draft": True,
+                        "state": "open",
+                        "head": {"ref": "phase/next", "sha": "a" * 40},
+                        "base": {"ref": "development"},
+                    },
+                    "malformed-entry",
+                ]
+            raise AssertionError(f"unexpected GitHub call {method} {request_url}")
+
+        live = coordinator.LiveGitHub(
+            repository="owner/name",
+            automation_token="auto",
+            user_token="user",
+            transport=transport,
+        )
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_phase_pr"):
+            live.list_open_phase_prs(repository="owner/name", head="phase/next", base="development")
+
+    def test_new_pr_and_phase_ref_are_compensated_after_state_write_failure(self) -> None:
+        one = self.fx.accept_issue(70, "transaction-new.txt", "new transaction\n")
+        with patch.object(coordinator, "_write_isolated_state", side_effect=OSError("state write failed")):
+            with self.assertRaisesRegex(OSError, "state write failed"):
+                self.fx.assemble([one], phase_branch="phase/transaction-new")
+        self.assertEqual(self.fx.github.prs, {})
+        self.assertEqual(remote_sha(self.fx.work, "phase/transaction-new"), "")
+        self.assertEqual(
+            git(self.fx.work, "rev-parse", "--verify", "refs/remotes/origin/phase/transaction-new", check=False),
+            "",
+        )
+
+    def test_live_new_pr_compensation_order_is_readback_close_readback(self) -> None:
+        one = self.fx.accept_issue(74, "live-transaction.txt", "live transaction\n")
+        calls: list[str] = []
+        created: dict[str, object] = {}
+
+        def transport(method: str, request_url: str, token: str, body):
+            if method == "GET" and "/pulls?" in request_url:
+                calls.append("GET:list")
+                return [dict(created)] if created else []
+            if method == "POST" and request_url.endswith("/pulls"):
+                calls.append("POST:create")
+                created.update(
+                    {
+                        "number": 74,
+                        "html_url": "https://github.com/owner/name/pull/74",
+                        "draft": True,
+                        "head": {"ref": "phase/live-transaction", "sha": remote_sha(self.fx.work, "phase/live-transaction")},
+                        "base": {"ref": "development"},
+                        "title": body["title"],
+                        "body": body["body"],
+                        "state": "open",
+                    }
+                )
+                return dict(created)
+            if method == "GET" and request_url.endswith("/pulls/74"):
+                calls.append("GET:item")
+                return dict(created)
+            if method == "PATCH" and request_url.endswith("/pulls/74"):
+                calls.append("PATCH:close")
+                created["state"] = "closed"
+                return dict(created)
+            raise AssertionError(f"unexpected GitHub call {method} {request_url}")
+
+        live = coordinator.LiveGitHub(
+            repository="owner/name",
+            automation_token="auto",
+            user_token="user",
+            transport=transport,
+        )
+        with patch.object(coordinator, "_write_isolated_state", side_effect=OSError("state write failed")):
+            with self.assertRaisesRegex(OSError, "state write failed"):
+                self.fx.assemble(
+                    [one],
+                    github=live,
+                    phase_branch="phase/live-transaction",
+                    require_live_pr=True,
+                    require_evidence=False,
+                )
+        self.assertEqual(
+            calls,
+            ["GET:list", "GET:list", "POST:create", "GET:list", "GET:item", "PATCH:close", "GET:item"],
+        )
+        self.assertEqual(created["state"], "closed")
+        self.assertEqual(remote_sha(self.fx.work, "phase/live-transaction"), "")
+
+    def test_existing_pr_and_phase_ref_restore_exact_state_after_state_write_failure(self) -> None:
+        first = self.fx.accept_issue_history(71, "transaction-existing.txt", ["one\n", "two\n", "three\n"])
+        created = self.fx.assemble([first])
+        key = "owner/name|phase/next|development"
+        prior_pr = json.loads(json.dumps(self.fx.github.prs[key]))
+        prior_tracking = git(self.fx.work, "rev-parse", "refs/remotes/origin/phase/next")
+        successor = self.fx.advance_issue(first, "transaction-existing.txt", "four\n")
+        with patch.object(coordinator, "_write_isolated_state", side_effect=OSError("state write failed")):
+            with self.assertRaisesRegex(OSError, "state write failed"):
+                self.fx.assemble([successor])
+        self.assertEqual(self.fx.github.prs[key], prior_pr)
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), created["headSha"])
+        self.assertEqual(git(self.fx.work, "rev-parse", "refs/remotes/origin/phase/next"), prior_tracking)
+
+    def test_compensation_failure_is_explicit_and_ref_is_still_attempted(self) -> None:
+        one = self.fx.accept_issue(72, "compensation-failure.txt", "compensation\n")
+
+        class Uncompensable:
+            repository = "owner/name"
+
+            def __init__(self, wrapped):
+                self.wrapped = wrapped
+
+            def __getattr__(self, name: str):
+                return getattr(self.wrapped, name)
+
+            def rollback_phase_pr(self, mutation):
+                raise coordinator.CoordinatorError("pr_compensation_failed", "synthetic close readback failure")
+
+        with patch.object(coordinator, "_write_isolated_state", side_effect=OSError("state write failed")):
+            with self.assertRaisesRegex(coordinator.CoordinatorError, "pr_compensation_failed"):
+                self.fx.assemble([one], github=Uncompensable(self.fx.github), phase_branch="phase/compensation")
+        self.assertEqual(remote_sha(self.fx.work, "phase/compensation"), "")
+        self.assertEqual(
+            git(self.fx.work, "rev-parse", "--verify", "refs/remotes/origin/phase/compensation", check=False),
+            "",
+        )
+
+    def test_explicit_phase_prefix_mismatch_is_rejected_before_ref_or_pr_movement(self) -> None:
+        one = self.fx.accept_issue(80, "prefix-mismatch.txt", "mismatch\n")
+
+        class CountingPusher:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def push_phase_ref(self, *args, **kwargs):
+                self.calls += 1
+                return coordinator.GitPushAdapter("wave/").push_phase_ref(*args, **kwargs)
+
+        pusher = CountingPusher()
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "phase_prefix_mismatch"):
+            self.fx.assemble(
+                [one],
+                phase_branch="wave/next",
+                phase_branch_prefix="wave/",
+                pusher=pusher,
+            )
+        self.assertEqual(pusher.calls, 0)
+        self.assertEqual(self.fx.github.ensure_calls, 0)
+        self.assertEqual(self.fx.github.prs, {})
+        self.assertEqual(remote_sha(self.fx.work, "wave/next"), "")
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), "")
+
+    def test_omitted_phase_prefix_still_loads_repository_config(self) -> None:
+        one = self.fx.accept_issue(81, "prefix-omit.txt", "omit\n")
+        result = self.fx.assemble([one])
+        self.assertEqual(result["phaseBranch"], "phase/next")
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), result["headSha"])
+
+    def test_generic_compensation_exception_still_rolls_back_phase_ref(self) -> None:
+        one = self.fx.accept_issue(82, "generic-compensation.txt", "generic\n")
+
+        class BrokenTransport:
+            repository = "owner/name"
+
+            def __init__(self, wrapped):
+                self.wrapped = wrapped
+
+            def __getattr__(self, name: str):
+                return getattr(self.wrapped, name)
+
+            def rollback_phase_pr(self, mutation):
+                raise RuntimeError("simulated transport reset")
+
+        with patch.object(coordinator, "_write_isolated_state", side_effect=OSError("state write failed")):
+            with self.assertRaisesRegex(coordinator.CoordinatorError, "pr_compensation_failed") as raised:
+                self.fx.assemble(
+                    [one],
+                    github=BrokenTransport(self.fx.github),
+                    phase_branch="phase/generic-compensation",
+                )
+        self.assertIn("RuntimeError", str(raised.exception))
+        self.assertIn("state write failed", str(raised.exception))
+        self.assertEqual(remote_sha(self.fx.work, "phase/generic-compensation"), "")
+        self.assertEqual(
+            git(self.fx.work, "rev-parse", "--verify", "refs/remotes/origin/phase/generic-compensation", check=False),
+            "",
+        )
+
+    def test_live_created_mutation_binds_draft_and_open_state(self) -> None:
+        one = self.fx.accept_issue(83, "created-identity.txt", "created identity\n")
+        live = self._live_transport(url="https://github.com/owner/name/pull/42", draft=True)
+        result = self.fx.assemble(
+            [one],
+            github=live,
+            require_live_pr=True,
+            require_evidence=False,
+        )
+        mutation = live.last_phase_pr_mutation
+        self.assertIsNotNone(mutation)
+        self.assertTrue(mutation.created)
+        self.assertIs(mutation.expected["isDraft"], True)
+        self.assertEqual(mutation.expected["state"], "open")
+        self.assertEqual(result["phasePr"]["number"], 42)
+
+    def test_created_pr_actor_draft_race_does_not_close_changed_pr(self) -> None:
+        one = self.fx.accept_issue(84, "created-race.txt", "created race\n")
+        calls: list[str] = []
+        created: dict[str, object] = {}
+
+        def transport(method: str, request_url: str, token: str, body):
+            if method == "GET" and "/pulls?" in request_url:
+                calls.append("GET:list")
+                return [dict(created)] if created else []
+            if method == "POST" and request_url.endswith("/pulls"):
+                calls.append("POST:create")
+                created.update(
+                    {
+                        "number": 84,
+                        "html_url": "https://github.com/owner/name/pull/84",
+                        "draft": True,
+                        "head": {
+                            "ref": "phase/created-race",
+                            "sha": remote_sha(self.fx.work, "phase/created-race"),
+                        },
+                        "base": {"ref": "development"},
+                        "title": body["title"],
+                        "body": body["body"],
+                        "state": "open",
+                    }
+                )
+                return dict(created)
+            if method == "GET" and request_url.endswith("/pulls/84"):
+                calls.append("GET:item")
+                return dict(created)
+            if method == "PATCH" and request_url.endswith("/pulls/84"):
+                calls.append(f"PATCH:{body}")
+                raise AssertionError("must not mutate another actor's changed PR")
+            raise AssertionError(f"unexpected GitHub call {method} {request_url}")
+
+        live = coordinator.LiveGitHub(
+            repository="owner/name",
+            automation_token="auto",
+            user_token="user",
+            transport=transport,
+        )
+
+        def fail_after_create(*args, **kwargs):
+            created["draft"] = False
+            created["state"] = "open"
+            raise OSError("state write failed")
+
+        with patch.object(coordinator, "_write_isolated_state", side_effect=fail_after_create):
+            with self.assertRaisesRegex(coordinator.CoordinatorError, "pr_compensation_failed"):
+                self.fx.assemble(
+                    [one],
+                    github=live,
+                    phase_branch="phase/created-race",
+                    require_live_pr=True,
+                    require_evidence=False,
+                )
+        self.assertNotIn("PATCH:close", "".join(calls))
+        self.assertFalse(any(item.startswith("PATCH:") for item in calls))
+        self.assertEqual(created["state"], "open")
+        self.assertIs(created["draft"], False)
+        self.assertEqual(remote_sha(self.fx.work, "phase/created-race"), "")
+
+    def test_existing_pr_actor_state_race_does_not_reopen_or_restore(self) -> None:
+        first = self.fx.accept_issue_history(85, "existing-race.txt", ["one\n", "two\n", "three\n"])
+        created = self.fx.assemble([first])
+        key = "owner/name|phase/next|development"
+        prior_pr = json.loads(json.dumps(self.fx.github.prs[key]))
+        successor = self.fx.advance_issue(first, "existing-race.txt", "four\n")
+
+        class ActorRace:
+            repository = "owner/name"
+
+            def __init__(self, wrapped):
+                self.wrapped = wrapped
+
+            def __getattr__(self, name: str):
+                return getattr(self.wrapped, name)
+
+            def rollback_phase_pr(self, mutation):
+                self.wrapped.prs[key]["state"] = "closed"
+                self.wrapped.prs[key]["isDraft"] = True
+                self.wrapped.rollback_phase_pr(mutation)
+
+        with patch.object(coordinator, "_write_isolated_state", side_effect=OSError("state write failed")):
+            with self.assertRaisesRegex(coordinator.CoordinatorError, "pr_compensation_failed"):
+                self.fx.assemble([successor], github=ActorRace(self.fx.github))
+        self.assertEqual(self.fx.github.prs[key]["state"], "closed")
+        self.assertNotEqual(self.fx.github.prs[key], prior_pr)
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), created["headSha"])
+
+    def test_retained_accepted_issues_order_rejects_bool_true(self) -> None:
+        first = self.fx.accept_issue(86, "bool-order.txt", "bool-order\n")
+        created = self.fx.assemble([first])
+        path, record = self.fx.phase_record(created)
+        self.assertEqual(record["acceptedIssues"][0]["order"], 1)
+        record["acceptedIssues"][0]["order"] = True
+        write(path, json.dumps(record, indent=2) + "\n")
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_phase_record"):
+            self.fx.assemble([first])
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+        self.assertEqual(self.fx.github.prs["owner/name|phase/next|development"]["number"], created["phasePr"]["number"])
+
+    def test_new_ref_replacement_race_is_not_deleted_and_tracking_witness_is_cleaned(self) -> None:
+        one = self.fx.accept_issue(73, "ref-race.txt", "race\n")
+        alternate = self.fx.development_sha()
+
+        class RacingPusher:
+            def push_phase_ref(self, repo, remote, branch, sha):
+                verified = coordinator.GitPushAdapter().push_phase_ref(repo, remote, branch, sha)
+                git(repo, "push", "-q", "--force", "--", remote, f"{alternate}:refs/heads/{branch}")
+                git(repo, "update-ref", f"refs/remotes/{remote}/{branch}", verified)
+                return verified
+
+        with patch.object(coordinator, "_write_isolated_state", side_effect=OSError("state write failed")):
+            with self.assertRaisesRegex(coordinator.CoordinatorError, "phase_ref_rollback_failed"):
+                self.fx.assemble([one], phase_branch="phase/ref-race", pusher=RacingPusher())
+        self.assertEqual(remote_sha(self.fx.work, "phase/ref-race"), alternate)
+        self.assertEqual(
+            git(self.fx.work, "rev-parse", "--verify", "refs/remotes/origin/phase/ref-race", check=False),
+            "",
+        )
+        self.assertIn("--force-with-lease=refs/heads/{phase_branch}:{current}", inspect.getsource(coordinator._rollback_phase_ref))
 
     def test_live_github_rejects_example_invalid_pr_url(self) -> None:
         invalid = self.fx.accept_issue(28, "badurl.txt", "badurl\n")
@@ -526,6 +1245,112 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
                 require_evidence=False,
             )
 
+    def test_live_invalid_pr_url_is_rejected_before_successor_push(self) -> None:
+        first = self.fx.accept_issue_history(45, "live-identity.txt", ["one\n", "two\n", "three\n"])
+        created = self.fx.assemble([first])
+        successor = self.fx.advance_issue(first, "live-identity.txt", "four\n")
+        calls: list[str] = []
+
+        def transport(method: str, request_url: str, token: str, body):
+            calls.append(method)
+            if method == "GET" and "/pulls?" in request_url:
+                return [
+                    {
+                        "number": created["phasePr"]["number"],
+                        "html_url": "https://evil.example/owner/name/pull/1",
+                        "draft": True,
+                        "state": "open",
+                        "head": {"ref": "phase/next", "sha": created["headSha"]},
+                        "base": {"ref": "development"},
+                    }
+                ]
+            raise AssertionError(f"unexpected GitHub call {method} {request_url}")
+
+        live = self._live_transport(url="https://github.com/owner/name/pull/42", draft=True)
+        live.transport = transport
+
+        class CountingPusher:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def push_phase_ref(self, *args, **kwargs):
+                self.calls += 1
+                return coordinator.GitPushAdapter().push_phase_ref(*args, **kwargs)
+
+        pusher = CountingPusher()
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "cross_repository_phase_pr"):
+            self.fx.assemble(
+                [successor],
+                github=live,
+                pusher=pusher,
+                require_live_pr=True,
+                require_evidence=False,
+            )
+        self.assertEqual(pusher.calls, 0)
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+        self.assertEqual(calls, ["GET"])
+
+    def test_local_origin_repository_mismatch_cannot_move_phase_ref(self) -> None:
+        one = self.fx.accept_issue(46, "remote-mismatch.txt", "remote mismatch\n")
+        git(self.fx.work, "remote", "set-url", "origin", "https://github.com/other/name.git")
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "wrong_repository"):
+            self.fx.assemble([one], require_evidence=False)
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
+
+    def test_remote_identity_parser_rejects_ambiguous_github_forms(self) -> None:
+        valid = (
+            "https://github.com/owner/name.git",
+            "https://github.com:443/owner/name.git",
+            "ssh://git@github.com/owner/name.git",
+            "ssh://org-123@github.com:22/owner/name.git",
+            "git@github.com:owner/name.git",
+            "org-123@github.com:owner/name.git",
+        )
+        invalid = (
+            "https://user:secret@github.com/owner/name.git",
+            "https://github.com.evil/owner/name.git",
+            "https://GITHUB.com/owner/name.git",
+            "https://github.com/owner/name.git?x=1",
+            "https://github.com/owner/name.git/extra",
+            "ssh://git@github.com.evil/owner/name.git",
+            "git@github.com:owner/../name.git",
+            "git@github.com:../name.git",
+            "https://github.com/../name.git",
+            "https://github.com/owner/..git",
+            "https://github.com//owner/name.git",
+            "https://github.com///owner/name.git",
+            "https://github.com/owner//name.git",
+            "https://github.com/owner/....git",
+            "https://github.com/%2Fowner/name.git",
+            "https://github.com/owner/%2E%2E.git",
+            "git@github.com:owner/....git",
+            "file:///tmp/owner/name.git",
+        )
+        for url in valid:
+            with self.subTest(url=url):
+                self.assertEqual(coordinator._repository_from_remote_url(url), "owner/name")
+        for url in invalid:
+            with self.subTest(url=url):
+                self.assertIsNone(coordinator._repository_from_remote_url(url))
+
+    def test_phase_pr_url_identity_is_canonical_and_exact(self) -> None:
+        self.assertTrue(coordinator._phase_pr_url_matches_repository(
+            "https://github.com/owner/name/pull/7", "owner/name", 7
+        ))
+        for url in (
+            "https://evil.example/owner/name/pull/7",
+            "http://github.com/owner/name/pull/7",
+            "https://github.com/Owner/name/pull/7",
+            "https://github.com/owner/name/pull/8",
+            "https://github.com/owner/name/pull/7?x=1",
+            "https://github.com/owner/name/pull/7#fragment",
+            "https://github.com/owner/name/pull/7/",
+        ):
+            with self.subTest(url=url):
+                self.assertFalse(coordinator._phase_pr_url_matches_repository(url, "owner/name", 7))
+
     def test_live_github_rejects_non_draft_pr(self) -> None:
         ready = self.fx.accept_issue(29, "nondraft.txt", "nondraft\n")
         with self.assertRaisesRegex(coordinator.CoordinatorError, "phase_pr_not_draft"):
@@ -535,6 +1360,83 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
                 require_live_pr=True,
                 require_evidence=False,
             )
+
+    def test_live_github_rejects_malformed_draft_without_residual_new_phase_ref(self) -> None:
+        for index, draft in enumerate(("false", 0, 1, None), start=1):
+            with self.subTest(draft=draft):
+                ready = self.fx.accept_issue(55 + index, f"malformed-draft-{index}.txt", "malformed draft\n")
+                with self.assertRaisesRegex(coordinator.CoordinatorError, "invalid_phase_pr"):
+                    self.fx.assemble(
+                        [ready],
+                        github=self._live_transport(
+                            url=f"https://github.com/owner/name/pull/{55 + index}",
+                            draft=draft,
+                        ),
+                        require_live_pr=True,
+                        require_evidence=False,
+                    )
+                self.assertEqual(remote_sha(self.fx.work, "phase/next"), "")
+
+    def test_live_github_requires_exact_lowercase_nonzero_head_and_rolls_back_new_ref(self) -> None:
+        for index, (label, head_variant) in enumerate(
+            (
+            ("missing", "missing"),
+            ("malformed", "not-a-sha"),
+            ("uppercase", "A" * 40),
+            ("zero", "0" * 40),
+            ("mismatch", "a" * 40),
+            ),
+            start=1,
+        ):
+            with self.subTest(label=label):
+                ready = self.fx.accept_issue(60 + index, f"head-{label}.txt", f"{label}\n")
+                phase_branch = f"phase/{label}"
+                live = self._live_transport(
+                    url=f"https://github.com/owner/name/pull/{60 + index}",
+                    draft=True,
+                    head_variant=head_variant,
+                )
+                with self.assertRaisesRegex(coordinator.CoordinatorError, "stale_phase_pr"):
+                    self.fx.assemble(
+                        [ready],
+                        github=live,
+                        phase_branch=phase_branch,
+                        require_live_pr=True,
+                        require_evidence=False,
+                    )
+                self.assertEqual(remote_sha(self.fx.work, phase_branch), "")
+
+    def test_successor_live_witness_failure_restores_preexisting_phase_ref(self) -> None:
+        first = self.fx.accept_issue_history(57, "successor-witness.txt", ["one\n", "two\n", "three\n"])
+        created = self.fx.assemble([first])
+        successor = self.fx.advance_issue(first, "successor-witness.txt", "four\n")
+
+        class BadHeadAfterPush:
+            repository = "owner/name"
+
+            def __init__(self, wrapped):
+                self.wrapped = wrapped
+
+            def list_open_phase_prs(self, **kwargs):
+                return self.wrapped.list_open_phase_prs(**kwargs)
+
+            def ensure_draft_phase_pr(self, **kwargs):
+                result = self.wrapped.ensure_draft_phase_pr(**kwargs)
+                result["headSha"] = "not-a-sha"
+                return result
+
+            def __getattr__(self, name: str):
+                return getattr(self.wrapped, name)
+
+        before = remote_sha(self.fx.work, "phase/next")
+        with self.assertRaisesRegex(coordinator.CoordinatorError, "stale_phase_pr"):
+            self.fx.assemble(
+                [successor],
+                github=BadHeadAfterPush(self.fx.github),
+                require_evidence=False,
+            )
+        self.assertEqual(before, created["headSha"])
+        self.assertEqual(remote_sha(self.fx.work, "phase/next"), before)
 
     def test_live_github_success_requires_real_draft_pr_and_remote_sha(self) -> None:
         one = self.fx.accept_issue(30, "goodpr.txt", "goodpr\n")

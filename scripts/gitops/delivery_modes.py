@@ -40,6 +40,8 @@ NAMED_GATES = frozenset({"fast-gate", "staging-gate", "release-gate"})
 
 _SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 _ZERO_SHA_RE = re.compile(r"^0{40}$")
+_PHASE_PREFIX_RE = re.compile(r"^[A-Za-z0-9._-]+/$")
+_PHASE_SUFFIX_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 # Test hook: (repo_root, branch, sha) -> exception dict | None
 _EXCEPTION_HOOK: Callable[[Path | None, str, str], dict[str, Any] | None] | None = None
@@ -99,8 +101,13 @@ def checkpoint_opens_pr() -> bool:
 
 
 def is_phase_branch(name: str, prefix: str = DEFAULT_PHASE_PREFIX) -> bool:
+    if not isinstance(name, str) or not isinstance(prefix, str):
+        return False
     p = prefix if prefix.endswith("/") else f"{prefix}/"
-    return bool(name) and name.startswith(p)
+    if not _PHASE_PREFIX_RE.fullmatch(p):
+        return False
+    suffix = name[len(p) :] if name.startswith(p) else ""
+    return bool(_PHASE_SUFFIX_RE.fullmatch(suffix))
 
 
 def is_issue_branch(name: str) -> bool:
