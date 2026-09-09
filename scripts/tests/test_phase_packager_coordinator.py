@@ -796,12 +796,8 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
                 ]
             raise AssertionError(f"unexpected GitHub call {method} {request_url}")
 
-        live = coordinator.LiveGitHub(
-            repository="owner/name",
-            automation_token="ltfx.coordinator.auto_token.v1",
-            user_token="ltfx.coordinator.user_token.v1",
-            transport=transport,
-        )
+        live = self._live_transport(url="https://github.com/owner/name/pull/42", draft=True)
+        live.transport = transport
 
         class CountingPusher:
             def __init__(self) -> None:
