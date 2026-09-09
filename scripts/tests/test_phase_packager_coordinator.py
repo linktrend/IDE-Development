@@ -823,7 +823,14 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
                     self.fx.assemble([one], phase_branch=phase_branch, require_evidence=False)
                 self.assertEqual(remote_sha(self.fx.work, phase_branch), "")
 
-    def _live_transport(self, *, url: str, draft: bool, sha: str | None = None):
+    def _live_transport(
+        self,
+        *,
+        url: str,
+        draft: bool,
+        sha: str | None = None,
+        head_variant: str | None = None,
+    ):
         created: dict[str, object] = {}
 
         def transport(method: str, request_url: str, token: str, body):
@@ -831,40 +838,11 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
                 return [dict(created)] if created else []
             if method == "POST" and request_url.endswith("/pulls"):
                 head_sha = sha or remote_sha(self.fx.work, "phase/next")
+                head = {} if head_variant == "missing" else {"sha": head_variant or head_sha}
                 created.update(
                     {
                         "number": 42,
                         "html_url": url,
-                        "draft": draft,
-                        "head": {"ref": "phase/next", "sha": head_sha},
-                        "base": {"ref": "development"},
-                    }
-                )
-                return dict(created)
-            if method == "PATCH":
-                return dict(created)
-            raise AssertionError(f"unexpected GitHub call {method} {request_url}")
-
-        return coordinator.LiveGitHub(
-            repository="owner/name",
-            automation_token="ltfx.coordinator.auto_token.v1",
-            user_token="ltfx.coordinator.user_token.v1",
-            transport=transport,
-        )
-
-    def _live_transport_with_head_variant(self, *, draft, head_variant: str):
-        created: dict[str, object] = {}
-
-        def transport(method: str, request_url: str, token: str, body):
-            if method == "GET" and "/pulls?" in request_url:
-                return [dict(created)] if created else []
-            if method == "POST" and request_url.endswith("/pulls"):
-                assembled = remote_sha(self.fx.work, "phase/next")
-                head = {} if head_variant == "missing" else {"sha": head_variant or assembled}
-                created.update(
-                    {
-                        "number": 43,
-                        "html_url": "https://github.com/owner/name/pull/43",
                         "draft": draft,
                         "head": {"ref": "phase/next", **head},
                         "base": {"ref": "development"},
@@ -1030,7 +1008,8 @@ class PhasePackagerCoordinatorAdversarialTests(unittest.TestCase):
             with self.subTest(label=label):
                 ready = self.fx.accept_issue(60 + index, f"head-{label}.txt", f"{label}\n")
                 phase_branch = f"phase/{label}"
-                live = self._live_transport_with_head_variant(
+                live = self._live_transport(
+                    url=f"https://github.com/owner/name/pull/{60 + index}",
                     draft=True,
                     head_variant=head_variant,
                 )
