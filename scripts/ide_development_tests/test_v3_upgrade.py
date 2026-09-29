@@ -20,7 +20,13 @@ import unittest
 from pathlib import Path
 
 from ide_development import v3_retirements
+from ide_development.engine import _migration_catalog
+from ide_development.errors import ConflictError
+from ide_development.manifest import load_manifest
+from ide_development.plan import build_plan
 from ide_development.retired_workflows import RETIRED_ROOT_WORKFLOWS
+from ide_development.state import load_installed_state
+from ide_development.transaction import apply_plan, current_tx_dir
 
 REPO = Path(__file__).resolve().parents[2]
 V3_CLI = REPO / "scripts" / "ide-development.py"
@@ -164,6 +170,14 @@ class V3UpgradeTests(unittest.TestCase):
             if entry.get("sincePackageVersion") == v3_retirements.SINCE_VERSION
         }
 
+    def _move_directory_outside_and_link(self, consumer: Path, rel: str) -> Path:
+        source = consumer / rel
+        outside = Path(tempfile.mkdtemp(prefix="outside-", dir=self.tmp)) / "payload"
+        shutil.copytree(source, outside, symlinks=True)
+        _rmtree(source)
+        source.symlink_to(outside, target_is_directory=True)
+        return outside
+
     def test_fixture_is_a_clean_v252_install(self) -> None:
         state = json.loads((self.fixture / ".ide-development/installed-state.json").read_text())
         self.assertEqual(state["packageVersion"], "2.5.2")
@@ -292,6 +306,78 @@ class V3UpgradeTests(unittest.TestCase):
             [("unknown_content", ".github/workflows/linktrend-review-packager.yml")],
         )
         self.assertEqual(_snapshot(consumer), before)
+
+    def test_symlinked_github_directory_never_deletes_outside_workflow(self) -> None:
+        consumer = self._consumer()
+        outside = self._move_directory_outside_and_link(consumer, ".github")
+        victim = outside / "workflows/linktrend-review-packager.yml"
+        expected = victim.read_bytes()
+
+        code, update = _cli("update", consumer)
+
+        self.assertEqual(code, 11, update)
+        self.assertIn("symlink", json.dumps(update).lower())
+        self.assertEqual(victim.read_bytes(), expected)
+
+    def test_symlinked_workflows_directory_never_deletes_outside_workflow(self) -> None:
+        consumer = self._consumer()
+        outside = self._move_directory_outside_and_link(consumer, ".github/workflows")
+        victim = outside / "linktrend-review-packager.yml"
+        expected = victim.read_bytes()
+
+        code, update = _cli("update", consumer)
+
+        self.assertEqual(code, 11, update)
+        self.assertIn("symlink", json.dumps(update).lower())
+        self.assertEqual(victim.read_bytes(), expected)
+
+    def test_symlinked_workflow_file_is_a_conflict_not_a_deletion(self) -> None:
+        consumer = self._consumer()
+        target = consumer / ".github/workflows/linktrend-review-packager.yml"
+        outside = Path(tempfile.mkdtemp(prefix="outside-", dir=self.tmp)) / target.name
+        outside.write_bytes(target.read_bytes())
+        target.unlink()
+        target.symlink_to(outside)
+        expected = outside.read_bytes()
+
+        code, update = _cli("update", consumer)
+
+        self.assertEqual(code, 11, update)
+        self.assertIn("symlink", json.dumps(update).lower())
+        self.assertEqual(outside.read_bytes(), expected)
+        self.assertTrue(target.is_symlink())
+
+    def test_remove_revalidates_hash_and_rolls_back_when_file_changes_after_plan(self) -> None:
+        consumer = self._consumer()
+        manifest = load_manifest(REPO)
+        prior = load_installed_state(consumer)
+        plan = build_plan(
+            command="update",
+            package_root=REPO,
+            target_root=consumer,
+            manifest=manifest,
+            migration=_migration_catalog(REPO, consumer),
+            prior=prior,
+            dry_run=False,
+        )
+        self.assertFalse(plan.has_conflicts)
+        rel = ".github/workflows/linktrend-review-packager.yml"
+        target = consumer / rel
+        target.write_text(target.read_text(encoding="utf-8") + "# changed after plan\n")
+        changed = _snapshot(consumer)
+
+        with self.assertRaises(ConflictError) as caught:
+            apply_plan(
+                target_root=consumer,
+                package_root=REPO,
+                manifest=manifest,
+                plan=plan,
+                prior=prior,
+            )
+
+        self.assertIn(rel, caught.exception.message)
+        self.assertEqual(_snapshot(consumer), changed)
+        self.assertFalse(current_tx_dir(consumer).exists())
 
     def test_local_coordinator_renderings_are_recognised(self) -> None:
         consumer = self._build_consumer(self.tmp / "fixture-local-coordinator", profile="local-coordinator")
