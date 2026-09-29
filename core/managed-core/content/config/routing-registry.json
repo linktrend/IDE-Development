@@ -1,34 +1,84 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "registryId": "ide-development-routing",
   "status": "active-policy-candidate",
   "routes": {
-    "gate-0": {
-      "provider": "codex-cli",
-      "model": "gpt-5.6-luna",
-      "effort": "high",
-      "fast": false,
-      "execution": "codex-cli",
-      "principalInstructionRequired": false
+    "orchestrator": {
+      "account": "cursor-001",
+      "surface": "cursor-project",
+      "cardinality": "one-per-repo",
+      "modelClass": "frontier",
+      "codesIssues": false
     },
-    "ordinary-development": {
-      "provider": "cursor",
-      "model": "grok-4.6",
+    "codex-luna": {
+      "provider": "codex-cli",
+      "tier": "luna",
+      "effort": "high",
+      "modelResolution": "dispatch-time",
+      "resolutionSource": "app-server model/list",
+      "class": "everyday",
+      "order": 1
+    },
+    "codex-sol": {
+      "provider": "codex-cli",
+      "tier": "sol",
       "effort": "medium",
-      "fast": false,
-      "execution": "direct-sdk",
-      "fallbackRoute": "luna-fallback",
-      "principalInstructionRequired": false
+      "modelResolution": "dispatch-time",
+      "resolutionSource": "app-server model/list",
+      "class": "hard",
+      "order": 2
     },
-    "luna-fallback": {
-      "provider": "codex-cli",
-      "model": "gpt-5.6-luna",
-      "effort": "high",
-      "fast": false,
-      "execution": "codex-cli",
-      "principalInstructionRequired": true,
-      "concurrentDisjointPacketsAllowed": true
+    "cursor002-grok": {
+      "provider": "cursor-api",
+      "account": "cursor-002",
+      "endpoint": "POST https://api.cursor.com/v1/agents",
+      "family": "grok-4.7",
+      "params": {
+        "context": "500k",
+        "reasoning_effort": "medium",
+        "fast": "false"
+      },
+      "modelResolution": "dispatch-time",
+      "resolutionSource": "GET /v1/models",
+      "class": "everyday-overflow",
+      "order": 3
+    },
+    "cursor002-opus": {
+      "provider": "cursor-api",
+      "account": "cursor-002",
+      "endpoint": "POST https://api.cursor.com/v1/agents",
+      "family": "claude-opus-5-5",
+      "params": {
+        "context": "1m",
+        "effort": "medium",
+        "fast": "false"
+      },
+      "forbiddenAliases": ["opus", "opus-latest"],
+      "modelResolution": "dispatch-time",
+      "resolutionSource": "GET /v1/models",
+      "class": "hard-overflow",
+      "order": 4
     }
+  },
+  "allowance": {
+    "threshold": 75,
+    "windows": ["primary", "secondary"],
+    "unreportedWindow": "does-not-block",
+    "noneReported": "overflow-to-cursor-002",
+    "strict": false
+  },
+  "helpers": [
+    {"model": "grok-4.7", "effort": "medium"},
+    {"model": "composer-2.5"}
+  ],
+  "review": {
+    "reviewerMustDifferFromAuthorFamily": true,
+    "bugbotOptional": true
+  },
+  "signInCheck": {
+    "command": "codex cloud list --json --limit 1",
+    "wrapper": "python3 scripts/codex/codex_orchestrator.py gate",
+    "onLoggedOut": "stop-and-ask-carlos-for-device-code-sign-in"
   },
   "programs": []
 }
