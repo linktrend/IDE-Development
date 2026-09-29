@@ -24,7 +24,6 @@ Migrate an **already-open agent** onto `issue/<id>-<slug>` for **this repository
 - `.cursor/commands/agentcomply.md`
 - `.cursor/skills/agentcomply/SKILL.md` (this file)
 - `scripts/gitops/create_issue_branch.py`
-- `scripts/gitops/completion_gate.py`
 - Managed core (optional deeper doctrine): `.ide-development/`
 
 Do **not** require the IDE Development checkout path.
@@ -34,7 +33,7 @@ Do **not** require the IDE Development checkout path.
 - Never dump work onto `development` / `staging` / `main`.
 - Never silently adopt an unrelated open PR branch.
 - **Never ask for issue id/slug** — helper creates/reuses them from the task description.
-- Never open a PR yourself. The Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the Phase PR; retained `packager_discover.py` is not that component.
+- Never open a PR yourself. (The v2 Phase Packager is retired in v3 (IDE-22); see the v3 plan.)
 - Never commit secrets.
 
 ## Inputs (ask only if needed)
@@ -55,7 +54,7 @@ python3 scripts/gitops/create_issue_branch.py "<task description>" --prefer-work
 
 4. Move dirty work safely (stash → checkout/worktree → pop). Never force onto protected branches.
 5. Push checkpoint only when asked or clearly ready
-6. When the issue is finished later: `completion_gate.py write-evidence` then `review-ready` (normal-token publisher if local privileged publish fails closed; never write `.linktrend/review-ready.json`)
+6. When the issue is finished later: push the branch (the v2 completion gate is retired in v3 (IDE-22); see the v3 plan)
 7. Summarize what moved and the active branch/issue
 
 ## Fail closed

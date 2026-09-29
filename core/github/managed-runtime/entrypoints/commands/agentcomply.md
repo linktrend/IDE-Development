@@ -10,7 +10,7 @@ Operational summary:
 - ask only if needed for **task description** (helper creates issue id/slug) or target repo if ambiguous
 - run `python3 scripts/gitops/create_issue_branch.py` when filing/reusing an issue branch from latest `development`
 - move dirty work safely (stash/checkout/pop, worktree, or equivalent); never dump onto development/staging/main
-- push the branch as a **checkpoint** (no PR). When finished, mark review-ready via completion gate (normal-token publisher if local privileged publish fails closed; never `.linktrend/review-ready.json`) — the Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the Phase PR
+- push the branch as a **checkpoint** (no PR). (The v2 completion gate and Phase Packager are retired in v3 (IDE-22); see the v3 plan.)
 - plain English summary of what was done
 
 For a brand-new clean session, use agentsetup instead.
