@@ -4317,7 +4317,7 @@
       "id": "gitops-scripts-orchestrator-promotion-check-py",
       "ownershipClass": "managed",
       "source": "scripts/orchestrator/promotion_check.py",
-      "sourceHash": "sha256:dc18a85ec44c116a296bcbd152b758e9fb935ca52efc0d7945a321dcbcec7ad3",
+      "sourceHash": "sha256:184886c710b058e4fb1ed717314a5144c2555349aac0777c31f9cf53d6a12b5f",
       "destination": "scripts/orchestrator/promotion_check.py",
       "mode": "0644",
       "platform": "github",

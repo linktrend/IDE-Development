@@ -502,6 +502,23 @@ class PromotionCheckTests(unittest.TestCase):
         self.assertEqual(out["developmentSha"], self.dev)
         self.assertEqual(out["context"], "Linktrend Receipt Gate")
         self.assertTrue(out["check"]["ok"])
+        self.assertEqual(out["check"]["workflow"], ".github/workflows/ci.yml")
+        self.assertIsNone(out["check"]["workflowReason"])
+
+    def test_pull_request_event_is_not_development_evidence(self) -> None:
+        runs = {self.dev: [run("Verify IDE Development", "success", event="pull_request", head_sha=self.dev)]}
+        code, out = self._check(FakeApi(runs), self.head, "promote/main/x")
+        self.assertEqual(code, 1)
+        self.assertFalse(out["check"]["ok"])
+        self.assertIn("is not 'push'", out["reasons"][0])
+
+    def test_push_on_another_branch_is_not_development_evidence(self) -> None:
+        runs = {self.dev: [run(
+            "Verify IDE Development", "success", event="push", head_branch="feature", head_sha=self.dev,
+        )]}
+        code, out = self._check(FakeApi(runs), self.head, "promote/main/x")
+        self.assertEqual(code, 1)
+        self.assertIn("is not 'development'", out["reasons"][0])
 
     def test_tree_match_and_red(self) -> None:
         code, out = self._check(FakeApi({self.dev: [run("Verify IDE Development", "failure")]}), self.head,

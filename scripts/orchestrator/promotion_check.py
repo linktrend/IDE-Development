@@ -8,7 +8,9 @@ involved. A PR into ``main`` passes only when
   (b) some commit D among the first-parent commits of ``<remote>/development``
       inside ``git_local.DEVELOPMENT_FIRST_PARENT_WINDOW`` (the same window
       ``promote_main.py`` accepts) has exactly the head's tree; and
-  (c) ``Verify IDE Development`` concluded success on D.
+  (c) ``Verify IDE Development`` concluded success on D, from
+      ``.github/workflows/ci.yml`` running as a ``push`` on ``development``
+      (a pull_request run, another branch, another file, or a fork does not count).
 
 Inputs (flags override env): ``--head-sha`` / ``PR_HEAD_SHA``, ``--head-ref`` /
 ``PR_HEAD_REF`` (else ``GITHUB_HEAD_REF``), ``--base-ref`` / ``GITHUB_BASE_REF``,
@@ -101,15 +103,20 @@ def check(
     else:
         # Prefer the newest green candidate; report the newest one when none is green.
         for sha in matches:
-            state = github_api.check_succeeded(api, repo, sha, required_check)
+            state = github_api.check_succeeded(
+                api, repo, sha, required_check, require_push_on_development=True
+            )
             if state["ok"] or result["check"] is None:
                 result["developmentSha"], result["check"] = sha, state
             if state["ok"]:
                 break
         if not result["check"]["ok"]:
+            got = result["check"]["conclusion"]
+            detail = result["check"].get("workflowReason")
+            shown = f"{got}: {detail}" if detail else str(got)
             reasons.append(
                 f"{required_check} has not concluded success on development {result['developmentSha']} "
-                f"(got {result['check']['conclusion']})"
+                f"(got {shown})"
             )
     result["reasons"] = reasons
     result["ok"] = not reasons
