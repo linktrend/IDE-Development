@@ -196,7 +196,7 @@ class PhaseBatchLifecycleTests(unittest.TestCase):
             "issue/99-security",
             DeliveryConfig(delivery_mode=MODE_PHASE_INTEGRATION),
             risk_class="security",
-            review_ready=True,
+            in_review=True,
         )
         self.assertTrue(decision.open_pr)
 

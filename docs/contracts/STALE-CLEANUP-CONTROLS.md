@@ -89,7 +89,7 @@ List them as **Codex / Principal candidates** for manual decision. Cleanup scrip
 python3 scripts/gitops/cleanup_stale_records.py --repo linktrend/IDE-Development --json
 ```
 
-## Historical operational snapshot (2026-08-01) — reconciled
+## Historical (pre-v3): operational snapshot (2026-08-01) — reconciled
 
 The candidates below were the evidence basis for the cleanup plan. They were reconciled and removed or closed on 2026-08-03. This is historical context, not a live delete or preserve list.
 
@@ -99,7 +99,7 @@ The candidates below were the evidence basis for the cleanup plan. They were rec
 - `issue/ide-bugbot-integrator-merge-fix`
 - `issue/ide-lisa-option-a-doctrine`
 - `promote/main/f7829436751b`
-- Historical (pre-v3): `promote/staging/991abc319782`
+- `promote/staging/991abc319782`
 
 ### KEEP at snapshot time
 

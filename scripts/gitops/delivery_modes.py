@@ -165,13 +165,13 @@ def should_open_pr_for_branch(
     config: DeliveryConfig,
     *,
     risk_class: str | None = None,
-    review_ready: bool = True,
+    in_review: bool = True,
 ) -> PrOpenDecision:
-    """Decide whether Packager discover may open/ensure a development draft PR.
+    """Decide whether the orchestrator may open/ensure a development draft PR.
 
-    Checkpoints (review_ready=False) never open PRs.
+    Checkpoints (in_review=False: the Issue is not yet in_review) never open PRs.
     """
-    if not review_ready:
+    if not in_review:
         return PrOpenDecision(False, "skipped_not_ready")
     if checkpoint_opens_pr():
         return PrOpenDecision(False, "checkpoint_never_opens_pr")
@@ -594,7 +594,8 @@ def main(argv: list[str] | None = None) -> int:
             str(data.get("branch") or ""),
             cfg,
             risk_class=data.get("riskClass"),
-            review_ready=bool(data.get("reviewReady", True)),
+            # "reviewReady" is the pre-v3 input key, still read as an alias.
+            in_review=bool(data.get("inReview", data.get("reviewReady", True))),
         )
         json.dump(
             {
