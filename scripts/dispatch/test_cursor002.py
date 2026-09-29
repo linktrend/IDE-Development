@@ -170,7 +170,7 @@ class ApiFlowTests(unittest.TestCase):
 class GitIsolationTests(unittest.TestCase):
     """Reviewer reproduction: a local pre-push hook must never see CURSOR_002_API_KEY."""
 
-    SECRET = "sentinel-cursor-002-key"
+    SENTINEL = "sentinel-cursor-002-key"
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -195,7 +195,7 @@ class GitIsolationTests(unittest.TestCase):
             path.write_text(hook)
             path.chmod(0o755)
         self.custom_hooks = custom
-        self.env = {**os.environ, "CURSOR_002_API_KEY": self.SECRET}
+        self.env = {**os.environ, "CURSOR_002_API_KEY": self.SENTINEL}
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -203,14 +203,14 @@ class GitIsolationTests(unittest.TestCase):
     def test_control_hook_recovers_secret_with_plain_git(self) -> None:
         subprocess.run(["git", "push", "-q", "origin", "development:refs/heads/control"], cwd=self.clone,
                        env=self.env, check=True, capture_output=True)
-        self.assertEqual(self.sentinel.read_text(), self.SECRET)
+        self.assertEqual(self.sentinel.read_text(), self.SENTINEL)
 
     def test_ensure_remote_branch_runs_no_hooks_and_no_secrets(self) -> None:
         for hooks_path in (None, str(self.custom_hooks)):
             if hooks_path:
                 subprocess.run(["git", "config", "core.hooksPath", hooks_path], cwd=self.clone, check=True)
             branch = "issue/IDE-99-hook-check" if not hooks_path else "issue/IDE-98-hook-check"
-            with unittest.mock.patch.dict(os.environ, {"CURSOR_002_API_KEY": self.SECRET}):
+            with unittest.mock.patch.dict(os.environ, {"CURSOR_002_API_KEY": self.SENTINEL}):
                 sha = c.ensure_remote_branch(str(self.origin), branch, "development", git_dir=str(self.clone))
             listed = subprocess.run(["git", "ls-remote", "--heads", str(self.origin), branch],
                                     capture_output=True, text=True, check=True).stdout
@@ -218,7 +218,7 @@ class GitIsolationTests(unittest.TestCase):
             self.assertFalse(self.sentinel.exists(), "a repository hook ran during dispatch git calls")
 
     def test_git_env_is_allowlisted(self) -> None:
-        with unittest.mock.patch.dict(os.environ, {"CURSOR_002_API_KEY": self.SECRET, "IDE_LEDGER_DATABASE_URL": "x",
+        with unittest.mock.patch.dict(os.environ, {"CURSOR_002_API_KEY": self.SENTINEL, "IDE_LEDGER_DATABASE_URL": "x",
                                                    "CODEX_AUTH_STORE_KEY": "y", "GIT_CONFIG_PARAMETERS": "z"}):
             env = c.git_env()
         for name in ("CURSOR_002_API_KEY", "IDE_LEDGER_DATABASE_URL", "CODEX_AUTH_STORE_KEY", "GIT_CONFIG_PARAMETERS"):

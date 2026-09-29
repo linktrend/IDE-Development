@@ -318,8 +318,8 @@ FAKE_CODEX = textwrap.dedent(
 
 
 class RunIssueTests(unittest.TestCase):
-    STORE_SECRET = "sentinel-store-key"
-    DISPATCH_SECRET = "sentinel-cursor-002-key"
+    STORE_SENTINEL = "sentinel-store-key"
+    DISPATCH_SENTINEL = "sentinel-cursor-002-key"
 
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp())
@@ -345,9 +345,9 @@ class RunIssueTests(unittest.TestCase):
             "IDE_CODEX_STATE": str(self.tmp / "state"),
             "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com",
-            co.STORE_KEY_ENV: self.STORE_SECRET,
-            "CURSOR_002_API_KEY": self.DISPATCH_SECRET,
-            "IDE_LEDGER_DATABASE_URL": "postgres://ledger-secret",
+            co.STORE_KEY_ENV: self.STORE_SENTINEL,
+            "CURSOR_002_API_KEY": self.DISPATCH_SENTINEL,
+            "IDE_LEDGER_DATABASE_URL": "ledger-sentinel-value",
         })
         self.env.start()
 
@@ -404,7 +404,7 @@ class RunIssueTests(unittest.TestCase):
     def test_control_hook_recovers_secrets_with_plain_git(self) -> None:
         sentinel = self.install_sentinel_hooks()
         subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "control"], cwd=self.repo, check=True, capture_output=True)
-        self.assertEqual(sentinel.read_text(), f"{self.STORE_SECRET}|{self.DISPATCH_SECRET}")
+        self.assertEqual(sentinel.read_text(), f"{self.STORE_SENTINEL}|{self.DISPATCH_SENTINEL}")
 
     def test_runner_git_runs_no_hooks_and_leaks_no_secrets(self) -> None:
         sentinel = self.install_sentinel_hooks()
@@ -425,7 +425,7 @@ class RunIssueTests(unittest.TestCase):
             self.assertNotIn(name, env)
         self.assertEqual(env["CODEX_HOME"], str(self.tmp / "home"))
         self.assertIn("PATH", env)
-        self.assertNotIn(self.STORE_SECRET, json.dumps(env))
+        self.assertNotIn(self.STORE_SENTINEL, json.dumps(env))
 
     def test_tampered_gitlink_is_restored_and_never_pushed(self) -> None:
         Path(str(self.fake) + ".mode").write_text("tamper-gitlink")
