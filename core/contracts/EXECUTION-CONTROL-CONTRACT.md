@@ -104,23 +104,25 @@ Hosted scheduling is a **deterministic runtime** (`core/execution/scheduler.py`)
 
 ## Automatic approval rules
 
+Branches are `development` and `main` only. Carlos does not approve merges or releases.
+
 | Action | Decision |
 |---|---|
 | `checkpoint`, `issue_commit` | automatic |
-| `staging_promote` | automatic when receipt identity holds (this contract does not evaluate receipts) |
-| `main_promote`, `publish_release`, `deploy_production`, `github_protection_change`, `provider_live_mutation` | founder approval must already be recorded for the exact action |
-| `self_review`, `self_merge`, `prefer_incoming` | forbidden |
+| `main_promote` | automatic when Full CI is green and one independent review approves the exact head. The reviewer is a model from a different family than the author. The orchestrator then promotes `development` → `main` and reuses that result. |
+| `deploy_production` | Reaching `main` starts an automatic deploy (LiNKops GitHub Actions job: join Tailscale ephemerally, deploy, health-check, roll back). Automatic with no approval when the repo declares its target server in `deploy/target.json`. If that file is absent, automatic only when a post-deploy health check and automatic rollback exist; otherwise the orchestrator waits for Carlos's recorded OK. The `deploy/target.json` schema is owned by LiNKops. No agent holds server credentials or SSH. |
+| `publish_release`, `github_protection_change`, `provider_live_mutation` | recorded approval must already exist for the exact action |
+| `self_review`, `self_merge`, `prefer_incoming` | forbidden. The orchestrator merging a worker's reviewed PR is not self-merge. |
 
-Absence of a recorded founder approval is not a request to invent one.
+Absence of a recorded approval is not a request to invent one.
 
 ## Repository and Git authority
 
 - Work branches match `issue/<n>-<slug>`.
-- Protected refs: `development`, `staging`, `main`. Implementers must not push them.
-- Implementers must not open or merge delivery PRs.
+- Protected refs: `development`, `main`. Implementers must not push them.
+- Workers never open or merge delivery PRs.
 - Nested `.ide-development` install into this system repository is forbidden.
-- Packager / packager coordinator opens Phase PRs.
-- Delivery controller merges to `development` through protection.
+- The orchestrator packages and merges. It merges a PR into `development` when Full CI is green and one independent exact-head review approves, then promotes `development` → `main`.
 
 This contract does not change workflow files. It forbids claiming Git authority the workflows have not granted.
 
