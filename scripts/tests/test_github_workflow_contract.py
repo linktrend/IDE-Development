@@ -108,7 +108,7 @@ class GithubWorkflowContractTests(unittest.TestCase):
 
     def test_source_policy_and_checkouts_are_bounded(self) -> None:
         source = (LIVE / "branch-source-policy.yml").read_text(encoding="utf-8")
-        self.assertIn("branches: [development]", source)
+        self.assertIn("branches: [development, main]", source)
         for directory in (LIVE, MANAGED):
             for path in directory.glob("*.yml"):
                 text = path.read_text(encoding="utf-8")
