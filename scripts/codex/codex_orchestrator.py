@@ -42,6 +42,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -80,7 +81,9 @@ BASE_ENV_ALLOW = (
 GIT_ENV_ALLOW = BASE_ENV_ALLOW + (
     "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL",
 )
-CODEX_ENV_ALLOW = BASE_ENV_ALLOW + ("CODEX_HOME", "RUST_LOG")
+# Codex gets no SSH agent and no proxy URL that carries credentials (see codex_env).
+CODEX_ENV_ALLOW = tuple(name for name in BASE_ENV_ALLOW if name != "SSH_AUTH_SOCK") + ("CODEX_HOME", "RUST_LOG")
+PROXY_ENV = frozenset({"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"})
 SAFE_GIT_CONFIG = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
 LOGGED_OUT_RE = re.compile(
     r"not signed in|not logged in|log ?in again|sign ?in again|run 'codex login'|unauthori[sz]ed|\b401\b"
@@ -120,8 +123,17 @@ def git_env() -> dict[str, str]:
     return _allowlisted_env(GIT_ENV_ALLOW)
 
 
+def _proxy_has_credentials(value: str) -> bool:
+    netloc = urllib.parse.urlsplit(value if "://" in value else f"//{value}").netloc
+    return "@" in netloc or "@" in value
+
+
 def codex_env() -> dict[str, str]:
-    return _allowlisted_env(CODEX_ENV_ALLOW, {"CODEX_HOME": str(codex_home())})
+    env = _allowlisted_env(CODEX_ENV_ALLOW, {"CODEX_HOME": str(codex_home())})
+    for name in PROXY_ENV & env.keys():
+        if _proxy_has_credentials(env[name]):
+            del env[name]
+    return env
 
 
 def now_iso() -> str:
@@ -773,6 +785,12 @@ def run_issue(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     if not ISSUE_RE.match(args.issue) or not SLUG_RE.match(args.slug):
         raise ToolError("--issue must look like IDE-42 and --slug like fix-login")
     repo = Path(git("rev-parse", "--show-toplevel", cwd=Path(args.repo)).stdout.strip())
+    try:
+        require_encrypted_store()
+    except StoreNotReady as exc:
+        return EXIT_ASK_CARLOS, {
+            "issue": args.issue, "dispatched": False, "askCarlos": True, "reason": exc.reason, "message": str(exc),
+        }
     if not args.skip_gate:
         code, decision = gate(args.threshold)
         if code != EXIT_CODEX:
@@ -991,7 +1009,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--threshold", type=int, default=DEFAULT_THRESHOLD)
     run.add_argument("--network", action="store_true", help="allow network inside the Codex sandbox")
     run.add_argument("--no-push", action="store_true")
-    run.add_argument("--skip-gate", action="store_true", help="skip liveness/allowance (caller already gated)")
+    run.add_argument("--skip-gate", action="store_true", help="skip liveness/allowance (caller already gated); the encrypted-store check still runs")
     ptest = sub.add_parser("parallel-test")
     ptest.add_argument("--counts", type=lambda s: [int(x) for x in s.split(",")], default=[1, 2, 4])
     ptest.add_argument("--tier", choices=sorted(TIERS), default="luna")

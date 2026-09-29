@@ -71,7 +71,7 @@ Work through these in order and tick them in the setup Phase Issue. Each section
 - [ ] Run one real Issue: `python3 scripts/codex/codex_orchestrator.py run --issue IDE-<n> --slug <slug> --prompt-file <file> [--tier sol]`. Codex cannot commit inside its sandbox; the runner commits as `IDE-<n>: <message>` and pushes. Trust `cliModel` / `cliEffort` from the readback, not the model's self-report (Luna High reports itself as "medium"). Pilot: IDE-18, 128 s.
 - [ ] Parallel test only when needed: `parallel-test` at 1/2/4 worktrees. Pilot: 4 concurrent runs all succeeded; no limit found, Codex cloud overflow not needed.
 - [ ] Never use the same `auth.json` from two machines at once, and never print or commit it. The Project store ignores `chmod` and is shared by every agent in the Project, which is why the store copy is always encrypted.
-- [ ] Codex and Git run with an allowlisted environment and hooks disabled. Codex has no write access to the Git common directory; the runner commits for it. Never add orchestrator secrets to the Codex environment.
+- [ ] Codex and Git run with an allowlisted environment and hooks disabled. Codex has no write access to the Git common directory; the runner commits for it. Codex also gets no SSH agent and no proxy URL with credentials in it. Never add orchestrator secrets to the Codex environment. `run --skip-gate` still refuses to start without the encrypted store.
 
 ### B5. Ledger (pilot 0.5)
 

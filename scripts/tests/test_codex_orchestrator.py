@@ -427,6 +427,44 @@ class RunIssueTests(unittest.TestCase):
         self.assertIn("PATH", env)
         self.assertNotIn(self.STORE_SENTINEL, json.dumps(env))
 
+    def test_skip_gate_still_requires_the_store_key(self) -> None:
+        with mock.patch.dict(os.environ):
+            os.environ.pop(co.STORE_KEY_ENV)
+            code, record = co.run_issue(self.args(skip_gate=True))
+        self.assertEqual((code, record["dispatched"], record["reason"]), (co.EXIT_ASK_CARLOS, False, "auth_store_key_missing"))
+        self.assertFalse(Path(str(self.fake) + ".args").exists(), "Codex must not be launched")
+        self.assertFalse((self.tmp / "wt").exists())
+
+    def test_skip_gate_refuses_a_plaintext_store_copy(self) -> None:
+        store = self.tmp / "store"
+        store.mkdir()
+        (store / "auth.json").write_bytes(auth_blob("2026-09-25T00:00:00Z"))
+        code, record = co.run_issue(self.args(skip_gate=True))
+        self.assertEqual((code, record["reason"]), (co.EXIT_ASK_CARLOS, "plaintext_store_copy"))
+        self.assertFalse(Path(str(self.fake) + ".args").exists())
+
+    def test_codex_env_drops_ssh_agent_and_credential_proxies(self) -> None:
+        extra = {
+            "SSH_AUTH_SOCK": "/tmp/sentinel-ssh-agent.sock",
+            "HTTPS_PROXY": "http://proxyuser:sentinel-proxy-pass@proxy.example:3128",
+            "http_proxy": "proxyuser:sentinel-proxy-pass@proxy.example:3128",
+            "ALL_PROXY": "socks5://u@proxy.example:1080",
+            "HTTP_PROXY": "http://proxy.example:3128",
+            "NO_PROXY": "localhost,127.0.0.1",
+        }
+        with mock.patch.dict(os.environ, extra):
+            env = co.codex_env()
+            git_env = co.git_env()
+            co.run_issue(self.args())
+        launched = json.loads(Path(str(self.fake) + ".env").read_text())
+        for candidate in (env, launched):
+            for name in ("SSH_AUTH_SOCK", "HTTPS_PROXY", "http_proxy", "ALL_PROXY"):
+                self.assertNotIn(name, candidate)
+            self.assertNotIn("sentinel", json.dumps(candidate))
+            self.assertEqual(candidate["HTTP_PROXY"], "http://proxy.example:3128")
+            self.assertEqual(candidate["NO_PROXY"], "localhost,127.0.0.1")
+        self.assertEqual(git_env["SSH_AUTH_SOCK"], "/tmp/sentinel-ssh-agent.sock", "trusted git push keeps its agent")
+
     def test_tampered_gitlink_is_restored_and_never_pushed(self) -> None:
         Path(str(self.fake) + ".mode").write_text("tamper-gitlink")
         code, record = co.run_issue(self.args(slug="tamper"))

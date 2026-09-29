@@ -41,7 +41,7 @@ python3 scripts/codex/codex_orchestrator.py run \
   --issue IDE-42 --slug update-readme --prompt-file /tmp/ide-42-prompt.md
 ```
 
-The runner creates a per-Issue Git worktree, commits changed files, and pushes the branch by default. Codex runs sandboxed with write access to the worktree only; it gets no write access to the Git common directory and cannot commit. After Codex exits, the runner commits through the Git directory it recorded before the run. If Codex changed the worktree's `.git` link, the runner restores it, fails the attempt and does not push. Git and Codex run with an allowlisted environment: no dispatch, Ledger, hub or store keys are passed. Repository hooks are disabled (`core.hooksPath=/dev/null`). Use `--tier sol` for Sol or `--no-push` to skip pushing.
+The runner creates a per-Issue Git worktree, commits changed files, and pushes the branch by default. Codex runs sandboxed with write access to the worktree only; it gets no write access to the Git common directory and cannot commit. After Codex exits, the runner commits through the Git directory it recorded before the run. If Codex changed the worktree's `.git` link, the runner restores it, fails the attempt and does not push. Git and Codex run with an allowlisted environment: no dispatch, Ledger, hub or store keys are passed. Codex also gets no `SSH_AUTH_SOCK` and no proxy URL that carries credentials; only the runner's own git push keeps the SSH agent. Every `run` requires the encrypted store (`CODEX_AUTH_STORE_KEY` set, no plaintext copy), including `--skip-gate`. Repository hooks are disabled (`core.hooksPath=/dev/null`). Use `--tier sol` for Sol or `--no-push` to skip pushing.
 
 ## Parallel test
 
