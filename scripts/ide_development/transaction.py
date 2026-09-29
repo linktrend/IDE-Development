@@ -28,6 +28,7 @@ from .paths import (
     encode_backup_name,
     git_meta_dir,
     join_under,
+    join_under_nofollow_checked,
     join_under_nofollow,
     path_is_symlink,
 )
@@ -195,7 +196,11 @@ def backup_migrate_symlink(target_root: Path, action: PlanAction) -> BackupRecor
 
 
 def backup_path(target_root: Path, action: PlanAction) -> BackupRecord:
-    dest = join_under(target_root, action.path)
+    dest = (
+        join_under_nofollow_checked(target_root, action.path)
+        if action.op == OpKind.REMOVE
+        else join_under(target_root, action.path)
+    )
     if path_is_symlink(dest):
         raise ConflictError(
             f"Refusing to backup symlink at {action.path}",
@@ -248,7 +253,7 @@ def write_backup_file(
     _authorize_managed_write(lease, record.path)
     if not record.existed or not record.backup_name:
         return
-    src = join_under(target_root, record.path)
+    src = join_under_nofollow_checked(target_root, record.path)
     dest = backups_dir(tx_dir) / record.backup_name
     dest.parent.mkdir(parents=True, exist_ok=True)
     data = read_file_bytes(src)
@@ -276,11 +281,31 @@ def apply_action(
             expected_target=action.symlink_target,
         )
         return
-    dest = join_under(target_root, action.path)
     if action.op == OpKind.REMOVE:
-        if dest.exists():
-            remove_file(dest)
+        dest = join_under_nofollow_checked(target_root, action.path)
+        if not dest.is_file():
+            raise ConflictError(
+                f"Removal target changed since plan: {action.path}",
+                details={"path": action.path, "expected": action.source_hash},
+            )
+        if not action.source_hash:
+            raise ConflictError(
+                f"Removal action has no planned content hash: {action.path}",
+                details={"path": action.path},
+            )
+        actual = sha256_file(dest)
+        if actual != action.source_hash:
+            raise ConflictError(
+                f"Removal target changed since plan: {action.path}",
+                details={
+                    "path": action.path,
+                    "expected": action.source_hash,
+                    "actual": actual,
+                },
+            )
+        remove_file(dest)
         return
+    dest = join_under(target_root, action.path)
     entry = entries.get(action.path)
     if entry is None:
         raise ConflictError(f"No manifest entry for action path {action.path}")
@@ -324,6 +349,7 @@ def restore_backup(
         dest = join_under_nofollow(target_root, record.path)
         if path_is_symlink(dest) or dest.is_file():
             remove_file(dest)
+            _prune_empty_parents(target_root, dest.parent)
         return
     dest = join_under(target_root, record.path)
     if not record.backup_name:
@@ -333,6 +359,42 @@ def restore_backup(
         raise RollbackError(f"Backup file missing for {record.path}: {blob}")
     data = read_file_bytes(blob)
     atomic_write_bytes(dest, data, mode=record.mode or "0644")
+
+
+def _prune_empty_parents(target_root: Path, directory: Path) -> None:
+    """Remove directories left empty by undoing created files (git keeps none)."""
+    root = target_root.resolve()
+    current = directory
+    while current != root and root in current.parents:
+        if path_is_symlink(current) or not current.is_dir() or any(current.iterdir()):
+            return
+        current.rmdir()
+        current = current.parent
+
+
+def _restore_unmanaged_modes(target_root: Path, journal: dict[str, Any]) -> None:
+    """Undo the lease's read-only finalization for restored non-managed files.
+
+    Migration removals can target files the installer never made read-only
+    (for example retired root workflows); their pre-image mode is exact.
+    """
+    state = load_installed_state(target_root)
+    read_only = {
+        rel
+        for rel, file_state in (state.files.items() if state is not None else ())
+        if file_state.mutability_policy == READ_ONLY_POLICY
+    }
+    read_only.add(str(INSTALLED_STATE_REL))
+    read_only.add(MANIFEST_DEST)
+    for raw in journal.get("backups") or []:
+        if not isinstance(raw, dict):
+            continue
+        record = BackupRecord.from_dict(raw)
+        if not record.existed or record.was_symlink or not record.mode or record.path in read_only:
+            continue
+        dest = join_under_nofollow(target_root, record.path)
+        if dest.is_file() and not path_is_symlink(dest):
+            os.chmod(dest, mode_int(record.mode))
 
 
 def build_next_state(
@@ -356,6 +418,8 @@ def build_next_state(
         if action.op == OpKind.NOOP:
             entry = entries.get(action.path)
             if entry is None:
+                if action.path != MANIFEST_DEST and not join_under(target_root, action.path).exists():
+                    files.pop(action.path, None)
                 continue
             dest = join_under(target_root, action.path)
             if dest.is_file() and not path_is_symlink(dest):
@@ -937,6 +1001,7 @@ def rollback_last(target_root: Path) -> dict[str, Any]:
             finalize_read_only=True,
         ) as lease:
             result = _rollback_last_unlocked(target_root, lease=lease)
+        _restore_unmanaged_modes(target_root, journal)
         # The read-only proof is vacuously true only when the journal claims a
         # first install and the managed tree on disk has no files or symlinks
         # left. Any file that remains, including one the journal never listed,

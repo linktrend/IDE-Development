@@ -12,10 +12,16 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__ as installer_version
-from .constants import EXIT_CONFLICT, EXIT_DRIFT, EXIT_OK, MANAGED_CORE_DIR, PACKAGE_VERSION_TARGET
+from .constants import (
+    EXIT_CONFLICT,
+    EXIT_DRIFT,
+    EXIT_OK,
+    MANAGED_CORE_DIR,
+    SAME_VERSION_REPAIR_VERSION,
+)
 from .errors import InstallerError, InvalidPackageError, RollbackError
-from .manifest import Manifest, load_manifest, load_migration_catalog
-from .paths import require_git_repo, resolve_dir, same_path
+from .manifest import Manifest, MigrationCatalog, load_manifest, load_migration_catalog
+from .paths import join_under_nofollow_checked, require_git_repo, resolve_dir, same_path
 from .plan import OpKind, Plan, PlanAction, build_drift_report, build_plan, meaningful_drift
 from .state import load_installed_state
 from .transaction import apply_plan, current_tx_dir, read_journal, recover_interrupted, rollback_last
@@ -23,6 +29,7 @@ from .io_atomic import atomic_write_bytes
 from .hashing import sha256_file
 from .managed_write_guard import export_candidate
 from .resolution import UpgradeResolution, load_and_validate_resolution
+from .retired_workflows import with_retired_workflows
 from .same_version_repair import (
     OPERATION_ADD,
     load_and_validate_same_version_repair,
@@ -89,7 +96,7 @@ def _normalize_consumer_workflow_contract(target_root: Path, *, mutate: bool) ->
     declaration. Explicit blank/wrong values and any missing/blank CI
     declaration fail closed before managed workflows are installed or updated.
     """
-    path = target_root / CONSUMER_CONFIG
+    path = join_under_nofollow_checked(target_root, CONSUMER_CONFIG)
     if not path.is_file():
         return False
     try:
@@ -121,6 +128,11 @@ def _normalize_consumer_workflow_contract(target_root: Path, *, mutate: bool) ->
     if mutate and changed:
         atomic_write_bytes(path, (json.dumps(config, indent=2) + "\n").encode("utf-8"), mode="0644")
     return changed
+
+
+def _migration_catalog(package_root: Path, target_root: Path) -> MigrationCatalog:
+    """Package catalog plus this consumer's retired v2 root-workflow identities."""
+    return with_retired_workflows(load_migration_catalog(package_root), package_root, target_root)
 
 
 class EngineResult:
@@ -469,7 +481,7 @@ def run_plan(
     openclaw_admission = _openclaw_admission(package_root, target_root)
     recovery = _maybe_recover(target_root, mutate=False)
     manifest = load_manifest(package_root)
-    migration = load_migration_catalog(package_root)
+    migration = _migration_catalog(package_root, target_root)
     prior = load_installed_state(target_root)
 
     # Planning is deliberately non-mutating.  Report whether an older
@@ -529,7 +541,7 @@ def run_install_or_update(
     openclaw_admission = _openclaw_admission(package_root, target_root)
     recovery = _maybe_recover(target_root, mutate=not dry_run)
     manifest = load_manifest(package_root)
-    migration = load_migration_catalog(package_root)
+    migration = _migration_catalog(package_root, target_root)
 
     prior = load_installed_state(target_root)
     package_manifest_digest = _validate_package_identity(manifest, prior)
@@ -690,7 +702,7 @@ def run_same_version_repair(
     )
     plan = Plan(
         command="repair",
-        package_version=PACKAGE_VERSION_TARGET,
+        package_version=SAME_VERSION_REPAIR_VERSION,
         target=str(target_root),
         dry_run=dry_run,
         actions=actions,
@@ -737,7 +749,7 @@ def run_drift(
     package_root, target_root = _prepare(target=target, package=package)
     recovery = _maybe_recover(target_root, mutate=False)
     manifest = load_manifest(package_root)
-    migration = load_migration_catalog(package_root)
+    migration = _migration_catalog(package_root, target_root)
     prior = load_installed_state(target_root)
     items = build_drift_report(
         package_root=package_root,
@@ -772,7 +784,7 @@ def run_verify(
     package_root, target_root = _prepare(target=target, package=package)
     recovery = _maybe_recover(target_root, mutate=False)
     manifest = load_manifest(package_root)
-    migration = load_migration_catalog(package_root)
+    migration = _migration_catalog(package_root, target_root)
     prior = load_installed_state(target_root)
     plan = build_plan(
         command="verify",

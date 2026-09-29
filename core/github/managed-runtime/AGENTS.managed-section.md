@@ -3,22 +3,32 @@
 
 This section is maintained by LiNKtrend install/sync tooling. Repository-owned guidance may live **outside** these markers.
 
+### Session entrypoints
+
+- New session: follow agentsetup. Already-open or wrong branch: follow agentcomply.
+- Work IDs are Ledger IDs (`<PREFIX>-<n>`, for example `IDE-33`). The branch is `issue/<PREFIX>-<n>-<slug>`, given by the orchestrator; `scripts/gitops/create_issue_branch.py` is the branch helper. Never ask a human for an ID or slug.
+
+### Lifecycle
+
+1. A worker commits on its `issue/*` branch and pushes.
+2. The orchestrator opens the pull request into `development` (`scripts/orchestrator/package.py`).
+3. Full CI plus one exact-head review by a different model family (`scripts/orchestrator/merge_check.py`), then the orchestrator merges.
+4. The orchestrator promotes through a temporary `promote/main/*` pull request into `main` (`scripts/orchestrator/promote_main.py`, checked by `Linktrend Receipt Gate`).
+5. After `main`, deploy is automatic (`Linktrend Deploy`, when the repo declares `deploy/target.json`).
+
+Long-lived branches are `development` and `main` only.
+
 ### Workers
 
-- Use `issue/<PREFIX>-<n>-<slug>` from the orchestrator.
-- New sessions follow agentsetup. Already-open sessions follow agentcomply. `scripts/gitops/create_issue_branch.py` is the branch helper.
+- Commit small and push often. Never open pull requests.
+- Run fast checks before the final push: `python3 scripts/gitops/run_delivery_profile.py fast`.
 - Consumer workflow names come from `.github/linktrend-gitops-consumer.json`.
-- Commit and push often. Never open PRs.
-- Run fast checks: `python3 scripts/gitops/run_delivery_profile.py fast`.
 - End with a lessons note.
 
 ### Orchestrator
 
-- Packages with `scripts/orchestrator/package.py`.
-- Requires Full CI and one exact-head review by a different model family (`scripts/orchestrator/merge_check.py`), then merges.
-- Promotes with `scripts/orchestrator/promote_main.py` (`promote/main/*` into `main`, checked by `Linktrend Receipt Gate`).
-- There is no staging branch.
 - Repair ladder: Luna/Grok ×3, then Sol/Opus ×1, then the other of Sol/Opus ×1, then flag Carlos. Recorded with `scripts/orchestrator/runlog.py` and watched by `scripts/orchestrator/watchdog.py`.
+- Cheap-helper rule: keep planning, judgement reviews, decisions and talking to Carlos on the frontier model; hand routine lookups, summaries and mechanical checks to a cheap helper subagent.
 
 ### Hard stops
 

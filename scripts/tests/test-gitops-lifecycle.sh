@@ -65,7 +65,13 @@ def render(text: str) -> str:
         .replace("__LINKTREND_RUNS_ON__", privileged_runner)
     )
 
-names = sorted(path.name for path in (root / "core/github/managed-workflows").glob("*.yml"))
+# Synced only into repos that declare deploy/target.json; this repo has none.
+target_conditional = {"linktrend-deploy.yml"}
+names = sorted(
+    path.name
+    for path in (root / "core/github/managed-workflows").glob("*.yml")
+    if path.name not in target_conditional
+)
 assert names, "no managed workflow templates"
 for name in names:
     managed = (root / "core/github/managed-workflows" / name).read_text()

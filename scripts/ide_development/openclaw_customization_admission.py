@@ -15,12 +15,16 @@ import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping
 
+from .constants import PACKAGE_VERSION_TARGET
 from .errors import InvalidPackageError
 from .paths import same_path
 
 KIND = "openclaw-customization-admission"
 BOUNDARY_KIND = "openclaw-prime-customization-boundary"
+# Receipt identity of the protected v2.5.2 admission contract (schema const).
 INSTALLER_VERSION = "2.5.2"
+# Package versions whose manifests this admission may scope; v3 keeps the contract.
+ADMITTED_PACKAGE_VERSIONS = frozenset({INSTALLER_VERSION, PACKAGE_VERSION_TARGET})
 REPOSITORY = "linktrend/openclaw_prime"
 BOUNDARY_REL = ".linktrend/openclaw-prime/customization-boundary.json"
 SCHEMA_REL = "core/managed-core/schemas/openclaw-customization-admission.schema.json"
@@ -344,7 +348,7 @@ def _package_changed_paths(
     if not manifest.is_file() or manifest.is_symlink():
         manifest = package_root / ".ide-development/MANIFEST.json"
     payload = _load_json(manifest, "package-manifest-missing")
-    if not isinstance(payload, Mapping) or payload.get("packageVersion") != INSTALLER_VERSION:
+    if not isinstance(payload, Mapping) or payload.get("packageVersion") not in ADMITTED_PACKAGE_VERSIONS:
         raise OpenClawAdmissionError("package-version-mismatch")
     entries = payload.get("files")
     if not isinstance(entries, list):
@@ -543,7 +547,11 @@ def admit_openclaw_customization(
     checked_set = _owned_paths(consumer_root, boundary)
     checked_set.update(_declared_ide_paths(
         consumer_root, boundary,
-        allowed_versions={INSTALLER_VERSION} if pre_install_baseline is not None else {"2.5.1", INSTALLER_VERSION},
+        allowed_versions=(
+            set(ADMITTED_PACKAGE_VERSIONS)
+            if pre_install_baseline is not None
+            else {"2.5.1", *ADMITTED_PACKAGE_VERSIONS}
+        ),
     ))
     package_paths, omitted_package = _package_changed_paths(
         package_root=package_root, consumer_root=consumer_root, boundary=boundary

@@ -10,6 +10,10 @@ present destinations declared by the protected IDE `v2.5.2` package manifest,
 and the explicit v2.5.2 transaction paths. It does not scan, rewrite, or
 require repair of untouched `openclaw/openclaw` upstream trees.
 
+The v3.0.0 package is admitted under this same contract: package and
+installed-state versions `2.5.2` and `3.0.0` are accepted, and the admission
+receipt keeps `installerVersion: 2.5.2` as its contract identity.
+
 The consumer boundary is evidence, not a permission to broaden scope. The
 module rejects forbidden paths, scanner findings outside the exact checked
 set, missing or mismatched package identity, scanner-supplied baselines, and

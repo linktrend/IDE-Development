@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import stat
 import sys
 from pathlib import Path, PurePosixPath
 
@@ -119,6 +120,39 @@ def join_under_nofollow(root: Path, rel: str | PurePosixPath) -> Path:
     candidate = root_resolved.joinpath(*PurePosixPath(rel_posix).parts)
     try:
         candidate.relative_to(root_resolved)
+    except ValueError as exc:
+        raise ConflictError(
+            f"Path escapes repository root: {rel_posix}",
+            details={"path": rel_posix, "root": str(root_resolved)},
+        ) from exc
+    return candidate
+
+
+def join_under_nofollow_checked(root: Path, rel: str | PurePosixPath) -> Path:
+    """Join under ``root`` and reject symlinks in every existing component."""
+    rel_posix = as_posix_rel(rel)
+    root_resolved = root.resolve()
+    candidate = root_resolved
+    for part in PurePosixPath(rel_posix).parts:
+        candidate = candidate / part
+        try:
+            mode = candidate.lstat().st_mode
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise ConflictError(
+                f"Unable to inspect path without following links: {rel_posix}",
+                details={"path": rel_posix, "component": str(candidate), "error": str(exc)},
+            ) from exc
+        if stat.S_ISLNK(mode):
+            raise ConflictError(
+                f"Refusing path with symlink component: {rel_posix}",
+                details={"path": rel_posix, "component": str(candidate)},
+            )
+
+    resolved = candidate.resolve(strict=False)
+    try:
+        resolved.relative_to(root_resolved)
     except ValueError as exc:
         raise ConflictError(
             f"Path escapes repository root: {rel_posix}",

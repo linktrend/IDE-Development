@@ -1,0 +1,94 @@
+name: Linktrend Fast Checks
+
+# A checkpoint push is intentionally absent.  Phase PR updates are the only
+# automatic fast-check wake, and the PR concurrency key cancels obsolete work.
+on:
+  pull_request:
+    branches: [development]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        required: true
+        type: string
+      head_sha:
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.repository }}|${{ github.workflow }}|pr-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  fast:
+    name: Linktrend Fast Checks
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'pull_request' && startsWith(github.event.pull_request.head.ref, 'phase/'))
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || inputs.head_sha }}
+      SOURCE_BRANCH: ${{ github.event.pull_request.head.ref || '' }}
+    steps:
+      - name: Checkout exact Phase PR head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || format('refs/pull/{0}/head', inputs.pr_number) }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Reject stale or non-Phase dispatch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+          live_branch="$(jq -r .head.ref <<<"${pr}")"
+          live="$(jq -r .head.sha <<<"${pr}")"
+          case "${live_branch}" in phase/*) ;; *) echo "fast_checks_require_phase_branch: ${live_branch}"; exit 1;; esac
+          test "${live}" = "${EXPECTED_HEAD}" || { echo "fast_checks_stale_pr_head: expected=${EXPECTED_HEAD} live=${live}"; exit 1; }
+          actual="$(git rev-parse HEAD)"
+          test "${actual}" = "${EXPECTED_HEAD}" || {
+            echo "fast_checks_head_mismatch: expected=${EXPECTED_HEAD} actual=${actual}"
+            exit 1
+          }
+
+      - name: Run fast profile
+        run: |
+          set -euo pipefail
+          git diff --check
+          python3 -m py_compile \
+            scripts/gitops/phase_integrator.py \
+            scripts/gitops/coordinator/state.py \
+            scripts/gitops/coordinator/receipts.py \
+            scripts/gitops/promotion_receipt_gate.py
+          python3 -m unittest \
+            scripts.tests.test_candidate_lifecycle \
+            scripts.tests.test_gate_receipts \
+            scripts.tests.test_promotion_receipt_gate
+
+      - name: Retain fast-check evidence
+        if: always()
+        run: |
+          {
+            echo "workflow=Linktrend Fast Checks"
+            echo "repository=${GITHUB_REPOSITORY}"
+            echo "pr=${PR_NUMBER}"
+            echo "head=${EXPECTED_HEAD}"
+            echo "runner=ubuntu-24.04-arm"
+          } > fast-check-summary.txt
+
+      - name: Upload fast-check evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linktrend-fast-check-${{ github.run_id }}
+          path: fast-check-summary.txt
+          retention-days: 30

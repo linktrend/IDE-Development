@@ -1,0 +1,232 @@
+name: Linktrend Full Suite
+run-name: Full Suite PR #${{ github.event.pull_request.number }} @ ${{ github.event.pull_request.head.sha }} r1 a${{ github.run_attempt }}
+
+# Full validation is a trusted, explicit PR-label wake. Candidate code runs in
+# pull_request context with a read-only token; it never runs from a privileged
+# default-branch workflow_dispatch context.
+on:
+  pull_request:
+    branches: [development]
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.repository }}|${{ github.workflow }}|pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  full:
+    name: Linktrend Full Suite
+    if: >-
+      github.event.label.name == 'linktrend-full-suite' &&
+      startsWith(github.event.pull_request.head.ref, 'phase/') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      EXPECTED_SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Capture start time
+        id: clock
+        run: echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact sealed Phase head in unprivileged PR context
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate live head and exact seal
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+          live="$(jq -r .head.sha <<<"${pr}")"
+          live_branch="$(jq -r .head.ref <<<"${pr}")"
+          live_repo="$(jq -r .head.repo.full_name <<<"${pr}")"
+          case "${live_branch}" in phase/*) ;; *) echo "full_suite_requires_phase_branch=${live_branch}"; exit 1;; esac
+          test "${EXPECTED_SOURCE_BRANCH}" = "${live_branch}" || {
+            echo "full_suite_source_branch_mismatch: expected=${EXPECTED_SOURCE_BRANCH} live=${live_branch}"; exit 1;
+          }
+          test "${live_repo}" = "${GITHUB_REPOSITORY}" || {
+            echo "full_suite_repository_mismatch: expected=${GITHUB_REPOSITORY} live=${live_repo}"; exit 1;
+          }
+          test "${EXPECTED_HEAD}" = "${live}" || {
+            echo "full_suite_dispatch_head_stale: expected=${EXPECTED_HEAD} live=${live}"; exit 1;
+          }
+          actual="$(git rev-parse HEAD)"
+          test "${actual}" = "${live}" || { echo "full_suite_stale_seal: live=${live} actual=${actual}"; exit 1; }
+          fast="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=pull_request&head_sha=${live}&per_page=100" --jq '[.workflow_runs[] | select(.name == "Linktrend Fast Checks" and .conclusion == "success")] | length')"
+          test "${fast}" -gt 0 || { echo "full_suite_fast_check_missing_for_exact_head"; exit 1; }
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          derived="$(python3 - "${GITHUB_REPOSITORY}" "${live_branch}" "${live}" "${tree}" <<'PY'
+          import hashlib
+          import json
+          import sys
+          repository, branch, head, tree = sys.argv[1:]
+          identity = {
+              "repository": repository,
+              "sourceSha": head,
+              "gitTreeSha": tree,
+              "dependencyDigests": {},
+              "testProfile": "full",
+          }
+          print("sha256:" + hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest())
+          PY
+          )"
+          history_file="$(mktemp)"
+          trap 'rm -f "${history_file}"' EXIT
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/linktrend-integrator-merge.yml/runs?event=pull_request&per_page=100" >"${history_file}"
+          python3 - "${history_file}" "${PR_NUMBER}" "${live}" <<'PY'
+          import json, re, sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              history = json.load(handle)
+          pr_number, current_head = sys.argv[2], sys.argv[3]
+          pattern = re.compile(r"^Full Suite PR #(\d+) @ ([0-9a-f]{40}) r([12]) a([12])$")
+          relevant = []
+          for run in history.get("workflow_runs", []):
+              match = pattern.fullmatch(str(run.get("display_title") or ""))
+              if match and match.group(1) == pr_number:
+                  relevant.append((match.group(2), int(run.get("run_attempt") or 1)))
+          heads = {head for head, _ in relevant} | {current_head}
+          executions = sum(run_attempt for head, run_attempt in relevant if head == current_head)
+          if len(heads) > 2:
+              raise SystemExit("full_suite_sealed_candidate_limit")
+          # Every paid execution counts, whether it is a fresh dispatch or a
+          # GitHub UI rerun of an existing run.  The current run is present in
+          # history before candidate tests begin, so a third execution stops.
+          if executions > 2:
+              raise SystemExit("full_suite_attempt_limit")
+          PY
+          printf 'SOURCE_BRANCH=%s\nEXPECTED_HEAD=%s\nCANDIDATE_ID=%s\n' \
+            "${live_branch}" "${live}" "${derived}" >> "$GITHUB_ENV"
+          echo "exact dispatch-time seal accepted"
+
+      - name: Run full profile
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git diff --check
+          if [ "${GITHUB_REPOSITORY}" = "linktrend/IDE-Development" ]; then
+            python3 -m unittest \
+              scripts.tests.test_candidate_lifecycle \
+              scripts.tests.test_gate_receipts \
+              scripts.tests.test_promotion_receipt_gate \
+              scripts.tests.test_phase_batch_lifecycle
+            bash scripts/tests/test-gitops-phase-delivery.sh
+          else
+            ci_name="$(python3 -c 'import json; print(json.load(open(".github/linktrend-gitops-consumer.json"))["ciWorkflowName"])')"
+            successes="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=pull_request&head_sha=${EXPECTED_HEAD}&per_page=100" | jq --arg name "${ci_name}" '[.workflow_runs[] | select(.name == $name and .conclusion == "success")] | length')"
+            test "${successes}" -gt 0 || { echo "consumer_full_suite_missing_for_exact_head=${EXPECTED_HEAD} workflow=${ci_name}"; exit 1; }
+          fi
+
+      - name: Write exact full-suite receipt
+        if: success()
+        env:
+          STARTED: ${{ steps.clock.outputs.started_at }}
+        run: |
+          set -euo pipefail
+          COMPLETED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python3 - "${STARTED}" "${COMPLETED}" <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          import sys
+          # The workflow source checkout is the default branch; receipts must
+          # be generated by the sealed candidate that just passed the suite.
+          sys.path.insert(0, str(Path.cwd()))
+          from scripts.gitops.coordinator.receipts import (
+              canonical_digest,
+              compute_candidate_identity,
+              write_receipt,
+          )
+
+          started, completed = __import__("sys").argv[1:]
+          commands = [
+              "python3 -m unittest scripts.tests.test_candidate_lifecycle scripts.tests.test_gate_receipts scripts.tests.test_promotion_receipt_gate scripts.tests.test_phase_batch_lifecycle",
+              "bash scripts/tests/test-gitops-phase-delivery.sh",
+          ]
+          if os.environ["GITHUB_REPOSITORY"] != "linktrend/IDE-Development":
+              config = json.loads(Path(".github/linktrend-gitops-consumer.json").read_text())
+              commands = [f"verify exact-head successful GitHub Actions workflow: {config['ciWorkflowName']}"]
+          identity = compute_candidate_identity(
+              Path("."),
+              [],
+              "full",
+              profile_files=[".github/linktrend-delivery-mode.json"],
+              source_branch=os.environ["SOURCE_BRANCH"],
+          )
+          summary = Path("full-suite-summary.txt")
+          summary.write_text(
+              "workflow=Linktrend Full Suite\n"
+              f"repository={os.environ['GITHUB_REPOSITORY']}\n"
+              f"head={identity.head_commit}\n"
+              "runner=ubuntu-24.04-arm\n",
+              encoding="utf-8",
+          )
+          evidence = {
+              "full-suite-summary.txt": "sha256:" + hashlib.sha256(summary.read_bytes()).hexdigest()
+          }
+          result = {
+              "schemaVersion": 2,
+              "candidateIdentity": identity.to_dict(),
+              "workflowRunId": int(os.environ["GITHUB_RUN_ID"]),
+              "workflowRunAttempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "runnerLabel": "ubuntu-24.04-arm",
+              "startedAt": started,
+              "completedAt": completed,
+              "conclusion": "success",
+              "commandDigest": canonical_digest({"profile": "full", "commands": commands}),
+              "evidenceDigests": evidence,
+          }
+          write_receipt(result, Path("full-suite-receipt.json"))
+          print(json.dumps(result, sort_keys=True))
+          PY
+
+      - name: Upload retained full-suite receipt
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linktrend-full-suite-receipt-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          path: |
+            full-suite-receipt.json
+            full-suite-summary.txt
+          retention-days: 30
+
+  bugbot:
+    name: Linktrend Final Candidate Bugbot Request
+    needs: full
+    if: needs.full.result == 'success'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Request Bugbot once for the sealed candidate
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)"
+          marker="<!-- linktrend-bugbot-requested: ${HEAD_SHA} -->"
+          comments="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --jq '.[].body' || true)"
+          if printf '%s\n' "${comments}" | grep -Fq "${marker}"; then
+            echo "final_candidate_bugbot_request_already_recorded"
+            exit 0
+          fi
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            -f body="@cursor review\n${marker}"

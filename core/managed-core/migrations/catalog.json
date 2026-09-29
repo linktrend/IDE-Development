@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "catalogId": "ide-development-managed-core-migrations",
-  "packageVersion": "2.5.2",
+  "packageVersion": "3.0.0",
   "description": "Reviewed Wave 1 supersession catalog. Removals require exact identity and contentHash match; mismatches fail closed.",
   "entries": [
     {
@@ -120,22 +120,6 @@
       "sincePackageVersion": "2.2.0"
     },
     {
-      "identity": "scripts/gitops/main_approve_package_discover.py",
-      "path": "scripts/gitops/main_approve_package_discover.py",
-      "contentHash": "sha256:f6c5f1caf5541d260cb1f3f52157080c9d0e5241e79a2c30342a820026f6d155",
-      "action": "remove",
-      "reason": "Former promotion package discovery helper; receipt-gated hosted promotion supersedes it.",
-      "sincePackageVersion": "2.2.0"
-    },
-    {
-      "identity": "scripts/gitops/main_approve_package_reuse.py",
-      "path": "scripts/gitops/main_approve_package_reuse.py",
-      "contentHash": "sha256:ef21cc91858a30793ab8c77ca39fe0cc2d18646a9b04b5c604d08f33b4f04dc3",
-      "action": "remove",
-      "reason": "Former promotion package reuse helper; exact hosted receipt identity supersedes it.",
-      "sincePackageVersion": "2.2.0"
-    },
-    {
       "identity": "scripts/gitops/packager_discover.py",
       "path": "scripts/gitops/packager_discover.py",
       "contentHash": "sha256:3c3f84d3a59696e62fdff5ad444923c4563bc83df2f6d20410ea6e90361c1ebe",
@@ -160,59 +144,11 @@
       "sincePackageVersion": "2.2.0"
     },
     {
-      "identity": "scripts/gitops/repair_observer.py",
-      "path": "scripts/gitops/repair_observer.py",
-      "contentHash": "sha256:04c69c4440dcad12c3ebefaaa72b96fd53f8d9b39b1acd894f1d1f6b7530c0ee",
-      "action": "remove",
-      "reason": "Former repair workflow observer; hosted workflow failure outcomes supersede it.",
-      "sincePackageVersion": "2.2.0"
-    },
-    {
-      "identity": "scripts/gitops/repair_task.py",
-      "path": "scripts/gitops/repair_task.py",
-      "contentHash": "sha256:bc488140766e2d810e1ddb0751c432c8c171e6fd465bb9d9981aca18601a5b67",
-      "action": "remove",
-      "reason": "Former autonomous repair dispatch path; hosted checks stop and alert instead.",
-      "sincePackageVersion": "2.2.0"
-    },
-    {
       "identity": "scripts/gitops/resolve_automation_token.sh",
       "path": "scripts/gitops/resolve_automation_token.sh",
       "contentHash": "sha256:f3d575f4340fb4f8f647c5e476abd3bb95f8f25d76a78804fcadafded52f264e",
       "action": "remove",
       "reason": "Former custom-App/Mac automation token resolver; hosted jobs use least-privilege GITHUB_TOKEN.",
-      "sincePackageVersion": "2.2.0"
-    },
-    {
-      "identity": "scripts/gitops/resolve_bugbot_user_token.sh",
-      "path": "scripts/gitops/resolve_bugbot_user_token.sh",
-      "contentHash": "sha256:dfb3497e63359a2fa404ab0c8de23f79022b4259d63c586800eec630c6aa9456",
-      "action": "remove",
-      "reason": "Former user-token resolver for App-era Bugbot dispatch; hosted Bugbot integration supersedes it.",
-      "sincePackageVersion": "2.2.0"
-    },
-    {
-      "identity": "scripts/gitops/bugbot_user_credentials.py",
-      "path": "scripts/gitops/bugbot_user_credentials.py",
-      "contentHash": "sha256:d79d08f5e03fa5b0a0fa9580890c5bd39c5aa3c7219fb81ad2df4b9f531947e2",
-      "action": "remove",
-      "reason": "Former Bugbot user-token credential helper; no credential helper is installable.",
-      "sincePackageVersion": "2.2.0"
-    },
-    {
-      "identity": "scripts/gitops/review_ready_dispatch.py",
-      "path": "scripts/gitops/review_ready_dispatch.py",
-      "contentHash": "sha256:6c6168773ef10a5de7ad9840acd09da7412d6e6d53bd9a52addf5740eb207229",
-      "action": "remove",
-      "reason": "Former publisher-dispatch compatibility path; hosted final-candidate status is authoritative.",
-      "sincePackageVersion": "2.2.0"
-    },
-    {
-      "identity": "scripts/gitops/write_outcome.py",
-      "path": "scripts/gitops/write_outcome.py",
-      "contentHash": "sha256:ba088c7a0dc9c22224adfef3bc382c4032c65caa181be3876d27b4fc105ed2b7",
-      "action": "remove",
-      "reason": "Former token-backed workflow outcome writer; native hosted workflow results supersede it.",
       "sincePackageVersion": "2.2.0"
     },
     {
@@ -270,6 +206,1054 @@
       "action": "remove",
       "reason": "Remove the exact v2.5.0 portfolio-specific rollout cleanup plan from the reusable package.",
       "sincePackageVersion": "2.5.1"
+    },
+    {
+      "identity": ".ide-development/content/config/manifest-persistence.json",
+      "path": ".ide-development/content/config/manifest-persistence.json",
+      "contentHash": "sha256:051b63d3bf3ba888ab60855566ef777963f16d07a794a225b54ca876ca731f86",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts: manifest persistence)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/content/config/portfolio-control-loop.json",
+      "path": ".ide-development/content/config/portfolio-control-loop.json",
+      "contentHash": "sha256:4aa3309c319dd9a9e6dd0cc64df59eabf3c3bec2d4544414f4f8070830b50f5b",
+      "action": "remove",
+      "reason": "Retired in v3 (Lisa ship/pull waves: portfolio control loop)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/content/doctrine/LINKTREND-REVIEW-GATE.md",
+      "path": ".ide-development/content/doctrine/LINKTREND-REVIEW-GATE.md",
+      "contentHash": "sha256:db8e72f4c65f18df7f603bcabf3e5221eebf462bc3b86bac67edae1b376eaf67",
+      "action": "remove",
+      "reason": "Retired in v3 (review-gate classifier)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/content/doctrine/MANIFEST-PERSISTENCE-RECOVERY.md",
+      "path": ".ide-development/content/doctrine/MANIFEST-PERSISTENCE-RECOVERY.md",
+      "contentHash": "sha256:52fdef09226558f4a28ae9fece22d0f91b4c02bb1190d2792720a909f04c2923",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts: manifest persistence)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/content/doctrine/RECEIPT-SEAL-AND-RECOVERY.md",
+      "path": ".ide-development/content/doctrine/RECEIPT-SEAL-AND-RECOVERY.md",
+      "contentHash": "sha256:69fe58944e0ef8daf7e6cab462de87a86e83795ef562d2fabba1b53bd2f08ee8",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/execution/manifest_persistence.py",
+      "path": ".ide-development/execution/manifest_persistence.py",
+      "contentHash": "sha256:46c660f67f9c8c914b583c62c7c78009df80251942c2601d4ca111d061ca4da6",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts: manifest persistence)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/schemas/delivery-operation.schema.json",
+      "path": ".ide-development/schemas/delivery-operation.schema.json",
+      "contentHash": "sha256:3b102cc23a9ce4ed3a87b6d3d7417116c41feff300693660d0caa4dc28e32ad2",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/schemas/linktrend-review-gate.schema.json",
+      "path": ".ide-development/schemas/linktrend-review-gate.schema.json",
+      "contentHash": "sha256:e156676b3573f5068659778945d2cb74f54f9b9beb8b35a25ebfb7cdf7c5ac1c",
+      "action": "remove",
+      "reason": "Retired in v3 (review-gate classifier)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/schemas/manifest-persistence.schema.json",
+      "path": ".ide-development/schemas/manifest-persistence.schema.json",
+      "contentHash": "sha256:604e6bfb963308fce44327dc6bc0762f5bdace566023f8749517a37494cf31db",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts: manifest persistence)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/schemas/phase-handoff.schema.json",
+      "path": ".ide-development/schemas/phase-handoff.schema.json",
+      "contentHash": "sha256:b11b5f46a8acb872d93b62d00637f224c2f3a3895a252a1f135898a61804d1cf",
+      "action": "remove",
+      "reason": "Retired in v3 (packager)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/schemas/phase-handoff.schema.json@v2.4.0",
+      "path": ".ide-development/schemas/phase-handoff.schema.json",
+      "contentHash": "sha256:132f560cd09f5b328ffad978d33f3499d46df8b3aa5a2b4391f519c860e85b10",
+      "action": "remove",
+      "reason": "Retired in v3 (packager); bytes as published in v2.4.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/schemas/phase-record.schema.json",
+      "path": ".ide-development/schemas/phase-record.schema.json",
+      "contentHash": "sha256:66406d8c9748fc3168d3a078e01874ad3e36a118a8e4f88210fbe21596a04408",
+      "action": "remove",
+      "reason": "Retired in v3 (packager)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/schemas/portfolio-control-loop.schema.json",
+      "path": ".ide-development/schemas/portfolio-control-loop.schema.json",
+      "contentHash": "sha256:98c216022c83874fefa6fb50940b91797cbe2873c2f38ee93f6b924d54bb0772",
+      "action": "remove",
+      "reason": "Retired in v3 (Lisa ship/pull waves: portfolio control loop)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/schemas/transition-receipt.schema.json",
+      "path": ".ide-development/schemas/transition-receipt.schema.json",
+      "contentHash": "sha256:d42fd54233c7ce13e613a496d8e94a9fc5c298be011cfbff3f8b7fb660720c07",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/tests/test_candidate_lifecycle.py",
+      "path": ".ide-development/tests/test_candidate_lifecycle.py",
+      "contentHash": "sha256:b6db5bd3b5a3c0dae264dc3c56bad13448bb34b7ef6d8895d45b64e755506d31",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/tests/test_delivery_controller.py",
+      "path": ".ide-development/tests/test_delivery_controller.py",
+      "contentHash": "sha256:9f98e07bb9f740ad627814344746d475c5f64988a9345607653a9ca73cc73459",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/tests/test_delivery_controller.py@v2.4.0",
+      "path": ".ide-development/tests/test_delivery_controller.py",
+      "contentHash": "sha256:c540c02fd9115831ab4a87edad713eaf2563c8be6deb4767f582fa48ad0cfb4a",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller); bytes as published in v2.4.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/tests/test_gate_receipts.py",
+      "path": ".ide-development/tests/test_gate_receipts.py",
+      "contentHash": "sha256:4317a7ee0e407bcce604e7c92ccba4d59a6d2b114023925f3a5b5dd5fb0c8b51",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/tests/test_gate_receipts.py@v2.3.0",
+      "path": ".ide-development/tests/test_gate_receipts.py",
+      "contentHash": "sha256:a7780c57ed607ed5b4257e47f8fff2bc10a47bc8ea329d6eb948cd54b5623a46",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts); bytes as published in v2.3.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/tests/test_gate_receipts.py@v2.4.0",
+      "path": ".ide-development/tests/test_gate_receipts.py",
+      "contentHash": "sha256:848a763894b452b8f01ede8acccbecc289d47435eed6a8715ce0b99cfefc1355",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts); bytes as published in v2.4.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/tests/test_linktrend_review_gate.py",
+      "path": ".ide-development/tests/test_linktrend_review_gate.py",
+      "contentHash": "sha256:2dee76ea320a7fd835f37b51745ebcf819d43ad216499e4990ed59468e3d7add",
+      "action": "remove",
+      "reason": "Retired in v3 (review-gate classifier)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/tests/test_linktrend_review_gate.py@v2.4.0",
+      "path": ".ide-development/tests/test_linktrend_review_gate.py",
+      "contentHash": "sha256:cd42c851f26b87c06ff36ef491d8d0ff782c0119a5aff6c65ddd4918d6c1e9de",
+      "action": "remove",
+      "reason": "Retired in v3 (review-gate classifier); bytes as published in v2.4.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/tests/test_manifest_persistence_recovery.py",
+      "path": ".ide-development/tests/test_manifest_persistence_recovery.py",
+      "contentHash": "sha256:8484d561a5a138fb6d4d37349f6982d521afec0bbf8e2eb4d6bcf6ab44463675",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts: manifest persistence)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/tests/test_phase_packager_coordinator.py",
+      "path": ".ide-development/tests/test_phase_packager_coordinator.py",
+      "contentHash": "sha256:d07ce2ed635a5606dd8410edcaa8d593a1f96ea2b78821aa5ca7d39291ebaf8a",
+      "action": "remove",
+      "reason": "Retired in v3 (packager)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/tests/test_phase_packager_coordinator.py@v2.4.0",
+      "path": ".ide-development/tests/test_phase_packager_coordinator.py",
+      "contentHash": "sha256:612486f9b0b74f955caaf529822c3fe7789d984fa03e7753615ff5aaa64daa4b",
+      "action": "remove",
+      "reason": "Retired in v3 (packager); bytes as published in v2.4.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/tests/test_promotion_receipt_gate.py",
+      "path": ".ide-development/tests/test_promotion_receipt_gate.py",
+      "contentHash": "sha256:98bd5d07072df0881ccfe75902bb7eef0143390dd2dcb3ff886af61c1cfe3487",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/tests/test_promotion_receipt_gate.py@v2.3.0",
+      "path": ".ide-development/tests/test_promotion_receipt_gate.py",
+      "contentHash": "sha256:9f421d9d2f72c32e5591a60ed2dd638abbf8743606bff7845b7249af4fd8ad7c",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts); bytes as published in v2.3.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/tests/test_receipt_seal_and_recovery.py",
+      "path": ".ide-development/tests/test_receipt_seal_and_recovery.py",
+      "contentHash": "sha256:09162700bd6c6f0e9c59e50fc1f388f3e96f62b52b194357e754458c3136bf70",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-development-to-staging.yml",
+      "path": ".ide-development/workflows/linktrend-development-to-staging.yml",
+      "contentHash": "sha256:1a55ce5d1a7fa056853f1b09e60e15ab66bb56395771d11c5300e14c150df3e9",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-development-to-staging.yml@v2.3.0",
+      "path": ".ide-development/workflows/linktrend-development-to-staging.yml",
+      "contentHash": "sha256:58738ef15498a41465d60109454475ace38963cb2b3503f487bea3b39eddd1bf",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.3.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-development-to-staging.yml@v2.3.1",
+      "path": ".ide-development/workflows/linktrend-development-to-staging.yml",
+      "contentHash": "sha256:1d4d8aaffb8e02b8def10e557e0cb765aadccd2234f10ffa395b94dda9047d86",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.3.1",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-development-to-staging.yml@v2.3.2",
+      "path": ".ide-development/workflows/linktrend-development-to-staging.yml",
+      "contentHash": "sha256:ac93a8ab11c46a0bbcc7c181c82ffafee7e25465f5734c9a5a08fa1bcaf09fe5",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.3.2",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-development-to-staging.yml@v2.3.3",
+      "path": ".ide-development/workflows/linktrend-development-to-staging.yml",
+      "contentHash": "sha256:bc8546b9d222baea6c35ce6496f233f60c737cd444b12dcc0ae8b6820d9a3762",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.3.3",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-development-to-staging.yml@v2.3.6",
+      "path": ".ide-development/workflows/linktrend-development-to-staging.yml",
+      "contentHash": "sha256:f04d041849174340817dd559044fb2fc3aae8274c7e813571785631c54b8e0c4",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.3.6",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-integrator-merge.yml",
+      "path": ".ide-development/workflows/linktrend-integrator-merge.yml",
+      "contentHash": "sha256:f33260afcc8adf30c151838c58a558d6e400b1c4776ce77e5e04b73013d52448",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-integrator-merge.yml@v2.3.0",
+      "path": ".ide-development/workflows/linktrend-integrator-merge.yml",
+      "contentHash": "sha256:f3a53a9fb00e71f02e10df57c73e543d05b0cba23a0087526dce19b0e51a1447",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller); bytes as published in v2.3.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-integrator-merge.yml@v2.3.1",
+      "path": ".ide-development/workflows/linktrend-integrator-merge.yml",
+      "contentHash": "sha256:1dcaf17dfb878c44dff799122e0855132d9e7991aec922f45f11d76f4bb9e690",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller); bytes as published in v2.3.1",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-integrator-merge.yml@v2.3.2",
+      "path": ".ide-development/workflows/linktrend-integrator-merge.yml",
+      "contentHash": "sha256:ad6e6f28bc7f8e76addd0dafe0f7a8fa31f1e06e767dc55e82720aa3a079b73d",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller); bytes as published in v2.3.2",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-integrator-merge.yml@v2.3.4",
+      "path": ".ide-development/workflows/linktrend-integrator-merge.yml",
+      "contentHash": "sha256:45c3731253cf08032c9a2ecbf166bcd20802fd601b745da5afc859e1317fc86d",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller); bytes as published in v2.3.4",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-integrator-merge.yml@v2.3.5",
+      "path": ".ide-development/workflows/linktrend-integrator-merge.yml",
+      "contentHash": "sha256:3106ecf4f77e64d264b4635bf54e2a1f913d671b691090b35432df9f90038307",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller); bytes as published in v2.3.5",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-integrator-merge.yml@v2.3.6",
+      "path": ".ide-development/workflows/linktrend-integrator-merge.yml",
+      "contentHash": "sha256:634a92348345f3b568f70ad930d60881d25483e8b6e288954840fedb0b569f29",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller); bytes as published in v2.3.6",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-integrator-merge.yml@v2.4.0",
+      "path": ".ide-development/workflows/linktrend-integrator-merge.yml",
+      "contentHash": "sha256:948bf2220bbbdaaf7656375982dc91b4622049e8fd69b68939c216fe69e40e34",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller); bytes as published in v2.4.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-review-gate.yml",
+      "path": ".ide-development/workflows/linktrend-review-gate.yml",
+      "contentHash": "sha256:db609b14c882a5eb84401cd820cf5d57010485fff49e0e9b9ee2222dc77c6f29",
+      "action": "remove",
+      "reason": "Retired in v3 (review-gate classifier)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-review-gate.yml@v2.4.0",
+      "path": ".ide-development/workflows/linktrend-review-gate.yml",
+      "contentHash": "sha256:e6040f89dd023408015df308f316d23f2f0c601c8bf8c73faa6332c603d6597c",
+      "action": "remove",
+      "reason": "Retired in v3 (review-gate classifier); bytes as published in v2.4.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-review-packager.yml",
+      "path": ".ide-development/workflows/linktrend-review-packager.yml",
+      "contentHash": "sha256:16a74c85cf8c4644f8aeccfe7abaabbb77aa9a837963c50e8275e1452247b7c1",
+      "action": "remove",
+      "reason": "Retired in v3 (packager)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-review-packager.yml@v2.3.0",
+      "path": ".ide-development/workflows/linktrend-review-packager.yml",
+      "contentHash": "sha256:697367a1cd4ac9b391ffbd80eaf55b5c6348150f0d45d1a7bd4c699c2b227390",
+      "action": "remove",
+      "reason": "Retired in v3 (packager); bytes as published in v2.3.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-review-packager.yml@v2.3.2",
+      "path": ".ide-development/workflows/linktrend-review-packager.yml",
+      "contentHash": "sha256:815f669d7b3eb4812656eb254306981cf27ce64781e97319ed750f904ddde257",
+      "action": "remove",
+      "reason": "Retired in v3 (packager); bytes as published in v2.3.2",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-review-packager.yml@v2.3.4",
+      "path": ".ide-development/workflows/linktrend-review-packager.yml",
+      "contentHash": "sha256:3704195e0ec5de53c3ca6686c068321b00aec440fdce55f3496337e6bae84105",
+      "action": "remove",
+      "reason": "Retired in v3 (packager); bytes as published in v2.3.4",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-review-packager.yml@v2.3.7",
+      "path": ".ide-development/workflows/linktrend-review-packager.yml",
+      "contentHash": "sha256:838204eb6134e42aa7845d84ac1a6603502fc7de46b43a2f3a4117dafc1d2bd5",
+      "action": "remove",
+      "reason": "Retired in v3 (packager); bytes as published in v2.3.7",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-review-ready-publisher.yml",
+      "path": ".ide-development/workflows/linktrend-review-ready-publisher.yml",
+      "contentHash": "sha256:a10d154edd8cabcf75839c24cfc51a12f3d8bf76aa3452a050f89132fcd35dfc",
+      "action": "remove",
+      "reason": "Retired in v3 (Review Ready publisher)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-review-ready-publisher.yml@v2.3.0",
+      "path": ".ide-development/workflows/linktrend-review-ready-publisher.yml",
+      "contentHash": "sha256:28e5a143ce55e93bf968f8e0dadfc53d98cfd098f8fe010f36d790ffa6c8832b",
+      "action": "remove",
+      "reason": "Retired in v3 (Review Ready publisher); bytes as published in v2.3.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-review-ready-publisher.yml@v2.4.0",
+      "path": ".ide-development/workflows/linktrend-review-ready-publisher.yml",
+      "contentHash": "sha256:2f3f1151e08aedd464d87179793cfe99f7dc8f8b041db714ca400f4704cd1893",
+      "action": "remove",
+      "reason": "Retired in v3 (Review Ready publisher); bytes as published in v2.4.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-staging-to-main.yml",
+      "path": ".ide-development/workflows/linktrend-staging-to-main.yml",
+      "contentHash": "sha256:c87b4dfaaf05bf6aefbc2f045f8f948b7234b405b5cdc5bcebcf2fbda4b995c2",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-staging-to-main.yml@v2.3.0",
+      "path": ".ide-development/workflows/linktrend-staging-to-main.yml",
+      "contentHash": "sha256:51894fa176b70581cb34962da9ca6d3e8670c800d96e785974abdd66d7a2f3a6",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.3.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-staging-to-main.yml@v2.3.1",
+      "path": ".ide-development/workflows/linktrend-staging-to-main.yml",
+      "contentHash": "sha256:0a9d5653a2bf11cc68937106c65279d08ade521beabe806729b1f6d0f38f6b56",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.3.1",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-staging-to-main.yml@v2.3.2",
+      "path": ".ide-development/workflows/linktrend-staging-to-main.yml",
+      "contentHash": "sha256:450143314839c951bf4c05f1514e08ce472de3e92a690736bbf4943c652164f5",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.3.2",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-staging-to-main.yml@v2.3.3",
+      "path": ".ide-development/workflows/linktrend-staging-to-main.yml",
+      "contentHash": "sha256:b4bc78ae34c201ede452bcdb39b6231a8022ac79b383b893fb07617dd69e74bb",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.3.3",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": ".ide-development/workflows/linktrend-staging-to-main.yml@v2.3.6",
+      "path": ".ide-development/workflows/linktrend-staging-to-main.yml",
+      "contentHash": "sha256:282b1528d18d9db0b0e379e1c3bb37cbf738655c6386187952f1af65d6c7036f",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.3.6",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "core/execution/manifest_persistence.py",
+      "path": "core/execution/manifest_persistence.py",
+      "contentHash": "sha256:46c660f67f9c8c914b583c62c7c78009df80251942c2601d4ca111d061ca4da6",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts: manifest persistence)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "core/managed-core/content/config/manifest-persistence.json",
+      "path": "core/managed-core/content/config/manifest-persistence.json",
+      "contentHash": "sha256:051b63d3bf3ba888ab60855566ef777963f16d07a794a225b54ca876ca731f86",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts: manifest persistence)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "core/managed-core/schemas/manifest-persistence.schema.json",
+      "path": "core/managed-core/schemas/manifest-persistence.schema.json",
+      "contentHash": "sha256:604e6bfb963308fce44327dc6bc0762f5bdace566023f8749517a37494cf31db",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts: manifest persistence)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/administrator_recovery.py",
+      "path": "scripts/gitops/administrator_recovery.py",
+      "contentHash": "sha256:b58bae0ae3e2585d09660407e010fcbc49805614aaeafac223eea4fb5e909081",
+      "action": "remove",
+      "reason": "Retired in v3 (Mac Mini coordinator)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/bugbot_user_credentials.py",
+      "path": "scripts/gitops/bugbot_user_credentials.py",
+      "contentHash": "sha256:d79d08f5e03fa5b0a0fa9580890c5bd39c5aa3c7219fb81ad2df4b9f531947e2",
+      "action": "remove",
+      "reason": "Retired in v3 (Bugbot user-token dispatch)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/bugbot_user_credentials.py@v2.1.0",
+      "path": "scripts/gitops/bugbot_user_credentials.py",
+      "contentHash": "sha256:20a47b1c45d9796478c917d3058781f122b063ee00fd79276bd809294298b646",
+      "action": "remove",
+      "reason": "Retired in v3 (Bugbot user-token dispatch); bytes as published in v2.1.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/completion_gate.py",
+      "path": "scripts/gitops/completion_gate.py",
+      "contentHash": "sha256:913e7aeb170d9ffa60679701d0c5817bd12a85610a8c9601398a622274bfeb54",
+      "action": "remove",
+      "reason": "Retired in v3 (completion-gate evidence)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/completion_gate.py@v2.1.0",
+      "path": "scripts/gitops/completion_gate.py",
+      "contentHash": "sha256:1cf9b824347151333d21b0e24e07876c87a9ae2dbf892b032b2f1ea1ccb2fc11",
+      "action": "remove",
+      "reason": "Retired in v3 (completion-gate evidence); bytes as published in v2.1.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/completion_gate.py@v2.1.2",
+      "path": "scripts/gitops/completion_gate.py",
+      "contentHash": "sha256:9e3088a444b5851a7e0f6b3bffe45670a7e32b679d1241abdc879bffa024d00e",
+      "action": "remove",
+      "reason": "Retired in v3 (completion-gate evidence); bytes as published in v2.1.2",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/conflict_task.py",
+      "path": "scripts/gitops/conflict_task.py",
+      "contentHash": "sha256:a2ca8b55a0ad5b2dc0fd334e47758a83febae212c689b1cdfcdd97e615001ead",
+      "action": "remove",
+      "reason": "Retired in v3 (repair observer and repair dispatcher)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/coordinator/__init__.py",
+      "path": "scripts/gitops/coordinator/__init__.py",
+      "contentHash": "sha256:86b4e67b9bf528e8b9206a1bb83ad6a802e6e77d5aa817a60005b266011faa3c",
+      "action": "remove",
+      "reason": "Retired in v3 (packager)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/coordinator/config.py",
+      "path": "scripts/gitops/coordinator/config.py",
+      "contentHash": "sha256:c4bce0256444ec385e6b754213f0b7c1776b113ab7d208b44b2dd0f55b00eb43",
+      "action": "remove",
+      "reason": "Retired in v3 (packager)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/coordinator/config.py@v2.2.0",
+      "path": "scripts/gitops/coordinator/config.py",
+      "contentHash": "sha256:9794595277e33c8ecdec4256792403b1085fa46606cb3fbde73eceb5d7e923bb",
+      "action": "remove",
+      "reason": "Retired in v3 (packager); bytes as published in v2.2.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/coordinator/config.py@v2.3.0",
+      "path": "scripts/gitops/coordinator/config.py",
+      "contentHash": "sha256:b7b54aa0bc59928d8fa992639d1c083b660f1321f8b06dd92a9a61e1d64b45b0",
+      "action": "remove",
+      "reason": "Retired in v3 (packager); bytes as published in v2.3.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/coordinator/receipts.py",
+      "path": "scripts/gitops/coordinator/receipts.py",
+      "contentHash": "sha256:43cb3b121bdafc9e7f6854381a3e402096300f45038592e74ee1a03b955bc1de",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/coordinator/receipts.py@v2.2.0",
+      "path": "scripts/gitops/coordinator/receipts.py",
+      "contentHash": "sha256:6dca78ba9b9a26e0782c4da3531437215c77ecedc39c8f9e2214f59a1bc0ef55",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts); bytes as published in v2.2.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/coordinator/receipts.py@v2.3.0",
+      "path": "scripts/gitops/coordinator/receipts.py",
+      "contentHash": "sha256:8d17a3884b4945bfa3de19bb847cd511b1eb8c9f7dd95419f1a517dd05434c7c",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts); bytes as published in v2.3.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/coordinator/state.py",
+      "path": "scripts/gitops/coordinator/state.py",
+      "contentHash": "sha256:1f2eeef5fa43d65f1546e413bfdaa0f17caab6c1158f31477c920a25f94c2349",
+      "action": "remove",
+      "reason": "Retired in v3 (packager)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/coordinator/state.py@v2.2.0",
+      "path": "scripts/gitops/coordinator/state.py",
+      "contentHash": "sha256:9f9ab493d8659cc107936c9fbdc91fb724a5e5b29c66fea28d8df82944cf0b40",
+      "action": "remove",
+      "reason": "Retired in v3 (packager); bytes as published in v2.2.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/delivery_controller.py",
+      "path": "scripts/gitops/delivery_controller.py",
+      "contentHash": "sha256:d97abf22e3daacdfc239d702d9ba9d09f93aa215dced5fccb06780ebd2b87740",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/delivery_controller.py@v2.4.0",
+      "path": "scripts/gitops/delivery_controller.py",
+      "contentHash": "sha256:b063191b3ced40483270631e48d7c78c550c71443b07b852d295e7b80d4ae2cd",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller); bytes as published in v2.4.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/gate_receipt.py",
+      "path": "scripts/gitops/gate_receipt.py",
+      "contentHash": "sha256:634b03bfbce7d4b7c1ff9aae4a30f130901d6c4f31ca7c551f894763f4933849",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/gate_receipt.py@v2.2.0",
+      "path": "scripts/gitops/gate_receipt.py",
+      "contentHash": "sha256:2a3432d461fd9c0f0d4c1a0f48dee93f2210803d0ce424d430073ea4dca9bc4f",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts); bytes as published in v2.2.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/gate_receipt.py@v2.3.0",
+      "path": "scripts/gitops/gate_receipt.py",
+      "contentHash": "sha256:e96de8e89c68055be7715c3ef717752ccc4d697d74893c308b94242e2fdb39c4",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts); bytes as published in v2.3.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/gate_receipt.py@v2.3.6",
+      "path": "scripts/gitops/gate_receipt.py",
+      "contentHash": "sha256:f7fcb247385d8a82588bef2e701167f12e4edfaa66a63f92a82c3573bfac519d",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts); bytes as published in v2.3.6",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/heartbeat_controller.py",
+      "path": "scripts/gitops/heartbeat_controller.py",
+      "contentHash": "sha256:00186fb8f0c634dc955ceb9c3822177bc0c920ad892a8f7b7da5e8f55eb98eee",
+      "action": "remove",
+      "reason": "Retired in v3 (Mac Mini coordinator)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/linktrend_review_gate.py",
+      "path": "scripts/gitops/linktrend_review_gate.py",
+      "contentHash": "sha256:b46b5f0b52f1528ee9793f1a1d347df0070d545fd66e9464d88d82305924dc3e",
+      "action": "remove",
+      "reason": "Retired in v3 (review-gate classifier)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/main_approve_package_discover.py",
+      "path": "scripts/gitops/main_approve_package_discover.py",
+      "contentHash": "sha256:042046e218bd5dedbd325f9117d69d762e6fb8f6452864dbedce34ca71ee4737",
+      "action": "remove",
+      "reason": "Retired in v3 (receipt-gated promotion, replaced by linktrend-promote-main.yml)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/main_approve_package_discover.py@v2.1.0",
+      "path": "scripts/gitops/main_approve_package_discover.py",
+      "contentHash": "sha256:f6c5f1caf5541d260cb1f3f52157080c9d0e5241e79a2c30342a820026f6d155",
+      "action": "remove",
+      "reason": "Retired in v3 (receipt-gated promotion, replaced by linktrend-promote-main.yml); bytes as published in v2.1.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/main_approve_package_reuse.py",
+      "path": "scripts/gitops/main_approve_package_reuse.py",
+      "contentHash": "sha256:ef21cc91858a30793ab8c77ca39fe0cc2d18646a9b04b5c604d08f33b4f04dc3",
+      "action": "remove",
+      "reason": "Retired in v3 (receipt-gated promotion, replaced by linktrend-promote-main.yml)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/packager_coordinator.py",
+      "path": "scripts/gitops/packager_coordinator.py",
+      "contentHash": "sha256:691679a77966109c731503e48bc863688362ee580ab3211371f2c870965a3292",
+      "action": "remove",
+      "reason": "Retired in v3 (packager)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/packager_coordinator.py@v2.4.0",
+      "path": "scripts/gitops/packager_coordinator.py",
+      "contentHash": "sha256:2d6999bd48298b828b7491f68cda6f411ce85885c8695353d733dd03d7f3a620",
+      "action": "remove",
+      "reason": "Retired in v3 (packager); bytes as published in v2.4.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/packager_logic.py",
+      "path": "scripts/gitops/packager_logic.py",
+      "contentHash": "sha256:6f6927f7836c111ad2357330ac976f084c775e9d7ec2238d84424009f0778367",
+      "action": "remove",
+      "reason": "Retired in v3 (packager)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/packager_logic.py@v2.1.0",
+      "path": "scripts/gitops/packager_logic.py",
+      "contentHash": "sha256:64763e5013a773cdb73064df44b6771ab3e55fd412eb924744e1a619227a834f",
+      "action": "remove",
+      "reason": "Retired in v3 (packager); bytes as published in v2.1.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/packager_logic.py@v2.1.3",
+      "path": "scripts/gitops/packager_logic.py",
+      "contentHash": "sha256:c6b95e0026cbda5e0655720e1fc99723fa106acc304b3a4762effb10a9b0034e",
+      "action": "remove",
+      "reason": "Retired in v3 (packager); bytes as published in v2.1.3",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/portfolio_control_loop.py",
+      "path": "scripts/gitops/portfolio_control_loop.py",
+      "contentHash": "sha256:bd0822d72e1a262d47615b66c622a471b5a825bcfc41bf67ea862b031fab0a97",
+      "action": "remove",
+      "reason": "Retired in v3 (Lisa ship/pull waves: portfolio control loop)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promote_main.sh",
+      "path": "scripts/gitops/promote_main.sh",
+      "contentHash": "sha256:1f387376d2a6a9fef8c06cbb2cab437da8b980d01ae3e88fbfefb2126cec6ec4",
+      "action": "remove",
+      "reason": "Retired in v3 (receipt-gated promotion, replaced by linktrend-promote-main.yml)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promote_main.sh@v2.1.0",
+      "path": "scripts/gitops/promote_main.sh",
+      "contentHash": "sha256:0223c6471f521d59265dd3ec818b197187d2066f51b962d3530db0c65e85401c",
+      "action": "remove",
+      "reason": "Retired in v3 (receipt-gated promotion, replaced by linktrend-promote-main.yml); bytes as published in v2.1.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promote_main.sh@v2.1.2",
+      "path": "scripts/gitops/promote_main.sh",
+      "contentHash": "sha256:2b578454f05435ef363001ccb0aba13757937f9c27b735c6711b5a9b14436ec4",
+      "action": "remove",
+      "reason": "Retired in v3 (receipt-gated promotion, replaced by linktrend-promote-main.yml); bytes as published in v2.1.2",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promote_main.sh@v2.2.0",
+      "path": "scripts/gitops/promote_main.sh",
+      "contentHash": "sha256:345995a8c15b5c884af35d702c1ced1def1ffd09511982a48aeb2f5cc0474a83",
+      "action": "remove",
+      "reason": "Retired in v3 (receipt-gated promotion, replaced by linktrend-promote-main.yml); bytes as published in v2.2.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promote_main.sh@v2.3.0",
+      "path": "scripts/gitops/promote_main.sh",
+      "contentHash": "sha256:71e7dd56bcf0218923ca4164398802a570ee9053c0f78604650dc4abf50094b9",
+      "action": "remove",
+      "reason": "Retired in v3 (receipt-gated promotion, replaced by linktrend-promote-main.yml); bytes as published in v2.3.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promote_main.sh@v2.3.6",
+      "path": "scripts/gitops/promote_main.sh",
+      "contentHash": "sha256:980cebc5d737284fc4d6e257127509c34ee3e5ffbef33353c479c797d2a9fa20",
+      "action": "remove",
+      "reason": "Retired in v3 (receipt-gated promotion, replaced by linktrend-promote-main.yml); bytes as published in v2.3.6",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promote_main.sh@v2.4.0",
+      "path": "scripts/gitops/promote_main.sh",
+      "contentHash": "sha256:aab7ef9dd67d35d3616c8c0f89265666f51f95f8e061c8a6e87e94e345338d4f",
+      "action": "remove",
+      "reason": "Retired in v3 (receipt-gated promotion, replaced by linktrend-promote-main.yml); bytes as published in v2.4.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promote_staging.sh",
+      "path": "scripts/gitops/promote_staging.sh",
+      "contentHash": "sha256:dc5afdbbce7d321526032a58e5b059e6ff40dff368ff16f8de0b5443edea40ac",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promote_staging.sh@v2.1.0",
+      "path": "scripts/gitops/promote_staging.sh",
+      "contentHash": "sha256:d388a1bbfb23adee3a3c373157e8eb61a6f17c8d9975cc58297eda0f8fd7d97b",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.1.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promote_staging.sh@v2.1.2",
+      "path": "scripts/gitops/promote_staging.sh",
+      "contentHash": "sha256:891ad53da10d9995b2971f3d661bc3113e6c64a22e45c5d300948e65d1bf412e",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.1.2",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promote_staging.sh@v2.2.0",
+      "path": "scripts/gitops/promote_staging.sh",
+      "contentHash": "sha256:e6d5532c97fadd18f5adddce45b475b560d46e6135006a44e206cf81f77c1e5d",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.2.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promote_staging.sh@v2.3.0",
+      "path": "scripts/gitops/promote_staging.sh",
+      "contentHash": "sha256:7b66ffde62c8195192d967a71b13554aca6047a87dbf4333f28fc1e308a5a4eb",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.3.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promote_staging.sh@v2.3.6",
+      "path": "scripts/gitops/promote_staging.sh",
+      "contentHash": "sha256:0fc55c6ee13f80ce90bdee749efc501a072b3f01c1ff6086fdbee47195039033",
+      "action": "remove",
+      "reason": "Retired in v3 (staging branch); bytes as published in v2.3.6",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promotion_receipt_gate.py",
+      "path": "scripts/gitops/promotion_receipt_gate.py",
+      "contentHash": "sha256:f843a853925441b2c13e2e75e833153aad9591b804ae117763e357ad3955cf9f",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promotion_receipt_gate.py@v2.2.0",
+      "path": "scripts/gitops/promotion_receipt_gate.py",
+      "contentHash": "sha256:187c7377dcdb578b0097a22120e1962266c9f19a64fb52fefe3614e90033da55",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts); bytes as published in v2.2.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promotion_receipt_gate.py@v2.3.0",
+      "path": "scripts/gitops/promotion_receipt_gate.py",
+      "contentHash": "sha256:e39ff92bd688f8d28601c1b7538627fcb805032a073f14465d6ba66f8bf31424",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts); bytes as published in v2.3.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/promotion_receipt_gate.py@v2.4.0",
+      "path": "scripts/gitops/promotion_receipt_gate.py",
+      "contentHash": "sha256:09fedecd95874114eb1bf936dd60fa9433043ab8359c1a2d8afba639ac839739",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts); bytes as published in v2.4.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/receipt_loop_detector.py",
+      "path": "scripts/gitops/receipt_loop_detector.py",
+      "contentHash": "sha256:c7eb21a0d05b307244ea23d9db61e7a174b536185c4a5e621ed31e6287d31562",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/receipt_seal.py",
+      "path": "scripts/gitops/receipt_seal.py",
+      "contentHash": "sha256:2b73b8d5fd2d460b3ef38e43fe62ed5413fd3928f4016d57f3889f1319c977e0",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/receipt_seal.py@v2.4.0",
+      "path": "scripts/gitops/receipt_seal.py",
+      "contentHash": "sha256:1b02964c19e6baeb207c2965c394cc2aae4b029bedabafa74cca88a0e429a5c2",
+      "action": "remove",
+      "reason": "Retired in v3 (promotion receipts); bytes as published in v2.4.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/repair_observer.py",
+      "path": "scripts/gitops/repair_observer.py",
+      "contentHash": "sha256:ab78b837ddf479640f3b501c380ef04fe988b636dbf2678ec7784d747b02cc99",
+      "action": "remove",
+      "reason": "Retired in v3 (repair observer and repair dispatcher)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/repair_observer.py@v2.1.0",
+      "path": "scripts/gitops/repair_observer.py",
+      "contentHash": "sha256:04c69c4440dcad12c3ebefaaa72b96fd53f8d9b39b1acd894f1d1f6b7530c0ee",
+      "action": "remove",
+      "reason": "Retired in v3 (repair observer and repair dispatcher); bytes as published in v2.1.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/repair_task.py",
+      "path": "scripts/gitops/repair_task.py",
+      "contentHash": "sha256:bc488140766e2d810e1ddb0751c432c8c171e6fd465bb9d9981aca18601a5b67",
+      "action": "remove",
+      "reason": "Retired in v3 (repair observer and repair dispatcher)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/resolve_bugbot_user_token.sh",
+      "path": "scripts/gitops/resolve_bugbot_user_token.sh",
+      "contentHash": "sha256:dfb3497e63359a2fa404ab0c8de23f79022b4259d63c586800eec630c6aa9456",
+      "action": "remove",
+      "reason": "Retired in v3 (Bugbot user-token dispatch)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/resolve_bugbot_user_token.sh@v2.1.0",
+      "path": "scripts/gitops/resolve_bugbot_user_token.sh",
+      "contentHash": "sha256:8c80d17d8957f17723675e71b7b4625b2251408c3d06f49933e1bee70af91ede",
+      "action": "remove",
+      "reason": "Retired in v3 (Bugbot user-token dispatch); bytes as published in v2.1.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/resolve_event_pr.py",
+      "path": "scripts/gitops/resolve_event_pr.py",
+      "contentHash": "sha256:0a2f7044ade0ac0b257e6436419d1e3d2568b764f0f29b67b1585f38c2cc1af4",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/resolve_event_pr.py@v2.1.0",
+      "path": "scripts/gitops/resolve_event_pr.py",
+      "contentHash": "sha256:32aff3016c879f2dac331fbb3664cc61f22aef78c29cf3a1532af6db5cb3fa78",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller); bytes as published in v2.1.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/review_ready_dispatch.py",
+      "path": "scripts/gitops/review_ready_dispatch.py",
+      "contentHash": "sha256:8efb55b5471b96a98fe220ca1350b0ba71182ee665868baa10063c8cd56817c7",
+      "action": "remove",
+      "reason": "Retired in v3 (Review Ready publisher)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/review_ready_dispatch.py@v2.1.0",
+      "path": "scripts/gitops/review_ready_dispatch.py",
+      "contentHash": "sha256:31d2e412f959700423073b042bc408ad9212f3c0053079dee1147cc632d10f27",
+      "action": "remove",
+      "reason": "Retired in v3 (Review Ready publisher); bytes as published in v2.1.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/review_ready_dispatch.py@v2.1.2",
+      "path": "scripts/gitops/review_ready_dispatch.py",
+      "contentHash": "sha256:6c6168773ef10a5de7ad9840acd09da7412d6e6d53bd9a52addf5740eb207229",
+      "action": "remove",
+      "reason": "Retired in v3 (Review Ready publisher); bytes as published in v2.1.2",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/review_ready_publisher_bootstrap.py",
+      "path": "scripts/gitops/review_ready_publisher_bootstrap.py",
+      "contentHash": "sha256:476cb5e548f57c17fa911bf947a417dcd958366656ad0dc0eabde1e4a0d6349a",
+      "action": "remove",
+      "reason": "Retired in v3 (Review Ready publisher)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/verify_reconciled_fast_dispatch.py",
+      "path": "scripts/gitops/verify_reconciled_fast_dispatch.py",
+      "contentHash": "sha256:27873db8aca5e6886f792103be4b41eaa13770834ec606c51868e300184940b7",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/verify_reconciled_tree.py",
+      "path": "scripts/gitops/verify_reconciled_tree.py",
+      "contentHash": "sha256:12795982df847c96255a9ec6fed45736d65381b60142ed9d0b2d74f6cd7f32ef",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/wait_named_gate.py",
+      "path": "scripts/gitops/wait_named_gate.py",
+      "contentHash": "sha256:47c1e3b7ab3b67a3dfdcaa52d0373fb5b7263dad5862fca0d756a0b3192f16a5",
+      "action": "remove",
+      "reason": "Retired in v3 (delivery controller)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/write_outcome.py",
+      "path": "scripts/gitops/write_outcome.py",
+      "contentHash": "sha256:ba088c7a0dc9c22224adfef3bc382c4032c65caa181be3876d27b4fc105ed2b7",
+      "action": "remove",
+      "reason": "Retired in v3 (repair observer and repair dispatcher)",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/write_outcome.py@v2.1.0",
+      "path": "scripts/gitops/write_outcome.py",
+      "contentHash": "sha256:1931ed52bf6dd60372c767090a024f6de20844c59d9c1ba3a21e7a2304cb4ccb",
+      "action": "remove",
+      "reason": "Retired in v3 (repair observer and repair dispatcher); bytes as published in v2.1.0",
+      "sincePackageVersion": "3.0.0"
+    },
+    {
+      "identity": "scripts/gitops/write_outcome.py@v2.1.2",
+      "path": "scripts/gitops/write_outcome.py",
+      "contentHash": "sha256:1416a1b858d6a0868c6e1fd824b28607bd08f1cb5b0ae4c102240d1ad5b169b8",
+      "action": "remove",
+      "reason": "Retired in v3 (repair observer and repair dispatcher); bytes as published in v2.1.2",
+      "sincePackageVersion": "3.0.0"
     }
   ]
 }

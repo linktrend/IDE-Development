@@ -40,8 +40,20 @@ resolve_symlink() {
   fi
 }
 
+conflicts=()
+sync_repo() {
+  local repo="$1"
+  local status=0
+  "$SYNC" "$repo" || status=$?
+  case "$status" in
+    0) ;;
+    11) conflicts+=("$repo") ;;
+    *) fail "sync failed for $repo (exit $status)" ;;
+  esac
+}
+
 info "=== Backfill IDE Development (system repo) ==="
-"$SYNC" "$SYSTEM_ROOT"
+sync_repo "$SYSTEM_ROOT"
 
 PROJECTS_PARENT="$(cd "${SYSTEM_ROOT}/.." && pwd -P)"
 info ""
@@ -63,11 +75,18 @@ for candidate in "${PROJECTS_PARENT}"/*; do
   found=$((found + 1))
   info ""
   info "=== Backfill consumer: $candidate ==="
-  "$SYNC" "$candidate"
+  sync_repo "$candidate"
 done
 
 info ""
 info "Backfill complete. Wired consumers synced: $found"
+if [ "${#conflicts[@]}" -gt 0 ]; then
+  info "Retired workflows kept because they were modified locally (review, then delete deliberately):"
+  for repo in "${conflicts[@]}"; do
+    info "  - $repo"
+  done
+  exit 11
+fi
 info "Bugbot: complete core/checklists/BUGBOT-INHERITANCE.md per repo (dashboard step)."
 info "Orchestrator: docs/AUTONOMOUS-GIT-OPERATIONS.md (Cursor Project step)."
 exit 0

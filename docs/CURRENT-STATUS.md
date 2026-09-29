@@ -2,7 +2,7 @@
 
 **Audience:** Principal and operators who need the truth without reading historical build logs.
 **Date:** 2026-09-29
-**Package:** **v3.0.0** (Wave 1 in progress; identity in `VERSION` is updated by its own issue)
+**Package:** **v3.0.0** (Wave 1 content complete; pending merge to `development` and promotion to `main`)
 **Platforms:** Cursor and native Codex. Claude Code is excluded.
 
 This page is the concise current-status surface for v3.
@@ -11,7 +11,7 @@ This page is the concise current-status surface for v3.
 
 ## One-line verdict
 
-**v3 Wave 0 is done. Wave 1 is in progress.** IDE Development is the shared development operating System: one orchestrator per repo, workers on short-lived issue branches, `development` and `main` only.
+**v3 Wave 0 is done. Wave 1 content is complete, pending merge and promotion.** IDE Development is the shared development operating System: one orchestrator per repo, workers on short-lived issue branches, `development` and `main` only.
 
 ---
 
@@ -31,9 +31,17 @@ Proven on the IDE-Development pilot (2026-09-29):
 
 ---
 
-## Wave 1 (in progress)
+## Wave 1 (content complete; pending merge and promotion)
 
-Documentation, repo identity, and the rest of the v3 operating cutover. This page, the operations manual, and the README describe the v3 model. Later Wave 1 issues own version identity, manifests, and the scripts that still implement the previous flow.
+All Wave 1 content is in: v2 retirements, v3 routing, release policy, the `development`/`main` branch model, orchestrator scripts, the pinned LiNKskills sync, the v2.5.2 → v3.0.0 installer upgrade, the deploy caller, and version identity **3.0.0** everywhere it must match (`CHANGELOG.md`). What remains is the orchestrator's merge into `development` and promotion to `main`.
+
+| Piece | Where to read it |
+|---|---|
+| Consumer upgrade (v2.5.2 → v3.0.0) and its proof | [`runbooks/v3-upgrade.md`](./runbooks/v3-upgrade.md) |
+| Deploy caller interface (proposed; LiNKops confirms in its Wave 2.3) | [`contracts/DEPLOY-CALLER.md`](./contracts/DEPLOY-CALLER.md) |
+| Orchestrator delivery | [`runbooks/orchestrator-delivery.md`](./runbooks/orchestrator-delivery.md) |
+
+Consumer repositories are upgraded in Wave 6.
 
 ---
 
