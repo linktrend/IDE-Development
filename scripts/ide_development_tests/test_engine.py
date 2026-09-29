@@ -17,6 +17,7 @@ from ide_development.constants import (
     EXIT_INVALID_PACKAGE,
     EXIT_OK,
 )
+from ide_development.errors import ConflictError
 from ide_development.engine import (
     _run_post_install_secret_scan,
     run_drift,
@@ -28,13 +29,16 @@ from ide_development.engine import (
 )
 from ide_development.hashing import sha256_file
 from ide_development.managed_write_guard import is_read_only_mode, managed_write_lease
+from ide_development.state import prove_read_only_state
 from ide_development.transaction import (
     current_tx_dir,
     last_tx_dir,
+    rollback_last,
     write_journal,
     backups_dir,
     encode_backup_name,
 )
+import ide_development.transaction as transaction_module
 from ide_development.io_atomic import atomic_write_bytes, remove_file
 from ide_development_tests import TempRepoTestCase, FIXTURE_PACKAGE
 
@@ -400,6 +404,67 @@ class EngineTests(TempRepoTestCase):
         self.assertEqual(rolled.exit_code, EXIT_OK, rolled.payload)
         self.assertEqual(core.read_bytes(), original)
         self.assertEqual(stat.S_IMODE(core.stat().st_mode), original_mode)
+
+    def _install_then_second_update(self) -> None:
+        installed = run_install_or_update(
+            target=self.target,
+            package=self.package,
+            command="install",
+            dry_run=False,
+        )
+        self.assertEqual(installed.exit_code, EXIT_OK, installed.payload)
+        mutated_pkg = Path(self._tmp.name) / "mutated-package"
+        shutil.copytree(self.package, mutated_pkg)
+        mutated_core = mutated_pkg / "core/managed-core/files/CORE.txt"
+        mutated_core.write_text("managed-core fixture MUTATED\n", encoding="utf-8")
+        _rewrite_manifest_hash(mutated_pkg, "managed-core-readme", mutated_core)
+        _rewrite_package_version(mutated_pkg, "2.1.1")
+        updated = run_install_or_update(
+            target=self.target,
+            package=mutated_pkg,
+            command="update",
+            dry_run=False,
+        )
+        self.assertEqual(updated.exit_code, EXIT_OK, updated.payload)
+
+    def test_second_install_rollback_fails_closed_when_state_missing(self) -> None:
+        """A non-first rollback still proves read-only and rejects a missing state."""
+        self._install_then_second_update()
+        observed = {"called": False}
+
+        def prove(target_root: Path, state=None):
+            observed["called"] = True
+            state_path = target_root / ".ide-development" / "installed-state.json"
+            os.chmod(state_path, stat.S_IWRITE | stat.S_IREAD)
+            state_path.unlink()
+            return prove_read_only_state(target_root, state)
+
+        with patch.object(transaction_module, "prove_read_only_state", side_effect=prove):
+            with self.assertRaises(ConflictError) as caught:
+                rollback_last(self.target)
+        self.assertTrue(observed["called"])
+        self.assertIn(
+            "Installed state is required to prove managed read-only",
+            caught.exception.message,
+        )
+
+    def test_second_install_rollback_fails_closed_when_not_read_only(self) -> None:
+        """A non-first rollback still proves read-only and rejects a writable file."""
+        self._install_then_second_update()
+        observed = {"called": False}
+
+        def prove(target_root: Path, state=None):
+            observed["called"] = True
+            core = target_root / ".ide-development" / "CORE.txt"
+            os.chmod(core, 0o644)
+            return prove_read_only_state(target_root, state)
+
+        with patch.object(transaction_module, "prove_read_only_state", side_effect=prove):
+            with self.assertRaises(ConflictError) as caught:
+                rollback_last(self.target)
+        self.assertTrue(observed["called"])
+        self.assertIn("Managed files must be read-only", caught.exception.message)
+        self.assertIn(".ide-development/CORE.txt", caught.exception.details.get("paths", []))
 
     def test_rollback_restores_installed_state_preimage_bytes_and_mode(self) -> None:
         """Current and legacy state preimages survive rollback byte-for-byte."""
