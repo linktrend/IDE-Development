@@ -9,7 +9,7 @@ verification (`AC-U05-17`) is deferred to WP-CONSUMERS.
 ## Required outcome
 
 Managed workflow files, coordination labels, readiness evaluator check-name
-contracts, and live `development` / `staging` / `main` rulesets are one
+contracts, and live `development` / `main` rulesets are one
 versioned migration. Installation is incomplete while any protected branch
 requires an obsolete managed check, a check active workflows cannot produce, or
 a managed workflow depends on a missing coordination label.
@@ -43,9 +43,9 @@ Successful application checks are never proof of native enforcement.
 Reduced-assurance delivery requires recorded founder approval and is reported as
 `reduced_assurance`, never silently relabeled as protected.
 
-## Atomic three-branch apply
+## Atomic governed-branch apply
 
-Rename or replace managed checks on all three governed branches together.
+Rename or replace managed checks on both governed branches together.
 Preserve arbitrary repository-owned required contexts and strict-check settings.
 Failure after one branch update rolls back applied branches or reports
 `migration_incomplete` with no false success.
@@ -59,8 +59,9 @@ claim success.
 
 ## Evaluator / variable migration
 
-Integrator, Packager, Promoter, observer, planner defaults and
-`LINKTREND_*_CHECKS` repository variables must use the exact active contract.
+Pre-v3 evaluator check defaults (integrator, promoter, observer, planner and
+similar keys) and `LINKTREND_*_CHECKS` repository variables must use the exact
+active contract.
 Retained obsolete raw names fail closed.
 
 ## Trusted verifier separation

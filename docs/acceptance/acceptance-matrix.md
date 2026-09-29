@@ -17,7 +17,7 @@ Evidence belongs with the lead’s WP1 evidence bundle. This matrix is the opera
 | A1 | Starting checkpoint | History contains exact `76d2aae1fbf0d497fbfb0e06181b3932660c96ce` without rewrite | Lead |
 | A2 | Prior portable checkpoints | History contains #64 `44a26f0…` and portable v2 `0868c00…` | Lead |
 | A3 | Clean tree / remote match | Worktree clean; local HEAD == `origin/<issue-branch>` after checkpoint push | Lead |
-| A4 | Untouched protected lines | `origin/development`, `staging`, `main`, PR #49, consumers untouched | Lead |
+| A4 | Untouched protected lines | Historical (pre-v3): `origin/development`, `staging`, `main`, PR #49, consumers untouched | Lead |
 | A5 | No forbidden artifacts | No secrets, caches, generated binary RC archives, or `.superpowers` committed | All |
 
 ## B. Installer and migration
@@ -97,7 +97,7 @@ Tooling note: existing `scripts/gitops/external_state_audit.py` is read-only (`r
 | H5 | `bash scripts/tests/test-stale-cleanup-controls.sh` | **ABSENT on WP1 starting checkpoint** (`76d2aae`); lives on unrelated cleanup issue lineage (e.g. #63). Do not import that lineage in WP1. Partial coverage: `test-gitops-behavioral.sh` cleanup dry-run cases. |
 | H6 | `bash scripts/tests/test-gitops-behavioral.sh` | macOS/Linux |
 | H7 | `bash scripts/tests/test-gitops-lifecycle.sh` | macOS/Linux |
-| H8 | `bash scripts/tests/test-gitops-review-packager.sh` | macOS/Linux |
+| H8 | Retired v2 PR-packaging test (removed in v3; the orchestrator's packaging is covered by `scripts/tests/test_orchestrator_delivery.py`) | — |
 | H9 | `bash tests/test-portable-v2-integration.sh` | Required |
 | H10 | `bash scripts/verify-platform-adoption.sh` | Required |
 | H11 | `bash scripts/verify-ide-development.sh` | Required |
@@ -108,8 +108,8 @@ Windows: cross-platform runner executes equivalent Python-owned contract tests a
 
 | ID | Exclusion | WP1 value |
 |---|---|---|
-| I1 | PR / Bugbot / review-ready / merge | Not performed by this packet |
-| I2 | Promote to staging/main | Not performed |
+| I1 | PR / Bugbot / independent review / merge | Not performed by this packet |
+| I2 | Promote to `main` | Not performed |
 | I3 | Consumer rollout | **Deferred** — separately Principal approval-gated; **WP04** prepared / not executed |
 | I4 | Tag / GitHub Release | Not performed by WP1 |
 | I5 | Claude support claims | Absent |

@@ -25,7 +25,7 @@ IDE Development is **not** a persistent orchestrator process. It is a **versione
 | **Memory (session-scoped)** | Repo artifacts + `docs/development/<program-id>/PIPELINE-STATE.json` + optional `docs/handoff/YYYY-MM-DD.md` — not a database Ledger |
 | **Tools / skills** | Local domain skills (`core/skills/`), vendored gstack + mattpocock (`core/runtime/skills/`), Module composites (`core/runtime/skills/linktrend/`) |
 | **Grading / gates** | Independent review commands + fail-closed `validate-application-pipeline.mjs`; model-routing `independent_review` / `evaluation` routes |
-| **Guardrails** | Canonical Laws, git hooks on `PIPELINE-STATE.json`, CI verify workflow, branch-source policy, managed `development`/`staging`/`main` protection contract |
+| **Guardrails** | Canonical Laws, git hooks on `PIPELINE-STATE.json`, CI verify workflow, branch-source policy, managed `development`/`main` protection contract |
 | **Install into consumers** | `scripts/ide-development.py` (`install` / `update` / `plan` / `drift` / `verify` / `version` / `rollback` / `release-candidate`) |
 
 ### Physical managed install model (v2)
@@ -218,7 +218,7 @@ All under `core/execution/` (operative — **not** archived):
 
 ### Issue state model (minimum)
 
-`draft` → `planned` → `blocked` | `ready` → `in_progress` → `review_ready` → `done`
+`planned` → `blocked` | `ready` → `in_progress` → `in_review` → `done` (or `cancelled`); identical to the Ledger Issue states
 
 `done` requires proof, review, **and** integration.
 
@@ -343,10 +343,8 @@ Install: `scripts/install-git-hooks.sh` → sets `core.hooksPath=.githooks`.
 
 | Workflow | Role |
 |---|---|
-| `ci.yml` | On PR/push to `development`/`staging`/`main`: run `verify-ide-development.sh` + `verify-pipeline-states.sh` |
+| `ci.yml` | On PR/push to `development`/`main`: run `verify-ide-development.sh` + `verify-pipeline-states.sh` |
 | `branch-source-policy.yml` | Work branches merge to `development`. The orchestrator promotes `development` → `main`. |
-| `linktrend-development-to-staging.yml` | Legacy staging workflow. v3 promotion is `development` → `main` by the orchestrator after green Full CI and independent review. |
-| `linktrend-staging-to-main.yml` | Legacy staging workflow. v3 does not wait for founder approval before `main`. |
 | `linktrend-integrator-merge.yml` | Auto-merge PRs into `development` when checks/reviews allow |
 
 Managed copies live in `core/github/managed-workflows/` and sync via `scripts/sync-managed-workflows.sh` / `wire-repo.sh`. Consumer `ci.yml` is never overwritten by sync.

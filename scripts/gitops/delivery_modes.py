@@ -36,7 +36,7 @@ ISSUE_PR_RISK_CLASSES = frozenset(
     }
 )
 
-NAMED_GATES = frozenset({"fast-gate", "staging-gate", "release-gate"})
+NAMED_GATES = frozenset({"fast-gate", "release-gate"})
 
 _SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 _ZERO_SHA_RE = re.compile(r"^0{40}$")
@@ -165,13 +165,13 @@ def should_open_pr_for_branch(
     config: DeliveryConfig,
     *,
     risk_class: str | None = None,
-    review_ready: bool = True,
+    in_review: bool = True,
 ) -> PrOpenDecision:
-    """Decide whether Packager discover may open/ensure a development draft PR.
+    """Decide whether the orchestrator may open/ensure a development draft PR.
 
-    Checkpoints (review_ready=False) never open PRs.
+    Checkpoints (in_review=False: the Issue is not yet in_review) never open PRs.
     """
-    if not review_ready:
+    if not in_review:
         return PrOpenDecision(False, "skipped_not_ready")
     if checkpoint_opens_pr():
         return PrOpenDecision(False, "checkpoint_never_opens_pr")
@@ -459,7 +459,7 @@ def build_phase_delivery_record(
     if candidate_identity is not None:
         record["candidateIdentity"] = candidate_identity
     if gate_results is not None:
-        record.update({key: value for key, value in gate_results.items() if key in {"fast", "bugbot", "full", "staging", "release"}})
+        record.update({key: value for key, value in gate_results.items() if key in {"fast", "bugbot", "full", "release"}})
     if stop_reason is not None:
         record["stopReason"] = stop_reason
     return record
@@ -594,7 +594,8 @@ def main(argv: list[str] | None = None) -> int:
             str(data.get("branch") or ""),
             cfg,
             risk_class=data.get("riskClass"),
-            review_ready=bool(data.get("reviewReady", True)),
+            # "reviewReady" is the pre-v3 input key, still read as an alias.
+            in_review=bool(data.get("inReview", data.get("reviewReady", True))),
         )
         json.dump(
             {

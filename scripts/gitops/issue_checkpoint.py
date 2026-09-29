@@ -4,9 +4,8 @@
 V25_BOOTSTRAP_LEAN: exact pushed commit/tree + scoped diff + focused tests +
 one exact-candidate independent narrow review + manifest evidence accept an
 Issue checkpoint.
-Review Ready, AUTOMATION_TOKEN, Issue PRs, hosted completion status, and
-legacy publisher status are nonrequirements. Legacy publisher/status outcomes
-are WAIVED_LEGACY_GATE, never PASS, and never bypass substantive proof.
+AUTOMATION_TOKEN, Issue PRs and hosted completion status are nonrequirements;
+only substantive, SHA-bound evidence is accepted.
 """
 
 from __future__ import annotations
@@ -59,7 +58,6 @@ try:
         AMENDMENT_ID,
         ISSUE_CHECKPOINT_EVIDENCE,
         WAIVED_LEGACY_GATE,
-        classify_legacy_publisher_gate,
         evaluate_issue_checkpoint,
     )
 except ModuleNotFoundError:  # pragma: no cover - script-style execution
@@ -67,19 +65,16 @@ except ModuleNotFoundError:  # pragma: no cover - script-style execution
     AMENDMENT_ID = _protocol.AMENDMENT_ID
     ISSUE_CHECKPOINT_EVIDENCE = _protocol.ISSUE_CHECKPOINT_EVIDENCE
     WAIVED_LEGACY_GATE = _protocol.WAIVED_LEGACY_GATE
-    classify_legacy_publisher_gate = _protocol.classify_legacy_publisher_gate
     evaluate_issue_checkpoint = _protocol.evaluate_issue_checkpoint
 
 try:
     from scripts.gitops.github_auth import (
         checkpoint_requires_automation_token,
-        checkpoint_requires_review_ready,
         checkpoint_requires_token,
     )
 except ModuleNotFoundError:  # pragma: no cover - script-style execution
     from github_auth import (  # type: ignore
         checkpoint_requires_automation_token,
-        checkpoint_requires_review_ready,
         checkpoint_requires_token,
     )
 
@@ -165,28 +160,6 @@ def reject_local_as_hosted(
         )
 
 
-def classify_legacy_status(state: str, *, publisher: str = "linktrend-review-ready-publisher") -> dict[str, object]:
-    normalized = str(state or "missing").strip().lower() or "missing"
-    if normalized in {"success", "passed", "pass"}:
-        result = classify_legacy_publisher_gate(publisher=publisher, state="success")
-    elif normalized in {"missing", "failed", "error", "failure", "neutral", "pending"}:
-        result = classify_legacy_publisher_gate(
-            publisher=publisher,
-            state="failed" if normalized not in {"missing", "pending", "neutral"} else "missing",
-        )
-    else:
-        result = classify_legacy_publisher_gate(publisher=publisher, state="missing")
-    return {
-        "publisher": publisher,
-        "state": normalized,
-        "classification": result.classification if result.classification == WAIVED_LEGACY_GATE else WAIVED_LEGACY_GATE,
-        "isPass": False,
-        "isImplementationFailure": False,
-        "reason": result.reason,
-        "canonicalForV25": "none",
-    }
-
-
 def _truthy(value: Any) -> bool:
     if isinstance(value, bool):
         return value
@@ -237,7 +210,6 @@ def evaluate_lean_payload(
     *,
     expected_sha: str,
     expected_tree: str = "",
-    review_ready: bool = False,
     automation_token_present: bool = False,
 ) -> dict[str, Any]:
     fields = _lean_fields(payload)
@@ -247,7 +219,6 @@ def evaluate_lean_payload(
         return {
             "accepted": False,
             "reason": f"exact_sha_mismatch:{commit}:{expected_sha}",
-            "requiresReviewReady": False,
             "requiresToken": False,
             "requiredEvidence": list(ISSUE_CHECKPOINT_EVIDENCE),
         }
@@ -255,7 +226,6 @@ def evaluate_lean_payload(
         return {
             "accepted": False,
             "reason": f"exact_tree_mismatch:{tree}:{expected_tree}",
-            "requiresReviewReady": False,
             "requiresToken": False,
             "requiredEvidence": list(ISSUE_CHECKPOINT_EVIDENCE),
         }
@@ -267,13 +237,11 @@ def evaluate_lean_payload(
         focused_tests_passed=bool(fields["focused_tests_passed"]),
         independent_narrow_review=fields["independent_narrow_review"],
         manifest_evidence=bool(fields["manifest_evidence"]),
-        review_ready=review_ready,
         automation_token_present=automation_token_present,
     )
     return {
         "accepted": bool(decision.accepted),
         "reason": decision.reason,
-        "requiresReviewReady": False,
         "requiresToken": False,
         "requiredEvidence": list(ISSUE_CHECKPOINT_EVIDENCE),
         "amendment": AMENDMENT_ID,
@@ -285,23 +253,16 @@ def bind_issue_completion(
     sha: str,
     tree: str = "",
     evidence: Mapping[str, Any] | None,
-    review_ready_state: str = "missing",
     automation_token_present: bool = False,
     claimed_proof_class: str = "",
 ) -> tuple[bool, str, dict[str, Any]]:
-    """Accept Issue completion from lean/substantive evidence only.
+    """Accept Issue completion from lean/substantive evidence only."""
 
-    Review Ready status is classified WAIVED_LEGACY_GATE and never returns True.
-    """
-
-    legacy = classify_legacy_status(review_ready_state)
-    if checkpoint_requires_token() or checkpoint_requires_review_ready() or checkpoint_requires_automation_token():
-        return False, "checkpoint_auth_contract_violated", {"legacyPublisher": legacy}
+    if checkpoint_requires_token() or checkpoint_requires_automation_token():
+        return False, "checkpoint_auth_contract_violated", {}
 
     meta: dict[str, Any] = {
-        "legacyPublisher": legacy,
         "legacyClassification": WAIVED_LEGACY_GATE,
-        "reviewReadyRequired": False,
         "automationTokenRequired": False,
         "isPass": False,
     }
@@ -323,7 +284,6 @@ def bind_issue_completion(
             evidence,
             expected_sha=sha,
             expected_tree=tree,
-            review_ready=review_ready_state.lower() == "success",
             automation_token_present=automation_token_present,
         )
         meta.update(result)

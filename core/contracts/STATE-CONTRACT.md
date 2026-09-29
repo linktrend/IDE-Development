@@ -19,29 +19,32 @@ No work unit may advance to a downstream-complete state unless its required upst
 
 ## Issue State Contract
 
-Normative issue states:
+Normative issue states (identical to the Ledger, `core/ledger/sql/ide_ledger.sql`):
 
-- `draft`
 - `planned`
-- `blocked`
 - `ready`
 - `in_progress`
-- `review_ready`
+- `blocked`
+- `in_review`
 - `done`
+- `cancelled`
+
+Legacy alias: readers accept `review_ready` from pre-v3 state files as
+`in_review`. Writers must write `in_review`.
 
 Allowed progression:
 
-- `draft -> planned`
 - `planned -> ready`
 - `ready -> in_progress`
-- `in_progress -> review_ready`
-- `review_ready -> done`
+- `in_progress -> in_review`
+- `in_review -> done`
 
 Allowed recovery:
 
 - `blocked -> planned`
 - `blocked -> ready`
-- `review_ready -> in_progress`
+- `in_review -> in_progress`
+- any non-`done` state `-> cancelled`
 
 Invalid progression:
 
@@ -62,7 +65,7 @@ They must not override issue-level state semantics.
 
 ## Ownership Rule
 
-- execution owns movement to `review_ready`
+- execution owns movement to `in_review`
 - review owns the review verdict
 - integration owns the final progression to dependency-satisfying completion
 - higher-level workflows own roll-up interpretation, not issue state bypass
@@ -70,7 +73,7 @@ They must not override issue-level state semantics.
 ## Invariants
 
 1. `done` always implies proof, review, and integration are complete.
-2. `review_ready` always implies proof exists.
+2. `in_review` always implies proof exists.
 3. `blocked` always implies a visible reason.
 4. No downstream issue may treat non-integrated work as dependency-satisfying.
 

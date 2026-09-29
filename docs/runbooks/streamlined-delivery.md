@@ -34,8 +34,8 @@ protection failure stops the sequence and rolls back immediately.
 ## Promotion and rollback
 
 After exact candidate gates pass, Terra opens one Phase PR, permits at most one
-corrected seal, merges to development, and applies the receipt-bound staging
-and main sequence. Main approval binds staging source, main base, promotion
+corrected seal, merges to development, and applies the receipt-bound main
+promotion. Main approval binds the `development` source, main base, promotion
 head, and receipt. Verify protections and content/tree identity after each
 branch operation. Rollback uses the retained previous coordinator/package
 version and the consumer transaction journal; stop if rollback cannot prove

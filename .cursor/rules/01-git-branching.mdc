@@ -9,6 +9,8 @@ The Project orchestrator owns the Ledger and assigns task IDs. Workers and human
 
 Task ID: `<PREFIX>-<n>` matching `^[A-Z][A-Z0-9]{1,9}-[1-9][0-9]*$` (example `IDE-42`). The prefix is per repo.
 
+There are only two long-lived branches: `development` (integration) and `main` (live).
+
 | Branch | Who | Role |
 |---|---|---|
 | `development` | integration | Pull requests from `issue/*`, `phase/*`, and `dev/*` |

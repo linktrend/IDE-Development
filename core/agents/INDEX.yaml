@@ -175,7 +175,7 @@ entries:
     type: control-role
     purpose: Performs independent gate review and rejects vacuous completion.
     when_to_use:
-      - when an issue reaches review_ready
+      - when an issue reaches in_review
       - when a module or program completion claim needs review
     inputs:
       - subject artifacts

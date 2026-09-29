@@ -31,10 +31,6 @@
       "type": "string",
       "enum": ["dry-run", "fixture", "live"]
     },
-    "statusContext": {
-      "type": "string",
-      "const": "Linktrend Review Ready"
-    },
     "checklist": {
       "type": "array",
       "items": { "$ref": "#/$defs/checklistItem" }

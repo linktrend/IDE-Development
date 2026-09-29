@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Founder-readable portfolio status derived from durable control-loop state.
-
-The v2 ``Linktrend Review Ready`` commit-status publisher that used to live
-here was retired in v3 (IDE-22).
-"""
+"""Founder-readable portfolio status derived from durable control-loop state."""
 
 from __future__ import annotations
 

@@ -39,11 +39,11 @@ Item 6 is **not** a numbered `v2.4.0` update. It must stay disjoint from active 
 |---|---|
 | This PRD | Product definition and acceptance IDs `AC-I6-*` |
 | Companion implementation plan | Work packets, path ownership, ordering, tests, rollback |
-| Root [`AGENTS.md`](../AGENTS.md) | System source ≠ consumer install; no nested `.ide-development/` |
-| [`contracts/MANAGED-CORE-V2.md`](./contracts/MANAGED-CORE-V2.md) | Same self-verification rule; consumer install layout applies to the nine consumers, not this repo |
-| [`GITOPS-CONSUMER-ROLLOUT.md`](./GITOPS-CONSUMER-ROLLOUT.md) | Locked nine-consumer install order; IDE Development is absent on purpose |
-| [`IDE-DEVELOPMENT-TECHNICAL-PRD.md`](./IDE-DEVELOPMENT-TECHNICAL-PRD.md) | As-built v2 reference (Wave-1 library client only). Not rewritten by this PRD |
-| [`adr/0002-shared-component-template-asset-library.md`](./adr/0002-shared-component-template-asset-library.md) | Canonical LiNKlibraries remote and cache rules |
+| Root [`AGENTS.md`](../../AGENTS.md) | System source ≠ consumer install; no nested `.ide-development/` |
+| [`contracts/MANAGED-CORE-V2.md`](../contracts/MANAGED-CORE-V2.md) | Same self-verification rule; consumer install layout applies to the nine consumers, not this repo |
+| [`GITOPS-CONSUMER-ROLLOUT.md`](../GITOPS-CONSUMER-ROLLOUT.md) | Locked nine-consumer install order; IDE Development is absent on purpose |
+| [`IDE-DEVELOPMENT-TECHNICAL-PRD.md`](../IDE-DEVELOPMENT-TECHNICAL-PRD.md) | As-built v2 reference (Wave-1 library client only). Not rewritten by this PRD |
+| [`adr/0002-shared-component-template-asset-library.md`](../adr/0002-shared-component-template-asset-library.md) | Canonical LiNKlibraries remote and cache rules |
 | Accepted `v2.4.0` next-release set on `issue/307-create-living-next-ide-development-release-updat` at `3a5d15231d65b8549d64971960b2aeb617b58838` (tree `6b9f73f1e78ae4abda3b78b939adc190b6d0842a`) | Frozen specification, PRD, and plan. **Not present on `origin/development` at Item 6 start.** Cite by that branch/SHA; do not copy those files into this packet |
 
 `v2.4.0` freeze identities recorded by Issue 307 (do not restamp here):
@@ -275,10 +275,10 @@ This PRD does **not** authorize:
 - merging or continuing PR 245 / Issue 244 onto `development`
 - changing LiNKplatform, LiNKlibraries, LiNKbrain, LiNKskills, or LiNKautowork
 - nested `.ide-development/` self-install, even as a test in this repository
-- opening an implementer PR, self-merge, self-review, prefer-incoming, or staging/main promotion
+- opening an implementer PR, self-merge, self-review, prefer-incoming, or `main` promotion
 - running Full, changing GitHub protections, or live provider/stage/production calls
 - WP04 / `v2.4.0` nine-consumer installs
-- rewriting [`IDE-DEVELOPMENT-TECHNICAL-PRD.md`](./IDE-DEVELOPMENT-TECHNICAL-PRD.md), [`CURRENT-STATUS.md`](./CURRENT-STATUS.md), [`README.md`](../README.md), [`OPEN-ISSUES.md`](./OPEN-ISSUES.md), or [`ARCHIVE-INDEX.md`](./ARCHIVE-INDEX.md) in this packet
+- rewriting [`IDE-DEVELOPMENT-TECHNICAL-PRD.md`](../IDE-DEVELOPMENT-TECHNICAL-PRD.md), [`CURRENT-STATUS.md`](../CURRENT-STATUS.md), [`README.md`](../../README.md), [`OPEN-ISSUES.md`](../OPEN-ISSUES.md), or [`ARCHIVE-INDEX.md`](../ARCHIVE-INDEX.md) in this packet
 - adding Item 6 as a numbered `v2.4.0` update
 - touching WP-U03 or WP-U08 owned paths (`scripts/gitops/packager_*.py`, phase records, managed Fast triggers, controller state directory, managed PR/branch cleanup)
 - touching WP-U04 in-flight paths (Review Ready publisher workflow/scripts/`MANIFEST.json`) until that packet is integrated

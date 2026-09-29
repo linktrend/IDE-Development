@@ -2,8 +2,8 @@
 
 Workers push `issue/<PREFIX>-<n>-<slug>` branches. The orchestrator turns them
 into one PR into `development`, merges it when CI and one independent review of
-the exact head agree, then promotes `development` to `main`. There is no
-`staging`. The orchestrator opens and merges PRs with its own tools; the
+the exact head agree, then promotes `development` to `main`. Those are the only
+two long-lived branches. The orchestrator opens and merges PRs with its own tools; the
 scripts in `scripts/orchestrator/` do the deterministic parts and print JSON.
 They use only the standard library, run git with an allowlisted environment and
 hooks disabled, and never print tokens (`GH_TOKEN` / `GITHUB_TOKEN` are optional

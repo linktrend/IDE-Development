@@ -13,7 +13,7 @@ IDE Development and LiNKdeveloper both need a Component/Template/Asset Library f
 1. **Canonical remote:** `https://github.com/linktrend/LiNKlibraries.git` (private).
 2. **Canonical branch:** `development` is the single source of truth for approved entries.
 3. **Local clones are caches, never authority.** Readers must record the Library commit SHA they used. A stale checkout must be reported with its commit SHA.
-4. **Contributions use branches + pull requests.** No system may push directly to `development`, `staging`, or `main`.
+4. **Contributions use branches + pull requests.** No system may push directly to `development` or `main`.
 5. **Publication authority:** both systems may open contribution PRs after Module 5 gate pass; only the **Librarian** (or Principal override) merges into `development`.
 6. **Offline behavior:** read-only from the last verified checkout; never invent or fall back to a private/local Library inside IDE Development or LiNKdeveloper.
 7. **No fallback** to either system’s private/local Library on shared Library failure.

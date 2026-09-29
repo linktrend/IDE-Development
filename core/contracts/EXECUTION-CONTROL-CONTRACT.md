@@ -136,11 +136,11 @@ A v2.5 Issue checkpoint is accepted when all of the following are present:
 4. one provider-independent narrow review bound to the exact commit and tree
 5. manifest evidence
 
-Review Ready publication and publisher tokens are **not** required and must not block that acceptance.
+No commit status or publisher token is required, and none may block that acceptance.
 
 ## Publisher authority (no singular legacy canonical)
 
-`canonicalForV25` is `none`. No singular legacy publisher is canonical for v2.5, including `linktrend-review-ready-publisher`, `mark-review-ready.sh-as-publisher`, `.linktrend/review-ready.json`, and user-PAT publication.
+`canonicalForV25` is `none`. None of the retired v2 publishers listed in `publisherAuthority.legacyPublishers` (`core/contracts/EXECUTION-MANIFEST.schema.json`) is canonical.
 
 A failed or missing legacy publisher is classified **`WAIVED_LEGACY_GATE`**. That classification is never PASS and never an implementation failure.
 
@@ -172,7 +172,7 @@ Unnamed recovery, recovery without replacement proof, or any other operation is 
 
 When Autowork discovery is callable, it is required. Skipping a callable discovery is a control violation.
 
-When discovery is not callable, the truthful result is an unavailable hold. That hold is not hosted, provider-live, application, consumer, staging, VPS, E2E, or production proof.
+When discovery is not callable, the truthful result is an unavailable hold. That hold is not hosted, provider-live, application, consumer, pre-production, VPS, E2E, or production proof.
 
 ## PKT-08 revision-60 final controls
 

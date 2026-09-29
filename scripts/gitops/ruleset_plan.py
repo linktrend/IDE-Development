@@ -14,14 +14,14 @@ from pathlib import Path
 from typing import Any
 
 
+# v3 baseline; keep in step with repository_protection.managed_baseline().
 CONTEXTS = {
     "development": [
-        "Linktrend Phase Ready",
-        "Linktrend Fast Gate",
-        "Linktrend Full Suite",
+        "Linktrend Fast Checks",
+        "Linktrend Branch Source Policy",
+        "Verify IDE Development",
     ],
-    "staging": ["Linktrend Staging Gate"],
-    "main": ["Linktrend Release Gate"],
+    "main": ["Linktrend Branch Source Policy", "Linktrend Receipt Gate"],
 }
 
 
@@ -29,12 +29,13 @@ def build_plan(branches: list[str], *, operation: str = "plan") -> dict[str, Any
     unknown = sorted(set(branches) - set(CONTEXTS))
     if unknown:
         raise ValueError(f"unsupported protected branch: {', '.join(unknown)}")
-    selected = branches or ["development", "staging", "main"]
+    selected = branches or list(CONTEXTS)
     rules = [
         {
             "branch": branch,
             "requiredStatusChecks": list(CONTEXTS[branch]),
             "requirePullRequest": True,
+            "strictUpToDate": True,
             "requireConversationResolution": True,
         }
         for branch in selected

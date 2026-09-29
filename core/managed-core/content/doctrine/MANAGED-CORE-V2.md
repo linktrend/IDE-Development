@@ -238,7 +238,7 @@ External tooling must:
 - default to dry-run / read-only plan and verify;
 - emit before/after machine-readable plans and rollback instructions;
 - union repository-specific required checks with managed required checks;
-- cover `development`, `staging`, and `main`;
+- cover `development` and `main`;
 - perform **no live mutation** without Principal / approval-gated authorization (WP1 historically proved fixture-backed + optional live GET read-only paths; WP2 closed IDE Development live readiness for its stated scope; consumer/external apply remains gated);
 - never print, store, package, or hash secret values.
 

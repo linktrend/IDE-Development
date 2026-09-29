@@ -80,7 +80,7 @@ That is **not** the same as a persistent VPS factory orchestrator. **Git** deliv
 | Depend on LiNKdeveloper at runtime | Independence is intentional. Route criteria are *ported*, not live-imported. |
 | Claude Code as a supported runtime | **Excluded.** Outside current v2 support and roadmap. Historical packaging archived under `docs/archive/platform-entrypoints/claude/`; no new Claude entrypoints. |
 | Nested self-install into this repository | IDE Development is system source / self-verification only — not a consumer rollout target. |
-| Real consumer rollout before WP04 Principal approval | Deferred. Inventory + order live in `docs/GITOPS-CONSUMER-ROLLOUT.md`; each consumer needs separate Principal approval. WP04 packet is prepared / not executed (`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`). |
+| Real consumer rollout before WP04 Principal approval | Deferred. Inventory + order live in `docs/GITOPS-CONSUMER-ROLLOUT.md`; each consumer needs separate Principal approval. WP04 packet is prepared / not executed (`docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`). |
 | Git tag / GitHub Release as part of WP1 | WP1 may build a release-candidate **archive** for proof; tag/Release publication remains separately approval-gated (not claimed by WP03 tree promotion alone). |
 
 ---
@@ -125,7 +125,7 @@ Full law text lives in `core/execution/CANONICAL-LAWS.md` (20 laws). Spirit for 
 | `docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md` | Exhaustive technical reference for how the system works. |
 | `docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md` | Plain-English handbook for the Principal. |
 | `docs/GITOPS-CONSUMER-ROLLOUT.md` | Consumer inventory; rollout = WP04 (approval pending / not executed). |
-| `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md` | WP04 prepared packet — no mutation until Principal approval. |
+| `docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md` | WP04 prepared packet — no mutation until Principal approval. |
 | `docs/HYBRID-SKILLS-REGISTRY.md` | Live operational map of gstack/mattpocock commands (kept because verify + command entrypoints cite it). |
 | `core/execution/*` | Operative doctrine (Laws, runtime model, autonomous module behavior, application pipeline). **Not archived.** |
 | `docs/ARCHIVE-INDEX.md` + `docs/archive/` | Retired systems and superseded descriptive docs. |

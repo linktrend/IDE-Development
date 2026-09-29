@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Token-independent GitHub auth for v2.5 Issue checkpoints and Phase API.
+"""Token-independent GitHub auth for Issue checkpoints and the orchestrator.
 
-Issue checkpoints never require ``AUTOMATION_TOKEN``, Review Ready publication,
-or any GitHub API token. Live Phase PR/merge operations need a normal GitHub
-API token (``GH_TOKEN`` then ``GITHUB_TOKEN``). The legacy publisher token
-``AUTOMATION_TOKEN`` is not canonical and cannot satisfy checkpoint acceptance
-or bypass substantive proof.
+Issue checkpoints never require ``AUTOMATION_TOKEN`` or any GitHub API token.
+Live orchestrator PR/merge operations need a normal GitHub API token
+(``GH_TOKEN`` then ``GITHUB_TOKEN``). The retired ``AUTOMATION_TOKEN`` is not a
+credential and cannot satisfy checkpoint acceptance or bypass substantive proof.
 """
 
 from __future__ import annotations
@@ -14,15 +13,9 @@ import os
 from typing import Mapping
 
 try:
-    from core.execution.protocol import (
-        WAIVED_LEGACY_GATE,
-        classify_legacy_publisher_gate,
-    )
+    from core.execution.protocol import WAIVED_LEGACY_GATE
 except ModuleNotFoundError:  # pragma: no cover - script-style execution
-    from execution.protocol import (  # type: ignore
-        WAIVED_LEGACY_GATE,
-        classify_legacy_publisher_gate,
-    )
+    from execution.protocol import WAIVED_LEGACY_GATE  # type: ignore
 
 PHASE_API_TOKEN_ENVS = ("GH_TOKEN", "GITHUB_TOKEN")
 LEGACY_PUBLISHER_TOKEN_ENV = "AUTOMATION_TOKEN"
@@ -47,12 +40,6 @@ def _nonempty(source: Mapping[str, str], key: str) -> str:
 
 def checkpoint_requires_token() -> bool:
     """v2.5 Issue checkpoints are token-independent."""
-
-    return False
-
-
-def checkpoint_requires_review_ready() -> bool:
-    """Review Ready publication is a nonrequirement for Issue checkpoints."""
 
     return False
 
@@ -89,30 +76,20 @@ def resolve_phase_api_token(
 
 def classify_legacy_publisher_token(
     environ: Mapping[str, str] | None = None,
-    *,
-    publisher: str = "linktrend-review-ready-publisher",
 ) -> dict[str, object]:
-    """Classify publisher-token presence. Never PASS; never an implementation failure."""
+    """Classify retired publisher-token presence. Never PASS; never a failure."""
 
     env = environ if environ is not None else os.environ
     present = bool(_nonempty(env, LEGACY_PUBLISHER_TOKEN_ENV))
-    source = _nonempty(env, LEGACY_PUBLISHER_SOURCE_ENV)
-    state = "success" if present else "missing"
-    # Presence of a publisher token is still non-canonical for v2.5.
-    if present:
-        result = classify_legacy_publisher_gate(publisher=publisher, state="missing")
-    else:
-        result = classify_legacy_publisher_gate(publisher=publisher, state="missing")
     return {
-        "publisher": publisher,
         "tokenPresent": present,
-        "tokenSource": source,
-        "state": state,
+        "tokenSource": _nonempty(env, LEGACY_PUBLISHER_SOURCE_ENV),
+        "state": "success" if present else "missing",
         "classification": WAIVED_LEGACY_GATE,
         "isPass": False,
         "isImplementationFailure": False,
         "canonicalForV25": "none",
-        "reason": result.reason,
+        "reason": "legacy_publisher_waived",
     }
 
 
@@ -124,11 +101,9 @@ def issue_checkpoint_auth_decision(
     legacy = classify_legacy_publisher_token(environ)
     return {
         "acceptWithoutToken": True,
-        "acceptWithoutReviewReady": True,
         "acceptWithoutIssuePr": True,
         "acceptWithoutHostedCompletionStatus": True,
         "automationTokenRequired": False,
-        "reviewReadyRequired": False,
         "legacyPublisher": legacy,
         "legacyClassification": WAIVED_LEGACY_GATE,
         "pass": False,

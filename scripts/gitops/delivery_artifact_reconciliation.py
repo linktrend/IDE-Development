@@ -36,7 +36,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 SCHEMA_VERSION = 1
 STATE_REL = Path(".linktrend") / "controller-state"
-PROTECTED_BRANCHES = frozenset({"main", "staging", "development", "HEAD"})
+PROTECTED_BRANCHES = frozenset({"main", "development", "HEAD"})
 CONTROLLER_REF_PREFIXES = ("controller/", "promote/")
 OWNED_REFS_FILENAME = "owned-refs.json"
 INTEGRATION_REFS = (

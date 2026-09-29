@@ -29,20 +29,24 @@ import repository_protection as rp
 
 dev = rp.managed_baseline("development")
 assert dev == [
-    "Verify IDE Development",
+    "Linktrend Fast Checks",
     "Linktrend Branch Source Policy",
+    "Verify IDE Development",
 ], dev
-stg = rp.managed_baseline("staging")
-assert "Linktrend Review Gate" not in stg
-assert stg[-1] == "Linktrend Branch Source Policy"
 main = rp.managed_baseline("main")
 assert "Linktrend Review Gate" not in main
 assert main == [
-    "Verify IDE Development",
     "Linktrend Branch Source Policy",
     "Linktrend Receipt Gate",
 ], main
-assert "Linktrend Receipt Gate" not in dev and "Linktrend Receipt Gate" not in stg
+assert "Linktrend Receipt Gate" not in dev
+assert rp.GOVERNED == ("development", "main")
+for retired in rp.RETIRED.values():
+    try:
+        rp.managed_baseline(retired)
+        raise SystemExit("retired branch must not be governed")
+    except rp.ProtectionError:
+        pass
 
 u = rp.union_checks(dev, ["Consumer Custom Lint", "Verify IDE Development"], ["Extra"])
 assert u["preserved"] == ["Consumer Custom Lint", "Extra"], u
@@ -72,7 +76,7 @@ print("unit ok")
 PY
 pass "baseline and union helpers"
 
-# ---- plan covers all three branches; dry-run mutations empty ----
+# ---- plan covers both governed branches; dry-run mutations empty ----
 "$TOOL" plan --repo linktrend/Fixture --fixture-dir "${FX}/rulesets-empty" \
   >"${TMP}/plan-empty.json"
 python3 - <<PY
@@ -83,17 +87,13 @@ assert p["schemaVersion"] == 1
 assert p["dryRun"] is True
 assert p["mode"] == "plan"
 assert p["mutations"] == []
-assert set(p["branches"]) == {"development", "staging", "main"}
+assert set(p["branches"]) == {"development", "main"}
 assert p["branches"]["development"]["action"] == "create"
-assert p["branches"]["staging"]["action"] == "create"
 assert p["branches"]["main"]["action"] == "create"
+assert p["retired"] == []
 dev = p["branches"]["development"]["requiredChecks"]["desired"]
-assert dev[0] == "Verify IDE Development"
+assert dev == ["Linktrend Fast Checks", "Linktrend Branch Source Policy", "Verify IDE Development"], dev
 assert "Linktrend Review Gate" not in dev
-assert "Linktrend Branch Source Policy" in dev
-stg = p["branches"]["staging"]["requiredChecks"]["desired"]
-assert "Linktrend Review Gate" not in stg
-assert "Linktrend Branch Source Policy" in stg
 main = p["branches"]["main"]["requiredChecks"]["desired"]
 assert "Linktrend Review Gate" not in main
 assert "Linktrend Receipt Gate" in main
@@ -103,7 +103,7 @@ assert p["rollback"]["instructions"]
 assert p["capability"]["mechanism"] == "rulesets"
 print("plan ok")
 PY
-pass "plan covers development/staging/main with rollback"
+pass "plan covers development/main with rollback"
 
 # ---- preserve consumer-specific checks + bypass_actors ----
 "$TOOL" plan --repo linktrend/Fixture --fixture-dir "${FX}/rulesets-partial" \
@@ -118,7 +118,6 @@ assert "Consumer Custom Lint" in dev["requiredChecks"]["desired"]
 assert "Linktrend Branch Source Policy" in dev["requiredChecks"]["desired"]
 assert dev["after"]["bypassActors"][0]["actor_id"] == 1
 assert dev["action"] == "update"
-assert p["branches"]["staging"]["action"] == "create"
 assert p["branches"]["main"]["action"] == "create"
 print("union ok")
 PY
@@ -362,8 +361,9 @@ p = json.loads(Path("${TMP}/plan-bp-review-drift.json").read_text())
 assert p["capability"]["mechanism"] == "branch_protection"
 dev = p["branches"]["development"]
 assert dev["requiredChecks"]["desired"] == [
-    "Verify IDE Development",
+    "Linktrend Fast Checks",
     "Linktrend Branch Source Policy",
+    "Verify IDE Development",
 ], dev["requiredChecks"]["desired"]
 # Checks match and GET-shaped reviews/restrictions are semantically equal → durable noop.
 assert dev["action"] == "noop", dev["action"]
@@ -373,7 +373,7 @@ assert body["restrictions"]["users"] == ["ops-bot"]
 assert body["restrictions"]["teams"] == ["release-managers"]
 assert body["restrictions"]["apps"] == ["linktrend-integrator"]
 assert body["required_conversation_resolution"] is True
-assert p["branches"]["staging"]["action"] == "noop"
+assert set(p["branches"]) == {"development", "main"}
 assert p["branches"]["main"]["action"] == "noop"
 print("bp-review-get-shaped noop ok")
 PY
@@ -437,6 +437,49 @@ python3 -c 'import json,sys; p=json.load(open(sys.argv[1])); assert p["verify"][
   "${TMP}/verify-ok.json"
 pass "verify matched fixtures"
 
+# ---- retired ruleset is planned as an admin delete, never applied ----
+cp -R "${FX}/rulesets-matched" "${TMP}/retired-fx"
+python3 - <<PY
+import json, sys
+from pathlib import Path
+sys.path.insert(0, str(Path("scripts/gitops").resolve()))
+import repository_protection as rp
+path = Path("${TMP}/retired-fx/state.json")
+state = json.loads(path.read_text())
+state["rulesets"].append({"id": 2, "name": rp.RETIRED["ruleset"]})
+path.write_text(json.dumps(state, indent=2) + "\n")
+PY
+set +e
+"$TOOL" verify --repo linktrend/Fixture --fixture-dir "${TMP}/retired-fx" >"${TMP}/verify-retired.json"
+rc=$?
+set -e
+[ "$rc" -eq 0 ] || fail "retired ruleset must not fail verify (admin action), got $rc"
+"$TOOL" apply --apply --repo linktrend/Fixture --fixture-dir "${TMP}/retired-fx" \
+  --json-output "${TMP}/apply-retired.json" >/dev/null
+python3 - <<PY
+import json, sys
+from pathlib import Path
+sys.path.insert(0, str(Path("scripts/gitops").resolve()))
+import repository_protection as rp
+p = json.loads(Path("${TMP}/verify-retired.json").read_text())
+assert p["verify"]["ok"] is True
+assert p["retired"] == [{
+    "rulesetName": rp.RETIRED["ruleset"],
+    "id": 2,
+    "action": "delete",
+    "owner": "admin",
+    "note": rp.RETIRED_ACTION_NOTE,
+}], p["retired"]
+assert rp.RETIRED_ACTION_NOTE.startswith("delete (admin action, after the ")
+assert rp.RETIRED["branch"] not in p["branches"]
+applied = json.loads(Path("${TMP}/apply-retired.json").read_text())
+assert applied["mutations"] == [], applied["mutations"]
+state = json.loads(Path("${TMP}/retired-fx/state.json").read_text())
+assert rp.RETIRED["ruleset"] in {r["name"] for r in state["rulesets"]}
+print("retired ruleset ok")
+PY
+pass "retired ruleset planned as admin delete; apply leaves it"
+
 set +e
 "$TOOL" verify --repo linktrend/Fixture --fixture-dir "${FX}/rulesets-empty" \
   >"${TMP}/verify-drift.json"
@@ -477,19 +520,18 @@ assert p["verify"]["ok"] is True
 ops = {m["op"] for m in p["mutations"]}
 assert "create_ruleset" in ops
 assert "patch_repo" in ops
-# Three branches created
-assert sum(1 for m in p["mutations"] if m["op"] == "create_ruleset") == 3
+# Both governed branches created
+assert sum(1 for m in p["mutations"] if m["op"] == "create_ruleset") == 2
 state = json.loads(Path("${TMP}/mut-fx/state.json").read_text())
 names = {r["name"] for r in state["rulesets"]}
 assert names == {
     "development-autonomous-merge",
-    "staging-autonomous-promote",
     "main-autonomous-release",
 }, names
 assert state["repo"]["allow_auto_merge"] is True
 print("apply ok")
 PY
-pass "explicit apply creates three rulesets in fixture only"
+pass "explicit apply creates two rulesets in fixture only"
 
 # Capture plan snapshot from pre-apply empty clone for rollback proof
 cp -R "${FX}/rulesets-empty" "${TMP}/rb-fx"
@@ -520,7 +562,7 @@ dev = p["branches"]["development"]
 assert "Legacy Check" in dev["requiredChecks"]["preserved"]
 assert "Linktrend Review Gate" not in dev["requiredChecks"]["desired"]
 assert dev["action"] == "update"
-assert p["branches"]["staging"]["action"] == "create"
+assert p["branches"]["main"]["action"] == "create"
 print("bp ok")
 PY
 pass "rulesets unavailable falls back to classic branch protection"
@@ -620,7 +662,6 @@ start = text.index("{")
 p = json.loads(text[start:])
 assert p["mode"] == "plan"
 assert p["branches"]["development"]["action"] == "create"
-assert "staging" not in p["branches"] or True
 # legacy dry-run uses --branches development only
 assert list(p["branches"]) == ["development"]
 assert Path("${TMP}/legacy-fx/state.json").read_text() == Path("${FX}/rulesets-empty/state.json").read_text()
@@ -640,15 +681,23 @@ print("legacy apply ok")
 PY
 pass "legacy apply-development wrapper preserves CLI and scopes to development"
 
-# ---- contract mentions three branches and dry-run-first ----
+# ---- contract mentions governed branches and dry-run-first ----
 grep -q 'development-autonomous-merge' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
-grep -q 'staging-autonomous-promote' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
+python3 - <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path("scripts/gitops").resolve()))
+import repository_protection as rp
+text = Path("docs/contracts/REPOSITORY-PROTECTION.md").read_text()
+assert rp.RETIRED["ruleset"] in text and "Historical (pre-v3)" in text
+PY
+grep -q 'Linktrend Fast Checks' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
 grep -q 'main-autonomous-release' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
 grep -q 'Plan / dry-run' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
 grep -q 'Non-check ruleset rules' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
 grep -q 'required_pull_request_reviews' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
 grep -q 'review/restriction drift' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
-pass "contract documents three-branch dry-run-first protections"
+pass "contract documents two-branch dry-run-first protections"
 
 # ---- WP1 read_only FixtureClient refuses mutations; plan/verify still work ----
 python3 - <<'PY'

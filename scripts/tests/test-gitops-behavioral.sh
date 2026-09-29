@@ -16,7 +16,7 @@ make_repo() {
   echo "base" >"$d/README.md"
   git -C "$d" add README.md
   git -C "$d" commit -q -m "chore: base"
-  git -C "$d" branch staging
+  git -C "$d" branch legacy-hold
   git -C "$d" branch main
 }
 
@@ -57,8 +57,8 @@ if [[ "$*" == *"--head promote/main/"* ]]; then
   echo '[{"number":2,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"'"${PROMO_HEAD}"'"}]'
   exit 0
 fi
-if [[ "$*" == *"--head promote/staging/"* ]]; then
-  echo '[{"number":5,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"'"${STAGING_PROMO_HEAD}"'"}]'
+if [[ "$*" == *"--head promote/other/"* ]]; then
+  echo '[{"number":5,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"'"${OTHER_PROMO_HEAD}"'"}]'
   exit 0
 fi
 if [[ "$*" == *"--head g1/"* ]]; then
@@ -92,10 +92,10 @@ echo p >"$CLN/p.txt" && git -C "$CLN" add p.txt && git -C "$CLN" commit -q -m "p
 PROMO_HEAD="$(git -C "$CLN" rev-parse HEAD)"
 export PROMO_HEAD
 git -C "$CLN" checkout -q development
-git -C "$CLN" checkout -q -b "promote/staging/deadbeefcafe"
-echo ps >"$CLN/ps.txt" && git -C "$CLN" add ps.txt && git -C "$CLN" commit -q -m "old staging promo"
-STAGING_PROMO_HEAD="$(git -C "$CLN" rev-parse HEAD)"
-export STAGING_PROMO_HEAD
+git -C "$CLN" checkout -q -b "promote/other/deadbeefcafe"
+echo ps >"$CLN/ps.txt" && git -C "$CLN" add ps.txt && git -C "$CLN" commit -q -m "non-main promo"
+OTHER_PROMO_HEAD="$(git -C "$CLN" rev-parse HEAD)"
+export OTHER_PROMO_HEAD
 git -C "$CLN" checkout -q development
 git -C "$CLN" checkout -q -b "g1/leftover"
 echo g >"$CLN/g.txt" && git -C "$CLN" add g.txt && git -C "$CLN" commit -q -m "g1 leftover"
@@ -131,8 +131,8 @@ grep -q 'WOULD_DELETE_REMOTE: issue/squash\|WOULD_DELETE_LOCAL: issue/squash' "$
 grep -q 'WOULD_DELETE_.*promote/main/deadbeefcafe' "$TMP/clean.out" || fail "merged promote/main branch should be cleanup-eligible: $(cat "$TMP/clean.out")"
 grep -q 'WOULD_DELETE_.*g1/leftover' "$TMP/clean.out" || fail "merged g1 leftover should be cleanup-eligible: $(cat "$TMP/clean.out")"
 grep -q 'WOULD_DELETE_.*release-baseline/leftover' "$TMP/clean.out" || fail "merged release-baseline leftover should be cleanup-eligible: $(cat "$TMP/clean.out")"
-grep -q 'KEEP:.*promote/staging/deadbeefcafe' "$TMP/clean.out" || fail "promote/staging is not a cleanup candidate: $(cat "$TMP/clean.out")"
-grep -q 'KEEP: local:staging' "$TMP/clean.out" || fail "staging must stay: $(cat "$TMP/clean.out")"
+grep -q 'KEEP:.*promote/other/deadbeefcafe' "$TMP/clean.out" || fail "non-main promote/* is not a cleanup candidate: $(cat "$TMP/clean.out")"
+grep -q 'KEEP: local:legacy-hold' "$TMP/clean.out" || fail "unknown long-lived branch must stay: $(cat "$TMP/clean.out")"
 grep -q 'issue/owned' "$TMP/clean.out" && grep -qi 'session ownership\|KEEP:.*owned' "$TMP/clean.out" \
   || fail "owned session must be kept: $(cat "$TMP/clean.out")"
 grep -qi 'dirty' "$TMP/clean.out" || fail "dirty worktree should be mentioned"

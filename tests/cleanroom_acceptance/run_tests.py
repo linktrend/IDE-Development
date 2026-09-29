@@ -286,9 +286,9 @@ def test_03_sparse_gitops_upgrade(rep: Reporter, package: Path) -> None:
         else ".cursor/rules/consumer-sparse-bootstrap.mdc"
     )
     consumer_gate_rel = (
-        "scripts/gitops/completion_gate.py"
+        "scripts/gitops/consumer_local_gate.py"
         if _legacy_fixture(package)
-        else "scripts/local/completion_gate.py"
+        else "scripts/local/consumer_local_gate.py"
     )
     sparse_note = _pkg_bytes(
         package,

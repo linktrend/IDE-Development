@@ -22,7 +22,7 @@ This file is the ChatGPT entrypoint for a **worker**. **Do not assume `.cursor` 
 | Run the fast checks named in the Issue | Yes — required before the final push |
 | Open or update a pull request | **No** — the orchestrator packages branches |
 | Merge or promote | **No** |
-| Removed: Review Ready | Workers do not mark a branch review-ready |
+| Mark the Issue finished | Push and stop — the orchestrator moves it to `in_review` in the Ledger |
 
 Everyday model route is Luna High (Codex on the orchestrator VM) or Grok 4.7 Medium (cursor-002). Hard route is Sol Medium or Opus 5.5 Medium. Codex is used while more than 25% of the allowance remains in every reported window.
 

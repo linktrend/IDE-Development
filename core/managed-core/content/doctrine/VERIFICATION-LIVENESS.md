@@ -29,4 +29,4 @@ The restart retains the same identity and deterministic artifact paths while
 recording a new durable handle and refreshed timestamps.
 
 This package surface is local-contract proof only. It never dispatches paid or
-Fast checks, pushes protected refs, merges, or publishes Review Ready.
+Fast checks, pushes protected refs, merges, or publishes commit statuses.

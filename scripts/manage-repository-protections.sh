@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Plan / verify / apply managed protections for development, staging, and main.
+# Plan / verify / apply managed protections for development and main (v3).
 # Default operator intent is plan (no mutation). Apply requires --apply.
 #
 # Usage:

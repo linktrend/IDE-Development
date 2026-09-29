@@ -39,7 +39,7 @@ Use this file when the task is already clear and you want the shortest safe rout
 ## Anti-Incompletion Reminders
 
 - readiness is computed, not assumed
-- issues must pass through `review_ready`
+- issues must pass through `in_review`
 - review must inspect proof, not confidence
 - integration records accepted work and downstream effects
 

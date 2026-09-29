@@ -374,9 +374,6 @@ def build_provider_consumer_handoff(
     }
 
 
-# Explicit alias used by packager callers.
-create_provider_consumer_handoff = build_provider_consumer_handoff
-
 
 def _receipt_reusable(
     state: Mapping[str, Any], package_digest: str, environment_digest: str

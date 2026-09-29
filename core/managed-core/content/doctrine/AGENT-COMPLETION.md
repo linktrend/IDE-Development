@@ -39,4 +39,4 @@ Review `REQUEST_CHANGES` and CI failures both count as failed attempts on the cu
 
 ## Retired
 
-Retired, and not part of this contract: Review Ready status and its publisher, completion-gate evidence, the review-gate classifier, the repair observer, promotion receipts, the packager, the delivery controller, Lisa, and staging.
+Retired, and not part of this contract: the v2 commit-status publisher and its evidence gate, the v2 review-gate classifier, the repair observer, promotion receipts, the v2 packaging and merge services, the host-based coordinator, and the intermediate promotion branch between `development` and `main`. In v3 the orchestrator packages, merges and promotes; workers build Issues; the Ledger (`ide_ledger`) records state. The v2 records are in `docs/archive/`.

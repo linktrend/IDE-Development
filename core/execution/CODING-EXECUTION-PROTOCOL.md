@@ -75,8 +75,8 @@ The control contract is authoritative. Summary that tests and runtimes must enfo
 | Consumer rollout | `core/execution/rollout.py` plans manifest-configured canary and downstream cohorts. No product code contains repository names or cohort sizes. Downstream mutation waits for receipt-bound canary success; safe slots fill in the same turn; repository failures isolate; systemic failures stop and roll back; unchanged package/environment/tree receipts suppress equivalent reruns. |
 | Automatic approval | Checkpoints are automatic. The orchestrator promotes `development` → `main` when Full CI is green and one independent review (a model from a different family than the author) approves the exact head. Deploy is automatic when `deploy/target.json` names the target server, or when a post-deploy health check and automatic rollback exist; otherwise the orchestrator waits for Carlos. GitHub protection changes, publish, and live provider mutations need recorded approval. Self-review, self-merge of one's own work as author, and prefer-incoming are forbidden. The orchestrator merging a reviewed PR is not self-merge. |
 | Repository/Git authority | Workers work on `issue/<n>-<slug>` and must not push protected refs (`development`, `main`) or install a nested `.ide-development` copy of this system repository. The orchestrator packages and merges. Workers never open PRs. |
-| v2.5 Issue checkpoint (`V25_BOOTSTRAP_LEAN`) | Exact pushed commit/tree + scoped diff + focused tests + one provider-independent narrow review bound to that exact identity + manifest evidence accepts the Issue checkpoint. The review is supplied by the routed independent reviewer; no vendor or model is required. Review Ready and publisher tokens are not required. |
-| Legacy publisher | No singular legacy publisher is canonical for v2.5, including `linktrend-review-ready-publisher`. Failed or missing legacy publisher is `WAIVED_LEGACY_GATE`, never PASS and never an implementation failure. |
+| v2.5 Issue checkpoint (`V25_BOOTSTRAP_LEAN`) | Exact pushed commit/tree + scoped diff + focused tests + one provider-independent narrow review bound to that exact identity + manifest evidence accepts the Issue checkpoint. The review is supplied by the routed independent reviewer; no vendor or model is required. No commit status or publisher token is required. |
+| Legacy publisher | No retired v2 publisher (the `publisherAuthority.legacyPublishers` list in the manifest schema) is canonical. Failed or missing legacy publisher is `WAIVED_LEGACY_GATE`, never PASS and never an implementation failure. |
 | Administrator recovery | A later exact-head recovery is only a named exception after substantive replacement proof, limited to protection snapshot, restore, and readback. |
 | Semantic lifecycle | JSON Schema is not sufficient. Plan/runtime states are rejected (never repaired) when packet, attempt, evidence, execution-state, lease, lock, heartbeat, receipt, retry-exhaustion, or archive records are inconsistent. Diagnostics name `packet=` and `attempt=`. COMPLETE/ARCHIVE_CONFIRMED bind accepted commit/tree, packet-level completion evidence, and a checkout-bound verification receipt; ARCHIVE_CONFIRMED also requires archive API readback. Completed-packet attempts are terminal. RUNNING has exactly one authoritative nonterminal attempt, its active write lock, a current orchestration lease, and a durable heartbeat readback. Completed packets must not retain an active lock. |
 | LiNKautowork discovery | When Autowork discovery is callable it is required. When it is not callable, record an unavailable hold. Do not claim hosted, provider-live, or production proof. |
@@ -101,8 +101,7 @@ The only persisted run states are `STARTED`, `LIVE`, `TERMINAL`, `ORPHANED`,
 fresh heartbeat and a live expected handle. Stale, missing/dead, completed
 hosted, mismatched, and duplicate same-tree `Full` executions fail closed.
 Only incomplete orphaned commands may restart, and only within the bounded
-configured policy. Paid/Fast fallback and Review Ready are outside this
-amendment.
+configured policy. Paid/Fast fallback is outside this amendment.
 Durable path equality uses physical canonical paths (`realpath`), so platform
 aliases are equivalent only when they resolve to the same target.
 
@@ -131,7 +130,7 @@ automatically resumes exactly once through a durable deterministic marker.
 
 ## 5. Proof limits
 
-This protocol authorizes local schema, unit, discovery, and Issue-checkpoint-contract proof only. It does not by itself prove hosted CI, provider-live calls, application canaries, consumer rollout, staging, VPS, E2E, or production behavior.
+This protocol authorizes local schema, unit, discovery, and Issue-checkpoint-contract proof only. It does not by itself prove hosted CI, provider-live calls, application canaries, consumer rollout, pre-production environments, VPS, E2E, or production behavior.
 
 ## 6. Rollback
 

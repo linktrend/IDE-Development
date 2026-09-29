@@ -2,7 +2,7 @@
 """WP-U05 atomic workflow / ruleset / label / evaluator migration.
 
 Treats managed workflows, coordination labels, readiness evaluator check-name
-contracts, and live development/staging/main rulesets as one versioned
+contracts, and live development/main rulesets as one versioned
 migration. Capability preflight is mandatory before mutation. Trusted-verifier
 installation is separated from sealed product candidates.
 """
@@ -45,11 +45,10 @@ ACTIVE_MANAGED_CHECKS = frozenset(
     }
 )
 
-GOVERNED_BRANCHES = ("development", "staging", "main")
+GOVERNED_BRANCHES = ("development", "main")
 
 CHECK_VAR_NAMES = (
     "LINKTREND_INTEGRATOR_REQUIRED_CHECKS",
-    "LINKTREND_STAGING_GATE_CHECKS",
     "LINKTREND_RELEASE_GATE_CHECKS",
 )
 
@@ -115,13 +114,11 @@ def derive_active_check_contract(
         "removedManaged": sorted(OBSOLETE_REMOVED),
         "variables": {
             "integrator": CHECK_VAR_NAMES[0],
-            "staging": CHECK_VAR_NAMES[1],
-            "release": CHECK_VAR_NAMES[2],
+            "release": CHECK_VAR_NAMES[1],
         },
         "requiredByBranch": {
-            "development": [DEFAULT_VERIFY, SOURCE_POLICY_CHECK],
-            "staging": [DEFAULT_VERIFY, SOURCE_POLICY_CHECK],
-            "main": [DEFAULT_VERIFY, SOURCE_POLICY_CHECK],
+            "development": [FAST_CHECKS, SOURCE_POLICY_CHECK, verify],
+            "main": [SOURCE_POLICY_CHECK, RECEIPT_GATE],
         },
         "emission": {
             "sourcePolicy": {
@@ -130,7 +127,7 @@ def derive_active_check_contract(
                 "events": ["pull_request:development", "workflow_call:promotion"],
             },
             "fastChecks": {
-                "workflow": "linktrend-review-packager.yml",
+                "workflow": "ci.yml",
                 "job": FAST_CHECKS,
                 "events": ["pull_request:development/phase"],
             },
@@ -370,12 +367,12 @@ def detect_context_defects(
     return unique
 
 
-def plan_three_branch_rename(
+def plan_governed_branch_rename(
     branch_checks: Mapping[str, Sequence[str]],
     *,
     rename_map: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Plan replacing obsolete managed checks on all three branches together."""
+    """Plan replacing obsolete managed checks on both governed branches together."""
 
     mapping = dict(rename_map or OBSOLETE_TO_ACTIVE)
     branches: dict[str, Any] = {}
@@ -682,12 +679,13 @@ def migrate_evaluator_check_names(
     *,
     variables: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Replace stale Integrator/Packager/Promoter defaults and LINKTREND_*_CHECKS."""
+    """Replace stale pre-v3 evaluator check defaults and LINKTREND_*_CHECKS."""
 
     before = deepcopy(dict(config))
     after = deepcopy(before)
     changes: list[str] = []
 
+    # Pre-v3 config keys; read so their stale check names can be scrubbed.
     for key in (
         "integratorRequiredChecks",
         "packagerRequiredChecks",
@@ -916,7 +914,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.mode == "preflight":
             result = capability_preflight(payload).to_dict()
         elif args.mode == "plan-rename":
-            result = plan_three_branch_rename(payload.get("branches") or {})
+            result = plan_governed_branch_rename(payload.get("branches") or {})
         elif args.mode == "labels":
             result = reconcile_managed_labels(payload.get("existing") or [])
         elif args.mode == "evaluators":

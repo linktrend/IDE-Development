@@ -7,7 +7,7 @@
 
 This contract governs long-running `Full` verification commands. It is
 checkout-bound and fail-closed. It does not authorize paid models, Fast
-checks, protected pushes, merges, Review Ready publication, or hosted
+checks, protected pushes, merges, commit-status publication, or hosted
 provider mutation.
 
 ## Durable run binding

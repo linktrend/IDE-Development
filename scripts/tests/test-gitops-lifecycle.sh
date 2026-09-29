@@ -83,8 +83,8 @@ grep -q 'promote/main/' .cursor/rules/01-git-branching.mdc \
   || fail "branching rule missing promote/main"
 grep -q 'issue/<PREFIX>-<n>-<slug>' .cursor/rules/01-git-branching.mdc \
   || fail "branching rule missing ledger issue branches"
-! grep -qi 'staging' .cursor/rules/01-git-branching.mdc \
-  || fail "branching rule still mentions staging"
+grep -q 'only two long-lived branches' .cursor/rules/01-git-branching.mdc \
+  || fail "branching rule missing the two long-lived branches"
 pass "branching rule is v3 development and main"
 
 if grep -n 'prefer-incoming' docs/AUTONOMOUS-GIT-OPERATIONS.md 2>/dev/null \
@@ -93,12 +93,12 @@ if grep -n 'prefer-incoming' docs/AUTONOMOUS-GIT-OPERATIONS.md 2>/dev/null \
 fi
 pass "no prefer-incoming in active promote docs"
 
-grep -q 'git add --' core/session/SESSION-END.md || fail "SESSION-END missing owned-path staging"
+grep -q 'git add --' core/session/SESSION-END.md || fail "SESSION-END missing owned-path git add"
 if grep -nE 'git add \.|git add -A|git add --all' core/session/SESSION-END.md \
   | grep -viE 'never|refuse|not |Do not|do not|Owned-path|broad add'; then
   fail "SESSION-END still instructs broad git add"
 fi
-pass "SESSION-END owned-path staging"
+pass "SESSION-END owned-path git add"
 
 grep -q '^\.linktrend/' .gitignore || fail ".linktrend/ not gitignored"
 pass ".linktrend/ gitignored"
@@ -172,8 +172,6 @@ if [ -z "$candidate_baseline_ref" ] && [ -z "$candidate_baseline_sha" ]; then
         --format='%(refname) %(objectname)' refs/remotes/origin/phase/
       git for-each-ref --sort=refname \
         --format='%(refname) %(objectname)' refs/remotes/origin/development
-      git for-each-ref --sort=refname \
-        --format='%(refname) %(objectname)' refs/remotes/origin/staging
       git for-each-ref --sort=refname \
         --format='%(refname) %(objectname)' refs/remotes/origin/main
       git for-each-ref --sort=refname \

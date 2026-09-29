@@ -65,13 +65,13 @@ phase_cfg = DeliveryConfig(
 
 # (b) Checkpoint never creates PR
 d = should_open_pr_for_branch(
-    "issue/1-alpha", phase_cfg, review_ready=False
+    "issue/1-alpha", phase_cfg, in_review=False
 )
 assert d.open_pr is False and d.reason == "skipped_not_ready"
 
 # Accepted Issue under phase mode without exception → no PR
 d = should_open_pr_for_branch(
-    "issue/1-alpha", phase_cfg, review_ready=True, risk_class=None
+    "issue/1-alpha", phase_cfg, in_review=True, risk_class=None
 )
 assert d.open_pr is False
 assert d.reason == "skipped_phase_mode_issue_without_exception"
@@ -80,14 +80,14 @@ assert d.reason == "skipped_phase_mode_issue_without_exception"
 assert validate_risk_class("security") == "security"
 assert validate_risk_class("not-a-class") is None
 d = should_open_pr_for_branch(
-    "issue/9-auth", phase_cfg, review_ready=True, risk_class="authentication"
+    "issue/9-auth", phase_cfg, in_review=True, risk_class="authentication"
 )
 assert d.open_pr is True and d.reason == "issue_pr_risk_exception"
 assert d.risk_class == "authentication"
 
 # Phase branch opens the single Phase PR
 d = should_open_pr_for_branch(
-    "phase/wp-01-demo", phase_cfg, review_ready=True
+    "phase/wp-01-demo", phase_cfg, in_review=True
 )
 assert d.open_pr is True and d.reason == "phase_branch_pr"
 
@@ -96,12 +96,12 @@ custom_prefix = "wave/"
 custom_cfg = DeliveryConfig(
     delivery_mode=MODE_PHASE_INTEGRATION, phase_branch_prefix=custom_prefix
 )
-d = should_open_pr_for_branch("wave/wp-01-demo", custom_cfg, review_ready=True)
+d = should_open_pr_for_branch("wave/wp-01-demo", custom_cfg, in_review=True)
 assert d.open_pr is True and d.reason == "phase_branch_pr"
 
 # issue-pr mode unchanged
 issue_cfg = DeliveryConfig(delivery_mode=MODE_ISSUE_PR)
-d = should_open_pr_for_branch("issue/1-alpha", issue_cfg, review_ready=True)
+d = should_open_pr_for_branch("issue/1-alpha", issue_cfg, in_review=True)
 assert d.open_pr is True and d.reason == "issue_pr_mode"
 
 # (a) Two+ accepted Issue SHAs feed one Phase record / one Phase PR

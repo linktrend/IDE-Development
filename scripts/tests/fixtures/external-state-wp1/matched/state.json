@@ -35,7 +35,7 @@
   },
   "carlos_user_token_boundary": {
     "allowedOps": [
-      "packager_feature_pr_create",
+      "orchestrator_pr_create",
       "bugbot_mention_comment"
     ],
     "status": "ok"
@@ -44,11 +44,6 @@
     {
       "id": 1,
       "name": "development-autonomous-merge",
-      "enforcement": "active"
-    },
-    {
-      "id": 2,
-      "name": "staging-autonomous-promote",
       "enforcement": "active"
     },
     {
@@ -99,41 +94,6 @@
       ],
       "bypass_actors": []
     },
-    "2": {
-      "id": 2,
-      "name": "staging-autonomous-promote",
-      "target": "branch",
-      "enforcement": "active",
-      "conditions": {
-        "ref_name": {
-          "include": [
-            "refs/heads/staging"
-          ],
-          "exclude": []
-        }
-      },
-      "rules": [
-        {
-          "type": "required_status_checks",
-          "parameters": {
-            "strict_required_status_checks_policy": true,
-            "do_not_enforce_on_create": false,
-            "required_status_checks": [
-              {
-                "context": "Verify IDE Development"
-              },
-              {
-                "context": "Linktrend Branch Source Policy"
-              },
-              {
-                "context": "Consumer Staging Lint"
-              }
-            ]
-          }
-        }
-      ],
-      "bypass_actors": []
-    },
     "3": {
       "id": 3,
       "name": "main-autonomous-release",
@@ -159,6 +119,9 @@
               },
               {
                 "context": "Linktrend Branch Source Policy"
+              },
+              {
+                "context": "Consumer Release Lint"
               }
             ]
           }
@@ -194,53 +157,9 @@
       }
     },
     {
-      "id": 3,
-      "path": ".github/workflows/linktrend-review-ready-publisher.yml",
-      "name": "linktrend-review-ready-publisher",
-      "state": "active",
-      "latestConclusion": "success",
-      "permissions": {
-        "contents": "read",
-        "statuses": "write"
-      }
-    },
-    {
-      "id": 4,
-      "path": ".github/workflows/linktrend-review-packager.yml",
-      "name": "linktrend-review-packager",
-      "state": "active",
-      "latestConclusion": "success",
-      "permissions": {
-        "contents": "read",
-        "statuses": "write"
-      }
-    },
-    {
       "id": 5,
       "path": ".github/workflows/linktrend-integrator-merge.yml",
       "name": "linktrend-integrator-merge",
-      "state": "active",
-      "latestConclusion": "success",
-      "permissions": {
-        "contents": "read",
-        "statuses": "write"
-      }
-    },
-    {
-      "id": 6,
-      "path": ".github/workflows/linktrend-development-to-staging.yml",
-      "name": "linktrend-development-to-staging",
-      "state": "active",
-      "latestConclusion": "success",
-      "permissions": {
-        "contents": "read",
-        "statuses": "write"
-      }
-    },
-    {
-      "id": 7,
-      "path": ".github/workflows/linktrend-staging-to-main.yml",
-      "name": "linktrend-staging-to-main",
       "state": "active",
       "latestConclusion": "success",
       "permissions": {

@@ -149,7 +149,6 @@ def classify_repair(
     if state in ("MERGED", "CLOSED") and failure_type in (
         "usage_limit",
         "automation_credentials_blocked",
-        "packager_author_blocked",
     ):
         row.update(
             {

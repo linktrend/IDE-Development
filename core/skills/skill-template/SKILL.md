@@ -57,7 +57,7 @@ Optional:
 
 1. Confirm the task matches this skill.
 2. Load only the relevant index and artifacts.
-3. Check whether the work is greenfield, planned, issue-ready, review-ready, or integration-ready.
+3. Check whether the work is greenfield, planned, issue-ready, in review, or integration-ready.
 4. Route to the smallest viable workflow.
 5. Stop or escalate if the required inputs are missing.
 

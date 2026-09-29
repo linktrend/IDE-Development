@@ -316,7 +316,6 @@ class BuildManifestPackagingTests(unittest.TestCase):
             "core/managed-core/schemas/provider-consumer-handoff.schema.json",
             "core/managed-core/schemas/routing-registry.schema.json",
             "core/managed-core/schemas/toolchain-manifest.schema.json",
-            "core/managed-core/schemas/transition-receipt.schema.json",
             "scripts/gitops/mutation_guard.py",
             "scripts/gitops/runtime_preflight.py",
         ):
