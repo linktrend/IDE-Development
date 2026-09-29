@@ -63,6 +63,7 @@ LOGGED_OUT_RE = re.compile(
 ISSUE_RE = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,48}$")
 SELF_REPORT_RE = re.compile(r"^MODEL_SELF_REPORT:\s*(.+)$", re.MULTILINE)
+COMMIT_MESSAGE_RE = re.compile(r"^COMMIT_MESSAGE:\s*(.+)$", re.MULTILINE)
 
 
 class ToolError(RuntimeError):
@@ -562,11 +563,12 @@ def build_prompt(issue_prompt: str, issue: str, branch: str, worktree: Path) -> 
         f"{issue_prompt.rstrip()}\n\n"
         "--- IDE Development runner rules ---\n"
         f"- Ledger ID: {issue}. Branch: {branch}. Work only inside this worktree: {worktree}.\n"
-        f'- Commit early and often on this branch with messages starting "{issue}: ". '
-        "Do not push, open PRs, or switch branches; the runner pushes for you.\n"
-        "- Run the repo's fast checks relevant to your change before your final commit.\n"
+        "- Git metadata is read-only in your sandbox: do not run git commit, push, or branch commands. "
+        "The runner commits and pushes your changes when you finish. Do not open PRs.\n"
+        "- Run the repo's fast checks relevant to your change before you finish.\n"
         "- Never read, copy, or print credentials (for example ~/.codex/auth.json or /cursor/stores/*/private).\n"
-        '- End your final message with a short "Lessons:" note (at most 5 bullets), then a last line exactly:\n'
+        '- End your final message with a short "Lessons:" note (at most 5 bullets), then these two lines:\n'
+        "  COMMIT_MESSAGE: <one-line summary of the change>\n"
         "  MODEL_SELF_REPORT: <your model name and reasoning effort>\n"
     )
 
@@ -581,6 +583,33 @@ def extract_usage(events_path: Path) -> dict[str, Any] | None:
             if isinstance(event, dict) and isinstance(event.get("usage"), dict):
                 usage = event["usage"]
     return usage
+
+
+def session_readback(events_path: Path) -> dict[str, Any]:
+    """Model and effort as the CLI actually ran them, from the session rollout's turn_context.
+
+    Model self-reports are unreliable (a gpt-6-luna/high run reported "medium"), so this is
+    the authoritative readback for the run log.
+    """
+    thread_id = None
+    if events_path.exists():
+        for line in events_path.read_text(errors="replace").splitlines():
+            with contextlib.suppress(ValueError):
+                event = json.loads(line)
+                if isinstance(event, dict) and event.get("type") == "thread.started":
+                    thread_id = event.get("thread_id")
+                    break
+    readback: dict[str, Any] = {"threadId": thread_id, "cliModel": None, "cliEffort": None}
+    if not thread_id or not re.fullmatch(r"[0-9a-fA-F-]+", str(thread_id)):
+        return readback
+    for rollout in (codex_home() / "sessions").glob(f"**/rollout-*-{thread_id}.jsonl"):
+        for line in rollout.read_text(errors="replace").splitlines():
+            with contextlib.suppress(ValueError):
+                entry = json.loads(line)
+                if isinstance(entry, dict) and entry.get("type") == "turn_context":
+                    payload = entry.get("payload") or {}
+                    readback.update(cliModel=payload.get("model"), cliEffort=payload.get("effort"))
+    return readback
 
 
 def push_branch(worktree: Path, branch: str) -> bool:
@@ -657,19 +686,23 @@ def run_issue(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         with contextlib.suppress(Exception):
             record["authSync"] = sync_auth()["action"]
     record["durationSec"] = round(time.monotonic() - started, 1)
+    last = run_dir / "last-message.md"
+    last_text = last.read_text(errors="replace") if last.exists() else ""
     if git("status", "--porcelain", cwd=worktree).stdout.strip():
+        summary = COMMIT_MESSAGE_RE.search(last_text) if record["codexExit"] == 0 else None
+        message = f"{args.issue}: {summary.group(1).strip()}" if summary else f"{args.issue}: WIP autosave by codex runner"
         git("add", "-A", cwd=worktree)
-        autosave = git("commit", "--quiet", "-m", f"{args.issue}: WIP autosave by codex runner", cwd=worktree, check=False)
-        record["autosaveCommit"] = autosave.returncode == 0
+        committed = git("commit", "--quiet", "-m", message, cwd=worktree, check=False)
+        record["runnerCommit"] = message if committed.returncode == 0 else None
     head_after = git("rev-parse", "HEAD", cwd=worktree).stdout.strip()
     record["head"] = head_after
     record["newCommits"] = int(git("rev-list", "--count", f"{head_before}..{head_after}", cwd=worktree).stdout.strip() or 0)
     record["pushed"] = False
     if not args.no_push and head_after != head_before:
         record["pushed"] = push_branch(worktree, branch)
-    last = run_dir / "last-message.md"
-    match = SELF_REPORT_RE.search(last.read_text(errors="replace")) if last.exists() else None
+    match = SELF_REPORT_RE.search(last_text)
     record["selfReport"] = match.group(1).strip() if match else None
+    record.update(session_readback(run_dir / "events.jsonl"))
     record["usage"] = extract_usage(run_dir / "events.jsonl")
     record["endedAt"] = now_iso()
     ok = record["codexExit"] == 0 and (args.no_push or head_after == head_before or record["pushed"])

@@ -225,6 +225,14 @@ FAKE_CODEX = textwrap.dedent(
             result = {"data": MODELS, "nextCursor": None} if msg["method"] == "model/list" else {}
             print(json.dumps({"id": msg["id"], "result": result}), flush=True)
     elif args[0] == "exec":
+        import os, pathlib
+        thread = "0123abcd-0000-4000-8000-00000000beef"
+        sessions = pathlib.Path(os.environ["CODEX_HOME"]) / "sessions" / "2026" / "09" / "29"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / f"rollout-2026-09-29T00-00-00-{thread}.jsonl").write_text(
+            json.dumps({"type": "turn_context", "payload": {"model": "gpt-6-luna", "effort": "high"}}) + "\\n"
+        )
+        print(json.dumps({"type": "thread.started", "thread_id": thread}))
         cwd = args[args.index("-C") + 1]
         out = args[args.index("-o") + 1]
         with open(sys.argv[0] + ".args", "w") as handle:
@@ -235,7 +243,7 @@ FAKE_CODEX = textwrap.dedent(
         subprocess.run(["git", "commit", "-qm", "IDE-9: done"], cwd=cwd, check=True)
         open(cwd + "/UNCOMMITTED.md", "w").write("wip\\n")
         print(json.dumps({"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 5}}))
-        open(out, "w").write("Lessons:\\n- none\\nMODEL_SELF_REPORT: fake-luna high\\n")
+        open(out, "w").write("Lessons:\\n- none\\nCOMMIT_MESSAGE: add wip notes\\nMODEL_SELF_REPORT: fake-luna medium\\n")
     """
 )
 
@@ -289,9 +297,10 @@ class RunIssueTests(unittest.TestCase):
         self.assertEqual(record["branch"], "issue/IDE-9-fake-run")
         self.assertEqual(record["base"], "development")
         self.assertEqual((record["requestedModel"], record["requestedEffort"]), ("gpt-6-luna", "high"))
-        self.assertEqual(record["selfReport"], "fake-luna high")
+        self.assertEqual(record["selfReport"], "fake-luna medium")
+        self.assertEqual((record["cliModel"], record["cliEffort"]), ("gpt-6-luna", "high"))
         self.assertEqual(record["newCommits"], 2)
-        self.assertTrue(record["autosaveCommit"])
+        self.assertEqual(record["runnerCommit"], "IDE-9: add wip notes")
         self.assertTrue(record["pushed"])
         self.assertEqual(record["usage"], {"input_tokens": 10, "output_tokens": 5})
         remote = subprocess.run(["git", "ls-remote", "--heads", str(self.origin), "issue/IDE-9-fake-run"], capture_output=True, text=True)
