@@ -1274,6 +1274,48 @@ def _doctrine_sync_errors() -> list[str]:
     return errors
 
 
+# Managed runtime text and every copy that must stay byte-identical to it.
+RUNTIME_TEXT_TWINS = (
+    (
+        "core/github/managed-runtime/AGENTS.managed-section.md",
+        ("core/managed-core/platforms/codex/AGENTS.managed-section.md",),
+    ),
+    (
+        "core/github/managed-runtime/cursor-gitops-bootstrap.mdc",
+        (
+            "core/managed-core/platforms/cursor/rules/cursor-gitops-bootstrap.mdc",
+            ".cursor/rules/cursor-gitops-bootstrap.mdc",
+        ),
+    ),
+    (
+        "core/github/managed-runtime/entrypoints/rules/linktrend-git-branching.mdc",
+        ("core/managed-core/platforms/cursor/rules/linktrend-git-branching.mdc",),
+    ),
+)
+
+
+def _runtime_text_errors() -> list[str]:
+    """Managed runtime copies, and the root AGENTS.md block, match their sources."""
+    errors: list[str] = []
+    for source_rel, copies in RUNTIME_TEXT_TWINS:
+        source = REPO_ROOT / source_rel
+        if not source.is_file():
+            errors.append(f"managed runtime source missing: {source_rel}")
+            continue
+        for copy_rel in copies:
+            copy = REPO_ROOT / copy_rel
+            if not copy.is_file() or copy.read_bytes() != source.read_bytes():
+                errors.append(f"managed runtime copy drift: {source_rel} → {copy_rel}")
+    section = (REPO_ROOT / RUNTIME_TEXT_TWINS[0][0]).read_text(encoding="utf-8").strip()
+    agents = REPO_ROOT / "AGENTS.md"
+    text = agents.read_text(encoding="utf-8") if agents.is_file() else ""
+    start = text.find(DEFAULT_MARKER_BEGIN)
+    end = text.find(DEFAULT_MARKER_END)
+    if start < 0 or end < start or text[start : end + len(DEFAULT_MARKER_END)] != section:
+        errors.append("AGENTS.md managed block drifted from AGENTS.managed-section.md")
+    return errors
+
+
 def verify_manifest(path: Path | None = None) -> list[str]:
     """Read-only verify: compare on-disk MANIFEST hashes to source files.
 
@@ -1287,6 +1329,7 @@ def verify_manifest(path: Path | None = None) -> list[str]:
     errors.extend(_version_alignment_errors())
     errors.extend(_doctrine_sync_errors())
     errors.extend(_library_mapping_errors())
+    errors.extend(_runtime_text_errors())
     if not target.is_file():
         errors.append("MANIFEST.json missing")
         return errors
