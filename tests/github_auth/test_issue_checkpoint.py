@@ -91,43 +91,37 @@ class IssueCheckpointTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_lean_evidence_accepts_without_review_ready_or_token(self) -> None:
+    def test_lean_evidence_accepts_without_token(self) -> None:
         ok, detail, meta = bind_issue_completion(
             sha=COMMIT,
             tree=TREE,
             evidence=lean_payload(),
-            review_ready_state="missing",
             automation_token_present=False,
         )
         self.assertTrue(ok)
         self.assertEqual(detail, "v25_bootstrap_lean_issue_checkpoint")
-        self.assertFalse(meta["requiresReviewReady"] if "requiresReviewReady" in meta else False)
         self.assertEqual(meta["legacyClassification"], WAIVED_LEGACY_GATE)
-        self.assertFalse(meta["legacyPublisher"]["isPass"])
+        self.assertFalse(meta["isPass"])
 
-    def test_review_ready_status_alone_is_waived_not_accepted(self) -> None:
+    def test_missing_evidence_is_not_accepted(self) -> None:
         ok, detail, meta = bind_issue_completion(
             sha=COMMIT,
             tree=TREE,
             evidence=None,
-            review_ready_state="success",
         )
         self.assertFalse(ok)
         self.assertEqual(detail, "evidence_missing")
         self.assertEqual(meta["legacyClassification"], WAIVED_LEGACY_GATE)
-        self.assertFalse(meta["legacyPublisher"]["isPass"])
 
-    def test_legacy_success_status_cannot_bypass_missing_scoped_diff(self) -> None:
+    def test_token_presence_cannot_bypass_missing_scoped_diff(self) -> None:
         ok, detail, meta = bind_issue_completion(
             sha=COMMIT,
             tree=TREE,
             evidence=lean_payload(scopedDiff=False),
-            review_ready_state="success",
             automation_token_present=True,
         )
         self.assertFalse(ok)
         self.assertEqual(detail, "scoped_diff_required")
-        self.assertFalse(meta["legacyPublisher"]["isPass"])
         self.assertEqual(meta["legacyClassification"], WAIVED_LEGACY_GATE)
 
     def test_explicit_payload_is_immutable_and_sha_bound(self) -> None:
@@ -161,12 +155,11 @@ class IssueCheckpointTests(unittest.TestCase):
         self.assertTrue(hosted["hostedValidation"])
         self.assertFalse(hosted["productionProof"] or hosted["proofClass"] == "local")
 
-    def test_unknown_kind_is_rejected_and_cannot_pass_via_legacy_status(self) -> None:
+    def test_unknown_kind_is_rejected(self) -> None:
         ok, detail, meta = bind_issue_completion(
             sha=COMMIT,
             tree=TREE,
-            evidence=lean_payload(kind="review-ready-status", scopedDiff=False),
-            review_ready_state="success",
+            evidence=lean_payload(kind="publisher-status", scopedDiff=False),
         )
         self.assertFalse(ok)
         self.assertEqual(detail, "scoped_diff_required")
@@ -174,8 +167,7 @@ class IssueCheckpointTests(unittest.TestCase):
             sha=COMMIT,
             tree=TREE,
             evidence={"schemaVersion": 1, "kind": "publisher-status", "headSha": COMMIT},
-            review_ready_state="success",
         )
         self.assertFalse(ok)
         self.assertEqual(detail, "evidence_kind_unsupported")
-        self.assertFalse(meta["legacyPublisher"]["isPass"])
+        self.assertFalse(meta["isPass"])

@@ -15,13 +15,11 @@ from scripts.gitops import github_auth
 
 
 class TokenIndependenceTests(unittest.TestCase):
-    def test_issue_checkpoint_does_not_require_token_or_review_ready(self) -> None:
+    def test_issue_checkpoint_does_not_require_token(self) -> None:
         self.assertFalse(github_auth.checkpoint_requires_token())
-        self.assertFalse(github_auth.checkpoint_requires_review_ready())
         self.assertFalse(github_auth.checkpoint_requires_automation_token())
         decision = github_auth.issue_checkpoint_auth_decision({})
         self.assertTrue(decision["acceptWithoutToken"])
-        self.assertTrue(decision["acceptWithoutReviewReady"])
         self.assertTrue(decision["acceptWithoutIssuePr"])
         self.assertTrue(decision["acceptWithoutHostedCompletionStatus"])
         self.assertEqual(decision["legacyClassification"], WAIVED_LEGACY_GATE)
