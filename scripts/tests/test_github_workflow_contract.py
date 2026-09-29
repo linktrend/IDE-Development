@@ -153,6 +153,9 @@ class GithubWorkflowContractTests(unittest.TestCase):
         self.assertIn("          ref: development", job["lines"])
         self.assertIn("          persist-credentials: false", job["lines"])
         self.assertIn("        run: python3 scripts/orchestrator/promotion_check.py", job["lines"])
+        runtime = json.loads((ROOT / "core" / "github" / "managed-runtime" / "MANIFEST.json").read_text())
+        for script in ("promotion_check.py", "github_api.py", "git_local.py"):
+            self.assertIn(f"scripts/orchestrator/{script}", runtime["files"])
         for line in text.splitlines():
             if re.match(r"^\s*(- )?uses:", line):
                 self.assertRegex(line, r"uses: [\w./-]+@[0-9a-f]{40} # v\d+$")

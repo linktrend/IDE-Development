@@ -4467,6 +4467,42 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "gitops-scripts-orchestrator-git-local-py",
+      "ownershipClass": "managed",
+      "source": "scripts/orchestrator/git_local.py",
+      "sourceHash": "sha256:53d2893d1af699e9949cb1588287ae7431467d74f780174db44e3dc23f654e36",
+      "destination": "scripts/orchestrator/git_local.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
+      "id": "gitops-scripts-orchestrator-github-api-py",
+      "ownershipClass": "managed",
+      "source": "scripts/orchestrator/github_api.py",
+      "sourceHash": "sha256:3a960552156f2380896d26214b919c55910f954717e02bde4deea172a1c4f26a",
+      "destination": "scripts/orchestrator/github_api.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
+      "id": "gitops-scripts-orchestrator-promotion-check-py",
+      "ownershipClass": "managed",
+      "source": "scripts/orchestrator/promotion_check.py",
+      "sourceHash": "sha256:d2214d19c1953ef803851cce07197e5bace91c7e925994fa19a1beabae2c9c69",
+      "destination": "scripts/orchestrator/promotion_check.py",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Managed GitOps script; never overwrites consumer ci.yml."
+    },
+    {
       "id": "gitops-scripts-tests-test-gitops-phase-delivery-sh",
       "ownershipClass": "managed",
       "source": "scripts/tests/test-gitops-phase-delivery.sh",

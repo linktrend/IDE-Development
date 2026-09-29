@@ -49,6 +49,9 @@
     "scripts/gitops/require_exact_ci_success.py",
     "scripts/gitops/repair_task.py",
     "scripts/gitops/work-branch-allowlist.sh",
+    "scripts/orchestrator/git_local.py",
+    "scripts/orchestrator/github_api.py",
+    "scripts/orchestrator/promotion_check.py",
     "scripts/tests/test-gitops-phase-delivery.sh"
   ],
   "cursorEntrypoints": [
