@@ -1,93 +1,87 @@
-# Git operations doctrine
+# Git operations (v3)
 
-**Status:** Active system-source doctrine. This repository is the
+**Status:** Active system-source doctrine (ADR 0006). This repository is the
 IDE Development source and is not a consumer install target.
 
-## Normal flow
+## Model
 
-Retired in v3 (IDE-22); see the v3 plan.
+Each repository has **one cloud orchestrator** (a Cursor Project). The
+orchestrator owns the delivery loop end to end:
 
-Implementers work on short-lived `issue/*` branches, checkpoint with one
-focused commit, and stop. Accepted issue commits are integrated serially on a
-`phase/*` branch. The Phase Packager/Coordinator
-(`scripts/gitops/packager_coordinator.py`) opens one Phase PR into
-`development`; retained `packager_discover.py` is not that component. The
-agent-agnostic delivery controller (`scripts/gitops/delivery_controller.py`)
-is the merge and promotion actor: it evaluates exact PR heads, merges through
-GitHub protection, promotes staging on receipt identity, and completes main
-only after explicit founder approval. Review Ready publishes a status for
-Packager discovery; it does not itself trigger a merge. No implementer opens,
-merges, or promotes a PR.
+1. picks an Issue and dispatches it to a worker (Codex CLI on the
+   orchestrator's VM, or cursor-002 through the Cursor API);
+2. watches dispatched work with a **watchdog timer**
+   (`scripts/orchestrator/watchdog.py`) and records every dispatch, check,
+   repair and outcome in the run log (`scripts/orchestrator/runlog.py`);
+3. packages finished worker branches into PRs into `development`;
+4. merges on green Full CI plus one independent exact-head review;
+5. promotes `development` → `main`.
 
-Checkpoints do not trigger managed CI. The Phase PR runs hosted ARM64 fast
-checks. Only an exact final seal may trigger Bugbot and the full suite. A
-successful receipt is reused for promotion only when all frozen identity
-digests match. Main promotion requires Carlos's explicit approval.
+There are no scheduled ship/pull waves and no local coordinator host. The
+watchdog timer replaces fixed wake-up times: it notices stalled, failed or
+finished workers and moves the loop forward. Any local machine may be off.
 
-## v2.5 Issue checkpoint (`V25_BOOTSTRAP_LEAN`)
+## Workers
 
-Issue checkpoints are accepted from exact pushed commit/tree, scoped diff,
-focused tests, one provider-independent narrow review bound to that exact
-identity, and manifest evidence. Review
-Ready publication, `AUTOMATION_TOKEN`, Issue PRs, hosted completion status,
-and legacy publisher status are nonrequirements. Legacy publisher/status
-outcomes are `WAIVED_LEGACY_GATE`, never PASS, and never bypass substantive
-proof. Review Ready does not itself trigger a merge and is not Issue-checkpoint
-proof. Administrator recovery is a named exact-head exception after replacement
-proof: protection snapshot, `gh pr merge --admin --match-head-commit` first,
-minimum temporary exception only if needed, exact authorized merge, immediate
-restore and readback.
+- Work only on the branch the orchestrator assigns:
+  `issue/<PREFIX>-<n>-<slug>`.
+- **Checkpoint** = commit + push that branch. Checkpoint often, in small,
+  clear commits.
+- Run the Issue's fast checks before the final push.
+- Never open PRs, never merge, never push `development` or `main`.
+- End the final reply with a short lessons note so the orchestrator can
+  record it.
 
-## Stop conditions
+A checkpoint is not a review request. The orchestrator decides when a branch
+is finished and packages it.
 
-Stop on a changed sealed head, missing or stale evidence, failed protection or
-source policy, an unresolved conflict, a third infrastructure attempt, or a
-third sealed candidate. Preserve the prior evidence and report the reason;
-never repair by choosing one side automatically.
+## Packaging and merge
 
-## Independent-review convergence
+- The orchestrator opens the PR from the worker branch into `development`.
+- A PR merges only when **both** hold for the exact PR head SHA:
+  - Full CI is green; and
+  - one independent review by a **different model family** than the author
+    approved that exact head.
+- A new push to the PR invalidates the earlier review and CI result for
+  merge purposes; both must be repeated on the new head.
+- Merges go through GitHub branch protection. Nobody bypasses it.
 
-Pre-land independent review is governed by
-`scripts/gitops/independent_review_convergence.py`. One session tracks one
-exact repository, base, candidate, tree, scope, and reviewer policy. Findings
-keep a durable ledger and stable identity: different nonempty fingerprints
-never fuzzy-merge, and only wording variants of the same identity may match.
-Ingest requires exact `headSha` and `gitTree` and a nonempty list of nonempty
-`paths`. Malformed or non-object findings are `malformed_reviewer_output`
-with truthful HOLD and no cycle consumption. One review produces one
-consolidated repair batch and one observational repair cycle. There is no
-arbitrary terminal cycle cap. Unattended work pauses after three cycles. A
-recorded founder `continue until clean` instruction authorizes further
-progressing cycles without repeated approval. `apply_repair` fails closed
-after that pause without that authority, and after `review_stalled` / HOLD,
-preserving the exact stalled identity. `apply_repair` requires `touched_paths`
-as a nonempty list of nonempty strings and rejects a string or malformed
-paths before changing state. Repair cancels or invalidates any live
-reviewer. First-seen findings on touched paths are `introduced_by_repair`
-and remain blocking; only untouched paths are
-`newly_discovered_in_unchanged_scope`. Same-identity
-severity reductions count as measurable progress. Compute units use an
-explicit accounting path so `maxComputeUnits` can stall truthfully. Stop only
-for repeated unresolved findings, two no-progress cycles, repair
-reintroduction, redesign/new authority, infrastructure retry exhaustion, or
-an explicit resource limit. Those stops publish a truthful HOLD /
-`review_stalled` founder packet. `evaluate_progress` short-circuits HOLD and
-`review_stalled` and cannot rewrite timeout, silence, or malformed HOLD to
-clean or in-progress. `ingest_review` fails closed on HOLD /
-`review_stalled`; empty findings cannot mark pending or stalled identities
-corrected or fabricate clean after a stop. Implementers never review their
-own work. Reviewer silence or timeout is never clean and cannot authorize
-Full or repair until a valid exact-bound review transition explicitly clears
-the stop. A narrow repair invalidates only focused and delta evidence for its
-touched paths; prior exact review and Full records remain historical, with
-unchanged path evidence reusable. The final combined Full is run once for the
-sealed candidate and its exact receipt is reused for staging and main.
-Full never runs while HOLD or `review_stalled`.
+## Repair ladder
+
+When CI or review fails, the orchestrator dispatches repair work on the same
+branch, climbing one rung at a time:
+
+1. Luna/Grok, up to 3 attempts;
+2. Sol/Opus, 1 attempt;
+3. if the work originally started on Sol/Opus, the other of Sol/Opus,
+   1 attempt;
+4. flag Carlos with the run-log entry and stop.
+
+Each attempt and its outcome is written to the run log (and the Ledger).
+Infrastructure-only failures may be re-run without consuming a rung.
+
+## Promotion
+
+- `development` → `main` is promoted by the orchestrator after the merged
+  work is green on `development`.
+- Product release/live deploy remains a separate Principal decision where a
+  product's own specification requires one.
+
+## Hard stops
+
+- No self-review: the reviewer is never the author or the author's model
+  family.
+- No prefer-incoming merges. Resolve conflicts deliberately on the named
+  branch and re-run checks.
+- Never bypass branch protection.
+- Workers never open, merge or promote PRs.
+
+## Worktrees
+
+Allowed. Prefer cleanup after merge or abandon. Caps: 12 worktrees / 20 GB.
 
 ## External boundary
 
-This doctrine does not perform GitHub, host, Docker, consumer, release, or
-billing operations. W3 operators use the redacted inventory and cleanup plan
-under `scripts/external/cleanup_plan.py`, with separate repository and host
-scopes. The default is a plan with zero external mutation; live apply is
-outside this repository executor's authority.
+This doctrine does not itself perform GitHub, host, consumer, release or
+billing operations; those happen only through the orchestrator under each
+product's approval policy.
