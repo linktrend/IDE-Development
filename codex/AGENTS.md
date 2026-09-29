@@ -31,6 +31,7 @@ Use the shared IDE Development core as a portable knowledge asset. Codex on the 
 - Do not merge, and do not promote `development` to `main`.
 - Before you finish, run the fast checks named in the Issue.
 - End your final reply with a short lessons note.
+- Removed: Review Ready. Workers do not mark a branch review-ready.
 
 ## Consumption Rules
 
