@@ -504,7 +504,7 @@ entries:
     required_agents: []
     expected_output:
       - checked-out issue/<id>-<slug> branch from latest origin/development
-      - plain-English ready report with Ship/Pull hard stops
+      - plain-English ready report with worker hard stops
     status: active
     tags:
       - command

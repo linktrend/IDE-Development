@@ -56,4 +56,4 @@ Hosted API rejection is `hosted_api_rejected`. Requesting paid/Fast fallback is 
 
 ## Proof limits
 
-A scheduled or admitted verdict is not hosted CI proof and does not authorize Review Ready, Fast, or provider mutation.
+A scheduled or admitted verdict is not hosted CI proof and does not authorize a merge, Fast, or provider mutation.

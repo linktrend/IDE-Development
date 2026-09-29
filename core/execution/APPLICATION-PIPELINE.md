@@ -103,7 +103,7 @@ In an existing repo (`pick-up-unfinished` or `continue-after-release`), light sa
 1. `3.1-issue-dispatch`
 2. `3.2-implement-and-proof` — branch `issue/<id>-<slug>` from `development`
 3. `3.3-independent-review`
-4. `3.4-integration` — the orchestrator packages the PR. Workers never open PRs. When Full CI is green and one independent review (a different model family than the author) approves the exact head, the delivery controller into `development` merges it, then the orchestrator promotes `development` → `main`.
+4. `3.4-integration` — the orchestrator packages the PR. Workers never open PRs. When Full CI is green and one independent review (a different model family than the author) approves the exact head, the orchestrator merges it into `development`, then promotes `development` → `main`.
 5. `3.5-module-gate`
 
 ### Module 4 — Verification & Hardening
