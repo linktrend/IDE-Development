@@ -430,7 +430,8 @@ git -C "$CLN" worktree add "$WTD" issue/dirty >/dev/null
 echo dirty >>"$WTD/d.txt"
 
 git -C "$CLN" checkout -q development
-PATH="$TMP/bin:$PATH" bash -c "cd \"$CLN\" && bash scripts/cleanup-merged-branches.sh" >"$TMP/clean.out"
+env -u GH_REPO GITHUB_REPOSITORY=linktrend/fixture PATH="$TMP/bin:$PATH" \
+  bash -c "cd \"$CLN\" && bash scripts/cleanup-merged-branches.sh" >"$TMP/clean.out"
 grep -q 'WOULD_DELETE_REMOTE: issue/squash\|WOULD_DELETE_LOCAL: issue/squash' "$TMP/clean.out" \
   || grep -q 'issue/squash' "$TMP/clean.out" || fail "squash merge should be cleanup-eligible: $(cat "$TMP/clean.out")"
 grep -q 'WOULD_DELETE_.*promote/main/deadbeefcafe' "$TMP/clean.out" || fail "merged promote/main branch should be cleanup-eligible: $(cat "$TMP/clean.out")"
