@@ -13,8 +13,10 @@ EXIT_INVALID_PACKAGE = 12
 EXIT_ROLLBACK_FAILURE = 13
 
 SCHEMA_VERSION = 1
-INSTALLER_VERSION = "2.5.2"
-PACKAGE_VERSION_TARGET = "2.5.2"
+INSTALLER_VERSION = "3.0.0"
+PACKAGE_VERSION_TARGET = "3.0.0"
+# Older published package that exact same-version repairs are bound to.
+SAME_VERSION_REPAIR_VERSION = "2.5.2"
 PACKAGE_NAME = "ide-development-managed-core"
 
 # Release-candidate packaging (Lane D) — archives under ignored build/

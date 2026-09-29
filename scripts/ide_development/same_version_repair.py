@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from .constants import MANAGED_CORE_DIR, PACKAGE_VERSION_TARGET
+from .constants import MANAGED_CORE_DIR, SAME_VERSION_REPAIR_VERSION
 from .errors import ConflictError, InvalidPackageError
 from .hashing import modes_match, normalize_mode, sha256_file
 from .managed_write_guard import is_read_only_mode, read_only_mode
@@ -120,7 +120,7 @@ def _derive_installed_manifest_digest(
         manifest_state.id != "package-manifest"
         or manifest_state.source_hash != digest
         or manifest_state.content_hash != digest
-        or manifest_state.package_version != PACKAGE_VERSION_TARGET
+        or manifest_state.package_version != SAME_VERSION_REPAIR_VERSION
         or manifest_state.mutability_policy != "read-only"
         or manifest_state.ownership_class != "managed-core"
         or manifest_state.platform != "all"
@@ -190,9 +190,9 @@ def load_and_validate_same_version_repair(
     raw, raw_bytes = _load(repair_path.resolve(strict=False))
     if raw.get("schemaVersion") != SCHEMA_VERSION or raw.get("kind") != KIND:
         raise InvalidPackageError("Unsupported same-version repair manifest kind/version")
-    if raw.get("packageVersion") != PACKAGE_VERSION_TARGET or manifest.package_version != PACKAGE_VERSION_TARGET:
+    if raw.get("packageVersion") != SAME_VERSION_REPAIR_VERSION or manifest.package_version != SAME_VERSION_REPAIR_VERSION:
         raise InvalidPackageError("Same-version repair is available only for packageVersion 2.5.2")
-    if prior is None or prior.package_version != PACKAGE_VERSION_TARGET:
+    if prior is None or prior.package_version != SAME_VERSION_REPAIR_VERSION:
         raise InvalidPackageError("Same-version repair requires an installed packageVersion of 2.5.2")
 
     target_worktree = raw.get("targetWorktree")
@@ -222,7 +222,7 @@ def load_and_validate_same_version_repair(
         raise InvalidPackageError("Same-version repair source manifest digest is stale")
 
     installed = raw.get("installed")
-    if not isinstance(installed, Mapping) or installed.get("packageVersion") != PACKAGE_VERSION_TARGET:
+    if not isinstance(installed, Mapping) or installed.get("packageVersion") != SAME_VERSION_REPAIR_VERSION:
         raise InvalidPackageError("Same-version repair installed package identity is invalid")
     installed_manifest_digest = _digest(
         installed.get("manifestDigest"), "installed.manifestDigest"
