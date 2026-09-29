@@ -1,11 +1,15 @@
-"""Fail-closed Cursor Cloud SDK/API dispatch contract.
+"""Fail-closed cursor-002 SDK/API dispatch contract.
 
-Cursor Cloud routing is repository-bound. The direct REST shape uses ``repos``
-and the SDK adapter uses the equivalent ``CloudAgentOptions.repos`` value. A
-named saved environment is deliberately not part of this contract.
+Cursor overflow routing is repository-bound. The direct REST shape uses
+``repos`` and the SDK adapter uses the equivalent ``CloudAgentOptions.repos``
+value. A named saved environment is deliberately not part of this contract.
 
-Gate 0 Luna High work is owned by the Codex CLI route; ordinary post-Gate-0
-Cursor work is the only model policy admitted by this direct dispatcher.
+This dispatcher admits exactly two cursor-002 routes: Grok 4.7 (everyday
+overflow) and Opus 5.5 (hard overflow), with their pinned parameters. Codex
+Issue execution is not a Cursor route. Model families are checked here; the
+live id is still re-resolved at dispatch time against ``GET /v1/models``.
+The Cursor API does not report the model that ran, so readback does not
+require ``model``.
 """
 
 from __future__ import annotations
@@ -21,10 +25,12 @@ from typing import Any, Mapping, Protocol, Sequence
 from urllib.parse import urlsplit, urlunsplit
 
 
-CONTROL_ID = "cursor-cloud-dispatch-v2"
+CONTROL_ID = "cursor-cloud-dispatch-v3"
 API_BASE_URL = "https://api.cursor.com"
 API_PATH = "/v1/agents"
+API_KEY_ENV = "CURSOR_002_API_KEY"
 MAX_API_ATTEMPTS = 2
+SELF_REPORT_TAG = "MODEL-SELF-REPORT:"
 
 # Import-compatible empty aliases for older adapters. They are not selectors
 # and are never sent to Cursor.
@@ -33,10 +39,27 @@ ENV_PUBLIC_ID = ""
 SAVED_REPOSITORY_ROOT = ""
 
 DIRECT_PROVIDER = "cursor"
-ORDINARY_ROUTE = "ordinary-development"
-DIRECT_MODEL = "grok-4.6"
-DIRECT_EFFORT = "medium"
-DIRECT_FAST = "false"
+GROK_ROUTE = "cursor002-grok"
+OPUS_ROUTE = "cursor002-opus"
+FORBIDDEN_MODEL_ALIASES = frozenset({"opus", "opus-latest"})
+CURSOR_ROUTES: dict[str, dict[str, Any]] = {
+    GROK_ROUTE: {
+        "model": "grok-4.7",
+        "parameters": {
+            "context": "500k",
+            "reasoning_effort": "medium",
+            "fast": "false",
+        },
+    },
+    OPUS_ROUTE: {
+        "model": "claude-opus-5-5",
+        "parameters": {
+            "context": "1m",
+            "effort": "medium",
+            "fast": "false",
+        },
+    },
+}
 _GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 
@@ -51,6 +74,30 @@ class CursorCloudDispatchError(RuntimeError):
         super().__init__(f"{code}: {detail}")
 
 
+def _parameter_map(parameters: Mapping[str, str]) -> dict[str, str]:
+    return {str(key): str(value) for key, value in parameters.items()}
+
+
+def _route_effort(parameters: Mapping[str, str]) -> str:
+    values = _parameter_map(parameters)
+    return values.get("reasoning_effort", values.get("effort", ""))
+
+
+def _route_fast(parameters: Mapping[str, str]) -> bool:
+    return _parameter_map(parameters).get("fast", "").casefold() == "true"
+
+
+def extract_self_reported_model(text: str) -> str | None:
+    """Read the worker ``MODEL-SELF-REPORT:`` line. The Cursor API does not return one."""
+
+    for line in reversed(str(text or "").splitlines()):
+        stripped = line.strip()
+        if stripped.startswith(SELF_REPORT_TAG):
+            value = stripped[len(SELF_REPORT_TAG):].strip()
+            return value or None
+    return None
+
+
 @dataclass(frozen=True)
 class CursorCloudDispatchRequest:
     repository: str
@@ -63,7 +110,7 @@ class CursorCloudDispatchRequest:
     toolchain: Mapping[str, str]
     setup_receipt_digest: str
     provider: str = DIRECT_PROVIDER
-    route_id: str = ORDINARY_ROUTE
+    route_id: str = GROK_ROUTE
     model_parameters: Mapping[str, str] = field(default_factory=dict)
     explicit_scope_repositories: tuple[str, ...] = ()
     explicit_scope_remotes: Mapping[str, str] = field(default_factory=dict)
@@ -110,23 +157,30 @@ class CursorCloudDispatchRequest:
         if self.provider != DIRECT_PROVIDER:
             raise CursorCloudDispatchError(
                 "cursor_cloud_provider_unsupported",
-                "direct Cursor dispatch only admits provider=cursor; Luna uses Codex CLI",
+                "direct Cursor dispatch only admits provider=cursor; Codex uses the Codex CLI",
             )
-        if self.route_id != ORDINARY_ROUTE:
+        model_id = self.model.strip()
+        if model_id.casefold() in FORBIDDEN_MODEL_ALIASES:
+            raise CursorCloudDispatchError(
+                "cursor_cloud_model_alias_forbidden",
+                f"{model_id} is an alias; pin grok-4.7 or claude-opus-5-5",
+            )
+        route = CURSOR_ROUTES.get(self.route_id)
+        if route is None:
             raise CursorCloudDispatchError(
                 "cursor_cloud_route_unsupported",
-                "direct Cursor dispatch only admits the ordinary-development route",
+                "direct Cursor dispatch only admits cursor002-grok and cursor002-opus",
             )
-        if self.model != DIRECT_MODEL:
+        if model_id != route["model"]:
             raise CursorCloudDispatchError(
                 "cursor_cloud_model_unsupported",
-                "ordinary Cursor development requires the exact grok-4.6 model",
+                f"{self.route_id} requires the exact {route['model']} family",
             )
-        parameters = {str(key): str(value) for key, value in self.model_parameters.items()}
-        if parameters != {"effort": DIRECT_EFFORT, "fast": DIRECT_FAST}:
+        parameters = _parameter_map(self.model_parameters)
+        if parameters != route["parameters"]:
             raise CursorCloudDispatchError(
                 "cursor_cloud_model_parameters_unsupported",
-                "ordinary Cursor development requires effort=medium and fast=false",
+                f"{self.route_id} requires pinned params {route['parameters']}",
             )
         if not self.toolchain or any(
             not str(key).strip() or not str(value).strip()
@@ -482,7 +536,8 @@ def build_attestation_prompt(request: CursorCloudDispatchRequest) -> str:
         f"Report PASS/FAIL for repository identity matrix ({matrix}), exact HEAD commit/tree, "
         f"toolchain ({toolchain}), and workspace cleanliness. Expected build ID "
         f"{request.expected_build_id} and setup receipt {request.setup_receipt_digest} are provenance only. "
-        "Any repository, ref, commit, tree, model, effort, or Fast mismatch is a hard stop."
+        "Any repository, ref, commit, or tree mismatch is a hard stop. "
+        f"End with one line: {SELF_REPORT_TAG} <the exact model name and version you are>."
     )
 
 
@@ -492,14 +547,14 @@ def require_cursor_cloud_api_key(
     """Resolve the API key without exposing its value in diagnostics."""
 
     env = os.environ if environment is None else environment
-    value = str(env.get("CURSOR_API_KEY") or "")
+    value = str(env.get(API_KEY_ENV) or "")
     if not value.strip():
-        detail = "CURSOR_API_KEY is required for Cursor Cloud API authority"
+        detail = f"{API_KEY_ENV} is required for cursor-002 API authority"
         if cursor_cli_authenticated:
             detail += "; cursor-agent CLI login/local workspace is not Cloud API authority"
         raise CursorCloudDispatchError("cursor_cloud_api_key_required", detail)
     if any(char.isspace() for char in value):
-        raise CursorCloudDispatchError("cursor_cloud_api_key_invalid", "CURSOR_API_KEY is malformed")
+        raise CursorCloudDispatchError("cursor_cloud_api_key_invalid", f"{API_KEY_ENV} is malformed")
     return value
 
 
@@ -759,18 +814,8 @@ def validate_cursor_cloud_run_readback(
         raise CursorCloudDispatchError(
             "cursor_cloud_run_provider_mismatch", "run readback provider is not exact"
         )
-    if readback.get("model") != request.model or readback.get("effectiveModel", request.model) != request.model:
-        raise CursorCloudDispatchError(
-            "cursor_cloud_run_model_mismatch", "run readback model is not exact"
-        )
-    if readback.get("effort", readback.get("reasoningEffort")) != DIRECT_EFFORT:
-        raise CursorCloudDispatchError(
-            "cursor_cloud_run_effort_mismatch", "run readback reasoning effort is not exact"
-        )
-    if readback.get("fast") is not False:
-        raise CursorCloudDispatchError(
-            "cursor_cloud_run_fast_readback_mismatch", "run readback must explicitly prove Fast is false"
-        )
+    # The Cursor API reports neither the model that ran nor cost. Model, effort,
+    # and fast are recorded from the request and the worker self-report, not read back.
 
 
 def _rest_get_run_readback(
@@ -820,15 +865,21 @@ def dispatch_cursor_cloud(
         return CursorCloudDispatchResult(
             "duplicate", key, client_agent_id, str(current["agentId"]), str(current["runId"]),
             request.repository, request.ref, request.commit, request.tree, request.provider,
-            request.model, DIRECT_EFFORT, False, int(current["revision"]), prompt,
+            request.model, _route_effort(request.model_parameters), _route_fast(request.model_parameters),
+            int(current["revision"]), prompt,
         )
     if current is None:
         intent = {
             "state": "PREPARED", "idempotencyKey": key, "clientAgentId": client_agent_id,
             "repository": request.repository, "repositoryUrl": request.normalized_remote,
             "ref": request.ref, "commit": request.commit, "tree": request.tree,
-            "provider": request.provider, "routeId": request.route_id, "model": request.model,
-            "effort": DIRECT_EFFORT, "fast": False, "modelParameters": dict(request.model_parameters),
+            "provider": request.provider, "routeId": request.route_id,
+            "requestedModel": request.model,
+            "requestedParams": _parameter_map(request.model_parameters),
+            "model": request.model,
+            "effort": _route_effort(request.model_parameters),
+            "fast": _route_fast(request.model_parameters),
+            "modelParameters": _parameter_map(request.model_parameters),
             "repositoryBindings": request.repository_bindings,
             "expectedBuildId": request.expected_build_id, "toolchain": dict(request.toolchain),
             "governedSetup": request.governed_setup, "setupReceiptDigest": request.setup_receipt_digest,
@@ -906,7 +957,8 @@ def dispatch_cursor_cloud(
     )
     return CursorCloudDispatchResult(
         "committed", key, client_agent_id, agent_id, run_id, request.repository, request.ref,
-        request.commit, request.tree, request.provider, request.model, DIRECT_EFFORT, False,
+        request.commit, request.tree, request.provider, request.model,
+        _route_effort(request.model_parameters), _route_fast(request.model_parameters),
         int(committed["revision"]), prompt,
     )
 

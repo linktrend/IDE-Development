@@ -6,6 +6,8 @@ profile consumed by managed-core. The frozen field meanings are defined in
 
 ## Supported mode
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 `phase-integration` is the approved system profile. Issue branches are
 checkpoint-only. Accepted issue commits are integrated serially into one
 `phase/*` branch by `scripts/gitops/packager_coordinator.py`, and one Phase PR

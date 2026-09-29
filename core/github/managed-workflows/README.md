@@ -11,13 +11,9 @@ Templates synced into consumer repos (and IDE Development itself) by:
 | File | Purpose |
 |---|---|
 | `branch-source-policy.yml` | Allowed work branches into development; `promote/*` into staging/main |
-| `linktrend-review-packager.yml` | Discover (Tue/Fri 08:00) + evaluate (`workflow_run` CI / external `check_run` / explicit dispatch) |
-| `linktrend-review-ready-publisher.yml` | Legacy `Linktrend Review Ready` publisher/withdrawer. **v2.5:** non-canonical; outcomes are `WAIVED_LEGACY_GATE`, never PASS, and never Issue-checkpoint or Phase-delivery proof |
-| `linktrend-development-to-staging.yml` | Build (Tue/Fri 10:00) + exact-candidate reevaluate |
-| `linktrend-staging-to-main.yml` | Package / approve-merge (bound SHAs) / observe |
-| `linktrend-integrator-merge.yml` | Merge to development when fast-gate + Bugbot + reviewed SHA |
 | `linktrend-cleanup-merged.yml` | Explicit manual remote cleanup of merged/abandoned branches (no local worktrees) |
-| `linktrend-repair-observer.yml` | Bounded repair evidence observer using the scoped built-in workflow token |
+
+The v2 packager, integrator-merge, Review Ready publisher, receipt promotion and repair-observer templates were retired in v3 (IDE-22); see the v3 plan.
 
 ## Trust boundary (all privileged workflows)
 
@@ -31,7 +27,6 @@ Templates synced into consumer repos (and IDE Development itself) by:
 ## Contracts
 
 - `core/github/CI-GATE-CONTRACTS.md` (includes consumer `workflow_run` name mapping)
-- `core/github/REVIEW-READY.md` (commit status, not a file in the diff)
 - `docs/contracts/BUGBOT-MENTION-ONLY.md`
 - `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`
 

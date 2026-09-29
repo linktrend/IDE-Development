@@ -1,44 +1,33 @@
 ---
-alwaysApply: false
-globs: "**/*"
+description: v3 branch and Issue model. Ledger IDs, work branches, and promotion into main.
+alwaysApply: true
 ---
 
 # Git Branching
 
-This rule is the local branching standard for the shared `.cursor` system and aligned product work.
+The Project orchestrator owns the Ledger and assigns task IDs. Workers and humans never invent an ID.
 
-Authoritative schedule and roles: `docs/AUTONOMOUS-GIT-OPERATIONS.md` and `docs/adr/0003-autonomous-ship-pull-promote.md`.
+Task ID: `<PREFIX>-<n>` matching `^[A-Z][A-Z0-9]{1,9}-[1-9][0-9]*$` (example `IDE-42`). The prefix is per repo.
 
-## Integration branch
+| Branch | Who | Role |
+|---|---|---|
+| `development` | integration | Pull requests from `issue/*`, `phase/*`, and `dev/*` |
+| `main` | protected | Pull requests only from `promote/main/*` |
+| `issue/<PREFIX>-<n>-<slug>` | worker | Cut from latest `origin/development`. Slug is lowercase `[a-z0-9-]`, max 48 characters |
+| `phase/<...>` | orchestrator | Package branch |
+| `dev/<...>` | human | Rare ad-hoc IDE work |
+| `promote/main/<...>` | orchestrator | Temporary branch cut from a `development` commit |
 
-- **`development`** is the integration branch for factory merges by the delivery controller.
+One GitHub Issue per Phase (readable summary). No GitHub Issue per branch or task.
 
-## Branch prefixes
+## Flow
 
-| Prefix | Use | Merge target |
-|--------|-----|--------------|
-| `issue/<id>-<slug>` | **Studio default** — one short-lived branch per governed issue | **`development`** (delivery controller only) |
-| `dev/<machine><ide>` | Rare ad-hoc IDE work only (not forever home) | **`development`** via PR |
-| `cursor/*` | Cloud / dashboard agent work | **`development`** via PR |
-| Promotion | `development` → `staging` → `main` | See promotion flow below |
+`issue/*` → PR to `development` (orchestrator) → green Full CI + independent review → merge → `promote/main/*` → `main`
 
-Bootstrap new sessions with `/agentsetup`. Migrate already-open dirty/wrong-branch sessions with `/agentcomply`.
+Workers push their branch and never open pull requests.
 
-## Promotion flow
+## Session entry
 
-```
-issue/* or dev/* or cursor/*  →  Phase PR to development
-  →  Bugbot / Review Gate  →  delivery controller merges when named gates + receipt pass
-development  →  staging   (Tue & Fri 10:00 Asia/Taipei, auto via delivery controller)
-staging      →  main      (Mon 08:00 package; Principal Approve ~08:30 via Lisa/Telegram)
-```
-
-- **Delivery controller** merges only into **`development`** through GitHub protection.
-- **Delivery controller** promotes **`development` → `staging`** on schedule when receipt identity holds.
-- **Principal** approves **`staging` → `main`** (Lisa Telegram). Not a code review of every PR.
-- Module 6 **product Release OK / live deploy** remains a separate Principal gate.
-- Allowed PR sources into `development` are enforced in `.github/workflows/branch-source-policy.yml`.
-
-## Commit messages
-
-Conventional commits: `type(scope): summary`.
+- New session with a Ledger ID: `agentsetup` runs `python3 scripts/gitops/create_issue_branch.py --id <PREFIX>-<n> --slug <slug>`
+- No ID: stop and ask the Project orchestrator
+- Already open on the wrong branch: `agentcomply`

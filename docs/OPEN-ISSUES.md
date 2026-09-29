@@ -14,7 +14,7 @@ Append-only engineering build log. For “what is true **now**,” prefer [`docs
 
 4. **Persistent autonomous orchestrator in this repo** — deliberately out of scope (belongs to LiNKdeveloper).
 
-5. **Automatic product deploy / LAW-06-style promotion from Module 6** — deliberately not ported; Module 6 ends at `release_ready` + Principal Release OK. **Note (2026-07-24):** Git branch promote (`development`→`staging` auto; `staging`→`main` Principal Telegram Approve) is in scope via ADR 0003 — that is not Module 6 live deploy.
+5. ~~**Automatic product deploy / founder approval before `main`**~~ — **resolved by v3.** No founder approval before `main`. The orchestrator merges into `development` when Full CI is green and one independent review (a different model family than the author) approves the exact head, then promotes `development` → `main`. Reaching `main` starts deploy: automatic when `deploy/target.json` is present, or when a post-deploy health check and automatic rollback exist; otherwise the orchestrator waits for Carlos's OK. The `deploy/target.json` schema is owned by LiNKops. No agent holds server credentials or SSH.
 
 6. **Dollar-cost accounting UI** — not present.
 
@@ -96,6 +96,8 @@ Principal go-ahead: system lives in IDE Development; wired repos inherit agent d
 
 ## 11. GITOPS-01 Review Packager redesign — 2026-07-28
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 Branch `issue/GITOPS-01-review-packager-pipeline`. Principal-locked amendment to ADR 0003 (Review Packager + promotion window).
 
 **Done in this PR (IDE Development only):**
@@ -150,6 +152,8 @@ See ADR 0003 amendment 2026-07-30 and `docs/contracts/*`.
 ---
 
 ## 13. App-backed Review Ready publisher + production completion bridge — 2026-08-01
+
+Retired in v3 (IDE-22); see the v3 plan.
 
 Branch `issue/44-add-app-backed-review-ready-publisher-and-produc` (Issue #44). Wave 2 work packet: `docs/archive/work-packets/2026-08-01-wave-2-app-backed-completion.md`.
 

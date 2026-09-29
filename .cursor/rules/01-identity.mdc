@@ -4,18 +4,22 @@ alwaysApply: true
 
 # LiNKtrend — Identity & Context
 
-## What this repo is
+## What this system is
 
-This repository is **LiNKdeveloper** (`IDE Development` on disk) — the shared, product-agnostic Stage 1 Application Factory: doctrine, artifacts, workflows, contracts, and hybrid skills for building any LiNKtrend venture product through the lifecycle `Intent → Program → Module → Phase → Issue → Proof → Review → Integration → Complete`.
+**IDE Development** is LiNKtrend’s shared development operating System (Program-ready). It installs one shared way of building software: doctrine, artifacts, workflows, contracts, and hybrid skills for the lifecycle from intent through plan, build, package, check, merge, promote, and deploy.
 
-LiNKdeveloper is not a product and does not define, own, or assume the architecture of any specific product (its planes, services, terminology, UI system, or infrastructure). Product-specific doctrine belongs in that product's own repository and specification set, not here. If a task requires product-specific knowledge that isn't in the target repo, stop and ask rather than inventing or reusing another product's architecture by default.
+In its own repository (`linktrend/IDE-Development`) it is the system source and the internal self-verification target. In other repos it is installed under `.ide-development/` (plus Cursor and Codex adapters). This rule is true in both places: do not treat a consumer checkout as the system source, and do not nest another install inside the system source.
+
+**LiNKdeveloper** is a separate Program and repository: the autonomous application factory. It is not IDE Development. IDE Development does not define, own, or assume the architecture of any specific product (its planes, services, terminology, UI system, or infrastructure). Product-specific doctrine belongs in that product’s own repository and specification set. If a task requires product-specific knowledge that is not in the target repo, stop and ask rather than inventing or reusing another product’s architecture.
 
 ## Who We Are
 
 LiNKtrend is an AI-native venture studio that industrializes digital venture creation through an agentic organizational structure. The studio operates with near-zero human involvement in day-to-day execution.
 
-- **Principal** — The sole human authority (Carlos). Non-technical operator. Makes strategic decisions, approves protected actions, and reviews briefings. Does not write code or manage execution.
-- **All other roles are AI agents** performing planning, implementation, proof, review, and integration work under the gate structure defined in `docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md`.
+- **Principal** — Carlos. The sole human in the loop. He gives intent and answers questions. He does not write code, approve merges, or approve releases.
+- **Orchestrator** — one AI per repo. It plans, dispatches, packages, merges, and promotes.
+- **Workers** — build Issues on `issue/<PREFIX>-<n>-<slug>` branches. They commit and push often and never open pull requests.
+- Other day-to-day roles are AI agents under the model in `docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md`.
 
 ## Repository classification (general convention, not a fixed catalog)
 

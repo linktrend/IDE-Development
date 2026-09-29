@@ -152,30 +152,6 @@
       "sincePackageVersion": "2.2.0"
     },
     {
-      "identity": "scripts/gitops/packager_logic.py",
-      "path": "scripts/gitops/packager_logic.py",
-      "contentHash": "sha256:c6b95e0026cbda5e0655720e1fc99723fa106acc304b3a4762effb10a9b0034e",
-      "action": "remove",
-      "reason": "Former Packager compatibility logic no longer belongs in the hosted package.",
-      "sincePackageVersion": "2.2.0"
-    },
-    {
-      "identity": "scripts/gitops/promote_main.sh",
-      "path": "scripts/gitops/promote_main.sh",
-      "contentHash": "sha256:345995a8c15b5c884af35d702c1ced1def1ffd09511982a48aeb2f5cc0474a83",
-      "action": "remove",
-      "reason": "Former local-coordinator promotion script; hosted receipt gate owns promotion validation.",
-      "sincePackageVersion": "2.2.0"
-    },
-    {
-      "identity": "scripts/gitops/promote_staging.sh",
-      "path": "scripts/gitops/promote_staging.sh",
-      "contentHash": "sha256:e6d5532c97fadd18f5adddce45b475b560d46e6135006a44e206cf81f77c1e5d",
-      "action": "remove",
-      "reason": "Former local-coordinator promotion script; hosted receipt gate owns promotion validation.",
-      "sincePackageVersion": "2.2.0"
-    },
-    {
       "identity": "scripts/gitops/readiness_status.py",
       "path": "scripts/gitops/readiness_status.py",
       "contentHash": "sha256:e933a06bc40f8a2c8cade2e6821774611ff911da717648a0e4d6e02041dc587a",

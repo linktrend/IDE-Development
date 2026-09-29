@@ -307,7 +307,6 @@ discover_and_run_new_suites() {
 
 run_existing_suites() {
   run_cmd "gitops lifecycle" bash scripts/tests/test-gitops-lifecycle.sh
-  run_cmd "gitops review packager" bash scripts/tests/test-gitops-review-packager.sh
   run_cmd "gitops behavioral" bash scripts/tests/test-gitops-behavioral.sh
   run_cmd "platform adoption" bash scripts/verify-platform-adoption.sh
   run_cmd "verify ide development" bash scripts/verify-ide-development.sh

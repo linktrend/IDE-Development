@@ -2,10 +2,7 @@ name: Linktrend Branch Source Policy
 
 on:
   pull_request:
-    # Direct policy checks are for issue/phase PRs entering development.
-    # Promotion workflows invoke this file through workflow_call on staging/main;
-    # keeping those targets out of this trigger prevents duplicate contexts.
-    branches: [development]
+    branches: [development, main]
   workflow_call:
     inputs:
       source_branch:
@@ -37,12 +34,6 @@ jobs:
               case "${HEAD_BRANCH}" in
                 promote/main/*) ;;
                 *) echo "Only promote/main/* temporary branches may be merged into main."; exit 1 ;;
-              esac
-              ;;
-            staging)
-              case "${HEAD_BRANCH}" in
-                promote/staging/*) ;;
-                *) echo "Only promote/staging/* temporary branches may be merged into staging."; exit 1 ;;
               esac
               ;;
             development)

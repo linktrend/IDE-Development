@@ -10,6 +10,8 @@ pull requests, branch protection, and promotion records.
 
 ## Commit-to-main flow
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 1. An implementer checkpoints on `issue/<number>-<slug>` (or an approved
    `dev/*` branch). A checkpoint push does not start managed CI.
 2. The Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`)

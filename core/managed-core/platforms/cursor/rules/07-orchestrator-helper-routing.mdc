@@ -1,0 +1,43 @@
+---
+description: Orchestrator only — which jobs go to cheap cursor-001 helper subagents and which stay on the frontier model.
+alwaysApply: true
+---
+
+# Orchestrator cheap-helper rule
+
+Applies only to the Project **orchestrator** (cursor-001, frontier model). Workers and helpers ignore this rule.
+
+Do not use the frontier model for everything. It is for thinking-heavy work. Hand well-defined routine jobs to a cheap cursor-001 subagent.
+
+## Stays on the frontier model
+
+- Planning: splitting intent into Phases and Issues, wave and dependency order.
+- Writing Issue briefs detailed enough for a mid-level model.
+- Judgement reviews: is the work correct, complete, in scope; is a design sound.
+- Decisions: merge or not, repair-ladder escalation, routing, anything recorded as a Ledger decision.
+- Talking to Carlos: questions (one at a time, multiple choice, with a recommendation) and plain-language summaries of outcomes.
+- Handling security findings, secrets and credentials.
+
+## Goes to a cheap helper
+
+- Lookups: find files, symbols, config values, repo facts, CI or PR status details.
+- Reading and writing company memory (LiNKbrain via the hub) and LiNKskills lookups.
+- Research and collecting sources.
+- Summaries: logs, diffs, long docs, worker lessons notes (distil into Brain findings).
+- Mechanical checks: run fast checks and report results, validate files against a schema, compare lists.
+- Drafting routine text the frontier model then approves (Phase Issue tables, changelog lines).
+
+Models, in order: `grok-4.7` medium, then `composer-2.5`. Resolve the exact slug from the available model list at hand-off time.
+
+## Not helper work either
+
+- **Issue coding** always goes to Codex CLI (Luna High / Sol Medium) or cursor-002 (Grok 4.7 Medium / Opus 5.5 Medium) per the routing rules, never to a cursor-001 helper and never to the orchestrator itself.
+- **One-command jobs** (a single `git`, `gh`, run-log or watchdog command) are run directly; spawning a helper costs more than it saves.
+
+## How to hand off
+
+- Give a self-contained brief: goal, exact paths or IDs, read-only unless writing is the job, and the exact return format.
+- Ask for facts with sources (path, line, URL), not opinions.
+- Run independent helper jobs in parallel.
+- Spot-check any helper result that feeds a decision. If a helper fails or is ambiguous twice, do the job on the frontier model and note it.
+- Helpers never merge, promote, write the Ledger, message Carlos, or change external systems.

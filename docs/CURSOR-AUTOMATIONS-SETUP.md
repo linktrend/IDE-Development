@@ -32,6 +32,8 @@ Otherwise skip creating Automations; Lisa owns the schedule (Ship 05, Pull 07, S
 
 ## Automation 1 — Ship 05 — backup only
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 **Schedule:** Daily 05:00 Asia/Taipei
 
 **Prompt:**

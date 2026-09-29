@@ -1,10 +1,9 @@
 ---
 name: agentcomply
 description: >-
-  Migrate an ALREADY-OPEN agent onto a proper short-lived issue/* branch for
-  this consumer repo, safely moving dirty work. Use for /agentcomply or
-  equivalent compliance requests.
-version: 2.0.0-managed
+  Move an ALREADY-OPEN agent onto issue/<PREFIX>-<n>-<slug> for this repo,
+  keeping dirty work. The Project orchestrator assigns the Ledger ID.
+version: 3.0.0-managed
 status: active
 tags: [git, agent, migration, compliance, branching]
 related_commands:
@@ -15,49 +14,35 @@ related_skills:
 
 # Agent Comply (ALREADY-OPEN session) — Cursor managed adapter
 
-Migrate an **already-open agent** onto `issue/<id>-<slug>` for **this repository**, preserving dirty work.
+Move an already-open agent onto `issue/<PREFIX>-<n>-<slug>` for **this repository**, preserving dirty work.
 
-## Authority (installed locally in this repo)
+## Authority
 
-- `.cursor/rules/cursor-gitops-bootstrap.mdc`
 - `.cursor/rules/linktrend-git-branching.mdc`
 - `.cursor/commands/agentcomply.md`
 - `.cursor/skills/agentcomply/SKILL.md` (this file)
 - `scripts/gitops/create_issue_branch.py`
-- `scripts/gitops/completion_gate.py`
-- Managed core (optional deeper doctrine): `.ide-development/`
-
-Do **not** require the IDE Development checkout path.
 
 ## House rules
 
-- Never dump work onto `development` / `staging` / `main`.
-- Never silently adopt an unrelated open PR branch.
-- **Never ask for issue id/slug** — helper creates/reuses them from the task description.
-- Never open a PR yourself. The Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the Phase PR; retained `packager_discover.py` is not that component.
-- Never commit secrets.
-
-## Inputs (ask only if needed)
-
-1. **Task description** if missing
-2. **Target repo** if multi-root / ambiguous
-3. Whether to commit/push a checkpoint (ask if ambiguous)
+- Wrong homes include `development`, `main`, `issue/<number>-slug`, and `cursor/*`.
+- If no Ledger ID was given, stop and ask the Project orchestrator. Never invent an ID.
+- Never force-push. Never prefer-incoming.
+- Workers push the branch and never open pull requests.
 
 ## Workflow
 
-1. Inspect: `git status`, `git branch --show-current`, remotes
-2. If already on a matching clean `issue/<id>-slug` for this work package, confirm and stop
-3. Otherwise create/reuse branch:
+1. Inspect `git status`, the current branch, and remotes.
+2. If already on the matching clean issue branch, confirm and stop.
+3. Stash or commit, then:
 
 ```bash
-python3 scripts/gitops/create_issue_branch.py "<task description>" --prefer-worktree
+python3 scripts/gitops/create_issue_branch.py --id IDE-42 --slug fix-login
 ```
 
-4. Move dirty work safely (stash → checkout/worktree → pop). Never force onto protected branches.
-5. Push checkpoint only when asked or clearly ready
-6. When the issue is finished later: `completion_gate.py write-evidence` then `review-ready` (normal-token publisher if local privileged publish fails closed; never write `.linktrend/review-ready.json`)
-7. Summarize what moved and the active branch/issue
+4. Re-apply the work and verify nothing was lost.
+5. Commit small, push often, run the Issue's fast checks, end with a short lessons note.
 
 ## Fail closed
 
-If helper or git moves fail, stop with the error. Do not invent IDs or force-push.
+If the helper or the git move fails, stop with the error. Do not invent an ID or force-push.

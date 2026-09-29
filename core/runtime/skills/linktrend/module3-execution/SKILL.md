@@ -39,7 +39,7 @@ For each Issue (when the target repo uses GitHub):
 4. When finished: mark review-ready (completion gate). **Review Packager** opens the PR; wait for CI/Bugbot. CI failure is a gate rejection — enter repair via Lisa ACP Repair Dispatcher (budget 3). Implementers do not open PRs.
 5. When merge-ready, the delivery controller merges into `development`.
 
-Do **not** auto-promote `development` → `staging` → `main`. Principal Release OK remains Module 6.
+Workers do not promote. The orchestrator merges into `development` when Full CI is green and one independent review (a different model family than the author) approves the exact head, then promotes `development` → `main`. Deploy follows the Module 6 deploy policy. The orchestrator merging a worker's reviewed PR is not self-merge. Self-review, self-merge as author, and prefer-incoming stay forbidden.
 
 ## Stop conditions
 

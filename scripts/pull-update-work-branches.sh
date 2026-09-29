@@ -67,11 +67,6 @@ is_frozen() {
   local tip
   tip="$(git rev-parse "refs/heads/${branch}" 2>/dev/null || git rev-parse "refs/remotes/origin/${branch}" 2>/dev/null || true)"
   [ -n "$tip" ] || return 1
-  # readiness status on tip
-  if python3 "${SCRIPT_DIR}/gitops/readiness_status.py" get "$tip" >/dev/null 2>&1; then
-    echo "ready_status" >&2
-    return 0
-  fi
   # open review PR at tip
   if command -v gh >/dev/null 2>&1; then
     local out

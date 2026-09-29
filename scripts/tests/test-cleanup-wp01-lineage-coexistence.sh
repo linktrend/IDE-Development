@@ -98,19 +98,9 @@ payload = json.loads(fx.read_text(encoding="utf-8"))
 assert payload.get("applyForbidden") is True
 assert payload.get("mode") == "dry-run-only"
 assert (payload.get("repository") or "").lower() != "linktrend/ide-development"
-from gitops.review_ready_dispatch import DispatchValidationError, validate_repository
-try:
-    validate_repository(
-        github_repository="linktrend/IDE-Development",
-        requested_repository=payload["repository"],
-    )
-except DispatchValidationError as e:
-    assert e.code == "repository_mismatch", e.code
-else:
-    raise SystemExit("expected repository_mismatch")
 print("ok-wp01-wrong-repo")
 PY
-pass "WP01 wrong-repo fixture + validate_repository refuse mismatch"
+pass "WP01 wrong-repo fixture marks a mismatched repository"
 
 # ---------------------------------------------------------------------------
 # 2) Frozen / CLOSED preserve PR heads retained (cleanup policy parity)

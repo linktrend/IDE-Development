@@ -12,6 +12,8 @@ harness: ide
 
 ## Allowed phases
 
+- entry-mode selection: `from-scratch` | `pick-up-unfinished` | `continue-after-release`
+- assess existing repo — for `pick-up-unfinished`, `continue-after-release`, and any work started outside the Program. Read the repo, open branches, pull requests, issues, and CI state. Write a starting Ledger of Issues with owners and states. Ledger IDs are `<PREFIX>-<n>`.
 - `1.1-entry-classification`
 - `1.2-interview-elicitation`
 - `1.3-interview-analysis` — Principal confirms before advance
@@ -63,6 +65,7 @@ Issue/Module scope and pipeline gates override this composite skill. This compos
 
 - Do not reference the LiNKdeveloper repository at runtime.
 - Before Module transitions, call `node .cursor/runtime/validate-application-pipeline.mjs --state <PIPELINE-STATE.json> --request-transition <module-id>:<target-state>`.
+- Select `entryMode` before interview work. Run assess-existing-repo for pick-up, continue-after-release, and work started outside the Program. `from-scratch` uses the conditional setup Module (repo, `scripts/setup.sh`, `.cursor/environment.json`, CI, `development` and `main`). That Module stays off in an existing repo; only light sanity fixes happen there.
 - Author Technical PRD explicitly. Human gate is mandatory. Do not create `PRD.md` or `LIVING-DOCUMENT.md` for new Programs.
 - Record `confirmedInterviewCheckpoints: ["analysis","prioritization","intent"]`, `intentPath`, `technicalPrdPath` in `PIPELINE-STATE.json`, and set `technicalPrdIndependentReviewApproved` (or `technicalPrdReviewDecision: "approved"`) on the Module 1 gate before requesting `intake_and_definition:complete`.
 - Contains **no** Cursor Desktop model-routing policy.

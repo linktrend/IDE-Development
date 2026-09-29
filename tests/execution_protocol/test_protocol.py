@@ -19,6 +19,7 @@ from core.execution.protocol import (  # noqa: E402
     AMENDMENT_ID,
     CANONICAL_PUBLISHER,
     LEGACY_PUBLISHERS,
+    PROTECTED_REFS,
     PROTOCOL_ID,
     PROTOCOL_VERSION,
     REQUIRED_DISCOVERY_PATHS,
@@ -338,15 +339,79 @@ class AutomaticApprovalTests(unittest.TestCase):
         self.assertTrue(decision.automatic)
         self.assertFalse(decision.founder_required)
 
-    def test_main_promote_requires_recorded_founder(self) -> None:
+    def test_main_promote_is_automatic_on_green_ci_and_independent_review(self) -> None:
         blocked = required_approval("main_promote")
         self.assertFalse(blocked.allowed)
-        self.assertTrue(blocked.founder_required)
-        allowed = required_approval(
+        self.assertFalse(blocked.founder_required)
+        self.assertEqual(blocked.reason, "full_ci_and_independent_review_required")
+        founder_only = required_approval(
             "main_promote",
             recorded_approvals={"main_promote": "founder"},
         )
+        self.assertFalse(founder_only.allowed)
+        ci_only = required_approval("main_promote", full_ci_green=True)
+        self.assertFalse(ci_only.allowed)
+        review_only = required_approval(
+            "main_promote",
+            independent_exact_head_approval=True,
+        )
+        self.assertFalse(review_only.allowed)
+        allowed = required_approval(
+            "main_promote",
+            full_ci_green=True,
+            independent_exact_head_approval=True,
+        )
         self.assertTrue(allowed.allowed)
+        self.assertTrue(allowed.automatic)
+        self.assertFalse(allowed.founder_required)
+        self.assertEqual(allowed.reason, "automatic_on_green_ci_and_independent_review")
+
+    def test_deploy_follows_target_or_health_check_policy(self) -> None:
+        waiting = required_approval("deploy_production")
+        self.assertFalse(waiting.allowed)
+        self.assertTrue(waiting.founder_required)
+        with_ok = required_approval(
+            "deploy_production",
+            recorded_approvals={"deploy_production": "founder"},
+        )
+        self.assertTrue(with_ok.allowed)
+        self.assertFalse(with_ok.automatic)
+        on_target = required_approval("deploy_production", deploy_target_declared=True)
+        self.assertTrue(on_target.allowed)
+        self.assertTrue(on_target.automatic)
+        self.assertFalse(on_target.founder_required)
+        self.assertEqual(on_target.reason, "automatic_on_deploy_target")
+        health_only = required_approval(
+            "deploy_production",
+            post_deploy_health_check=True,
+        )
+        self.assertFalse(health_only.allowed)
+        on_health = required_approval(
+            "deploy_production",
+            post_deploy_health_check=True,
+            automatic_rollback=True,
+        )
+        self.assertTrue(on_health.allowed)
+        self.assertTrue(on_health.automatic)
+        self.assertEqual(on_health.reason, "automatic_on_health_check_and_rollback")
+
+    def test_protection_and_provider_mutation_still_need_recorded_approval(self) -> None:
+        for action in ("github_protection_change", "provider_live_mutation", "publish_release"):
+            blocked = required_approval(action)
+            self.assertFalse(blocked.allowed)
+            self.assertTrue(blocked.founder_required)
+            allowed = required_approval(action, recorded_approvals={action: "founder"})
+            self.assertTrue(allowed.allowed)
+            self.assertFalse(allowed.automatic)
+
+    def test_staging_promote_is_not_an_action(self) -> None:
+        decision = required_approval("staging_promote")
+        self.assertFalse(decision.allowed)
+        self.assertFalse(decision.automatic)
+        self.assertEqual(decision.reason, "unknown_action")
+
+    def test_protected_refs_are_development_and_main(self) -> None:
+        self.assertEqual(PROTECTED_REFS, frozenset({"development", "main"}))
 
     def test_self_review_and_self_merge_are_forbidden(self) -> None:
         self.assertFalse(required_approval("self_review").allowed)

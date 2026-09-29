@@ -19,11 +19,6 @@ if str(SCRIPTS_DIR) not in sys.path:
 if str(SCRIPTS_DIR / "gitops") not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR / "gitops"))
 
-from gitops.review_ready_dispatch import (  # noqa: E402
-    DispatchValidationError,
-    validate_repository,
-)
-
 
 class CleanupWp01CoexistenceTests(unittest.TestCase):
     def test_wrong_repo_fixture_still_refuses(self) -> None:
@@ -32,12 +27,7 @@ class CleanupWp01CoexistenceTests(unittest.TestCase):
         payload = json.loads(path.read_text(encoding="utf-8"))
         self.assertTrue(payload.get("applyForbidden", True))
         self.assertEqual(payload.get("mode"), "dry-run-only")
-        with self.assertRaises(DispatchValidationError) as ctx:
-            validate_repository(
-                github_repository="linktrend/IDE-Development",
-                requested_repository=payload.get("repository"),
-            )
-        self.assertEqual(ctx.exception.code, "repository_mismatch")
+        self.assertNotEqual(str(payload.get("repository")).lower(), "linktrend/ide-development")
 
     def test_cleanup_controls_normalize_caller_repo_fail_closed(self) -> None:
         import cleanup_controls

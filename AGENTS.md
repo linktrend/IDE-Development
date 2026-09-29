@@ -30,16 +30,14 @@ Installed managed core: **`.ide-development/`** (versioned package; treat as rea
 
 ### Lifecycle
 
-- Work on `issue/<n>-<slug>` (or rare `dev/*`) → push checkpoint → Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the draft Phase PR → delivery controller (`scripts/gitops/delivery_controller.py`) merges to `development` through GitHub protection. Retained `packager_discover.py` is not the Phase Packager. Review Ready does not itself trigger a merge.
-- Promote: `development` → `staging` → `main` via temporary `promote/*` PRs only (controller-owned; main waits for explicit founder approval).
+- Work on `issue/<n>-<slug>` (or rare `dev/*`) → push checkpoint. The v2 Phase Packager and delivery controller are retired in v3 (IDE-22); see the v3 plan.
+- Promote: the orchestrator promotes development → main after green CI and independent review.
 
 ### Agent rules
 
-- Ship = checkpoint (commit + push). Packager opens PRs. Max 3 ordinary repairs.
-- Completion: `python3 scripts/gitops/completion_gate.py` (`checkpoint` | `review-ready` | `blocked` | `status` | `write-evidence`).
-- Finished work: run appropriate tests/checks, auto-repair ordinary failures (≤3 cycles), `write-evidence`, then `review-ready`.
-- `review-ready` validates evidence then publishes **Linktrend Review Ready** only via the privileged normal-token path (or fails closed with normal-token dispatch diagnostics). Do not call `mark-review-ready.sh` as a pre-gate publisher.
-- If completion cannot pass, call `completion_gate.py blocked`.
+- Ship = checkpoint (commit + push). Max 3 ordinary repairs. (The v2 Phase Packager is retired in v3 (IDE-22); see the v3 plan.)
+- Completion: the v2 completion gate is retired in v3 (IDE-22); see the v3 plan.
+- Finished work: run appropriate tests/checks and auto-repair ordinary failures (≤3 cycles).
 - Hard stops: no implementer PR, no self-merge, no self-review, no staging/main promotion, no prefer-incoming.
 
 ### Deeper doctrine

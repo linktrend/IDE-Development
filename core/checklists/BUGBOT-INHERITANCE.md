@@ -24,6 +24,8 @@ Optional (if available on the Cursor team): enable **fail on unresolved issues**
 
 ## Checklist (per GitHub repo)
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 1. Confirm repo is under the `linktrend` GitHub org connected to Cursor.
 2. Open Cursor dashboard → **Bugbot** (or Agents / Bugbot settings).
 3. Enable Bugbot for this repository (or org-default that includes it).
@@ -52,7 +54,7 @@ Optional (if available on the Cursor team): enable **fail on unresolved issues**
 ## Related
 
 - Managed workflows: `core/github/managed-workflows/`
-- Integrator: `core/github/managed-workflows/linktrend-integrator-merge.yml`
+- Integrator: retired in v3 (IDE-22); see the v3 plan.
 - Ruleset helper: `scripts/apply-development-merge-ruleset.sh`
 - Wire: `scripts/wire-repo.sh`
 - Automations: `docs/CURSOR-AUTOMATIONS-SETUP.md`
