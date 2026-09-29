@@ -48,6 +48,32 @@ const MODULE_STATES = new Set([
   "complete",
 ]);
 
+// Issue states match the Ledger (core/ledger/sql/ide_ledger.sql).
+const ISSUE_STATES = new Set([
+  "planned",
+  "ready",
+  "in_progress",
+  "blocked",
+  "in_review",
+  "done",
+  "cancelled",
+]);
+
+// Read-only aliases for state files written before v3; never written back.
+const LEGACY_ISSUE_STATE_ALIASES = { review_ready: "in_review" };
+
+function canonicalIssueStatus(status) {
+  return LEGACY_ISSUE_STATE_ALIASES[status] ?? status;
+}
+
+function normalizeIssueStatuses(state) {
+  for (const issue of Object.values(state.issues || {})) {
+    if (issue && typeof issue.status === "string") {
+      issue.status = canonicalIssueStatus(issue.status);
+    }
+  }
+}
+
 function fail(message) {
   console.error(`REJECT: ${message}`);
   process.exit(1);
@@ -129,6 +155,12 @@ function validateConsistency(state, statePath) {
   }
   // Issues marked done must satisfy proof/review/integration
   for (const [issueId, issue] of Object.entries(state.issues || {})) {
+    if (
+      issue?.status !== undefined &&
+      !ISSUE_STATES.has(canonicalIssueStatus(issue.status))
+    ) {
+      fail(`Issue ${issueId} has unknown status: ${issue.status}`);
+    }
     if (issue?.status === "done") {
       const probe = {
         ...state,
@@ -355,6 +387,7 @@ function main() {
   const statePath = resolve(args.state);
   const original = readFileSync(statePath, "utf8");
   const state = JSON.parse(original);
+  normalizeIssueStatuses(state);
 
   try {
     if (args.checkConsistency) {

@@ -6,8 +6,8 @@ status: "complete"
 criteria_evidence:
   - criterion: "the issue is shown as ready because it has no dependencies"
     evidence: "ISSUE.md declares an empty depends_on list and states that readiness is immediate after planning."
-  - criterion: "execution moves to review_ready only after proof exists"
-    evidence: "This proof artifact exists and the issue notes the required state path ending in review_ready before review."
+  - criterion: "execution moves to in_review only after proof exists"
+    evidence: "This proof artifact exists and the issue notes the required state path ending in in_review before review."
   - criterion: "integration happens only after passing review"
     evidence: "REVIEW.md records verdict pass and INTEGRATION.md records integration after that verdict."
 artifacts:

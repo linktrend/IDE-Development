@@ -34,7 +34,7 @@ for f in chatgpt/AGENTS.md codex/AGENTS.md .cursor/rules/02-autonomous-ship-pull
     fail "$f still instructs implementer to open PR"
   fi
 done
-if grep -qiE 'review-ready|Review Ready|completion_gate|staging|Packager|delivery controller' core/commands/agentcomply.md; then
+if grep -qiE 'review-ready|Review Ready|completion_gate|Packager|delivery controller' core/commands/agentcomply.md; then
   fail "agentcomply command still has retired v2 language"
 fi
 pass "Platform docs: agentcomply is v3; no implementer Open-PR instruction"

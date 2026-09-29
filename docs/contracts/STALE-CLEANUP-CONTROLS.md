@@ -25,7 +25,7 @@ Do not invent alternate cleanup entrypoints. Do not edit credentials, App, Bugbo
 Never delete, close, or auto-resolve:
 
 - Any issue, PR, or branch named by the current preserve policy
-- Protected branches **`main`**, **`staging`**, **`development`**
+- Protected branches **`main`**, **`development`**
 - Consumer repos (out of scope for this IDE-only contract)
 - Credentials / GitHub App / Bugbot / branch protections (out of scope)
 
@@ -89,7 +89,7 @@ List them as **Codex / Principal candidates** for manual decision. Cleanup scrip
 python3 scripts/gitops/cleanup_stale_records.py --repo linktrend/IDE-Development --json
 ```
 
-## Historical operational snapshot (2026-08-01) — reconciled
+## Historical (pre-v3): operational snapshot (2026-08-01) — reconciled
 
 The candidates below were the evidence basis for the cleanup plan. They were reconciled and removed or closed on 2026-08-03. This is historical context, not a live delete or preserve list.
 

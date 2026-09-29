@@ -34,7 +34,7 @@ This document defines the canonical execution state system shared by:
 - `planned`
 - `active`
 - `blocked`
-- `review_ready`
+- `in_review`
 - `complete`
 
 ### Module States
@@ -43,7 +43,7 @@ This document defines the canonical execution state system shared by:
 - `planned`
 - `active`
 - `blocked`
-- `review_ready`
+- `in_review`
 - `complete`
 
 ### Phase States
@@ -52,18 +52,23 @@ This document defines the canonical execution state system shared by:
 - `planned`
 - `active`
 - `blocked`
-- `review_ready`
+- `in_review`
 - `complete`
 
 ### Issue States
 
-- `draft`
+Issue states match the Ledger (`core/ledger/sql/ide_ledger.sql`):
+
 - `planned`
-- `blocked`
 - `ready`
 - `in_progress`
-- `review_ready`
+- `blocked`
+- `in_review`
 - `done`
+- `cancelled`
+
+Legacy alias: state files written before v3 may contain `review_ready`. Readers
+accept it as `in_review`; writers always write `in_review`.
 
 ### Proof States
 
@@ -97,7 +102,7 @@ This document defines the canonical execution state system shared by:
 ## Shared Interpretation Rules
 
 - `active` means a higher-level work unit contains executable or currently executing child work
-- `review_ready` means a work unit has met its execution obligations and is waiting for required review
+- `in_review` means a work unit has met its execution obligations and is waiting for the required independent review
 - `complete` means all required lower-level and local obligations are satisfied
 - `blocked` means work cannot proceed without explicit resolution
 

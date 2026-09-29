@@ -188,14 +188,13 @@ for name in order:
 if positions != sorted(positions):
     raise SystemExit("consumer rollout order is not sequential as locked")
 # Carlos / Principal approval + read-only drift before each consumer
-needles = ["read-only drift", "Carlos", "development", "staging", "main"]
+needles = ["read-only drift", "Carlos", "development", "main"]
 missing = [n for n in needles if n.lower() not in text.lower()]
 # tighten: require explicit phrases
 for phrase in [
     "read-only drift report",
     "Carlos",
     "`development`",
-    "`staging`",
     "`main`",
 ]:
     if phrase not in text and phrase.replace("`", "") not in text:

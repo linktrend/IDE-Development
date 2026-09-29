@@ -51,7 +51,7 @@ Provide the minimum role composition required for autonomous execution of a prog
 
 ## Gate Enforcement
 
-- Issue state must pass through `review_ready` before `done`.
+- Issue state must pass through `in_review` before `done`.
 - Issue completion requires proof, passing review, and integration.
 - Phase review is optional unless the phase or module requires it.
 - Module review is mandatory.

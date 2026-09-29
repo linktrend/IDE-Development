@@ -6,11 +6,15 @@ Historical long-form OPEN-ISSUES entries remain authoritative for older waves; t
 
 ---
 
-## WP1-001 — Work Packet 1 opened (Issue #67) — 2026-08-02
+## Historical (pre-v3)
+
+Entries below predate v3 and keep their original v2 terms.
+
+### WP1-001 — Work Packet 1 opened (Issue #67) — 2026-08-02
 
 **Issue:** #67
 **Branch:** `issue/67-work-packet-1-production-readiness-proof-and-rel`
-**Plan:** `docs/archive/work-packets/2026-08-02-work-packet-1-production-readiness.md` (archived; stub remains at historical `docs/work-packets/` path)
+**Plan:** `docs/archive/work-packets/2026-08-02-work-packet-1-production-readiness.md` (archived)
 **Models:** Lead + subagents `cursor-grok-4.5-high` only. Claude excluded.
 
 **Outcome sought:** Independently testable portable managed-core v2 release candidate with installer, migration, Cursor/Codex adapters, packaging, recovery, security, and read-only GitHub external-state verification across macOS, Linux, and Windows.
@@ -18,7 +22,7 @@ Historical long-form OPEN-ISSUES entries remain authoritative for older waves; t
 **Explicitly deferred to Work Packet 2 / separate approval:**
 
 - Touching frozen PR #49
-- Integration into `development` / promotion to `staging` or `main`
+- Historical (pre-v3): Integration into `development` / promotion to `staging` or `main`
 - Git tag / GitHub Release / registry publish
 - Real consumer repository install or update
 - Live GitHub App, secret, variable, Bugbot, or ruleset **apply**
@@ -27,7 +31,7 @@ Historical long-form OPEN-ISSUES entries remain authoritative for older waves; t
 
 ---
 
-## WP1-002 — Lane F documentation baseline — 2026-08-02
+### WP1-002 — Lane F documentation baseline — 2026-08-02
 
 **Lane:** F (production documentation and operator handoff)
 **Commit policy:** Subagent writes only; lead integrates/commits.
@@ -57,10 +61,10 @@ python3 scripts/ide-development.py release-candidate create|verify
 
 ---
 
-## Template for later WP1 entries
+### Template for later WP1 entries
 
 ```markdown
-## WP1-NNN — <title> — YYYY-MM-DD
+#### WP1-NNN — <title> — YYYY-MM-DD
 
 **Lane / owner:**
 **SHA:**
@@ -71,7 +75,7 @@ python3 scripts/ide-development.py release-candidate create|verify
 **Blockers:**
 ```
 
-## WP1-003 — Integrated checkpoint + three-OS CI green — 2026-08-02
+### WP1-003 — Integrated checkpoint + three-OS CI green — 2026-08-02
 
 **Branch tip before evidence commit:** `d8f117c8cb12eec808ed5c41a2e795764f417349`
 **CI matrix:** run 30728657317 conclusion success on ubuntu/macOS/windows for `d8f117c`
@@ -84,7 +88,7 @@ python3 scripts/ide-development.py release-candidate create|verify
 
 ---
 
-## WP02-001 — Work Packet 02 complete for stated scope (Issue #68) — 2026-08-02
+### WP02-001 — Work Packet 02 complete for stated scope (Issue #68) — 2026-08-02
 
 **Issue:** #68
 **Branch:** `issue/68-work-packet-02-integration-lineage-stale-cleanup`
@@ -92,7 +96,7 @@ python3 scripts/ide-development.py release-candidate create|verify
 **Packet:** `docs/archive/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md`
 **Evidence:** `docs/archive/evidence/wp02/WORK-PACKET-02-EVIDENCE.md` + `EXTERNAL-CONFIGURATION-CLOSURE.md`
 
-**Proven:** canonical lineage (DEV + WP01 + cleanup + #28 handoff); stale-cleanup tests (no apply); three-OS CI green; RC bound; live external readiness closed (App mint on dry-run `30730954742`; staging/main rulesets `20218450`/`20218451`; development `19728531` preserved; Bugbot Manual Only via Principal UI evidence SHA-256 recorded).
+Historical (pre-v3): **Proven:** canonical lineage (DEV + WP01 + cleanup + #28 handoff); stale-cleanup tests (no apply); three-OS CI green; RC bound; live external readiness closed (App mint on dry-run `30730954742`; staging/main rulesets `20218450`/`20218451`; development `19728531` preserved; Bugbot Manual Only via Principal UI evidence SHA-256 recorded).
 
 **Result:** COMPLETE for stated WP02 scope (checkpoint only).
 
@@ -102,26 +106,26 @@ python3 scripts/ide-development.py release-candidate create|verify
 
 ---
 
-## WP03-001 — Work Packet 03 complete (integrate + promote) — 2026-08-02
+### WP03-001 — Work Packet 03 complete (integrate + promote) — 2026-08-02
 
-**Evidence (verified facts):** PR #69 → `development`, #70 → `staging`, #71 → `main`.
-**Tree equality:** `origin/development`, `origin/staging`, and `origin/main` share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
+Historical (pre-v3): **Evidence (verified facts):** PR #69 → `development`, #70 → `staging`, #71 → `main`.
+Historical (pre-v3): **Tree equality:** `origin/development`, `origin/staging`, and `origin/main` share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
 **Result:** COMPLETE for system-line integration/promotion.
 
 **Not claimed:** consumer rollout; Git tag / GitHub Release publication; nested self-install; Claude support.
 
 ---
 
-## WP04-001 — Work Packet 04 prepared (not executed) — 2026-08-02
+### WP04-001 — Work Packet 04 prepared (not executed) — 2026-08-02
 
-**Packet:** `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
+**Packet:** `docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
 **Status:** PREPARED / NOT EXECUTED — Principal approval pending.
 **Scope:** Locked-order consumer rollout per `docs/GITOPS-CONSUMER-ROLLOUT.md`.
 **Hard stop:** No consumer mutation authorized by preparing this packet.
 
 ---
 
-## ISSUE72-001 — Pre-launch system-repo cleanup opened (Issue #72) — 2026-08-02
+### ISSUE72-001 — Pre-launch system-repo cleanup opened (Issue #72) — 2026-08-02
 
 **Issue:** #72
 **Branch:** `issue/72-pre-launch-ide-development-codebase-cleanup-arch` (tip starts at `e6301fc` = origin/development merge of #69)

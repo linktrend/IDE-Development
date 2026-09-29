@@ -488,10 +488,6 @@ def build_entries() -> list[dict[str, Any]]:
             ".ide-development/schemas/toolchain-manifest.schema.json",
         ),
         (
-            "schemas/transition-receipt.schema.json",
-            ".ide-development/schemas/transition-receipt.schema.json",
-        ),
-        (
             "schemas/secret-scan-result.schema.json",
             ".ide-development/schemas/secret-scan-result.schema.json",
         ),

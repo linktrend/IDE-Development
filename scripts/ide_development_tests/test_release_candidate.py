@@ -143,10 +143,10 @@ class ReleaseCandidateArchiveTests(unittest.TestCase):
 
     def test_tar_and_zip_reproducible(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            staging = Path(tmp) / "stage"
-            staging.mkdir()
-            (staging / "VERSION").write_text("2.0.0\n", encoding="utf-8")
-            nested = staging / "core" / "managed-core"
+            stage_dir = Path(tmp) / "stage"
+            stage_dir.mkdir()
+            (stage_dir / "VERSION").write_text("2.0.0\n", encoding="utf-8")
+            nested = stage_dir / "core" / "managed-core"
             nested.mkdir(parents=True)
             (nested / "VERSION").write_text("2.0.0\n", encoding="utf-8")
             identities = ["VERSION", "core/managed-core/VERSION"]
@@ -154,21 +154,21 @@ class ReleaseCandidateArchiveTests(unittest.TestCase):
             out.mkdir()
             a1 = out / "a.tar.gz"
             a2 = out / "b.tar.gz"
-            rc.build_tar_gz(staging, a1, identities)
-            rc.build_tar_gz(staging, a2, identities)
+            rc.build_tar_gz(stage_dir, a1, identities)
+            rc.build_tar_gz(stage_dir, a2, identities)
             self.assertEqual(a1.read_bytes(), a2.read_bytes())
             z1 = out / "a.zip"
             z2 = out / "b.zip"
-            rc.build_zip(staging, z1, identities)
-            rc.build_zip(staging, z2, identities)
+            rc.build_zip(stage_dir, z1, identities)
+            rc.build_zip(stage_dir, z2, identities)
             self.assertEqual(z1.read_bytes(), z2.read_bytes())
             self.assertTrue(sha256_file(a1).startswith("sha256:"))
 
     def test_refuse_symlink_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            staging = root / "stage"
-            staging.mkdir()
+            stage_dir = root / "stage"
+            stage_dir.mkdir()
             target = root / "real.txt"
             target.write_text("x\n", encoding="utf-8")
             link = root / "link.txt"
@@ -179,21 +179,21 @@ class ReleaseCandidateArchiveTests(unittest.TestCase):
             with self.assertRaises(InstallerError):
                 rc.stage_package_tree(
                     repo_root=root,
-                    staging_root=staging,
+                    stage_root=stage_dir,
                     paths=["link.txt"],
                 )
 
     def test_refuse_secret_like_content(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            staging = root / "stage"
-            staging.mkdir()
+            stage_dir = root / "stage"
+            stage_dir.mkdir()
             bad = root / "leak.txt"
             bad.write_text("api_key=" + "SUPERSECRETVALUE123456" + "\n", encoding="utf-8")
             with self.assertRaises(InstallerError) as ctx:
                 rc.stage_package_tree(
                     repo_root=root,
-                    staging_root=staging,
+                    stage_root=stage_dir,
                     paths=["leak.txt"],
                 )
             self.assertIn("credential", ctx.exception.message.lower())
@@ -201,8 +201,8 @@ class ReleaseCandidateArchiveTests(unittest.TestCase):
     def test_code_api_key_resolver_is_not_secret_content(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            staging = root / "stage"
-            staging.mkdir()
+            stage_dir = root / "stage"
+            stage_dir.mkdir()
             source = root / "resolver.py"
             source.write_text(
                 "api_key = require_cursor_cloud_api_key(\n"
@@ -210,33 +210,33 @@ class ReleaseCandidateArchiveTests(unittest.TestCase):
                 ")\n",
                 encoding="utf-8",
             )
-            rc.stage_package_tree(repo_root=root, staging_root=staging, paths=["resolver.py"])
+            rc.stage_package_tree(repo_root=root, stage_root=stage_dir, paths=["resolver.py"])
 
     def test_code_api_key_resolver_with_literal_is_still_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            staging = root / "stage"
-            staging.mkdir()
+            stage_dir = root / "stage"
+            stage_dir.mkdir()
             source = root / "resolver.py"
             source.write_text(
                 'api_key = require_cursor_cloud_api_key("SUPERSECRETVALUE123456")\n',
                 encoding="utf-8",
             )
             with self.assertRaises(InstallerError) as ctx:
-                rc.stage_package_tree(repo_root=root, staging_root=staging, paths=["resolver.py"])
+                rc.stage_package_tree(repo_root=root, stage_root=stage_dir, paths=["resolver.py"])
             self.assertIn("credential", ctx.exception.message.lower())
 
     def test_refuse_host_absolute_path_content(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
-            staging = root / "stage"
-            staging.mkdir()
+            stage_dir = root / "stage"
+            stage_dir.mkdir()
             bad = root / "pathy.txt"
             bad.write_text(f"checkout={root}/something\n", encoding="utf-8")
             with self.assertRaises(InstallerError) as ctx:
                 rc.stage_package_tree(
                     repo_root=root,
-                    staging_root=staging,
+                    stage_root=stage_dir,
                     paths=["pathy.txt"],
                 )
             self.assertIn("host", ctx.exception.message.lower())

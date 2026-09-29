@@ -404,8 +404,8 @@ class AutomaticApprovalTests(unittest.TestCase):
             self.assertTrue(allowed.allowed)
             self.assertFalse(allowed.automatic)
 
-    def test_staging_promote_is_not_an_action(self) -> None:
-        decision = required_approval("staging_promote")
+    def test_unknown_action_fails_closed(self) -> None:
+        decision = required_approval("intermediate_promote")
         self.assertFalse(decision.allowed)
         self.assertFalse(decision.automatic)
         self.assertEqual(decision.reason, "unknown_action")
@@ -425,29 +425,26 @@ class GitAuthorityTests(unittest.TestCase):
             git_authority_allows(
                 "push_work_branch",
                 branch="issue/341-pkt-01-iss-01-canonical-coding-execution-protoco",
-                actor="implementer",
+                actor="worker",
             )
         )
         self.assertFalse(
             git_authority_allows(
                 "push_work_branch",
                 branch="development",
-                actor="implementer",
+                actor="worker",
             )
         )
 
-    def test_implementer_cannot_open_or_merge(self) -> None:
-        self.assertFalse(git_authority_allows("open_pr", branch="issue/1-x", actor="implementer"))
-        self.assertTrue(git_authority_allows("open_pr", branch="issue/1-x", actor="packager"))
-        self.assertTrue(
-            git_authority_allows(
-                "merge_to_development",
-                branch="phase/v25",
-                actor="delivery_controller",
-            )
+    def test_worker_cannot_open_or_merge(self) -> None:
+        for action in ("open_pr", "merge_to_development", "promote_to_main"):
+            self.assertFalse(git_authority_allows(action, branch="issue/1-x", actor="worker"))
+            self.assertTrue(git_authority_allows(action, branch="issue/1-x", actor="orchestrator"))
+        self.assertFalse(
+            git_authority_allows("push_work_branch", branch="issue/1-x", actor="orchestrator")
         )
         self.assertFalse(
-            git_authority_allows("nested_self_install", branch="issue/1-x", actor="implementer")
+            git_authority_allows("nested_self_install", branch="issue/1-x", actor="worker")
         )
 
 
@@ -455,7 +452,7 @@ class PublisherAuthorityTests(unittest.TestCase):
     def test_no_singular_legacy_publisher_is_canonical_for_v25(self) -> None:
         self.assertIsNone(CANONICAL_PUBLISHER)
         self.assertEqual(AMENDMENT_ID, "V25_BOOTSTRAP_LEAN")
-        self.assertIn("linktrend-review-ready-publisher", LEGACY_PUBLISHERS)
+        self.assertTrue(LEGACY_PUBLISHERS)
         for name in LEGACY_PUBLISHERS:
             self.assertFalse(publisher_is_canonical(name))
         doctrine = (
@@ -465,24 +462,19 @@ class PublisherAuthorityTests(unittest.TestCase):
         self.assertIn("WAIVED_LEGACY_GATE", doctrine)
 
     def test_failed_or_missing_legacy_publisher_is_waived_not_pass(self) -> None:
-        for state in ("missing", "failed"):
-            result = classify_legacy_publisher_gate(
-                publisher="linktrend-review-ready-publisher",
-                state=state,
-            )
-            self.assertEqual(result.classification, WAIVED_LEGACY_GATE)
-            self.assertFalse(result.is_pass)
-            self.assertFalse(result.is_implementation_failure)
-        success = classify_legacy_publisher_gate(
-            publisher="linktrend-review-ready-publisher",
-            state="success",
-        )
-        self.assertFalse(success.is_pass)
-        self.assertNotEqual(success.classification, WAIVED_LEGACY_GATE)
+        for publisher in LEGACY_PUBLISHERS:
+            for state in ("missing", "failed"):
+                result = classify_legacy_publisher_gate(publisher=publisher, state=state)
+                self.assertEqual(result.classification, WAIVED_LEGACY_GATE)
+                self.assertFalse(result.is_pass)
+                self.assertFalse(result.is_implementation_failure)
+            success = classify_legacy_publisher_gate(publisher=publisher, state="success")
+            self.assertFalse(success.is_pass)
+            self.assertNotEqual(success.classification, WAIVED_LEGACY_GATE)
 
 
 class IssueCheckpointTests(unittest.TestCase):
-    def test_complete_evidence_accepts_without_review_ready_or_token(self) -> None:
+    def test_complete_evidence_accepts_without_token(self) -> None:
         review = {
             "accepted": True,
             "headSha": COMMIT_A,
@@ -499,11 +491,9 @@ class IssueCheckpointTests(unittest.TestCase):
             focused_tests_passed=True,
             independent_narrow_review=review,
             manifest_evidence=True,
-            review_ready=False,
             automation_token_present=False,
         )
         self.assertTrue(decision.accepted)
-        self.assertFalse(decision.requires_review_ready)
         self.assertFalse(decision.requires_token)
         self.assertEqual(decision.reason, "v25_bootstrap_lean_issue_checkpoint")
 

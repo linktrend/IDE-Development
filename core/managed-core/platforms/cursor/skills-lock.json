@@ -6,8 +6,9 @@
   "rollbackTree": "6c55220132cc7e9a1baef06f8c147ee9ac9431e7",
   "provider": {
     "repository": "linktrend/LiNKskills",
-    "commit": "e3d80fd22a05a4f68207e130c50b772b5acffda4",
-    "tree": "69a131b46a73a4ef724694bfe240b1a11652bcc9"
+    "commit": "28334c4d409dc74a680bf4e09fa2dab22726e229",
+    "tree": "3038dfc1f24c256f9c7547f906a988ce222e2044",
+    "syncedAt": "2026-09-29T08:25:06Z"
   },
   "providerLockDigest": "sha256:67df14f6b376063dd049dfd4138aa7f723cedf8af800e66666f5110c7c68ddac",
   "physicalRemovalAuthorized": false,
@@ -273,7 +274,7 @@
       "releaseHash": "sha256:22c16d5d1812d45ceaeccbbfe037c9ddfb9629606f4444d57141f4bd434d0a59",
       "bundleHash": "sha256:808212d33c68ceac0a71c0df1a8932b91fbae4ea763271e3981ad137e937f8ae",
       "manifestHash": "sha256:92ade7246334328477e835073434aedabc35992070eeb88117b9c96ea150dba4",
-      "entrypointDigest": "sha256:54309e7a843917890103cee609e36ab5cf9b1d6e0424d2dd0d124637e8eefe86",
+      "entrypointDigest": "sha256:d4d95d7d23eb45ad03d044920343aa006c67974016c04240e07a5b99d3cc88e0",
       "fragmentLevel": 2,
       "fragments": [
         {
@@ -311,6 +312,68 @@
           "fragmentLevel": 3,
           "path": "references/skill-pack.json",
           "digest": "sha256:085d22217cce9b81d587b211cdf1a60e123e164066ec79a1bac570b43a0e77b6"
+        }
+      ],
+      "files": [
+        {
+          "path": ".gitignore",
+          "sha256": "sha256:91a6fb10ca2bc52d2517992d3810fb73fbe458485cdd71d30a96c9e84434bf31"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "sha256:d4d95d7d23eb45ad03d044920343aa006c67974016c04240e07a5b99d3cc88e0"
+        },
+        {
+          "path": "advanced/advanced.md",
+          "sha256": "sha256:b2a58b094e81a05bce07346a715bc09ca5e4becbaf1049fbdb73b94b68b2bb58"
+        },
+        {
+          "path": "examples/error-recovery.md",
+          "sha256": "sha256:8009db3f1c849c54b5cc61998cf60d62f123ccf4923b5034eabb2084ebf0dc0a"
+        },
+        {
+          "path": "examples/success-pattern.md",
+          "sha256": "sha256:a671367f4fd1b45aba9549c34a540596f2ada819b578f52f9bfa86bc60df8089"
+        },
+        {
+          "path": "references/api-specs.md",
+          "sha256": "sha256:3f1e0ee72063c933f9d5925919e3ba0b874d3b08abff6f7ec16b1622feecd950"
+        },
+        {
+          "path": "references/changelog.md",
+          "sha256": "sha256:4af710894152d7a95097c3b35972734d5d69c46c7e99d12382698346f6dd15f8"
+        },
+        {
+          "path": "references/eval-suite.json",
+          "sha256": "sha256:28f874b52792098866c8df1c23f0013fc73ed98c6f08ebb0cca3949960e8abf5"
+        },
+        {
+          "path": "references/eval-suite.yaml",
+          "sha256": "sha256:2c1ee1e4dd0343a70d559b4356907c77c789f6f9c21b97684a471feeaaf8b4e6"
+        },
+        {
+          "path": "references/execution-profile.json",
+          "sha256": "sha256:90738a05059c56b2a68709dbbdfc4d429c08fcd5381ba4d45c97632692f16daf"
+        },
+        {
+          "path": "references/old-patterns.md",
+          "sha256": "sha256:c37d90d1888dc266837b57a9dd6d054e6040d960dc7a0ff881861a1060d9ed67"
+        },
+        {
+          "path": "references/schemas.json",
+          "sha256": "sha256:bf70082040cb328337fc879b042efb6ab659d4ecccc57c2f76616201dcc2ae18"
+        },
+        {
+          "path": "references/skill-pack.json",
+          "sha256": "sha256:085d22217cce9b81d587b211cdf1a60e123e164066ec79a1bac570b43a0e77b6"
+        },
+        {
+          "path": "scripts/README.md",
+          "sha256": "sha256:cc8eb13931e01f372cef65c8a784913130ded7139f88e43142581de78bb6e6ae"
+        },
+        {
+          "path": "scripts/helper_tool.py",
+          "sha256": "sha256:915ff445005789d1293f5069a09b1bd9a052b620207b7e4fd37493cf2a70fdb2"
         }
       ]
     },
@@ -468,7 +531,7 @@
       "releaseHash": "sha256:bcedc011e516b52e4d3de19371b132e82abfcfe74384069e1081ed4657f5f9a7",
       "bundleHash": "sha256:e68c5bba51f58979cae57a3a66551b5168dfa349fd6c442df0ba77a28a4f3753",
       "manifestHash": "sha256:f541179ada437a7749bfeb109948fa0129d726207b2e4e51360f40f7f1e8bdd8",
-      "entrypointDigest": "sha256:03087bf817616a7bfbb5eedbc48cad93cd44f2fd75fafc3efbeb9f79074cac9c",
+      "entrypointDigest": "sha256:6cc84f03c27bb21e01fb29966d174c433050670b6a78fe015b94c4c477d62d25",
       "fragmentLevel": 2,
       "fragments": [
         {
@@ -500,6 +563,68 @@
           "fragmentLevel": 5,
           "path": "references/schemas.json",
           "digest": "sha256:7b28e52b1f39777359a3a3a5dc69e1fd37df4177d818aae550f32d3e18770a99"
+        }
+      ],
+      "files": [
+        {
+          "path": ".gitignore",
+          "sha256": "sha256:91a6fb10ca2bc52d2517992d3810fb73fbe458485cdd71d30a96c9e84434bf31"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "sha256:6cc84f03c27bb21e01fb29966d174c433050670b6a78fe015b94c4c477d62d25"
+        },
+        {
+          "path": "advanced/advanced.md",
+          "sha256": "sha256:a6b456177959ba8a3b84e8271de3cbf8bbf34c43f6f0d2f9611674bfa10554d9"
+        },
+        {
+          "path": "examples/error-recovery.md",
+          "sha256": "sha256:2bae104cd34e2b1ba64bbfc6f926cb7dac16497f560107b3fc9ec1bbf2851403"
+        },
+        {
+          "path": "examples/success-pattern.md",
+          "sha256": "sha256:c4281cd7e5c4a87b7d56888fea66b19fe9b14a468a9ac9e7489abc375f0a5865"
+        },
+        {
+          "path": "references/api-specs.md",
+          "sha256": "sha256:879bfe499180b57500c86f66f8baacf5c68443e0dce925a38657d8d88c13e38f"
+        },
+        {
+          "path": "references/changelog.md",
+          "sha256": "sha256:2a729d89efeab099f4a473411ff0b6b13c1512e0d5b3fe8e5b8510cfffd4f2c4"
+        },
+        {
+          "path": "references/eval-suite.json",
+          "sha256": "sha256:aaf3f3f6a1c65af39c6d0c65076035428ee6b1306523de5c1a79bd3619118222"
+        },
+        {
+          "path": "references/eval-suite.yaml",
+          "sha256": "sha256:ebee86b2e6775518c73ea34802c9abbc1e9b1907e9e4474e629d6e8b8b205ebb"
+        },
+        {
+          "path": "references/execution-profile.json",
+          "sha256": "sha256:3b356899065f56db331e5bd3b63cb0da38473b1c27f15175b7b2d3317e93b3c6"
+        },
+        {
+          "path": "references/old-patterns.md",
+          "sha256": "sha256:bfd5130c1fc68de3509649497be6e530faca027f07ef8ccc8e919a73a6e7a218"
+        },
+        {
+          "path": "references/schemas.json",
+          "sha256": "sha256:7b28e52b1f39777359a3a3a5dc69e1fd37df4177d818aae550f32d3e18770a99"
+        },
+        {
+          "path": "references/skill-pack.json",
+          "sha256": "sha256:d557ee83be1b29a963ec224d3536b50ada9366d430a860e5e9cdc039b1182b49"
+        },
+        {
+          "path": "scripts/README.md",
+          "sha256": "sha256:cc8eb13931e01f372cef65c8a784913130ded7139f88e43142581de78bb6e6ae"
+        },
+        {
+          "path": "scripts/helper_tool.py",
+          "sha256": "sha256:4a4aab2552b2836ec6fa395e9044a529a3a6f3dc2d21db20c72b64858549a58b"
         }
       ]
     },
@@ -553,7 +678,7 @@
       "releaseHash": "sha256:077c41f59bccd3374523af465846f9cac09a89876b8852798d0dc4204cbf2fe8",
       "bundleHash": "sha256:80b2ee930fdb8e829d6e62b465ae6168d61287c4b7d90070c682c33f07aacb41",
       "manifestHash": "sha256:2e92c80f553f8f572f338ff834ed4eb57655a5982b6e0628f36663215f8daf5a",
-      "entrypointDigest": "sha256:4459bca6ba52919cde9d7e279a09ac90b1603d850a1f8bd675c350dd1f98e24e",
+      "entrypointDigest": "sha256:ea05ae50dc07d81dfcf67f8fdf9cb12bb0c3ed00db0511cc3c5b4ad6c3238f33",
       "fragmentLevel": 2,
       "fragments": [
         {
@@ -591,6 +716,72 @@
           "fragmentLevel": 3,
           "path": "references/skill-pack.json",
           "digest": "sha256:cc78f5317bee3d330ad28d140c3ef42b07ec5196bb40fb11abb70e9b9765fa03"
+        }
+      ],
+      "files": [
+        {
+          "path": ".gitignore",
+          "sha256": "sha256:91a6fb10ca2bc52d2517992d3810fb73fbe458485cdd71d30a96c9e84434bf31"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "sha256:ea05ae50dc07d81dfcf67f8fdf9cb12bb0c3ed00db0511cc3c5b4ad6c3238f33"
+        },
+        {
+          "path": "advanced/advanced.md",
+          "sha256": "sha256:b2a58b094e81a05bce07346a715bc09ca5e4becbaf1049fbdb73b94b68b2bb58"
+        },
+        {
+          "path": "examples/error-recovery.md",
+          "sha256": "sha256:8009db3f1c849c54b5cc61998cf60d62f123ccf4923b5034eabb2084ebf0dc0a"
+        },
+        {
+          "path": "examples/success-pattern.md",
+          "sha256": "sha256:a671367f4fd1b45aba9549c34a540596f2ada819b578f52f9bfa86bc60df8089"
+        },
+        {
+          "path": "references/api-specs.md",
+          "sha256": "sha256:5df5e32201cd17c0a3a96d71798dc1836e26a8ed7f47b50aec7c1be14ccfe497"
+        },
+        {
+          "path": "references/changelog.md",
+          "sha256": "sha256:6ba545607e467bf71ba173c3e76cf67e98a3930894e22be4df0046d39a0a4d60"
+        },
+        {
+          "path": "references/eval-suite.json",
+          "sha256": "sha256:84c0ce566b725db5d27497c768e33690e6fff78bf4f24e025d989e10970beddc"
+        },
+        {
+          "path": "references/eval-suite.yaml",
+          "sha256": "sha256:075f7a60c4c764aa7171dc94b455753f15f840f8e3cc98f76040509efc011f04"
+        },
+        {
+          "path": "references/execution-profile.json",
+          "sha256": "sha256:b803ce0fc547c8ca3fb79c047f01b66d0bae3bba2db2ec235164546c755c4431"
+        },
+        {
+          "path": "references/old-patterns.md",
+          "sha256": "sha256:2a35b32d5e796c4d88fe996c154ef5c25a547e69598da521c5344f780aaf5918"
+        },
+        {
+          "path": "references/schemas.json",
+          "sha256": "sha256:bf70082040cb328337fc879b042efb6ab659d4ecccc57c2f76616201dcc2ae18"
+        },
+        {
+          "path": "references/skill-pack.json",
+          "sha256": "sha256:cc78f5317bee3d330ad28d140c3ef42b07ec5196bb40fb11abb70e9b9765fa03"
+        },
+        {
+          "path": "scripts/README.md",
+          "sha256": "sha256:6136cd7f13b339445e4646bfb37f6d0530ad9b2e7fe43c8a0bc3a25f6435879b"
+        },
+        {
+          "path": "scripts/git-pre-commit.sh",
+          "sha256": "sha256:691e10499e8d14664b16e902e8741e6ce05e30ec9d5ce6db0fd4d7e7a481081c"
+        },
+        {
+          "path": "scripts/helper_tool.py",
+          "sha256": "sha256:7d9c222ef1f8a742e3e1baa3ad484f86cf2f565702e33f4d73ba82b5ee576444"
         }
       ]
     },
@@ -644,7 +835,7 @@
       "releaseHash": "sha256:1f83a3094345fe846e5f7b55958ae97912f98fd797cad602e079638858cb43c5",
       "bundleHash": "sha256:cd4959dfc970615c855202a06348fb7a5bf536f7a60c4e4df710c48bff63f6d1",
       "manifestHash": "sha256:37d329229d5dd3e691b68ae4231881affb883e99f0a28937097d190bf57c38ff",
-      "entrypointDigest": "sha256:f849d5f316f3477c6f6c25a03ca64e209c957e225df5d34fddba56369fcc8818",
+      "entrypointDigest": "sha256:ee59b21506bcc2bc4b66efd98f0ffffbc1d1ea4649138417a0ac2904dae1b399",
       "fragmentLevel": 2,
       "fragments": [
         {
@@ -688,6 +879,72 @@
           "fragmentLevel": 3,
           "path": "references/skill-pack.json",
           "digest": "sha256:83c3eb57598c0e82540ba78d1ea81cedcaa5d072164e287ec62fa2360a68a2cf"
+        }
+      ],
+      "files": [
+        {
+          "path": ".gitignore",
+          "sha256": "sha256:91a6fb10ca2bc52d2517992d3810fb73fbe458485cdd71d30a96c9e84434bf31"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "sha256:ee59b21506bcc2bc4b66efd98f0ffffbc1d1ea4649138417a0ac2904dae1b399"
+        },
+        {
+          "path": "advanced/advanced.md",
+          "sha256": "sha256:b2a58b094e81a05bce07346a715bc09ca5e4becbaf1049fbdb73b94b68b2bb58"
+        },
+        {
+          "path": "examples/error-recovery.md",
+          "sha256": "sha256:8009db3f1c849c54b5cc61998cf60d62f123ccf4923b5034eabb2084ebf0dc0a"
+        },
+        {
+          "path": "examples/success-pattern.md",
+          "sha256": "sha256:a671367f4fd1b45aba9549c34a540596f2ada819b578f52f9bfa86bc60df8089"
+        },
+        {
+          "path": "references/api-specs.md",
+          "sha256": "sha256:8563a4a16e1edcc0e3906d96b818fd07c8067136a5f34883c420a580290bf9f6"
+        },
+        {
+          "path": "references/changelog.md",
+          "sha256": "sha256:b06075da74a472a8509d56b39c545ba4cc1864f8b9e686232b5245ae69e7cfff"
+        },
+        {
+          "path": "references/eval-suite.json",
+          "sha256": "sha256:41967831ecfc6f525317891a25fc3dca604253b169ac71b85f2dc53de40a5ac8"
+        },
+        {
+          "path": "references/eval-suite.yaml",
+          "sha256": "sha256:5bc3bf40d8772ea3f37ee21a3dbd99d2f6e6c4fe170ed3a97e7c1da0d4b0c07a"
+        },
+        {
+          "path": "references/execution-profile.json",
+          "sha256": "sha256:131f9af661ec7bb509e0c1d1c37e21169d7aaf6d10b773f6af88eb756cfeca40"
+        },
+        {
+          "path": "references/old-patterns.md",
+          "sha256": "sha256:7f92ae4bda416bd1bacd42c88b7bdc6ead7153f8f099cfef784b05a897ca0cd8"
+        },
+        {
+          "path": "references/schemas.json",
+          "sha256": "sha256:bf70082040cb328337fc879b042efb6ab659d4ecccc57c2f76616201dcc2ae18"
+        },
+        {
+          "path": "references/simple-profile.md",
+          "sha256": "sha256:7f9ba63ee05fc54dcf219ae8923c0e8bf93818f5ba348daa548d641e3fb6f526"
+        },
+        {
+          "path": "references/skill-pack.json",
+          "sha256": "sha256:83c3eb57598c0e82540ba78d1ea81cedcaa5d072164e287ec62fa2360a68a2cf"
+        },
+        {
+          "path": "scripts/README.md",
+          "sha256": "sha256:cc8eb13931e01f372cef65c8a784913130ded7139f88e43142581de78bb6e6ae"
+        },
+        {
+          "path": "scripts/helper_tool.py",
+          "sha256": "sha256:d24e62216a707e161c8a82f0da589adfead853a8d97a4f34bb7cce915bed9745"
         }
       ]
     },
@@ -741,7 +998,7 @@
       "releaseHash": "sha256:4d1a854bbec38c0e5e97d98af9d8f89793dc9bfc589a63fe1f9212468ebff70f",
       "bundleHash": "sha256:1178e2e95e9e3de10794e391aa60b7204bd5bfb31d1f919a3906cf30853c17d2",
       "manifestHash": "sha256:a6c299683ceded41cf759fc5ba86addffef959c4343654e2353ab7e4f490e503",
-      "entrypointDigest": "sha256:1c367c10cebef6644b9e63291025efac0c6c2f1d4d6813a89289a7257c2f5a5b",
+      "entrypointDigest": "sha256:37ea3c498d52cd21848da5684e53583297d1541e28e1d1ffedd7ab70f10f2bb7",
       "fragmentLevel": 2,
       "fragments": [
         {
@@ -779,6 +1036,72 @@
           "fragmentLevel": 3,
           "path": "references/skill-pack.json",
           "digest": "sha256:11c26002548a644c38178ba456392c0a13b4130b7f45ad93922935e58ce7ab25"
+        }
+      ],
+      "files": [
+        {
+          "path": ".gitignore",
+          "sha256": "sha256:91a6fb10ca2bc52d2517992d3810fb73fbe458485cdd71d30a96c9e84434bf31"
+        },
+        {
+          "path": "SKILL.md",
+          "sha256": "sha256:37ea3c498d52cd21848da5684e53583297d1541e28e1d1ffedd7ab70f10f2bb7"
+        },
+        {
+          "path": "advanced/advanced.md",
+          "sha256": "sha256:50bc9199063c42d65fce565730ff5732945231d33dc2bcc46277f3fa0b39614b"
+        },
+        {
+          "path": "examples/error-recovery.md",
+          "sha256": "sha256:802f1ae2d8bf4ee1e2898dbd8b71d1eb37b0ba1ffda0ef8c198d9129030be850"
+        },
+        {
+          "path": "examples/success-pattern.md",
+          "sha256": "sha256:cade9a10d996ff06c5e2075bb53b581fe0aa0f2d90bf946841935dae0c2ac10b"
+        },
+        {
+          "path": "references/api-specs.md",
+          "sha256": "sha256:9e2e5be00a790a98cfac42d5aa54498cd4a54972c62aa76661ddf4031ce21866"
+        },
+        {
+          "path": "references/changelog.md",
+          "sha256": "sha256:a8641a9631d660596ba717ef6ee1f093f2844afe38b38c5b93f92ce1c7d16dd9"
+        },
+        {
+          "path": "references/eval-suite.json",
+          "sha256": "sha256:4a9c850dd2802f9dbeb37570919feca270fc893007e4147037b3ef683b9d0041"
+        },
+        {
+          "path": "references/eval-suite.yaml",
+          "sha256": "sha256:c6fa0574acf8e3876a7ab7c9de250a37a203ff5a1d4b57bea6bfda8d0a30b7e7"
+        },
+        {
+          "path": "references/execution-profile.json",
+          "sha256": "sha256:4e18a74620b45136323a1ebbd25a461c3cf62c689f4c9e85c381b706f986fb66"
+        },
+        {
+          "path": "references/old-patterns.md",
+          "sha256": "sha256:6c55819aab46a2449333cc87d4bdd2252a6cbba1072ffb544b77066d154018d9"
+        },
+        {
+          "path": "references/schemas.json",
+          "sha256": "sha256:c408590e9e2f5d8dd88af5ca931789075aec914d1dc9165a959937ef85035c8b"
+        },
+        {
+          "path": "references/skill-pack.json",
+          "sha256": "sha256:11c26002548a644c38178ba456392c0a13b4130b7f45ad93922935e58ce7ab25"
+        },
+        {
+          "path": "scripts/README.md",
+          "sha256": "sha256:9b4d72900eeec8ef461eb7b7a3002458f42af65c0a61102f8a9293f96896b09a"
+        },
+        {
+          "path": "scripts/create_tool_package.py",
+          "sha256": "sha256:2aa81222d655dd56328f9a507e02cf2123311558241965d693a90a091079f548"
+        },
+        {
+          "path": "scripts/helper_tool.py",
+          "sha256": "sha256:80d617917a9371ed8b7146f5b30929bdf455d42bcadf7f4ae9a0e64c782346aa"
         }
       ]
     },
@@ -939,7 +1262,7 @@
       "skillId": "git-safeguard",
       "decision": "qualified",
       "authority": "linkskills",
-      "digest": "sha256:54309e7a843917890103cee609e36ab5cf9b1d6e0424d2dd0d124637e8eefe86"
+      "digest": "sha256:d4d95d7d23eb45ad03d044920343aa006c67974016c04240e07a5b99d3cc88e0"
     },
     {
       "surface": "core",
@@ -1035,7 +1358,7 @@
       "skillId": "persistent-qa",
       "decision": "qualified",
       "authority": "linkskills",
-      "digest": "sha256:03087bf817616a7bfbb5eedbc48cad93cd44f2fd75fafc3efbeb9f79074cac9c"
+      "digest": "sha256:6cc84f03c27bb21e01fb29966d174c433050670b6a78fe015b94c4c477d62d25"
     },
     {
       "surface": "core",
@@ -1067,7 +1390,7 @@
       "skillId": "repository-manager",
       "decision": "qualified",
       "authority": "linkskills",
-      "digest": "sha256:4459bca6ba52919cde9d7e279a09ac90b1603d850a1f8bd675c350dd1f98e24e"
+      "digest": "sha256:ea05ae50dc07d81dfcf67f8fdf9cb12bb0c3ed00db0511cc3c5b4ad6c3238f33"
     },
     {
       "surface": "core",
@@ -1099,7 +1422,7 @@
       "skillId": "skill-template",
       "decision": "qualified",
       "authority": "linkskills",
-      "digest": "sha256:f849d5f316f3477c6f6c25a03ca64e209c957e225df5d34fddba56369fcc8818"
+      "digest": "sha256:ee59b21506bcc2bc4b66efd98f0ffffbc1d1ea4649138417a0ac2904dae1b399"
     },
     {
       "surface": "core",
@@ -1131,7 +1454,7 @@
       "skillId": "tool-architect",
       "decision": "qualified",
       "authority": "linkskills",
-      "digest": "sha256:1c367c10cebef6644b9e63291025efac0c6c2f1d4d6813a89289a7257c2f5a5b"
+      "digest": "sha256:37ea3c498d52cd21848da5684e53583297d1541e28e1d1ffedd7ab70f10f2bb7"
     },
     {
       "surface": "core",
@@ -1283,7 +1606,7 @@
       "skillId": "git-safeguard",
       "decision": "qualified",
       "authority": "linkskills",
-      "digest": "sha256:54309e7a843917890103cee609e36ab5cf9b1d6e0424d2dd0d124637e8eefe86"
+      "digest": "sha256:d4d95d7d23eb45ad03d044920343aa006c67974016c04240e07a5b99d3cc88e0"
     },
     {
       "surface": "cursor",
@@ -1379,7 +1702,7 @@
       "skillId": "persistent-qa",
       "decision": "qualified",
       "authority": "linkskills",
-      "digest": "sha256:03087bf817616a7bfbb5eedbc48cad93cd44f2fd75fafc3efbeb9f79074cac9c"
+      "digest": "sha256:6cc84f03c27bb21e01fb29966d174c433050670b6a78fe015b94c4c477d62d25"
     },
     {
       "surface": "cursor",
@@ -1411,7 +1734,7 @@
       "skillId": "repository-manager",
       "decision": "qualified",
       "authority": "linkskills",
-      "digest": "sha256:4459bca6ba52919cde9d7e279a09ac90b1603d850a1f8bd675c350dd1f98e24e"
+      "digest": "sha256:ea05ae50dc07d81dfcf67f8fdf9cb12bb0c3ed00db0511cc3c5b4ad6c3238f33"
     },
     {
       "surface": "cursor",
@@ -1443,7 +1766,7 @@
       "skillId": "skill-template",
       "decision": "qualified",
       "authority": "linkskills",
-      "digest": "sha256:f849d5f316f3477c6f6c25a03ca64e209c957e225df5d34fddba56369fcc8818"
+      "digest": "sha256:ee59b21506bcc2bc4b66efd98f0ffffbc1d1ea4649138417a0ac2904dae1b399"
     },
     {
       "surface": "cursor",
@@ -1475,7 +1798,7 @@
       "skillId": "tool-architect",
       "decision": "qualified",
       "authority": "linkskills",
-      "digest": "sha256:1c367c10cebef6644b9e63291025efac0c6c2f1d4d6813a89289a7257c2f5a5b"
+      "digest": "sha256:37ea3c498d52cd21848da5684e53583297d1541e28e1d1ffedd7ab70f10f2bb7"
     },
     {
       "surface": "cursor",
@@ -1609,7 +1932,7 @@
       "path": "core/managed-core/skills/git-safeguard/SKILL.md",
       "skillId": "git-safeguard",
       "decision": "qualified",
-      "digest": "sha256:54309e7a843917890103cee609e36ab5cf9b1d6e0424d2dd0d124637e8eefe86"
+      "digest": "sha256:d4d95d7d23eb45ad03d044920343aa006c67974016c04240e07a5b99d3cc88e0"
     },
     {
       "path": "core/managed-core/skills/i18n-localization/SKILL.md",
@@ -1681,7 +2004,7 @@
       "path": "core/managed-core/skills/persistent-qa/SKILL.md",
       "skillId": "persistent-qa",
       "decision": "qualified",
-      "digest": "sha256:03087bf817616a7bfbb5eedbc48cad93cd44f2fd75fafc3efbeb9f79074cac9c"
+      "digest": "sha256:6cc84f03c27bb21e01fb29966d174c433050670b6a78fe015b94c4c477d62d25"
     },
     {
       "path": "core/managed-core/skills/personal-information-forms/SKILL.md",
@@ -1705,7 +2028,7 @@
       "path": "core/managed-core/skills/repository-manager/SKILL.md",
       "skillId": "repository-manager",
       "decision": "qualified",
-      "digest": "sha256:4459bca6ba52919cde9d7e279a09ac90b1603d850a1f8bd675c350dd1f98e24e"
+      "digest": "sha256:ea05ae50dc07d81dfcf67f8fdf9cb12bb0c3ed00db0511cc3c5b4ad6c3238f33"
     },
     {
       "path": "core/managed-core/skills/rust-pro/SKILL.md",
@@ -1729,7 +2052,7 @@
       "path": "core/managed-core/skills/skill-template/SKILL.md",
       "skillId": "skill-template",
       "decision": "qualified",
-      "digest": "sha256:f849d5f316f3477c6f6c25a03ca64e209c957e225df5d34fddba56369fcc8818"
+      "digest": "sha256:ee59b21506bcc2bc4b66efd98f0ffffbc1d1ea4649138417a0ac2904dae1b399"
     },
     {
       "path": "core/managed-core/skills/source-driven-development/SKILL.md",
@@ -1753,7 +2076,7 @@
       "path": "core/managed-core/skills/tool-architect/SKILL.md",
       "skillId": "tool-architect",
       "decision": "qualified",
-      "digest": "sha256:1c367c10cebef6644b9e63291025efac0c6c2f1d4d6813a89289a7257c2f5a5b"
+      "digest": "sha256:37ea3c498d52cd21848da5684e53583297d1541e28e1d1ffedd7ab70f10f2bb7"
     },
     {
       "path": "core/managed-core/skills/webapp-testing/SKILL.md",

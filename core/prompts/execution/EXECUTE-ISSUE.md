@@ -13,7 +13,7 @@
 
 ## Doctrine
 
-Issue is the atomic executable unit. Execute only when dependencies are satisfied and the issue is truly ready. Self-report is not proof. Do not mark `done` from this prompt — stop at `review_ready` with a real `PROOF.md`.
+Issue is the atomic executable unit. Execute only when dependencies are satisfied and the issue is truly ready. Self-report is not proof. Do not mark `done` from this prompt — stop at `in_review` with a real `PROOF.md`.
 
 ## Templates
 
@@ -26,7 +26,7 @@ Issue is the atomic executable unit. Execute only when dependencies are satisfie
 
 - executed issue work within scope
 - a concrete proof artifact
-- state transition to `review_ready`, not directly to `done`
+- state transition to `in_review`, not directly to `done`
 
 ## Stop When
 
@@ -44,4 +44,4 @@ Issue is the atomic executable unit. Execute only when dependencies are satisfie
 - scope boundaries
 - acceptance criteria
 - proof requirements
-- `review_ready` handoff
+- `in_review` handoff

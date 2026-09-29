@@ -424,10 +424,10 @@ def _scan_bytes_for_host_paths(rel: str, data: bytes, *, repo_root: Path) -> Non
 def stage_package_tree(
     *,
     repo_root: Path,
-    staging_root: Path,
+    stage_root: Path,
     paths: Iterable[str],
 ) -> list[str]:
-    """Copy physical package files into staging with repo-relative layout."""
+    """Copy physical package files into the stage directory with repo-relative layout."""
     staged: list[str] = []
     for rel in paths:
         src = repo_root / rel
@@ -436,7 +436,7 @@ def stage_package_tree(
             content = (
                 _INSTALL_INSTRUCTIONS if rel == "INSTALL.md" else _ROLLBACK_INSTRUCTIONS
             ).encode("utf-8")
-            dest = staging_root / rel
+            dest = stage_root / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(content)
             staged.append(rel)
@@ -449,7 +449,7 @@ def stage_package_tree(
         data = src.read_bytes()
         _scan_bytes_for_secrets(rel, data)
         _scan_bytes_for_host_paths(rel, data, repo_root=repo_root)
-        dest = staging_root / rel
+        dest = stage_root / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(data)
         # Preserve executable bit when present; otherwise 0644.
@@ -475,12 +475,12 @@ def _fixed_tarinfo(name: str, size: int, mode: int) -> tarfile.TarInfo:
     return info
 
 
-def build_tar_gz(staging_root: Path, archive_path: Path, identities: Sequence[str]) -> int:
+def build_tar_gz(stage_root: Path, archive_path: Path, identities: Sequence[str]) -> int:
     archive_path.parent.mkdir(parents=True, exist_ok=True)
     raw = io.BytesIO()
     with tarfile.open(fileobj=raw, mode="w") as tar:
         for rel in sorted(identities):
-            path = staging_root / rel
+            path = stage_root / rel
             data = path.read_bytes()
             mode = 0o755 if (path.stat().st_mode & stat.S_IXUSR) else 0o644
             info = _fixed_tarinfo(rel, len(data), mode)
@@ -499,13 +499,13 @@ def build_tar_gz(staging_root: Path, archive_path: Path, identities: Sequence[st
     return archive_path.stat().st_size
 
 
-def build_zip(staging_root: Path, archive_path: Path, identities: Sequence[str]) -> int:
+def build_zip(stage_root: Path, archive_path: Path, identities: Sequence[str]) -> int:
     archive_path.parent.mkdir(parents=True, exist_ok=True)
     # ZipInfo date_time from deterministic epoch.
     dt = (2026, 8, 1, 0, 0, 0)
     with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
         for rel in sorted(identities):
-            path = staging_root / rel
+            path = stage_root / rel
             data = path.read_bytes()
             info = zipfile.ZipInfo(filename=rel, date_time=dt)
             mode = 0o755 if (path.stat().st_mode & stat.S_IXUSR) else 0o644
@@ -744,21 +744,21 @@ def create_release_candidate(
     out.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="ide-rc-stage-") as tmp:
-        staging = Path(tmp) / "stage"
-        staging.mkdir()
-        staged = stage_package_tree(repo_root=repo_root, staging_root=staging, paths=identities)
+        stage_dir = Path(tmp) / "stage"
+        stage_dir.mkdir()
+        staged = stage_package_tree(repo_root=repo_root, stage_root=stage_dir, paths=identities)
         base = _archive_basename(version)
         tar_rel = f"{RC_BUILD_DIR_REL}/{base}.tar.gz"
         zip_rel = f"{RC_BUILD_DIR_REL}/{base}.zip"
         tar_path = out / f"{base}.tar.gz"
         zip_path = out / f"{base}.zip"
-        tar_bytes = build_tar_gz(staging, tar_path, staged)
-        zip_bytes = build_zip(staging, zip_path, staged)
+        tar_bytes = build_tar_gz(stage_dir, tar_path, staged)
+        zip_bytes = build_zip(stage_dir, zip_path, staged)
         # Prove second archive build is byte-identical.
         tar_path_2 = out / f"{base}.tar.gz.repro"
         zip_path_2 = out / f"{base}.zip.repro"
-        build_tar_gz(staging, tar_path_2, staged)
-        build_zip(staging, zip_path_2, staged)
+        build_tar_gz(stage_dir, tar_path_2, staged)
+        build_zip(stage_dir, zip_path_2, staged)
         if tar_path.read_bytes() != tar_path_2.read_bytes():
             raise ReleaseCandidateError("tar.gz archive is not reproducible across consecutive builds")
         if zip_path.read_bytes() != zip_path_2.read_bytes():

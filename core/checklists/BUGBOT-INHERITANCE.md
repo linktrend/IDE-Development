@@ -41,7 +41,7 @@ Historical checklist only. Bugbot is optional and is not a merge requirement. Li
    ```
 6. Confirm Integrator workflow is present: `.github/workflows/linktrend-integrator-merge.yml`.
 7. Required check names are in `core/github/CI-GATE-CONTRACTS.md`: pull requests into `development` require `Linktrend Fast Checks` and `Linktrend Branch Source Policy` (the orchestrator also requires `Verify IDE Development`). Bugbot is optional and is not one of those names.
-8. Confirm Review Packager workflow is present: `.github/workflows/linktrend-review-packager.yml` (Tue/Fri 08:00 Asia/Taipei). Bugbot request default command is `@cursor review` (configurable; with the `@`); managed success check is `Linktrend Review Gate` (provider check remains `Cursor Bugbot`). The 2-request limit counts only comments with an executable trigger (`@cursor review` or `bugbot run`) **plus** `<!-- linktrend-bugbot-requested: <sha> -->`; bare historical `cursor review` + marker does not count.
+8. Bugbot is requested by the orchestrator on its Phase PR, not by a workflow. Bugbot request default command is `@cursor review` (configurable; with the `@`); managed success check is `Linktrend Review Gate` (provider check remains `Cursor Bugbot`). The 2-request limit counts only comments with an executable trigger (`@cursor review` or `bugbot run`) **plus** `<!-- linktrend-bugbot-requested: <sha> -->`; bare historical `cursor review` + marker does not count.
 9. Confirm Integrator managed template matches live file after sync (`cmp` in IDE Development verify).
 10. Record completion in the adoption/wire report: `Bugbot: enabled | blocked:<reason>`.
 

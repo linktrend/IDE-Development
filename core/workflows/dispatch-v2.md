@@ -27,7 +27,7 @@ Define how work becomes ready, how roles are triggered, and what evidence must e
 |------|------------------|-----------------|
 | Planner | `Go` or new initiative | plan artifacts |
 | Executor | ready issue | implementation and proof |
-| Reviewer | review-ready work | findings or approval |
+| Reviewer | work in `in_review` | findings or approval |
 | Integrator | merge-ready work | coherent integrated state |
 
 ## Required Evidence

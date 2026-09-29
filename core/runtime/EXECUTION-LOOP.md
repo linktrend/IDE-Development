@@ -25,7 +25,7 @@ Even when the request starts above issue level, execution still proceeds through
 6. Assign each selected issue to an available resource.
 7. Execute the issue within declared scope.
 8. Produce or update proof.
-9. Move the issue to `review_ready`.
+9. Move the issue to `in_review`.
 10. Perform independent review.
 11. If review passes, integrate the work.
 12. Mark the issue `done` only after integration succeeds.

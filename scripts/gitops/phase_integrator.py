@@ -38,6 +38,7 @@ PHASE_RECORD_REL = Path(".linktrend/phase-delivery-record.json")
 INTEGRATOR_ROLE = "integrator"
 ISSUE_BRANCH_RE = re.compile(r"^issue/([1-9][0-9]{0,8})-(.+)$")
 TERMINAL_PHASE_STATES = frozenset({"main-promoted", "stopped", "blocked", "cancelled"})
+PHASE_GATES = ("fast", "bugbot", "full", "release")
 
 
 class PhaseLifecycleError(ValueError):
@@ -256,7 +257,7 @@ def invalidate_candidate_gates(record: Mapping[str, Any], *, old_head_sha: str, 
     result["sealedSha"] = None
     result["sealRevision"] = result.get("sealRevision", result.get("sealedCandidateRevisions", 0))
     result["invalidatedFromSha"] = normalize_sha(old_head_sha)
-    for gate in ("fast", "bugbot", "full", "staging", "release"):
+    for gate in PHASE_GATES:
         result[gate] = {"status": "invalidated", "detail": "phase_head_changed"}
     result["namedGateEvidence"] = {
         "gate": "fast-gate",
@@ -455,7 +456,6 @@ class PhaseIntegrator:
             "fast": {"status": "not-run"},
             "bugbot": {"status": "not-run"},
             "full": {"status": "not-run"},
-            "staging": {"status": "not-run"},
             "release": {"status": "not-run"},
             "stopReason": None,
         }
@@ -628,7 +628,7 @@ class PhaseIntegrator:
         head = normalize_sha(str(record.get("sealedSha") or ""))
         if normalize_sha(sha) != head:
             raise PhaseLifecycleError("stale_candidate_gate", "gate result is not for current sealed head")
-        if gate not in {"fast", "bugbot", "full", "staging", "release"}:
+        if gate not in PHASE_GATES:
             raise PhaseLifecycleError("invalid_gate", gate)
         record[gate] = {"status": status, "sha": head, "detail": detail, **extra}
         record["namedGateEvidence"] = {"gate": f"{gate}-gate" if gate != "bugbot" else "bugbot", "sha": head, "status": "success" if status in {"passed", "not-required"} else status, "detail": detail, "checks": extra.get("checks", [])}

@@ -1,29 +1,30 @@
 #!/usr/bin/env bash
-# Apply a repository ruleset so PRs into development require Bugbot + listed CI checks.
-# Integrator then merges only when those gates are green.
+# Apply the development-autonomous-merge ruleset so PRs into development require the
+# listed CI checks (strict, up to date) before the orchestrator merges.
 #
 # Compatibility wrapper around scripts/gitops/repository_protection.py
 # (development branch only). Invoking this script still applies (historical behavior).
-# Prefer scripts/manage-repository-protections.sh for plan/verify across all three branches.
+# Prefer scripts/manage-repository-protections.sh for plan/verify across development and main.
 #
 # Usage:
 #   ./scripts/apply-development-merge-ruleset.sh
 #   ./scripts/apply-development-merge-ruleset.sh --repo linktrend/LiNKskills
 #   ./scripts/apply-development-merge-ruleset.sh --repo linktrend/LiNKskills \
-#     -- "Linktrend Review Gate" "test" "Linktrend Branch Source Policy"
+#     -- "Linktrend Fast Checks" "test" "Linktrend Branch Source Policy"
 #
 # Defaults:
 #   repo   = linktrend/IDE-Development (or GH_REPO)
-#   checks = Linktrend Review Gate + Verify IDE Development + Linktrend Branch Source Policy
+#   checks = Linktrend Fast Checks + Linktrend Branch Source Policy + Verify IDE Development
+#   Obsolete contexts (e.g. Linktrend Review Gate) are dropped by repository_protection.py.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO="${GH_REPO:-linktrend/IDE-Development}"
 CHECKS=(
-  "Linktrend Review Gate"
-  "Verify IDE Development"
+  "Linktrend Fast Checks"
   "Linktrend Branch Source Policy"
+  "Verify IDE Development"
 )
 CHECKS_SET=0
 FIXTURE_DIR=""
@@ -74,17 +75,17 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-# If caller passed check names without --repo, keep Linktrend Review Gate unless they included it.
+# Explicit check lists always keep the source-policy check.
 if [ "${CHECKS_SET}" -eq 1 ]; then
-  has_bugbot=0
+  has_policy=0
   for c in "${CHECKS[@]}"; do
-    if [ "$c" = "Linktrend Review Gate" ]; then
-      has_bugbot=1
+    if [ "$c" = "Linktrend Branch Source Policy" ]; then
+      has_policy=1
       break
     fi
   done
-  if [ "${has_bugbot}" -eq 0 ]; then
-    CHECKS=("Linktrend Review Gate" "${CHECKS[@]}")
+  if [ "${has_policy}" -eq 0 ]; then
+    CHECKS=("${CHECKS[@]}" "Linktrend Branch Source Policy")
   fi
 fi
 

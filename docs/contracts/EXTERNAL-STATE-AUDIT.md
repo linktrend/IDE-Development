@@ -3,7 +3,7 @@
 **Status:** Active — normal-token GitOps readiness bridge; **consumer** external-state installs remain deferred until their protected rollout PRs are ready.
 **Date:** 2026-08-02
 **Audience:** Operators confirming rollout readiness; Verifier; Implementers (read-only)
-**SOT:** `docs/CURRENT-STATUS.md` · `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md` · `docs/contracts/BUGBOT-MENTION-ONLY.md` · `docs/GITOPS-CONSUMER-ROLLOUT.md` · `docs/archive/work-packets/2026-08-02-work-packet-1-production-readiness.md` · `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
+**SOT:** `docs/CURRENT-STATUS.md` · `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md` · `docs/contracts/BUGBOT-MENTION-ONLY.md` · `docs/GITOPS-CONSUMER-ROLLOUT.md` · `docs/archive/work-packets/2026-08-02-work-packet-1-production-readiness.md` · `docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
 **Tooling:** `scripts/gitops/external_state_audit.py` (existing); WP1 Lane C expanded inventory/planner/verifier coverage under owned paths
 **Tests:** `scripts/tests/test-external-state-audit.sh` (+ Lane C fixture matrix when landed)
 
@@ -13,7 +13,7 @@
 
 Retired in v3 (IDE-22); see the v3 plan.
 
-Produce a **read-only, dry-run-default** report of the normal automation credential, Bugbot, and repository-protection state required before `Linktrend Review Ready` publication can be trusted in production.
+Produce a **read-only, dry-run-default** report of the normal automation credential, Bugbot, and repository-protection state the orchestrator relies on in production.
 
 This tool **reports**. It does **not** create Apps, secrets, variables, Bugbot settings, rulesets, PRs, statuses, or promotions.
 
@@ -53,9 +53,8 @@ Git working-tree files are **not** external state. Workflow YAML and local scrip
 | `bugbot.user_token_secret` | bugbot | `LINKTREND_BUGBOT_USER_TOKEN` secret **name** listed |
 | `bugbot.manual_trigger_only` | bugbot | `manualTriggerOnly=true` (mention-only) |
 | `bugbot.check_name` | bugbot | Check name is `Linktrend Review Gate` (default or matching variable) |
-| `protection.development_ruleset` | protection | Active `development-autonomous-merge` requires `Linktrend Review Gate` and `Linktrend Branch Source Policy` |
+| `protection.development_ruleset` | protection | Active `development-autonomous-merge` requires `Linktrend Branch Source Policy` and none of the retired v2 contexts (`Cursor Bugbot`, `Linktrend Review Gate`, `Linktrend Review Ready`) |
 | `protection.allow_auto_merge` | protection | `allow_auto_merge=true` |
-| `completion.status_context` | completion | Privileged context remains `Linktrend Review Ready` (normal-token publisher from trusted workflow context only) |
 
 Related contracts:
 
@@ -165,7 +164,7 @@ Machine-readable JSON on stdout (optional `--json-output PATH`):
 2. Do **not** print, artifact, or commit secret values, PEMs, or PATs.
 3. Do **not** treat `summary.ready=true` on a fixture as proof of production readiness.
 4. Do **not** change branch protections or Bugbot dashboard settings from an Implementer session — Principal / operator only.
-5. Carlos's restricted user identity must not publish statuses; only the normal automation token in the trusted workflow context may publish `Linktrend Review Ready`.
+5. Carlos's restricted user identity must not publish statuses, merge, or promote; those are orchestrator actions.
 6. Work Packet 1 agents must not treat a green verify report as permission to roll out consumers or apply protections — consumer installs/settings apply remain WP04 / Principal-gated (packet prepared; not executed until approval).
 
 ---

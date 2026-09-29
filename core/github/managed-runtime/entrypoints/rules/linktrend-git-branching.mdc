@@ -9,7 +9,7 @@ alwaysApply: true
 - Studio default work branch: **`issue/<id>-<slug>`** (one short-lived branch per governed issue)
 - Cloud agents may use `cursor/*`; `dev/*` is rare ad-hoc only
 - Merge into `development` only via Phase Packager/Coordinator → delivery controller (implementers never open/merge that PR)
-- Promotion `development` → `staging` → `main` is delivery-controller/Principal only
+- Only two long-lived branches: `development` and `main`. Promotion `development` → temporary `promote/main/*` → `main` is orchestrator-only
 
 ## Session entrypoints
 
@@ -19,5 +19,5 @@ alwaysApply: true
 
 ## Hard stops
 
-- No implementer PRs, no self-merge, no self-review, no staging/main promotion from implementer sessions
+- No implementer PRs, no self-merge, no self-review, no `main` promotion from implementer sessions
 - Ship = checkpoint (commit + push) only
