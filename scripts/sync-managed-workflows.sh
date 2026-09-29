@@ -14,6 +14,24 @@ MANAGED_FILES=(
   "linktrend-promote-main.yml"
 )
 
+# Synced only when the target declares a deploy target; a caller for a
+# reusable workflow without a target would fail every push to main.
+DEPLOY_FILE="linktrend-deploy.yml"
+DEPLOY_TARGET_REL="deploy/target.json"
+
+# v2 workflows retired in v3. Removed only when the file still equals a
+# published v2 rendering for this consumer (scripts/ide_development/retired_workflows.py);
+# a locally edited copy is reported as a conflict and kept.
+RETIRED_FILES=(
+  "linktrend-development-to-staging.yml"
+  "linktrend-integrator-merge.yml"
+  "linktrend-repair-observer.yml"
+  "linktrend-review-gate.yml"
+  "linktrend-review-packager.yml"
+  "linktrend-review-ready-publisher.yml"
+  "linktrend-staging-to-main.yml"
+)
+
 fail() {
   echo "FAIL: $1" >&2
   exit 1
@@ -29,6 +47,10 @@ Usage: $(basename "$0") <repo-path> [--config PATH] [--orchestration-mode MODE] 
 
 Copy managed GitHub workflow templates into <repo-path>/.github/workflows/.
 Never overwrites ci.yml. Idempotent when files already match.
+
+linktrend-deploy.yml is synced only when <repo-path>/deploy/target.json exists.
+Retired v2 workflows are removed only when they still match a published v2
+rendering; a locally modified copy is kept and reported (exit 11).
 
 Workflow templates may contain __LINKTREND_* placeholders. They are rendered
 from <repo-path>/.github/linktrend-gitops-consumer.json unless --config is set.
@@ -263,7 +285,15 @@ PY
 copied=0
 unchanged=0
 
-for file in "${MANAGED_FILES[@]}"; do
+SYNC_FILES=("${MANAGED_FILES[@]}")
+if [ -f "${TARGET_REPO}/${DEPLOY_TARGET_REL}" ]; then
+  info "Deploy target: ${DEPLOY_TARGET_REL} present; syncing ${DEPLOY_FILE}"
+  SYNC_FILES+=("${DEPLOY_FILE}")
+else
+  info "Deploy target: ${DEPLOY_TARGET_REL} absent; ${DEPLOY_FILE} not synced"
+fi
+
+for file in "${SYNC_FILES[@]}"; do
   src="${TEMPLATE_DIR}/${file}"
   dest="${DEST_DIR}/${file}"
   rendered="${TMP_DIR}/${file}"
@@ -302,6 +332,41 @@ for file in "${MANAGED_FILES[@]}"; do
   info "PASS: synced $file"
   copied=$((copied + 1))
 done
+
+deploy_conflict=0
+deploy_dest="${DEST_DIR}/${DEPLOY_FILE}"
+if [ ! -f "${TARGET_REPO}/${DEPLOY_TARGET_REL}" ] && [ -f "$deploy_dest" ]; then
+  if cmp -s "${TEMPLATE_DIR}/${DEPLOY_FILE}" "$deploy_dest"; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+      info "DRY-RUN: would remove ${DEPLOY_FILE} (no ${DEPLOY_TARGET_REL})"
+    else
+      rm -f "$deploy_dest"
+      info "PASS: removed ${DEPLOY_FILE} (no ${DEPLOY_TARGET_REL})"
+    fi
+  else
+    echo "CONFLICT: ${DEPLOY_FILE} is locally modified but ${DEPLOY_TARGET_REL} is absent; not removed" >&2
+    deploy_conflict=1
+  fi
+fi
+
+retired_args=(--target "$TARGET_REPO" --package "$SYSTEM_ROOT")
+if [ "$DRY_RUN" -eq 1 ]; then
+  retired_args+=(--dry-run)
+fi
+retired_status=0
+python3 "${SYSTEM_ROOT}/scripts/ide_development/retired_workflows.py" "${retired_args[@]}" || retired_status=$?
+case "$retired_status" in
+  0) ;;
+  11) ;;
+  *) fail "retired workflow check failed (exit ${retired_status})" ;;
+esac
+
+if [ "$retired_status" -eq 11 ] || [ "$deploy_conflict" -eq 1 ]; then
+  info ""
+  info "Managed workflow sync: CONFLICT (managed files synced; modified retired files kept)"
+  info "Target: $TARGET_REPO"
+  exit 11
+fi
 
 info ""
 info "Managed workflow sync: SUCCESS"

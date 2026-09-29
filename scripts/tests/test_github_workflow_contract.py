@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[2]
 LIVE = ROOT / ".github" / "workflows"
 MANAGED = ROOT / "core" / "github" / "managed-workflows"
 RULESET_REQUIRED_CONTEXTS = ("Linktrend Fast Checks", "Linktrend Branch Source Policy")
+# Synced only into repositories that declare deploy/target.json.
+TARGET_CONDITIONAL = {"linktrend-deploy.yml"}
 
 
 def _block(text: str, key: str) -> list[str]:
@@ -163,7 +165,28 @@ class GithubWorkflowContractTests(unittest.TestCase):
     def test_synced_templates_have_live_copies(self) -> None:
         for path in sorted(MANAGED.glob("*.yml")):
             live = LIVE / path.name
+            if path.name in TARGET_CONDITIONAL:
+                self.assertFalse(live.exists(), f"{path.name} needs deploy/target.json")
+                continue
             self.assertTrue(live.is_file(), path.name)
+
+    def test_deploy_caller_is_a_thin_least_privilege_reusable_call(self) -> None:
+        document = _load(MANAGED / "linktrend-deploy.yml")
+        text = document["text"]
+        self.assertIn("name: Linktrend Deploy\n", text)
+        self.assertEqual(sorted(document["on"]), ["push", "workflow_dispatch"])
+        self.assertEqual(document["on"]["push"]["branches"], ["main"])
+        self.assertEqual([line for line in _block(text, "permissions") if line.strip()], ["  contents: read"])
+        self.assertNotIn("permissions:", "\n".join(document["jobs"]["deploy"]["lines"]))
+        self.assertNotIn("secrets: inherit", text)
+        self.assertEqual(list(document["jobs"]), ["deploy"])
+        job = document["jobs"]["deploy"]["lines"]
+        self.assertIn("    uses: linktrend/LiNKops/.github/workflows/deploy.yml@v1", job)
+        self.assertIn("      target-file: deploy/target.json", job)
+        self.assertIn("      sha: ${{ github.sha }}", job)
+        self.assertIn("      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}", job)
+        self.assertIn("      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}", job)
+        self.assertFalse((ROOT / "deploy" / "target.json").exists())
 
     def test_source_policy_and_checkouts_are_bounded(self) -> None:
         source = (LIVE / "branch-source-policy.yml").read_text(encoding="utf-8")
@@ -173,7 +196,10 @@ class GithubWorkflowContractTests(unittest.TestCase):
         # promotion check searches development's first-parent history.
         deep = {"linktrend-promote-main.yml"}
         shallow = [path for path in MANAGED.glob("*.yml") if path.name not in deep]
-        bounded = [*shallow, *(LIVE / path.name for path in shallow)]
+        bounded = [
+            *shallow,
+            *(LIVE / path.name for path in shallow if path.name not in TARGET_CONDITIONAL),
+        ]
         for path in bounded:
             text = path.read_text(encoding="utf-8")
             self.assertNotIn("fetch-depth: 0", text, path.name)

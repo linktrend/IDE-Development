@@ -4061,6 +4061,18 @@
       "notes": "Hosted W2-P1 workflow template; materialized by workflow sync."
     },
     {
+      "id": "workflow-linktrend-deploy-yml",
+      "ownershipClass": "managed-core",
+      "source": "core/github/managed-workflows/linktrend-deploy.yml",
+      "sourceHash": "sha256:5652dc6a1989e9d807abd5c1a03b9d00a7d23d7099d4a408738a6785556704a6",
+      "destination": ".ide-development/workflows/linktrend-deploy.yml",
+      "mode": "0644",
+      "platform": "github",
+      "os": "all",
+      "mergeStrategy": "replace",
+      "notes": "Hosted W2-P1 workflow template; materialized by workflow sync."
+    },
+    {
       "id": "workflow-linktrend-promote-main-yml",
       "ownershipClass": "managed-core",
       "source": "core/github/managed-workflows/linktrend-promote-main.yml",
