@@ -147,7 +147,7 @@ class GithubWorkflowContractTests(unittest.TestCase):
         self.assertEqual(job["name"], "Linktrend Receipt Gate")
         text = document["text"]
         self.assertIn(
-            "permissions:\n  contents: read\n  checks: read\n  statuses: read\n  pull-requests: read\n", text
+            "permissions:\n  actions: read\n  contents: read\n  checks: read\n  statuses: read\n  pull-requests: read\n", text
         )
         self.assertNotIn("write", text)
         self.assertIn("          ref: development", job["lines"])

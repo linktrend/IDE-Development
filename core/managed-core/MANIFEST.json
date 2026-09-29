@@ -3536,7 +3536,7 @@
       "id": "workflow-linktrend-promote-main-yml",
       "ownershipClass": "managed-core",
       "source": "core/github/managed-workflows/linktrend-promote-main.yml",
-      "sourceHash": "sha256:cd5512b826f41324c1ffc0f6c4f839def6cdbaf6b966b0ed6d65bfb3e73cc76d",
+      "sourceHash": "sha256:f46956a5b4d4d4a97d3d3b4167f9020af103015df788eb853acb089483843968",
       "destination": ".ide-development/workflows/linktrend-promote-main.yml",
       "mode": "0644",
       "platform": "github",

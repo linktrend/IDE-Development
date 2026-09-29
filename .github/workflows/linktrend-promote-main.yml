@@ -10,6 +10,7 @@ on:
     types: [opened, synchronize, reopened]
 
 permissions:
+  actions: read
   contents: read
   checks: read
   statuses: read
