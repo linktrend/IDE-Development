@@ -369,7 +369,22 @@ class MergeCheckTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertTrue(out["ok"])
         self.assertEqual(out["reasons"], [])
+        self.assertEqual(out["workflowFilesChanged"], [])
         self.assertTrue(all(row["ok"] for row in out["required"]))
+
+    def test_workflow_files_changed_lists_workflow_paths(self) -> None:
+        api = FakeApi(self._runs(), self._pull(), files=[
+            {"filename": "README.md"},
+            {"filename": ".github/workflows/ci.yml"},
+            {"filename": ".github/workflows/branch-source-policy.yml"},
+            {"filename": "scripts/orchestrator/merge_check.py"},
+        ])
+        code, out = self._check(api)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["workflowFilesChanged"], [
+            ".github/workflows/ci.yml",
+            ".github/workflows/branch-source-policy.yml",
+        ])
 
     def test_sha_mismatch(self) -> None:
         code, out = self._check(FakeApi(self._runs(), self._pull()), sha="b" * 40)

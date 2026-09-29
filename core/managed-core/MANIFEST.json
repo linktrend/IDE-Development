@@ -4281,7 +4281,7 @@
       "id": "gitops-scripts-orchestrator-merge-check-py",
       "ownershipClass": "managed",
       "source": "scripts/orchestrator/merge_check.py",
-      "sourceHash": "sha256:e34e075720307188e7a9c58c4c71fac2fd4c427da3eb5f8dca469ccc0cffba67",
+      "sourceHash": "sha256:391f5a6c2b3b0ca2f183d3d5a5ae6896e8e6da759b0bd8d1db5f2f57f3bf450f",
       "destination": "scripts/orchestrator/merge_check.py",
       "mode": "0644",
       "platform": "github",

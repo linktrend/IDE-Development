@@ -12,7 +12,10 @@ required check's latest allowlisted check run succeeded (``skipped`` only where
 allowed; default app ``github-actions``; commit statuses never count as success),
 nothing accepted on the head failed, was cancelled or timed out, a failing commit
 status is absent, the PR is open without conflicts, and its base is ``development``
-or ``main``.
+or ``main``. Each evidence check run must resolve to its expected Actions
+workflow file on this repository at that SHA. ``workflowFilesChanged`` lists
+``.github/workflows/*`` paths the PR itself changes (a warning for review; a PR
+can edit the workflow that produced the check).
 
 Exit codes: 0 mergeable; 1 not mergeable (see ``reasons``); 2 usage or API error.
 Output is JSON on stdout.
@@ -128,6 +131,7 @@ def evaluate(
     allow_skipped: Sequence[str] = (),
     allowed_apps: Sequence[str] = DEFAULT_ALLOWED_APPS,
     allow_nonrequired_pending: Sequence[str] = (),
+    workflow_files_changed: Sequence[str] = (),
 ) -> dict[str, Any]:
     head_sha = str((pr.get("head") or {}).get("sha") or "")
     base = str((pr.get("base") or {}).get("ref") or "")
@@ -193,6 +197,7 @@ def evaluate(
         "mergeableState": pr.get("mergeable_state"),
         "required": required_rows,
         "failing": failing,
+        "workflowFilesChanged": list(workflow_files_changed),
         "reasons": reasons,
     }
 
@@ -230,6 +235,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         head_sha = github_api.validate_sha(str((pr.get("head") or {}).get("sha") or ""))
         allowed_apps = tuple(args.check_app) if args.check_app else DEFAULT_ALLOWED_APPS
         checks = github_api.head_checks(api, args.repo, head_sha, allowed_apps=allowed_apps)
+        changed = github_api.workflow_files_changed(api.pull_files(args.repo, args.pr))
     except GitHubApiError as exc:
         print(json.dumps(exc.as_dict(), indent=2))
         return 2
@@ -242,6 +248,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         allow_skipped=args.allow_skipped,
         allowed_apps=allowed_apps,
         allow_nonrequired_pending=args.allow_nonrequired_pending,
+        workflow_files_changed=changed,
     )
     result["repo"] = args.repo
     print(json.dumps(result, indent=2))

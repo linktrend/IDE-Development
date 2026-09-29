@@ -43,13 +43,28 @@ The script never merges.
 A required check counts only as a **check run** (never a commit status) whose
 `app.slug` is `github-actions` (`--check-app` replaces that allowlist). The latest
 run per name and app wins, so a later failure overrides an earlier success.
-`Verify IDE Development` and `Linktrend Fast Checks` must come from
-`.github/workflows/ci.yml`, and `Linktrend Branch Source Policy` from
-`.github/workflows/branch-source-policy.yml`, when the check-run payload exposes
-that workflow (`check_suite` or the Actions run `path` / `name`). The list
-check-runs API often does not include the workflow file; then the app slug is
-the producer check and this gap is accepted. Commit statuses are reported and
+Every check run used as evidence must resolve to an Actions workflow run. The
+run id is parsed from `details_url` (`/actions/runs/<run_id>/job/<job_id>`). When
+that is absent, the script calls
+`GET /repos/{owner}/{repo}/actions/runs?check_suite_id=<check_run.check_suite.id>`
+and requires exactly one run. It then calls
+`GET /repos/{owner}/{repo}/actions/runs/<run_id>` and requires `path` to be the
+expected workflow file, `head_sha` to equal the commit being checked, and
+`head_repository.full_name` to be this repository (not a fork). Expected files:
+`Verify IDE Development` and `Linktrend Fast Checks` from `.github/workflows/ci.yml`,
+`Linktrend Branch Source Policy` from `.github/workflows/branch-source-policy.yml`,
+and `Linktrend Receipt Gate` from `.github/workflows/linktrend-promote-main.yml`.
+Missing or unresolvable identity, an API error, or any mismatch means that check
+does not count and the gate fails with a reason. There is no path that accepts
+a check when its workflow identity is absent. Commit statuses are reported and
 never count as success. A failing status still fails the gate.
+
+A pull request can modify its own workflow files, including the file that
+produced a green check. The independent review must inspect any change under
+`.github/workflows/` in the PR diff. `merge_check.py` prints
+`workflowFilesChanged`, the `.github/workflows/*` paths returned by the PR files
+API, so the orchestrator sees that list. The field is a warning. It does not by
+itself reject the merge.
 
 Mergeability fails closed: `mergeable` must be true and `mergeable_state` must
 be `clean`. `null` or `unknown` reports `mergeability not yet computed; retry`.
@@ -86,7 +101,11 @@ and `Linktrend Receipt Gate`. The last one is produced by
 `main`: the head must be `promote/main/*` from this repo, its tree must equal a
 commit among the last 200 first-parent commits of `development` (the same
 `DEVELOPMENT_FIRST_PARENT_WINDOW` `promote_main.py` accepts), and
-`Verify IDE Development` must have succeeded on that commit.
+`Verify IDE Development` must have succeeded on that commit. That evidence must
+be a workflow run of `.github/workflows/ci.yml` whose `event` is `push` and whose
+`head_branch` is `development`, with the same head SHA and target repository.
+A `pull_request` run, or a push of another branch, does not count: only
+`development`'s own trusted `ci.yml` does.
 
 The name is **legacy**: no receipt is involved. It stays because the live `main`
 ruleset requires that context. If Carlos renames it in the ruleset, rename the
