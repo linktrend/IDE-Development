@@ -2,7 +2,7 @@
 proof_id: "STAGE1-SMOKE-001-PROOF"
 subject_type: "issue"
 subject_id: "STAGE1-SMOKE-001"
-issue_status_at_proof: "review_ready"
+issue_status_at_proof: "in_review"
 ---
 
 # Proof — STAGE1-SMOKE-001
@@ -24,7 +24,7 @@ issue_status_at_proof: "review_ready"
 1. Opened `docs/LINKDEVELOPER-STAGE1-CLOSURE.md` and confirmed Verification subsection present.
 2. Confirmed runbook exists at `docs/LINKDEVELOPER-STAGE1-TEST-RUNBOOK.md`.
 3. Confirmed verification report path matches output location for this run.
-4. Confirmed issue status set to `review_ready` before review (not `done`).
+4. Confirmed issue status set to `in_review` before review (not `done`).
 
 ## Acceptance criteria check
 

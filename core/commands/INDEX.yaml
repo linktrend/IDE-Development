@@ -189,7 +189,7 @@ entries:
     expected_output:
       - executed issue work
       - proof artifact
-      - state transition to review_ready or blocked
+      - state transition to in_review or blocked
     status: active
     tags:
       - command
@@ -201,7 +201,7 @@ entries:
     path: .cursor/commands/review-issue.md
     purpose: Preferred command wrapper for independent issue review against proof and acceptance criteria.
     when_to_use:
-      - when an issue reaches review_ready
+      - when an issue reaches in_review
       - when a user says "Review this issue"
     underlying_prompt: .cursor/prompts/execution/REVIEW-ISSUE.md
     required_doctrine:

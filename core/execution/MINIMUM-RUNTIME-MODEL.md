@@ -14,15 +14,15 @@ Programs, modules, and phases organize scope and checkpoints. Issues are the act
 
 ## Issue State Model
 
-Minimum issue states:
+Issue states (identical to the Ledger, `core/ledger/sql/ide_ledger.sql`):
 
-- `draft`
 - `planned`
-- `blocked`
 - `ready`
 - `in_progress`
+- `blocked`
 - `in_review`
 - `done`
+- `cancelled`
 
 `ready` is computed from satisfied dependencies and unmet blockers. `done` requires proof, review, and integration.
 

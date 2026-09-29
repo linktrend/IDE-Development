@@ -218,7 +218,7 @@ All under `core/execution/` (operative — **not** archived):
 
 ### Issue state model (minimum)
 
-`draft` → `planned` → `blocked` | `ready` → `in_progress` → `review_ready` → `done`
+`planned` → `blocked` | `ready` → `in_progress` → `in_review` → `done` (or `cancelled`); identical to the Ledger Issue states
 
 `done` requires proof, review, **and** integration.
 

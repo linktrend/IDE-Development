@@ -22,7 +22,7 @@ Failure appears as:
 Failure appears as:
 
 - `blocked`
-- inability to reach required review-ready or complete conditions
+- inability to reach required `in_review` or complete conditions
 
 ### Issue
 

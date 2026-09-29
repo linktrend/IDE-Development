@@ -824,7 +824,7 @@ def run_version(
         "schemaVersion": 1,
         "command": "version",
         "installerVersion": installer_version,
-        "packageRoot": str(package_root),
+        "packageDir": str(package_root),
     }
     try:
         manifest = load_manifest(package_root)

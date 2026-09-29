@@ -59,5 +59,5 @@ Add operator-facing Verification links to the Stage 1 closure document so Carlos
 |-------|------|-------|
 | ready | 2026-07-10 | Issue defined; no dependencies |
 | in_progress | 2026-07-10 | Execution started per SMALL-CHANGE path |
-| review_ready | 2026-07-10 | Proof artifact complete |
+| in_review | 2026-07-10 | Proof artifact complete |
 | done | 2026-07-10 | Review pass + integration recorded |
