@@ -27,12 +27,16 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from .errors import ConflictError
     from .hashing import sha256_bytes, sha256_file
     from .manifest import MigrationCatalog, MigrationEntry
+    from .paths import join_under_nofollow_checked
 except ImportError:  # pragma: no cover - direct script entrypoint
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from ide_development.errors import ConflictError  # type: ignore
     from ide_development.hashing import sha256_bytes, sha256_file  # type: ignore
     from ide_development.manifest import MigrationCatalog, MigrationEntry  # type: ignore
+    from ide_development.paths import join_under_nofollow_checked  # type: ignore
 
 RETIRED_ROOT_WORKFLOWS = (
     "linktrend-development-to-staging.yml",
@@ -218,7 +222,12 @@ def _load_json(path: Path) -> dict[str, Any] | None:
 
 
 def _consumer_config(target_root: Path) -> dict[str, Any]:
-    config = _load_json(target_root / CONSUMER_CONFIG_REL) or {}
+    try:
+        config_path = join_under_nofollow_checked(target_root, CONSUMER_CONFIG_REL)
+    except ConflictError:
+        config = {}
+    else:
+        config = _load_json(config_path) or {}
     # v2.5.2 sync normalized an absent Fast name before rendering.
     config.setdefault("fastWorkflowName", "Linktrend Fast Checks")
     return config
@@ -247,8 +256,11 @@ def migration_entries(package_root: Path, target_root: Path) -> list[MigrationEn
         rel = f"{WORKFLOW_DIR_REL}/{name}"
         candidates = candidate_hashes(package_root, target_root, name)
         chosen = candidates[0] if candidates else UNRESOLVABLE_HASH
-        dest = target_root / rel
-        if dest.is_file() and not dest.is_symlink():
+        try:
+            dest = join_under_nofollow_checked(target_root, rel)
+        except ConflictError:
+            dest = None
+        if dest is not None and dest.is_file():
             actual = sha256_file(dest)
             if actual in candidates:
                 chosen = actual
@@ -272,10 +284,14 @@ def remove_retired(package_root: Path, target_root: Path, *, dry_run: bool) -> t
     removed: list[str] = []
     conflicts: list[str] = []
     for entry in migration_entries(package_root, target_root):
-        dest = target_root / entry.path
+        try:
+            dest = join_under_nofollow_checked(target_root, entry.path)
+        except ConflictError:
+            conflicts.append(entry.path)
+            continue
         if not dest.exists() and not dest.is_symlink():
             continue
-        if dest.is_symlink() or not dest.is_file() or sha256_file(dest) != entry.content_hash:
+        if not dest.is_file() or sha256_file(dest) != entry.content_hash:
             conflicts.append(entry.path)
             continue
         if not dry_run:
@@ -298,8 +314,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{verb} retired {rel}")
     for rel in conflicts:
         print(
-            f"CONFLICT: retired {rel} differs from every published v2 rendering; not removed. "
-            "Review local edits, then delete it deliberately (it is no longer managed).",
+            f"CONFLICT: retired {rel} is unsafe (symlink/non-file) or differs from every "
+            "published v2 rendering; not removed. Review local edits or links, then delete "
+            "it deliberately (it is no longer managed).",
             file=sys.stderr,
         )
     return 11 if conflicts else 0

@@ -21,7 +21,7 @@ from .constants import (
 )
 from .errors import InstallerError, InvalidPackageError, RollbackError
 from .manifest import Manifest, MigrationCatalog, load_manifest, load_migration_catalog
-from .paths import require_git_repo, resolve_dir, same_path
+from .paths import join_under_nofollow_checked, require_git_repo, resolve_dir, same_path
 from .plan import OpKind, Plan, PlanAction, build_drift_report, build_plan, meaningful_drift
 from .state import load_installed_state
 from .transaction import apply_plan, current_tx_dir, read_journal, recover_interrupted, rollback_last
@@ -96,7 +96,7 @@ def _normalize_consumer_workflow_contract(target_root: Path, *, mutate: bool) ->
     declaration. Explicit blank/wrong values and any missing/blank CI
     declaration fail closed before managed workflows are installed or updated.
     """
-    path = target_root / CONSUMER_CONFIG
+    path = join_under_nofollow_checked(target_root, CONSUMER_CONFIG)
     if not path.is_file():
         return False
     try:

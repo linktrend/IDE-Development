@@ -28,6 +28,7 @@ from .paths import (
     encode_backup_name,
     git_meta_dir,
     join_under,
+    join_under_nofollow_checked,
     join_under_nofollow,
     path_is_symlink,
 )
@@ -195,7 +196,11 @@ def backup_migrate_symlink(target_root: Path, action: PlanAction) -> BackupRecor
 
 
 def backup_path(target_root: Path, action: PlanAction) -> BackupRecord:
-    dest = join_under(target_root, action.path)
+    dest = (
+        join_under_nofollow_checked(target_root, action.path)
+        if action.op == OpKind.REMOVE
+        else join_under(target_root, action.path)
+    )
     if path_is_symlink(dest):
         raise ConflictError(
             f"Refusing to backup symlink at {action.path}",
@@ -248,7 +253,7 @@ def write_backup_file(
     _authorize_managed_write(lease, record.path)
     if not record.existed or not record.backup_name:
         return
-    src = join_under(target_root, record.path)
+    src = join_under_nofollow_checked(target_root, record.path)
     dest = backups_dir(tx_dir) / record.backup_name
     dest.parent.mkdir(parents=True, exist_ok=True)
     data = read_file_bytes(src)
@@ -276,11 +281,31 @@ def apply_action(
             expected_target=action.symlink_target,
         )
         return
-    dest = join_under(target_root, action.path)
     if action.op == OpKind.REMOVE:
-        if dest.exists():
-            remove_file(dest)
+        dest = join_under_nofollow_checked(target_root, action.path)
+        if not dest.is_file():
+            raise ConflictError(
+                f"Removal target changed since plan: {action.path}",
+                details={"path": action.path, "expected": action.source_hash},
+            )
+        if not action.source_hash:
+            raise ConflictError(
+                f"Removal action has no planned content hash: {action.path}",
+                details={"path": action.path},
+            )
+        actual = sha256_file(dest)
+        if actual != action.source_hash:
+            raise ConflictError(
+                f"Removal target changed since plan: {action.path}",
+                details={
+                    "path": action.path,
+                    "expected": action.source_hash,
+                    "actual": actual,
+                },
+            )
+        remove_file(dest)
         return
+    dest = join_under(target_root, action.path)
     entry = entries.get(action.path)
     if entry is None:
         raise ConflictError(f"No manifest entry for action path {action.path}")
