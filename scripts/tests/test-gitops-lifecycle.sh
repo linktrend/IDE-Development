@@ -120,48 +120,12 @@ pass "SESSION-END owned-path staging + review-ready ordering"
 grep -q '^\.linktrend/' .gitignore || fail ".linktrend/ not gitignored"
 pass ".linktrend/ gitignored"
 
-# ---- create_issue_branch mocked gh ----
+# ---- create_issue_branch (Ledger ID; no GitHub Issue) ----
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/repo"
 cat >"$TMP/bin/gh" <<'EOF'
 #!/usr/bin/env bash
-set -euo pipefail
-case "${1:-}" in
-  auth) exit 0 ;;
-  api) echo "owner/repo"; exit 0 ;;
-  label)
-    case "${2:-}" in
-      list) echo '[{"name":"linktrend-agentsetup"}]'; exit 0 ;;
-      create) exit 0 ;;
-    esac
-    ;;
-  issue)
-    shift
-    case "${1:-}" in
-      list)
-        # With --label linktrend-agentsetup + matching title → reuse #42
-        echo '[{"number":42,"title":"Exact Title Match","labels":[{"name":"linktrend-agentsetup"}]}]'
-        exit 0
-        ;;
-      view)
-        # Default open; closed when CLOSED_ISSUE=1
-        if [ "${CLOSED_ISSUE:-}" = "1" ]; then
-          echo '{"number":42,"title":"Exact Title Match","state":"CLOSED"}'
-        else
-          echo '{"number":42,"title":"Exact Title Match","state":"OPEN"}'
-        fi
-        exit 0
-        ;;
-      create)
-        echo "https://github.com/owner/repo/issues/99"
-        exit 0
-        ;;
-    esac
-    ;;
-  repo) echo "owner/repo"; exit 0 ;;
-esac
-echo "unexpected gh $*" >&2
 exit 1
 EOF
 chmod +x "$TMP/bin/gh"
@@ -170,6 +134,7 @@ chmod +x "$TMP/bin/gh"
   git init -q -b development
   git config user.email t@example.com
   git config user.name t
+  git config commit.gpgsign false
   echo x >f
   git add f
   git commit -q -m init
@@ -178,32 +143,16 @@ chmod +x "$TMP/bin/gh"
   git update-ref refs/remotes/origin/development HEAD
 )
 export PATH="$TMP/bin:$PATH"
-export GH_REPO="owner/repo"
-out="$(python3 "$ROOT/scripts/gitops/create_issue_branch.py" --workdir "$TMP/repo" --prefer-worktree "Exact Title Match" || true)"
-echo "$out" | grep -q 'ISSUE_NUMBER=42' || fail "idempotent create_issue_branch did not reuse #42: $out"
-echo "$out" | grep -q 'BRANCH=issue/42-' || fail "branch missing: $out"
-WT="$(echo "$out" | sed -n 's/^WORKTREE=//p')"
+if python3 "$ROOT/scripts/gitops/create_issue_branch.py" --workdir "$TMP/repo" "Should Fail" 2>"$TMP/noid.err"; then
+  fail "create_issue_branch should fail without a Ledger ID"
+fi
+grep -q 'Project orchestrator' "$TMP/noid.err" || fail "missing orchestrator message: $(cat "$TMP/noid.err")"
+pass "create_issue_branch refuses missing Ledger ID"
+out="$(python3 "$ROOT/scripts/gitops/create_issue_branch.py" --workdir "$TMP/repo" --id IDE-42 --slug exact-title --worktree "$TMP/issue-wt" --no-push)"
+WT="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["worktree"])' "$out")"
+echo "$out" | grep -q 'issue/IDE-42-exact-title' || fail "branch missing: $out"
 [ -n "$WT" ] && [ -d "$WT" ] || fail "WORKTREE missing: $out"
-pass "create_issue_branch idempotent reuse (title+label)"
-
-# reject closed issue
-export CLOSED_ISSUE=1
-if python3 "$ROOT/scripts/gitops/create_issue_branch.py" --workdir "$TMP/repo" --issue-number 42 2>/dev/null; then
-  fail "create_issue_branch should reject CLOSED issue"
-fi
-unset CLOSED_ISSUE
-pass "create_issue_branch rejects closed issue"
-
-# auth fail
-cat >"$TMP/bin/gh" <<'EOF'
-#!/usr/bin/env bash
-exit 1
-EOF
-chmod +x "$TMP/bin/gh"
-if python3 "$ROOT/scripts/gitops/create_issue_branch.py" --workdir "$TMP/repo" "Should Fail" 2>/dev/null; then
-  fail "create_issue_branch should fail closed on auth failure"
-fi
-pass "create_issue_branch auth fail closed"
+pass "create_issue_branch creates issue/IDE-42-exact-title"
 
 # ---- completion_gate authoritative review-ready publish ----
 export LINKTREND_STATUS_BACKEND=file
