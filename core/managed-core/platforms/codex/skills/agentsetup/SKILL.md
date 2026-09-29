@@ -1,10 +1,9 @@
 ---
 name: agentsetup
 description: >-
-  Bootstrap a NEW agent session onto a short-lived issue/* work branch from
-  latest development for this consumer repo. Use for agentsetup or equivalent
-  "start on the correct governed branch" requests.
-version: 2.0.0-managed
+  Bootstrap a NEW agent session onto issue/<PREFIX>-<n>-<slug> from latest
+  development for this repo. The Project orchestrator assigns the Ledger ID.
+version: 3.0.0-managed
 status: active
 tags: [git, agent, bootstrap, branching]
 related_skills:
@@ -15,47 +14,34 @@ discovery:
 
 # Agent Setup (NEW session) — Codex managed adapter
 
-Bootstrap a **new agent** onto `issue/<id>-<slug>` for **this repository**.
-Do not use for already-open dirty/wrong-branch work — use `agentcomply`.
+Bootstrap a **new agent** onto `issue/<PREFIX>-<n>-<slug>` for **this repository**. Dirty or wrong-branch work uses `agentcomply`.
 
-## Authority (local; no `.cursor` required)
+## Authority
 
 - This file: `.agents/skills/agentsetup/SKILL.md`
-- Peer skill: `.agents/skills/agentcomply/SKILL.md`
+- Peer: `.agents/skills/agentcomply/SKILL.md`
 - `scripts/gitops/create_issue_branch.py`
-- Managed core (optional deeper doctrine): `.ide-development/`
-- Root `AGENTS.md` managed section (`BEGIN/END LINKTREND-IDE-MANAGED`)
 
-Do **not** require the IDE Development checkout path. Do **not** require `.cursor` to be loaded.
+Do **not** require `.cursor` to be loaded.
 
 ## House rules
 
-- One short-lived `issue/<id>-slug` per governed work package — not forever `dev/*`.
-- **Never ask the human for issue id or slug.** The helper creates/reuses them.
-- Never open a PR yourself. (The v2 Phase Packager is retired in v3 (IDE-22); see the v3 plan.)
-- Never merge your own PR; never promote to staging/main.
-- Ship = checkpoint (commit + push) only.
-
-## Inputs (ask only if missing)
-
-1. **Task description** (GitHub issue title) if not already clear
-2. **Target repo** only if multi-root / ambiguous
+- If no Ledger ID was given, stop and ask the Project orchestrator. Never invent an ID.
+- Workers push the branch and never open pull requests.
+- Commit small, push often, run the Issue's fast checks, end with a short lessons note.
 
 ## Workflow
 
-1. Identify repo root: `git rev-parse --show-toplevel`
-2. Create/reuse issue + branch:
+1. `git rev-parse --show-toplevel`
+2. Create or reuse the branch:
 
 ```bash
-python3 scripts/gitops/create_issue_branch.py "<task description>" --prefer-worktree
-# or:
-python3 scripts/gitops/create_issue_branch.py --issue-number N
+python3 scripts/gitops/create_issue_branch.py --id IDE-42 --slug fix-login
 ```
 
-3. Confirm on the printed `BRANCH=` / `WORKTREE=` / `ISSUE_NUMBER=`
-4. Remind: no implementer PR (the v2 completion gate is retired in v3 (IDE-22); see the v3 plan)
-5. Report branch, issue, and next step in plain English
+3. Read JSON `{id, branch, worktree, base, baseSha, pushed}`.
+4. Report the branch and the next step in plain English.
 
 ## Fail closed
 
-If `create_issue_branch.py` fails (auth, closed issue, collision), stop and report the error. Do not invent local issue numbers.
+If `create_issue_branch.py` fails, stop and report the error. Do not invent a Ledger ID.

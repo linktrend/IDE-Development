@@ -1,20 +1,18 @@
 # Agent Setup
 
-Use at the **start of a NEW** session that will code in a repo to bootstrap onto a short-lived `issue/<id>-<slug>` branch from latest `development`.
+Use at the **start of a NEW** session that will code in a repo. Check out `issue/<PREFIX>-<n>-<slug>` from latest `development`.
 
-Simple model: no repo touch → no branch. Touch a repo → `/agentsetup` for that repo. **Workspace Orchestrators** should not invent a fake home repo/branch; open or direct a per-repo Implementer for coding work.
+The Project orchestrator assigns the Ledger ID. If no ID was given, stop and ask the orchestrator. Never ask Carlos. Never invent an ID.
 
 Operational summary:
 
-- role / touch gate: Orchestrator vs Implementer
-- detect current repo / multi-root context
-- ask Carlos only for missing **task description** and target repo if ambiguous — **never** ask for issue id/slug
-- run `scripts/gitops/create_issue_branch.py` (creates/reuses GitHub issue + `issue/<n>-<slug>` from `origin/development`; prefer worktree when dirty)
-- confirm ready; remind Ship/Pull hard stops (no implementer PR, no merge, no self-review, no staging/main; Ship = checkpoint only)
-- when finished later: push the branch (the v2 completion gate is retired in v3 (IDE-22); see the v3 plan)
-- report branch, issue, repo, and next steps in plain English
+- detect the current repo
+- run `python3 scripts/gitops/create_issue_branch.py --id IDE-42 --slug fix-login` (a free-text description can replace `--slug`)
+- read JSON `{id, branch, worktree, base, baseSha, pushed}`
+- confirm the branch and that workers never open pull requests
+- commit small, push often, run the Issue's fast checks, end with a short lessons note
 
-House rule: one short-lived `issue/*` per governed work package — not forever `dev/*`. Cloud uses `cursor/*`; `dev/*` rare ad-hoc only.
+`phase/*` is an orchestrator package branch. `dev/*` is rare ad-hoc human IDE work.
 
 For an already-open dirty or wrong-branch session, use `/agentcomply` instead.
 

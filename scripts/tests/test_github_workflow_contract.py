@@ -141,7 +141,7 @@ class GithubWorkflowContractTests(unittest.TestCase):
 
     def test_source_policy_and_checkouts_are_bounded(self) -> None:
         source = (LIVE / "branch-source-policy.yml").read_text(encoding="utf-8")
-        self.assertIn("branches: [development]", source)
+        self.assertIn("branches: [development, main]", source)
         # Synced templates (and their live copies) must stay shallow; system-only
         # workflows such as ci.yml's Full run may need history.
         bounded = [*MANAGED.glob("*.yml"), *(LIVE / path.name for path in MANAGED.glob("*.yml"))]

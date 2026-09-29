@@ -132,8 +132,20 @@ if [[ "$*" == *"--head issue/squash"* ]]; then
   echo '[{"number":1,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"'"${SQUASH_HEAD}"'"}]'
   exit 0
 fi
-if [[ "$*" == *"--head promote/staging/"* ]]; then
+if [[ "$*" == *"--head promote/main/"* ]]; then
   echo '[{"number":2,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"'"${PROMO_HEAD}"'"}]'
+  exit 0
+fi
+if [[ "$*" == *"--head promote/staging/"* ]]; then
+  echo '[{"number":5,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"'"${STAGING_PROMO_HEAD}"'"}]'
+  exit 0
+fi
+if [[ "$*" == *"--head g1/"* ]]; then
+  echo '[{"number":6,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"'"${G1_HEAD}"'"}]'
+  exit 0
+fi
+if [[ "$*" == *"--head release-baseline/"* ]]; then
+  echo '[{"number":7,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"'"${BASELINE_HEAD}"'"}]'
   exit 0
 fi
 if [[ "$*" == *"--head issue/owned"* ]]; then
@@ -154,10 +166,25 @@ SQUASH_HEAD="$(git -C "$CLN" rev-parse HEAD)"
 export SQUASH_HEAD
 # not an ancestor of development (simulates squash)
 git -C "$CLN" checkout -q development
-git -C "$CLN" checkout -q -b "promote/staging/deadbeefcafe"
+git -C "$CLN" checkout -q -b "promote/main/deadbeefcafe"
 echo p >"$CLN/p.txt" && git -C "$CLN" add p.txt && git -C "$CLN" commit -q -m "promo"
 PROMO_HEAD="$(git -C "$CLN" rev-parse HEAD)"
 export PROMO_HEAD
+git -C "$CLN" checkout -q development
+git -C "$CLN" checkout -q -b "promote/staging/deadbeefcafe"
+echo ps >"$CLN/ps.txt" && git -C "$CLN" add ps.txt && git -C "$CLN" commit -q -m "old staging promo"
+STAGING_PROMO_HEAD="$(git -C "$CLN" rev-parse HEAD)"
+export STAGING_PROMO_HEAD
+git -C "$CLN" checkout -q development
+git -C "$CLN" checkout -q -b "g1/leftover"
+echo g >"$CLN/g.txt" && git -C "$CLN" add g.txt && git -C "$CLN" commit -q -m "g1 leftover"
+G1_HEAD="$(git -C "$CLN" rev-parse HEAD)"
+export G1_HEAD
+git -C "$CLN" checkout -q development
+git -C "$CLN" checkout -q -b "release-baseline/leftover"
+echo b >"$CLN/b.txt" && git -C "$CLN" add b.txt && git -C "$CLN" commit -q -m "baseline leftover"
+BASELINE_HEAD="$(git -C "$CLN" rev-parse HEAD)"
+export BASELINE_HEAD
 git -C "$CLN" checkout -q development
 git -C "$CLN" checkout -q -b issue/owned
 echo o >"$CLN/o.txt" && git -C "$CLN" add o.txt && git -C "$CLN" commit -q -m "owned"
@@ -176,10 +203,15 @@ git -C "$CLN" worktree add "$WTD" issue/dirty >/dev/null
 echo dirty >>"$WTD/d.txt"
 
 git -C "$CLN" checkout -q development
-PATH="$TMP/bin:$PATH" bash -c "cd \"$CLN\" && bash scripts/cleanup-merged-branches.sh" >"$TMP/clean.out"
+env -u GH_REPO GITHUB_REPOSITORY=linktrend/fixture PATH="$TMP/bin:$PATH" \
+  bash -c "cd \"$CLN\" && bash scripts/cleanup-merged-branches.sh" >"$TMP/clean.out"
 grep -q 'WOULD_DELETE_REMOTE: issue/squash\|WOULD_DELETE_LOCAL: issue/squash' "$TMP/clean.out" \
   || grep -q 'issue/squash' "$TMP/clean.out" || fail "squash merge should be cleanup-eligible: $(cat "$TMP/clean.out")"
-grep -q 'promote/staging/deadbeefcafe' "$TMP/clean.out" || fail "merged promote branch should be considered"
+grep -q 'WOULD_DELETE_.*promote/main/deadbeefcafe' "$TMP/clean.out" || fail "merged promote/main branch should be cleanup-eligible: $(cat "$TMP/clean.out")"
+grep -q 'WOULD_DELETE_.*g1/leftover' "$TMP/clean.out" || fail "merged g1 leftover should be cleanup-eligible: $(cat "$TMP/clean.out")"
+grep -q 'WOULD_DELETE_.*release-baseline/leftover' "$TMP/clean.out" || fail "merged release-baseline leftover should be cleanup-eligible: $(cat "$TMP/clean.out")"
+grep -q 'KEEP:.*promote/staging/deadbeefcafe' "$TMP/clean.out" || fail "promote/staging is not a cleanup candidate: $(cat "$TMP/clean.out")"
+grep -q 'KEEP: local:staging' "$TMP/clean.out" || fail "staging must stay: $(cat "$TMP/clean.out")"
 grep -q 'issue/owned' "$TMP/clean.out" && grep -qi 'session ownership\|KEEP:.*owned' "$TMP/clean.out" \
   || fail "owned session must be kept: $(cat "$TMP/clean.out")"
 grep -qi 'dirty' "$TMP/clean.out" || fail "dirty worktree should be mentioned"

@@ -37,7 +37,10 @@ for f in chatgpt/AGENTS.md codex/AGENTS.md .cursor/rules/02-autonomous-ship-pull
     fail "$f still instructs implementer to open PR"
   fi
 done
-pass "Platform docs: no implementer Open-PR instruction"
+if grep -qiE 'review-ready|Review Ready|completion_gate|staging|Packager|delivery controller' core/commands/agentcomply.md; then
+  fail "agentcomply command still has retired v2 language"
+fi
+pass "Platform docs: agentcomply is v3; no implementer Open-PR instruction"
 
 grep -q 'Lisa ACP Repair Dispatcher\|repair task' .cursor/rules/02-autonomous-ship-pull.mdc \
   || fail "ship-pull rule missing Lisa ACP Repair Dispatcher language"

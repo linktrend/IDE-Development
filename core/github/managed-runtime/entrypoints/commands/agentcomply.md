@@ -1,17 +1,17 @@
 # Agent Comply
 
-Use in an **ALREADY-OPEN** session to migrate onto a proper short-lived `issue/*` branch for **this repo**, and move uncommitted/wrong-branch work safely.
+Use in an **ALREADY-OPEN** session to move onto `issue/<PREFIX>-<n>-<slug>` for this repo and keep dirty work.
 
-Simple model: no repo touch → no branch. Touch this repo → run agentcomply for this repo. Never silently adopt an unrelated open PR branch.
+The Project orchestrator assigns the Ledger ID. If no ID was given, stop and ask the orchestrator. Never invent an ID.
 
 Operational summary:
 
-- inspect git status, branch, dirty files, remotes
-- ask only if needed for **task description** (helper creates issue id/slug) or target repo if ambiguous
-- run `python3 scripts/gitops/create_issue_branch.py` when filing/reusing an issue branch from latest `development`
-- move dirty work safely (stash/checkout/pop, worktree, or equivalent); never dump onto development/staging/main
-- push the branch as a **checkpoint** (no PR). (The v2 completion gate and Phase Packager are retired in v3 (IDE-22); see the v3 plan.)
-- plain English summary of what was done
+- inspect git status, branch, dirty files, and remotes
+- stash or commit, then run `python3 scripts/gitops/create_issue_branch.py --id IDE-42 --slug fix-login`
+- re-apply the work and verify nothing was lost
+- never force-push and never prefer-incoming
+- workers push the branch and never open pull requests
+- commit small, push often, run the Issue's fast checks, end with a short lessons note
 
 For a brand-new clean session, use agentsetup instead.
 
