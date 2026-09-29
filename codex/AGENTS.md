@@ -2,17 +2,16 @@
 
 ## Purpose
 
-Use the shared development core as a portable knowledge asset while preserving compatibility with the existing `.cursor` runtime surface.
+Use the shared IDE Development core as a portable knowledge asset. Codex on the orchestrator VM is a **worker**.
 
-**Do not assume `.cursor` is automatically read.** Prefer the paths below for GitOps work.
+**Do not assume `.cursor` is automatically read.** Prefer the paths below.
 
 ## Canonical Storage
 
 - canonical knowledge asset: `../core/` (from this folder: `core/` at repo root)
 - compatibility runtime surface: `.cursor/`
-- GitOps doctrine: `docs/AUTONOMOUS-GIT-OPERATIONS.md`
-- Completion: `docs/contracts/AGENT-COMPLETION.md`
-- Repair: `docs/contracts/REPAIR-DISPATCHER.md`
+- current status: `docs/CURRENT-STATUS.md`
+- operations: `docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md`
 
 ## Recommended Read Path
 
@@ -21,16 +20,17 @@ Use the shared development core as a portable knowledge asset while preserving c
 3. If the work is greenfield or materially ambiguous, read `../.cursor/discovery/INDEX.yaml`
 4. Read `../.cursor/commands/INDEX.yaml`
 5. Follow the one command wrapper that matches the task
-6. For GitOps: `docs/AUTONOMOUS-GIT-OPERATIONS.md` + `docs/contracts/AGENT-COMPLETION.md`
+6. For how v3 runs: `docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md`
 
-## GitOps rules (Codex)
+## Worker rules (Codex)
 
-- Bootstrap: `scripts/gitops/create_issue_branch.py` + `/agentsetup` — do **not** ask the Principal for issue id/slug; do **not** invent local IDs.
-- Ship / session save = **checkpoint only** (commit + push). Implementers do **not** open PRs.
-- Finished work = run appropriate tests/checks; auto-repair ordinary failures with at most 3 bounded repair cycles; write machine-readable evidence with `scripts/gitops/completion_gate.py write-evidence`; then call `scripts/gitops/completion_gate.py review-ready`. The gate is authoritative, fail-closed, and publishes **Linktrend Review Ready**. Do not call `scripts/mark-review-ready.sh` as a pre-gate publisher; it is only a compatibility wrapper that requires evidence and delegates to the gate. The Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the Phase PR; retained `packager_discover.py` is not that component.
-- If validation or repair cannot complete, call `scripts/gitops/completion_gate.py blocked` so `.linktrend/completion-blocker.json` records the durable blocker and the branch stays ineligible.
-- Repair: durable GitHub tasks; Lisa ACP Repair Dispatcher; max 3; no prefer-incoming; GitHub never spawns Cursor.
-- Hard stops: no self-merge, no self-review, no staging/main promotion.
+- You are a worker. Everyday route is Luna High. Hard route is Sol Medium. Use Codex only while more than 25% of the allowance remains in every reported window.
+- Work only on the branch you were given. Branch names are `issue/<PREFIX>-<n>-<slug>`.
+- Commit small, clear steps and push often.
+- Do not open pull requests. The orchestrator packages branches into pull requests.
+- Do not merge, and do not promote `development` to `main`.
+- Before you finish, run the fast checks named in the Issue.
+- End your final reply with a short lessons note.
 
 ## Consumption Rules
 
@@ -41,4 +41,4 @@ Use the shared development core as a portable knowledge asset while preserving c
 
 ## Scope
 
-This file does not replace doctrine. It explains how Codex should enter and consume the packaged system, including GitOps completion rules when `.cursor` is not loaded.
+This file does not replace doctrine. It explains how a Codex worker enters the packaged system and what it is allowed to do with git.
