@@ -8,54 +8,86 @@
     "schemaVersion", "controlId", "apiBaseUrl", "apiPath",
     "apiKeyEnvironmentVariable", "preferredClient", "sdkPackage",
     "directApiRepositoryBinding", "sdkRepositoryBinding", "routingRegistry",
-    "readbackRequired", "readbackFields", "archiveOnMismatchRequired",
-    "maxApiAttempts", "ordinaryDevelopment", "gate0", "lunaFallback",
+    "readbackRequired", "readbackFields", "modelResolution", "recordFields",
+    "archiveOnMismatchRequired", "maxApiAttempts", "routes",
     "cliLoginIsCloudAuthority"
   ],
   "properties": {
-    "schemaVersion": {"type": "integer", "const": 2},
-    "controlId": {"type": "string", "const": "cursor-cloud-dispatch-v2"},
+    "schemaVersion": {"type": "integer", "const": 3},
+    "controlId": {"type": "string", "const": "cursor-cloud-dispatch-v3"},
     "apiBaseUrl": {"type": "string", "const": "https://api.cursor.com"},
     "apiPath": {"type": "string", "const": "/v1/agents"},
-    "apiKeyEnvironmentVariable": {"type": "string", "const": "CURSOR_API_KEY"},
+    "apiKeyEnvironmentVariable": {"type": "string", "const": "CURSOR_002_API_KEY"},
     "preferredClient": {"type": "string", "const": "cursor-sdk"},
     "sdkPackage": {"type": "string", "const": "cursor-sdk"},
     "directApiRepositoryBinding": {"type": "string", "const": "repos[]"},
     "sdkRepositoryBinding": {"type": "string", "const": "CloudAgentOptions.repos"},
     "routingRegistry": {"type": "string", "const": "content/config/routing-registry.json"},
     "readbackRequired": {"type": "boolean", "const": true},
-    "readbackFields": {"type": "array", "const": ["repository", "ref", "commit", "tree", "provider", "model", "effort", "fast"]},
+    "readbackFields": {
+      "type": "array",
+      "const": ["repository", "ref", "commit", "tree", "provider"]
+    },
+    "modelResolution": {"type": "string", "const": "dispatch-time"},
+    "recordFields": {
+      "type": "array",
+      "const": ["requestedModel", "requestedParams", "selfReportedModel"]
+    },
     "archiveOnMismatchRequired": {"type": "boolean", "const": true},
     "maxApiAttempts": {"type": "integer", "const": 2},
-    "ordinaryDevelopment": {"$ref": "#/$defs/cursorRoute"},
-    "gate0": {"$ref": "#/$defs/gateRoute"},
-    "lunaFallback": {"$ref": "#/$defs/fallbackRoute"},
+    "routes": {"$ref": "#/$defs/routes"},
     "cliLoginIsCloudAuthority": {"type": "boolean", "const": false}
   },
   "$defs": {
-    "cursorRoute": {
-      "type": "object", "additionalProperties": false,
-      "required": ["provider", "routeId", "model", "effort", "fast"],
+    "routes": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 2,
+      "required": ["cursor002-grok", "cursor002-opus"],
       "properties": {
-        "provider": {"const": "cursor"}, "routeId": {"const": "ordinary-development"},
-        "model": {"const": "grok-4.6"}, "effort": {"const": "medium"}, "fast": {"const": false}
+        "cursor002-grok": {"$ref": "#/$defs/grokRoute"},
+        "cursor002-opus": {"$ref": "#/$defs/opusRoute"}
       }
     },
-    "gateRoute": {
-      "type": "object", "additionalProperties": false,
-      "required": ["provider", "model", "effort", "fast"],
+    "grokRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "family", "params"],
       "properties": {
-        "provider": {"const": "codex-cli"}, "model": {"const": "gpt-5.6-luna"},
-        "effort": {"const": "high"}, "fast": {"const": false}
+        "provider": {"const": "cursor"},
+        "family": {"const": "grok-4.7"},
+        "params": {"$ref": "#/$defs/grokParams"}
       }
     },
-    "fallbackRoute": {
-      "type": "object", "additionalProperties": false,
-      "required": ["provider", "model", "effort", "fast", "principalInstructionRequired"],
+    "opusRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "family", "params", "forbiddenAliases"],
       "properties": {
-        "provider": {"const": "codex-cli"}, "model": {"const": "gpt-5.6-luna"},
-        "effort": {"const": "high"}, "fast": {"const": false},
-        "principalInstructionRequired": {"const": true}
+        "provider": {"const": "cursor"},
+        "family": {"const": "claude-opus-5-5"},
+        "params": {"$ref": "#/$defs/opusParams"},
+        "forbiddenAliases": {"const": ["opus", "opus-latest"]}
+      }
+    },
+    "grokParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context", "reasoning_effort", "fast"],
+      "properties": {
+        "context": {"const": "500k"},
+        "reasoning_effort": {"const": "medium"},
+        "fast": {"const": "false"}
+      }
+    },
+    "opusParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context", "effort", "fast"],
+      "properties": {
+        "context": {"const": "1m"},
+        "effort": {"const": "medium"},
+        "fast": {"const": "false"}
       }
     }
   }

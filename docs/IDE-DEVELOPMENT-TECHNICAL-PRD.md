@@ -302,19 +302,29 @@ adapter.
 
 | Route | Provider/model | Execution policy |
 |---|---|---|
-| `gate-0` | Codex CLI / GPT-5.6 Luna High / Fast off | Gate 0 execution |
-| `ordinary-development` | Cursor SDK/API / Grok 4.6 Medium / Fast off | Default after Gate 0 |
-| `luna-fallback` | Codex CLI / GPT-5.6 Luna High / Fast off | Principal-instructed fallback only |
+| `orchestrator` | cursor-001 frontier model; cheap helpers `grok-4.7` medium then `composer-2.5` | One per repo. Never codes Issues |
+| `codex-luna` | Codex CLI / tier Luna / effort high | Everyday Issues, first choice |
+| `codex-sol` | Codex CLI / tier Sol / effort medium | Hard Issues |
+| `cursor002-grok` | cursor-002 / `grok-4.7` / `context=500k`, `reasoning_effort=medium`, `fast=false` | Everyday overflow |
+| `cursor002-opus` | cursor-002 / `claude-opus-5-5` / `context=1m`, `effort=medium`, `fast=false` | Hard overflow |
+
+Codex is used only while every reported usage window (5-hour primary and weekly
+secondary) is below 75% used. An unreported window does not block; if none are
+reported, work goes to cursor-002. Before each Codex hand-off the orchestrator
+runs `python3 scripts/codex/codex_orchestrator.py gate` (liveness plus
+allowance). Logged out stops Codex dispatch until Carlos approves a new
+device-code sign-in. Model ids resolve at dispatch time.
 
 Direct Cursor requests must bind the exact repository URL and starting ref in
 `repos[]` (or the SDK-equivalent repository list). A named saved environment is
 never a repository selector. Before credit, provider readback must match the
-repository, ref, exact 40-character commit, and exact 40-character tree;
-mismatch is archived/rejected. Concurrent Luna execution requires explicit
-Principal authorization for disjoint independent packets.
+repository, ref, exact 40-character commit, and exact 40-character tree. The
+Cursor API does not report the model that ran, so `model` is not a required
+readback field; record the requested model, params, and `MODEL-SELF-REPORT:`
+line. A reviewer must be a different model family from the author.
 
-The final live Cursor/Grok acceptance canary remains a release gate and is not
-claimed by this source-level implementation packet.
+The final live acceptance canary remains a release gate and is not claimed by
+this source-level implementation packet.
 
 ---
 
