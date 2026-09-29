@@ -34,6 +34,7 @@ CREATE_TIMEOUT_S = 180
 DEFAULT_TIMEOUT_S = 60
 TERMINAL_RUN_STATES = {"FINISHED", "ERROR", "CANCELLED", "EXPIRED"}
 SELF_REPORT_TAG = "MODEL-SELF-REPORT:"
+SETUP_MARKER = "~/.cache/ide-development/setup-done.json"
 BRANCH_RE = re.compile(r"^issue/[A-Z][A-Z0-9]*-\d+-[a-z0-9][a-z0-9-]*$")
 
 ROUTES: dict[str, dict[str, Any]] = {
@@ -163,6 +164,8 @@ def _variant_params(variant: Any) -> dict[str, str]:
 def build_prompt(issue_text: str, *, issue_id: str | None, branch: str | None) -> str:
     rules = [
         "You are a worker for IDE Development. Follow these rules exactly:",
+        # cursor-002 has no registered environment build yet, so the repo install never ran.
+        f"- First, if `{SETUP_MARKER}` does not exist and `scripts/setup.sh` exists, run `bash scripts/setup.sh`.",
         "- Do not open pull requests.",
         "- Commit small, clear commits and push often.",
     ]
@@ -303,10 +306,12 @@ def read_result(client: Client, agent_id: str, run_id: str | None = None) -> dic
     }
 
 
-def poll(client: Client, agent_id: str, *, interval: float, timeout: float) -> dict[str, Any]:
+def poll(
+    client: Client, agent_id: str, *, interval: float, timeout: float, run_id: str | None = None
+) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
     while True:
-        res = read_result(client, agent_id)
+        res = read_result(client, agent_id, run_id)
         if res["terminal"]:
             return res
         if time.monotonic() >= deadline:
@@ -314,6 +319,16 @@ def poll(client: Client, agent_id: str, *, interval: float, timeout: float) -> d
             res["error"] = "poll_timeout"
             return res
         time.sleep(interval)
+
+
+def followup(client: Client, agent_id: str, prompt: str) -> dict[str, Any]:
+    status, payload = client.request(
+        "POST", f"/v1/agents/{agent_id}/runs", {"prompt": {"text": prompt}}, timeout=CREATE_TIMEOUT_S
+    )
+    if status not in (200, 201):
+        raise DispatchError("followup_rejected", f"create run returned {status}", status=status, body=payload)
+    run = payload.get("run", {}) if isinstance(payload, dict) else {}
+    return {"ok": True, "agentId": agent_id, "runId": run.get("id")}
 
 
 def archive(client: Client, agent_id: str) -> dict[str, Any]:
@@ -366,6 +381,16 @@ def _parser() -> argparse.ArgumentParser:
         s.add_argument("--timeout", type=float, default=3600)
         s.add_argument("--run-log")
 
+    f = sub.add_parser("followup", help="send a follow-up run to an idle agent (e.g. a repair attempt)")
+    f.add_argument("agent_id")
+    fsrc = f.add_mutually_exclusive_group(required=True)
+    fsrc.add_argument("--prompt-file")
+    fsrc.add_argument("--prompt")
+    f.add_argument("--wait", action="store_true")
+    f.add_argument("--interval", type=float, default=30)
+    f.add_argument("--timeout", type=float, default=3600)
+    f.add_argument("--run-log")
+
     a = sub.add_parser("archive", help="archive an agent")
     a.add_argument("agent_id")
     return p
@@ -403,9 +428,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 append_run_log(args.run_log, out)
         elif args.cmd in ("status", "poll"):
             if args.cmd == "poll":
-                out = poll(client, args.agent_id, interval=args.interval, timeout=args.timeout)
+                out = poll(client, args.agent_id, interval=args.interval, timeout=args.timeout,
+                           run_id=args.run_id)
             else:
                 out = read_result(client, args.agent_id, args.run_id)
+            if args.run_log:
+                append_run_log(args.run_log, out)
+        elif args.cmd == "followup":
+            text = args.prompt if args.prompt is not None else open(args.prompt_file, encoding="utf-8").read()
+            out = followup(client, args.agent_id, text)
+            if args.wait:
+                out.update(poll(client, args.agent_id, interval=args.interval, timeout=args.timeout,
+                                run_id=out["runId"]))
             if args.run_log:
                 append_run_log(args.run_log, out)
         else:
