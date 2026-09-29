@@ -12,8 +12,11 @@ Templates synced into consumer repos (and IDE Development itself) by:
 |---|---|
 | `branch-source-policy.yml` | Allowed work branches into development; `promote/*` into staging/main |
 | `linktrend-cleanup-merged.yml` | Explicit manual remote cleanup of merged/abandoned branches (no local worktrees) |
+| `linktrend-promote-main.yml` | v3 `main` promotion check, published as the legacy-named `Linktrend Receipt Gate` context: a `promote/main/*` head must have the tree of a green `development` commit (`scripts/orchestrator/promotion_check.py`; runbook `docs/runbooks/orchestrator-delivery.md`) |
 
 The v2 packager, integrator-merge, Review Ready publisher, receipt promotion and repair-observer templates were retired in v3 (IDE-22); see the v3 plan.
+
+`linktrend-promote-main.yml` runs `scripts/orchestrator/promotion_check.py` from the target repo's `development` branch and requires `Verify IDE Development` on the matching commit; a consumer needs both before it relies on this check.
 
 ## Trust boundary (all privileged workflows)
 
