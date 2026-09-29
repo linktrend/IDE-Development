@@ -10,6 +10,8 @@ JSONSCHEMA_VERSION="${IDE_SETUP_JSONSCHEMA_VERSION:-4.26.0}"
 CODEX_VERSION="${IDE_SETUP_CODEX_VERSION:-0.158.0}"
 NVM_VERSION="${IDE_SETUP_NVM_VERSION:-v0.40.3}"
 SKIP_CODEX="${IDE_SETUP_SKIP_CODEX:-0}"
+# Postgres server + client, only for scripts/ledger/test-ide-ledger-sql.sh (off by default).
+WITH_POSTGRES="${IDE_SETUP_POSTGRES:-0}"
 
 log() { printf '[setup] %s\n' "$*"; }
 die() { printf '[setup] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -50,6 +52,11 @@ link_bin() {
 
 log "system packages"
 apt_install ca-certificates curl git jq ripgrep python3 python3-pip python3-venv
+
+if [ "$WITH_POSTGRES" = "1" ]; then
+  log "postgres server + client"
+  apt_install postgresql postgresql-client
+fi
 
 log "python >= 3.${PYTHON_MIN_MINOR}"
 python3 - "$PYTHON_MIN_MINOR" <<'PY' || die "python3 is older than 3.${PYTHON_MIN_MINOR} (CI uses 3.11)"
@@ -108,6 +115,9 @@ printf '  jsonschema %s\n' "$(python3 -c 'import importlib.metadata as m; print(
 printf '  jq      %s\n' "$(jq --version)"
 printf '  rg      %s\n' "$(rg --version | head -1)"
 printf '  git     %s\n' "$(git --version)"
+if [ "$WITH_POSTGRES" = "1" ]; then
+  printf '  psql    %s\n' "$(psql --version)"
+fi
 if [ "$SKIP_CODEX" != "1" ]; then
   printf '  codex   %s\n' "$(codex --version 2>&1 | head -1)"
 fi

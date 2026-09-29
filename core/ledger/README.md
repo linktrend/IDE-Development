@@ -15,7 +15,7 @@ database by hand.
 | `sql/ide_ledger.sql` | Schema, RPC functions, restricted role grants. Idempotent. |
 | `sql/ide_ledger.verify.sql` | Read-only invariants (RLS on, no table grants, no PUBLIC EXECUTE, helpers private). Copy to Platform `supabase/verification/`. |
 | `tests/ide_ledger_behaviour.sql` | Behaviour test run as the restricted role. |
-| `../../scripts/ledger/test-ide-ledger-sql.sh` | Runs all of the above against a throwaway local Postgres. |
+| `../../scripts/ledger/test-ide-ledger-sql.sh` | Runs all of the above against a throwaway local Postgres (`IDE_SETUP_POSTGRES=1 bash scripts/setup.sh` installs it). |
 
 ## Model
 
