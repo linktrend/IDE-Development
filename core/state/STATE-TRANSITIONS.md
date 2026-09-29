@@ -61,7 +61,7 @@ Allowed:
 - `in_review -> in_progress`
 - any non-`done` state `-> cancelled`
 
-Issue states match the Ledger. `in_review` in older state files is read as
+Issue states match the Ledger. `review_ready` in older state files is read as
 `in_review` and never written.
 
 Invalid:

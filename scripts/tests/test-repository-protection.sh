@@ -437,6 +437,74 @@ python3 -c 'import json,sys; p=json.load(open(sys.argv[1])); assert p["verify"][
   "${TMP}/verify-ok.json"
 pass "verify matched fixtures"
 
+# ---- ruleset target / ref conditions / strict policy (not only checks) ----
+python3 - <<'PY'
+import json, sys
+from pathlib import Path
+sys.path.insert(0, str(Path("scripts/gitops").resolve()))
+import repository_protection as rp
+
+body = json.loads(Path("scripts/tests/fixtures/repository-protection/rulesets-matched/state.json").read_text())
+dev = body["ruleset_details"]["1"]
+assert rp.ruleset_scope_drift(dev, "development") == ""
+PY
+
+expect_ruleset_drift() {
+  local label="$1"
+  local fx="${TMP}/scope-${label}"
+  rm -rf "$fx"
+  cp -R "${FX}/rulesets-matched" "$fx"
+  python3 - "$fx" "$label" <<'PY'
+import json, sys
+from pathlib import Path
+fx, label = sys.argv[1], sys.argv[2]
+path = Path(fx) / "state.json"
+state = json.loads(path.read_text())
+detail = state["ruleset_details"]["1"]
+ref = detail["conditions"]["ref_name"]
+if label == "wrong-include":
+    ref["include"] = ["refs/heads/staging"]
+elif label == "extra-include":
+    ref["include"] = ["refs/heads/development", "refs/heads/staging"]
+elif label == "exclude":
+    ref["exclude"] = ["refs/heads/staging"]
+elif label == "strict-false":
+    detail["rules"][0]["parameters"]["strict_required_status_checks_policy"] = False
+else:
+    raise SystemExit(f"unknown label {label}")
+path.write_text(json.dumps(state), encoding="utf-8")
+PY
+  "$TOOL" plan --repo linktrend/Fixture --fixture-dir "$fx" >"${TMP}/plan-${label}.json"
+  python3 - "$label" "${TMP}/plan-${label}.json" <<'PY'
+import json, sys
+label, path = sys.argv[1], sys.argv[2]
+plan = json.load(open(path))
+action = plan["branches"]["development"]["action"]
+assert action == "update", (label, action)
+PY
+  set +e
+  "$TOOL" verify --repo linktrend/Fixture --fixture-dir "$fx" >"${TMP}/verify-${label}.json" 2>"${TMP}/verify-${label}.err"
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "${label}: verify should fail when ruleset scope drifts"
+  pass "ruleset scope ${label} plans update and verify fails"
+}
+
+expect_ruleset_drift wrong-include
+expect_ruleset_drift extra-include
+expect_ruleset_drift exclude
+expect_ruleset_drift strict-false
+
+"$TOOL" plan --repo linktrend/Fixture --fixture-dir "${FX}/rulesets-matched" \
+  >"${TMP}/plan-scope-exact.json"
+python3 - "${TMP}/plan-scope-exact.json" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+assert plan["branches"]["development"]["action"] == "noop"
+assert plan["branches"]["main"]["action"] == "noop"
+PY
+pass "exact ruleset target, refs, and strict policy stay noop"
+
 # ---- retired ruleset is planned as an admin delete, never applied ----
 cp -R "${FX}/rulesets-matched" "${TMP}/retired-fx"
 python3 - <<PY

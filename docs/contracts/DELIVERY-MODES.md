@@ -2,7 +2,7 @@
 
 **Status:** Active. This document describes the hosted phase-integration
 profile consumed by managed-core. The frozen field meanings are defined in
-`../planning/github-compute-final-fix/FROZEN-INTERFACES.md`.
+`docs/archive/planning/github-compute-final-fix/FROZEN-INTERFACES.md`.
 
 ## Supported mode
 

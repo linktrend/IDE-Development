@@ -2,15 +2,28 @@
 
 from __future__ import annotations
 
+import contextlib
+import importlib.util
+import io
 import json
 import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "sync-linkskills.py"
+
+
+def _load_sync():
+    spec = importlib.util.spec_from_file_location("sync_linkskills", SCRIPT)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load sync-linkskills")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -135,6 +148,7 @@ class SyncLinkskillsTests(unittest.TestCase):
             self.sha,
             "--repo",
             str(self.upstream),
+            "--allow-local-repo",
             "--write",
             *extra,
         )
@@ -222,6 +236,117 @@ class SyncLinkskillsTests(unittest.TestCase):
         second = self._write()
         self.assertNotEqual(second.returncode, 0)
         self.assertIn("pinned tree mismatch", second.stderr)
+
+    def test_unsafe_repos_rejected_without_git(self) -> None:
+        mod = _load_sync()
+        unsafe = (
+            "--upload-pack=x",
+            "ext::sh -c x",
+            "file:///etc",
+            "git@github.com:x/y",
+        )
+        for repo in unsafe:
+            with self.subTest(repo=repo):
+                err = io.StringIO()
+                with mock.patch.object(
+                    mod.subprocess, "run", side_effect=AssertionError("git ran")
+                ):
+                    with contextlib.redirect_stderr(err):
+                        rc = mod.main(
+                            [f"--repo={repo}", "--commit", "a" * 40, "--write"]
+                        )
+                self.assertEqual(rc, 1, err.getvalue())
+                self.assertIn("refusing repo", err.getvalue())
+
+    def test_github_owner_and_repo_segments_before_git(self) -> None:
+        mod = _load_sync()
+        rejected = (
+            "https://github.com/../x",
+            "https://github.com/a/..",
+            "https://github.com/a/.",
+            "https://github.com/-a/b",
+            "https://github.com/a/b/",
+            "https://github.com/a/b?x=1",
+            "https://user@github.com/a/b",
+            "https://github.com:443/a/b",
+            "https://github.com/a/b\n",
+        )
+        for repo in rejected:
+            with self.subTest(repo=repo):
+                err = io.StringIO()
+                with mock.patch.object(
+                    mod.subprocess, "run", side_effect=AssertionError("git ran")
+                ):
+                    with contextlib.redirect_stderr(err):
+                        rc = mod.main(
+                            ["--repo", repo, "--commit", "a" * 40, "--write"]
+                        )
+                self.assertEqual(rc, 1, err.getvalue())
+                self.assertIn("refusing repo", err.getvalue())
+
+        accepted = (
+            "https://github.com/linktrend/LiNKskills",
+            "https://github.com/linktrend/LiNKskills.git",
+        )
+        for repo in accepted:
+            with self.subTest(repo=repo):
+                with mock.patch.object(
+                    mod.subprocess, "run", side_effect=AssertionError("git ran")
+                ):
+                    argv = mod.git_fetch_command(
+                        repo,
+                        "ab" * 20,
+                        Path("/tmp/linkskills-url-check"),
+                        allow_local=False,
+                    )
+                self.assertIn(repo, argv)
+
+    def test_local_repo_requires_flag(self) -> None:
+        mod = _load_sync()
+        err = io.StringIO()
+        with mock.patch.object(mod.subprocess, "run", side_effect=AssertionError("git ran")):
+            with contextlib.redirect_stderr(err):
+                rc = mod.main(
+                    [
+                        "--repo",
+                        str(self.upstream),
+                        "--commit",
+                        self.sha,
+                        "--write",
+                    ]
+                )
+        self.assertEqual(rc, 1, err.getvalue())
+        self.assertIn("refusing repo", err.getvalue())
+
+    def test_https_fetch_argv_without_network(self) -> None:
+        mod = _load_sync()
+        dest = Path("/tmp/linkskills-argv-check")
+        repo = "https://github.com/linktrend/LiNKskills.git"
+        commit = "ab" * 20
+        argv = mod.git_fetch_command(repo, commit, dest, allow_local=False)
+        self.assertEqual(
+            argv,
+            [
+                "git",
+                "-c",
+                "protocol.allow=never",
+                "-c",
+                "protocol.https.allow=always",
+                "-C",
+                str(dest),
+                "fetch",
+                "--depth",
+                "1",
+                "--",
+                repo,
+                commit,
+            ],
+        )
+        self.assertNotIn("protocol.file.allow=always", argv)
+        local_argv = mod.git_fetch_command(
+            repo, commit, dest, allow_local=True
+        )
+        self.assertIn("protocol.file.allow=always", local_argv)
 
 
 if __name__ == "__main__":

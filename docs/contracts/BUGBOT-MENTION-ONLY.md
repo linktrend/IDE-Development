@@ -62,4 +62,4 @@ Consumer rollout is **blocked** until mention-only is confirmed per repository. 
 
 ## Historical note (PR #19 spend-limit period)
 
-Agents must not post additional `@cursor review` comments on PR #19 while the spending limit is active. Integrator correctly blocks on SHA/marker mismatch; bootstrap merge (if any) is a documented one-time admin exception outside the product workflow. For current rollout gates, see `docs/CURRENT-STATUS.md` and WP04 (`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).
+Agents must not post additional `@cursor review` comments on PR #19 while the spending limit is active. Integrator correctly blocks on SHA/marker mismatch; bootstrap merge (if any) is a documented one-time admin exception outside the product workflow. For current rollout gates, see `docs/CURRENT-STATUS.md` and WP04 (`docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).

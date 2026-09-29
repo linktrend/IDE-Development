@@ -444,6 +444,44 @@ def classic_protection_body(
     return body
 
 
+def ruleset_scope_drift(existing: dict[str, Any] | None, branch: str) -> str:
+    """Return why a ruleset misses the governed branch target, refs, or strict policy.
+
+    Desired scope is ``target: branch``, ``include`` exactly ``refs/heads/<branch>``,
+    ``exclude`` exactly ``[]``, and ``strict_required_status_checks_policy: true``
+    on every required-status-checks rule. A same-named ruleset aimed at another
+    ref is drift, not a match.
+    """
+    if not isinstance(existing, dict):
+        return ""
+    reasons: list[str] = []
+    if existing.get("target") != "branch":
+        reasons.append(f"target={existing.get('target')!r}")
+    conditions = existing.get("conditions")
+    ref_name = conditions.get("ref_name") if isinstance(conditions, dict) else None
+    if not isinstance(ref_name, dict):
+        reasons.append("conditions.ref_name missing")
+    else:
+        include = ref_name.get("include")
+        exclude = ref_name.get("exclude")
+        desired_include = [f"refs/heads/{branch}"]
+        if include != desired_include:
+            reasons.append(f"include={include!r}")
+        if exclude != []:
+            reasons.append(f"exclude={exclude!r}")
+    strict_values: list[Any] = []
+    for rule in existing.get("rules") or []:
+        if not isinstance(rule, dict) or rule.get("type") != STATUS_CHECK_RULE_TYPE:
+            continue
+        params = rule.get("parameters") if isinstance(rule.get("parameters"), dict) else {}
+        strict_values.append(params.get("strict_required_status_checks_policy"))
+    if not strict_values or any(value is not True for value in strict_values):
+        reasons.append("strict_required_status_checks_policy is not true")
+    if not reasons:
+        return ""
+    return "ruleset target/conditions/strict drift: " + "; ".join(reasons)
+
+
 def extract_ruleset_checks(ruleset: dict[str, Any] | None) -> list[str]:
     if not ruleset:
         return []
@@ -816,15 +854,19 @@ def build_plan(
                 "bypassActors": bypass,
                 "body": existing,
             }
+            scope_drift = ruleset_scope_drift(existing, branch) if existing else ""
             if existing is None:
                 action = "create"
             elif (
                 existing_checks == union["desired"]
-                and (existing or {}).get("enforcement", "active") == "active"
+                and existing.get("enforcement", "active") == "active"
+                and not scope_drift
             ):
                 action = "noop"
             else:
                 action = "update"
+                if scope_drift:
+                    action_reason = scope_drift
             after = {
                 "exists": True,
                 "id": before["id"],
@@ -893,7 +935,7 @@ def build_plan(
             "before": before,
             "after": after,
         }
-        if mechanism == "branch_protection" and action_reason:
+        if action_reason and mechanism in ("branch_protection", "rulesets"):
             branch_entry["actionReason"] = action_reason
         branch_plans[branch] = branch_entry
 
@@ -967,6 +1009,16 @@ def verify_plan(plan: dict[str, Any]) -> tuple[bool, list[str]]:
         action = detail.get("action")
         if action not in ("noop",):
             problems.append(f"{branch}: action={action} (not matched)")
+        # Ruleset path: fail closed when the named ruleset does not target this
+        # branch, even if required checks and enforcement already match.
+        if mechanism == "rulesets":
+            before_body = (detail.get("before") or {}).get("body")
+            if isinstance(before_body, dict):
+                drift = ruleset_scope_drift(before_body, str(branch))
+                if drift:
+                    msg = f"{branch}: {drift}"
+                    if msg not in problems:
+                        problems.append(msg)
         # Classic path: fail closed on review/restriction (and related) drift even when
         # required check contexts already match and action was misclassified as noop.
         if mechanism == "branch_protection":
