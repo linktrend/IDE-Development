@@ -90,6 +90,8 @@ Principal locked:
 
 ## Amendment — 2026-07-28 (Review Packager + promotion window)
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 Principal locked (IDE Development redesign):
 
 1. **Ship = checkpoint only:** commit + push on `issue/*`. No PR. No Bugbot. EOD ~17:00 is also checkpoint-only.
@@ -106,6 +108,8 @@ Principal locked (IDE Development redesign):
 ---
 
 ## Amendment — 2026-07-28 (review-ready = commit status; supersedes file marker)
+
+Retired in v3 (IDE-22); see the v3 plan.
 
 **Factual correction** to item 2 of the earlier 2026-07-28 amendment above (that item is obsolete and must not be followed):
 
@@ -141,6 +145,8 @@ Principal / WP-01 locked:
 
 ## Amendment — 2026-08-17 (Phase Packager/Coordinator)
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 Factual correction for Update 3:
 
 1. **Phase Packager/Coordinator** is `scripts/gitops/packager_coordinator.py`. Any authorized agent or operator may invoke it. It accepts completed remote issue commits, preserves dependency order, and creates or updates one `phase/*` branch and one draft Phase PR into `development`.
@@ -150,6 +156,8 @@ Factual correction for Update 3:
 5. The coordinator produces an exact-identity handoff for the delivery controller. A later Phase head invalidates that handoff. The coordinator cannot merge protected branches or start Full.
 
 ## Amendment — 2026-08-18 (Delivery controller)
+
+Retired in v3 (IDE-22); see the v3 plan.
 
 Factual correction for Update 2:
 
