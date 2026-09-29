@@ -1,28 +1,28 @@
-# Cursor Cloud repository-bound dispatch contract
+# cursor-002 dispatch contract
 
-**Control:** `cursor-cloud-dispatch-v2`
+**Control:** `cursor-cloud-dispatch-v3`
 
-This contract governs the implementation boundary for Cursor Cloud workers. It
-does not perform the live routing canary or final Grok/Cursor acceptance proof;
-those remain release acceptance work.
+This contract is the cursor-002 overflow boundary. It does not run the live
+canary. Codex Issue execution stays on the Codex CLI.
 
-## Routing policy
+## Routes
 
-- Gate 0 execution uses GPT-5.6 Luna High through Codex CLI.
-- Post-Gate-0 ordinary development defaults to Grok 4.6 Medium through the
-  direct Cursor SDK/API path, with Fast explicitly disabled.
-- Luna is a fallback only after the Principal instructs the switch. Concurrent
-  Luna work requires explicit Principal authorization for disjoint packets.
-- This direct Cursor dispatcher rejects every other provider, model, effort, or
-  Fast combination before an API key is read or capacity is consumed.
+Exactly two Cursor routes. Anything else fails closed before the API key is
+read.
 
-The versioned program-to-repository registry is
-`core/managed-core/content/config/routing-registry.json`. Its current
-`programs` list is intentionally empty: this packet does not invent repository
-identities. Future entries must name every permitted repository, and a shared
-entry must explicitly declare cross-repository scope.
+| Route | Family | Pinned params |
+|---|---|---|
+| `cursor002-grok` | `grok-4.7` | `context=500k`, `reasoning_effort=medium`, `fast=false` |
+| `cursor002-opus` | `claude-opus-5-5` | `context=1m`, `effort=medium`, `fast=false` |
 
-## Repository binding and identity
+Aliases `opus` and `opus-latest` are refused. The config stores the family and
+the required params. The live model id is resolved at dispatch time with
+`GET /v1/models` and is not a frozen version string trusted from the file.
+
+The API key is the Cursor runtime secret `CURSOR_002_API_KEY`. It is never
+printed or committed. CLI login is not API authority.
+
+## Repository binding
 
 Every direct REST request carries:
 
@@ -33,30 +33,32 @@ Every direct REST request carries:
 ```
 
 The SDK path carries the equivalent `CloudAgentOptions.repos` list. A named
-saved Cursor environment, display name, local checkout, or prompt text is not a
-repository selector. The requested URL must match the logical repository
-identity, and the request includes the exact 40-character starting commit and
-tree in the durable PREPARED intent.
+saved environment is not a repository selector. The request URL must match the
+logical repository, and the durable PREPARED intent stores the exact
+40-character starting commit and tree.
 
-After creation, a mandatory provider readback must prove the exact repository,
-ref, worker HEAD commit, and worker HEAD tree. It must also prove provider,
-model, medium effort, and `fast=false`. Missing or mismatched fields fail
-closed. The run is archived and the intent is marked `REJECTED`; it is never
+## Readback
+
+The Cursor API reports neither the model that ran nor the cost. Required
+readback is repository, ref, commit, tree, and provider. `model` is not
+required. Record the requested model and params, plus the worker
+`MODEL-SELF-REPORT:` line. For Codex, the actual model and effort come from
+the session log (`cliModel` / `cliEffort`).
+
+A missing or mismatched identity is archived and marked `REJECTED`. It is not
 counted as a worker.
 
-## Durable and equivalent semantics
+## Durable behaviour
 
-The intent store is read back before creation. The idempotency key and
-client-supplied agent ID bind the complete repository/model/identity request.
-Unknown API outcomes receive at most one retry with the same key. The SDK and
+The intent is read back before creation. The idempotency key and the
+client-supplied agent id bind the repository and the requested model. An
+unknown API outcome is retried at most once with the same key. The SDK and
 REST adapters share the same preflight, readback, archive-on-mismatch, and
-durable-commit path, so choosing the SDK does not weaken the evidence contract.
+commit path.
 
-API credentials are injected through `CURSOR_API_KEY`; CLI login is not Cloud
-API authority. Credentials never appear in intents, receipts, logs, or
-diagnostics.
+The first prompt is attestation-only. It forbids mutation and asks for the
+repository, ref, commit, and tree, then a `MODEL-SELF-REPORT:` line. Tests use
+fake HTTP. No live Cursor agent is created by source validation.
 
-The first prompt is attestation-only. It prohibits mutation and asks the worker
-to report the explicit repository/ref/commit/tree matrix and clean workspace.
-This packet supplies local implementation and focused tests only. No real
-Cursor endpoint or live agent creation is part of source validation.
+The program list in `core/managed-core/content/config/routing-registry.json`
+stays empty until a program names every permitted repository.
