@@ -3875,7 +3875,7 @@
       "id": "gitops-scripts-gitops-repository-protection-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/repository_protection.py",
-      "sourceHash": "sha256:9e867ae535a23fce7dc4e1b82d19d1edde5207979090fa628fef57244e3031ec",
+      "sourceHash": "sha256:766a901c53ca91f98af50d1627e16f77547cf2e8e77d312a1f332950d11b2199",
       "destination": "scripts/gitops/repository_protection.py",
       "mode": "0755",
       "platform": "github",
