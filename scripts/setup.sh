@@ -101,10 +101,11 @@ if [ "$SKIP_CODEX" != "1" ]; then
   fi
   link_bin "$NODE_BIN_DIR/codex" codex
   # File-backed credentials so the orchestrator can save/restore ~/.codex/auth.json via its store.
-  mkdir -p "$HOME/.codex"
-  if ! grep -qs '^cli_auth_credentials_store' "$HOME/.codex/config.toml"; then
-    printf 'cli_auth_credentials_store = "file"\n' >> "$HOME/.codex/config.toml"
-  fi
+  codex_home="${CODEX_HOME:-$HOME/.codex}"
+  mkdir -p "$codex_home"
+  chmod 700 "$codex_home"
+  # Scope-aware: the key must be top-level, i.e. before any [table] header.
+  python3 "$(cd "$(dirname "$0")" && pwd)/codex/set_codex_config.py" "$codex_home/config.toml"
 fi
 
 log "versions"

@@ -34,14 +34,7 @@ fi
 mkdir -p "$CODEX_HOME"
 chmod 700 "$CODEX_HOME"
 config="$CODEX_HOME/config.toml"
-touch "$config"
-chmod 600 "$config"
-if grep -qE '^[[:space:]]*cli_auth_credentials_store[[:space:]]*=' "$config"; then
-  sed -i -E 's|^[[:space:]]*cli_auth_credentials_store[[:space:]]*=.*$|cli_auth_credentials_store = "file"|' "$config"
-else
-  # Top-level keys must precede any [table] header.
-  { printf 'cli_auth_credentials_store = "file"\n'; cat "$config"; } > "$config.tmp" && mv "$config.tmp" "$config"
-fi
+python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/set_codex_config.py" "$config"
 
 "$PREFIX/bin/codex" --version
 echo "config: $config (cli_auth_credentials_store = \"file\")"
