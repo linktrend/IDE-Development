@@ -111,4 +111,10 @@ printf '  git     %s\n' "$(git --version)"
 if [ "$SKIP_CODEX" != "1" ]; then
   printf '  codex   %s\n' "$(codex --version 2>&1 | head -1)"
 fi
-log "done"
+marker_dir="$HOME/.cache/ide-development"
+mkdir -p "$marker_dir"
+printf '{"completedAt":"%s","commit":"%s","codex":"%s"}\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  "$(git -C "$(dirname "$0")/.." rev-parse HEAD 2>/dev/null || echo unknown)" \
+  "$([ "$SKIP_CODEX" = "1" ] && echo skipped || echo "$CODEX_VERSION")" > "$marker_dir/setup-done.json"
+log "done (marker: $marker_dir/setup-done.json)"
