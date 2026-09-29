@@ -511,39 +511,6 @@ def _validate_baseline(
     return normalized
 
 
-def _full_receipt_identity(
-    receipt: Mapping[str, Any] | None, target_identity: Mapping[str, str]
-) -> dict[str, Any] | None:
-    """Pass through only a digest-valid FullSuiteReceipt identity.
-
-    A scoped local scan is never promoted to Full. If a caller supplies a
-    Full receipt, the shared receipt parser verifies schema v2, success,
-    canonical digest, recognized runner, and exact candidate identity.
-    """
-    if receipt is None:
-        return None
-    try:
-        from scripts.gitops.coordinator.receipts import (
-            FullSuiteReceipt, compute_receipt_digest,
-        )
-        parsed = FullSuiteReceipt.from_dict(receipt)
-        if parsed.receipt_digest != compute_receipt_digest(parsed):
-            raise ValueError("receipt digest")
-        identity = parsed.candidate_identity.to_dict()
-    except Exception as exc:
-        raise OpenClawAdmissionError("full-receipt-invalid") from exc
-    if identity.get("repository") != REPOSITORY:
-        raise OpenClawAdmissionError("full-receipt-repository-mismatch")
-    if identity.get("headCommit") != target_identity["commit"] or identity.get("gitTree") != target_identity["tree"]:
-        raise OpenClawAdmissionError("full-receipt-identity-mismatch")
-    return {
-        "candidateIdentity": identity,
-        "workflowRunId": parsed.workflow_run_id,
-        "workflowRunAttempt": parsed.workflow_run_attempt,
-        "receiptDigest": parsed.receipt_digest,
-    }
-
-
 def admit_openclaw_customization(
     *,
     consumer_root: Path,
@@ -554,7 +521,6 @@ def admit_openclaw_customization(
     observed_upstream: Mapping[str, Any] | None = None,
     pre_install_baseline: Mapping[str, Any] | None = None,
     capture_baseline: bool = False,
-    full_run_receipt: Mapping[str, Any] | None = None,
     timeout_seconds: int | None = None,
 ) -> dict[str, Any]:
     """Admit only owned customizations and present v2.5.2 destinations.
@@ -631,8 +597,6 @@ def admit_openclaw_customization(
     if scan.get("ok") is not True and not scoped:
         raise OpenClawAdmissionError("scanner-error")
 
-    receipt_identity = _full_receipt_identity(full_run_receipt, after)
-
     return {
         "schemaVersion": 1,
         "kind": KIND,
@@ -656,7 +620,6 @@ def admit_openclaw_customization(
         "candidateIdentity": after,
         "scannerPolicyVersion": scan["scannerPolicyVersion"],
         "baselineComparison": comparison,
-        **({"fullRunReceiptIdentity": receipt_identity} if receipt_identity is not None else {}),
         "omittedMissingPaths": sorted(
             set(omitted_package)
             | set(omitted_overlay)

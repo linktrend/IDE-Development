@@ -179,7 +179,7 @@ Every mutating operation (`install`, `update`, `rollback`) must:
 
 ## Precedence rules
 
-1. **Managed lifecycle wins when explicitly identified.** If a managed lifecycle rule is declared in the managed marker block, managed Cursor/Codex lifecycle entrypoints, or managed doctrine paths listed in the manifest, that rule governs shared lifecycle behavior (branching, ship/pull, completion, review packager, promotion roles).
+1. **Managed lifecycle wins when explicitly identified.** If a managed lifecycle rule is declared in the managed marker block, managed Cursor/Codex lifecycle entrypoints, or managed doctrine paths listed in the manifest, that rule governs shared lifecycle behavior (branching, checkpoints, packaging, review, promotion roles).
 2. **Consumer technical guidance remains.** Repository-owned architecture, product APIs, coding standards, and domain instructions outside managed ownership remain authoritative for that repository.
 3. **Conflict requires an explicit managed lifecycle identity.** A consumer file is not overridden merely because it “looks similar.” Override/replace requires a manifest entry (or marker ownership) that names the destination.
 4. **More specific consumer guidance may refine managed lifecycle** only when it does not contradict an explicit managed lifecycle rule (for example, additional test commands). Contradiction → fail closed or require human/Principal resolution; installer must not silently prefer consumer or managed bytes.

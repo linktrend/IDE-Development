@@ -217,7 +217,7 @@ class GeneratedOutputGraphTests(unittest.TestCase):
         result = audit_dogfood_improvement_closure(ROOT)
         self.assertTrue(result["ok"])
         self.assertEqual(result["status"], "audited")
-        self.assertEqual(result["leanDesign"]["mappingCount"], 6)
+        self.assertEqual(result["leanDesign"]["mappingCount"], 4)
         self.assertGreaterEqual(result["dogfood"]["executableCommands"], 2)
 
     def test_top_level_verifier_is_portable_and_does_not_repeat_adoption(self) -> None:

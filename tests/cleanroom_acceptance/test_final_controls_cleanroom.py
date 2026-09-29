@@ -21,7 +21,6 @@ RUNTIME_FILES = (
     "core/execution/lifecycle.py",
     "core/execution/scheduler.py",
     "core/execution/verification_liveness.py",
-    "core/execution/manifest_persistence.py",
     "core/execution/transactional_dispatch.py",
     "core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md",
     "core/managed-core/content/config/transactional-dispatch.json",

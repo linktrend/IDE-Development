@@ -50,7 +50,7 @@ Drift reports, approvals, and installs use this **exact sequential order** (one 
 
 | # | Repo (disk) | GitHub slug (typical) | Notes |
 |---|---|---|---|
-| 1 | openclaw_prime | `linktrend/openclaw_prime` | Lisa runtime; follow-up PRs stay in that repo |
+| 1 | openclaw_prime | `linktrend/openclaw_prime` | Follow-up PRs stay in that repo |
 | 2 | LiNKplatform | `linktrend/LiNKplatform` | |
 | 3 | LiNKskills | `linktrend/LiNKskills` | |
 | 4 | LiNKbrain | `linktrend/LiNKbrain` | |
@@ -62,7 +62,7 @@ Drift reports, approvals, and installs use this **exact sequential order** (one 
 
 IDE Development is intentionally **absent** from this table.
 
-**Do not confuse with Ship/Pull order.** Lisa Option A still processes IDE Development first as the system source during Ship/Pull waves (`docs/AUTONOMOUS-GIT-OPERATIONS.md`). That clock order is not an install/rollout authorization and does not make this repository a consumer install target.
+**Do not confuse with orchestrator order.** The v3 cloud orchestrator for IDE Development works on this repository as the system source (`docs/AUTONOMOUS-GIT-OPERATIONS.md`). That is not an install/rollout authorization and does not make this repository a consumer install target.
 
 ---
 
@@ -179,8 +179,6 @@ Record gaps in adoption notes. Do **not** auto-fix consumers from Wave 1, WP1–
 - `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
 - `docs/adr/0004-portable-managed-core-v2.md`
 - `docs/contracts/REPOSITORY-PROTECTION.md`
-- `docs/contracts/LISA-OPENCLAW-FOLLOW-UP.md`
-- `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`
 - `docs/contracts/BUGBOT-MENTION-ONLY.md`
 - `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`
 - `SETUP.md`, `README.md`, `VERSION`

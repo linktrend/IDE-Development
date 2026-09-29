@@ -28,11 +28,8 @@ Only an exact pre-existing finding, including its physical content digest, may
 be inherited. A new or changed credential, skipped input, or scanner failure
 remains blocking. A scanner cannot provide the accepted baseline itself.
 
-`fullRunReceiptIdentity` is optional pass-through evidence, never synthesized
-by this scoped path. When supplied, it must be a schema-version 2,
-digest-valid successful `FullSuiteReceipt` for the exact OpenClaw commit/tree;
-the local customization scan is never relabeled as Full. Until a real GitHub
-Actions run produces that receipt, hosted Full evidence remains a HOLD.
+This scoped path never emits `fullRunReceiptIdentity` (Full-suite receipts
+are retired in v3); the local customization scan is never relabeled as Full.
 
 This protocol does not edit LiNKautowork, OpenClaw Prime, or any other
 consumer-managed file. Consumer rollout and rerun of PR #115 / PR #287 are

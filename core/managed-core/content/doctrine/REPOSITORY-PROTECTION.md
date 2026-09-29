@@ -74,7 +74,7 @@ Managed baseline:
 2. `Linktrend Branch Source Policy`
 
 Do **not** require `Linktrend Review Gate` on main promotion PRs.
-Do **not** invent extra human-review rules that conflict with Lisa Main Approve (`docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`). Preserve existing `bypass_actors` on update. Main Approve remains Principal Approve of the sealed package + release-gate success on the promote head.
+Do **not** invent extra human-review rules that conflict with the orchestrator's `development` → `main` promotion (ADR 0006). Preserve existing `bypass_actors` on update. Main Approve remains Principal Approve of the sealed package + release-gate success on the promote head.
 
 ---
 

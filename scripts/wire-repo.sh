@@ -162,6 +162,6 @@ info "Cursor: physical managed entrypoints under .cursor/ (not a symlink to IDE 
 info "Config: $CONFIG_PATH"
 info "Managed workflows + runtime + agentsetup/agentcomply + AGENTS section: synced"
 info "Next: complete Bugbot checklist — core/checklists/BUGBOT-INHERITANCE.md"
-info "Next: Cursor Automations — docs/CURSOR-AUTOMATIONS-SETUP.md"
+info "Next: v3 cloud orchestrator — docs/AUTONOMOUS-GIT-OPERATIONS.md"
 info "Next: commit .github/linktrend-gitops-consumer.json and managed .cursor entrypoints"
 exit 0

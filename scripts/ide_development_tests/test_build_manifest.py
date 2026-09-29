@@ -232,18 +232,14 @@ class BuildManifestPackagingTests(unittest.TestCase):
             },
         )
 
-    def test_pkt08_closure_and_persistence_contracts_are_packaged(self) -> None:
+    def test_pkt08_closure_contracts_are_packaged(self) -> None:
         manifest = bm.build_manifest_object()
         sources = {row["source"] for row in manifest["files"]}
         for rel in (
             "core/managed-core/content/config/generated-output-closure.consumer.json",
-            "core/managed-core/content/config/manifest-persistence.json",
             "core/managed-core/schemas/generated-output-closure.schema.json",
-            "core/managed-core/schemas/manifest-persistence.schema.json",
-            "core/execution/manifest_persistence.py",
             "scripts/gitops/generated_output_closure.py",
             "scripts/tests/test_generated_output_closure.py",
-            "scripts/tests/test_manifest_persistence_recovery.py",
             ".githooks/pre-push",
             "scripts/install-git-hooks.sh",
         ):
@@ -275,40 +271,6 @@ class BuildManifestPackagingTests(unittest.TestCase):
                 "build_manifest.py" in part
                 for row in consumer_closure["outputs"]
                 for part in row["generator"]
-            )
-        )
-
-    def test_pkt08_persistence_adversarial_runtime_is_in_managed_package(self) -> None:
-        manifest = bm.build_manifest_object()
-        rows = [
-            row
-            for row in manifest["files"]
-            if isinstance(row.get("source"), str)
-        ]
-        runtime = next(
-            row
-            for row in rows
-            if row["source"] == "core/execution/manifest_persistence.py"
-            and row["destination"] == ".ide-development/execution/manifest_persistence.py"
-        )
-        self.assertEqual(
-            runtime["destination"],
-            ".ide-development/execution/manifest_persistence.py",
-        )
-        self.assertEqual(
-            runtime["sourceHash"],
-            bm._hash_rel("core/execution/manifest_persistence.py"),
-        )
-        source = (bm.REPO_ROOT / "core/execution/manifest_persistence.py").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("MANIFEST_PERSISTENCE_FAILURE", source)
-        self.assertIn("_validate_transition_event", source)
-        self.assertTrue(
-            any(
-                row["source"] == "scripts/tests/test_manifest_persistence_recovery.py"
-                and row["destination"] == ".ide-development/tests/test_manifest_persistence_recovery.py"
-                for row in rows
             )
         )
 
@@ -347,18 +309,15 @@ class BuildManifestPackagingTests(unittest.TestCase):
         manifest = bm.build_manifest_object()
         sources = {row["source"] for row in manifest["files"]}
         for rel in (
-            "core/managed-core/content/config/portfolio-control-loop.json",
             "core/managed-core/content/config/routing-registry.json",
             "core/managed-core/content/config/toolchain-manifest.json",
             "core/managed-core/schemas/managed-ownership.schema.json",
             "core/managed-core/schemas/mutation-declaration.schema.json",
-            "core/managed-core/schemas/portfolio-control-loop.schema.json",
             "core/managed-core/schemas/provider-consumer-handoff.schema.json",
             "core/managed-core/schemas/routing-registry.schema.json",
             "core/managed-core/schemas/toolchain-manifest.schema.json",
             "core/managed-core/schemas/transition-receipt.schema.json",
             "scripts/gitops/mutation_guard.py",
-            "scripts/gitops/portfolio_control_loop.py",
             "scripts/gitops/runtime_preflight.py",
         ):
             self.assertIn(rel, sources)

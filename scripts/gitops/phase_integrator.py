@@ -16,11 +16,10 @@ import re
 import subprocess
 import tempfile
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping
 
 try:  # Prefer the package path so unittest and CLI share one class identity.
-    from scripts.gitops.coordinator.state import CandidateIdentity
     from scripts.gitops.delivery_modes import (
         DEFAULT_PHASE_PREFIX,
         MODE_PHASE_INTEGRATION,
@@ -28,7 +27,6 @@ try:  # Prefer the package path so unittest and CLI share one class identity.
         normalize_sha,
     )
 except ModuleNotFoundError:  # pragma: no cover - exercised by package-style tests
-    from coordinator.state import CandidateIdentity
     from delivery_modes import (
         DEFAULT_PHASE_PREFIX,
         MODE_PHASE_INTEGRATION,
@@ -52,6 +50,58 @@ class PhaseLifecycleError(ValueError):
 
     def to_dict(self) -> dict[str, str]:
         return {"code": self.code, "detail": self.detail}
+
+
+def _strict_sha(value: Any, *, field_name: str) -> str:
+    if not isinstance(value, str) or len(value) != 40 or any(c not in "0123456789abcdef" for c in value):
+        raise PhaseLifecycleError("invalid_sha", f"{field_name} must be 40 lowercase hexadecimal characters")
+    return value
+
+
+@dataclass(frozen=True)
+class CandidateIdentity:
+    repository: str
+    source_sha: str
+    git_tree_sha: str
+    dependency_digests: Mapping[str, str]
+    test_profile: str
+
+    def __post_init__(self) -> None:
+        if not self.repository or "/" not in self.repository:
+            raise PhaseLifecycleError("invalid_repository", "repository must be owner/name")
+        _strict_sha(self.source_sha, field_name="sourceSha")
+        _strict_sha(self.git_tree_sha, field_name="gitTreeSha")
+        if self.test_profile not in {"fast", "full", "release"}:
+            raise PhaseLifecycleError("invalid_test_profile", "testProfile must be fast, full, or release")
+        if not isinstance(self.dependency_digests, Mapping):
+            raise PhaseLifecycleError("invalid_dependency_digests", "dependencyDigests must be an object")
+        for path, digest in self.dependency_digests.items():
+            if not isinstance(path, str) or not path or PurePosixPath(path).is_absolute() or path.startswith("../"):
+                raise PhaseLifecycleError("invalid_dependency_path", "dependency digest path must be relative")
+            if not isinstance(digest, str) or len(digest) != 71 or not digest.startswith("sha256:") or any(c not in "0123456789abcdef" for c in digest[7:]):
+                raise PhaseLifecycleError("invalid_dependency_digest", f"invalid digest for {path}")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "repository": self.repository,
+            "sourceSha": self.source_sha,
+            "gitTreeSha": self.git_tree_sha,
+            "dependencyDigests": {key: self.dependency_digests[key] for key in sorted(self.dependency_digests)},
+            "testProfile": self.test_profile,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "CandidateIdentity":
+        if set(payload) != {"repository", "sourceSha", "gitTreeSha", "dependencyDigests", "testProfile"}:
+            raise PhaseLifecycleError("invalid_candidate_identity", "candidate identity fields are incomplete or unknown")
+        return cls(
+            repository=payload["repository"], source_sha=payload["sourceSha"],
+            git_tree_sha=payload["gitTreeSha"], dependency_digests=dict(payload["dependencyDigests"]),
+            test_profile=payload["testProfile"],
+        )
+
+    def canonical(self) -> str:
+        return json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"))
 
 
 @dataclass(frozen=True)

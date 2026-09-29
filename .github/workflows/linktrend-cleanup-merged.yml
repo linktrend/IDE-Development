@@ -2,7 +2,7 @@
 # Sync: scripts/sync-managed-workflows.sh
 #
 # Remote-only cleanup of merged/abandoned work + promote branches.
-# Never deletes local worktrees (Lisa local cleanup is a separate handoff).
+# Never deletes local worktrees (local cleanup is a separate, operator-run step).
 # TRUST BOUNDARY: checkout default branch only; explicit manual apply and built-in token.
 name: LiNKtrend Cleanup Merged Branches
 
