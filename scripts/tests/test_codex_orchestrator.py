@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -119,12 +121,15 @@ class LivenessTests(unittest.TestCase):
         self.assertEqual(co.classify_liveness(1, "connection reset by peer"), "error")
 
 
+@unittest.skipUnless(shutil.which("openssl"), "openssl required")
 class AuthSyncTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp())
-        self.env = mock.patch.dict(os.environ, {"CODEX_HOME": str(self.tmp / "home"), "CODEX_AUTH_STORE": str(self.tmp / "store")})
+        self.env = mock.patch.dict(os.environ, {
+            "CODEX_HOME": str(self.tmp / "home"), "CODEX_AUTH_STORE": str(self.tmp / "store"),
+            co.STORE_KEY_ENV: "test-passphrase",
+        })
         self.env.start()
-        os.environ.pop(co.STORE_KEY_ENV, None)
 
     def tearDown(self) -> None:
         self.env.stop()
@@ -163,16 +168,69 @@ class AuthSyncTests(unittest.TestCase):
         self.assertEqual(result["action"], "none")
         self.assertFalse(result["usable"])
 
-    @unittest.skipUnless(shutil.which("openssl"), "openssl required")
     def test_encrypted_store_round_trip(self) -> None:
-        with mock.patch.dict(os.environ, {co.STORE_KEY_ENV: "test-passphrase"}):
-            co.write_local(auth_blob("2026-09-20T00:00:00Z", "secret-rt"))
-            self.assertEqual(co.sync_auth()["action"], "saved")
-            raw = (self.tmp / "store" / "auth.json.enc").read_bytes()
-            self.assertNotIn(b"secret-rt", raw)
-            co.local_auth_path().unlink()
-            self.assertEqual(co.sync_auth()["action"], "restored")
-            self.assertEqual(json.loads(co.read_local())["tokens"]["refresh_token"], "secret-rt")
+        co.write_local(auth_blob("2026-09-20T00:00:00Z", "secret-rt"))
+        self.assertEqual(co.sync_auth()["action"], "saved")
+        raw = (self.tmp / "store" / "auth.json.enc").read_bytes()
+        self.assertNotIn(b"secret-rt", raw)
+        self.assertFalse((self.tmp / "store" / "auth.json").exists())
+        co.local_auth_path().unlink()
+        self.assertEqual(co.sync_auth()["action"], "restored")
+        self.assertEqual(json.loads(co.read_local())["tokens"]["refresh_token"], "secret-rt")
+
+    def test_missing_key_fails_closed_without_writing_the_store(self) -> None:
+        co.write_local(auth_blob("2026-09-20T00:00:00Z", "secret-rt"))
+        with mock.patch.dict(os.environ):
+            os.environ.pop(co.STORE_KEY_ENV)
+            with self.assertRaises(co.StoreNotReady) as caught:
+                co.sync_auth()
+            self.assertEqual(caught.exception.reason, "auth_store_key_missing")
+            with self.assertRaises(co.StoreNotReady):
+                co.write_store(auth_blob("2026-09-20T00:00:00Z"))
+            code, result = co.login()
+            self.assertEqual((code, result["login"]), (co.EXIT_ASK_CARLOS, "not_started"))
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(co.main(["auth-save"]), co.EXIT_ASK_CARLOS)
+            self.assertIn("auth_store_key_missing", out.getvalue())
+            status = co.auth_status()
+            self.assertFalse(status["storeKeyConfigured"])
+        self.assertFalse((self.tmp / "store").exists() and any((self.tmp / "store").iterdir()))
+
+    def test_plaintext_store_copy_blocks_sync_until_migrated(self) -> None:
+        store = self.tmp / "store"
+        store.mkdir()
+        (store / "auth.json").write_bytes(auth_blob("2026-09-25T00:00:00Z", "plain-rt"))
+        with self.assertRaises(co.StoreNotReady) as caught:
+            co.sync_auth()
+        self.assertEqual(caught.exception.reason, "plaintext_store_copy")
+        self.assertTrue(co.auth_status()["plaintextStorePresent"])
+
+    def test_migrate_encrypts_freshest_copy_and_removes_plaintext(self) -> None:
+        store = self.tmp / "store"
+        co.write_store(auth_blob("2026-09-01T00:00:00Z", "older-enc"))
+        (store / "auth.json").write_bytes(auth_blob("2026-09-25T00:00:00Z", "plain-rt"))
+        (store / ".auth.json.123.tmp").write_bytes(b"leftover plain-rt")
+        result = co.migrate_store()
+        self.assertEqual(result["action"], "migrated")
+        self.assertIn("recommendation", result)
+        self.assertEqual(sorted(p.name for p in store.iterdir()), ["auth.json.enc"])
+        self.assertNotIn(b"plain-rt", (store / "auth.json.enc").read_bytes())
+        self.assertEqual(json.loads(co.read_store())["tokens"]["refresh_token"], "plain-rt")
+        self.assertEqual(co.migrate_store()["action"], "none")
+        self.assertEqual(co.sync_auth()["action"], "restored")
+
+    def test_migrate_keeps_newer_encrypted_copy_and_needs_the_key(self) -> None:
+        store = self.tmp / "store"
+        co.write_store(auth_blob("2026-09-28T00:00:00Z", "newer-enc"))
+        (store / "auth.json").write_bytes(auth_blob("2026-09-01T00:00:00Z", "stale-plain"))
+        with mock.patch.dict(os.environ):
+            os.environ.pop(co.STORE_KEY_ENV)
+            with self.assertRaises(co.StoreNotReady):
+                co.migrate_store()
+            self.assertTrue((store / "auth.json").exists(), "without the key the plaintext copy stays untouched")
+        self.assertEqual(co.migrate_store()["action"], "migrated")
+        self.assertFalse((store / "auth.json").exists())
+        self.assertEqual(json.loads(co.read_store())["tokens"]["refresh_token"], "newer-enc")
 
     def test_status_never_contains_tokens(self) -> None:
         co.write_local(auth_blob("2026-09-20T00:00:00Z", "secret-rt"))
@@ -195,6 +253,13 @@ class GateTests(unittest.TestCase):
             self.assertEqual(code, co.EXIT_ASK_CARLOS)
             self.assertEqual(decision["route"], "stop")
             self.assertTrue(decision["askCarlos"])
+
+    def test_store_not_ready_stops_with_its_own_message(self) -> None:
+        error = co.StoreNotReady("auth_store_key_missing", co.STORE_KEY_MISSING)
+        with mock.patch.object(co, "sync_auth", side_effect=error):
+            code, decision = co.gate()
+        self.assertEqual((code, decision["reasons"]), (co.EXIT_ASK_CARLOS, ["auth_store_key_missing"]))
+        self.assertIn(co.STORE_KEY_ENV, decision["message"])
 
     def test_low_five_hour_allowance_overflows_to_cursor_002(self) -> None:
         code, decision = self.run_gate(rate=limits(window(80, 300), window(10, 10080)))
@@ -226,6 +291,10 @@ FAKE_CODEX = textwrap.dedent(
             print(json.dumps({"id": msg["id"], "result": result}), flush=True)
     elif args[0] == "exec":
         import os, pathlib
+        with open(sys.argv[0] + ".env", "w") as handle:
+            json.dump(dict(os.environ), handle)
+        mode_file = pathlib.Path(sys.argv[0] + ".mode")
+        mode = mode_file.read_text().strip() if mode_file.exists() else ""
         thread = "0123abcd-0000-4000-8000-00000000beef"
         sessions = pathlib.Path(os.environ["CODEX_HOME"]) / "sessions" / "2026" / "09" / "29"
         sessions.mkdir(parents=True, exist_ok=True)
@@ -239,9 +308,9 @@ FAKE_CODEX = textwrap.dedent(
             json.dump(args, handle)
         prompt = sys.stdin.read()
         open(cwd + "/DONE.md", "a").write("done\\n")
-        subprocess.run(["git", "add", "DONE.md"], cwd=cwd, check=True)
-        subprocess.run(["git", "commit", "-qm", "IDE-9: done"], cwd=cwd, check=True)
         open(cwd + "/UNCOMMITTED.md", "w").write("wip\\n")
+        if mode == "tamper-gitlink":
+            open(cwd + "/.git", "w").write("gitdir: /tmp/attacker-controlled-git-dir\\n")
         print(json.dumps({"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 5}}))
         open(out, "w").write("Lessons:\\n- none\\nCOMMIT_MESSAGE: add wip notes\\nMODEL_SELF_REPORT: fake-luna medium\\n")
     """
@@ -249,12 +318,15 @@ FAKE_CODEX = textwrap.dedent(
 
 
 class RunIssueTests(unittest.TestCase):
+    STORE_SECRET = "sentinel-store-key"
+    DISPATCH_SECRET = "sentinel-cursor-002-key"
+
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp())
         origin, seed = self.tmp / "origin.git", self.tmp / "seed"
         subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True)
         subprocess.run(["git", "init", "-q", "-b", "development", str(seed)], check=True)
-        for key, value in (("user.name", "t"), ("user.email", "t@example.com")):
+        for key, value in (("user.name", "t"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")):
             subprocess.run(["git", "config", key, value], cwd=seed, check=True)
         (seed / "README.md").write_text("seed\n")
         subprocess.run(["git", "add", "."], cwd=seed, check=True)
@@ -273,6 +345,9 @@ class RunIssueTests(unittest.TestCase):
             "IDE_CODEX_STATE": str(self.tmp / "state"),
             "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com",
+            co.STORE_KEY_ENV: self.STORE_SECRET,
+            "CURSOR_002_API_KEY": self.DISPATCH_SECRET,
+            "IDE_LEDGER_DATABASE_URL": "postgres://ledger-secret",
         })
         self.env.start()
 
@@ -299,7 +374,8 @@ class RunIssueTests(unittest.TestCase):
         self.assertEqual((record["requestedModel"], record["requestedEffort"]), ("gpt-6-luna", "high"))
         self.assertEqual(record["selfReport"], "fake-luna medium")
         self.assertEqual((record["cliModel"], record["cliEffort"]), ("gpt-6-luna", "high"))
-        self.assertEqual(record["newCommits"], 2)
+        self.assertEqual(record["newCommits"], 1)
+        self.assertFalse(record["gitlinkTampered"])
         self.assertEqual(record["runnerCommit"], "IDE-9: add wip notes")
         self.assertTrue(record["pushed"])
         self.assertEqual(record["usage"], {"input_tokens": 10, "output_tokens": 5})
@@ -308,9 +384,60 @@ class RunIssueTests(unittest.TestCase):
         argv = json.loads(Path(str(self.fake) + ".args").read_text())
         self.assertIn('model_reasoning_effort="high"', argv)
         self.assertEqual(argv[argv.index("-s") + 1], "workspace-write")
+        self.assertNotIn("--add-dir", argv)
         self.assertNotIn("sandbox_workspace_write.network_access=true", argv)
         log = Path(record["runLog"]).read_text().splitlines()
         self.assertEqual(json.loads(log[-1])["issue"], "IDE-9")
+
+    def install_sentinel_hooks(self) -> Path:
+        sentinel = self.tmp / "sentinel"
+        hook = f"#!/bin/sh\nprintf '%s|%s' \"${co.STORE_KEY_ENV}\" \"$CURSOR_002_API_KEY\" > '{sentinel}'\n"
+        custom = self.tmp / "custom-hooks"
+        custom.mkdir()
+        for hooks_dir in (self.repo / ".git" / "hooks", custom):
+            for name in ("pre-commit", "commit-msg", "post-commit", "pre-push", "reference-transaction"):
+                path = hooks_dir / name
+                path.write_text(hook)
+                path.chmod(0o755)
+        return sentinel
+
+    def test_control_hook_recovers_secrets_with_plain_git(self) -> None:
+        sentinel = self.install_sentinel_hooks()
+        subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "control"], cwd=self.repo, check=True, capture_output=True)
+        self.assertEqual(sentinel.read_text(), f"{self.STORE_SECRET}|{self.DISPATCH_SECRET}")
+
+    def test_runner_git_runs_no_hooks_and_leaks_no_secrets(self) -> None:
+        sentinel = self.install_sentinel_hooks()
+        for hooks_path in (None, str(self.tmp / "custom-hooks")):
+            if hooks_path:
+                subprocess.run(["git", "config", "core.hooksPath", hooks_path], cwd=self.repo, check=True)
+            slug = "hooks-default" if hooks_path is None else "hooks-custom"
+            code, record = co.run_issue(self.args(slug=slug))
+            self.assertEqual(code, co.EXIT_CODEX, record)
+            self.assertTrue(record["pushed"])
+            self.assertEqual(record["runnerCommit"], "IDE-9: add wip notes")
+            self.assertFalse(sentinel.exists(), "a repository hook ran during runner git calls")
+
+    def test_codex_gets_only_allowlisted_env(self) -> None:
+        co.run_issue(self.args())
+        env = json.loads(Path(str(self.fake) + ".env").read_text())
+        for name in (co.STORE_KEY_ENV, "CURSOR_002_API_KEY", "IDE_LEDGER_DATABASE_URL", "CODEX_AUTH_STORE", "IDE_CODEX_STATE"):
+            self.assertNotIn(name, env)
+        self.assertEqual(env["CODEX_HOME"], str(self.tmp / "home"))
+        self.assertIn("PATH", env)
+        self.assertNotIn(self.STORE_SECRET, json.dumps(env))
+
+    def test_tampered_gitlink_is_restored_and_never_pushed(self) -> None:
+        Path(str(self.fake) + ".mode").write_text("tamper-gitlink")
+        code, record = co.run_issue(self.args(slug="tamper"))
+        self.assertEqual(code, co.EXIT_ATTEMPT_FAILED)
+        self.assertTrue(record["gitlinkTampered"])
+        self.assertFalse(record["pushed"])
+        self.assertEqual(record["result"], "failed")
+        gitlink = (self.tmp / "wt" / "IDE-9-tamper" / ".git").read_text()
+        self.assertNotIn("attacker", gitlink)
+        remote = subprocess.run(["git", "ls-remote", "--heads", str(self.origin), "issue/IDE-9-tamper"], capture_output=True, text=True)
+        self.assertEqual(remote.stdout.strip(), "")
 
     def test_rerun_reuses_pushed_branch_for_repair(self) -> None:
         co.run_issue(self.args())

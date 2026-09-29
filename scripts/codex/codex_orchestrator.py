@@ -5,6 +5,7 @@ Subcommands:
   auth-status     show local/store sign-in state (never prints token contents)
   auth-restore    sync ~/.codex/auth.json with the private store (newest copy wins)
   auth-save       same sync; run after every Codex invocation
+  migrate         encrypt a legacy plaintext store auth.json, then securely remove it
   login           interactive device-code sign-in, then save to the private store
   liveness        `codex cloud list --json --limit 1`
   allowance       app-server `account/rateLimits/read`, two-window rule
@@ -16,8 +17,13 @@ Subcommands:
 Exit codes: 0 = dispatch to Codex, 10 = overflow to cursor-002,
 20 = stop and ask Carlos to sign in again, 1 = Codex attempt failed, 2 = usage/tooling error.
 
-The private store is a FUSE mount that ignores chmod, so the store copy is readable by every
-agent sharing that store. Set CODEX_AUTH_STORE_KEY (a Cursor secret) to keep it encrypted at rest.
+The private store is a FUSE mount that ignores chmod, so any copy there is readable by every
+agent sharing that store. The store copy is therefore always encrypted with CODEX_AUTH_STORE_KEY
+(a Cursor secret); without the key every auth command fails closed, and there is no plaintext mode.
+
+Git and Codex subprocesses run with an allowlisted environment (no dispatch, Ledger, hub or store
+keys) and repository hooks disabled. Codex gets no write access to the git common dir; the runner
+commits the worktree afterwards through the git dir it recorded before Codex started.
 """
 
 from __future__ import annotations
@@ -55,6 +61,27 @@ ASK_CARLOS = (
     "Codex sign-in is missing or expired. Stop Codex dispatch and ask Carlos to approve a new "
     f"device-code sign-in (orchestrator runs: {LOGIN_COMMAND})."
 )
+MIGRATE_COMMAND = "python3 scripts/codex/codex_orchestrator.py migrate"
+STORE_KEY_MISSING = (
+    f"{STORE_KEY_ENV} is not set. The Codex sign-in is only ever stored encrypted: ask Carlos to add "
+    f"{STORE_KEY_ENV} as a Cursor secret for this orchestrator, then run {MIGRATE_COMMAND}."
+)
+PLAINTEXT_PRESENT = (
+    f"A plaintext auth.json is in the auth store. Run {MIGRATE_COMMAND} to encrypt it and remove the "
+    "plaintext copy, then sign in again (login) to rotate the exposed refresh token."
+)
+ENC_STORE_NAME = "auth.json.enc"
+PLAIN_STORE_NAME = "auth.json"
+BASE_ENV_ALLOW = (
+    "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LANGUAGE", "TZ", "TMPDIR", "TERM",
+    "SSH_AUTH_SOCK", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS",
+    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy",
+)
+GIT_ENV_ALLOW = BASE_ENV_ALLOW + (
+    "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL",
+)
+CODEX_ENV_ALLOW = BASE_ENV_ALLOW + ("CODEX_HOME", "RUST_LOG")
+SAFE_GIT_CONFIG = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
 LOGGED_OUT_RE = re.compile(
     r"not signed in|not logged in|log ?in again|sign ?in again|run 'codex login'|unauthori[sz]ed|\b401\b"
     r"|refresh[_ ]token|token (?:is |has )?(?:expired|revoked|invalid)|authentication required",
@@ -72,6 +99,29 @@ class ToolError(RuntimeError):
 
 class LoggedOut(RuntimeError):
     pass
+
+
+class StoreNotReady(ToolError):
+    """The encrypted auth store can't be used: key missing or a plaintext copy is present."""
+
+    def __init__(self, reason: str, message: str) -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+def _allowlisted_env(names: tuple[str, ...], extra: dict[str, str] | None = None) -> dict[str, str]:
+    env = {name: os.environ[name] for name in names if name in os.environ}
+    env.update({k: v for k, v in os.environ.items() if k.startswith("LC_")})
+    env.update(extra or {})
+    return env
+
+
+def git_env() -> dict[str, str]:
+    return _allowlisted_env(GIT_ENV_ALLOW)
+
+
+def codex_env() -> dict[str, str]:
+    return _allowlisted_env(CODEX_ENV_ALLOW, {"CODEX_HOME": str(codex_home())})
 
 
 def now_iso() -> str:
@@ -148,15 +198,32 @@ def local_auth_path() -> Path:
 
 
 def store_auth_path() -> Path:
-    name = "auth.json.enc" if os.environ.get(STORE_KEY_ENV) else "auth.json"
-    return store_dir() / name
+    return store_dir() / ENC_STORE_NAME
+
+
+def plaintext_store_path() -> Path:
+    return store_dir() / PLAIN_STORE_NAME
+
+
+def store_key() -> str:
+    key = os.environ.get(STORE_KEY_ENV)
+    if not key:
+        raise StoreNotReady("auth_store_key_missing", STORE_KEY_MISSING)
+    return key
+
+
+def require_encrypted_store() -> None:
+    store_key()
+    if plaintext_store_path().exists():
+        raise StoreNotReady("plaintext_store_copy", PLAINTEXT_PRESENT)
 
 
 def _openssl(data: bytes, decrypt: bool) -> bytes:
     cmd = ["openssl", "enc", "-aes-256-cbc", "-pbkdf2", "-iter", "200000", "-salt", "-pass", f"env:{STORE_KEY_ENV}"]
     if decrypt:
         cmd.append("-d")
-    proc = subprocess.run(cmd, input=data, capture_output=True, check=False)
+    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), STORE_KEY_ENV: store_key()}
+    proc = subprocess.run(cmd, input=data, capture_output=True, env=env, check=False)
     if proc.returncode != 0:
         raise ToolError("openssl failed on the auth store copy (wrong CODEX_AUTH_STORE_KEY?)")
     return proc.stdout
@@ -171,8 +238,7 @@ def read_store() -> bytes | None:
     path = store_auth_path()
     if not path.exists():
         return None
-    raw = path.read_bytes()
-    return _openssl(raw, decrypt=True) if os.environ.get(STORE_KEY_ENV) else raw
+    return _openssl(path.read_bytes(), decrypt=True)
 
 
 def _atomic_write(path: Path, data: bytes) -> None:
@@ -197,8 +263,56 @@ def write_local(data: bytes) -> None:
 
 
 def write_store(data: bytes) -> None:
-    payload = _openssl(data, decrypt=False) if os.environ.get(STORE_KEY_ENV) else data
-    _atomic_write(store_auth_path(), payload)
+    _atomic_write(store_auth_path(), _openssl(data, decrypt=False))
+
+
+def secure_remove(path: Path) -> None:
+    """Overwrite with random bytes, fsync, then unlink. Best effort on copy-on-write/FUSE storage."""
+    size = path.stat().st_size
+    with open(path, "r+b") as handle:
+        handle.write(os.urandom(max(size, 1)))
+        handle.flush()
+        os.fsync(handle.fileno())
+        handle.truncate(0)
+        handle.flush()
+        os.fsync(handle.fileno())
+    path.unlink()
+
+
+def migrate_store() -> dict[str, Any]:
+    """Encrypt a legacy plaintext store auth.json (keeping the freshest usable copy), then remove it."""
+    store_key()
+    with auth_lock():
+        plain = plaintext_store_path()
+        leftovers = sorted(store_dir().glob(f".{PLAIN_STORE_NAME}.*.tmp")) if store_dir().exists() else []
+        result: dict[str, Any] = {"plaintextFound": plain.exists(), "store": str(store_auth_path())}
+        if not plain.exists() and not leftovers:
+            result["action"] = "none"
+            return result
+        candidates = []
+        if plain.exists():
+            candidates.append(plain.read_bytes())
+        if store_auth_path().exists():
+            candidates.append(read_store() or b"")
+        usable = [raw for raw in candidates if auth_usable(parse_auth(raw))]
+        if usable:
+            best = max(usable, key=lambda raw: auth_freshness(parse_auth(raw)))
+            if best != (read_store() if store_auth_path().exists() else None):
+                write_store(best)
+            if read_store() != best:
+                raise ToolError("encrypted store copy failed read-back; plaintext copy kept")
+            result["action"] = "migrated"
+        else:
+            result["action"] = "removed_unusable_plaintext"
+        for path in ([plain] if plain.exists() else []) + leftovers:
+            secure_remove(path)
+        result["removed"] = [p.name for p in ([plain] if result["plaintextFound"] else []) + leftovers]
+        if result["plaintextFound"]:
+            result["recommendation"] = (
+                "The plaintext copy was readable by every agent sharing the store. Sign in again "
+                f"({LOGIN_COMMAND}) to rotate the refresh token."
+            )
+        return result
 
 
 @contextlib.contextmanager
@@ -219,6 +333,7 @@ def sync_auth() -> dict[str, Any]:
     Never re-seeds a newer local file from an older store copy, so concurrent runs on this VM
     cannot roll back a token that Codex has just rotated.
     """
+    require_encrypted_store()
     with auth_lock():
         local_raw, store_raw = read_local(), read_store()
         local, store = parse_auth(local_raw), parse_auth(store_raw)
@@ -239,7 +354,7 @@ def sync_auth() -> dict[str, Any]:
             "usable": auth_usable(final),
             "lastRefresh": (final or {}).get("last_refresh"),
             "store": str(store_auth_path()),
-            "encryptedAtRest": bool(os.environ.get(STORE_KEY_ENV)),
+            "encryptedAtRest": True,
         }
 
 
@@ -254,7 +369,8 @@ def auth_status() -> dict[str, Any]:
         "local": auth_summary(parse_auth(local_raw), local_raw is not None),
         "store": auth_summary(parse_auth(store_raw), store_raw is not None),
         "storePath": str(store_auth_path()),
-        "encryptedAtRest": bool(os.environ.get(STORE_KEY_ENV)),
+        "storeKeyConfigured": bool(os.environ.get(STORE_KEY_ENV)),
+        "plaintextStorePresent": plaintext_store_path().exists(),
     }
     if store_error:
         status["storeError"] = store_error
@@ -273,6 +389,7 @@ class AppServer:
         self.timeout = timeout
         self.proc = subprocess.Popen(
             [codex_bin(), "app-server"],
+            env=codex_env(),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -468,6 +585,7 @@ def liveness() -> dict[str, Any]:
     try:
         proc = subprocess.run(
             [codex_bin(), "cloud", "list", "--json", "--limit", "1"],
+            env=codex_env(),
             capture_output=True,
             text=True,
             timeout=90,
@@ -484,7 +602,10 @@ def liveness() -> dict[str, Any]:
 def gate(threshold: int = DEFAULT_THRESHOLD) -> tuple[int, dict[str, Any]]:
     decision: dict[str, Any] = {"checkedAt": now_iso(), "threshold": threshold}
     try:
-        decision["auth"] = sync_auth()
+        try:
+            decision["auth"] = sync_auth()
+        except StoreNotReady as exc:
+            return _stop(decision, exc.reason, str(exc))
         if not decision["auth"]["usable"]:
             return _stop(decision, "no_usable_sign_in")
         decision["liveness"] = liveness()
@@ -509,8 +630,8 @@ def gate(threshold: int = DEFAULT_THRESHOLD) -> tuple[int, dict[str, Any]]:
             decision["authAfter"] = sync_auth()
 
 
-def _stop(decision: dict[str, Any], reason: str) -> tuple[int, dict[str, Any]]:
-    decision.update(route="stop", askCarlos=True, reasons=[reason], message=ASK_CARLOS)
+def _stop(decision: dict[str, Any], reason: str, message: str = ASK_CARLOS) -> tuple[int, dict[str, Any]]:
+    decision.update(route="stop", askCarlos=True, reasons=[reason], message=message)
     return EXIT_ASK_CARLOS, decision
 
 
@@ -522,8 +643,14 @@ def _overflow(decision: dict[str, Any], reasons: list[str]) -> tuple[int, dict[s
 # --- worktree runner ---------------------------------------------------------------------
 
 
-def git(*args: str, cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=False)
+def git(
+    *args: str, cwd: Path, check: bool = True, git_dir: Path | None = None, work_tree: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    location = []
+    if git_dir is not None:
+        location = [f"--git-dir={git_dir}", f"--work-tree={work_tree or cwd}"]
+    cmd = ["git", *SAFE_GIT_CONFIG, *location, *args]
+    proc = subprocess.run(cmd, cwd=cwd, env=git_env(), capture_output=True, text=True, check=False)
     if check and proc.returncode != 0:
         raise ToolError(f"git {' '.join(args)} failed: {proc.stderr.strip()[:500]}")
     return proc
@@ -612,12 +739,26 @@ def session_readback(events_path: Path) -> dict[str, Any]:
     return readback
 
 
-def push_branch(worktree: Path, branch: str) -> bool:
+def push_branch(worktree: Path, branch: str, git_dir: Path | None = None) -> bool:
     for delay in (0, 4, 8, 16, 32):
         time.sleep(delay)
-        if git("push", "--quiet", "-u", "origin", branch, cwd=worktree, check=False).returncode == 0:
+        if git("push", "--quiet", "-u", "origin", branch, cwd=worktree, git_dir=git_dir, check=False).returncode == 0:
             return True
     return False
+
+
+def restore_gitlink(gitlink: Path, before: bytes | None) -> bool:
+    """Put back the worktree's `.git` link if Codex changed it. Returns True when it was tampered with."""
+    if before is None:
+        return False
+    if gitlink.is_file() and not gitlink.is_symlink() and gitlink.read_bytes() == before:
+        return False
+    if gitlink.is_dir() and not gitlink.is_symlink():
+        shutil.rmtree(gitlink)
+    elif gitlink.exists() or gitlink.is_symlink():
+        gitlink.unlink()
+    gitlink.write_bytes(before)
+    return True
 
 
 def append_run_log(record: dict[str, Any], path: Path | None = None) -> Path:
@@ -648,6 +789,13 @@ def run_issue(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     prompt = build_prompt(Path(args.prompt_file).read_text(), args.issue, branch, worktree)
     (run_dir / "prompt.md").write_text(prompt)
     common_dir = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=worktree).stdout.strip())
+    # Pinned before Codex runs: Codex can rewrite files in the worktree, including its `.git` link.
+    git_dir = Path(git("rev-parse", "--absolute-git-dir", cwd=worktree).stdout.strip())
+    for meta in (common_dir, git_dir):
+        if meta == worktree.resolve() or worktree.resolve() in meta.parents:
+            raise ToolError(f"git metadata {meta} is inside the Codex-writable worktree {worktree}")
+    gitlink = worktree / ".git"
+    gitlink_before = gitlink.read_bytes() if gitlink.is_file() else None
     cmd = [
         codex_bin(), "exec",
         "-C", str(worktree),
@@ -655,7 +803,6 @@ def run_issue(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "-c", f'model_reasoning_effort="{resolved["effort"]}"',
         "-c", 'approval_policy="never"',
         "-s", "workspace-write",
-        "--add-dir", str(common_dir),
         "--json",
         "-o", str(run_dir / "last-message.md"),
     ]
@@ -678,7 +825,10 @@ def run_issue(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     try:
         with open(run_dir / "events.jsonl", "w") as out, open(run_dir / "stderr.log", "w") as err:
             try:
-                proc = subprocess.run(cmd, input=prompt, stdout=out, stderr=err, text=True, timeout=args.timeout, check=False)
+                proc = subprocess.run(
+                    cmd, input=prompt, stdout=out, stderr=err, text=True, env=codex_env(),
+                    timeout=args.timeout, check=False,
+                )
                 record["codexExit"] = proc.returncode
             except subprocess.TimeoutExpired:
                 record["codexExit"] = 124
@@ -688,24 +838,30 @@ def run_issue(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     record["durationSec"] = round(time.monotonic() - started, 1)
     last = run_dir / "last-message.md"
     last_text = last.read_text(errors="replace") if last.exists() else ""
-    if git("status", "--porcelain", cwd=worktree).stdout.strip():
+    record["gitlinkTampered"] = restore_gitlink(gitlink, gitlink_before)
+    pinned = {"cwd": worktree, "git_dir": git_dir, "work_tree": worktree}
+    if git("status", "--porcelain", **pinned).stdout.strip():
         summary = COMMIT_MESSAGE_RE.search(last_text) if record["codexExit"] == 0 else None
         message = f"{args.issue}: {summary.group(1).strip()}" if summary else f"{args.issue}: WIP autosave by codex runner"
-        git("add", "-A", cwd=worktree)
-        committed = git("commit", "--quiet", "-m", message, cwd=worktree, check=False)
+        git("add", "-A", **pinned)
+        committed = git("commit", "--quiet", "-m", message, check=False, **pinned)
         record["runnerCommit"] = message if committed.returncode == 0 else None
-    head_after = git("rev-parse", "HEAD", cwd=worktree).stdout.strip()
+    head_after = git("rev-parse", "HEAD", **pinned).stdout.strip()
     record["head"] = head_after
-    record["newCommits"] = int(git("rev-list", "--count", f"{head_before}..{head_after}", cwd=worktree).stdout.strip() or 0)
+    record["newCommits"] = int(git("rev-list", "--count", f"{head_before}..{head_after}", **pinned).stdout.strip() or 0)
     record["pushed"] = False
-    if not args.no_push and head_after != head_before:
-        record["pushed"] = push_branch(worktree, branch)
+    if not args.no_push and head_after != head_before and not record["gitlinkTampered"]:
+        record["pushed"] = push_branch(worktree, branch, git_dir)
     match = SELF_REPORT_RE.search(last_text)
     record["selfReport"] = match.group(1).strip() if match else None
     record.update(session_readback(run_dir / "events.jsonl"))
     record["usage"] = extract_usage(run_dir / "events.jsonl")
     record["endedAt"] = now_iso()
-    ok = record["codexExit"] == 0 and (args.no_push or head_after == head_before or record["pushed"])
+    ok = (
+        record["codexExit"] == 0
+        and not record["gitlinkTampered"]
+        and (args.no_push or head_after == head_before or record["pushed"])
+    )
     record["result"] = "success" if ok else "failed"
     record["runLog"] = str(append_run_log(record))
     return (EXIT_CODEX if ok else EXIT_ATTEMPT_FAILED), record
@@ -794,7 +950,11 @@ def parallel_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
 
 
 def login() -> tuple[int, dict[str, Any]]:
-    proc = subprocess.run([codex_bin(), "login", "--device-auth"], check=False)
+    try:
+        require_encrypted_store()
+    except StoreNotReady as exc:
+        return EXIT_ASK_CARLOS, {"login": "not_started", "reason": exc.reason, "message": str(exc)}
+    proc = subprocess.run([codex_bin(), "login", "--device-auth"], env=codex_env(), check=False)
     if proc.returncode != 0:
         return EXIT_ASK_CARLOS, {"login": "failed", "exit": proc.returncode}
     with auth_lock():
@@ -810,7 +970,7 @@ def login() -> tuple[int, dict[str, Any]]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("auth-status", "auth-restore", "auth-save", "login", "liveness"):
+    for name in ("auth-status", "auth-restore", "auth-save", "migrate", "login", "liveness"):
         sub.add_parser(name)
     for name in ("allowance", "gate"):
         checker = sub.add_parser(name)
@@ -848,8 +1008,13 @@ def dispatch(args: argparse.Namespace) -> tuple[int, Any]:
     command = args.command
     if command == "auth-status":
         return EXIT_CODEX, auth_status()
-    if command in ("auth-restore", "auth-save"):
-        result = sync_auth()
+    if command in ("auth-restore", "auth-save", "migrate"):
+        try:
+            result = migrate_store() if command == "migrate" else sync_auth()
+        except StoreNotReady as exc:
+            return EXIT_ASK_CARLOS, {"askCarlos": exc.reason == "auth_store_key_missing", "reason": exc.reason, "message": str(exc)}
+        if command == "migrate":
+            return EXIT_CODEX, result
         return (EXIT_CODEX if result["usable"] else EXIT_ASK_CARLOS), result
     if command == "login":
         return login()

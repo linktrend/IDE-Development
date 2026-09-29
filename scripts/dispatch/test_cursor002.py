@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 from typing import Any
 
@@ -163,6 +165,65 @@ class ApiFlowTests(unittest.TestCase):
     def test_missing_key(self) -> None:
         with self.assertRaises(c.DispatchError):
             c.Client("")
+
+
+class GitIsolationTests(unittest.TestCase):
+    """Reviewer reproduction: a local pre-push hook must never see CURSOR_002_API_KEY."""
+
+    SECRET = "sentinel-cursor-002-key"
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmp.name)
+        self.origin, self.clone, self.sentinel = tmp / "origin.git", tmp / "clone", tmp / "sentinel"
+        run = lambda *a, cwd=None: subprocess.run(a, cwd=cwd, check=True, capture_output=True)  # noqa: E731
+        run("git", "init", "-q", "--bare", str(self.origin))
+        run("git", "init", "-q", "-b", "development", str(self.clone))
+        run("git", "config", "user.name", "t", cwd=self.clone)
+        run("git", "config", "user.email", "t@example.com", cwd=self.clone)
+        run("git", "config", "commit.gpgsign", "false", cwd=self.clone)
+        (self.clone / "README.md").write_text("seed\n")
+        run("git", "add", ".", cwd=self.clone)
+        run("git", "commit", "-qm", "seed", cwd=self.clone)
+        run("git", "remote", "add", "origin", str(self.origin), cwd=self.clone)
+        run("git", "push", "-q", "origin", "development", cwd=self.clone)
+        hook = f"#!/bin/sh\nprintf '%s' \"$CURSOR_002_API_KEY\" > '{self.sentinel}'\n"
+        custom = tmp / "custom-hooks"
+        custom.mkdir()
+        for hooks_dir in (self.clone / ".git" / "hooks", custom):
+            path = hooks_dir / "pre-push"
+            path.write_text(hook)
+            path.chmod(0o755)
+        self.custom_hooks = custom
+        self.env = {**os.environ, "CURSOR_002_API_KEY": self.SECRET}
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_control_hook_recovers_secret_with_plain_git(self) -> None:
+        subprocess.run(["git", "push", "-q", "origin", "development:refs/heads/control"], cwd=self.clone,
+                       env=self.env, check=True, capture_output=True)
+        self.assertEqual(self.sentinel.read_text(), self.SECRET)
+
+    def test_ensure_remote_branch_runs_no_hooks_and_no_secrets(self) -> None:
+        for hooks_path in (None, str(self.custom_hooks)):
+            if hooks_path:
+                subprocess.run(["git", "config", "core.hooksPath", hooks_path], cwd=self.clone, check=True)
+            branch = "issue/IDE-99-hook-check" if not hooks_path else "issue/IDE-98-hook-check"
+            with unittest.mock.patch.dict(os.environ, {"CURSOR_002_API_KEY": self.SECRET}):
+                sha = c.ensure_remote_branch(str(self.origin), branch, "development", git_dir=str(self.clone))
+            listed = subprocess.run(["git", "ls-remote", "--heads", str(self.origin), branch],
+                                    capture_output=True, text=True, check=True).stdout
+            self.assertIn(sha, listed)
+            self.assertFalse(self.sentinel.exists(), "a repository hook ran during dispatch git calls")
+
+    def test_git_env_is_allowlisted(self) -> None:
+        with unittest.mock.patch.dict(os.environ, {"CURSOR_002_API_KEY": self.SECRET, "IDE_LEDGER_DATABASE_URL": "x",
+                                                   "CODEX_AUTH_STORE_KEY": "y", "GIT_CONFIG_PARAMETERS": "z"}):
+            env = c.git_env()
+        for name in ("CURSOR_002_API_KEY", "IDE_LEDGER_DATABASE_URL", "CODEX_AUTH_STORE_KEY", "GIT_CONFIG_PARAMETERS"):
+            self.assertNotIn(name, env)
+        self.assertIn("PATH", env)
 
 
 if __name__ == "__main__":

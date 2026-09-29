@@ -208,9 +208,25 @@ def ensure_remote_branch(repo_url: str, branch: str, base_ref: str, *, git_dir: 
     return sha
 
 
+GIT_ENV_ALLOW = (
+    "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LANGUAGE", "TZ", "TMPDIR", "TERM",
+    "SSH_AUTH_SOCK", "SSL_CERT_FILE", "SSL_CERT_DIR",
+    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy",
+    "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL",
+)
+SAFE_GIT_CONFIG = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
+
+
+def git_env() -> dict[str, str]:
+    """Allowlisted environment for git: never the API key or other orchestrator secrets."""
+    env = {name: os.environ[name] for name in GIT_ENV_ALLOW if name in os.environ}
+    env.update({k: v for k, v in os.environ.items() if k.startswith("LC_")})
+    return env
+
+
 def _git(args: Sequence[str], git_dir: str | None) -> str:
-    cmd = ["git"] + (["-C", git_dir] if git_dir else []) + list(args)
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    cmd = ["git", *SAFE_GIT_CONFIG] + (["-C", git_dir] if git_dir else []) + list(args)
+    proc = subprocess.run(cmd, capture_output=True, text=True, env=git_env(), check=False)
     if proc.returncode != 0:
         raise DispatchError("git_failed", f"git {' '.join(args[:2])} failed", stderr=proc.stderr[-500:])
     return proc.stdout

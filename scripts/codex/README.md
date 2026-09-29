@@ -14,7 +14,9 @@ The idempotent installer places Codex under `~/.local` by default, creates `~/.c
 
 ## Sign-in and auth sync
 
-Run device-code sign-in with `python3 scripts/codex/codex_orchestrator.py login`. Carlos must approve the device code. The command saves the usable sign-in to the private store and checks Codex liveness. By default, the gate syncs `auth.json` with the store before dispatch; the runner syncs it after every Codex attempt. The newest refreshed copy wins. Never print or commit `auth.json` or its store copy. `CODEX_AUTH_STORE_KEY` encrypts the store copy at rest.
+Run device-code sign-in with `python3 scripts/codex/codex_orchestrator.py login`. Carlos must approve the device code. The command saves the usable sign-in to the private store and checks Codex liveness. By default, the gate syncs `auth.json` with the store before dispatch; the runner syncs it after every Codex attempt. The newest refreshed copy wins. Never print or commit `auth.json` or its store copy.
+
+The store copy is always encrypted (`auth.json.enc`) with `CODEX_AUTH_STORE_KEY`, a Cursor secret. It is required: the Project store is shared with other agents, so without the key every auth command, `login` and `gate` fail closed (exit 20), and there is no plaintext mode. If a legacy plaintext `auth.json` is in the store, sync refuses to run until you run `python3 scripts/codex/codex_orchestrator.py migrate`. That command encrypts the freshest usable copy, verifies the encrypted copy reads back, and overwrites and deletes the plaintext file. Then run `login` again to rotate the refresh token, because the plaintext copy was readable by other agents.
 
 ## Routing gate
 
@@ -39,7 +41,7 @@ python3 scripts/codex/codex_orchestrator.py run \
   --issue IDE-42 --slug update-readme --prompt-file /tmp/ide-42-prompt.md
 ```
 
-The runner creates a per-Issue Git worktree, commits changed files, and pushes the branch by default. Use `--tier sol` for Sol or `--no-push` to skip pushing.
+The runner creates a per-Issue Git worktree, commits changed files, and pushes the branch by default. Codex runs sandboxed with write access to the worktree only; it gets no write access to the Git common directory and cannot commit. After Codex exits, the runner commits through the Git directory it recorded before the run. If Codex changed the worktree's `.git` link, the runner restores it, fails the attempt and does not push. Git and Codex run with an allowlisted environment: no dispatch, Ledger, hub or store keys are passed. Repository hooks are disabled (`core.hooksPath=/dev/null`). Use `--tier sol` for Sol or `--no-push` to skip pushing.
 
 ## Parallel test
 
@@ -50,7 +52,7 @@ The runner creates a per-Issue Git worktree, commits changed files, and pushes t
 | Variable | Purpose |
 | --- | --- |
 | `CODEX_AUTH_STORE` | Auth store directory (default `/cursor/stores/self/private/codex`) |
-| `CODEX_AUTH_STORE_KEY` | Encrypt/decrypt the stored auth copy |
+| `CODEX_AUTH_STORE_KEY` | **Required.** Encrypts/decrypts the stored auth copy; never passed to Codex or Git |
 | `IDE_CODEX_RUN_LOG` | Run log path (default `runs.jsonl` in the state directory) |
 | `IDE_CODEX_STATE` | State directory (default `~/.local/state/ide-codex`) |
 | `CODEX_BIN` | Codex executable path override |

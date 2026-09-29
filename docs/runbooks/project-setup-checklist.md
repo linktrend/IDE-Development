@@ -17,7 +17,10 @@ Most of this happens once for the whole studio; items 3–5 happen once per new 
 3. **Create the Cursor Project and its orchestrator** on the chosen frontier model, when the rollout order says so.
 4. **Register the repo's environment on the cursor-002 account.** In the cursor-002 Cursor dashboard, open Cloud Agents → Environments, create an environment for the repo, and let it finish its first build. The pilot showed this cannot be done by API, and without it cursor-002 workers start on a bare machine with none of the repo's tools. (The same is true on cursor-001 for a repo that has never had an environment.)
 5. **Approve the Codex sign-in for the new orchestrator.** The orchestrator shows you a short code and a web address. Open the address, sign in to ChatGPT, and type the code. It takes about a minute. Do this once per orchestrator; the sign-in is never copied to another one. If Codex ever says the sign-in expired, the orchestrator stops and asks you to do this again.
-6. **Add secrets in the Cursor Dashboard** (Cloud Agents → Secrets) when asked: `CURSOR_002_API_KEY` (already there for IDE-Development), and later the Ledger login, the orchestrator's Tailscale pass and the hub key.
+6. **Add secrets in the Cursor Dashboard** (Cloud Agents → Secrets) when asked:
+   - `CODEX_AUTH_STORE_KEY`, a long random passphrase used only by this orchestrator. It is required before the Codex sign-in, because the sign-in is only ever saved encrypted.
+   - `CURSOR_002_API_KEY`, already there for IDE-Development.
+   - Later: the Ledger login, the orchestrator's Tailscale pass and the hub key.
 7. **Report Cursor spend by hand** when the orchestrator asks. The Cursor API only reports tokens, not money.
 
 You do **not** approve merges or releases.
@@ -56,16 +59,19 @@ Work through these in order and tick them in the setup Phase Issue. Each section
 ### B4. Codex on the orchestrator VM (pilot 0.4)
 
 - [ ] `bash scripts/codex/install.sh` (or rely on `scripts/setup.sh`).
+- [ ] `CODEX_AUTH_STORE_KEY` is set (Part A, item 6). It is mandatory: without it every auth command, `login` and `gate` stop with exit 20. There is no plaintext mode.
+- [ ] If the store still holds a plaintext `auth.json` from before this rule, run `python3 scripts/codex/codex_orchestrator.py migrate`. Then run `login` again to rotate the refresh token, because the plaintext copy was readable by other agents.
 - [ ] **Sign-in**, in a tmux session so the prompt survives:
   1. `python3 scripts/codex/codex_orchestrator.py login`
   2. Send Carlos the address and code it prints (Part A, item 5) and wait.
-  3. On success it saves `auth.json` to the private store (`$CODEX_AUTH_STORE`, default `/cursor/stores/self/private/codex`, recorded as the resolved Project-store path) and runs the liveness check. Exit 20 means sign-in failed; ask Carlos again.
+  3. On success it saves the sign-in to the private store, encrypted as `auth.json.enc` (`$CODEX_AUTH_STORE`, default `/cursor/stores/self/private/codex`, recorded as the resolved Project-store path), and runs the liveness check. Exit 20 means sign-in failed; ask Carlos again.
 - [ ] `python3 scripts/codex/codex_orchestrator.py gate` returns exit 0 (route `codex`, liveness `live`).
 - [ ] **Restart check:** delete `~/.codex/auth.json`, run `gate` again, and confirm `auth.action: restored`.
-- [ ] **Allowance rule (as decided in the pilot):** Codex is used only while **every window the backend reports** is below 75% used. A window the backend does not report does not block (it is listed in `notReported`); if no window is reported at all, work overflows to cursor-002. The pilot account reported only the weekly window. `--strict-windows` or `CODEX_STRICT_WINDOWS=1` restores "both windows must be reported". The free "Full reset" credit is never used by the scripts.
+- [ ] **Allowance rule (pilot decision, recorded as a plan amendment by the orchestrator):** Codex is used only while **every window the backend reports** is below 75% used. A window the backend does not report does not block (it is listed in `notReported`); if no window is reported at all, work overflows to cursor-002. The pilot account reported only the weekly window. `--strict-windows` or `CODEX_STRICT_WINDOWS=1` restores "both windows must be reported". The free "Full reset" credit is never used by the scripts.
 - [ ] Run one real Issue: `python3 scripts/codex/codex_orchestrator.py run --issue IDE-<n> --slug <slug> --prompt-file <file> [--tier sol]`. Codex cannot commit inside its sandbox; the runner commits as `IDE-<n>: <message>` and pushes. Trust `cliModel` / `cliEffort` from the readback, not the model's self-report (Luna High reports itself as "medium"). Pilot: IDE-18, 128 s.
 - [ ] Parallel test only when needed: `parallel-test` at 1/2/4 worktrees. Pilot: 4 concurrent runs all succeeded; no limit found, Codex cloud overflow not needed.
-- [ ] Never use the same `auth.json` from two machines at once, and never print or commit it. The Project store ignores `chmod`, so set `CODEX_AUTH_STORE_KEY` if the store is shared with untrusted agents.
+- [ ] Never use the same `auth.json` from two machines at once, and never print or commit it. The Project store ignores `chmod` and is shared by every agent in the Project, which is why the store copy is always encrypted.
+- [ ] Codex and Git run with an allowlisted environment and hooks disabled. Codex has no write access to the Git common directory; the runner commits for it. Never add orchestrator secrets to the Codex environment.
 
 ### B5. Ledger (pilot 0.5)
 
@@ -104,5 +110,5 @@ Work through these in order and tick them in the setup Phase Issue. Each section
 
    Real commits that get pushed stay signed.
 3. **Run verifications one at a time on a VM.** `scripts/tests/test-gitops-lifecycle.sh` writes to fixed `/tmp` paths, so two suites running together clobber each other and fail randomly.
-4. **Codex sandbox has no git write and no network by default.** The runner commits for it; add `--network` only when the Issue needs it.
+4. **Codex sandbox has no git write and no network by default.** The runner commits for it through the Git directory it recorded before the run, and fails the attempt if Codex rewrote the worktree's `.git` link. Add `--network` only when the Issue needs it.
 5. **Worker branches, not PRs.** Workers push `issue/<prefix>-<n>-<slug>` and never open PRs; the orchestrator packages branches into PRs to `development`.
