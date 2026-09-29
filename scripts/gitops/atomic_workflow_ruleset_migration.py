@@ -127,7 +127,7 @@ def derive_active_check_contract(
                 "events": ["pull_request:development", "workflow_call:promotion"],
             },
             "fastChecks": {
-                "workflow": "linktrend-review-packager.yml",
+                "workflow": "ci.yml",
                 "job": FAST_CHECKS,
                 "events": ["pull_request:development/phase"],
             },
@@ -679,12 +679,13 @@ def migrate_evaluator_check_names(
     *,
     variables: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Replace stale Integrator/Packager/Promoter defaults and LINKTREND_*_CHECKS."""
+    """Replace stale pre-v3 evaluator check defaults and LINKTREND_*_CHECKS."""
 
     before = deepcopy(dict(config))
     after = deepcopy(before)
     changes: list[str] = []
 
+    # Pre-v3 config keys; read so their stale check names can be scrubbed.
     for key in (
         "integratorRequiredChecks",
         "packagerRequiredChecks",

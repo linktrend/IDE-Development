@@ -59,8 +59,9 @@ claim success.
 
 ## Evaluator / variable migration
 
-Integrator, Packager, Promoter, observer, planner defaults and
-`LINKTREND_*_CHECKS` repository variables must use the exact active contract.
+Pre-v3 evaluator check defaults (integrator, promoter, observer, planner and
+similar keys) and `LINKTREND_*_CHECKS` repository variables must use the exact
+active contract.
 Retained obsolete raw names fail closed.
 
 ## Trusted verifier separation
