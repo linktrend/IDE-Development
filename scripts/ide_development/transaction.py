@@ -826,6 +826,24 @@ def _apply_plan_unlocked(
     }
 
 
+def _journal_records_first_install(journal: dict[str, Any]) -> bool:
+    """True when this transaction created installed state (it did not exist before)."""
+    if journal.get("priorInstalledState") is not None:
+        return False
+    backups = journal.get("backups")
+    if not isinstance(backups, list):
+        return False
+    state_path = str(INSTALLED_STATE_REL)
+    saw_state_record = False
+    for record in backups:
+        if not isinstance(record, dict) or record.get("path") != state_path:
+            continue
+        saw_state_record = True
+        if record.get("existed") is not False:
+            return False
+    return saw_state_record
+
+
 def rollback_last(target_root: Path) -> dict[str, Any]:
     """Restore exact pre-change bytes/modes from the last completed transaction."""
     with exclusive_transaction_lock(target_root):
@@ -873,7 +891,14 @@ def rollback_last(target_root: Path) -> dict[str, Any]:
             finalize_read_only=True,
         ) as lease:
             result = _rollback_last_unlocked(target_root, lease=lease)
-        prove_read_only_state(target_root)
+        # A first install's rollback deletes installed-state.json. Nothing managed
+        # remains, so the read-only proof is vacuously true. Every other rollback
+        # still fails closed through prove_read_only_state().
+        if not (
+            load_installed_state(target_root) is None
+            and _journal_records_first_install(journal)
+        ):
+            prove_read_only_state(target_root)
         return result
 
 
