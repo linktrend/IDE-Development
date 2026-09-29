@@ -44,6 +44,8 @@ Defaults match IDE Development. Consumers override via repository variables / CL
 
 ### `development` (delivery controller)
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 Managed baseline (order stable):
 
 1. Fast-gate checks — default `Verify IDE Development`, or `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` when provided
@@ -128,6 +130,8 @@ Never invent a third mechanism. Document the gap for the Principal; do not force
 ---
 
 ## Delivery controller / Main Approve compatibility notes
+
+Retired in v3 (IDE-22); see the v3 plan.
 
 - Development: required checks must include the active fast-gate and branch-source policy; `allow_auto_merge=true`.
 - Staging / main: merge only via temporary `promote/*` PRs after named gates; never direct-push.

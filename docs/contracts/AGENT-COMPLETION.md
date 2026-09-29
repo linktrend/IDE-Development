@@ -10,6 +10,8 @@ Define how Implementers finish a work session without opening PRs or claiming ho
 
 ## Authority (`V25_BOOTSTRAP_LEAN`)
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 A v2.5 **Issue checkpoint** is accepted when all of the following are present:
 
 1. exact pushed commit and tree
@@ -25,6 +27,8 @@ Review Ready publication, `AUTOMATION_TOKEN`, an Issue PR, hosted completion sta
 There is **no** `.linktrend/review-ready.json` readiness file. Do not create, discover, or consult that path. Local proof must never be represented as hosted or production proof. When hosted validation needs out-of-tree evidence, pass an explicit immutable evidence payload (`--evidence-json`) bound to the exact SHA/tree.
 
 ## Modes (`scripts/gitops/completion_gate.py`)
+
+Retired in v3 (IDE-22); see the v3 plan.
 
 | Mode | Meaning | Exit |
 |---|---|---|
@@ -62,9 +66,13 @@ Bare `--tests-ok`, `COMPLETION_TESTS_OK=1`, and arbitrary text in `COMPLETION_EV
 
 ## Phase delivery (not Issue checkpoint)
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 One Phase PR into `development`, exact review, conditional Full, and the founder gate for `main` remain the protected delivery path. The delivery controller merges through GitHub protection. Administrator recovery is a named exception after replacement proof: freeze the exact Phase head, snapshot protections, prefer `gh pr merge --admin --match-head-commit`, apply a minimum temporary exception only if needed, merge only that exact authorized head, restore immediately, read back, and record obsolete publisher/status as waived not passed.
 
 ## Hard rules
+
+Retired in v3 (IDE-22); see the v3 plan.
 
 - Implementers **never** open or update PRs. The Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the Phase PR. Retained `packager_discover.py` is not that component.
 - Ship waves = checkpoint only.

@@ -1,5 +1,7 @@
 # Lisa / OpenClaw follow-up contract (GITOPS-01)
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 **Status:** Follow-up only — **no Lisa or openclaw_prime edits in GITOPS-01**
 **Date:** 2026-07-28
 **Timezone:** Asia/Taipei (no DST)

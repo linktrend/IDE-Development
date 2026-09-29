@@ -90,6 +90,8 @@ File backend only: `LINKTREND_REPAIR_BACKEND=file` + `LINKTREND_REPAIR_DIR=...`
 
 ## Observer
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 Managed workflow `linktrend-repair-observer.yml` upserts `ci_failure` / `bugbot_failure` on
 workflow_run / check_run failures using read-only checkout of the default branch and the
 LiNKtrend GitOps GitHub App (`AUTOMATION_TOKEN` via `resolve_automation_token.sh`).

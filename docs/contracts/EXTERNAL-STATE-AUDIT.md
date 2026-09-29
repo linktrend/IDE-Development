@@ -11,6 +11,8 @@
 
 ## Purpose
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 Produce a **read-only, dry-run-default** report of the normal automation credential, Bugbot, and repository-protection state required before `Linktrend Review Ready` publication can be trusted in production.
 
 This tool **reports**. It does **not** create Apps, secrets, variables, Bugbot settings, rulesets, PRs, statuses, or promotions.

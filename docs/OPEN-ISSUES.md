@@ -96,6 +96,8 @@ Principal go-ahead: system lives in IDE Development; wired repos inherit agent d
 
 ## 11. GITOPS-01 Review Packager redesign — 2026-07-28
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 Branch `issue/GITOPS-01-review-packager-pipeline`. Principal-locked amendment to ADR 0003 (Review Packager + promotion window).
 
 **Done in this PR (IDE Development only):**
@@ -150,6 +152,8 @@ See ADR 0003 amendment 2026-07-30 and `docs/contracts/*`.
 ---
 
 ## 13. App-backed Review Ready publisher + production completion bridge — 2026-08-01
+
+Retired in v3 (IDE-22); see the v3 plan.
 
 Branch `issue/44-add-app-backed-review-ready-publisher-and-produc` (Issue #44). Wave 2 work packet: `docs/archive/work-packets/2026-08-01-wave-2-app-backed-completion.md`.
 
