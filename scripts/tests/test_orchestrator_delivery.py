@@ -98,22 +98,59 @@ class FakeApi:
         runs: dict[str, list[dict[str, Any]]] | None = None,
         pull: dict[str, Any] | None = None,
         statuses: dict[str, list[dict[str, Any]]] | None = None,
+        files: list[dict[str, Any]] | None = None,
     ):
         self.runs = runs or {}
         self._pull = pull or {}
         self.statuses = statuses or {}
+        self.files = files or []
+        self.fail_actions = False
         self.calls: list[tuple[str, str]] = []
+        self._workflows: dict[str, dict[str, Any]] = {}
+        self._suites: dict[int, list[dict[str, Any]]] = {}
 
     def pull(self, repo: str, number: int) -> dict[str, Any]:
         return self._pull
 
+    def pull_files(self, repo: str, number: int) -> list[dict[str, Any]]:
+        self.calls.append(("pull_files", str(number)))
+        return list(self.files)
+
     def check_runs(self, repo: str, sha: str) -> list[dict[str, Any]]:
         self.calls.append(("check_runs", sha))
-        return self.runs.get(sha, [])
+        rows = self.runs.get(sha, [])
+        for row in rows:
+            workflow = row.get("_workflow_run")
+            if not isinstance(workflow, dict):
+                continue
+            stored = dict(workflow)
+            if not stored.get("head_sha"):
+                stored["head_sha"] = sha
+            self._workflows[str(stored.get("id"))] = stored
+            suite = row.get("check_suite") if isinstance(row.get("check_suite"), dict) else {}
+            suite_id = suite.get("id")
+            if isinstance(suite_id, int) and not isinstance(suite_id, bool):
+                self._suites[suite_id] = [stored]
+        return rows
 
     def commit_statuses(self, repo: str, sha: str) -> list[dict[str, Any]]:
         self.calls.append(("commit_statuses", sha))
         return self.statuses.get(sha, [])
+
+    def actions_run(self, repo: str, run_id: str) -> dict[str, Any]:
+        self.calls.append(("actions_run", str(run_id)))
+        if self.fail_actions:
+            raise github_api.GitHubApiError("http_error", "workflow run lookup failed")
+        found = self._workflows.get(str(run_id))
+        if found is None:
+            raise github_api.GitHubApiError("not_found", "workflow run was not found")
+        return found
+
+    def actions_runs_by_suite(self, repo: str, suite_id: int) -> list[dict[str, Any]]:
+        self.calls.append(("actions_runs_by_suite", str(suite_id)))
+        if self.fail_actions:
+            raise github_api.GitHubApiError("http_error", "workflow run lookup failed")
+        return list(self._suites.get(int(suite_id), []))
 
 
 def run(
@@ -124,6 +161,13 @@ def run(
     started: str = "2026-09-29T00:00:00Z",
     app: str = "github-actions",
     workflow: str | None = None,
+    identity: bool = True,
+    head_sha: str | None = None,
+    head_repo: str | None = None,
+    event: str = "push",
+    head_branch: str = "development",
+    suite_id: int | None = None,
+    details: bool = True,
 ) -> dict[str, Any]:
     row: dict[str, Any] = {
         "id": rid,
@@ -134,8 +178,21 @@ def run(
         "html_url": f"https://example.invalid/{rid}",
         "app": {"slug": app},
     }
-    if workflow:
-        row["check_suite"] = {"path": workflow}
+    if not identity:
+        return row
+    path = workflow if workflow is not None else github_api.EXPECTED_WORKFLOWS.get(name, ".github/workflows/unmapped.yml")
+    row["_workflow_run"] = {
+        "id": rid,
+        "path": path,
+        "head_sha": head_sha,
+        "head_repository": {"full_name": head_repo or REPO},
+        "event": event,
+        "head_branch": head_branch,
+    }
+    if details:
+        row["details_url"] = f"https://github.com/{REPO}/actions/runs/{rid}/job/1"
+    if suite_id is not None:
+        row["check_suite"] = {"id": suite_id}
     return row
 
 
@@ -483,9 +540,18 @@ class GithubApiTests(unittest.TestCase):
             self.assertEqual(api.paginate("/x", key="check_runs"), [1, 2, 3])
 
     def test_statuses_are_reported_and_never_count_as_success(self) -> None:
-        checks = github_api.latest_checks(
-            [run("A", "success")],
-            [{"context": "B", "state": "error"}, {"context": "B", "state": "success"}, {"context": "A", "state": "failure"}],
+        sha = "c" * 40
+        checks = github_api.head_checks(
+            FakeApi(
+                {sha: [run("A", "success")]},
+                statuses={sha: [
+                    {"context": "B", "state": "error"},
+                    {"context": "B", "state": "success"},
+                    {"context": "A", "state": "failure"},
+                ]},
+            ),
+            REPO,
+            sha,
         )
         self.assertEqual(checks["A"]["conclusion"], "success")
         self.assertTrue(checks["A"]["countsAsCheck"])
@@ -498,17 +564,57 @@ class GithubApiTests(unittest.TestCase):
         self.assertEqual(github_api.repo_from_remote_url("git@github.com:linktrend/IDE-Development.git"),
                          "linktrend/IDE-Development")
 
-    def test_workflow_file_is_required_only_when_exposed(self) -> None:
-        expected = ".github/workflows/ci.yml"
-        bare = github_api.latest_checks([run("Verify IDE Development", "success")])
-        self.assertTrue(bare["Verify IDE Development"]["countsAsCheck"])
-        self.assertFalse(bare["Verify IDE Development"]["workflowExposed"])
-        wrong = github_api.latest_checks([run("Verify IDE Development", "success", workflow=".github/workflows/other.yml")])
-        self.assertFalse(wrong["Verify IDE Development"]["countsAsCheck"])
-        self.assertFalse(wrong["Verify IDE Development"]["workflowOk"])
-        right = github_api.latest_checks([run("Verify IDE Development", "success", workflow=expected)])
-        self.assertTrue(right["Verify IDE Development"]["countsAsCheck"])
-        self.assertEqual(right["Verify IDE Development"]["workflow"], expected)
+    def test_workflow_identity_fails_closed(self) -> None:
+        sha = "d" * 40
+        name = "Verify IDE Development"
+        expected = github_api.EXPECTED_WORKFLOWS[name]
+
+        def checks(row: dict[str, Any], *, fail_actions: bool = False) -> dict[str, Any]:
+            api = FakeApi({sha: [row]})
+            api.fail_actions = fail_actions
+            return github_api.head_checks(api, REPO, sha)[name]
+
+        absent = checks(run(name, "success", identity=False))
+        self.assertFalse(absent["countsAsCheck"])
+        self.assertFalse(absent["workflowOk"])
+        self.assertEqual(absent["workflowReason"], "workflow identity is absent")
+
+        # A path stuck on the check-run payload is not identity. The list API omits it.
+        payload_only = run(name, "success", identity=False)
+        payload_only["check_suite"] = {"path": expected}
+        self.assertFalse(checks(payload_only)["countsAsCheck"])
+
+        mismatch = checks(run(name, "success", workflow=".github/workflows/other.yml"))
+        self.assertFalse(mismatch["countsAsCheck"])
+        self.assertFalse(mismatch["workflowOk"])
+        self.assertIn(".github/workflows/other.yml", mismatch["workflowReason"])
+        self.assertIn(expected, mismatch["workflowReason"])
+
+        fork = checks(run(name, "success", head_repo="attacker/fork"))
+        self.assertFalse(fork["countsAsCheck"])
+        self.assertIn("attacker/fork", fork["workflowReason"])
+        self.assertIn("head_repository", fork["workflowReason"])
+
+        wrong_sha = checks(run(name, "success", head_sha="e" * 40))
+        self.assertFalse(wrong_sha["countsAsCheck"])
+        self.assertIn("head_sha", wrong_sha["workflowReason"])
+
+        api_error = checks(run(name, "success"), fail_actions=True)
+        self.assertFalse(api_error["countsAsCheck"])
+        self.assertEqual(api_error["workflowReason"], "workflow run could not be resolved")
+
+        right = checks(run(name, "success", workflow=expected, head_sha=sha))
+        self.assertTrue(right["countsAsCheck"])
+        self.assertEqual(right["workflow"], expected)
+
+        via_suite = checks(run(name, "success", rid=7, details=False, suite_id=42, head_sha=sha))
+        self.assertTrue(via_suite["countsAsCheck"])
+        self.assertEqual(via_suite["workflow"], expected)
+
+        receipt = "Linktrend Receipt Gate"
+        receipt_ok = github_api.head_checks(FakeApi({sha: [run(receipt, "success", head_sha=sha)]}), REPO, sha)[receipt]
+        self.assertTrue(receipt_ok["countsAsCheck"])
+        self.assertEqual(receipt_ok["workflow"], github_api.EXPECTED_WORKFLOWS[receipt])
 
 
 class GitArgTests(unittest.TestCase):

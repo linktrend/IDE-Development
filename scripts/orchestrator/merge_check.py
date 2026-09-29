@@ -111,8 +111,10 @@ def _required_gap(name: str, check: Mapping[str, Any] | None, head_sha: str, all
             f"(saw {list(foreign)})"
         )
     if check and check.get("workflowOk") is False:
-        expected = EXPECTED_WORKFLOWS.get(name, "the expected workflow file")
-        return f"required check {name!r} is not from workflow {expected}"
+        detail = check.get("workflowReason") or (
+            f"is not from workflow {EXPECTED_WORKFLOWS.get(name, 'the expected workflow file')}"
+        )
+        return f"required check {name!r}: {detail}"
     return f"required check {name!r} has not run on {head_sha}"
 
 

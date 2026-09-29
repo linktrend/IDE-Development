@@ -32,13 +32,15 @@ STATUS_STATE_TO_CONCLUSION = {"success": "success", "failure": "failure", "error
 # ``--check-app`` on merge_check.py replaces it. Commit statuses never join it.
 DEFAULT_ALLOWED_APPS = ("github-actions",)
 
-# Expected workflow file when the check-run payload exposes one. The list
-# check-runs API often omits it; then the app slug is the producer check.
+# Workflow file that must produce each named check. Identity is never taken
+# from the check-run list payload; it is resolved from the Actions run API.
 EXPECTED_WORKFLOWS = {
     "Verify IDE Development": ".github/workflows/ci.yml",
     "Linktrend Fast Checks": ".github/workflows/ci.yml",
     "Linktrend Branch Source Policy": ".github/workflows/branch-source-policy.yml",
+    "Linktrend Receipt Gate": ".github/workflows/linktrend-promote-main.yml",
 }
+_ACTIONS_RUN_ID_RE = re.compile(r"/actions/runs/([1-9]\d*)(?:/job/[1-9]\d*)?(?:[/?#]|$)")
 
 
 class GitHubApiError(RuntimeError):
@@ -150,6 +152,26 @@ class GitHubApi:
     def commit_statuses(self, repo: str, sha: str) -> list[dict[str, Any]]:
         return self.paginate(f"/repos/{validate_repo(repo)}/commits/{validate_sha(sha)}/statuses")
 
+    def actions_run(self, repo: str, run_id: str) -> dict[str, Any]:
+        if not re.fullmatch(r"[1-9]\d*", str(run_id)):
+            raise GitHubApiError("bad_run_id", "workflow run id must be a positive integer")
+        payload = self.get(f"/repos/{validate_repo(repo)}/actions/runs/{run_id}")
+        if not isinstance(payload, dict):
+            raise GitHubApiError("bad_payload", "workflow run response was not an object")
+        return payload
+
+    def actions_runs_by_suite(self, repo: str, suite_id: int) -> list[Any]:
+        if isinstance(suite_id, bool) or not isinstance(suite_id, int) or suite_id < 1:
+            raise GitHubApiError("bad_suite_id", "check suite id must be a positive integer")
+        return self.paginate(
+            f"/repos/{validate_repo(repo)}/actions/runs",
+            {"check_suite_id": suite_id},
+            key="workflow_runs",
+        )
+
+    def pull_files(self, repo: str, number: int) -> list[Any]:
+        return self.paginate(f"/repos/{validate_repo(repo)}/pulls/{int(number)}/files")
+
 
 def _error_message(body: str) -> str:
     try:
@@ -183,59 +205,121 @@ def app_slug(run: Mapping[str, Any]) -> str:
     return str(app.get("slug") or "") if isinstance(app, dict) else ""
 
 
-def _workflow_file_matches(value: str, expected: str) -> bool:
-    norm = value.replace("\\", "/").lstrip("./")
-    exp = expected.lstrip("./")
-    return norm == exp or norm.endswith("/" + exp)
+def _parse_actions_run_id(details_url: str | None) -> str | None:
+    if not details_url:
+        return None
+    match = _ACTIONS_RUN_ID_RE.search(details_url)
+    return match.group(1) if match else None
 
 
-def exposed_workflow(run: Mapping[str, Any]) -> tuple[str | None, str | None]:
-    """Return ``(path, name)`` when the payload exposes a workflow file.
+def _suite_id(run: Mapping[str, Any]) -> int | None:
+    suite = run.get("check_suite")
+    if not isinstance(suite, dict):
+        return None
+    value = suite.get("id")
+    if isinstance(value, str) and value.isdigit():
+        value = int(value)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        return None
+    return value
 
-    Looks at ``check_suite`` and a nested Actions run (``path`` or ``name``).
-    The check run's own ``name`` is the job, not the workflow, and is ignored.
-    ``(None, None)`` means the API did not expose a workflow.
+
+def resolve_actions_workflow_run(
+    api: Any, repo: str, check_run: Mapping[str, Any]
+) -> tuple[dict[str, Any] | None, str]:
+    """Load the Actions workflow run for a check run.
+
+    The run id comes from ``details_url`` (``/actions/runs/<id>/job/<job>``).
+    When that is missing, ``GET .../actions/runs?check_suite_id=`` must return
+    exactly one run. The run object itself always comes from
+    ``GET .../actions/runs/<id>``. Missing identity or any API error leaves the
+    check unresolved.
     """
-    containers: list[Mapping[str, Any]] = []
-    suite = run.get("check_suite") if isinstance(run.get("check_suite"), dict) else {}
-    if suite:
-        containers.append(suite)
-        for key in ("workflow", "workflow_run"):
-            nested = suite.get(key)
-            if isinstance(nested, dict):
-                containers.append(nested)
-    for key in ("workflow", "workflow_run"):
-        nested = run.get(key)
-        if isinstance(nested, dict):
-            containers.append(nested)
-    path: str | None = None
-    name: str | None = None
-    for container in containers:
-        if path is None and isinstance(container.get("path"), str) and container.get("path"):
-            path = str(container["path"])
-        if path is None and isinstance(container.get("workflow_path"), str) and container.get("workflow_path"):
-            path = str(container["workflow_path"])
-        if name is None and isinstance(container.get("name"), str) and container.get("name"):
-            name = str(container["name"])
-    return path, name
+    if api is None or not repo:
+        return None, "workflow run could not be resolved"
+    run_id = _parse_actions_run_id(check_run.get("details_url") if isinstance(check_run.get("details_url"), str) else None)
+    try:
+        if run_id is None:
+            suite_id = _suite_id(check_run)
+            if suite_id is None:
+                return None, "workflow identity is absent"
+            listed = api.actions_runs_by_suite(repo, suite_id)
+            if (
+                not isinstance(listed, list)
+                or len(listed) != 1
+                or not isinstance(listed[0], dict)
+                or listed[0].get("id") in (None, "")
+            ):
+                return None, "workflow run could not be resolved"
+            run_id = str(listed[0]["id"])
+        workflow_run = api.actions_run(repo, str(run_id))
+    except GitHubApiError:
+        return None, "workflow run could not be resolved"
+    if not isinstance(workflow_run, dict):
+        return None, "workflow run could not be resolved"
+    return workflow_run, ""
 
 
-def workflow_gate(run: Mapping[str, Any], expected: str | None) -> tuple[bool, bool, str | None]:
-    """Return ``(ok, exposed, identity)``.
+def validate_workflow_run(
+    workflow_run: Mapping[str, Any],
+    *,
+    expected: str | None,
+    sha: str,
+    repo: str,
+    require_push_on_development: bool = False,
+) -> tuple[bool, str | None, str | None]:
+    """Require path, head SHA, and target repository. Return ``(ok, path, reason)``."""
+    path = workflow_run.get("path")
+    identity = path if isinstance(path, str) and path else None
+    if not identity:
+        return False, None, "workflow run has no path"
+    if expected and identity != expected:
+        return False, identity, f"workflow path {identity!r} is not {expected!r}"
+    if str(workflow_run.get("head_sha") or "") != sha:
+        return False, identity, "workflow run head_sha does not equal the commit"
+    head_repo = workflow_run.get("head_repository")
+    full_name = head_repo.get("full_name") if isinstance(head_repo, dict) else None
+    if full_name != repo:
+        return False, identity, f"workflow run head_repository {full_name!r} is not the target repo"
+    if require_push_on_development:
+        if workflow_run.get("event") != "push":
+            return False, identity, f"workflow run event {workflow_run.get('event')!r} is not 'push'"
+        if workflow_run.get("head_branch") != "development":
+            return False, identity, f"workflow run head_branch {workflow_run.get('head_branch')!r} is not 'development'"
+    return True, identity, None
 
-    When ``expected`` is set and the payload exposes a path, that path must be
-    the workflow file. A name is used only when no path is present. When the
-    API exposes nothing, ``ok`` is True and ``exposed`` is False: the caller
-    still requires the app slug.
-    """
-    path, name = exposed_workflow(run)
-    if not expected:
-        return True, bool(path or name), path or name
-    if path:
-        return _workflow_file_matches(path, expected), True, path
-    if name:
-        return _workflow_file_matches(name, expected), True, name
-    return True, False, None
+
+def assess_check_workflow(
+    check_run: Mapping[str, Any],
+    expected: str | None,
+    *,
+    api: Any,
+    repo: str | None,
+    sha: str,
+    require_push_on_development: bool = False,
+) -> tuple[bool, bool, str | None, str | None]:
+    """Return ``(ok, exposed, path, reason)`` for one evidence check run."""
+    workflow_run, unresolved = resolve_actions_workflow_run(api, repo or "", check_run)
+    if workflow_run is None:
+        return False, False, None, unresolved
+    ok, path, reason = validate_workflow_run(
+        workflow_run,
+        expected=expected,
+        sha=sha,
+        repo=repo or "",
+        require_push_on_development=require_push_on_development,
+    )
+    return ok, True, path, reason
+
+
+def workflow_files_changed(files: Iterable[Mapping[str, Any]]) -> list[str]:
+    """``.github/workflows/*`` paths changed on a pull request, API order preserved."""
+    found: list[str] = []
+    for item in files:
+        name = str(item.get("filename") or "")
+        if name.startswith(".github/workflows/") and name not in found:
+            found.append(name)
+    return found
 
 
 def latest_checks(
@@ -243,15 +327,22 @@ def latest_checks(
     statuses: Iterable[Mapping[str, Any]] = (),
     *,
     allowed_apps: Sequence[str] = DEFAULT_ALLOWED_APPS,
+    api: Any = None,
+    repo: str | None = None,
+    sha: str | None = None,
+    require_push_on_development: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """Latest check run per ``(name, app)``, plus reported commit statuses.
 
     A required check is satisfied only by a completed check run whose
-    ``app.slug`` is in ``allowed_apps`` (never by a commit status). When that
-    run exposes a workflow, it must match ``EXPECTED_WORKFLOWS``. A later run
-    for the same ``(name, app)`` overrides an earlier one, including a later
-    failure. Statuses are returned on ``statusReport`` and never count as
-    success; a failing status is still a gate failure for the caller.
+    ``app.slug`` is in ``allowed_apps`` (never by a commit status) and whose
+    Actions workflow run resolves to the expected file, the same commit, and
+    this repository. A missing or mismatched workflow does not count. A later
+    run for the same ``(name, app)`` overrides an earlier one, including a
+    later failure. Statuses are returned on ``statusReport`` and never count
+    as success; a failing status is still a gate failure for the caller.
+    ``require_push_on_development`` additionally demands ``event == push`` and
+    ``head_branch == development`` (promotion evidence on a development commit).
     """
     allowed = tuple(allowed_apps)
     by_key: dict[tuple[str, str], Mapping[str, Any]] = {}
@@ -292,7 +383,14 @@ def latest_checks(
             }
         expected = EXPECTED_WORKFLOWS.get(name)
         if chosen is not None:
-            wf_ok, wf_exposed, wf_id = workflow_gate(chosen, expected)
+            wf_ok, wf_exposed, wf_id, wf_reason = assess_check_workflow(
+                chosen,
+                expected,
+                api=api,
+                repo=repo,
+                sha=sha or "",
+                require_push_on_development=require_push_on_development,
+            )
             completed = chosen.get("status") == "completed"
             out[name] = {
                 "status": chosen.get("status"),
@@ -302,6 +400,7 @@ def latest_checks(
                 "workflow": wf_id,
                 "workflowExposed": wf_exposed,
                 "workflowOk": wf_ok,
+                "workflowReason": wf_reason,
                 "url": chosen.get("html_url"),
                 "countsAsCheck": bool(wf_ok and app_slug(chosen) in allowed),
                 "foreignApps": foreign,
@@ -316,6 +415,7 @@ def latest_checks(
                 "workflow": None,
                 "workflowExposed": False,
                 "workflowOk": True,
+                "workflowReason": None,
                 "url": status.get("target_url") if status else None,
                 "countsAsCheck": False,
                 "foreignApps": foreign,
@@ -325,15 +425,36 @@ def latest_checks(
 
 
 def head_checks(
-    api: Any, repo: str, sha: str, *, allowed_apps: Sequence[str] = DEFAULT_ALLOWED_APPS
+    api: Any,
+    repo: str,
+    sha: str,
+    *,
+    allowed_apps: Sequence[str] = DEFAULT_ALLOWED_APPS,
+    require_push_on_development: bool = False,
 ) -> dict[str, dict[str, Any]]:
-    return latest_checks(api.check_runs(repo, sha), api.commit_statuses(repo, sha), allowed_apps=allowed_apps)
+    return latest_checks(
+        api.check_runs(repo, sha),
+        api.commit_statuses(repo, sha),
+        allowed_apps=allowed_apps,
+        api=api,
+        repo=repo,
+        sha=sha,
+        require_push_on_development=require_push_on_development,
+    )
 
 
 def check_succeeded(
-    api: Any, repo: str, sha: str, name: str, *, allowed_apps: Sequence[str] = DEFAULT_ALLOWED_APPS
+    api: Any,
+    repo: str,
+    sha: str,
+    name: str,
+    *,
+    allowed_apps: Sequence[str] = DEFAULT_ALLOWED_APPS,
+    require_push_on_development: bool = False,
 ) -> dict[str, Any]:
-    check = head_checks(api, repo, sha, allowed_apps=allowed_apps).get(name)
+    check = head_checks(
+        api, repo, sha, allowed_apps=allowed_apps, require_push_on_development=require_push_on_development
+    ).get(name)
     counts = bool(check and check.get("countsAsCheck"))
     conclusion = check.get("conclusion") if counts else None
     report = (check or {}).get("statusReport") or {}
@@ -347,6 +468,8 @@ def check_succeeded(
         "conclusion": conclusion,
         "url": (check or {}).get("url"),
         "app": (check or {}).get("app"),
+        "workflow": (check or {}).get("workflow"),
+        "workflowReason": (check or {}).get("workflowReason"),
         "ok": conclusion == "success" and counts and not status_failed,
     }
 
