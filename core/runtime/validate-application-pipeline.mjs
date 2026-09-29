@@ -17,7 +17,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const MODULE_ORDER = [
+const CORE_MODULE_ORDER = [
   "intake_and_definition",
   "assembly_planning",
   "execution",
@@ -25,6 +25,20 @@ const MODULE_ORDER = [
   "library_contribution",
   "shipment",
 ];
+
+const ENTRY_MODES = new Set([
+  "from-scratch",
+  "pick-up-unfinished",
+  "continue-after-release",
+]);
+
+function moduleOrder(state) {
+  const modules = state?.modules || {};
+  const setupOn =
+    state?.entryMode === "from-scratch" ||
+    Object.prototype.hasOwnProperty.call(modules, "setup");
+  return setupOn ? ["setup", ...CORE_MODULE_ORDER] : CORE_MODULE_ORDER;
+}
 
 const MODULE_STATES = new Set([
   "pending",
@@ -74,7 +88,11 @@ function parseArgs(argv) {
  * Rejects hand-edited invalid states (skipped predecessors, complete without gate, etc.).
  */
 function validateConsistency(state, statePath) {
-  for (const moduleId of MODULE_ORDER) {
+  if (state.entryMode != null && !ENTRY_MODES.has(state.entryMode)) {
+    fail(`Invalid entryMode: ${state.entryMode}`);
+  }
+  const order = moduleOrder(state);
+  for (const moduleId of order) {
     const mod = state.modules?.[moduleId];
     if (!mod) fail(`Missing module record: ${moduleId}`);
     if (!MODULE_STATES.has(mod.state)) {
@@ -87,7 +105,7 @@ function validateConsistency(state, statePath) {
         );
       }
       validateCompleteTransition(state, statePath, moduleId);
-      if (!predecessorComplete(state, moduleId) && MODULE_ORDER.indexOf(moduleId) > 0) {
+      if (!predecessorComplete(state, moduleId) && order.indexOf(moduleId) > 0) {
         // validateCompleteTransition does not re-check predecessor for already-complete;
         // enforce ordering here so hand-edits that mark Module N complete while N-1 is pending fail.
       }
@@ -97,9 +115,9 @@ function validateConsistency(state, statePath) {
     }
   }
   // Ordering: no later module may be complete/active/gate_pending if an earlier one is not complete
-  for (let i = 1; i < MODULE_ORDER.length; i += 1) {
-    const prev = MODULE_ORDER[i - 1];
-    const cur = MODULE_ORDER[i];
+  for (let i = 1; i < order.length; i += 1) {
+    const prev = order[i - 1];
+    const cur = order[i];
     const prevState = state.modules[prev].state;
     const curState = state.modules[cur].state;
     const progressed = ["active", "gate_pending", "complete"].includes(curState);
@@ -144,9 +162,10 @@ function loadGate(statePath, gatePath) {
 }
 
 function predecessorComplete(state, moduleId) {
-  const idx = MODULE_ORDER.indexOf(moduleId);
+  const order = moduleOrder(state);
+  const idx = order.indexOf(moduleId);
   if (idx <= 0) return true;
-  const prev = MODULE_ORDER[idx - 1];
+  const prev = order[idx - 1];
   return state.modules[prev]?.state === "complete";
 }
 
@@ -277,17 +296,18 @@ function validateCompleteTransition(state, statePath, moduleId) {
 }
 
 function validateActivateTransition(state, moduleId) {
-  if (!MODULE_ORDER.includes(moduleId)) fail(`Unknown module: ${moduleId}`);
+  const order = moduleOrder(state);
+  if (!order.includes(moduleId)) fail(`Unknown module: ${moduleId}`);
   if (!predecessorComplete(state, moduleId)) {
-    const idx = MODULE_ORDER.indexOf(moduleId);
-    const prev = MODULE_ORDER[idx - 1];
+    const idx = order.indexOf(moduleId);
+    const prev = order[idx - 1];
     fail(
       `Cannot activate ${moduleId}: predecessor ${prev} is not complete (state=${state.modules[prev]?.state})`,
     );
   }
-  const prevIdx = MODULE_ORDER.indexOf(moduleId) - 1;
+  const prevIdx = order.indexOf(moduleId) - 1;
   if (prevIdx >= 0) {
-    const prev = MODULE_ORDER[prevIdx];
+    const prev = order[prevIdx];
     const prevMod = state.modules[prev];
     // Also reject if predecessor gate is rejected even if somehow marked
     if (prevMod?.gateVerdict === "rejected") {
@@ -392,7 +412,7 @@ function main() {
     if (!moduleId || !targetState) {
       fail("--request-transition must be <module-id>:<target-state>");
     }
-    if (!MODULE_ORDER.includes(moduleId)) fail(`Unknown module: ${moduleId}`);
+    if (!moduleOrder(state).includes(moduleId)) fail(`Unknown module: ${moduleId}`);
     if (!MODULE_STATES.has(targetState)) {
       fail(`Unknown target state: ${targetState}`);
     }

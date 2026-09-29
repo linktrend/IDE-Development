@@ -24,9 +24,14 @@
     "schemaVersion": { "type": "integer", "const": 2 },
     "programId": { "type": "string", "minLength": 1 },
     "targetRepositoryRoot": { "type": "string", "minLength": 1 },
+    "entryMode": {
+      "type": "string",
+      "enum": ["from-scratch", "pick-up-unfinished", "continue-after-release"]
+    },
     "currentModuleId": {
       "type": "string",
       "enum": [
+        "setup",
         "intake_and_definition",
         "assembly_planning",
         "execution",
@@ -47,6 +52,7 @@
       ],
       "additionalProperties": false,
       "properties": {
+        "setup": { "$ref": "#/$defs/moduleState" },
         "intake_and_definition": { "$ref": "#/$defs/moduleState" },
         "assembly_planning": { "$ref": "#/$defs/moduleState" },
         "execution": { "$ref": "#/$defs/moduleState" },
@@ -97,6 +103,19 @@
     "moduleAttemptCounts": { "type": "object" },
     "gateRejectionHistory": { "type": "array" }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "entryMode": { "const": "from-scratch" } },
+        "required": ["entryMode"]
+      },
+      "then": {
+        "properties": {
+          "modules": { "required": ["setup", "intake_and_definition", "assembly_planning", "execution", "verification_and_hardening", "library_contribution", "shipment"] }
+        }
+      }
+    }
+  ],
   "$defs": {
     "moduleState": {
       "type": "object",
