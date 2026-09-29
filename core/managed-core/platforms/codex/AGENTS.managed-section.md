@@ -6,6 +6,8 @@ This section is maintained by LiNKtrend install/sync tooling. Repository-owned g
 ### Workers
 
 - Use `issue/<PREFIX>-<n>-<slug>` from the orchestrator.
+- New sessions follow agentsetup. Already-open sessions follow agentcomply. `scripts/gitops/create_issue_branch.py` is the branch helper.
+- Consumer workflow names come from `.github/linktrend-gitops-consumer.json`.
 - Commit and push often. Never open PRs.
 - Run fast checks: `python3 scripts/gitops/run_delivery_profile.py fast`.
 - End with a lessons note.

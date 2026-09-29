@@ -40,7 +40,12 @@
     "scripts/gitops/work-branch-allowlist.sh",
     "scripts/orchestrator/git_local.py",
     "scripts/orchestrator/github_api.py",
+    "scripts/orchestrator/package.py",
+    "scripts/orchestrator/merge_check.py",
+    "scripts/orchestrator/promote_main.py",
     "scripts/orchestrator/promotion_check.py",
+    "scripts/orchestrator/runlog.py",
+    "scripts/orchestrator/watchdog.py",
     "scripts/tests/test-gitops-phase-delivery.sh"
   ],
   "cursorEntrypoints": [
