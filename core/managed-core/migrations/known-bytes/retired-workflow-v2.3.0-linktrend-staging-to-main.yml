@@ -1,0 +1,138 @@
+name: Linktrend Main Receipt Gate
+
+# Main promotion has the same short identity gate as staging.  Principal/Terra
+# performs the actual protected-branch operation outside this workflow.
+on:
+  pull_request_target: # trusted default-branch workflow; candidate is data only
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      source_branch:
+        required: true
+        type: string
+      head_sha:
+        required: true
+        type: string
+      full_run_id:
+        description: Full-suite workflow run containing the retained receipt
+        required: true
+        type: string
+      artifact_name:
+        description: Exact full-suite receipt artifact name
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.repository }}|${{ github.workflow }}|head-${{ github.event.pull_request.head.sha || inputs.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  branch-source-policy:
+    name: Linktrend Branch Source Policy
+    uses: ./.github/workflows/branch-source-policy.yml
+    with:
+      source_branch: ${{ github.event.pull_request.head.ref || inputs.source_branch }}
+      target_branch: main
+    permissions:
+      pull-requests: read
+
+  receipt-gate:
+    name: Linktrend Receipt Gate
+    needs: branch-source-policy
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    env:
+      HEAD_SHA: ${{ github.event.pull_request.head.sha || inputs.head_sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout trusted default branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve exact retained receipt coordinates
+        id: receipt
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+          INPUT_FULL_RUN_ID: ${{ inputs.full_run_id }}
+          INPUT_ARTIFACT_NAME: ${{ inputs.artifact_name }}
+        run: |
+          set -euo pipefail
+          pr_body=""
+          if [ "${EVENT_NAME}" = "pull_request_target" ]; then
+            test -n "${PR_NUMBER}" || { echo "receipt_gate_pr_number_missing"; exit 1; }
+            pr_body="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .body)"
+          fi
+          export PR_BODY="${pr_body}"
+          coordinates="$(python3 - <<'PY'
+          import json, os, re
+          if os.environ["EVENT_NAME"] == "workflow_dispatch":
+              run_id = os.environ.get("INPUT_FULL_RUN_ID", "").strip()
+              artifact = os.environ.get("INPUT_ARTIFACT_NAME", "").strip()
+          else:
+              match = re.search(r"<!-- linktrend-promote:\s*(\{.*?\})\s*-->", os.environ.get("PR_BODY", ""), re.S)
+              if not match:
+                  raise SystemExit("receipt_gate_promotion_marker_missing")
+              marker = json.loads(match.group(1))
+              run_id = str(marker.get("fullRunId") or "").strip()
+              artifact = ""
+          if not run_id.isdigit() or int(run_id) < 1:
+              raise SystemExit("receipt_gate_full_run_invalid")
+          print(json.dumps({"runId": run_id, "artifactName": artifact}))
+          PY
+          )"
+          run_id="$(jq -r .runId <<<"${coordinates}")"
+          requested_name="$(jq -r .artifactName <<<"${coordinates}")"
+          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
+          jq -e '.path == ".github/workflows/linktrend-integrator-merge.yml" and .event == "workflow_dispatch" and .conclusion == "success"' <<<"${run}" >/dev/null \
+            || { echo "receipt_gate_full_run_not_reusable=${run_id}"; exit 1; }
+          artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")"
+          artifact_name="$(jq -r --arg requested "${requested_name}" --arg suffix "-${run_id}" '
+            [.artifacts[] | select(.expired == false)
+              | select(.name | startswith("linktrend-full-suite-receipt-"))
+              | select(.name | endswith($suffix))
+              | select($requested == "" or .name == $requested)]
+            | if length == 1 then .[0].name else empty end
+          ' <<<"${artifacts}")"
+          test -n "${artifact_name}" || { echo "receipt_gate_artifact_not_unique_or_missing=${run_id}"; exit 1; }
+          printf 'run_id=%s\nartifact_name=%s\n' "${run_id}" "${artifact_name}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch exact promotion candidate without executing it
+        run: |
+          set -euo pipefail
+          test -n "${HEAD_SHA}" || { echo "receipt_gate_head_missing"; exit 1; }
+          git fetch --no-tags origin "${HEAD_SHA}"
+          candidate_dir="$(mktemp -d "${RUNNER_TEMP}/linktrend-receipt-candidate.XXXXXX")"
+          git worktree add --detach "${candidate_dir}" "${HEAD_SHA}"
+          echo "${candidate_dir}" > candidate-dir.txt
+
+      - name: Download retained full-suite receipt
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ steps.receipt.outputs.artifact_name }}
+          path: receipt-artifact
+          run-id: ${{ steps.receipt.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify receipt identity and branch policy result
+        run: |
+          set -euo pipefail
+          candidate_dir="$(cat candidate-dir.txt)"
+          python3 "$GITHUB_WORKSPACE/scripts/gitops/gate_receipt.py" verify \
+            --receipt receipt-artifact/full-suite-receipt.json \
+            --repo "${candidate_dir}" \
+            --profile full \
+            --profile-file .github/linktrend-delivery-mode.json \
+            --workflow-run-id "${{ steps.receipt.outputs.run_id }}" \
+            --gate full-gate
+          echo "Linktrend Receipt Gate passed: exact tree/dependency/profile/workflow identity reused; no full suite rerun."

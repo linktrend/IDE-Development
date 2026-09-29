@@ -624,7 +624,9 @@ def build_plan(
                 ConflictItem(
                     ConflictKind.UNKNOWN_CONTENT,
                     mig.path,
-                    "migration hash mismatch; refusing removal",
+                    "retired managed file was modified locally (hash differs from the "
+                    f"released bytes of {mig.identity}); refusing removal. Keep your "
+                    "changes elsewhere, then delete the file or restore the released bytes",
                 )
             )
             if command in {"drift", "verify"}:

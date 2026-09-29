@@ -1,0 +1,162 @@
+name: LiNKtrend Integrator Merge To Development
+
+# Privileged jobs checkout the default branch only (never PR head/merge).
+# Resolve (read-only GITHUB_TOKEN) then evaluate (normal automation token) only when relevant.
+#
+# Concurrency: exact candidate head SHA for automatic events; workflow_dispatch may
+# use explicit pr_number when no SHA is present. cancel-in-progress=false.
+#
+# Consumers: workflow_run.workflows is STATIC YAML rendered from
+# .github/linktrend-gitops-consumer.json by scripts/sync-managed-workflows.sh.
+# Profiles: github-actions preserves the event-driven fallback below; local-coordinator
+# is rendered by sync-managed-workflows.sh with only bounded workflow_dispatch recovery.
+# Frozen coordinator contexts: Linktrend Fast Gate, Linktrend Full Suite,
+# Linktrend Phase Ready, Linktrend Coordinator; external Cursor Bugbot is unchanged.
+
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] trusted workflow completion metadata only; no candidate checkout or execution
+    workflows:
+      - __LINKTREND_CI_WORKFLOW_NAME__
+      - __LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__
+    types: [completed]
+  check_run:
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Optional PR number to evaluate"
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: linktrend-integrator-eval-${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha || github.event.check_run.head_sha || github.event.inputs.pr_number || format('misc-{0}', github.run_id) }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve candidate (read-only)
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success'
+      ) ||
+      (
+        github.event_name == 'check_run' &&
+        github.event.check_run.app.slug != 'github-actions' &&
+        github.event.check_run.name != 'evaluate' &&
+        github.event.check_run.name != 'Linktrend Integrator Result' &&
+        github.event.check_run.name != 'Linktrend Packager Result' &&
+        github.event.check_run.name != 'Linktrend Staging Outcome' &&
+        github.event.check_run.name != 'Linktrend Main Outcome' &&
+        github.event.check_run.name != 'enable-auto-merge' &&
+        github.event.check_run.name != 'merge-when-ready'
+      )
+    runs-on: __LINKTREND_RUNS_ON__
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.r.outputs.relevant }}
+      pr: ${{ steps.r.outputs.pr }}
+      base: ${{ steps.r.outputs.base }}
+      head_ref: ${{ steps.r.outputs.head_ref }}
+      head_sha: ${{ steps.r.outputs.head_sha }}
+      reason: ${{ steps.r.outputs.reason }}
+    steps:
+      - name: Checkout trusted default branch only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Resolve PR/base/head (no normal automation token)
+        id: r
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RESOLVE_ROLE: integrator
+        run: python3 scripts/gitops/resolve_event_pr.py
+
+  evaluate:
+    name: evaluate
+    needs: resolve
+    if: needs.resolve.outputs.relevant == 'true'
+    runs-on: __LINKTREND_RUNS_ON__
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted default branch only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Evaluate and maybe merge
+        env:
+          LINKTREND_AUTOMATION_TOKEN: ${{ secrets.LINKTREND_AUTOMATION_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr }}
+          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          REQUIRED_CHECKS: ${{ vars.LINKTREND_INTEGRATOR_REQUIRED_CHECKS || format('{0},Enforce allowed PR source branches', vars.LINKTREND_FAST_CI_CHECK || 'Verify IDE Development') }}
+          BUGBOT_SUCCESS_CHECK_NAME: __LINKTREND_BUGBOT_CHECK_NAME__
+          GATE_WAIT_SECONDS: "120"
+          GATE_POLL_SECONDS: "15"
+          REQUIRE_AUTOMATION_TOKEN: "1"
+        run: |
+          set -euo pipefail
+          if ! source scripts/gitops/resolve_automation_token.sh; then
+            # automation token unavailable: local outcome + failed workflow only — no GITHUB_TOKEN mutations.
+            python3 scripts/gitops/write_outcome.py \
+              --file integrator-result.json \
+              --status automation_credentials_blocked \
+              --detail "Integrator requires GitHub automation token for autonomous merge"
+            cp integrator-result.json gitops-outcome.json
+            echo "### Integrator status: \`automation_credentials_blocked\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          export AUTOMATION_TOKEN AUTOMATION_TOKEN_SOURCE
+          export GH_TOKEN="${AUTOMATION_TOKEN}"
+          export GITHUB_TOKEN="${AUTOMATION_TOKEN}"
+          bash scripts/gitops/integrator_evaluate.sh
+
+      - name: Upload integrator result
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: integrator-result
+          path: |
+            integrator-result.json
+            gitops-outcome.json
+          if-no-files-found: ignore
+
+          retention-days: 5
+      - name: Summarize honest status
+        if: always()
+        run: |
+          set -euo pipefail
+          f=""
+          if [ -f integrator-result.json ]; then f=integrator-result.json
+          elif [ -f gitops-outcome.json ]; then f=gitops-outcome.json
+          fi
+          if [ -n "$f" ]; then
+            status="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$f")"
+            detail="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("detail",""))' "$f")"
+            echo "### Integrator status: \`${status}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "${detail}" >> "$GITHUB_STEP_SUMMARY"
+            echo "resolve_reason=${{ needs.resolve.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
+            case "${status}" in
+              failed|automation_credentials_blocked) exit 1 ;;
+              *) exit 0 ;;
+            esac
+          else
+            echo "missing outcome file" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
