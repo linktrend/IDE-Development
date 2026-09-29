@@ -10,7 +10,7 @@ from typing import Any
 
 from .hashing import modes_match, normalize_mode, sha256_bytes, sha256_file
 from .managed_write_guard import is_read_only_mode, read_only_mode
-from .manifest import Manifest, ManifestEntry, MigrationCatalog
+from .manifest import Manifest, ManifestEntry, MigrationCatalog, MigrationEntry
 from .markers import extract_marker_block, render_marker_file
 from .errors import ConflictError
 from .paths import join_under, join_under_nofollow, path_is_symlink
@@ -50,6 +50,14 @@ class DriftKind(str, Enum):
     REPOSITORY_OWNED_EXTENSION = "repository_owned_extension"
     CANDIDATE_CENTRAL_IDE_IMPROVEMENT = "candidate_central_ide_improvement"
     OBSOLETE_RESIDUE = "obsolete_residue"
+
+
+def migrations_by_path(migration: MigrationCatalog) -> dict[str, list[MigrationEntry]]:
+    """Reviewed removal identities grouped by path, in catalog order."""
+    grouped: dict[str, list[MigrationEntry]] = {}
+    for entry in migration.entries:
+        grouped.setdefault(entry.path, []).append(entry)
+    return grouped
 
 
 def required_full_dispatch_inputs_present(text: str) -> bool:
@@ -581,32 +589,33 @@ def build_plan(
             )
         )
 
-    for mig in migration.entries:
-        if mig.path in managed_paths:
+    for mig_path, candidates in migrations_by_path(migration).items():
+        mig = candidates[0]
+        if mig_path in managed_paths:
             continue
-        if is_under_any(mig.path, migrate_ancestors):
+        if is_under_any(mig_path, migrate_ancestors):
             # Obsolete paths under migrating symlink are absent in-repo; no-op.
             plan.actions.append(
                 PlanAction(
                     op=OpKind.NOOP,
-                    path=mig.path,
+                    path=mig_path,
                     entry_id=mig.identity,
                     reason="migration target absent (under migrating symlink)",
                     classification="match",
                 )
             )
             continue
-        dest = dest_for(mig.path)
+        dest = dest_for(mig_path)
         if path_is_symlink(dest):
             plan.conflicts.append(
-                ConflictItem(ConflictKind.SYMLINK, mig.path, "migration target is symlink")
+                ConflictItem(ConflictKind.SYMLINK, mig_path, "migration target is symlink")
             )
             continue
         if not dest.exists():
             plan.actions.append(
                 PlanAction(
                     op=OpKind.NOOP,
-                    path=mig.path,
+                    path=mig_path,
                     entry_id=mig.identity,
                     reason="migration target absent",
                     classification="match",
@@ -615,17 +624,18 @@ def build_plan(
             continue
         if not dest.is_file():
             plan.conflicts.append(
-                ConflictItem(ConflictKind.NOT_A_FILE, mig.path, "migration target not a file")
+                ConflictItem(ConflictKind.NOT_A_FILE, mig_path, "migration target not a file")
             )
             continue
         actual = sha256_file(dest)
-        if actual != mig.content_hash:
+        matched = next((c for c in candidates if c.content_hash == actual), None)
+        if matched is None:
             plan.conflicts.append(
                 ConflictItem(
                     ConflictKind.UNKNOWN_CONTENT,
-                    mig.path,
-                    "retired managed file was modified locally (hash differs from the "
-                    f"released bytes of {mig.identity}); refusing removal. Keep your "
+                    mig_path,
+                    "retired managed file was modified locally (hash differs from every "
+                    f"released version of {mig_path}); refusing removal. Keep your "
                     "changes elsewhere, then delete the file or restore the released bytes",
                 )
             )
@@ -633,7 +643,7 @@ def build_plan(
                 plan.drift.append(
                     DriftItem(
                         DriftKind.MODIFIED,
-                        mig.path,
+                        mig_path,
                         "migration identity mismatch",
                         expected_hash=mig.content_hash,
                         actual_hash=actual,
@@ -643,10 +653,10 @@ def build_plan(
         plan.actions.append(
             PlanAction(
                 op=OpKind.REMOVE,
-                path=mig.path,
-                entry_id=mig.identity,
-                reason=f"migration remove exact match ({mig.identity})",
-                source_hash=mig.content_hash,
+                path=mig_path,
+                entry_id=matched.identity,
+                reason=f"migration remove exact match ({matched.identity})",
+                source_hash=matched.content_hash,
                 classification="supersede_exact",
             )
         )
@@ -967,27 +977,27 @@ def build_drift_report(
 
     if migration is not None:
         active_paths = {entry.destination for entry in manifest.active_entries()}
-        for obsolete in migration.entries:
-            if obsolete.path in active_paths:
+        for obsolete_path, candidates in migrations_by_path(migration).items():
+            if obsolete_path in active_paths:
                 continue
-            dest = join_under_nofollow(target_root, obsolete.path)
+            dest = join_under_nofollow(target_root, obsolete_path)
             if path_is_symlink(dest):
                 items.append(
                     DriftItem(
                         DriftKind.UNKNOWN_COLLISION,
-                        obsolete.path,
+                        obsolete_path,
                         "obsolete residue is a symlink",
                     )
                 )
             elif dest.is_file():
                 actual = sha256_file(dest)
-                if actual == obsolete.content_hash:
+                if any(c.content_hash == actual for c in candidates):
                     items.append(
                         DriftItem(
                             DriftKind.OBSOLETE_RESIDUE,
-                            obsolete.path,
+                            obsolete_path,
                             "exact obsolete managed residue is removable in a transaction",
-                            expected_hash=obsolete.content_hash,
+                            expected_hash=actual,
                             actual_hash=actual,
                         )
                     )
@@ -995,9 +1005,9 @@ def build_drift_report(
                     items.append(
                         DriftItem(
                             DriftKind.MODIFIED,
-                            obsolete.path,
+                            obsolete_path,
                             "obsolete residue differs from its reviewed identity",
-                            expected_hash=obsolete.content_hash,
+                            expected_hash=candidates[0].content_hash,
                             actual_hash=actual,
                         )
                     )

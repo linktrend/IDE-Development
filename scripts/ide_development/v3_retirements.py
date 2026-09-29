@@ -1,8 +1,13 @@
-"""Generate the v3 retired-file migrations from the published v2.5.2 package.
+"""Generate the v3 retired-file migrations from the published v2 packages.
 
 Every destination in the v2.5.2 ``core/managed-core/MANIFEST.json`` (release
-commit ``5a64f7f``) that the current manifest no longer declares becomes one
-exact-hash ``remove`` entry in ``core/managed-core/migrations/catalog.json``.
+commit ``5a64f7f``) that the current manifest no longer declares becomes an
+exact-hash ``remove`` entry in ``core/managed-core/migrations/catalog.json``:
+one with the v2.5.2 hash (identity = path) and one per distinct older hash the
+same path had in an earlier published v2 release (identity = ``path@<first
+release with those bytes>``), so a consumer on any published v2 release is
+upgraded without deleting anything that was never released.
+
 Every distinct published v2 template of a root workflow that
 ``scripts/sync-managed-workflows.sh`` rendered into consumer
 ``.github/workflows/`` is written as reviewed known bytes (named by the first
@@ -10,15 +15,10 @@ release tag that shipped it) so ``retired_workflows`` can rebuild each
 consumer-specific identity.  Consumers often kept older renderings because the
 sync was not re-run on every package update.
 
-The catalog schema allows one ``contentHash`` per path.  The v2.5.2 hash is
-the one kept: v3 upgrades start from v2.5.2.  Older published hashes for the
-same path are reported by ``--report-older`` and documented, never added.
-
-Usage (from the repository root, needs local git objects for the ref)::
+Usage (from ``scripts/``; needs local git objects and release tags)::
 
   python3 -m ide_development.v3_retirements --write
   python3 -m ide_development.v3_retirements --check
-  python3 -m ide_development.v3_retirements --report-older
 """
 
 from __future__ import annotations
@@ -131,20 +131,56 @@ def retired_manifest_rows(*, repo: Path = REPO_ROOT, ref: str = V252_REF) -> lis
 
 
 def build_entries(*, repo: Path = REPO_ROOT, ref: str = V252_REF) -> list[dict[str, Any]]:
+    retired = retired_manifest_rows(repo=repo, ref=ref)
+    older = older_hashes(retired, repo=repo)
     entries = []
-    for row in retired_manifest_rows(repo=repo, ref=ref):
+    for row in retired:
         dest = row["destination"]
+        reason = f"Retired in v3 ({component_for(dest)})"
         entries.append(
             {
                 "identity": dest,
                 "path": dest,
                 "contentHash": row["sourceHash"],
                 "action": "remove",
-                "reason": f"Retired in v3 ({component_for(dest)})",
+                "reason": reason,
                 "sincePackageVersion": SINCE_VERSION,
             }
         )
+        for release, digest in older.get(dest, []):
+            entries.append(
+                {
+                    "identity": f"{dest}@{release}",
+                    "path": dest,
+                    "contentHash": digest,
+                    "action": "remove",
+                    "reason": f"{reason}; bytes as published in {release}",
+                    "sincePackageVersion": SINCE_VERSION,
+                }
+            )
     return entries
+
+
+def older_hashes(
+    retired: list[dict[str, Any]], *, repo: Path = REPO_ROOT
+) -> dict[str, list[tuple[str, str]]]:
+    """Retired path -> [(first release, hash)] for bytes that differ from v2.5.2."""
+    current = {row["destination"]: row["sourceHash"] for row in retired}
+    seen: dict[str, set[str]] = {path: {digest} for path, digest in current.items()}
+    report: dict[str, list[tuple[str, str]]] = {}
+    for release in published_releases(repo=repo):
+        if release == f"v{V252_VERSION}":
+            continue
+        try:
+            rows = _manifest_files(_git_show(release, MANIFEST_REL, repo=repo))
+        except RuntimeError:
+            continue
+        for row in rows:
+            path, digest = row["destination"], row["sourceHash"]
+            if path in seen and digest not in seen[path]:
+                seen[path].add(digest)
+                report.setdefault(path, []).append((release, digest))
+    return report
 
 
 def render_catalog(*, repo: Path = REPO_ROOT, ref: str = V252_REF) -> dict[str, Any]:
@@ -236,30 +272,11 @@ def check(*, repo: Path = REPO_ROOT, ref: str = V252_REF) -> list[str]:
     return errors
 
 
-def older_hashes(*, repo: Path = REPO_ROOT, ref: str = V252_REF) -> dict[str, dict[str, str]]:
-    """Map retired path -> {older tag: hash} where an older tag differs from v2.5.2."""
-    current = {e["path"]: e["contentHash"] for e in build_entries(repo=repo, ref=ref)}
-    report: dict[str, dict[str, str]] = {}
-    for tag in published_releases(repo=repo):
-        if tag == f"v{V252_VERSION}":
-            continue
-        try:
-            rows = _manifest_files(_git_show(tag, MANIFEST_REL, repo=repo))
-        except RuntimeError:
-            continue
-        for row in rows:
-            path = row["destination"]
-            if path in current and row["sourceHash"] != current[path]:
-                report.setdefault(path, {})[tag] = row["sourceHash"]
-    return report
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--write", action="store_true", help="rewrite catalog + known bytes (default)")
     mode.add_argument("--check", action="store_true", help="exit 1 when generated output drifted")
-    mode.add_argument("--report-older", action="store_true", help="list older published hashes")
     parser.add_argument("--ref", default=V252_REF, help="v2.5.2 release commit")
     args = parser.parse_args(argv)
     try:
@@ -270,17 +287,16 @@ def main(argv: list[str] | None = None) -> int:
             if not errors:
                 print("v3 retirement catalog OK")
             return 1 if errors else 0
-        if args.report_older:
-            report = older_hashes(ref=args.ref)
-            print(json.dumps(report, indent=2, sort_keys=True))
-            print(f"{len(report)} retired paths had a different hash in an older release", file=sys.stderr)
-            return 0
         catalog = write(ref=args.ref)
     except RuntimeError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1
-    count = sum(1 for e in catalog["entries"] if e.get("sincePackageVersion") == SINCE_VERSION)
-    print(f"Wrote {CATALOG_REL}: {count} v3 retirements, {len(catalog['entries'])} entries total")
+    v3 = [e for e in catalog["entries"] if e.get("sincePackageVersion") == SINCE_VERSION]
+    paths = {e["path"] for e in v3}
+    print(
+        f"Wrote {CATALOG_REL}: {len(paths)} retired paths, {len(v3)} v3 entries "
+        f"(incl. older published hashes), {len(catalog['entries'])} entries total"
+    )
     return 0
 
 

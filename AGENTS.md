@@ -52,4 +52,3 @@ Long-lived branches are `development` and `main` only.
 - No prefer-incoming.
 - Never bypass branch protection.
 <!-- END LINKTREND-IDE-MANAGED -->
-

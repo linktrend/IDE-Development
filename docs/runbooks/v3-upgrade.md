@@ -8,7 +8,7 @@
 `python3 scripts/ide-development.py update --target <consumer>` (run from an IDE Development v3.0.0 checkout) is one transaction:
 
 - Replaces and adds the v3 managed files and sets `.ide-development/installed-state.json` to `packageVersion` 3.0.0.
-- **Deletes** every managed file that v2.5.2 installed and v3 no longer ships: 62 paths, listed in `core/managed-core/migrations/catalog.json` with `sincePackageVersion: 3.0.0`. A file is deleted only when its bytes equal the released v2.5.2 bytes.
+- **Deletes** every managed file that v2.5.2 installed and v3 no longer ships: 62 paths, listed in `core/managed-core/migrations/catalog.json` with `sincePackageVersion: 3.0.0` (131 entries: the v2.5.2 hash of each path plus every different hash the same path had in an older published v2 release). A file is deleted only when its bytes equal released bytes.
 - **Deletes** the v2 root workflows in `.github/workflows/` (`linktrend-development-to-staging.yml`, `linktrend-integrator-merge.yml`, `linktrend-repair-observer.yml`, `linktrend-review-gate.yml`, `linktrend-review-packager.yml`, `linktrend-review-ready-publisher.yml`, `linktrend-staging-to-main.yml`). v2 rendered these per consumer, so a file is deleted only when it equals a published v2 rendering of it for that consumer's `.github/linktrend-gitops-consumer.json` (any published template from v2.1.0 to v2.5.2, both v2 orchestration profiles).
 - Never deletes a changed file. A locally modified retired file stops the update with exit 11 and a `unknown_content` conflict naming the path: *"retired managed file was modified locally … refusing removal"*. Nothing is written.
 - `rollback` restores the exact v2.5.2 bytes and modes, including the removed root workflows.
@@ -23,7 +23,7 @@
 4. **Branch protection.** After the change is on `development` and `main`, the rulesets must stop requiring the retired contexts, or every pull request waits forever. Required contexts in v3: `development` — `Linktrend Fast Checks`, `Linktrend Branch Source Policy` (plus `Verify IDE Development` green on the exact head before merge); `main` — `Linktrend Branch Source Policy`, `Linktrend Receipt Gate`. Remove any of: `Linktrend Review Gate`, `Linktrend Full Suite`, `Linktrend Reconciled Fast Checks`, `Linktrend Reconciled Tree Canary`, `Linktrend Recovery Receipt`, `Linktrend Final Candidate Bugbot Request`, `Linktrend Phase Ready`, `Linktrend Staging Gate`, `Linktrend Release Gate`, `Linktrend Coordinator`, the Review Ready status. Delete the `staging` branch rules. Protection changes are made by the orchestrator through `scripts/manage-repository-protections.sh`, never bypassed.
 5. **Deploy.** A consumer that deploys adds `deploy/target.json` (schema owned by LiNKops) and re-runs the workflow sync to get `linktrend-deploy.yml`.
 
-Consumers on a release older than v2.5.2: update to v2.5.2 first. Their retired managed files carry older hashes (31 of the 62 paths differ in some older release; `python3 -m ide_development.v3_retirements --report-older` lists them). The catalog schema holds one hash per path, and v3 keeps the v2.5.2 hash, so older bytes are reported as conflicts rather than deleted.
+Consumers on an older published v2 release can update directly: the catalog carries every published hash of each retired path, and the root-workflow check covers every published template (the consumer profile matrix upgrades v2.3.6 and v2.3.7 layouts this way with zero conflicts and no drift). Files that a pre-v2.5.2 release retired without a migration stay as preserved orphans and show as `orphan_managed` in `drift`; review and delete them deliberately.
 
 `linktrend/openclaw_prime` keeps its customization-scoped admission: `docs/contracts/OPENCLAW-CUSTOMIZATION-ADMISSION.md` admits the v3.0.0 package under the same contract.
 
@@ -37,10 +37,10 @@ The Issue named `linktrend/LiNKprofiles`; that repository does not exist (`git c
 
 | Step | Result |
 |---|---|
-| `plan` (dry run) | exit 0, 0 conflicts; 69 remove, 65 create, 135 replace, 1 marker upsert, 257 unchanged |
+| `plan` (dry run) | exit 0, 0 conflicts; 69 remove, 67 create, 137 replace, 1 marker upsert, 255 unchanged |
 | `update` | exit 0, applied; `packageVersion` 2.5.2 → **3.0.0** |
 | Removed | **69**: 62 retired managed files + 7 retired root workflows (list below) |
-| Added / replaced | **65** added, **135** replaced (+ `AGENTS.md` marker block) |
+| Added / replaced | **67** added, **137** replaced (+ `AGENTS.md` marker block) |
 | `verify` | exit 0, `ok: true`, 0 conflicts, 0 drift |
 | `drift` | exit 0, no entries, **0 `ORPHAN_MANAGED`** |
 | `.github/workflows/` after | `branch-source-policy.yml`, `ci.yml`, `linktrend-cleanup-merged.yml`, `linktrend-release-gate.yml`, `successor-release.yml` — no retired workflow; the last two and `ci.yml` are LiNKskills' own and untouched |

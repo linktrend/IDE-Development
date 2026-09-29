@@ -253,6 +253,33 @@ class V3UpgradeTests(unittest.TestCase):
         self.assertIn("refusing removal", detail)
         self.assertEqual(_snapshot(consumer), before)
 
+    def test_older_published_bytes_of_a_retired_file_are_removed(self) -> None:
+        catalog = json.loads((REPO / v3_retirements.CATALOG_REL).read_text(encoding="utf-8"))
+        older = next(
+            e for e in catalog["entries"]
+            if e.get("sincePackageVersion") == v3_retirements.SINCE_VERSION and "@v" in e["identity"]
+        )
+        release = older["identity"].rsplit("@", 1)[1]
+        data = subprocess.run(
+            ["git", "-C", str(REPO), "show", f"{release}:{v3_retirements.MANIFEST_REL}"],
+            capture_output=True,
+            check=True,
+        ).stdout
+        source = next(
+            row["source"] for row in json.loads(data)["files"] if row["destination"] == older["path"]
+        )
+        old_bytes = subprocess.run(
+            ["git", "-C", str(REPO), "show", f"{release}:{source}"], capture_output=True, check=True
+        ).stdout
+        consumer = self._consumer()
+        target = consumer / older["path"]
+        target.chmod(0o644)
+        target.write_bytes(old_bytes)
+        code, plan = _cli("plan", consumer)
+        self.assertEqual(code, 0, plan.get("conflicts"))
+        action = next(a for a in plan["actions"] if a["path"] == older["path"])
+        self.assertEqual((action["op"], action["entryId"]), ("remove", older["identity"]))
+
     def test_modified_retired_root_workflow_is_a_conflict_not_a_deletion(self) -> None:
         consumer = self._consumer()
         target = consumer / ".github/workflows/linktrend-review-packager.yml"

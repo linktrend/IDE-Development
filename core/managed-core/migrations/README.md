@@ -30,8 +30,8 @@ migrations/
 
 ## v3.0.0 retirements
 
-- Generated, never hand-edited: `python3 -m ide_development.v3_retirements --write` (from `scripts/`) adds one `remove` entry (`sincePackageVersion: "3.0.0"`, `reason: "Retired in v3 (<component>)"`) for every destination in the v2.5.2 manifest (release commit `5a64f7f`) that the current manifest no longer declares, with the v2.5.2 hash. `--check` fails on drift.
-- One `contentHash` per path (the loader rejects duplicate paths). The v2.5.2 hash is kept because v3 upgrades start from v2.5.2; an older-release entry for the same path is replaced. `--report-older` lists paths whose bytes differed in an older published release; those bytes are refused as conflicts, never deleted (`docs/runbooks/v3-upgrade.md`).
+- Generated, never hand-edited: `python3 -m ide_development.v3_retirements --write` (from `scripts/`) adds `remove` entries (`sincePackageVersion: "3.0.0"`, `reason: "Retired in v3 (<component>)"`) for every destination in the v2.5.2 manifest (release commit `5a64f7f`) that the current manifest no longer declares. `--check` fails on drift.
+- A path may have several entries, one per distinct published hash: the v2.5.2 hash (identity = path) and each different hash the path had in an older published v2 release (identity = `path@<first release with those bytes>`). Identities are unique; a repeated path and hash is rejected. The installer removes the file when it equals any of them and reports one conflict when it equals none. Older entries for a retired path are regenerated from the published manifests.
 - Retired root workflows in consumer `.github/workflows/` were rendered per consumer by the v2 `scripts/sync-managed-workflows.sh`, so they have no fixed hash. `known-bytes/retired-workflow-<release>-<name>` holds every distinct published v2 template (named by the first release that shipped it); `scripts/ide_development/retired_workflows.py` renders them for the consumer and adds one exact-hash identity per workflow to the installer plan and to the sync script.
 
 ## Related

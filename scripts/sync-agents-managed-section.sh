@@ -55,8 +55,9 @@ else:
 if begin in text and end in text:
     pre = text.split(begin, 1)[0]
     post = text.split(end, 1)[1]
-    # Drop leading blank lines of post for tidy join
-    new = pre.rstrip() + "\n\n" + section.rstrip() + "\n" + (post if post.startswith("\n") else "\n" + post)
+    # One blank line before any following consumer text; none at end of file.
+    tail = post.lstrip("\n")
+    new = pre.rstrip() + "\n\n" + section.rstrip() + "\n" + ("\n" + tail if tail else "")
 else:
     new = text.rstrip() + "\n\n" + section.rstrip() + "\n"
 
