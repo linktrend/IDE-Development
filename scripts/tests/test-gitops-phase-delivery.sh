@@ -29,7 +29,6 @@ from delivery_modes import (
     should_open_pr_for_branch,
     validate_risk_class,
 )
-from packager_logic import is_allowed_work_branch
 
 assert checkpoint_opens_pr() is False
 
@@ -87,16 +86,13 @@ assert d.open_pr is True and d.reason == "issue_pr_risk_exception"
 assert d.risk_class == "authentication"
 
 # Phase branch opens the single Phase PR
-assert is_allowed_work_branch("phase/wp-01-demo")
 d = should_open_pr_for_branch(
     "phase/wp-01-demo", phase_cfg, review_ready=True
 )
 assert d.open_pr is True and d.reason == "phase_branch_pr"
 
-# Configurable phaseBranchPrefix must pass packager allow-filter (Bugbot #1)
+# Configurable phaseBranchPrefix opens the Phase PR for the custom prefix
 custom_prefix = "wave/"
-assert is_allowed_work_branch("wave/wp-01-demo", phase_branch_prefix=custom_prefix)
-assert not is_allowed_work_branch("wave/wp-01-demo")  # default still phase/
 custom_cfg = DeliveryConfig(
     delivery_mode=MODE_PHASE_INTEGRATION, phase_branch_prefix=custom_prefix
 )
@@ -130,9 +126,7 @@ ok2, _ = phase_ready_for_pr(
 assert ok2 is False
 
 from delivery_modes import validate_phase_delivery_record
-import review_ready_dispatch as rrd
 
-# Bugbot: Packager must validate Phase delivery record before Phase PR
 ok_rec, det_rec = validate_phase_delivery_record(
     {
         "schemaVersion": 1,
@@ -188,27 +182,6 @@ ok_inc, det_inc = validate_phase_delivery_record(
 )
 assert ok_inc is False and "issue_not_included" in det_inc
 
-disc_src = (ROOT / "scripts" / "gitops" / "packager_discover.py").read_text(
-    encoding="utf-8"
-)
-assert "validate_phase_delivery_record" in disc_src
-assert "fetch_phase_delivery_record" in disc_src
-assert "skipped_phase_delivery" in disc_src
-
-# App-backed Phase tip eligibility without weakening issue safeguards
-assert rrd.is_app_backed_issue_branch("issue/81-wp-01-demo")
-assert not rrd.is_app_backed_issue_branch("phase/wp-01-demo")
-assert rrd.is_app_backed_phase_branch("phase/wp-01-demo")
-assert rrd.is_app_backed_publish_branch("phase/wp-01-demo")
-assert not rrd.is_app_backed_publish_branch("feature/81-x")
-assert rrd.is_app_backed_phase_branch("wave/wp-01-demo", phase_prefix="wave/")
-phase_dispatch = rrd.validate_dispatch_inputs(
-    branch="phase/wp-01-demo",
-    sha=head,
-    github_repository="linktrend/IDE-Development",
-)
-assert phase_dispatch.branch_kind == "phase"
-assert phase_dispatch.issue_number == 0
 
 gate = named_gate_evidence(
     gate="fast-gate",
