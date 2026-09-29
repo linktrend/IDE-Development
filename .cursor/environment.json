@@ -1,0 +1,4 @@
+{
+  "name": "IDE Development",
+  "install": "bash scripts/setup.sh"
+}
