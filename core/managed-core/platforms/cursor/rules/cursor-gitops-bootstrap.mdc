@@ -1,35 +1,27 @@
 ---
-description: LiNKtrend managed bootstrap for installed consumer repos (Ship/completion/repair).
+description: LiNKtrend v3 orchestrator delivery for workers and the orchestrator.
 alwaysApply: true
 ---
 
-# LiNKtrend managed bootstrap (v2)
+# LiNKtrend managed bootstrap (v3)
 
-Installed managed core: `.ide-development/`.
+## Workers
 
-## Ship checkpoint
+- Use `issue/<PREFIX>-<n>-<slug>` from the orchestrator.
+- Commit and push often. Never open PRs.
+- Run fast checks: `python3 scripts/gitops/run_delivery_profile.py fast`.
+- End with a lessons note.
 
-- Ship waves are **checkpoint only**: commit + push the work branch.
-- Do **not** open a PR. (The v2 Phase Packager is retired in v3 (IDE-22); see the v3 plan.)
-- Do **not** request Bugbot from the implementer session.
+## Orchestrator
 
-## Pull requests
+- Packages with `scripts/orchestrator/package.py`.
+- Requires Full CI and one exact-head review by a different model family (`scripts/orchestrator/merge_check.py`), then merges.
+- Promotes with `scripts/orchestrator/promote_main.py` (`promote/main/*` into `main`, checked by `Linktrend Receipt Gate`).
+- There is no staging branch.
+- Repair ladder: Luna/Grok ×3, then Sol/Opus ×1, then the other of Sol/Opus ×1, then flag Carlos. Recorded with `scripts/orchestrator/runlog.py` and watched by `scripts/orchestrator/watchdog.py`.
 
-- Implementers do not open PRs. The v2 Phase Packager is retired in v3 (IDE-22); see the v3 plan.
-- The v2 delivery controller is retired in v3 (IDE-22); see the v3 plan.
+## Hard stops
 
-## Completion
-
-- The v2 completion gate and its readiness status are retired in v3 (IDE-22); see the v3 plan.
-- Finished work must run appropriate tests/checks and auto-repair ordinary failures with at most **3** bounded repair cycles.
-
-## Repair control
-
-- Durable failures are recorded by `scripts/gitops/repair_task.py` (GitHub Issues / file backend).
-- Max **3** ordinary repair attempts (`dispatch-attempt`); then `resolutionState=Issues`.
-- Immediate types (`automation_credentials_blocked`, `usage_limit`, `immediate_*`) → `do_not_dispatch`.
-- GitHub never spawns Cursor. Lisa ACP Repair Dispatcher owns dispatch.
-
-## Conflict policy
-
-- **No prefer-incoming** merges on conflicts. Repair the named branch / promote candidate deliberately.
+- No self-review.
+- No prefer-incoming.
+- Never bypass branch protection.
