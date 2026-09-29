@@ -1,0 +1,83 @@
+{
+  "schema_version": "0.1",
+  "skill_id": "skill-template",
+  "display_name": "Skill Template",
+  "version": "1.2.0",
+  "description": "Golden template for creating production-grade LiNKskills skills.",
+  "capability_category": "internal_launch",
+  "lifecycle_state": "draft",
+  "format_profile": "heavy",
+  "compatible_runtime_profiles": [
+    "cursor-macos"
+  ],
+  "min_capability_tier": "balanced",
+  "routing": {
+    "when_to_use": "Use when creating or updating a standardized skill scaffold.",
+    "when_not_to_use": [
+      "Do not treat YAML-only validation as launch readiness",
+      "Do not claim usable/certified without sealed receipts"
+    ],
+    "tags": [
+      "template",
+      "baseline"
+    ]
+  },
+  "execution": {
+    "required_inputs": [
+      {
+        "name": "task",
+        "description": "Operator task description"
+      }
+    ],
+    "expected_outputs": [
+      {
+        "name": "result",
+        "description": "Scoped skill result summary"
+      }
+    ],
+    "forbidden_actions": [
+      "Publish without eval evidence",
+      "Bypass privacy/redaction controls"
+    ],
+    "verification_steps": [
+      "Validate canonical Skill Pack / eval / execution-profile JSON",
+      "Confirm sealed executor receipts before certification"
+    ],
+    "completion_criteria": [
+      "Canonical v0.1 artifacts present and schema-valid",
+      "No prohibited privacy categories retained"
+    ]
+  },
+  "dependencies": {
+    "schema_version": "0.1",
+    "skill_dependencies": [],
+    "packaged_tools": [],
+    "host_capabilities": [
+      "filesystem_read"
+    ],
+    "external_services": [],
+    "library_assets": [],
+    "runtime_requirements": [],
+    "optional_dependencies": []
+  },
+  "eval": {
+    "suite_path": "references/eval-suite.json",
+    "suite_schema_version": "0.1"
+  },
+  "telemetry": {
+    "classification": "public_internal",
+    "redaction_rules": [
+      "strip_secrets",
+      "strip_reasoning"
+    ],
+    "retention_policy": "retain_ids_and_hashes"
+  },
+  "fragments": [
+    {
+      "fragment_id": "summary",
+      "disclosure_level": 2,
+      "path": "SKILL.md"
+    }
+  ],
+  "release_channel": "canary"
+}

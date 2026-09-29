@@ -1,0 +1,22 @@
+{
+  "adapter": {
+    "name": "local-actor",
+    "version_range": ">=0.1.0"
+  },
+  "certification": {
+    "refusal_reason": "Canonical artifacts stamped via shared hashing; live certification not claimed",
+    "status": "uncertified"
+  },
+  "eval_suite_hash": "sha256:4a9c850dd2802f9dbeb37570919feca270fc893007e4147037b3ef683b9d0041",
+  "eval_suite_id": "tool-architect-eval",
+  "execution_profile_id": "tool-architect-cursor-macos-draft",
+  "lifecycle_state": "draft",
+  "model_capability_tier": "balanced",
+  "profile_hash": "sha256:58a835a8fa7e048afb865d3064b2bab5366d18e05fb42533d8f2bdd6231ea12f",
+  "runtime_profile_id": "cursor-macos",
+  "schema_version": "0.1",
+  "skill_bundle_hash": "sha256:f0991bc6e5171f8b877cef1c051014b9356cb96122dc36ac3503f6dc42434c74",
+  "skill_id": "tool-architect",
+  "skill_version": "1.0.0",
+  "toolchain": []
+}

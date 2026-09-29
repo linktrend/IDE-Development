@@ -1,0 +1,50 @@
+{
+  "definitions": {
+    "input": {
+      "type": "object",
+      "required": ["tool_name", "source_type", "capability_summary"],
+      "properties": {
+        "tool_name": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "source_type": {
+          "type": "string",
+          "enum": ["api", "third_party_cli", "library"]
+        },
+        "capability_summary": { "type": "string", "minLength": 10 },
+        "source_reference": { "type": "string" },
+        "requires_streaming": { "type": "boolean" }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["status", "tool_name", "tool_path", "validated"],
+      "properties": {
+        "status": { "type": "string", "enum": ["SUCCESS", "FAILED"] },
+        "tool_name": { "type": "string" },
+        "tool_path": { "type": "string" },
+        "validated": { "type": "boolean" },
+        "notes": { "type": "string" }
+      }
+    },
+    "state": {
+      "type": "object",
+      "required": ["task_id", "workflow_step", "status", "last_updated", "variables"],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "pattern": "^\\d{8}-\\d{4}-[A-Z0-9]+-\\d{6}$"
+        },
+        "workflow_step": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "status": {
+          "type": "string",
+          "enum": ["INITIALIZED", "WRAPPED", "VERIFIED", "COMPLETED", "FAILED"]
+        },
+        "last_updated": { "type": "string" },
+        "variables": { "type": "object" },
+        "seek_index": { "type": "object" }
+      }
+    }
+  }
+}

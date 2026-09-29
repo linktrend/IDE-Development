@@ -1,0 +1,22 @@
+{
+  "adapter": {
+    "name": "local-actor",
+    "version_range": ">=0.1.0"
+  },
+  "certification": {
+    "refusal_reason": "Canonical artifacts stamped via shared hashing; live certification not claimed",
+    "status": "uncertified"
+  },
+  "eval_suite_hash": "sha256:84c0ce566b725db5d27497c768e33690e6fff78bf4f24e025d989e10970beddc",
+  "eval_suite_id": "repository-manager-eval",
+  "execution_profile_id": "repository-manager-cursor-macos-draft",
+  "lifecycle_state": "draft",
+  "model_capability_tier": "balanced",
+  "profile_hash": "sha256:45e6f2e34a0c6151429771097d46524d6bd59c242adcced9aef000112fd21dd0",
+  "runtime_profile_id": "cursor-macos",
+  "schema_version": "0.1",
+  "skill_bundle_hash": "sha256:755d554359ccb06838b8982be7b233529b85662b252074346aec1909e317eb7c",
+  "skill_id": "repository-manager",
+  "skill_version": "1.0.0",
+  "toolchain": []
+}

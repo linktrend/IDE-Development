@@ -102,6 +102,13 @@ export function loadSkillsLock(lockPath = DEFAULT_LOCK) {
       provider: 'skills',
     })
   }
+  if (provider.syncedAt !== undefined && (typeof provider.syncedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(provider.syncedAt))) {
+    closed('skills_pin_invalid', 'skills lock provider syncedAt is malformed', {
+      classification: 'fail_closed',
+      provider: 'skills',
+      field: 'syncedAt',
+    })
+  }
   if (!Array.isArray(parsed.copies) || parsed.copies.length !== ACTIVE_COPY_COUNT) {
     closed('skills_lock_invalid', 'skills lock must inventory exactly 88 active copies', {
       classification: 'fail_closed',
@@ -132,6 +139,41 @@ export function loadSkillsLock(lockPath = DEFAULT_LOCK) {
             field,
           })
         }
+      }
+      if (!Array.isArray(row.files) || row.files.length === 0) {
+        closed('skills_digest_invalid', `skills lock has no per-file hashes: ${row.skillId}`, {
+          classification: 'fail_closed',
+          field: 'files',
+        })
+      }
+      const seen = new Set()
+      for (const file of row.files) {
+        if (!isPlainObject(file) || typeof file.path !== 'string' || typeof file.sha256 !== 'string' || !SHA256.test(file.sha256)) {
+          closed('skills_digest_invalid', `skills lock file hash is malformed: ${row.skillId}`, {
+            classification: 'fail_closed',
+            field: 'files',
+          })
+        }
+        if (file.path === '' || file.path.startsWith('/') || file.path.includes('\\') || file.path.split('/').includes('..')) {
+          closed('skills_digest_invalid', `skills lock file path is malformed: ${row.skillId}`, {
+            classification: 'fail_closed',
+            field: 'files',
+          })
+        }
+        if (seen.has(file.path)) {
+          closed('skills_digest_invalid', `skills lock file path is duplicated: ${row.skillId}`, {
+            classification: 'fail_closed',
+            field: 'files',
+          })
+        }
+        seen.add(file.path)
+      }
+      const skillMd = row.files.find((file) => file.path === 'SKILL.md')
+      if (!skillMd || skillMd.sha256 !== row.entrypointDigest) {
+        closed('skills_digest_invalid', `skills lock entrypointDigest is not the SKILL.md hash: ${row.skillId}`, {
+          classification: 'fail_closed',
+          field: 'entrypointDigest',
+        })
       }
     }
   }

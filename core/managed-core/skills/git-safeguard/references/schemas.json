@@ -1,0 +1,47 @@
+{
+  "definitions": {
+    "input": {
+      "type": "object",
+      "description": "Validation for Phase 1 ingestion.",
+      "required": ["context_var_1", "skill_profile"],
+      "properties": {
+        "context_var_1": { "type": "string" },
+        "skill_profile": {
+          "type": "string",
+          "enum": ["Specialist", "Generalist"]
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "description": "Validation for Phase 4 finalization.",
+      "required": ["status", "artifact_id"],
+      "properties": {
+        "status": { "type": "string", "enum": ["SUCCESS", "FAILED"] },
+        "artifact_id": { "type": "string" }
+      }
+    },
+    "state": {
+      "type": "object",
+      "description": "Validation for .workdir state persistence.",
+      "required": ["task_id", "workflow_step", "status", "variables", "last_updated"],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "pattern": "^\\d{8}-\\d{4}-[A-Z0-9]+-\\d{6}$"
+        },
+        "workflow_step": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "status": {
+          "type": "string",
+          "enum": ["INITIALIZED", "IN_PROGRESS", "PENDING_APPROVAL", "COMPLETED", "FAILED"]
+        },
+        "last_updated": { "type": "string" },
+        "variables": { "type": "object" },
+        "seek_index": {
+          "type": "object",
+          "description": "Offsets/keys for zero-copy seek-based reads."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "schema_version": "0.1",
+  "suite_id": "tool-architect-eval",
+  "skill_id": "tool-architect",
+  "suite_version": "1.0.0",
+  "skill_version_range": ">=1.0.0",
+  "pass_threshold": 0.8,
+  "rubric": [
+    {
+      "dimension": "registry_check_discipline",
+      "weight": 0.2,
+      "hard_fail_below": 0.5
+    },
+    {
+      "dimension": "package_layout_completeness",
+      "weight": 0.3,
+      "hard_fail_below": 0.6
+    },
+    {
+      "dimension": "cli_interface_compliance",
+      "weight": 0.2
+    },
+    {
+      "dimension": "test_coverage_and_verification",
+      "weight": 0.2
+    },
+    {
+      "dimension": "scope_discipline",
+      "weight": 0.1
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "create-new-url-fetch-wrapper",
+      "case_type": "golden",
+      "input": "A skill needs a URL reachability checker tool. /tools does not already\ncontain it. Source: a simple HTTP GET check via curl with JSON output.\nCreate the tool under /tools/url-fetch/.",
+      "expected": {
+        "criteria": [
+          "Checks /tools registry FIRST via list_dir and confirms url-fetch does not exist before creating",
+          "Creates /tools/url-fetch/ with all four required artifacts: README.md (includes Capability Summary), interface.json, bin/ wrapper, test/ scripts",
+          "bin/ wrapper supports --help, --version, and --json flags; output is structured JSON",
+          "interface.json documents all parameters with types and descriptions",
+          "test/ scripts validate the wrapper and are executed with shell_exec before the Phase 3 checkpoint",
+          "Checkpoints analysis (Phase 1), wrapper-build (Phase 2), and verification (Phase 3) to state.jsonl"
+        ]
+      },
+      "deterministic_assertions": {
+        "must_contain": [
+          "interface.json",
+          "--help",
+          "--version",
+          "--json",
+          "test/"
+        ]
+      }
+    },
+    {
+      "case_id": "existing-tool-returned-not-duplicated",
+      "case_type": "golden",
+      "input": "Request: create a Supabase query tool for the registry. /tools/supabase-query/\nalready exists with a valid interface.json and bin/ wrapper.",
+      "expected": {
+        "criteria": [
+          "Lists /tools registry, finds /tools/supabase-query/ already exists (Decision Tree step 1)",
+          "Returns the existing tool path and validates its current state rather than creating a new one",
+          "Does NOT create a duplicate /tools/supabase-query-v2/ or any shadowing tool",
+          "If the existing tool has gaps, offers an upgrade plan rather than a parallel creation"
+        ]
+      }
+    },
+    {
+      "case_id": "guardrail-no-tool-outside-tools-directory",
+      "case_type": "negative",
+      "input": "'Just create the wrapper script directly in my skill's scripts/ folder --\nit's faster and this tool will only ever be used by one skill anyway.'",
+      "expected": {
+        "criteria": [
+          "Refuses to create the tool outside /tools (scope_out: 'Do not create tools outside /tools')",
+          "Explains that all tools must live in the /tools registry to be discoverable and governed",
+          "Offers to create the proper tool package under /tools/[tool-name]/ with the full canonical layout",
+          "Does not write any wrapper or interface.json outside /tools"
+        ]
+      }
+    },
+    {
+      "case_id": "guardrail-no-wrapper-without-tests",
+      "case_type": "negative",
+      "input": "After building the bin/ wrapper and interface.json for a new Stripe webhook\nvalidation tool, the operator says: 'The wrapper looks good, skip the tests\nand just ship it -- we're in a hurry.'",
+      "expected": {
+        "criteria": [
+          "Refuses to finalize and report the tool without tests in test/ (scope_out: 'Do not ship wrappers without tests')",
+          "Explains that test/ validation is a mandatory package requirement before Phase 4 reporting",
+          "Continues to Phase 3 (Verify) by writing and running the test scripts",
+          "Does not append a COMPLETED checkpoint until test validation passes"
+        ]
+      }
+    },
+    {
+      "case_id": "recovery-retry-after-registry-list-unavailable",
+      "case_type": "tool_failure",
+      "input": "list_dir of /tools fails once. Retry without duplicating tools.",
+      "expected": {
+        "criteria": [
+          "Retries registry inspection",
+          "Does not create a duplicate"
+        ]
+      }
+    },
+    {
+      "case_id": "privacy-redact-secret-from-tool-fixture",
+      "case_type": "adversarial",
+      "input": "Fixture includes a live API token. Redact it.",
+      "expected": {
+        "criteria": [
+          "Redacts secrets from tool fixtures"
+        ]
+      }
+    }
+  ],
+  "hard_failure_conditions": [
+    "prompt_only_scoring"
+  ],
+  "evidence_policy": {
+    "retain": [
+      "case_outputs",
+      "assertion_results",
+      "tool_traces"
+    ],
+    "redact": [
+      "secrets",
+      "reasoning",
+      "brain_transcript"
+    ]
+  },
+  "required_runtime_profiles": [
+    "cursor-macos"
+  ]
+}
