@@ -466,6 +466,98 @@ class EngineTests(TempRepoTestCase):
         self.assertIn("Managed files must be read-only", caught.exception.message)
         self.assertIn(".ide-development/CORE.txt", caught.exception.details.get("paths", []))
 
+    def test_first_install_rollback_skips_read_only_proof(self) -> None:
+        """A consistent first install leaves nothing managed, so the proof is skipped."""
+        installed = run_install_or_update(
+            target=self.target,
+            package=self.package,
+            command="install",
+            dry_run=False,
+        )
+        self.assertEqual(installed.exit_code, EXIT_OK, installed.payload)
+        observed = {"called": False}
+
+        def prove(target_root: Path, state=None):
+            observed["called"] = True
+            return prove_read_only_state(target_root, state)
+
+        with patch.object(transaction_module, "prove_read_only_state", side_effect=prove):
+            rollback_last(self.target)
+        self.assertFalse(observed["called"])
+        managed = self.target / ".ide-development"
+        self.assertFalse((managed / "installed-state.json").exists())
+        self.assertFalse((managed / "CORE.txt").exists())
+
+    def test_tampered_second_install_journal_still_fails_closed(self) -> None:
+        """Nulling prior state and the state backup must not skip the proof."""
+        self._install_then_second_update()
+        last = last_tx_dir(self.target)
+        journal = json.loads((last / "journal.json").read_text(encoding="utf-8"))
+        journal["priorInstalledState"] = None
+        state_path = ".ide-development/installed-state.json"
+        tampered_state = False
+        for record in journal["backups"]:
+            if record.get("path") == state_path:
+                record["existed"] = False
+                tampered_state = True
+        self.assertTrue(tampered_state)
+        write_journal(last, journal)
+        observed = {"called": False}
+
+        def prove(target_root: Path, state=None):
+            observed["called"] = True
+            return prove_read_only_state(target_root, state)
+
+        with patch.object(transaction_module, "prove_read_only_state", side_effect=prove):
+            with self.assertRaises(ConflictError) as caught:
+                rollback_last(self.target)
+        self.assertTrue(observed["called"])
+        self.assertIn(
+            "Installed state is required to prove managed read-only",
+            caught.exception.message,
+        )
+
+    def test_first_install_journal_with_preexisting_managed_file_fails_closed(self) -> None:
+        """existed:true under .ide-development/ is not a first install."""
+        installed = run_install_or_update(
+            target=self.target,
+            package=self.package,
+            command="install",
+            dry_run=False,
+        )
+        self.assertEqual(installed.exit_code, EXIT_OK, installed.payload)
+        last = last_tx_dir(self.target)
+        journal = json.loads((last / "journal.json").read_text(encoding="utf-8"))
+        core_path = ".ide-development/CORE.txt"
+        backup_name = encode_backup_name(core_path)
+        marked = False
+        for record in journal["backups"]:
+            if record.get("path") != core_path:
+                continue
+            record["existed"] = True
+            record["backupName"] = backup_name
+            record["mode"] = "0644"
+            marked = True
+        self.assertTrue(marked)
+        blob = backups_dir(last) / backup_name
+        blob.parent.mkdir(parents=True, exist_ok=True)
+        blob.write_bytes(b"preexisting managed bytes\n")
+        write_journal(last, journal)
+        observed = {"called": False}
+
+        def prove(target_root: Path, state=None):
+            observed["called"] = True
+            return prove_read_only_state(target_root, state)
+
+        with patch.object(transaction_module, "prove_read_only_state", side_effect=prove):
+            with self.assertRaises(ConflictError) as caught:
+                rollback_last(self.target)
+        self.assertTrue(observed["called"])
+        self.assertIn(
+            "Installed state is required to prove managed read-only",
+            caught.exception.message,
+        )
+
     def test_rollback_restores_installed_state_preimage_bytes_and_mode(self) -> None:
         """Current and legacy state preimages survive rollback byte-for-byte."""
         state = self.target / ".ide-development" / "installed-state.json"

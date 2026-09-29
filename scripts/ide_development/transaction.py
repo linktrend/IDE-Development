@@ -23,7 +23,14 @@ from .managed_write_guard import (
 from .io_atomic import atomic_write_bytes, copy_file_physical, read_file_bytes, remove_file
 from .lock import exclusive_transaction_lock
 from .manifest import Manifest, ManifestEntry
-from .paths import encode_backup_name, git_meta_dir, join_under, join_under_nofollow, path_is_symlink
+from .paths import (
+    as_posix_rel,
+    encode_backup_name,
+    git_meta_dir,
+    join_under,
+    join_under_nofollow,
+    path_is_symlink,
+)
 from .plan import OpKind, Plan, PlanAction
 from .resolution import UpgradeResolution
 from .state import (
@@ -844,6 +851,119 @@ def _journal_records_first_install(journal: dict[str, Any]) -> bool:
     return saw_state_record
 
 
+def _path_under_managed_core(path: str) -> bool | None:
+    """True when ``path`` is under ``.ide-development/``. None when the path is unsafe."""
+    try:
+        rel = as_posix_rel(path)
+    except Exception:
+        return None
+    prefix = f"{MANAGED_CORE_DIR}/"
+    return rel == MANAGED_CORE_DIR or rel.startswith(prefix)
+
+
+def _journal_has_no_preexisting_managed_files(journal: dict[str, Any]) -> bool:
+    """A first install cannot have overwritten managed files that already existed."""
+    backups = journal.get("backups")
+    if not isinstance(backups, list):
+        return False
+    for record in backups:
+        if not isinstance(record, dict):
+            return False
+        path = record.get("path")
+        if not isinstance(path, str):
+            return False
+        under_managed = _path_under_managed_core(path)
+        if under_managed is None:
+            return False
+        if under_managed and record.get("existed") is True:
+            return False
+    return True
+
+
+def _only_completed_transaction(target_root: Path) -> bool:
+    """True when ``last-transaction`` is the only transaction directory/journal.
+
+    Git-local history is ``current-transaction`` plus ``last-transaction`` under
+    ``git_meta_dir``. Anything else (an older journal, ``current-transaction``,
+    or a ``transactions/`` archive) means this rollback is not a first install.
+    """
+    meta = git_meta_dir(target_root)
+    last = last_tx_dir(target_root)
+    journal = journal_path(last)
+    if (
+        not meta.is_dir()
+        or path_is_symlink(meta)
+        or not last.is_dir()
+        or path_is_symlink(last)
+        or not journal.is_file()
+        or path_is_symlink(journal)
+    ):
+        return False
+    try:
+        children = list(meta.iterdir())
+    except OSError:
+        return False
+    for child in children:
+        if child.name == "lock":
+            if child.is_dir() or path_is_symlink(child):
+                return False
+            continue
+        if child.name == "last-transaction":
+            if path_is_symlink(child) or child.resolve() != last.resolve():
+                return False
+            continue
+        return False
+    expected = journal.resolve()
+    for found in meta.rglob("journal.json"):
+        if path_is_symlink(found) or found.resolve() != expected:
+            return False
+    return True
+
+
+def _managed_backup_paths_absent(target_root: Path, journal: dict[str, Any]) -> bool:
+    """True when rollback left no journal-listed managed file on disk."""
+    backups = journal.get("backups")
+    if not isinstance(backups, list):
+        return False
+    for record in backups:
+        if not isinstance(record, dict):
+            return False
+        path = record.get("path")
+        if not isinstance(path, str):
+            return False
+        under_managed = _path_under_managed_core(path)
+        if under_managed is None:
+            return False
+        if not under_managed:
+            continue
+        try:
+            dest = join_under_nofollow(target_root, path)
+        except Exception:
+            return False
+        if dest.exists() or dest.is_symlink():
+            return False
+    return True
+
+
+def _first_install_rollback_is_consistent(target_root: Path, journal: dict[str, Any]) -> bool:
+    """Allow skipping the read-only proof only for a consistent first install.
+
+    The journal's ``priorInstalledState`` and installed-state ``existed`` flag
+    are not sufficient: both are unvalidated JSON and can be tampered.
+    """
+    if load_installed_state(target_root) is not None:
+        return False
+    if not _journal_records_first_install(journal):
+        return False
+    if not _only_completed_transaction(target_root):
+        return False
+    if not _journal_has_no_preexisting_managed_files(journal):
+        return False
+    if not _managed_backup_paths_absent(target_root, journal):
+        return False
+    return True
+
+
 def rollback_last(target_root: Path) -> dict[str, Any]:
     """Restore exact pre-change bytes/modes from the last completed transaction."""
     with exclusive_transaction_lock(target_root):
@@ -880,6 +1000,8 @@ def rollback_last(target_root: Path) -> dict[str, Any]:
         manifest_digest = journal.get("manifestDigest")
         if not isinstance(manifest_digest, str):
             manifest_digest = sha256_file(manifest) if manifest.is_file() and not path_is_symlink(manifest) else "sha256:" + ("0" * 64)
+        # Snapshot history before recovery deletes current-transaction.
+        sole_completed_transaction = _only_completed_transaction(target_root)
         with managed_write_lease(
             target_root=target_root,
             paths=paths,
@@ -891,12 +1013,12 @@ def rollback_last(target_root: Path) -> dict[str, Any]:
             finalize_read_only=True,
         ) as lease:
             result = _rollback_last_unlocked(target_root, lease=lease)
-        # A first install's rollback deletes installed-state.json. Nothing managed
-        # remains, so the read-only proof is vacuously true. Every other rollback
-        # still fails closed through prove_read_only_state().
+        # A consistent first install deletes every managed file it created, so
+        # the read-only proof is vacuously true. Any other rollback, including a
+        # journal tampered to look like a first install, still fails closed.
         if not (
-            load_installed_state(target_root) is None
-            and _journal_records_first_install(journal)
+            sole_completed_transaction
+            and _first_install_rollback_is_consistent(target_root, journal)
         ):
             prove_read_only_state(target_root)
         return result
