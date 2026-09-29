@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import stat
+import tempfile
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -558,6 +559,77 @@ class EngineTests(TempRepoTestCase):
             caught.exception.message,
         )
 
+    def _rewrite_second_update_as_fake_first_install(
+        self, *, disguise_managed_paths: bool
+    ) -> None:
+        """Null prior state and mark every backup non-existing.
+
+        When ``disguise_managed_paths`` is set, every managed backup except the
+        installed-state record is renamed outside ``.ide-development`` so the
+        journal no longer lists those paths. The installed-state record keeps
+        its real path with ``existed: false``, so the journal still claims a
+        first install while rollback deletes only that state file.
+        """
+        last = last_tx_dir(self.target)
+        journal = json.loads((last / "journal.json").read_text(encoding="utf-8"))
+        journal["priorInstalledState"] = None
+        state_path = ".ide-development/installed-state.json"
+        disguised = 0
+        for index, record in enumerate(journal["backups"]):
+            record["existed"] = False
+            path = record.get("path")
+            if (
+                disguise_managed_paths
+                and isinstance(path, str)
+                and path.startswith(".ide-development/")
+                and path != state_path
+            ):
+                record["path"] = f"not-managed/disguised-{index}.txt"
+                disguised += 1
+        self.assertTrue(transaction_module._journal_records_first_install(journal))
+        if disguise_managed_paths:
+            self.assertGreater(disguised, 0)
+        else:
+            self.assertGreater(len(journal["backups"]), 0)
+        write_journal(last, journal)
+
+    def _assert_tampered_update_rollback_proves_remaining_files(self) -> None:
+        managed = self.target / ".ide-development"
+        remaining_before = [
+            path for path in managed.rglob("*") if path.is_file() and not path.is_symlink()
+        ]
+        self.assertTrue(remaining_before)
+        observed = {"called": False}
+
+        def prove(target_root: Path, state=None):
+            observed["called"] = True
+            return prove_read_only_state(target_root, state)
+
+        with patch.object(transaction_module, "prove_read_only_state", side_effect=prove):
+            with self.assertRaises(ConflictError) as caught:
+                rollback_last(self.target)
+        self.assertTrue(observed["called"])
+        self.assertIn(
+            "Installed state is required to prove managed read-only",
+            caught.exception.message,
+        )
+        remaining_after = [
+            path for path in managed.rglob("*") if path.is_file() or path.is_symlink()
+        ]
+        self.assertTrue(remaining_after)
+
+    def test_tampered_update_marking_backups_absent_still_fails_closed(self) -> None:
+        """existed:false on every backup must not skip the proof when files remain."""
+        self._install_then_second_update()
+        self._rewrite_second_update_as_fake_first_install(disguise_managed_paths=False)
+        self._assert_tampered_update_rollback_proves_remaining_files()
+
+    def test_tampered_update_renaming_managed_backups_still_fails_closed(self) -> None:
+        """Renaming managed backups out of the journal must not skip the proof."""
+        self._install_then_second_update()
+        self._rewrite_second_update_as_fake_first_install(disguise_managed_paths=True)
+        self._assert_tampered_update_rollback_proves_remaining_files()
+
     def test_rollback_restores_installed_state_preimage_bytes_and_mode(self) -> None:
         """Current and legacy state preimages survive rollback byte-for-byte."""
         state = self.target / ".ide-development" / "installed-state.json"
@@ -825,6 +897,27 @@ def _rewrite_manifest_hash(package: Path, entry_id: str, source: Path) -> None:
         if entry["id"] == entry_id:
             entry["sourceHash"] = digest
     manifest_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+class NoManagedFilesRemainTests(unittest.TestCase):
+    def test_no_managed_files_remain(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.assertTrue(transaction_module._no_managed_files_remain(root))
+
+            nested = root / ".ide-development" / "empty" / "nested"
+            nested.mkdir(parents=True)
+            self.assertTrue(transaction_module._no_managed_files_remain(root))
+
+            leftover = nested / "file.txt"
+            leftover.write_text("still managed\n", encoding="utf-8")
+            self.assertFalse(transaction_module._no_managed_files_remain(root))
+            leftover.unlink()
+            self.assertTrue(transaction_module._no_managed_files_remain(root))
+
+            link = root / ".ide-development" / "link"
+            link.symlink_to(root / "outside-target")
+            self.assertFalse(transaction_module._no_managed_files_remain(root))
 
 
 def _rewrite_package_version(package: Path, version: str) -> None:
