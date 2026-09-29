@@ -25,6 +25,7 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 DEFAULT_REPO = "https://github.com/linktrend/LiNKskills"
 LOCK_RELS = (
@@ -43,9 +44,10 @@ OPTIONAL_MIRROR_ROOTS = (
 )
 SHA_RE = r"^[0-9a-f]{40}$"
 SKILL_ID_RE = r"^[a-z0-9][a-z0-9-]*$"
-GITHUB_REPO_RE = re.compile(
-    r"^https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+(?:\.git)?$"
-)
+# GitHub user/org: 1–39 chars, alphanumeric ends, hyphens only in the middle.
+GITHUB_OWNER_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$")
+# Repository name after an optional single trailing ".git" is removed.
+GITHUB_REPO_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 
 
 class SyncError(Exception):
@@ -175,8 +177,43 @@ def _validate_commit(commit: str) -> str:
     return lowered
 
 
+def _github_https_repo(repo: str) -> bool:
+    """True only for ``https://github.com/<owner>/<repo>`` with an optional ``.git``.
+
+    Owner and repository are checked as separate segments. The parsed URL is
+    rebuilt and compared to the raw input so userinfo, ports, queries,
+    fragments, trailing slashes, and other extra characters cannot pass.
+    """
+    if any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in repo):
+        return False
+    parts = urlsplit(repo)
+    if (
+        parts.scheme != "https"
+        or parts.netloc != "github.com"
+        or parts.query
+        or parts.fragment
+        or parts.username is not None
+        or parts.password is not None
+        or parts.port is not None
+    ):
+        return False
+    segments = parts.path.split("/")
+    if len(segments) != 3 or segments[0] != "" or not segments[1] or not segments[2]:
+        return False
+    owner, name = segments[1], segments[2]
+    bare = name[: -len(".git")] if name.endswith(".git") else name
+    if (
+        not GITHUB_OWNER_RE.fullmatch(owner)
+        or bare in {".", ".."}
+        or bare.startswith(".")
+        or not GITHUB_REPO_NAME_RE.fullmatch(bare)
+    ):
+        return False
+    return f"https://github.com/{owner}/{name}" == repo
+
+
 def _validate_repo(repo: str, *, allow_local: bool) -> None:
-    if GITHUB_REPO_RE.fullmatch(repo):
+    if _github_https_repo(repo):
         return
     if allow_local:
         path = Path(repo)
