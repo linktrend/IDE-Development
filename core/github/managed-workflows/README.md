@@ -26,7 +26,7 @@ The v2 packager, integrator-merge, Review Ready publisher, receipt promotion and
 
 ## Contracts
 
-- `core/github/CI-GATE-CONTRACTS.md` (includes consumer `workflow_run` name mapping)
+- `core/github/CI-GATE-CONTRACTS.md` (v3 jobs, required check names, local fast command, and the `main` promotion check)
 - `docs/contracts/BUGBOT-MENTION-ONLY.md`
 - `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`
 

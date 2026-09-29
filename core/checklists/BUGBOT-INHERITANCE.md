@@ -6,11 +6,11 @@ Complete for every repo that inherits autonomous Git ops from IDE Development (a
 
 ## Why
 
-Layer B installs GitHub Actions. **Bugbot** is the Reviewer for PRs into `development`. It is enabled on [cursor.com](https://cursor.com) / GitHub integration — not by the symlink alone.
+Layer B installs GitHub Actions. **Bugbot is optional.** The required review of a pull request into `development` is one independent review of the exact head SHA by a model from a different family than the author (`docs/contracts/STREAMLINED-DELIVERY.md`). When Bugbot is used, it is enabled on [cursor.com](https://cursor.com) / GitHub integration, not by the symlink alone.
 
 ## What “Bugbot pass” means
 
-Authoritative managed merge signal is **`Linktrend Review Gate`** (provider observation remains **`Cursor Bugbot`** (see [Cursor Bugbot docs](https://cursor.com/docs/bugbot)):
+Bugbot is optional and is not a required merge check. When the orchestrator opts in, provider observation remains **`Cursor Bugbot`** (see [Cursor Bugbot docs](https://cursor.com/docs/bugbot)). Historical conclusions:
 
 | Check conclusion | Meaning | Integrator |
 |---|---|---|
@@ -24,7 +24,7 @@ Optional (if available on the Cursor team): enable **fail on unresolved issues**
 
 ## Checklist (per GitHub repo)
 
-Retired in v3 (IDE-22); see the v3 plan.
+Historical checklist only. Bugbot is optional and is not a merge requirement. Live review and CI rules are in `docs/contracts/STREAMLINED-DELIVERY.md` and `core/github/CI-GATE-CONTRACTS.md`.
 
 1. Confirm repo is under the `linktrend` GitHub org connected to Cursor.
 2. Open Cursor dashboard → **Bugbot** (or Agents / Bugbot settings).
@@ -40,7 +40,7 @@ Retired in v3 (IDE-22); see the v3 plan.
      "Linktrend Review Gate" "Your CI job name" "Linktrend Branch Source Policy"
    ```
 6. Confirm Integrator workflow is present: `.github/workflows/linktrend-integrator-merge.yml`.
-7. Set GitHub Actions variable `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` to this repo's **fast-gate** CI job name(s), comma-separated (example for IDE Development: `Verify IDE Development`). Integrator no longer waits for every visible check — see `core/github/CI-GATE-CONTRACTS.md`. Leave unset only if the managed workflow default is wrong for the consumer (then set explicitly).
+7. Required check names are in `core/github/CI-GATE-CONTRACTS.md`: pull requests into `development` require `Linktrend Fast Checks` and `Linktrend Branch Source Policy` (the orchestrator also requires `Verify IDE Development`). Bugbot is optional and is not one of those names.
 8. Confirm Review Packager workflow is present: `.github/workflows/linktrend-review-packager.yml` (Tue/Fri 08:00 Asia/Taipei). Bugbot request default command is `@cursor review` (configurable; with the `@`); managed success check is `Linktrend Review Gate` (provider check remains `Cursor Bugbot`). The 2-request limit counts only comments with an executable trigger (`@cursor review` or `bugbot run`) **plus** `<!-- linktrend-bugbot-requested: <sha> -->`; bare historical `cursor review` + marker does not count.
 9. Confirm Integrator managed template matches live file after sync (`cmp` in IDE Development verify).
 10. Record completion in the adoption/wire report: `Bugbot: enabled | blocked:<reason>`.

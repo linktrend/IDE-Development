@@ -1,138 +1,69 @@
-# Named CI gate contracts
+# v3 CI contract
 
-**Audience:** Review Packager, Integrator, Staging/Main promotion, agents, CI maintainers.
-**Status:** Binding for IDE Development GitOps redesign.
-**Related:** `docs/adr/0003-autonomous-ship-pull-promote.md`, `docs/contracts/DELIVERY-MODES.md`.
+**Status:** Active v3 (IDE-28).
+**Workflow:** `.github/workflows/ci.yml`
+**Profile file:** `.github/linktrend-delivery-mode.json`
 
----
+Required check names belong to live branch protection. Agents do not rename them.
 
-## Why named gates exist
+## Triggers
 
-Workflows must **not** wait for “every visible GitHub check.” That pattern is fragile (renamed checks, optional jobs, third-party noise). Instead, each lifecycle stage waits only on a **named gate contract**.
+`push` and `pull_request` for branches `main` and `development`.
 
-Missing required checks are **failure / not-ready**, never success. Empty/zero SHA, wrong SHA relative to the PR head, stale event heads, and skipped/neutral conclusions (unless a gate explicitly allows them) are also **non-success**.
+Concurrency group: `ci-${{ github.workflow }}-${{ github.ref }}`, with `cancel-in-progress: true`.
 
-Phase PRs (`phase/*` → `development`) and Issue PRs use the same gate ids and exact-SHA fail-closed rules.
+Runner for both jobs: `ubuntu-24.04-arm`. Python 3.11. CI installs `jsonschema==4.26.0`.
 
----
+## Jobs
 
-## Gate names
+### Linktrend Fast Checks
 
-| Gate | Used by | Purpose |
-|------|---------|---------|
-| `fast-gate` | Review Packager (before Bugbot), Integrator (before merge to `development`) | Deterministic PR validation that must pass before human/Bugbot review or auto-merge. |
-| `staging-gate` | Development → Staging promotion | Validates the promotion candidate before staging advances. |
-| `release-gate` | Staging → Main merge (Approve path) | Validates the exact release SHA before main advances. |
+Timeout 10 minutes. The step runs:
 
-Check conclusion names that satisfy each gate are defined below for **this** repository. Consumer repos map their own job names to the same gate ids when they adopt the managed workflows.
+```bash
+python3 scripts/gitops/run_delivery_profile.py fast
+```
 
----
+That is the local command as well. The fast profile in `.github/linktrend-delivery-mode.json` (`timeoutMinutes`: 3) runs three argv commands:
 
-## IDE Development mappings
+1. `python3 -m py_compile` on the gitops, dispatch, orchestrator, and codex modules named in the profile.
+2. Fixture-aware secret scanning: `python3 scripts/gitops/secret_scan.py`. Secret scan stays in the fast profile.
+3. `python3 -m unittest` on the focused modules named in the profile.
 
-### `fast-gate`
+### Verify IDE Development (Full)
 
-All of the following must conclude **success** on the PR head SHA (when the workflow exists and is required for that event):
+Each pull request head gets one Full run. A new head needs a new run.
 
-| Check name (GitHub check / workflow job display) | Source workflow display name |
-|--------------------------------------------------|------------------------------|
-| `Verify IDE Development` | `CI` (`.github/workflows/ci.yml`) |
-| `Linktrend Branch Source Policy` | `Linktrend Branch Source Policy` (`.github/workflows/branch-source-policy.yml`) |
+Checkout uses `fetch-depth: 0`. On `pull_request`, the job ensures `origin/<base>` exists and exports `LINKTREND_TARGET_BASELINE_REF` and `LINKTREND_TARGET_BASELINE_SHA`. It installs Node 22, then runs:
 
-Packager and Integrator must list **both** workflow display names under `workflow_run.workflows`. Completion of either workflow reevaluates the exact PR/head; Bugbot/merge proceeds only when **every** named fast-gate check is success on that SHA.
+```bash
+CI=true bash scripts/verify-ide-development.sh
+bash scripts/verify-pipeline-states.sh
+```
 
-### `staging-gate`
+`profiles.full` and `profiles.release` in the delivery-mode JSON are not this job. CI Full is `Verify IDE Development`.
 
-For development→staging **promotion PRs** from temporary `promote/staging/*` branches:
+## Required check names
 
-| Check name | Source |
-|------------|--------|
-| `Verify IDE Development` | Must be **success on the promotion PR head** (combined staging candidate), not merely on `development` alone |
+| Pull request target | Branch protection requires | Orchestrator also requires before merge |
+|---|---|---|
+| `development` | `Linktrend Fast Checks`, `Linktrend Branch Source Policy` | `Verify IDE Development` green on the exact head |
+| `main` | `Linktrend Branch Source Policy`, `Linktrend Receipt Gate` | — |
 
-### `release-gate`
+`Linktrend Receipt Gate` keeps its legacy ruleset name. The v3 job behind that name is the promotion check, delivered by another Issue. It verifies that the promoted tree equals a `development` commit whose Full CI (`Verify IDE Development`) was green. Promotion to `main` does not re-review.
 
-For staging→main **promotion PRs** from temporary `promote/main/*` branches (Approve path):
+Missing required checks are not success.
 
-| Check name | Source |
-|------------|--------|
-| `Verify IDE Development` | Must be **success on the promotion PR head** (combined main candidate), not merely on `staging` alone |
+## Run fast checks locally
 
-Prior green results on source branches are **not** proof of the combined promotion.
+From the repository root, before pushing:
 
----
+```bash
+python3 scripts/gitops/run_delivery_profile.py fast
+```
 
-## Bugbot success check (separate from gates)
+Then run the checks named in the Issue.
 
-| Check name | Meaning |
-|------------|---------|
-| `Linktrend Review Gate` | Required Bugbot success conclusion for Integrator auto-merge. |
+## Retired
 
-Bugbot is **not** part of `fast-gate`. Deterministic gates run first; Bugbot is requested only after `fast-gate` is green (or after Review Packager has confirmed deterministic readiness).
-
----
-
-## Integrator decision matrix (summary)
-
-Retired in v3 (IDE-22); see the v3 plan.
-
-Auto-merge to `development` only when **all** are true:
-
-1. PR is into `development`, non-draft, open.
-2. Head SHA equals the recorded reviewed SHA (Bugbot marker / review-ready association).
-3. `fast-gate` all required checks = success.
-4. `Linktrend Review Gate` = success for that head SHA.
-5. No `conflict_blocked` / mergeability conflict.
-6. Within conflict-repair budget (see conflict recovery).
-
-Otherwise: leave open, comment why, or wait.
-
----
-
-## Consumer adoption
-
-When syncing managed workflows into a consumer:
-
-1. Keep gate **ids** (`fast-gate`, `staging-gate`, `release-gate`) stable.
-2. Replace IDE check names with that repo’s primary verify workflow job names via repository variables:
-   - `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` (fast-gate check names, comma-separated)
-   - `LINKTREND_STAGING_GATE_CHECKS`
-   - `LINKTREND_RELEASE_GATE_CHECKS`
-3. **`workflow_run.workflows` is STATIC YAML** and cannot be driven by repository variables. For each consumer, substitute or generate the managed workflow so the list contains **every** GitHub Actions workflow **display name** that produces a configured named gate check. IDE Development lists `CI` and `Branch Source Policy`.
-4. Document the mapping in the consumer’s `docs/` or workflow comments.
-5. Never invent “wait for all checks” as a shortcut.
-6. Configure the normal-token credential contract (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`) before claiming autonomy. Resolve and consume the normal automation token in the **same trusted job**; never via job outputs.
-7. Do **not** roll out until this corrected system is on the default branch, smoke-tested, and Bugbot `manualTriggerOnly` is confirmed.
-
-Optional / informational checks that must **not** block `fast-gate`:
-
-- Docs-only or advisory workflows not listed in the gate tables
-- `Linktrend Review Gate` (separate success check — see Bugbot contract)
-- Unrelated third-party checks not in the gate tables
-
-Missing required checks are **not ready** (missing ≠ success).
-
----
-
-## Wake paths (Actions vs external checks)
-
-| Event | Used for |
-|-------|----------|
-| `pull_request_target` | Initial evaluate on trusted workflow definition (scripts from default branch) |
-| `workflow_run` (every gate-producing workflow, e.g. `CI` + `Branch Source Policy`) | Reevaluate when GitHub Actions gates finish (Actions does not emit usable `check_run` workflow events for its own suites) |
-| `check_run` (non-`github-actions`) | External apps such as Linktrend Review Gate |
-| `schedule` / `workflow_dispatch` | Discovery / promote build windows |
-
-Privileged jobs always check out `github.event.repository.default_branch` with `persist-credentials: false`. Ordinary testing of proposed code remains in unprivileged `ci.yml` (`contents: read`).
-
----
-
-## Change control
-
-Changing required check names is a **contract change**: update this file, tests that assert the names, and any workflow `env` lists **and** static `workflow_run.workflows` lists in the same PR.
-
-## Aggregate repository CI gate (Update 7)
-
-Branch protection must require the stable managed aggregate context
-`Linktrend Repository CI Gate` rather than an unconditional raw application-Full
-context. See `docs/contracts/REPOSITORY-CI-TRIGGER.md` and
-`scripts/gitops/repository_ci_contract.py`.
+Retired, and not live gates: Review Ready status and its publisher, completion-gate evidence, the review-gate classifier, the repair observer, promotion receipts, the packager, the delivery controller, Lisa, and staging. The names `fast-gate`, `staging-gate`, and `release-gate` are not the live required checks.

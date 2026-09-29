@@ -29,7 +29,7 @@ Define the operational behavior for natural-language session end and close-out r
 10. otherwise generate a meaningful commit message
 11. commit staged work
 12. push the active branch (**checkpoint only** — do not open a PR; do not request Bugbot)
-13. the v2 completion gate (checkpoint / evidence / readiness publish) is retired in v3 (IDE-22); see the v3 plan
+13. worker finished-state follows `docs/contracts/AGENT-COMPLETION.md` (fast checks before push, commit and push, no pull request, short lessons note)
 14. finish only after the repository is in a resumable state
 
 ## Commit Message Rule
@@ -80,4 +80,4 @@ Minimum outputs:
 - use `.cursor/bootstrap/SESSION-SHUTDOWN.md` for shutdown responsibilities
 - preserve active artifact truth rather than relying on chat memory
 - use the handoff report as a continuity layer above execution artifacts, not in place of them
-- completion contract: `docs/contracts/AGENT-COMPLETION.md`
+- completion contract: `docs/contracts/AGENT-COMPLETION.md` (v3 worker done, orchestrator acceptance, flag Carlos)
