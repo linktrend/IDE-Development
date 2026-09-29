@@ -7,7 +7,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.gitops.coordinator.state import CandidateIdentity
 from scripts.gitops.delivery_modes import (
     DeliveryConfig,
     MODE_ISSUE_PR,
@@ -18,6 +17,7 @@ from scripts.gitops.delivery_modes import (
     validate_risk_class,
 )
 from scripts.gitops.phase_integrator import (
+    CandidateIdentity,
     IssueTip,
     PhaseIntegrator,
     PhaseLifecycleError,

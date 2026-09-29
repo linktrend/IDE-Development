@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Behavioral GitOps tests — isolated temp repos, file status/conflict backends.
+# Behavioral GitOps tests — isolated temp repos.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -23,13 +23,10 @@ make_repo() {
 seed_scripts() {
   local d="$1"
   mkdir -p "$d/scripts/gitops"
-  mkdir -p "$d/scripts/gitops/coordinator"
   printf '%s\n' "__pycache__/" "*.py[cod]" >"$d/.gitignore"
-  cp "$ROOT/scripts/pull-update-work-branches.sh" "$d/scripts/"
   cp "$ROOT/scripts/cleanup-merged-branches.sh" "$d/scripts/"
   cp "$ROOT/scripts/gitops/"*.sh "$d/scripts/gitops/" 2>/dev/null || true
   cp "$ROOT/scripts/gitops/"*.py "$d/scripts/gitops/"
-  cp "$ROOT/scripts/gitops/coordinator/"*.py "$d/scripts/gitops/coordinator/"
   cp "$ROOT/scripts/gitops/"*.json "$d/scripts/gitops/" 2>/dev/null || true
   chmod +x "$d/scripts/"*.sh "$d/scripts/gitops/"*.sh "$d/scripts/gitops/"*.py
   git -C "$d" add .gitignore scripts
@@ -39,82 +36,6 @@ seed_scripts() {
 TMP="$(mktemp -d)"
 cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT
-
-export LINKTREND_CONFLICT_BACKEND=file
-export LINKTREND_REPAIR_BACKEND=file
-
-# ============================================================================
-# 4) Durable conflict attempts across runs; stop at 3
-# ============================================================================
-export LINKTREND_CONFLICT_DIR="$TMP/conflicts"
-export LINKTREND_REPAIR_DIR="$LINKTREND_CONFLICT_DIR"
-mkdir -p "$LINKTREND_CONFLICT_DIR"
-python3 "$ROOT/scripts/gitops/conflict_task.py" upsert --repo r --stage staging \
-  --source-branch development --target-branch staging --source-sha aaa --target-sha bbb \
-  --status conflict_blocked --next-action x --increment-attempt >"$TMP/c1.json"
-ID="$(python3 -c 'import json;print(json.load(open("'"$TMP"'/c1.json"))["id"])')"
-# "new run" — same dir
-python3 "$ROOT/scripts/gitops/conflict_task.py" upsert --repo r --stage staging \
-  --source-branch development --target-branch staging --source-sha aaa --target-sha bbb \
-  --status conflict_blocked --next-action x --increment-attempt >"$TMP/c2.json"
-[ "$(python3 -c 'import json;print(json.load(open("'"$TMP"'/c2.json"))["attemptCount"])')" = "2" ]
-python3 "$ROOT/scripts/gitops/conflict_task.py" upsert --repo r --stage staging \
-  --source-branch development --target-branch staging --source-sha aaa --target-sha bbb \
-  --status conflict_blocked --next-action x --increment-attempt >"$TMP/c3.json"
-[ "$(python3 -c 'import json;print(json.load(open("'"$TMP"'/c3.json"))["status"])')" = "Issues" ]
-# persists on disk across process
-python3 "$ROOT/scripts/gitops/conflict_task.py" show --repo r --id "$ID" | grep -q Issues
-pass "durable conflict attempts persist and stop at three"
-
-
-# ============================================================================
-# 6) Pull preserves caller checkout; updates clean unfinished; skips frozen
-# ============================================================================
-PULL="$TMP/pull"
-make_repo "$PULL"
-seed_scripts "$PULL"
-git -C "$PULL" checkout -q -b issue/unfinished
-echo u >"$PULL/u.txt" && git -C "$PULL" add u.txt && git -C "$PULL" commit -q -m "wip"
-git -C "$PULL" checkout -q development
-echo adv >"$PULL/adv.txt" && git -C "$PULL" add adv.txt && git -C "$PULL" commit -q -m "advance"
-git -C "$PULL" update-ref refs/remotes/origin/development refs/heads/development
-git -C "$PULL" checkout -q -b issue/frozen issue/unfinished
-echo f >"$PULL/f.txt" && git -C "$PULL" add f.txt && git -C "$PULL" commit -q -m "frozen feat"
-FR="$(git -C "$PULL" rev-parse HEAD)"
-mkdir -p "$TMP/bin"
-cat >"$TMP/bin/gh" <<EOF
-#!/usr/bin/env bash
-if [[ "\$*" == *"--head issue/frozen"* ]]; then
-  echo '[{"headRefOid":"${FR}"}]'
-else
-  echo '[]'
-fi
-EOF
-chmod +x "$TMP/bin/gh"
-pushd "$PULL" >/dev/null
-# Caller stays on development (not on unfinished)
-git checkout -q development
-BEFORE_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-BEFORE_SHA="$(git rev-parse HEAD)"
-BEFORE_STATUS="$(git status --porcelain)"
-BEFORE_WT="$(git worktree list --porcelain)"
-PATH="$TMP/bin:$PATH" bash scripts/pull-update-work-branches.sh --branch issue/frozen --branch issue/unfinished >"$TMP/pull.out"
-AFTER_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-AFTER_SHA="$(git rev-parse HEAD)"
-AFTER_STATUS="$(git status --porcelain)"
-AFTER_WT="$(git worktree list --porcelain)"
-[ "$BEFORE_BRANCH" = "$AFTER_BRANCH" ] || fail "caller branch changed"
-[ "$BEFORE_SHA" = "$AFTER_SHA" ] || fail "caller sha changed"
-[ "$BEFORE_STATUS" = "$AFTER_STATUS" ] || fail "caller status changed"
-[ "$BEFORE_WT" = "$AFTER_WT" ] || fail "worktree list changed"
-grep -q 'SKIP issue/frozen' "$TMP/pull.out" || fail "frozen not skipped: $(cat "$TMP/pull.out")"
-grep -qE 'UPDATED issue/unfinished|OK issue/unfinished' "$TMP/pull.out" || fail "unfinished not updated: $(cat "$TMP/pull.out")"
-grep -q 'PULL_CALLER_UNCHANGED=1' "$TMP/pull.out"
-# unfinished tip should now contain development advance
-git merge-base --is-ancestor origin/development issue/unfinished \
-  || fail "unfinished missing origin/development after pull"
-popd >/dev/null
-pass "Pull preserves caller checkout; skips frozen; updates unfinished"
 
 # ============================================================================
 # 7) Cleanup: squash evidence, session ownership, promote eligible, dirty refuse

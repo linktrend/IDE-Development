@@ -192,7 +192,6 @@ class PackageMaterializationTests(unittest.TestCase):
             package = Path(tmp) / "package"
             audit_sources = (
                 "scripts/gitops/generated_output_closure.py",
-                "scripts/gitops/coordinator/state.py",
                 "scripts/ide-development.py",
                 "scripts/ide_development/build_manifest.py",
                 "core/execution/scheduler.py",
@@ -296,7 +295,6 @@ else:
             extract = Path(tmp) / "extract"
             audit_sources = (
                 "scripts/gitops/generated_output_closure.py",
-                "scripts/gitops/coordinator/state.py",
                 "scripts/ide-development.py",
                 "core/execution/scheduler.py",
                 "core/execution/verification_liveness.py",
