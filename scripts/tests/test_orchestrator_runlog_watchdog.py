@@ -195,15 +195,24 @@ class WatchdogTests(unittest.TestCase):
         self.assertEqual((finding["recommended_action"], finding["severity"]), ("flag Carlos", "error"))
 
         self._attempt("IDE-11", "failure", model="claude-opus-5-5")
-        self._attempt("IDE-11", "failure", model="claude-opus-5-5")
-        self._attempt("IDE-11", "failure", model="claude-opus-5-5")
-        self._attempt("IDE-11", "failure", rung=1, model="gpt-6-sol")
         actions = {f["issue"]: f["recommended_action"] for f in watchdog.run(self._args(), now=self.now)["findings"]}
-        self.assertEqual(actions["IDE-11"], "escalate to repair rung 2")
+        self.assertEqual(actions["IDE-11"], "escalate to repair rung 2", "a Sol/Opus start gets one initial try")
+
+        self._attempt("IDE-11", "failure", rung=2, model="gpt-6-sol")
+        findings = {f["issue"]: f for f in watchdog.run(self._args(), now=self.now)["findings"]}
+        self.assertEqual((findings["IDE-11"]["recommended_action"], findings["IDE-11"]["severity"]), ("flag Carlos", "error"))
 
         self._attempt("IDE-10", "success", rung=1, model="gpt-6-sol")
         issues = {f["issue"] for f in watchdog.run(self._args(), now=self.now)["findings"]}
         self.assertNotIn("IDE-10", issues)
+
+    def test_ladder_step_table(self) -> None:
+        self.assertEqual(watchdog.ladder_step("gpt-6-luna", 0, 3), (3, 1))
+        self.assertEqual(watchdog.ladder_step("grok-4.7", 1, 3), (1, None))
+        self.assertEqual(watchdog.ladder_step("gpt-6-sol", 0, 3), (1, 2))
+        self.assertEqual(watchdog.ladder_step("claude-opus-5-5", 0, 3), (1, 2))
+        self.assertEqual(watchdog.ladder_step("claude-opus-5-5", 2, 3), (1, None))
+        self.assertEqual(watchdog.ladder_step("grok-4.7", 2, 3), (1, None))
 
     def _git(self, cwd: Path, *args: str) -> str:
         return subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True, check=True).stdout

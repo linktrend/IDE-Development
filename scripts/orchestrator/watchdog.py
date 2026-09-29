@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -56,6 +57,20 @@ def check_stalled(records: list[dict[str, Any]], now: datetime, stall_after: tim
     return findings
 
 
+def ladder_step(start_model: str, rung: int, max_failures: int) -> tuple[int, int | None]:
+    """(tries allowed at ``rung``, next rung or None = flag Carlos) for an Issue that started on ``start_model``.
+
+    Luna/Grok start: rung 0 x max_failures -> rung 1 (Sol/Opus) x1 -> flag Carlos.
+    Sol/Opus start:  rung 0 x1 -> rung 2 (the other of Sol/Opus) x1 -> flag Carlos.
+    """
+    strong_start = bool(STRONG_MODEL_RE.search(start_model or ""))
+    if rung == 0:
+        return (1, 2) if strong_start else (max_failures, 1)
+    if rung == 1 and strong_start:
+        return 1, 2
+    return 1, None
+
+
 def check_repeated_failures(records: list[dict[str, Any]], max_failures: int) -> list[dict[str, Any]]:
     by_issue: dict[str, list[dict[str, Any]]] = {}
     for rec in records:
@@ -73,13 +88,10 @@ def check_repeated_failures(records: list[dict[str, Any]], max_failures: int) ->
                 streak += 1
             else:
                 break
-        # Ladder: rung 0 gets max_failures tries, then Sol/Opus once (rung 1);
-        # rung 2 (the other of Sol/Opus) exists only if the Issue started on one.
-        limit = max_failures if rung == 0 else 1
-        final_rung = 2 if STRONG_MODEL_RE.search(runs[0]["requested_model"]) else 1
+        limit, next_rung = ladder_step(runs[0]["requested_model"], rung, max_failures)
         if streak >= limit:
-            exhausted = rung >= final_rung
-            action = "flag Carlos" if exhausted else f"escalate to repair rung {rung + 1}"
+            exhausted = next_rung is None
+            action = "flag Carlos" if exhausted else f"escalate to repair rung {next_rung}"
             findings.append(
                 _finding(
                     "repeated_failure",
@@ -95,8 +107,16 @@ def check_repeated_failures(records: list[dict[str, Any]], max_failures: int) ->
     return findings
 
 
+GIT_ENV_ALLOW = (
+    "PATH", "HOME", "USER", "LOGNAME", "LANG", "TZ", "TMPDIR", "SSH_AUTH_SOCK", "SSL_CERT_FILE", "SSL_CERT_DIR",
+    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+)
+
+
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, check=False)
+    env = {name: os.environ[name] for name in GIT_ENV_ALLOW if name in os.environ}
+    cmd = ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-C", str(repo), *args]
+    return subprocess.run(cmd, capture_output=True, text=True, env=env, check=False)
 
 
 def _worktrees(repo: Path) -> list[dict[str, str]]:

@@ -52,7 +52,11 @@ python3 scripts/orchestrator/watchdog.py --repo /workspace --fetch --exit-zero
 Checks:
 
 - **Stalled runs** — `running` with no heartbeat for `--stall-minutes` (default 90).
-- **Repeated failures** — consecutive `failure`/`stalled` attempts at the same repair rung. Rung 0 allows `--max-failures` (default 3); higher rungs allow one. The report recommends the next rung or "flag Carlos". Rung 2 applies only when the Issue started on Sol or Opus.
+- **Repeated failures** — consecutive `failure`/`stalled` attempts at the same repair rung, checked against the repair ladder for the model the Issue started on:
+  - Luna/Grok start: rung 0 allows `--max-failures` tries (default 3), then rung 1 (Sol/Opus) gets one, then "flag Carlos".
+  - Sol/Opus start: rung 0 allows one try, then rung 2 (the other of Sol/Opus) gets one, then "flag Carlos". Rung 1 is skipped because the Issue is already on a strong model.
+
+  The report recommends the next rung or "flag Carlos".
 - **Unpushed work** — for each `--repo` (all worktrees): dirty `issue/*` worktrees, `issue/*` branches never pushed, or ahead of `origin`. Without `--fetch` it compares against the last fetched refs.
 
 Output is one JSON report (`kind: ide-watchdog-report`). Exit 0 = clean,
