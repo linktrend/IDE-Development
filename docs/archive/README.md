@@ -55,6 +55,8 @@ Protected lines `development` / `staging` / `main` share content tree
 - `validation/` — point-in-time unification E2E / baseline / cross-system reports (GATE-STOP, feasibility, and **WP1 `docs/validation/wp1-evidence/`** remain live under `docs/validation/` because doctrine/scripts/acceptance cite them)
 - `workspace-reports/` — point-in-time wire reports
 
+- Archived in v3 (IDE-31): v2 planning records `planning/**` (streamlined-delivery, github-compute-final-fix, IDE-V2.5.3), `work-packets/2026-08-02-work-packet-04-consumer-rollout.md`, `superpowers/plans/2026-08-21-*.md`, `ITEM-6-CONNECT-IDE-DEVELOPMENT-IMPLEMENTATION-PLAN.md`, `IDE-DEVELOPMENT-V2.5-REQUIREMENTS.md`, and `scripts/gitops/LANE_C_RESULT.md` (+ its `live-plan-summary.json`).
+
 If something here conflicts with CURRENT-STATUS, the Intent, Technical PRD, or Operations Manual, **those documents win.**
 
 Automated re-check for active surfaces: `scripts/verify-ide-development.sh` (repo root).

@@ -9,7 +9,7 @@
 **Start tree:** `1affbab9035df799fdb7d723d8518e54fa6a1c00`
 **Installed line:** managed-core `v2.3.8` (`VERSION` / `core/managed-core/VERSION`)
 **Date:** 2026-08-17 (Asia/Taipei)
-**Companion plan:** [`ITEM-6-CONNECT-IDE-DEVELOPMENT-IMPLEMENTATION-PLAN.md`](./ITEM-6-CONNECT-IDE-DEVELOPMENT-IMPLEMENTATION-PLAN.md)
+**Companion plan:** [`ITEM-6-CONNECT-IDE-DEVELOPMENT-IMPLEMENTATION-PLAN.md`](./archive/ITEM-6-CONNECT-IDE-DEVELOPMENT-IMPLEMENTATION-PLAN.md)
 
 This PRD defines the consumer-side connection of **IDE Development** to five LiNK providers. It does not implement connectors, change managed IDE files, mutate provider repositories, open a PR, merge, promote, deploy, or run Full.
 

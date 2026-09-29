@@ -20,7 +20,7 @@ The canonical knowledge asset lives in `core/`. The portable package source for 
 - [docs/runbooks/release-candidate.md](docs/runbooks/release-candidate.md) · [docs/runbooks/rollback.md](docs/runbooks/rollback.md)
 - [docs/acceptance/acceptance-matrix.md](docs/acceptance/acceptance-matrix.md)
 - [docs/GITOPS-CONSUMER-ROLLOUT.md](docs/GITOPS-CONSUMER-ROLLOUT.md)
-- [docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md](docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md) — WP04 prepared / not executed
+- [docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md](docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md) — WP04 prepared / not executed
 
 Retired systems: [docs/ARCHIVE-INDEX.md](docs/ARCHIVE-INDEX.md) and [docs/archive/](docs/archive/README.md).
 

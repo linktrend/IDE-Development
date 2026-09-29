@@ -4,7 +4,7 @@
 **Date:** 2026-08-02 (post-WP03 clarification; Issue #72 Lane A)
 **Version:** `v2.1.0` (identified in `VERSION`; no Git tag or GitHub release claimed)
 **Issues:** #43 (Wave 1 portable v2) · #67 (WP1) · #68 (WP2) · WP03 promote PRs #69/#70/#71 · #72 (pre-launch cleanup) · WP04 (consumer rollout — approval pending)
-**SOT:** `docs/CURRENT-STATUS.md` · `docs/AUTONOMOUS-GIT-OPERATIONS.md` · `docs/adr/0003-autonomous-ship-pull-promote.md` · `docs/adr/0004-portable-managed-core-v2.md` · `docs/contracts/REPOSITORY-PROTECTION.md` · `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
+**SOT:** `docs/CURRENT-STATUS.md` · `docs/AUTONOMOUS-GIT-OPERATIONS.md` · `docs/adr/0003-autonomous-ship-pull-promote.md` · `docs/adr/0004-portable-managed-core-v2.md` · `docs/contracts/REPOSITORY-PROTECTION.md` · `docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
 
 This document covers **consumer** rollout of the portable managed core. It does **not** authorize edits to real consumer repositories or live consumer GitHub settings until WP04 execution is approved.
 
@@ -176,7 +176,7 @@ Record gaps in adoption notes. Do **not** auto-fix consumers from Wave 1, WP1–
 
 - `docs/CURRENT-STATUS.md`
 - `docs/GITOPS-CONSUMER-ROLLOUT.md` (this file)
-- `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
+- `docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
 - `docs/adr/0004-portable-managed-core-v2.md`
 - `docs/contracts/REPOSITORY-PROTECTION.md`
 - `docs/contracts/BUGBOT-MENTION-ONLY.md`
@@ -215,4 +215,4 @@ It does **not** symlink consumer `.cursor` to IDE Development (that breaks Curso
 
 **WP03:** COMPLETE — PR #69/#70/#71; protected lines share tree `43b1333…`. No consumer mutation.
 
-**WP04:** PREPARED / NOT EXECUTED — consumer rollout per this document’s locked order. No consumer mutation authorized until Principal approval (`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).
+**WP04:** PREPARED / NOT EXECUTED — consumer rollout per this document’s locked order. No consumer mutation authorized until Principal approval (`docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).

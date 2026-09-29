@@ -10,7 +10,7 @@ Historical long-form OPEN-ISSUES entries remain authoritative for older waves; t
 
 **Issue:** #67
 **Branch:** `issue/67-work-packet-1-production-readiness-proof-and-rel`
-**Plan:** `docs/archive/work-packets/2026-08-02-work-packet-1-production-readiness.md` (archived; stub remains at historical `docs/work-packets/` path)
+**Plan:** `docs/archive/work-packets/2026-08-02-work-packet-1-production-readiness.md` (archived)
 **Models:** Lead + subagents `cursor-grok-4.5-high` only. Claude excluded.
 
 **Outcome sought:** Independently testable portable managed-core v2 release candidate with installer, migration, Cursor/Codex adapters, packaging, recovery, security, and read-only GitHub external-state verification across macOS, Linux, and Windows.
@@ -114,7 +114,7 @@ python3 scripts/ide-development.py release-candidate create|verify
 
 ## WP04-001 — Work Packet 04 prepared (not executed) — 2026-08-02
 
-**Packet:** `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
+**Packet:** `docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
 **Status:** PREPARED / NOT EXECUTED — Principal approval pending.
 **Scope:** Locked-order consumer rollout per `docs/GITOPS-CONSUMER-ROLLOUT.md`.
 **Hard stop:** No consumer mutation authorized by preparing this packet.

@@ -217,7 +217,7 @@ Branch `issue/51-reconcile-approved-stale-ide-development-prs-wor` (Issue #51).
 
 **WP03 (complete):** PR #69 → `development`, #70 → `staging`, #71 → `main`. `origin/development`, `origin/staging`, and `origin/main` share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
 
-**WP04 (prepared / not executed):** Consumer rollout packet at `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`. Principal approval still pending. **No consumer mutation authorized.**
+**WP04 (prepared / not executed):** Consumer rollout packet at `docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`. Principal approval still pending. **No consumer mutation authorized.**
 
 **Issue #72 (in progress):** Pre-launch system-repo cleanup on branch `issue/72-pre-launch-ide-development-codebase-cleanup-arch` (tip starts at `e6301fc`). Concise status surface: `docs/CURRENT-STATUS.md`.
 
