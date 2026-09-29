@@ -23,7 +23,7 @@ Admission limits:
 - Stage 3: up to **20 Cursor + 4 Luna**, only after another verification
 
 Underfill is **1 Luna** in Stages 1-2 and **2 Luna** in Stage 3. Every stage is
-further bounded by available Mac memory and real, freshly verified Cursor
+further bounded by available host memory and real, freshly verified Cursor
 capacity; the policy is not a fixed total-worker cap.
 
 The scheduler reports each input separately as provider capacity, spend ceiling,

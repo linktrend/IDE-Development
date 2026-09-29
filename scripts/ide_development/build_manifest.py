@@ -125,10 +125,6 @@ CONTENT_DOCTRINE = (
     ("docs/contracts/OPENCLAW-CUSTOMIZATION-ADMISSION.md", "content/doctrine/OPENCLAW-CUSTOMIZATION-ADMISSION.md"),
     ("core/contracts/GENERATED-OUTPUT-CLOSURE.md", "content/doctrine/GENERATED-OUTPUT-CLOSURE.md"),
     (
-        "core/contracts/MANIFEST-PERSISTENCE-RECOVERY.md",
-        "content/doctrine/MANIFEST-PERSISTENCE-RECOVERY.md",
-    ),
-    (
         "core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md",
         "content/doctrine/PKT08-REVISION-60-FINAL-CONTROLS.md",
     ),
@@ -145,12 +141,11 @@ CONTENT_DOCTRINE = (
 )
 
 # W2-P2 package payloads are intentionally explicit.  Workflow and test files
-# are discovered only when W2-P1 has supplied a hosted replacement; the legacy
-# Mac/App templates remain source history but must never become installable.
+# are discovered only when W2-P1 has supplied a hosted replacement; legacy
+# private-runner/App templates must never become installable.
 HOSTED_WORKFLOW_REJECT_MARKERS = (
     "self-hosted",
     "macos",
-    "mac mini",
     "linktrend-private-macos",
     "linktrend-privileged",
     "linktrend-ci-isolated",
@@ -165,14 +160,11 @@ HOSTED_WORKFLOW_REJECT_MARKERS = (
 )
 
 HOSTED_TEST_FILES = (
-    "scripts/tests/test_candidate_lifecycle.py",
-    "scripts/tests/test_gate_receipts.py",
     "scripts/tests/test_phase_batch_lifecycle.py",
     "scripts/tests/test_independent_review_convergence.py",
     "scripts/tests/test_fixture_aware_secret_scan.py",
     "scripts/tests/test_candidate_baseline_resolution.py",
     "scripts/tests/test_generated_output_closure.py",
-    "scripts/tests/test_manifest_persistence_recovery.py",
     "scripts/tests/test_repository_ci_trigger_contract.py",
     "scripts/tests/test_atomic_workflow_ruleset_migration.py",
 )
@@ -397,10 +389,6 @@ def build_entries() -> list[dict[str, Any]]:
         ("content/README.md", ".ide-development/content/README.md"),
         ("config/delivery.json", ".ide-development/config/delivery.json"),
         (
-            "content/config/portfolio-control-loop.json",
-            ".ide-development/content/config/portfolio-control-loop.json",
-        ),
-        (
             "content/config/routing-registry.json",
             ".ide-development/content/config/routing-registry.json",
         ),
@@ -411,10 +399,6 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "content/config/generated-output-closure.consumer.json",
             ".ide-development/config/generated-output-closure.json",
-        ),
-        (
-            "content/config/manifest-persistence.json",
-            ".ide-development/content/config/manifest-persistence.json",
         ),
         (
             "content/config/transactional-dispatch.json",
@@ -483,20 +467,12 @@ def build_entries() -> list[dict[str, Any]]:
             ".ide-development/schemas/generated-output-closure.schema.json",
         ),
         (
-            "schemas/manifest-persistence.schema.json",
-            ".ide-development/schemas/manifest-persistence.schema.json",
-        ),
-        (
             "schemas/transactional-dispatch.schema.json",
             ".ide-development/schemas/transactional-dispatch.schema.json",
         ),
         (
             "schemas/mutation-declaration.schema.json",
             ".ide-development/schemas/mutation-declaration.schema.json",
-        ),
-        (
-            "schemas/portfolio-control-loop.schema.json",
-            ".ide-development/schemas/portfolio-control-loop.schema.json",
         ),
         (
             "schemas/provider-consumer-handoff.schema.json",
@@ -617,10 +593,6 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "core/execution/verification_liveness.py",
             ".ide-development/execution/verification_liveness.py",
-        ),
-        (
-            "core/execution/manifest_persistence.py",
-            ".ide-development/execution/manifest_persistence.py",
         ),
         (
             "core/execution/transactional_dispatch.py",

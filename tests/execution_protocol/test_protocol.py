@@ -422,7 +422,7 @@ class IssueCheckpointTests(unittest.TestCase):
             "accepted": True,
             "headSha": COMMIT_A,
             "gitTree": TREE_A,
-            "paths": ["scripts/gitops/portfolio_control_loop.py"],
+            "paths": ["scripts/gitops/phase_integrator.py"],
             "reviewer": {"actor": "independent-reviewer", "role": "reviewer"},
             "implementerActor": "implementer",
         }
