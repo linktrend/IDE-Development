@@ -275,7 +275,7 @@ This PRD does **not** authorize:
 - merging or continuing PR 245 / Issue 244 onto `development`
 - changing LiNKplatform, LiNKlibraries, LiNKbrain, LiNKskills, or LiNKautowork
 - nested `.ide-development/` self-install, even as a test in this repository
-- opening an implementer PR, self-merge, self-review, prefer-incoming, or staging/main promotion
+- opening an implementer PR, self-merge, self-review, prefer-incoming, or `main` promotion
 - running Full, changing GitHub protections, or live provider/stage/production calls
 - WP04 / `v2.4.0` nine-consumer installs
 - rewriting [`IDE-DEVELOPMENT-TECHNICAL-PRD.md`](./IDE-DEVELOPMENT-TECHNICAL-PRD.md), [`CURRENT-STATUS.md`](./CURRENT-STATUS.md), [`README.md`](../README.md), [`OPEN-ISSUES.md`](./OPEN-ISSUES.md), or [`ARCHIVE-INDEX.md`](./ARCHIVE-INDEX.md) in this packet

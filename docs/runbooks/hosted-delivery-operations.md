@@ -11,11 +11,11 @@ W2-P3 does not perform external mutation.
    source policy, and consumer-owned required checks refer to that exact head.
 3. Seal the final candidate head. Confirm the full suite and Bugbot run once
    for that sealed candidate, with no later commit.
-4. Retain the successful full-suite receipt. For staging and main, verify the
+4. Retain the successful full-suite receipt. For main, verify the
    repository, Git tree, dependency, profile, and workflow identities before
    reusing it.
 5. Promote through protected PRs. Main requires Carlos's explicit approval
-   bound to the staging source, main base, and promotion PR head.
+   bound to the `development` source, main base, and promotion PR head.
 6. Record the final SHA, tree, checks, receipt digest, and any stop reason.
 
 ## External cleanup plan

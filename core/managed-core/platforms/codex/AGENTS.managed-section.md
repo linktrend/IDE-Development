@@ -22,7 +22,7 @@ Installed managed core: **`.ide-development/`** (versioned package; treat as rea
 - Ship = checkpoint (commit + push). Max 3 ordinary repairs. (The v2 Phase Packager is retired in v3 (IDE-22); see the v3 plan.)
 - Completion: the v2 completion gate is retired in v3 (IDE-22); see the v3 plan.
 - Finished work: run appropriate tests/checks and auto-repair ordinary failures (≤3 cycles).
-- Hard stops: no implementer PR, no self-merge, no self-review, no staging/main promotion, no prefer-incoming.
+- Hard stops: no implementer PR, no self-merge, no self-review, no `main` promotion, no prefer-incoming.
 
 ### Deeper doctrine
 

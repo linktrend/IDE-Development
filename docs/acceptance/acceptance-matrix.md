@@ -17,7 +17,7 @@ Evidence belongs with the lead’s WP1 evidence bundle. This matrix is the opera
 | A1 | Starting checkpoint | History contains exact `76d2aae1fbf0d497fbfb0e06181b3932660c96ce` without rewrite | Lead |
 | A2 | Prior portable checkpoints | History contains #64 `44a26f0…` and portable v2 `0868c00…` | Lead |
 | A3 | Clean tree / remote match | Worktree clean; local HEAD == `origin/<issue-branch>` after checkpoint push | Lead |
-| A4 | Untouched protected lines | `origin/development`, `staging`, `main`, PR #49, consumers untouched | Lead |
+| A4 | Untouched protected lines | Historical (pre-v3): `origin/development`, `staging`, `main`, PR #49, consumers untouched | Lead |
 | A5 | No forbidden artifacts | No secrets, caches, generated binary RC archives, or `.superpowers` committed | All |
 
 ## B. Installer and migration
@@ -109,7 +109,7 @@ Windows: cross-platform runner executes equivalent Python-owned contract tests a
 | ID | Exclusion | WP1 value |
 |---|---|---|
 | I1 | PR / Bugbot / review-ready / merge | Not performed by this packet |
-| I2 | Promote to staging/main | Not performed |
+| I2 | Promote to `main` | Not performed |
 | I3 | Consumer rollout | **Deferred** — separately Principal approval-gated; **WP04** prepared / not executed |
 | I4 | Tag / GitHub Release | Not performed by WP1 |
 | I5 | Claude support claims | Absent |

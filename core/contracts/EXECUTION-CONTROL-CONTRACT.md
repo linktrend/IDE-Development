@@ -172,7 +172,7 @@ Unnamed recovery, recovery without replacement proof, or any other operation is 
 
 When Autowork discovery is callable, it is required. Skipping a callable discovery is a control violation.
 
-When discovery is not callable, the truthful result is an unavailable hold. That hold is not hosted, provider-live, application, consumer, staging, VPS, E2E, or production proof.
+When discovery is not callable, the truthful result is an unavailable hold. That hold is not hosted, provider-live, application, consumer, pre-production, VPS, E2E, or production proof.
 
 ## PKT-08 revision-60 final controls
 

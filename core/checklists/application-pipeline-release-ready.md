@@ -17,4 +17,4 @@ Use before setting terminal state `release_ready`. This checklist does **not** a
 - [ ] Principal pre-deploy decision explicitly recorded
 - [ ] Validator accepts terminal `release_ready`
 - [ ] No deploy command was run
-- [ ] No automatic promotion to staging/main was performed
+- [ ] No automatic promotion to `main` was performed

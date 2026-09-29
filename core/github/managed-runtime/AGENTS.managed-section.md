@@ -35,7 +35,7 @@ Fields: `fastWorkflowName`, `ciWorkflowName`, `branchPolicyWorkflowName`, `bugbo
 Repository Actions **variables** still configure required **check/job display names** for gates:
 
 - `LINKTREND_INTEGRATOR_REQUIRED_CHECKS`
-- `LINKTREND_STAGING_GATE_CHECKS` / `LINKTREND_RELEASE_GATE_CHECKS`
+- `LINKTREND_RELEASE_GATE_CHECKS`
 
 Do not confuse the two: workflow wake names come from the JSON config; gate check names come from Actions variables.
 

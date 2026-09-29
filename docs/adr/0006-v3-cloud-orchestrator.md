@@ -49,6 +49,7 @@ delivery loop:
   tests.
 - Liveness is the watchdog's job; repair history lives in the run log and
   Ledger instead of durable GitHub repair issues.
-- Removing `staging` from the branch flow is handled separately.
+- The branch flow has only `development` and `main`; the intermediate promotion
+  branch and its ruleset are removed by IDE-31.
 - Consumers still carrying the removed managed files need a package upgrade
   that deletes them; that upgrade is a separate change.

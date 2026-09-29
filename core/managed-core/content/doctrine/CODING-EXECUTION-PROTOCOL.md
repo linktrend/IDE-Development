@@ -131,7 +131,7 @@ automatically resumes exactly once through a durable deterministic marker.
 
 ## 5. Proof limits
 
-This protocol authorizes local schema, unit, discovery, and Issue-checkpoint-contract proof only. It does not by itself prove hosted CI, provider-live calls, application canaries, consumer rollout, staging, VPS, E2E, or production behavior.
+This protocol authorizes local schema, unit, discovery, and Issue-checkpoint-contract proof only. It does not by itself prove hosted CI, provider-live calls, application canaries, consumer rollout, pre-production environments, VPS, E2E, or production behavior.
 
 ## 6. Rollback
 

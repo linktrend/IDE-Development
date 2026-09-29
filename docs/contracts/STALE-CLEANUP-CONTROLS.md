@@ -25,7 +25,7 @@ Do not invent alternate cleanup entrypoints. Do not edit credentials, App, Bugbo
 Never delete, close, or auto-resolve:
 
 - Any issue, PR, or branch named by the current preserve policy
-- Protected branches **`main`**, **`staging`**, **`development`**
+- Protected branches **`main`**, **`development`**
 - Consumer repos (out of scope for this IDE-only contract)
 - Credentials / GitHub App / Bugbot / branch protections (out of scope)
 
@@ -99,7 +99,7 @@ The candidates below were the evidence basis for the cleanup plan. They were rec
 - `issue/ide-bugbot-integrator-merge-fix`
 - `issue/ide-lisa-option-a-doctrine`
 - `promote/main/f7829436751b`
-- `promote/staging/991abc319782`
+- Historical (pre-v3): `promote/staging/991abc319782`
 
 ### KEEP at snapshot time
 

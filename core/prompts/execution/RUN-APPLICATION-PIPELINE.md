@@ -37,7 +37,7 @@ node .cursor/runtime/validate-application-pipeline.mjs --state <path-to-PIPELINE
 5. If the validator exits non-zero: **stop**. Do not warn-and-continue. Record the blocker in `PIPELINE-STATE.json`.
 6. On gate rejection: automatically re-drive repair work up to `gateRepairBudget` (default 3), record severity, then brief the Principal if exhausted.
 7. Reject self-report as proof. Issues require proof, independent review, and integration before `done`.
-8. Stop at `release_ready` or `blocked`. Never deploy. Never auto-promote to staging/main.
+8. Stop at `release_ready` or `blocked`. Never deploy. Never auto-promote to `main`.
 
 ## Stop conditions
 

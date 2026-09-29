@@ -10,7 +10,7 @@ Templates synced into consumer repos (and IDE Development itself) by:
 
 | File | Purpose |
 |---|---|
-| `branch-source-policy.yml` | Allowed work branches into development; `promote/*` into staging/main |
+| `branch-source-policy.yml` | Allowed work branches into development; only `promote/main/*` into main |
 | `linktrend-cleanup-merged.yml` | Explicit manual remote cleanup of merged/abandoned branches (no local worktrees) |
 | `linktrend-promote-main.yml` | v3 `main` promotion check, published as the legacy-named `Linktrend Receipt Gate` context: a `promote/main/*` head must have the tree of a green `development` commit (`scripts/orchestrator/promotion_check.py`; runbook `docs/runbooks/orchestrator-delivery.md`) |
 

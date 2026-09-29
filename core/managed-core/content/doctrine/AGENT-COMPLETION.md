@@ -39,4 +39,4 @@ Review `REQUEST_CHANGES` and CI failures both count as failed attempts on the cu
 
 ## Retired
 
-Retired, and not part of this contract: Review Ready status and its publisher, completion-gate evidence, the review-gate classifier, the repair observer, promotion receipts, the packager, the delivery controller, Lisa, and staging.
+Retired, and not part of this contract: Review Ready status and its publisher, completion-gate evidence, the review-gate classifier, the repair observer, promotion receipts, the packager, the delivery controller, Lisa, and the intermediate promotion branch between `development` and `main`.

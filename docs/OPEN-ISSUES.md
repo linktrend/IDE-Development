@@ -104,10 +104,10 @@ Branch `issue/GITOPS-01-review-packager-pipeline`. Principal-locked amendment to
 
 - **Ship = checkpoint only:** commit + push on work branch; no PR; no Bugbot from Ship waves or EOD.
 - **Review Packager:** `linktrend-review-packager.yml` — Tue/Fri **08:00** Asia/Taipei; discover `.linktrend/review-ready.json` where `commitSha == HEAD` → open/ready PR → Bugbot once (`@cursor review` default).
-- **Staging promote:** Tue/Fri **10:00** Asia/Taipei (two hours after Packager); promote only work already on `development`; skip + report if not ready.
+- Historical (pre-v3): **Staging promote:** Tue/Fri **10:00** Asia/Taipei (two hours after Packager); promote only work already on `development`; skip + report if not ready.
 - **Named CI gates:** `core/github/CI-GATE-CONTRACTS.md` (v3: `development` requires `Linktrend Fast Checks` and `Linktrend Branch Source Policy`; `main` requires `Linktrend Branch Source Policy` and `Linktrend Receipt Gate`; the orchestrator also requires `Verify IDE Development`).
 - **Review-ready contract:** `core/github/REVIEW-READY.md` + `scripts/mark-review-ready.sh`, `validate-review-ready.sh`, `clear-review-ready.sh`.
-- **Managed workflow sync list** includes review-packager; development-to-staging cron `0 2 * * 2,5` UTC.
+- Historical (pre-v3): **Managed workflow sync list** includes review-packager; development-to-staging cron `0 2 * * 2,5` UTC.
 - **Doctrine:** `docs/AUTONOMOUS-GIT-OPERATIONS.md` updated; ADR 0003 amendment 2026-07-28.
 - **Follow-up contracts (no Lisa/OpenClaw edits here):** `docs/contracts/LISA-OPENCLAW-FOLLOW-UP.md`, `docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`.
 - **Consumer rollout plan:** `docs/GITOPS-CONSUMER-ROLLOUT.md` (read-only drift posture; staged wire after merge).
@@ -117,9 +117,9 @@ Branch `issue/GITOPS-01-review-packager-pipeline`. Principal-locked amendment to
 - openclaw_prime Lisa personality / cron updates (`ship-pull-clock.md`, `pipeline-status.md`, `morning-digest.md`, etc.) — checklist in `LISA-OPENCLAW-FOLLOW-UP.md`.
 - `wire-repo.sh` / `sync-managed-workflows.sh` on consumer repos (LiNKplatform, LiNKskills, LiNKbrain, LiNKsites, LiNKdeveloper, LiNKlibraries, LiNKautowork).
 - Per-consumer `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` and Bugbot inheritance checklist runs.
-- Lisa reporting lines for Review Packager / Staging 10:00 until openclaw follow-up PR lands.
+- Historical (pre-v3): Lisa reporting lines for Review Packager / Staging 10:00 until openclaw follow-up PR lands.
 
-**Authoritative clock (Asia/Taipei):** Ship 05, Pull 07, Ship 16, Pull 18; Packager Tue/Fri 08:00; Staging Tue/Fri 10:00; Main package Mon 08:00; digest + Approve Mon 08:30.
+Historical (pre-v3): **Authoritative clock (Asia/Taipei):** Ship 05, Pull 07, Ship 16, Pull 18; Packager Tue/Fri 08:00; Staging Tue/Fri 10:00; Main package Mon 08:00; digest + Approve Mon 08:30.
 
 ### Correction — 2026-07-28 (review-ready mechanism)
 
@@ -143,7 +143,7 @@ Branch `issue/23-gitops-lifecycle-repair-control`.
 **Corrections (append-only):**
 
 - Implementer / Ship / agentcomply: **checkpoint only** (commit+push). No implementer PR; Packager opens PR after review-ready.
-- Staging schedule in branching rule: Tue & Fri **10:00** (aligned with ADR 2026-07-28 amendment).
+- Historical (pre-v3): Staging schedule in branching rule: Tue & Fri **10:00** (aligned with ADR 2026-07-28 amendment).
 - Cloud Fix language replaced by **Lisa ACP Repair Dispatcher** + durable GitHub repair tasks (max 3; no prefer-incoming).
 - Completion gate, create_issue_branch helper, cleanup workflow, Actions cost controls, platform AGENTS (Cursor/Codex/ChatGPT).
 
@@ -208,14 +208,14 @@ Branch `issue/51-reconcile-approved-stale-ide-development-prs-wor` (Issue #51).
 - **Base:** fresh `origin/development` `991abc319782008ef93af95002be0d7f3d5a937c`
 - **Inputs:** WP01 `89956878c54ff45e4aef1ff42883d209221b7a30`; cleanup tip `5cf099155d9f7b5d95e094f74b288af7aec766af`; frozen PR #49 `0868c0034620c4ccb255457484f0342a12a0c833`
 - **Scope:** Ordinary-history lineage reconciliation, stale-cleanup restore (no apply), IDE Development live external-state readiness verify/plan; checkpoint only — no PR/review-ready/merge/promote/consumer change
-- **Status:** COMPLETE for stated WP02 scope (2026-08-02). Accepted partial checkpoint `712675614014abdf6e180915e07aa21e1a983324`; external configuration closed (App mint proven; staging/main rulesets `20218450`/`20218451`; Bugbot Manual Only via Principal UI evidence). Evidence: `docs/archive/evidence/wp02/WORK-PACKET-02-EVIDENCE.md`, `EXTERNAL-CONFIGURATION-CLOSURE.md`.
+- Historical (pre-v3): **Status:** COMPLETE for stated WP02 scope (2026-08-02). Accepted partial checkpoint `712675614014abdf6e180915e07aa21e1a983324`; external configuration closed (App mint proven; staging/main rulesets `20218450`/`20218451`; Bugbot Manual Only via Principal UI evidence). Evidence: `docs/archive/evidence/wp02/WORK-PACKET-02-EVIDENCE.md`, `EXTERNAL-CONFIGURATION-CLOSURE.md`.
 - **Not claimed:** production acceptance; consumer rollout; WP03 integration into `development`; review-ready on this tip.
 
 ---
 
 ## 17. Work Packet 03 complete + Issue #72 pre-launch cleanup — 2026-08-02
 
-**WP03 (complete):** PR #69 → `development`, #70 → `staging`, #71 → `main`. `origin/development`, `origin/staging`, and `origin/main` share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
+Historical (pre-v3): **WP03 (complete):** PR #69 → `development`, #70 → `staging`, #71 → `main`. `origin/development`, `origin/staging`, and `origin/main` share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
 
 **WP04 (prepared / not executed):** Consumer rollout packet at `docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`. Principal approval still pending. **No consumer mutation authorized.**
 

@@ -152,7 +152,7 @@ WP1 proved plan/verify coverage; WP2 closed IDE Development live readiness under
 
 ## Branch protection (standard system behavior)
 
-Every installed consumer must protect `development`, `staging`, and `main`. Planning and verification tooling is dry-run by default; credentials are never packaged. Live apply on consumers is a separate approved action (WP04+). See [`docs/contracts/REPOSITORY-PROTECTION.md`](docs/contracts/REPOSITORY-PROTECTION.md).
+Every installed consumer must protect `development` and `main`. Planning and verification tooling is dry-run by default; credentials are never packaged. Live apply on consumers is a separate approved action (WP04+). See [`docs/contracts/REPOSITORY-PROTECTION.md`](docs/contracts/REPOSITORY-PROTECTION.md).
 
 ## Host OS support evidence
 

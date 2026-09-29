@@ -12,9 +12,9 @@ This document covers **consumer** rollout of the portable managed core. It does 
 
 **Work Packet 2 (complete):** Canonical lineage + IDE Development live readiness (checkpoint). Did **not** mutate consumers.
 
-**Work Packet 03 (complete):** Integrated/promoted system line — PR #69 → `development`, #70 → `staging`, #71 → `main`. Protected lines share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
+Historical (pre-v3): **Work Packet 03 (complete):** Integrated/promoted system line — PR #69 → `development`, #70 → `staging`, #71 → `main`. Protected lines share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
 
-**Phase delivery (complete):** Issue #81 delivered v2.1 through PR #82 → `development`, #85 → `staging`, and approved PR #86 → `main`. Pre-rollout reconciliation must leave the protected lines and local checkout content-identical before WP04 begins.
+Historical (pre-v3): **Phase delivery (complete):** Issue #81 delivered v2.1 through PR #82 → `development`, #85 → `staging`, and approved PR #86 → `main`. Pre-rollout reconciliation must leave the protected lines and local checkout content-identical before WP04 begins.
 
 **Work Packet 04 (prepared / not executed):** Real consumer installs/updates in the locked order below. Requires Principal approval of packet execution **and** per-repo approval before each mutation.
 
@@ -75,7 +75,7 @@ For **every** consumer in the table above:
 1. Produce a **read-only drift report** (installer `drift` / plan dry-run; compare managed templates without mutating the consumer).
 2. Obtain **separate Carlos (Principal) approval** for that specific consumer.
 3. Only then run `install` or `update` against an approved path (from system source **or** extracted release candidate via `--package`).
-4. Plan repository protections for `development`, `staging`, and `main` (dry-run). Live `--apply` is a separate approved action — never a silent default.
+4. Plan repository protections for `development` and `main` (dry-run). Live `--apply` is a separate approved action — never a silent default. Retiring the old promotion branch and its ruleset (listed under `retired[]` in the plan) is an admin action per repo.
 5. Keep GitHub App credentials, secrets, variables, Bugbot dashboard settings, and other repository settings **external** — never package secret values into the managed core.
 
 Also required before broad rollout:
@@ -130,11 +130,10 @@ Every installed consumer must protect:
 
 | Branch | Purpose |
 |---|---|
-| `development` | Strict required checks, source policy, Bugbot, Integrator compatibility |
-| `staging` | Promotion-only PR sources + staging gates |
-| `main` | Promotion-only PR sources + release gates + Main Approve compatibility |
+| `development` | Strict required checks: `Linktrend Fast Checks`, `Linktrend Branch Source Policy`, `Verify IDE Development` |
+| `main` | Promotion-only PR sources (`promote/main/*`): `Linktrend Branch Source Policy`, `Linktrend Receipt Gate` |
 
-The GitHub **default branch** remains the repository’s configured default (typically `main`); managed protections still apply to `development`, `staging`, and `main` regardless of which branch is the default branch.
+The GitHub **default branch** remains the repository’s configured default (typically `main`); managed protections still apply to `development` and `main` regardless of which branch is the default branch.
 
 Existing legitimate repository-specific required checks are preserved and unioned deterministically. Tooling: `docs/contracts/REPOSITORY-PROTECTION.md` (dry-run default; consumer live apply is WP04+/Principal-gated).
 
@@ -146,7 +145,6 @@ Consumers **must** set these so Integrator / Packager / promote / repair-observe
 | Variable | Purpose | IDE default |
 |---|---|---|
 | `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` | fast-gate comma-separated check names | `Verify IDE Development,Linktrend Branch Source Policy` |
-| `LINKTREND_STAGING_GATE_CHECKS` | staging promote gate | `Verify IDE Development` |
 | `LINKTREND_RELEASE_GATE_CHECKS` | main promote gate | `Verify IDE Development` |
 | `LINKTREND_CI_WORKFLOW_NAME` | `workflow_run` / observer CI name | `CI` |
 | `LINKTREND_BRANCH_POLICY_WORKFLOW_NAME` | branch policy workflow display name | `Branch Source Policy` |

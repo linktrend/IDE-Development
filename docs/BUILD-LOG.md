@@ -18,7 +18,7 @@ Historical long-form OPEN-ISSUES entries remain authoritative for older waves; t
 **Explicitly deferred to Work Packet 2 / separate approval:**
 
 - Touching frozen PR #49
-- Integration into `development` / promotion to `staging` or `main`
+- Historical (pre-v3): Integration into `development` / promotion to `staging` or `main`
 - Git tag / GitHub Release / registry publish
 - Real consumer repository install or update
 - Live GitHub App, secret, variable, Bugbot, or ruleset **apply**
@@ -92,7 +92,7 @@ python3 scripts/ide-development.py release-candidate create|verify
 **Packet:** `docs/archive/work-packets/2026-08-02-work-packet-02-integration-lineage-and-live-readiness.md`
 **Evidence:** `docs/archive/evidence/wp02/WORK-PACKET-02-EVIDENCE.md` + `EXTERNAL-CONFIGURATION-CLOSURE.md`
 
-**Proven:** canonical lineage (DEV + WP01 + cleanup + #28 handoff); stale-cleanup tests (no apply); three-OS CI green; RC bound; live external readiness closed (App mint on dry-run `30730954742`; staging/main rulesets `20218450`/`20218451`; development `19728531` preserved; Bugbot Manual Only via Principal UI evidence SHA-256 recorded).
+Historical (pre-v3): **Proven:** canonical lineage (DEV + WP01 + cleanup + #28 handoff); stale-cleanup tests (no apply); three-OS CI green; RC bound; live external readiness closed (App mint on dry-run `30730954742`; staging/main rulesets `20218450`/`20218451`; development `19728531` preserved; Bugbot Manual Only via Principal UI evidence SHA-256 recorded).
 
 **Result:** COMPLETE for stated WP02 scope (checkpoint only).
 
@@ -104,8 +104,8 @@ python3 scripts/ide-development.py release-candidate create|verify
 
 ## WP03-001 — Work Packet 03 complete (integrate + promote) — 2026-08-02
 
-**Evidence (verified facts):** PR #69 → `development`, #70 → `staging`, #71 → `main`.
-**Tree equality:** `origin/development`, `origin/staging`, and `origin/main` share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
+Historical (pre-v3): **Evidence (verified facts):** PR #69 → `development`, #70 → `staging`, #71 → `main`.
+Historical (pre-v3): **Tree equality:** `origin/development`, `origin/staging`, and `origin/main` share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
 **Result:** COMPLETE for system-line integration/promotion.
 
 **Not claimed:** consumer rollout; Git tag / GitHub Release publication; nested self-install; Claude support.

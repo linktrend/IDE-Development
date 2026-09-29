@@ -18,7 +18,7 @@ shared lifecycle:
 | Issue-branch checkpoint push | None |
 | Phase PR update | Fast on the exact head |
 | Sealed final candidate | Full once (or trusted-governance when path-limited) |
-| Unchanged staging/main promotion | Receipt verification only — no Full / broad PR matrix |
+| Unchanged `main` promotion | Receipt verification only — no Full / broad PR matrix |
 
 Branch protection requires the stable aggregate context
 `Linktrend Repository CI Gate`, never an unconditional raw application-Full
