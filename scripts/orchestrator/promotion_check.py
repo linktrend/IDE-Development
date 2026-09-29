@@ -4,15 +4,14 @@
 The context name is legacy: the live ``main`` ruleset requires it. No receipt is
 involved. A PR into ``main`` passes only when
 
-  (a) its head branch matches ``promote/main/*`` (and, when known, comes from the
-      base repository, not a fork);
+  (a) its head branch matches ``promote/main/*`` in the base repository (not a fork);
   (b) some commit D among the last 200 first-parent commits of
       ``<remote>/development`` has exactly the head's tree; and
   (c) ``Verify IDE Development`` concluded success on D.
 
 Inputs (flags override env): ``--head-sha`` / ``PR_HEAD_SHA``, ``--head-ref`` /
 ``PR_HEAD_REF`` (else ``GITHUB_HEAD_REF``), ``--base-ref`` / ``GITHUB_BASE_REF``,
-``--repo`` / ``GITHUB_REPOSITORY``, ``--head-repo`` / ``PR_HEAD_REPO``.
+``--repo`` / ``GITHUB_REPOSITORY``, ``--head-fork`` / ``PR_HEAD_FORK`` (``true`` fails).
 
 Exit codes: 0 pass; 1 fail (reasons in the JSON on stdout, including tool errors).
 """
@@ -52,7 +51,7 @@ def check(
     head_ref: str,
     base_ref: str | None,
     repo: str,
-    head_repo: str | None,
+    head_fork: bool,
     git_dir: str,
     remote: str,
     depth: int,
@@ -73,8 +72,8 @@ def check(
         reasons.append(f"head branch {head_ref!r} is not promote/main/*; only promote/main/* may merge into main")
     if base_ref and base_ref != "main":
         reasons.append(f"base {base_ref!r} is not main")
-    if head_repo and head_repo != repo:
-        reasons.append(f"head comes from {head_repo}, not {repo}")
+    if head_fork:
+        reasons.append(f"head comes from a fork, not {repo}")
 
     github_api.validate_sha(head_sha)
     head_tree = git_local.tree(head_sha, git_dir)
@@ -115,7 +114,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--head-ref", default=env.get("PR_HEAD_REF") or env.get("GITHUB_HEAD_REF"))
     p.add_argument("--base-ref", default=env.get("GITHUB_BASE_REF") or None)
     p.add_argument("--repo", default=env.get("GITHUB_REPOSITORY"))
-    p.add_argument("--head-repo", default=env.get("PR_HEAD_REPO") or None)
+    p.add_argument("--head-fork", default=env.get("PR_HEAD_FORK", "false"), choices=("true", "false"))
     p.add_argument("--git-dir", default=".")
     p.add_argument("--remote", default="origin")
     p.add_argument("--depth", type=int, default=SEARCH_DEPTH)
@@ -134,7 +133,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             head_ref=args.head_ref,
             base_ref=args.base_ref,
             repo=args.repo,
-            head_repo=args.head_repo,
+            head_fork=args.head_fork == "true",
             git_dir=args.git_dir,
             remote=args.remote,
             depth=args.depth,

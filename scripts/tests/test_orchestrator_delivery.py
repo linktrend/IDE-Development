@@ -322,9 +322,9 @@ class PromotionCheckTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.fx.cleanup()
 
-    def _check(self, api: FakeApi, head_sha: str, head_ref: str) -> tuple[int, dict[str, Any]]:
+    def _check(self, api: FakeApi, head_sha: str, head_ref: str, *extra: str) -> tuple[int, dict[str, Any]]:
         argv = ["--head-sha", head_sha, "--head-ref", head_ref, "--base-ref", "main", "--repo", REPO,
-                "--git-dir", str(self.fx.work)]
+                "--git-dir", str(self.fx.work), *extra]
         with mock.patch.object(github_api, "from_env", return_value=api):
             return run_main(promotion_check, argv)
 
@@ -355,6 +355,11 @@ class PromotionCheckTests(unittest.TestCase):
         code, out = self._check(FakeApi(green(self.dev)), self.head, "issue/IDE-9-z")
         self.assertEqual(code, 1)
         self.assertIn("is not promote/main/*", out["reasons"][0])
+
+    def test_fork_head_fails(self) -> None:
+        code, out = self._check(FakeApi(green(self.dev)), self.head, "promote/main/x", "--head-fork", "true")
+        self.assertEqual(code, 1)
+        self.assertIn("fork", out["reasons"][0])
 
 
 class GithubApiTests(unittest.TestCase):
