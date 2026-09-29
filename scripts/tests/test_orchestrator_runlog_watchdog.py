@@ -49,6 +49,17 @@ class RunLogTests(unittest.TestCase):
         self.assertEqual(done["head_sha"], "abc1234")
         self.assertIsNotNone(done["ended_at"])
 
+    def test_root_resolution_order(self) -> None:
+        from unittest import mock
+        with mock.patch.dict("os.environ", {"IDE_RUNLOG_DIR": "/tmp/env-runlog"}):
+            self.assertEqual(runlog.resolve_root("/tmp/arg"), Path("/tmp/arg"))
+            self.assertEqual(runlog.resolve_root(None), Path("/tmp/env-runlog"))
+        with mock.patch.dict("os.environ", {}, clear=True):
+            default = runlog.resolve_root(None)
+        self.assertEqual(default, Path(runlog.DEFAULT_ROOT))
+        self.assertNotIn("/cursor/stores/self", str(default))
+        self.assertEqual(default.parts[-2:], ("internal", "runlog"))
+
     def test_start_is_idempotent_on_run_key(self) -> None:
         first = runlog.start_run(self.root, issue="IDE-5", executor="codex-cli", requested_model="gpt-6-luna",
                                  run_key="run-fixed-key")

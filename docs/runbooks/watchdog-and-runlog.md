@@ -22,8 +22,11 @@ One record per attempt, format `ide-runlog/v1`
 
 **Pilot storage.** Until `ide_ledger` is applied (Wave 3.1) records are files
 in the Project store: `<root>/<ISSUE>/attempt-<NNN>.json`. The root is
-`--root`, else `$IDE_RUNLOG_DIR`, else `/cursor/stores/self/internal/runlog`
-(the orchestrator's Project store). Only the orchestrator writes it.
+`--root`, else `$IDE_RUNLOG_DIR`, else the pilot Project store's
+`internal/runlog/` (`/cursor/stores/bc-802cc0ab-6b61-4d1c-922d-43ab3b8ff094/internal/runlog`).
+The default is the resolved store path, not `/cursor/stores/self`, which points
+at a different store on each worker VM. Other Projects set `IDE_RUNLOG_DIR` to
+their own resolved store path. Only the orchestrator writes it.
 
 ```bash
 RL=scripts/orchestrator/runlog.py

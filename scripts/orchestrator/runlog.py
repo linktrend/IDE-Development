@@ -6,8 +6,10 @@ Until ide_ledger is live (v3 Wave 3.1) the orchestrator writes each attempt to
 ``ide_ledger.run`` so ``export-sql`` can replay them through the Ledger RPCs
 (``start_run`` / ``finish_run``) once the schema is applied.
 
-Root: ``--root``, else ``$IDE_RUNLOG_DIR``, else
-``/cursor/stores/self/internal/runlog`` (the orchestrator's Project store).
+Root: ``--root``, else ``$IDE_RUNLOG_DIR``, else the IDE-Development pilot
+Project store's ``internal/runlog``. The path is the resolved store ID, not the
+``/cursor/stores/self`` alias, which points at a different store on each worker
+VM. Other Projects set ``IDE_RUNLOG_DIR`` to their own resolved store.
 
 Only the orchestrator writes here; workers never get Ledger or store access.
 """
@@ -26,7 +28,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 SCHEMA = "ide-runlog/v1"
-DEFAULT_ROOT = "/cursor/stores/self/internal/runlog"
+DEFAULT_ROOT = "/cursor/stores/bc-802cc0ab-6b61-4d1c-922d-43ab3b8ff094/internal/runlog"
 EXECUTORS = ("codex-cli", "cursor-002", "cursor-001-subagent", "orchestrator", "other")
 RESULTS = ("running", "success", "failure", "stalled", "cancelled")
 TERMINAL_RESULTS = tuple(r for r in RESULTS if r != "running")
