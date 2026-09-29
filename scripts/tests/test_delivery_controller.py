@@ -908,7 +908,9 @@ class DeliveryControllerTests(unittest.TestCase):
         self.assertIn("delivery controller", branching.lower())
         self.assertNotIn("→ Integrator", branching)
         local_branching = (ROOT / ".cursor/rules/01-git-branching.mdc").read_text(encoding="utf-8")
-        self.assertIn("delivery controller", local_branching.lower())
+        self.assertIn("orchestrator", local_branching.lower())
+        self.assertIn("promote/main/", local_branching)
+        self.assertNotIn("staging", local_branching.lower())
         self.assertNotIn("Integrator merges", local_branching)
         self.assertNotIn("Integrator only", local_branching)
         runtime_branching = (

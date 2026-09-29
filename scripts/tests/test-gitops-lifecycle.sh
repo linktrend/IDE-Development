@@ -89,11 +89,13 @@ pass "managed templates render to live IDE workflow names"
   || fail "agentcomply still has Open or update PR"
 pass "agentcomply has no Open or update PR"
 
-grep -q 'Tue & Fri 10:00' .cursor/rules/01-git-branching.mdc \
-  || fail "branching rule missing staging 10:00"
-! grep -q 'Tue & Fri 08:00' .cursor/rules/01-git-branching.mdc \
-  || fail "branching rule still has staging 08:00"
-pass "branching rule has 10:00 not staging 08:00"
+grep -q 'promote/main/' .cursor/rules/01-git-branching.mdc \
+  || fail "branching rule missing promote/main"
+grep -q 'issue/<PREFIX>-<n>-<slug>' .cursor/rules/01-git-branching.mdc \
+  || fail "branching rule missing ledger issue branches"
+! grep -qi 'staging' .cursor/rules/01-git-branching.mdc \
+  || fail "branching rule still mentions staging"
+pass "branching rule is v3 development and main"
 
 if grep -n 'prefer-incoming' docs/AUTONOMOUS-GIT-OPERATIONS.md docs/contracts/REPAIR-DISPATCHER.md \
      scripts/gitops/promote_staging.sh scripts/gitops/promote_main.sh 2>/dev/null \
