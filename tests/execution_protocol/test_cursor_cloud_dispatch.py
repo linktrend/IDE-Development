@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import json
 
@@ -261,8 +263,14 @@ class CursorCloudDispatchTests(unittest.TestCase):
 
     def test_missing_api_key_is_not_replaced_by_cli_login(self) -> None:
         http = FakeCursorHTTP(DurableCursorCloudIntentStore())
-        with self.assertRaisesRegex(CursorCloudDispatchError, "CLI login"):
-            dispatch_cursor_cloud(REQUEST, http.store, http, cursor_cli_authenticated=True)
+        with patch.dict(
+            os.environ,
+            {"CURSOR_002_API_KEY": "", "CURSOR_API_KEY": "y" * 32},
+            clear=False,
+        ):
+            os.environ.pop("CURSOR_002_API_KEY", None)
+            with self.assertRaisesRegex(CursorCloudDispatchError, "CLI login"):
+                dispatch_cursor_cloud(REQUEST, http.store, http, cursor_cli_authenticated=True)
         self.assertEqual(http.calls, [])
 
     def test_prepared_intent_precedes_api_and_duplicate_is_suppressed(self) -> None:
