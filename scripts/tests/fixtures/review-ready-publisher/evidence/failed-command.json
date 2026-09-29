@@ -1,9 +1,0 @@
-{
-  "schemaVersion": 1,
-  "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "classification": "tests",
-  "acceptance": "Non-zero command must fail closed",
-  "commands": [
-    {"cmd": "false", "exitCode": 1}
-  ]
-}
