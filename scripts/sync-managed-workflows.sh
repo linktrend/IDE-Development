@@ -308,5 +308,5 @@ info "Target: $TARGET_REPO"
 info "Synced/updated: $copied"
 info "Already matched: $unchanged"
 info "Next: complete core/checklists/BUGBOT-INHERITANCE.md for this repo"
-info "Next: ensure Cursor Automations exist (docs/CURSOR-AUTOMATIONS-SETUP.md)"
+info "Next: ensure the repo has a v3 cloud orchestrator (docs/AUTONOMOUS-GIT-OPERATIONS.md)"
 exit 0

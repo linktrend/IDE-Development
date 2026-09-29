@@ -57,4 +57,4 @@ Retired in v3 (IDE-22); see the v3 plan.
 - Integrator: retired in v3 (IDE-22); see the v3 plan.
 - Ruleset helper: `scripts/apply-development-merge-ruleset.sh`
 - Wire: `scripts/wire-repo.sh`
-- Automations: `docs/CURSOR-AUTOMATIONS-SETUP.md`
+- Orchestrator: `docs/AUTONOMOUS-GIT-OPERATIONS.md`

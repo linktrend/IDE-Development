@@ -284,7 +284,7 @@ This PRD does **not** authorize:
 - touching WP-U04 in-flight paths (Review Ready publisher workflow/scripts/`MANIFEST.json`) until that packet is integrated
 - production activation of any provider endpoint
 - Claude Code platform support
-- restoring the former custom GitHub App or Mac Mini runners
+- restoring the former custom GitHub App or self-hosted local runners
 
 ## 11. Dependencies
 

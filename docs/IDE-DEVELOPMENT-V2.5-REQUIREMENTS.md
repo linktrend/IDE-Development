@@ -387,7 +387,7 @@ Before v2.5 publication, the canary repository must prove all of the following w
 | LiNKbrain production delivery | hard-coded obsolete review/check names, inaccessible protection controls, accidental workflow dispatch during inspection, and redundant promotion CI |
 | LiNKlibraries production delivery | missing callable Packager/Integrator, privileged Review Ready dependency, omitted tests from the canonical Full command, and derived fixture digests becoming stale |
 | LiNKautowork production delivery | calendar-expired fixtures, check-name/ruleset mismatch, infrastructure-only CodeQL failures, and review workflows restricted to the wrong branch type |
-| OpenClaw Prime and Lisa delivery | stalled/dirty coordination state, whole-repository automated corruption, parser/build recovery, target-shell incompatibility, permission preflight, and guarded runtime rollback |
+| OpenClaw Prime delivery | stalled/dirty coordination state, whole-repository automated corruption, parser/build recovery, target-shell incompatibility, permission preflight, and guarded runtime rollback |
 | LiNKsites CI and provider-consumer work | optional cache post-save falsely failing successful Full evidence, duplicate managed/application Full execution, cancellation scoping, and missing CMS build coverage |
 | LiNKdeveloper provider-consumer work | duplicate fixture trees, incomplete native-contract validation, resource contention, unsupported model slug, worktree-local dependency/tool gaps, and macOS path normalization |
 

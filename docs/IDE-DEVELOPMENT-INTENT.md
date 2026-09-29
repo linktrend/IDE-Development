@@ -44,7 +44,7 @@ This repository is “done enough for daily use” when:
 5. **Six model-routing subagents** exist under `.cursor/agents/route-*.md` with Cursor bracket-param model pins, ported from LiNKdeveloper’s router criteria.
 6. **Verification passes:** `scripts/verify-ide-development.sh` (and the scripts it invokes) exit 0.
 
-That is **not** the same as: a persistent VPS factory orchestrator, or live product deployment without Module 6 Principal Release OK. **Git** ship/pull/promote (Bugbot review, Integrator merge into `development`, scheduled `development`→`staging`, Principal Telegram Approve for `staging`→`main`) **is** in scope for this system and is inherited by wired repos — see `docs/AUTONOMOUS-GIT-OPERATIONS.md` and ADR 0003.
+That is **not** the same as: a persistent VPS factory orchestrator, or live product deployment without Module 6 Principal Release OK. **Git** delivery by the per-repo cloud orchestrator (PRs into `development`, merge on green Full CI plus independent review, promotion to `main`) **is** in scope for this system and is inherited by wired repos — see `docs/AUTONOMOUS-GIT-OPERATIONS.md` and ADR 0006.
 
 ---
 

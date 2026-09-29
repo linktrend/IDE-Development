@@ -13,7 +13,7 @@ Safe, deterministic cleanup controls for stale **IDE Development** PR / worktree
 | Surface | Script / workflow | Scope |
 |---------|-------------------|--------|
 | Remote branch cleanup | `scripts/cleanup-merged-branches.sh` via `linktrend-cleanup-merged.yml` | Remote refs only |
-| Local branch/worktree cleanup | Same script (`--local`) via **Lisa** on operator Mini | Local only; never GitHub Actions |
+| Local branch/worktree cleanup | Same script (`--local`), run by an operator on their own machine | Local only; never GitHub Actions |
 | Preserve policy helper | `scripts/gitops/cleanup_controls.py` + `cleanup_preserve.defaults.json` | Shared KEEP decisions |
 | Completed repair inventory | `scripts/gitops/cleanup_stale_records.py` | Dry-run inventory; live close deferred |
 | File-backend resolved JSON | `cleanup_stale_records.py --file-backend` (optional) | Local files only; never GitHub |
@@ -70,7 +70,7 @@ Default remains dry-run (no live delete by default). Scope: IDE cleanup policy/r
 ## Local worktrees
 
 - GitHub Actions **never** removes local worktrees.
-- Local cleanup is **Lisa-only** on the operator machine (see `docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md`).
+- Local cleanup runs only on the operator machine, with an explicit `--repo`.
 - Keep **active** worktrees (any attached checkout — clean or dirty). Local apply must not `git worktree remove`.
 
 ## Open PRs (no abandoned label)
@@ -125,7 +125,5 @@ The candidates below were the evidence basis for the cleanup plan. They were rec
 
 ## Related
 
-- `docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md` — local worktree/branch cleanup; Actions never removes Mini worktrees; Lisa passes explicit `--repo`
-- `docs/contracts/REPAIR-DISPATCHER.md` — durable repair tasks; inventory close policy defers here; Issue #63 `--repo` propagation into plan-cleanup
 - `scripts/cleanup-merged-branches.sh` (`--repo OWNER/NAME` highest precedence) / `.github/workflows/linktrend-cleanup-merged.yml`
 - `scripts/gitops/cleanup_controls.py` / `scripts/gitops/cleanup_stale_records.py`

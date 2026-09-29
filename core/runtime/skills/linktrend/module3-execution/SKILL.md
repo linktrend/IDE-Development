@@ -36,7 +36,7 @@ For each Issue (when the target repo uses GitHub):
 1. Create branch `issue/<issueId>-<slug>` from `development`.
 2. Implement and collect non-vacuous proof on that branch.
 3. Independent review (not the author).
-4. When finished: mark review-ready (completion gate). **Review Packager** opens the PR; wait for CI/Bugbot. CI failure is a gate rejection — enter repair via Lisa ACP Repair Dispatcher (budget 3). Implementers do not open PRs.
+4. When finished: push the final checkpoint and stop. The repo's cloud orchestrator packages the PR, runs Full CI and independent review, and runs the repair ladder on failures. Implementers do not open PRs.
 5. When merge-ready, the delivery controller merges into `development`.
 
 Do **not** auto-promote `development` → `staging` → `main`. Principal Release OK remains Module 6.
