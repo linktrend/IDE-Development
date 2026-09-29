@@ -159,6 +159,70 @@ info "Orchestration profile: $ORCHESTRATION_MODE"
 
 [ -f "$CONFIG_PATH" ] || fail "Consumer config missing: $CONFIG_PATH (create .github/linktrend-gitops-consumer.json or pass --config)"
 
+removal_conflict() {
+  echo "CONFLICT: $1; no managed workflows were removed" >&2
+}
+
+workflow_directory_is_safe() {
+  local github_dir="${TARGET_REPO}/.github"
+  local workflows_dir="${github_dir}/workflows"
+  local physical_dir=""
+
+  if [ -L "$github_dir" ] || [ -L "$workflows_dir" ]; then
+    removal_conflict ".github or .github/workflows is a symlink"
+    return 1
+  fi
+
+  if [ -d "$workflows_dir" ]; then
+    physical_dir="$(cd -P -- "$workflows_dir" && pwd -P)" || {
+      removal_conflict "unable to resolve the physical .github/workflows path"
+      return 1
+    }
+  else
+    physical_dir="$(cd -P -- "$github_dir" && pwd -P)" || {
+      removal_conflict "unable to resolve the physical .github path"
+      return 1
+    }
+  fi
+
+  case "$physical_dir" in
+    "$TARGET_REPO"|"$TARGET_REPO"/*) return 0 ;;
+    *)
+      removal_conflict "physical workflow path is outside target repository"
+      return 1
+      ;;
+  esac
+}
+
+if ! workflow_directory_is_safe; then
+  info ""
+  info "Managed workflow sync: CONFLICT (unsafe workflow destination; no removals attempted)"
+  info "Target: $TARGET_REPO"
+  exit 11
+fi
+
+removal_file_is_safe() {
+  local dest="$1"
+  local file="$2"
+  local physical_parent=""
+
+  if [ -L "$dest" ]; then
+    echo "CONFLICT: ${file} is a symlink; not removed" >&2
+    return 1
+  fi
+  physical_parent="$(cd -P -- "$(dirname -- "$dest")" && pwd -P)" || {
+    echo "CONFLICT: ${file} physical parent cannot be resolved; not removed" >&2
+    return 1
+  }
+  case "$physical_parent" in
+    "$TARGET_REPO"|"$TARGET_REPO"/*) return 0 ;;
+    *)
+      echo "CONFLICT: ${file} physical path is outside target repository; not removed" >&2
+      return 1
+      ;;
+  esac
+}
+
 # ``fastWorkflowName`` became a receipt-bound contract after early consumers
 # had already received the config file.  Normalize only a missing key to the
 # fixed managed Fast workflow name; never infer or overwrite a repository's
@@ -336,7 +400,9 @@ done
 deploy_conflict=0
 deploy_dest="${DEST_DIR}/${DEPLOY_FILE}"
 if [ ! -f "${TARGET_REPO}/${DEPLOY_TARGET_REL}" ] && [ -f "$deploy_dest" ]; then
-  if cmp -s "${TEMPLATE_DIR}/${DEPLOY_FILE}" "$deploy_dest"; then
+  if ! removal_file_is_safe "$deploy_dest" "$DEPLOY_FILE"; then
+    deploy_conflict=1
+  elif cmp -s "${TEMPLATE_DIR}/${DEPLOY_FILE}" "$deploy_dest"; then
     if [ "$DRY_RUN" -eq 1 ]; then
       info "DRY-RUN: would remove ${DEPLOY_FILE} (no ${DEPLOY_TARGET_REL})"
     else

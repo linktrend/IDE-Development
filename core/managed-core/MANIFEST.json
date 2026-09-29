@@ -4709,7 +4709,7 @@
       "id": "installer-scripts-ide-development-plan-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/plan.py",
-      "sourceHash": "sha256:44dc0adc0ea8f0385b17ae0e863cccd09cc1c7070bcd754767d82406a229f233",
+      "sourceHash": "sha256:ef2eaf9ff9686388cdcba23a4d137691404b0e405578908837f4d5be64188015",
       "destination": "scripts/ide_development/plan.py",
       "mode": "0644",
       "platform": "all",

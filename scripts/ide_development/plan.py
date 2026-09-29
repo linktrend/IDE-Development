@@ -606,6 +606,23 @@ def build_plan(
             )
             continue
         dest = dest_for(mig_path)
+        if path_crosses_symlink_ancestor(target_root, mig_path):
+            plan.conflicts.append(
+                ConflictItem(
+                    ConflictKind.SYMLINK,
+                    mig_path,
+                    "migration path crosses a non-migratable symlink ancestor",
+                )
+            )
+            if command in {"drift", "verify"}:
+                plan.drift.append(
+                    DriftItem(
+                        DriftKind.UNEXPECTED_SYMLINK,
+                        mig_path,
+                        "symlink ancestor blocks migration path",
+                    )
+                )
+            continue
         if path_is_symlink(dest):
             plan.conflicts.append(
                 ConflictItem(ConflictKind.SYMLINK, mig_path, "migration target is symlink")
@@ -981,7 +998,15 @@ def build_drift_report(
             if obsolete_path in active_paths:
                 continue
             dest = join_under_nofollow(target_root, obsolete_path)
-            if path_is_symlink(dest):
+            if path_crosses_symlink_ancestor(target_root, obsolete_path):
+                items.append(
+                    DriftItem(
+                        DriftKind.UNEXPECTED_SYMLINK,
+                        obsolete_path,
+                        "symlink ancestor blocks migration path",
+                    )
+                )
+            elif path_is_symlink(dest):
                 items.append(
                     DriftItem(
                         DriftKind.UNKNOWN_COLLISION,

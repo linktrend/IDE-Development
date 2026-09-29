@@ -347,6 +347,42 @@ class V3UpgradeTests(unittest.TestCase):
         self.assertEqual(outside.read_bytes(), expected)
         self.assertTrue(target.is_symlink())
 
+    def test_retired_file_under_symlinked_directory_conflicts_in_plan_verify_and_drift(
+        self,
+    ) -> None:
+        consumer = self._consumer()
+        rel = ".ide-development-upgrade-notes/obsolete-sparse-gitops-note-v1.md"
+        outside = self._move_directory_outside_and_link(
+            consumer, ".ide-development-upgrade-notes"
+        )
+        victim = outside / "obsolete-sparse-gitops-note-v1.md"
+        expected = victim.read_bytes()
+
+        code, plan = _cli("plan", consumer)
+
+        self.assertEqual(code, 11, plan)
+        self.assertIn(("symlink", rel), {(c["kind"], c["path"]) for c in plan["conflicts"]})
+        self.assertNotIn(
+            rel,
+            {a["path"] for a in plan["actions"] if a["op"] == "remove"},
+        )
+
+        verify_code, verify = _cli("verify", consumer)
+        self.assertEqual(verify_code, 11, verify)
+        self.assertIn(("symlink", rel), {(c["kind"], c["path"]) for c in verify["conflicts"]})
+        self.assertIn(
+            ("unexpected_symlink", rel),
+            {(d["kind"], d["path"]) for d in verify["drift"]},
+        )
+
+        drift_code, drift = _cli("drift", consumer)
+        self.assertNotEqual(drift_code, 0, drift)
+        self.assertIn(
+            ("unexpected_symlink", rel),
+            {(d["kind"], d["path"]) for d in drift["drift"]},
+        )
+        self.assertEqual(victim.read_bytes(), expected)
+
     def test_remove_revalidates_hash_and_rolls_back_when_file_changes_after_plan(self) -> None:
         consumer = self._consumer()
         manifest = load_manifest(REPO)
@@ -425,6 +461,38 @@ class V3UpgradeTests(unittest.TestCase):
         without = self._sync(consumer)
         self.assertEqual(without.returncode, 0, without.stderr)
         self.assertFalse(caller.exists())
+
+    def test_v3_sync_refuses_symlinked_workflow_directory_without_touching_outside(self) -> None:
+        consumer = self._consumer()
+        caller = consumer / ".github/workflows/linktrend-deploy.yml"
+        caller.write_bytes(
+            (REPO / "core/github/managed-workflows/linktrend-deploy.yml").read_bytes()
+        )
+        outside = self._move_directory_outside_and_link(consumer, ".github/workflows")
+        before = _snapshot(outside)
+
+        result = self._sync(consumer)
+
+        self.assertEqual(result.returncode, 11, result)
+        self.assertIn(".github or .github/workflows is a symlink", result.stderr)
+        self.assertEqual(_snapshot(outside), before)
+
+    def test_v3_sync_refuses_symlinked_deploy_file_without_touching_outside(self) -> None:
+        consumer = self._consumer()
+        caller = consumer / ".github/workflows/linktrend-deploy.yml"
+        outside = Path(tempfile.mkdtemp(prefix="outside-", dir=self.tmp)) / caller.name
+        outside.write_bytes(
+            (REPO / "core/github/managed-workflows/linktrend-deploy.yml").read_bytes()
+        )
+        caller.symlink_to(outside)
+        expected = outside.read_bytes()
+
+        result = self._sync(consumer)
+
+        self.assertEqual(result.returncode, 11, result)
+        self.assertIn("linktrend-deploy.yml is a symlink; not removed", result.stderr)
+        self.assertEqual(outside.read_bytes(), expected)
+        self.assertTrue(caller.is_symlink())
 
     def test_v3_sync_keeps_modified_retired_workflow(self) -> None:
         consumer = self._consumer()
