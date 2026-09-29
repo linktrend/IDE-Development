@@ -1,37 +1,40 @@
 {
-  "schemaVersion": 2,
-  "controlId": "cursor-cloud-dispatch-v2",
+  "schemaVersion": 3,
+  "controlId": "cursor-cloud-dispatch-v3",
   "apiBaseUrl": "https://api.cursor.com",
   "apiPath": "/v1/agents",
-  "apiKeyEnvironmentVariable": "CURSOR_API_KEY",
+  "apiKeyEnvironmentVariable": "CURSOR_002_API_KEY",
   "preferredClient": "cursor-sdk",
   "sdkPackage": "cursor-sdk",
   "directApiRepositoryBinding": "repos[]",
   "sdkRepositoryBinding": "CloudAgentOptions.repos",
   "routingRegistry": "content/config/routing-registry.json",
   "readbackRequired": true,
-  "readbackFields": ["repository", "ref", "commit", "tree", "provider", "model", "effort", "fast"],
+  "readbackFields": ["repository", "ref", "commit", "tree", "provider"],
+  "modelResolution": "dispatch-time",
+  "recordFields": ["requestedModel", "requestedParams", "selfReportedModel"],
   "archiveOnMismatchRequired": true,
   "maxApiAttempts": 2,
-  "ordinaryDevelopment": {
-    "provider": "cursor",
-    "routeId": "ordinary-development",
-    "model": "grok-4.6",
-    "effort": "medium",
-    "fast": false
-  },
-  "gate0": {
-    "provider": "codex-cli",
-    "model": "gpt-5.6-luna",
-    "effort": "high",
-    "fast": false
-  },
-  "lunaFallback": {
-    "provider": "codex-cli",
-    "model": "gpt-5.6-luna",
-    "effort": "high",
-    "fast": false,
-    "principalInstructionRequired": true
+  "routes": {
+    "cursor002-grok": {
+      "provider": "cursor",
+      "family": "grok-4.7",
+      "params": {
+        "context": "500k",
+        "reasoning_effort": "medium",
+        "fast": "false"
+      }
+    },
+    "cursor002-opus": {
+      "provider": "cursor",
+      "family": "claude-opus-5-5",
+      "params": {
+        "context": "1m",
+        "effort": "medium",
+        "fast": "false"
+      },
+      "forbiddenAliases": ["opus", "opus-latest"]
+    }
   },
   "cliLoginIsCloudAuthority": false
 }
