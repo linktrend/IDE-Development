@@ -39,6 +39,17 @@ timed-out or missing check, conflicts, or a wrong base. `--required` replaces
 the default check list; `--allow-skipped <name>` accepts `skipped` for one check.
 The script never merges.
 
+A required check counts only as a **check run** (never a commit status) whose
+`app.slug` is `github-actions` (`--check-app` replaces that allowlist). The latest
+run per name and app wins, so a later failure overrides an earlier success.
+`Verify IDE Development` and `Linktrend Fast Checks` must come from
+`.github/workflows/ci.yml`, and `Linktrend Branch Source Policy` from
+`.github/workflows/branch-source-policy.yml`, when the check-run payload exposes
+that workflow (`check_suite` or the Actions run `path` / `name`). The list
+check-runs API often does not include the workflow file; then the app slug is
+the producer check and this gap is accepted. Commit statuses are reported and
+never count as success. A failing status still fails the gate.
+
 ## 3. Promote to `main`
 
 ```bash

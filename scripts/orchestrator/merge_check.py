@@ -8,9 +8,11 @@
 Reads the PR and the check runs plus commit statuses of its exact head SHA from
 the GitHub REST API (token from ``GH_TOKEN`` / ``GITHUB_TOKEN`` when set). OK only
 when the independent review covered that exact head and approved it, every
-required check's latest run succeeded (``skipped`` only where allowed), nothing on
-the head failed, was cancelled or timed out, the PR is open without conflicts, and
-its base is ``development`` or ``main``.
+required check's latest allowlisted check run succeeded (``skipped`` only where
+allowed; default app ``github-actions``; commit statuses never count as success),
+nothing accepted on the head failed, was cancelled or timed out, a failing commit
+status is absent, the PR is open without conflicts, and its base is ``development``
+or ``main``.
 
 Exit codes: 0 mergeable; 1 not mergeable (see ``reasons``); 2 usage or API error.
 Output is JSON on stdout.
@@ -27,11 +29,24 @@ from typing import Any, Mapping, Sequence
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import github_api  # noqa: E402
-from github_api import FAILING_CONCLUSIONS, GitHubApiError  # noqa: E402
+from github_api import DEFAULT_ALLOWED_APPS, EXPECTED_WORKFLOWS, FAILING_CONCLUSIONS, GitHubApiError  # noqa: E402
 
 DEFAULT_REQUIRED = ("Linktrend Fast Checks", "Linktrend Branch Source Policy", "Verify IDE Development")
 ALLOWED_BASES = ("development", "main")
 VERDICTS = ("APPROVE", "REQUEST_CHANGES")
+
+
+def _required_gap(name: str, check: Mapping[str, Any] | None, head_sha: str, allowed_apps: Sequence[str]) -> str:
+    foreign = (check or {}).get("foreignApps") or []
+    if foreign and not (check or {}).get("countsAsCheck"):
+        return (
+            f"required check {name!r} is not a check run from an allowed app {list(allowed_apps)} "
+            f"(saw {list(foreign)})"
+        )
+    if check and check.get("workflowOk") is False:
+        expected = EXPECTED_WORKFLOWS.get(name, "the expected workflow file")
+        return f"required check {name!r} is not from workflow {expected}"
+    return f"required check {name!r} has not run on {head_sha}"
 
 
 def evaluate(
@@ -42,6 +57,7 @@ def evaluate(
     review_verdict: str,
     required: Sequence[str],
     allow_skipped: Sequence[str] = (),
+    allowed_apps: Sequence[str] = DEFAULT_ALLOWED_APPS,
 ) -> dict[str, Any]:
     head_sha = str((pr.get("head") or {}).get("sha") or "")
     base = str((pr.get("base") or {}).get("ref") or "")
@@ -61,25 +77,30 @@ def evaluate(
     required_rows = []
     for name in required:
         check = checks.get(name)
-        conclusion = check.get("conclusion") if check else None
-        ok = conclusion == "success" or (conclusion == "skipped" and name in allow_skipped)
-        if check is None:
-            reasons.append(f"required check {name!r} has not run on {head_sha}")
+        counts = bool(check and check.get("countsAsCheck"))
+        conclusion = check.get("conclusion") if counts else None
+        ok = conclusion == "success" or (conclusion == "skipped" and name in allow_skipped and counts)
+        if not counts:
+            reasons.append(_required_gap(name, check, head_sha, allowed_apps))
         elif conclusion is None:
             reasons.append(f"required check {name!r} is still {check.get('status')}")
         elif not ok:
             reasons.append(f"required check {name!r} concluded {conclusion}")
         required_rows.append({"name": name, "status": check.get("status") if check else None,
-                              "conclusion": conclusion, "ok": ok})
+                              "conclusion": conclusion, "app": check.get("app") if check else None, "ok": ok})
 
     failing = [
         {"name": name, "conclusion": c["conclusion"], "url": c.get("url")}
         for name, c in sorted(checks.items())
-        if c.get("conclusion") in FAILING_CONCLUSIONS
+        if c.get("countsAsCheck") and c.get("conclusion") in FAILING_CONCLUSIONS
     ]
     for row in failing:
         if row["name"] not in required:
             reasons.append(f"check {row['name']!r} concluded {row['conclusion']}")
+    for name, c in sorted(checks.items()):
+        report = c.get("statusReport") or {}
+        if report.get("conclusion") in FAILING_CONCLUSIONS:
+            reasons.append(f"commit status {name!r} concluded {report['conclusion']}")
 
     return {
         "ok": not reasons,
@@ -105,6 +126,11 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--review-verdict", required=True, choices=VERDICTS)
     p.add_argument("--required", action="append", help=f"required check (repeatable; default {list(DEFAULT_REQUIRED)})")
     p.add_argument("--allow-skipped", action="append", default=[], help="required check that may conclude skipped")
+    p.add_argument(
+        "--check-app",
+        action="append",
+        help="app.slug allowed to satisfy a required check (repeatable; default github-actions)",
+    )
     return p
 
 
@@ -117,7 +143,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         api = github_api.from_env()
         pr = api.pull(args.repo, args.pr)
         head_sha = github_api.validate_sha(str((pr.get("head") or {}).get("sha") or ""))
-        checks = github_api.head_checks(api, args.repo, head_sha)
+        allowed_apps = tuple(args.check_app) if args.check_app else DEFAULT_ALLOWED_APPS
+        checks = github_api.head_checks(api, args.repo, head_sha, allowed_apps=allowed_apps)
     except GitHubApiError as exc:
         print(json.dumps(exc.as_dict(), indent=2))
         return 2
@@ -128,6 +155,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         review_verdict=args.review_verdict,
         required=required,
         allow_skipped=args.allow_skipped,
+        allowed_apps=allowed_apps,
     )
     result["repo"] = args.repo
     print(json.dumps(result, indent=2))

@@ -92,9 +92,15 @@ class RemoteFixture:
 
 
 class FakeApi:
-    def __init__(self, runs: dict[str, list[dict[str, Any]]] | None = None, pull: dict[str, Any] | None = None):
+    def __init__(
+        self,
+        runs: dict[str, list[dict[str, Any]]] | None = None,
+        pull: dict[str, Any] | None = None,
+        statuses: dict[str, list[dict[str, Any]]] | None = None,
+    ):
         self.runs = runs or {}
         self._pull = pull or {}
+        self.statuses = statuses or {}
         self.calls: list[tuple[str, str]] = []
 
     def pull(self, repo: str, number: int) -> dict[str, Any]:
@@ -105,12 +111,31 @@ class FakeApi:
         return self.runs.get(sha, [])
 
     def commit_statuses(self, repo: str, sha: str) -> list[dict[str, Any]]:
-        return []
+        self.calls.append(("commit_statuses", sha))
+        return self.statuses.get(sha, [])
 
 
-def run(name: str, conclusion: str | None, *, rid: int = 1, started: str = "2026-09-29T00:00:00Z") -> dict[str, Any]:
-    return {"id": rid, "name": name, "status": "completed" if conclusion else "in_progress",
-            "conclusion": conclusion, "started_at": started, "html_url": f"https://example.invalid/{rid}"}
+def run(
+    name: str,
+    conclusion: str | None,
+    *,
+    rid: int = 1,
+    started: str = "2026-09-29T00:00:00Z",
+    app: str = "github-actions",
+    workflow: str | None = None,
+) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "id": rid,
+        "name": name,
+        "status": "completed" if conclusion else "in_progress",
+        "conclusion": conclusion,
+        "started_at": started,
+        "html_url": f"https://example.invalid/{rid}",
+        "app": {"slug": app},
+    }
+    if workflow:
+        row["check_suite"] = {"path": workflow}
+    return row
 
 
 def green(sha: str) -> dict[str, list[dict[str, Any]]]:
@@ -294,6 +319,37 @@ class MergeCheckTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn(f"required check 'Linktrend Branch Source Policy' has not run on {self.HEAD}", out["reasons"])
 
+    def test_same_name_status_does_not_satisfy(self) -> None:
+        statuses = {self.HEAD: [{"context": name, "state": "success"} for name in merge_check.DEFAULT_REQUIRED]}
+        code, out = self._check(FakeApi({}, self._pull(), statuses))
+        self.assertEqual(code, 1)
+        self.assertTrue(all(not row["ok"] for row in out["required"]))
+        self.assertTrue(any("has not run" in reason for reason in out["reasons"]))
+
+    def test_other_app_check_run_does_not_satisfy(self) -> None:
+        runs = {
+            self.HEAD: [
+                run(name, "success", rid=i, app="third-party")
+                for i, name in enumerate(merge_check.DEFAULT_REQUIRED, 1)
+            ]
+        }
+        code, out = self._check(FakeApi(runs, self._pull()))
+        self.assertEqual(code, 1)
+        self.assertTrue(any("allowed app" in reason for reason in out["reasons"]))
+
+    def test_later_failing_rerun_overrides_success(self) -> None:
+        runs = self._runs()
+        runs[self.HEAD].append(run("Linktrend Fast Checks", "failure", rid=50, started="2026-09-29T12:00:00Z"))
+        code, out = self._check(FakeApi(runs, self._pull()))
+        self.assertEqual(code, 1)
+        self.assertIn("required check 'Linktrend Fast Checks' concluded failure", out["reasons"])
+
+    def test_failing_status_fails_even_when_checks_are_green(self) -> None:
+        statuses = {self.HEAD: [{"context": "Custom", "state": "failure"}]}
+        code, out = self._check(FakeApi(self._runs(), self._pull(), statuses))
+        self.assertEqual(code, 1)
+        self.assertIn("commit status 'Custom' concluded failure", out["reasons"])
+
     def test_skipped_only_when_allowed_and_base_checked(self) -> None:
         runs = self._runs(**{"Verify IDE Development": "skipped"})
         code, _ = self._check(FakeApi(runs, self._pull()))
@@ -372,16 +428,33 @@ class GithubApiTests(unittest.TestCase):
         with mock.patch.object(api, "_request", side_effect=lambda url: pages[url]):
             self.assertEqual(api.paginate("/x", key="check_runs"), [1, 2, 3])
 
-    def test_statuses_merge_and_token_from_env(self) -> None:
+    def test_statuses_are_reported_and_never_count_as_success(self) -> None:
         checks = github_api.latest_checks(
             [run("A", "success")],
             [{"context": "B", "state": "error"}, {"context": "B", "state": "success"}, {"context": "A", "state": "failure"}],
         )
         self.assertEqual(checks["A"]["conclusion"], "success")
-        self.assertEqual(checks["B"]["conclusion"], "failure")
+        self.assertTrue(checks["A"]["countsAsCheck"])
+        self.assertEqual(checks["A"]["statusReport"]["conclusion"], "failure")
+        self.assertFalse(checks["A"]["statusReport"]["countsAsSuccess"])
+        self.assertFalse(checks["B"]["countsAsCheck"])
+        self.assertNotEqual(checks["B"]["conclusion"], "success")
+        self.assertEqual(checks["B"]["statusReport"]["conclusion"], "failure")
         self.assertEqual(github_api.token_from_env({"GITHUB_TOKEN": "t2", "GH_TOKEN": "t1"}), "t1")
         self.assertEqual(github_api.repo_from_remote_url("git@github.com:linktrend/IDE-Development.git"),
                          "linktrend/IDE-Development")
+
+    def test_workflow_file_is_required_only_when_exposed(self) -> None:
+        expected = ".github/workflows/ci.yml"
+        bare = github_api.latest_checks([run("Verify IDE Development", "success")])
+        self.assertTrue(bare["Verify IDE Development"]["countsAsCheck"])
+        self.assertFalse(bare["Verify IDE Development"]["workflowExposed"])
+        wrong = github_api.latest_checks([run("Verify IDE Development", "success", workflow=".github/workflows/other.yml")])
+        self.assertFalse(wrong["Verify IDE Development"]["countsAsCheck"])
+        self.assertFalse(wrong["Verify IDE Development"]["workflowOk"])
+        right = github_api.latest_checks([run("Verify IDE Development", "success", workflow=expected)])
+        self.assertTrue(right["Verify IDE Development"]["countsAsCheck"])
+        self.assertEqual(right["Verify IDE Development"]["workflow"], expected)
 
 
 if __name__ == "__main__":
