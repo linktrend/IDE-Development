@@ -262,10 +262,7 @@ unproven = set(p["summary"].get("unproven") or [])
 assert unproven, "dry-run must list unproven checks"
 # Never treat unknown as ready
 for c in p["checks"]:
-    if c["id"] != "completion.status_context":
-        assert c["status"] in {
-            "unchecked", "unknown", "ok", "matched"
-        } or c["id"] == "completion.status_context"
+    assert c["status"] in {"unchecked", "unknown", "ok", "matched"}
 print("dry-run plan ok")
 PY
 pass "dry-run plan leaves observations unproven"

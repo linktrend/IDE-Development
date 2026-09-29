@@ -30,10 +30,6 @@
       "type": "string",
       "enum": ["dry-run", "fixture", "live"]
     },
-    "statusContext": {
-      "type": "string",
-      "const": "Linktrend Review Ready"
-    },
     "checks": {
       "type": "array",
       "items": { "$ref": "external-state-plan.schema.json#/$defs/checkRow" }

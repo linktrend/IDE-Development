@@ -35,7 +35,7 @@
   },
   "carlos_user_token_boundary": {
     "allowedOps": [
-      "packager_feature_pr_create",
+      "orchestrator_pr_create",
       "bugbot_mention_comment"
     ],
     "status": "ok"
@@ -60,26 +60,6 @@
       "id": 2,
       "path": ".github/workflows/ci.yml",
       "name": "ci",
-      "state": "active",
-      "latestConclusion": "success",
-      "permissions": {
-        "contents": "read"
-      }
-    },
-    {
-      "id": 3,
-      "path": ".github/workflows/linktrend-review-ready-publisher.yml",
-      "name": "linktrend-review-ready-publisher",
-      "state": "active",
-      "latestConclusion": "success",
-      "permissions": {
-        "contents": "read"
-      }
-    },
-    {
-      "id": 4,
-      "path": ".github/workflows/linktrend-review-packager.yml",
-      "name": "linktrend-review-packager",
       "state": "active",
       "latestConclusion": "success",
       "permissions": {
