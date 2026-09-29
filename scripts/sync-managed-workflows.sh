@@ -182,7 +182,6 @@ from pathlib import Path
 config_path = Path(sys.argv[1])
 src = Path(sys.argv[2])
 out = Path(sys.argv[3])
-profile = sys.argv[4]
 
 try:
     cfg = json.loads(config_path.read_text(encoding="utf-8"))
@@ -246,13 +245,9 @@ rendered = rendered.replace(
     "__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__",
     str(cfg["branchPolicyWorkflowName"]).strip(),
 )
-provider_name = str(cfg.get("bugbotProviderCheckName") or "Cursor Bugbot").strip()
-review_gate_name = str(cfg.get("reviewGateCheckName") or cfg.get("bugbotCheckName") or "Linktrend Review Gate").strip()
+review_gate_name = str(cfg.get("reviewGateCheckName") or cfg.get("bugbotCheckName") or "").strip()
 if review_gate_name == "Cursor Bugbot":
     raise SystemExit("consumer config bugbotCheckName/reviewGateCheckName must not remain Cursor Bugbot")
-rendered = rendered.replace("__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__", provider_name)
-rendered = rendered.replace("__LINKTREND_REVIEW_GATE_CHECK_NAME__", review_gate_name)
-rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", review_gate_name)  # legacy alias -> managed gate
 rendered = rendered.replace(
     "__LINKTREND_UNTRUSTED_RUNS_ON__", runner_types[runner_type]["untrusted"]
 )

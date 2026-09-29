@@ -220,8 +220,6 @@ class CandidateBaselineResolutionTests(unittest.TestCase):
             ROOT / "scripts" / "gitops" / "generated_output_closure.py",
             ROOT / "scripts" / "ide_development" / "release_candidate.py",
             ROOT / ".github" / "workflows" / "ci.yml",
-            ROOT / ".github" / "workflows" / "linktrend-integrator-merge.yml",
-            ROOT / ".github" / "workflows" / "linktrend-review-packager.yml",
         )
         for path in paths:
             self.assertNotRegex(
@@ -241,15 +239,15 @@ class CandidateBaselineResolutionTests(unittest.TestCase):
 
     def test_ci_injects_authoritative_preintegration_baseline_into_stage_one(self) -> None:
         workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        self.assertIn("Inject exact runtime baseline into Stage 1 receipt context", workflow)
+        self.assertIn("Export runtime target baseline", workflow)
         self.assertIn("github.event.pull_request.base.sha", workflow)
-        self.assertIn("github.event.before", workflow)
-        self.assertIn("github.event.after", workflow)
-        self.assertIn("--bind-push-baseline", workflow)
-        self.assertIn("--push-branch", workflow)
+        self.assertIn('"origin/${GITHUB_BASE_REF}"', workflow)
         self.assertNotIn('baseline_ref="origin/${GITHUB_REF_NAME}"', workflow)
         self.assertIn("LINKTREND_TARGET_BASELINE_REF=%s", workflow)
         self.assertIn("LINKTREND_TARGET_BASELINE_SHA=%s", workflow)
+        # The whole-tree candidate binding steps are retired.
+        self.assertNotIn("generated_output_closure.py", workflow)
+        self.assertNotIn("--bind-push-baseline", workflow)
 
     def test_default_lifecycle_harness_supplies_baseline_with_clean_environment(self) -> None:
         """The portable harness must exercise finalization without caller exports."""

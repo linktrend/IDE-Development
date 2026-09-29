@@ -48,12 +48,6 @@ RULESET_NAMES = {
 REQUIRED_WORKFLOW_FILES = (
     "branch-source-policy.yml",
     "ci.yml",
-    "linktrend-review-ready-publisher.yml",
-    "linktrend-review-packager.yml",
-    "linktrend-integrator-merge.yml",
-    "linktrend-development-to-staging.yml",
-    "linktrend-staging-to-main.yml",
-    "linktrend-repair-observer.yml",
     "linktrend-cleanup-merged.yml",
 )
 
