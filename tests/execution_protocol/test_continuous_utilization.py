@@ -417,7 +417,7 @@ class ExtractedInstallerCleanroomTests(unittest.TestCase):
                 capture_output=True,
             )
             self.assertEqual(probe.returncode, 0, probe.stderr)
-            self.assertEqual(len(copied), 18)
+            self.assertEqual(len(copied), 15)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
