@@ -246,7 +246,6 @@ class AutoworkDiscoveryDecision:
 @dataclass(frozen=True)
 class IssueCheckpointDecision:
     accepted: bool
-    requires_review_ready: bool
     requires_token: bool
     reason: str
 
@@ -665,11 +664,9 @@ def git_authority_allows(
     if action == "push_work_branch":
         if branch in PROTECTED_REFS:
             return False
-        return branch.startswith("issue/") and actor == "implementer"
-    if action == "open_pr":
-        return actor in {"packager", "packager_coordinator", "orchestrator"}
-    if action == "merge_to_development":
-        return actor in {"delivery_controller", "orchestrator"}
+        return branch.startswith("issue/") and actor == "worker"
+    if action in {"open_pr", "merge_to_development", "promote_to_main"}:
+        return actor == "orchestrator"
     return False
 
 
@@ -760,31 +757,29 @@ def evaluate_issue_checkpoint(
     focused_tests_passed: bool,
     independent_narrow_review: Mapping[str, Any] | None,
     manifest_evidence: bool,
-    review_ready: bool = False,
     automation_token_present: bool = False,
 ) -> IssueCheckpointDecision:
-    del review_ready, automation_token_present
+    del automation_token_present
     if not pushed or not _is_sha40(commit) or not _is_sha40(tree):
         return IssueCheckpointDecision(
-            False, False, False, "exact_pushed_commit_tree_required"
+            False, False, "exact_pushed_commit_tree_required"
         )
     if not scoped_diff:
-        return IssueCheckpointDecision(False, False, False, "scoped_diff_required")
+        return IssueCheckpointDecision(False, False, "scoped_diff_required")
     if not focused_tests_passed:
-        return IssueCheckpointDecision(False, False, False, "focused_tests_required")
+        return IssueCheckpointDecision(False, False, "focused_tests_required")
     if not valid_independent_narrow_review(
         independent_narrow_review, commit=commit, tree=tree
     ):
         return IssueCheckpointDecision(
-            False, False, False, "independent_narrow_review_required"
+            False, False, "independent_narrow_review_required"
         )
     if not manifest_evidence:
         return IssueCheckpointDecision(
-            False, False, False, "manifest_evidence_required"
+            False, False, "manifest_evidence_required"
         )
     return IssueCheckpointDecision(
         True,
-        False,
         False,
         "v25_bootstrap_lean_issue_checkpoint",
     )
