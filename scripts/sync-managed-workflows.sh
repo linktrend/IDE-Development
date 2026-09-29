@@ -11,6 +11,7 @@ TEMPLATE_DIR="${SYSTEM_ROOT}/core/github/managed-workflows"
 MANAGED_FILES=(
   "branch-source-policy.yml"
   "linktrend-cleanup-merged.yml"
+  "linktrend-promote-main.yml"
 )
 
 fail() {

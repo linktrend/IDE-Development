@@ -130,9 +130,35 @@ class GithubWorkflowContractTests(unittest.TestCase):
                 "Linktrend Branch Source Policy": [
                     "branch-source-policy.yml:branch-source-policy",
                 ],
+                "Linktrend Receipt Gate": ["linktrend-promote-main.yml:promotion-check"],
                 "Verify IDE Development": ["ci.yml:verify"],
             },
         )
+
+    def test_main_promotion_check_is_pinned_read_only_and_runs_from_development(self) -> None:
+        live = LIVE / "linktrend-promote-main.yml"
+        self.assertEqual(live.read_text(encoding="utf-8"), (MANAGED / live.name).read_text(encoding="utf-8"))
+        document = _load(live)
+        self.assertEqual(sorted(document["on"]), ["pull_request"])
+        pull_request = document["on"]["pull_request"]
+        self.assertEqual(pull_request["branches"], ["main"])
+        self.assertIn("    types: [opened, synchronize, reopened]", pull_request["lines"])
+        job = document["jobs"]["promotion-check"]
+        self.assertEqual(job["name"], "Linktrend Receipt Gate")
+        text = document["text"]
+        self.assertIn(
+            "permissions:\n  contents: read\n  checks: read\n  statuses: read\n  pull-requests: read\n", text
+        )
+        self.assertNotIn("write", text)
+        self.assertIn("          ref: development", job["lines"])
+        self.assertIn("          persist-credentials: false", job["lines"])
+        self.assertIn("        run: python3 scripts/orchestrator/promotion_check.py", job["lines"])
+        runtime = json.loads((ROOT / "core" / "github" / "managed-runtime" / "MANIFEST.json").read_text())
+        for script in ("promotion_check.py", "github_api.py", "git_local.py"):
+            self.assertIn(f"scripts/orchestrator/{script}", runtime["files"])
+        for line in text.splitlines():
+            if re.match(r"^\s*(- )?uses:", line):
+                self.assertRegex(line, r"uses: [\w./-]+@[0-9a-f]{40} # v\d+$")
 
     def test_synced_templates_have_live_copies(self) -> None:
         for path in sorted(MANAGED.glob("*.yml")):
@@ -143,8 +169,11 @@ class GithubWorkflowContractTests(unittest.TestCase):
         source = (LIVE / "branch-source-policy.yml").read_text(encoding="utf-8")
         self.assertIn("branches: [development, main]", source)
         # Synced templates (and their live copies) must stay shallow; system-only
-        # workflows such as ci.yml's Full run may need history.
-        bounded = [*MANAGED.glob("*.yml"), *(LIVE / path.name for path in MANAGED.glob("*.yml"))]
+        # workflows such as ci.yml's Full run may need history, and the main
+        # promotion check searches development's first-parent history.
+        deep = {"linktrend-promote-main.yml"}
+        shallow = [path for path in MANAGED.glob("*.yml") if path.name not in deep]
+        bounded = [*shallow, *(LIVE / path.name for path in shallow)]
         for path in bounded:
             text = path.read_text(encoding="utf-8")
             self.assertNotIn("fetch-depth: 0", text, path.name)

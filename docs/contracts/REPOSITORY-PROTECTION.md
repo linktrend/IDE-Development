@@ -72,6 +72,7 @@ Managed baseline:
 
 1. Release-gate checks — default `Verify IDE Development`, or `LINKTREND_RELEASE_GATE_CHECKS`
 2. `Linktrend Branch Source Policy`
+3. `Linktrend Receipt Gate` — the v3 main promotion check (`.github/workflows/linktrend-promote-main.yml`): the `promote/main/*` head's tree must equal a `development` commit on which `Verify IDE Development` succeeded. The name is legacy (no receipt is involved) and is kept because the live `main` ruleset requires it; see `docs/runbooks/orchestrator-delivery.md`.
 
 Do **not** require `Linktrend Review Gate` on main promotion PRs.
 Do **not** invent extra human-review rules that conflict with the orchestrator's `development` → `main` promotion (ADR 0006). Preserve existing `bypass_actors` on update. Main Approve remains Principal Approve of the sealed package + release-gate success on the promote head.

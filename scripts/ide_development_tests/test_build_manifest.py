@@ -35,7 +35,7 @@ class BuildManifestPackagingTests(unittest.TestCase):
             for dest in destinations
             if dest.startswith(".ide-development/workflows/")
         }
-        self.assertEqual(workflows, {"branch-source-policy.yml", "linktrend-cleanup-merged.yml"})
+        self.assertEqual(workflows, {"branch-source-policy.yml", "linktrend-cleanup-merged.yml", "linktrend-promote-main.yml"})
         self.assertFalse(any(dest.startswith(".github/workflows/") for dest in destinations))
 
     def test_content_doctrine_sources_exist(self) -> None:

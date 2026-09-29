@@ -1,0 +1,388 @@
+#!/usr/bin/env python3
+"""Tests for the v3 orchestrator delivery scripts (stdlib only, no network).
+
+package.py and promote_main.py run against temp repos with a local bare remote;
+merge_check.py and promotion_check.py get a fake GitHub API via ``github_api.from_env``.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import io
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from typing import Any
+from unittest import mock
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts" / "orchestrator"))
+
+import github_api  # noqa: E402
+import merge_check  # noqa: E402
+import package  # noqa: E402
+import promote_main  # noqa: E402
+import promotion_check  # noqa: E402
+
+REPO = "linktrend/Fixture"
+GIT_TEST_CONFIG = (
+    "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
+    "-c", "init.defaultBranch=development", "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+)
+
+
+def git(cwd: Path, *args: str) -> str:
+    proc = subprocess.run(["git", *GIT_TEST_CONFIG, *args], cwd=cwd, capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise AssertionError(f"git {' '.join(args)} failed: {proc.stderr}")
+    return proc.stdout.strip()
+
+
+def commit_file(cwd: Path, name: str, text: str, message: str) -> str:
+    path = cwd / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    git(cwd, "add", name)
+    git(cwd, "commit", "-q", "-m", message)
+    return git(cwd, "rev-parse", "HEAD")
+
+
+def run_main(module: Any, argv: list[str]) -> tuple[int, dict[str, Any]]:
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = module.main(argv)
+    return code, json.loads(buf.getvalue())
+
+
+class RemoteFixture:
+    """A bare ``origin`` plus a seed clone for authoring and a work clone for the scripts."""
+
+    def __init__(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        base = Path(self._tmp.name)
+        self.remote = base / "origin.git"
+        self.seed = base / "seed"
+        self.work = base / "work"
+        git(base, "init", "-q", "--bare", str(self.remote))
+        git(base, "init", "-q", str(self.seed))
+        git(self.seed, "remote", "add", "origin", str(self.remote))
+        commit_file(self.seed, "shared.txt", "base\n", "base")
+        git(self.seed, "push", "-q", "origin", "HEAD:refs/heads/development", "HEAD:refs/heads/main")
+        git(base, "clone", "-q", str(self.remote), str(self.work))
+        for key, value in (("user.name", "Orchestrator"), ("user.email", "orch@example.invalid"),
+                           ("commit.gpgsign", "false")):
+            git(self.work, "config", key, value)
+
+    def branch(self, name: str, start: str, files: dict[str, str]) -> str:
+        git(self.seed, "checkout", "-q", "-B", name, start)
+        sha = ""
+        for fname, text in files.items():
+            sha = commit_file(self.seed, fname, text, f"{name}: {fname}")
+        git(self.seed, "push", "-q", "-f", "origin", f"{name}:refs/heads/{name}")
+        return sha
+
+    def remote_sha(self, branch: str) -> str:
+        return git(self.remote, "rev-parse", f"refs/heads/{branch}")
+
+    def cleanup(self) -> None:
+        self._tmp.cleanup()
+
+
+class FakeApi:
+    def __init__(self, runs: dict[str, list[dict[str, Any]]] | None = None, pull: dict[str, Any] | None = None):
+        self.runs = runs or {}
+        self._pull = pull or {}
+        self.calls: list[tuple[str, str]] = []
+
+    def pull(self, repo: str, number: int) -> dict[str, Any]:
+        return self._pull
+
+    def check_runs(self, repo: str, sha: str) -> list[dict[str, Any]]:
+        self.calls.append(("check_runs", sha))
+        return self.runs.get(sha, [])
+
+    def commit_statuses(self, repo: str, sha: str) -> list[dict[str, Any]]:
+        return []
+
+
+def run(name: str, conclusion: str | None, *, rid: int = 1, started: str = "2026-09-29T00:00:00Z") -> dict[str, Any]:
+    return {"id": rid, "name": name, "status": "completed" if conclusion else "in_progress",
+            "conclusion": conclusion, "started_at": started, "html_url": f"https://example.invalid/{rid}"}
+
+
+def green(sha: str) -> dict[str, list[dict[str, Any]]]:
+    return {sha: [run("Verify IDE Development", "success")]}
+
+
+class PackageTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.fx = RemoteFixture()
+        base = self.fx.remote_sha("development")
+        self.a = self.fx.branch("issue/IDE-1-a", base, {"a.txt": "a\n"})
+        self.b = self.fx.branch("issue/IDE-2-b", base, {"b.txt": "b\n", "shared.txt": "from b\n"})
+        self.c = self.fx.branch("issue/IDE-3-c", base, {"shared.txt": "from c\n"})
+
+    def tearDown(self) -> None:
+        self.fx.cleanup()
+
+    def test_clean_merge_creates_phase_branch_and_pushes(self) -> None:
+        code, out = run_main(package, ["--name", "wave-1", "--branches", "issue/IDE-1-a", "issue/IDE-2-b",
+                                       "--push", "--git-dir", str(self.fx.work)])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["phaseBranch"], "phase/wave-1")
+        self.assertEqual([m["branch"] for m in out["merged"]], ["issue/IDE-1-a", "issue/IDE-2-b"])
+        self.assertEqual([m["sha"] for m in out["merged"]], [self.a, self.b])
+        self.assertTrue(out["pushed"])
+        self.assertIsNone(out["fast"])
+        head = out["headSha"]
+        self.assertEqual(self.fx.remote_sha("phase/wave-1"), head)
+        parents = git(self.fx.work, "rev-list", "--parents", "-n", "1", head).split()
+        self.assertEqual(len(parents), 3, "each branch lands as a --no-ff merge commit")
+        self.assertEqual(git(self.fx.work, "show", f"{head}:shared.txt"), "from b")
+        # Re-running reuses the phase branch: only clean phase merges are on it.
+        code, again = run_main(package, ["--name", "wave-1", "--branches", "issue/IDE-1-a", "issue/IDE-2-b",
+                                         "--git-dir", str(self.fx.work)])
+        self.assertEqual(code, 0, again)
+        self.assertTrue(again["reused"])
+        self.assertEqual(again["headSha"], head)
+        self.assertTrue(all(m["alreadyMerged"] for m in again["merged"]))
+
+    def test_conflict_aborts_and_exits_3(self) -> None:
+        code, out = run_main(package, ["--name", "wave-2", "--branches", "issue/IDE-1-a", "issue/IDE-2-b",
+                                       "issue/IDE-3-c", "--push", "--git-dir", str(self.fx.work)])
+        self.assertEqual(code, 3, out)
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["conflict"]["branch"], "issue/IDE-3-c")
+        self.assertEqual(out["conflict"]["files"], ["shared.txt"])
+        self.assertEqual([m["branch"] for m in out["merged"]], ["issue/IDE-1-a", "issue/IDE-2-b"])
+        self.assertFalse(out["pushed"])
+        self.assertEqual(git(self.fx.work, "ls-remote", "--heads", "origin", "phase/wave-2"), "")
+        self.assertEqual(git(self.fx.work, "worktree", "list").count("\n"), 0, "scratch worktree removed")
+
+    def test_reuse_refuses_foreign_commits(self) -> None:
+        self.fx.branch("phase/wave-3", self.fx.remote_sha("development"), {"stray.txt": "not from a branch\n"})
+        code, out = run_main(package, ["--name", "wave-3", "--branches", "issue/IDE-1-a",
+                                       "--git-dir", str(self.fx.work)])
+        self.assertEqual(code, 2, out)
+        self.assertEqual(out["error"], "phase_has_foreign_commits")
+
+    def test_single_branch_reports_up_to_date(self) -> None:
+        code, out = run_main(package, ["--branches", "issue/IDE-1-a", "--git-dir", str(self.fx.work)])
+        self.assertEqual(code, 0, out)
+        self.assertIsNone(out["phaseBranch"])
+        self.assertTrue(out["upToDate"])
+        self.assertEqual((out["aheadBy"], out["behindBy"]), (1, 0))
+        self.assertEqual(out["headSha"], self.a)
+
+        self.fx.branch("development", self.fx.remote_sha("development"), {"dev.txt": "moved\n"})
+        code, out = run_main(package, ["--branches", "issue/IDE-1-a", "--git-dir", str(self.fx.work)])
+        self.assertEqual(code, 0, out)
+        self.assertFalse(out["upToDate"])
+        self.assertEqual(out["behindBy"], 1)
+
+
+class PromoteMainTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.fx = RemoteFixture()
+        self.main0 = self.fx.remote_sha("main")
+
+    def tearDown(self) -> None:
+        self.fx.cleanup()
+
+    def _promote(self, api: FakeApi, *extra: str) -> tuple[int, dict[str, Any]]:
+        with mock.patch.object(github_api, "from_env", return_value=api):
+            return run_main(promote_main, ["--repo", REPO, "--git-dir", str(self.fx.work), *extra])
+
+    def test_happy_path_main_subset_of_development(self) -> None:
+        dev = self.fx.branch("development", self.main0, {"feature.txt": "v1\n"})
+        code, out = self._promote(FakeApi(green(dev)), "--push")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["developmentSha"], dev)
+        self.assertEqual(out["promoteBranch"], f"promote/main/{dev[:12]}")
+        self.assertEqual(out["headSha"], dev, "main is an ancestor, so no merge commit is needed")
+        self.assertEqual(out["tree"], git(self.fx.work, "rev-parse", f"{dev}^{{tree}}"))
+        self.assertTrue(out["pushed"])
+        self.assertEqual(self.fx.remote_sha(out["promoteBranch"]), dev)
+        self.assertIn("merge commit", out["prBody"])
+        self.assertEqual(out["prTitle"], f"Promote development {dev[:12]} to main")
+
+    def test_previous_promotion_merge_on_main_is_merged_in_with_same_tree(self) -> None:
+        dev1 = self.fx.branch("development", self.main0, {"feature.txt": "v1\n"})
+        git(self.fx.seed, "checkout", "-q", "-B", "main", self.main0)
+        git(self.fx.seed, "merge", "-q", "--no-ff", "-m", "Merge promote/main/x", dev1)
+        git(self.fx.seed, "push", "-q", "origin", "main:refs/heads/main")
+        dev2 = self.fx.branch("development", dev1, {"feature.txt": "v2\n"})
+        code, out = self._promote(FakeApi(green(dev2)))
+        self.assertEqual(code, 0, out)
+        self.assertNotEqual(out["headSha"], dev2)
+        self.assertEqual(git(self.fx.work, "rev-parse", f"{out['headSha']}^{{tree}}"), out["tree"])
+        self.assertFalse(out["pushed"])
+
+    def test_main_with_extra_change_exits_3(self) -> None:
+        dev = self.fx.branch("development", self.main0, {"feature.txt": "v1\n"})
+        self.fx.branch("main", self.main0, {"hotfix.txt": "only on main\n"})
+        code, out = self._promote(FakeApi(green(dev)), "--push")
+        self.assertEqual(code, 3, out)
+        self.assertEqual(out["changedFiles"], ["hotfix.txt"])
+        self.assertIn("missing from development", out["reason"])
+        self.assertFalse(out["pushed"])
+
+    def test_red_development_sha_exits_1(self) -> None:
+        dev = self.fx.branch("development", self.main0, {"feature.txt": "v1\n"})
+        code, out = self._promote(FakeApi({dev: [run("Verify IDE Development", "failure")]}))
+        self.assertEqual(code, 1, out)
+        self.assertEqual(out["check"]["conclusion"], "failure")
+
+
+class MergeCheckTests(unittest.TestCase):
+    HEAD = "a" * 40
+
+    def _pull(self, **over: Any) -> dict[str, Any]:
+        pr = {"number": 7, "state": "open", "merged": False, "mergeable": True, "mergeable_state": "clean",
+              "head": {"sha": self.HEAD, "ref": "phase/wave-1"}, "base": {"ref": "development"}}
+        pr.update(over)
+        return pr
+
+    def _runs(self, **over: str | None) -> dict[str, list[dict[str, Any]]]:
+        names = {name: "success" for name in merge_check.DEFAULT_REQUIRED}
+        names.update(over)
+        return {self.HEAD: [run(n, c, rid=i) for i, (n, c) in enumerate(names.items(), 1) if c != "absent"]}
+
+    def _check(self, api: FakeApi, *extra: str, sha: str | None = None) -> tuple[int, dict[str, Any]]:
+        argv = ["--repo", REPO, "--pr", "7", "--review-sha", sha or self.HEAD, "--review-verdict", "APPROVE", *extra]
+        with mock.patch.object(github_api, "from_env", return_value=api):
+            return run_main(merge_check, argv)
+
+    def test_all_green(self) -> None:
+        code, out = self._check(FakeApi(self._runs(), self._pull()))
+        self.assertEqual(code, 0, out)
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["reasons"], [])
+        self.assertTrue(all(row["ok"] for row in out["required"]))
+
+    def test_sha_mismatch(self) -> None:
+        code, out = self._check(FakeApi(self._runs(), self._pull()), sha="b" * 40)
+        self.assertEqual(code, 1)
+        self.assertIn("does not equal reviewed SHA", out["reasons"][0])
+
+    def test_request_changes_is_not_ok(self) -> None:
+        with mock.patch.object(github_api, "from_env", return_value=FakeApi(self._runs(), self._pull())):
+            code, out = run_main(merge_check, ["--repo", REPO, "--pr", "7", "--review-sha", self.HEAD,
+                                               "--review-verdict", "REQUEST_CHANGES"])
+        self.assertEqual(code, 1)
+        self.assertIn("REQUEST_CHANGES", out["reasons"][0])
+
+    def test_failed_check(self) -> None:
+        runs = self._runs(**{"Verify IDE Development": "failure"})
+        runs[self.HEAD].append(run("Unrelated Lint", "cancelled", rid=99))
+        code, out = self._check(FakeApi(runs, self._pull()))
+        self.assertEqual(code, 1)
+        self.assertIn("required check 'Verify IDE Development' concluded failure", out["reasons"])
+        self.assertIn("check 'Unrelated Lint' concluded cancelled", out["reasons"])
+
+    def test_rerun_success_supersedes_earlier_failure(self) -> None:
+        runs = self._runs()
+        runs[self.HEAD].append(run("Linktrend Fast Checks", "failure", rid=0, started="2026-09-28T00:00:00Z"))
+        code, out = self._check(FakeApi(runs, self._pull()))
+        self.assertEqual(code, 0, out)
+
+    def test_missing_required(self) -> None:
+        code, out = self._check(FakeApi(self._runs(**{"Linktrend Branch Source Policy": "absent"}), self._pull()))
+        self.assertEqual(code, 1)
+        self.assertIn(f"required check 'Linktrend Branch Source Policy' has not run on {self.HEAD}", out["reasons"])
+
+    def test_skipped_only_when_allowed_and_base_checked(self) -> None:
+        runs = self._runs(**{"Verify IDE Development": "skipped"})
+        code, _ = self._check(FakeApi(runs, self._pull()))
+        self.assertEqual(code, 1)
+        code, out = self._check(FakeApi(runs, self._pull()), "--allow-skipped", "Verify IDE Development")
+        self.assertEqual(code, 0, out)
+        code, out = self._check(FakeApi(self._runs(), self._pull(base={"ref": "staging"})))
+        self.assertEqual(code, 1)
+        self.assertIn("base 'staging'", out["reasons"][0])
+
+
+class PromotionCheckTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.fx = RemoteFixture()
+        main0 = self.fx.remote_sha("main")
+        self.dev = self.fx.branch("development", main0, {"feature.txt": "v1\n"})
+        self.fx.branch("main", main0, {"feature.txt": "v1\n"})
+        # Promote branch: development SHA with main merged in -> same tree, different SHA.
+        git(self.fx.seed, "checkout", "-q", "-B", "promote/main/x", self.dev)
+        git(self.fx.seed, "merge", "-q", "--no-edit", "main")
+        git(self.fx.seed, "push", "-q", "origin", "promote/main/x:refs/heads/promote/main/x")
+        self.head = self.fx.remote_sha("promote/main/x")
+        self.other = self.fx.branch("issue/IDE-9-z", self.dev, {"other.txt": "x\n"})
+        git(self.fx.work, "fetch", "-q", "origin")
+
+    def tearDown(self) -> None:
+        self.fx.cleanup()
+
+    def _check(self, api: FakeApi, head_sha: str, head_ref: str, *extra: str) -> tuple[int, dict[str, Any]]:
+        argv = ["--head-sha", head_sha, "--head-ref", head_ref, "--base-ref", "main", "--repo", REPO,
+                "--git-dir", str(self.fx.work), *extra]
+        with mock.patch.object(github_api, "from_env", return_value=api):
+            return run_main(promotion_check, argv)
+
+    def test_tree_match_and_green(self) -> None:
+        self.assertNotEqual(self.head, self.dev)
+        code, out = self._check(FakeApi(green(self.dev)), self.head, "promote/main/x")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["developmentSha"], self.dev)
+        self.assertEqual(out["context"], "Linktrend Receipt Gate")
+        self.assertTrue(out["check"]["ok"])
+
+    def test_tree_match_and_red(self) -> None:
+        code, out = self._check(FakeApi({self.dev: [run("Verify IDE Development", "failure")]}), self.head,
+                                "promote/main/x")
+        self.assertEqual(code, 1)
+        self.assertEqual(out["developmentSha"], self.dev)
+        self.assertIn("has not concluded success", out["reasons"][0])
+
+    def test_no_tree_match(self) -> None:
+        api = FakeApi(green(self.dev))
+        code, out = self._check(api, self.other, "promote/main/x")
+        self.assertEqual(code, 1)
+        self.assertIsNone(out["developmentSha"])
+        self.assertIn("no commit in the last 200", out["reasons"][0])
+        self.assertEqual(api.calls, [])
+
+    def test_wrong_branch_name(self) -> None:
+        code, out = self._check(FakeApi(green(self.dev)), self.head, "issue/IDE-9-z")
+        self.assertEqual(code, 1)
+        self.assertIn("is not promote/main/*", out["reasons"][0])
+
+    def test_fork_head_fails(self) -> None:
+        code, out = self._check(FakeApi(green(self.dev)), self.head, "promote/main/x", "--head-fork", "true")
+        self.assertEqual(code, 1)
+        self.assertIn("fork", out["reasons"][0])
+
+
+class GithubApiTests(unittest.TestCase):
+    def test_pagination_follows_next_links(self) -> None:
+        api = github_api.GitHubApi(token=None, base="https://api.example.invalid")
+        pages = {
+            "https://api.example.invalid/x?per_page=100": ({"check_runs": [1, 2]}, '<https://p2>; rel="next"'),
+            "https://p2": ({"check_runs": [3]}, None),
+        }
+        with mock.patch.object(api, "_request", side_effect=lambda url: pages[url]):
+            self.assertEqual(api.paginate("/x", key="check_runs"), [1, 2, 3])
+
+    def test_statuses_merge_and_token_from_env(self) -> None:
+        checks = github_api.latest_checks(
+            [run("A", "success")],
+            [{"context": "B", "state": "error"}, {"context": "B", "state": "success"}, {"context": "A", "state": "failure"}],
+        )
+        self.assertEqual(checks["A"]["conclusion"], "success")
+        self.assertEqual(checks["B"]["conclusion"], "failure")
+        self.assertEqual(github_api.token_from_env({"GITHUB_TOKEN": "t2", "GH_TOKEN": "t1"}), "t1")
+        self.assertEqual(github_api.repo_from_remote_url("git@github.com:linktrend/IDE-Development.git"),
+                         "linktrend/IDE-Development")
+
+
+if __name__ == "__main__":
+    unittest.main()

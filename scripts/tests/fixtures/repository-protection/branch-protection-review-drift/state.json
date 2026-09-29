@@ -93,7 +93,8 @@
         "strict": true,
         "contexts": [
           "Verify IDE Development",
-          "Linktrend Branch Source Policy"
+          "Linktrend Branch Source Policy",
+          "Linktrend Receipt Gate"
         ]
       },
       "enforce_admins": true,
