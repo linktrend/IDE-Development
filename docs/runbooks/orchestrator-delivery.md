@@ -19,6 +19,7 @@ python3 scripts/orchestrator/package.py --name wave-1-login \
 - Builds `phase/<name>` from `origin/development` and merges each branch with `--no-ff` in the given order, in a scratch worktree. An existing phase branch is reused only when every commit on it comes from the base, the listed branches or a clean earlier phase merge.
 - Exit 3 = conflict: the merge is aborted and `conflict.branch` / `conflict.files` name it. Never resolve it here or with `-X ours/theirs`; send it back to the worker (or the next repair rung) to merge `development` into their branch.
 - Exit 1 = `--fast` failed (`fast.tail` has the output). Exit 2 = bad input or git error.
+- Remote names must match `^[A-Za-z0-9][A-Za-z0-9._-]*$` and exist in `git remote`. Branch and ref arguments cannot lead with `-` and must pass `git check-ref-format` before git sees them. `--` is placed before ref positionals where git treats that as end of options.
 - One branch without `--name` just reports `upToDate` / `behindBy`; open that branch's PR directly.
 
 Open the PR from `phase/<name>` (or the single `issue/*` branch) into `development`.

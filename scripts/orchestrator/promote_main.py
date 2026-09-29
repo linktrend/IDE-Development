@@ -68,6 +68,13 @@ def pr_text(*, short: str, sha: str, tree: str, main_sha: str, check: dict[str, 
 def promote(
     *, sha: str | None, repo: str | None, remote: str, git_dir: str, push: bool, required_check: str, api: Any
 ) -> tuple[int, dict[str, Any]]:
+    git_local.validate_remote_syntax(remote)
+    git_local.validate_ref_syntax(DEVELOPMENT)
+    git_local.validate_ref_syntax(MAIN)
+    if sha:
+        git_local.validate_ref_syntax(sha)
+        if not github_api.SHA40_RE.match(sha):
+            git_local.require_branch(sha, git_dir)
     git_local.fetch(remote, [DEVELOPMENT, MAIN], git_dir)
     dev_head = git_local.rev(f"{remote}/{DEVELOPMENT}", git_dir)
     main_sha = git_local.rev(f"{remote}/{MAIN}", git_dir)
@@ -79,7 +86,7 @@ def promote(
     if not git_local.is_ancestor(dev_sha, dev_head, git_dir):
         raise GitError("not_on_development", f"{dev_sha} is not on {remote}/{DEVELOPMENT}", sha=dev_sha)
     if not repo:
-        repo = github_api.repo_from_remote_url(git_local.out(["remote", "get-url", remote], git_dir))
+        repo = github_api.repo_from_remote_url(git_local.out(["remote", "get-url", "--", remote], git_dir))
         if not repo:
             raise GitError("unknown_repo", "cannot derive owner/name from the remote URL; pass --repo")
 
@@ -135,9 +142,11 @@ def promote(
             )
         head, report["reused"] = existing, True
 
-    git_local.run(["update-ref", f"refs/heads/{branch}", head], git_dir)
+    git_local.validate_ref_syntax(head)
+    git_local.validate_ref_syntax(branch)
+    git_local.run(["update-ref", "--", f"refs/heads/{branch}", head], git_dir)
     if push and not report.get("reused"):
-        git_local.run(["push", "--quiet", remote, f"{head}:refs/heads/{branch}"], git_dir)
+        git_local.run(["push", "--quiet", "--", remote, f"{head}:refs/heads/{branch}"], git_dir)
         report["pushed"] = True
     title, body = pr_text(short=short, sha=dev_sha, tree=dev_tree, main_sha=main_sha, check=check)
     report.update(ok=True, headSha=head, prTitle=title, prBody=body, prBase=MAIN)

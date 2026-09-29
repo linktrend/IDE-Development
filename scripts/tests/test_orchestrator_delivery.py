@@ -21,6 +21,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "orchestrator"))
 
+import git_local  # noqa: E402
 import github_api  # noqa: E402
 import merge_check  # noqa: E402
 import package  # noqa: E402
@@ -483,6 +484,60 @@ class GithubApiTests(unittest.TestCase):
         right = github_api.latest_checks([run("Verify IDE Development", "success", workflow=expected)])
         self.assertTrue(right["Verify IDE Development"]["countsAsCheck"])
         self.assertEqual(right["Verify IDE Development"]["workflow"], expected)
+
+
+class GitArgTests(unittest.TestCase):
+    def test_option_injection_and_bad_branch_do_not_run_git(self) -> None:
+        with mock.patch("git_local.subprocess.run") as run:
+            for remote in ("--upload-pack=x", "-x"):
+                with self.assertRaises(git_local.GitError):
+                    git_local.fetch(remote, ["development"], "/tmp/not-a-repo")
+            with self.assertRaises(git_local.GitError):
+                git_local.fetch("origin", ["bad branch"], "/tmp/not-a-repo")
+            with self.assertRaises(git_local.GitError):
+                package.package(
+                    name="wave",
+                    branches=["issue/IDE-1-a"],
+                    base="development",
+                    remote="--upload-pack=x",
+                    git_dir="/tmp/not-a-repo",
+                    fast=False,
+                    push=False,
+                )
+            with self.assertRaises(git_local.GitError):
+                package.package(
+                    name="wave",
+                    branches=["-x"],
+                    base="development",
+                    remote="origin",
+                    git_dir="/tmp/not-a-repo",
+                    fast=False,
+                    push=False,
+                )
+            with self.assertRaises(git_local.GitError):
+                promote_main.promote(
+                    sha=None,
+                    repo=REPO,
+                    remote="-x",
+                    git_dir="/tmp/not-a-repo",
+                    push=False,
+                    required_check="Verify IDE Development",
+                    api=FakeApi(),
+                )
+            with self.assertRaises(git_local.GitError):
+                promotion_check.check(
+                    head_sha="a" * 40,
+                    head_ref="promote/main/x",
+                    base_ref="main",
+                    repo=REPO,
+                    head_fork=False,
+                    git_dir="/tmp/not-a-repo",
+                    remote="--upload-pack=x",
+                    depth=promotion_check.SEARCH_DEPTH,
+                    required_check="Verify IDE Development",
+                    api=FakeApi(),
+                )
+            run.assert_not_called()
 
 
 if __name__ == "__main__":

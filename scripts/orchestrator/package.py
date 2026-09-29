@@ -65,16 +65,22 @@ def _is_clean_merge(commit: str, git_dir: str) -> bool:
 
     Such commits are earlier phase merges; a merge that carries extra edits is foreign work.
     """
+    git_local.validate_ref_syntax(commit)
     parents = git_local.out(["rev-list", "--parents", "-n", "1", commit], git_dir).split()[1:]
     if len(parents) != 2:
         return False
-    proc = git_local.run(["merge-tree", "--write-tree", *parents], git_dir, check=False)
+    for parent in parents:
+        git_local.validate_ref_syntax(parent)
+    proc = git_local.run(["merge-tree", "--write-tree", "--", *parents], git_dir, check=False)
     return proc.returncode == 0 and proc.stdout.split()[:1] == [git_local.tree(commit, git_dir)]
 
 
 def single_branch_report(
     *, branch: str, base: str, remote: str, git_dir: str, fast: bool
 ) -> tuple[int, dict[str, Any]]:
+    git_local.validate_remote_syntax(remote)
+    git_local.validate_ref_syntax(base)
+    git_local.validate_ref_syntax(branch)
     git_local.fetch(remote, [base, branch], git_dir)
     base_sha = git_local.rev(f"{remote}/{base}", git_dir)
     branch_sha = git_local.rev(f"{remote}/{branch}", git_dir)
@@ -118,6 +124,10 @@ def package(
     if not SLUG_RE.match(name):
         raise _refuse("bad_name", "--name must be a lowercase slug (a-z, 0-9, '.', '_', '-')", name=name)
     phase = f"phase/{name}"
+    git_local.validate_remote_syntax(remote)
+    git_local.validate_ref_syntax(phase)
+    for branch in [base, *branches]:
+        git_local.validate_ref_syntax(branch)
     if len(set(branches)) != len(branches):
         raise _refuse("duplicate_branch", "each branch may be listed once", branches=list(branches))
     for branch in [base, *branches]:
@@ -188,12 +198,14 @@ def package(
         if fast:
             report["fast"] = run_fast(wt)
 
-    git_local.run(["update-ref", f"refs/heads/{phase}", head], git_dir)
+    git_local.validate_ref_syntax(head)
+    git_local.run(["update-ref", "--", f"refs/heads/{phase}", head], git_dir)
     if report["fast"] is not None and not report["fast"]["ok"]:
         report["ok"] = False
         return EXIT_FAST_FAILED, report
     if push:
-        git_local.run(["push", "--quiet", remote, f"{head}:refs/heads/{phase}"], git_dir)
+        git_local.validate_remote_syntax(remote)
+        git_local.run(["push", "--quiet", "--", remote, f"{head}:refs/heads/{phase}"], git_dir)
         report["pushed"] = True
     return EXIT_OK, report
 

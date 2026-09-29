@@ -41,6 +41,9 @@ SEARCH_DEPTH = 200
 
 def tree_matches(dev_ref: str, head_tree: str, git_dir: str, depth: int) -> list[str]:
     """Development first-parent commits (newest first) whose tree equals ``head_tree``."""
+    git_local.validate_ref_syntax(dev_ref)
+    if isinstance(depth, bool) or not isinstance(depth, int) or depth < 1:
+        raise GitError("bad_depth", "depth must be a positive integer", depth=depth)
     log = git_local.out(["log", "--first-parent", f"-n{depth}", "--format=%H %T", dev_ref], git_dir)
     return [line.split()[0] for line in log.splitlines() if line.split()[1:] == [head_tree]]
 
@@ -58,6 +61,11 @@ def check(
     required_check: str,
     api: Any,
 ) -> dict[str, Any]:
+    git_local.validate_remote_syntax(remote)
+    git_local.validate_ref_syntax(head_sha)
+    if head_ref:
+        git_local.validate_ref_syntax(head_ref)
+        git_local.require_branch(head_ref, git_dir)
     reasons: list[str] = []
     result: dict[str, Any] = {
         "context": CONTEXT,
