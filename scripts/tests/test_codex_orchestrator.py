@@ -64,10 +64,20 @@ class AllowanceTests(unittest.TestCase):
         self.assertEqual(result["windows"]["weekly"]["position"], "primary")
         self.assertEqual(result["reasons"], ["weekly_used_80pct"])
 
-    def test_missing_window_fails_safe_to_overflow(self) -> None:
-        result = co.evaluate_allowance(limits(window(10, 300), None))
-        self.assertFalse(result["allowed"])
-        self.assertEqual(result["reasons"], ["weekly_window_unknown"])
+    def test_unreported_window_does_not_block_by_default(self) -> None:
+        pro = limits(window(7, 10080), None)
+        result = co.evaluate_allowance(pro, strict_windows=False)
+        self.assertTrue(result["allowed"])
+        self.assertEqual(result["notReported"], ["fiveHour"])
+        self.assertFalse(co.evaluate_allowance(limits(window(80, 10080), None), strict_windows=False)["allowed"])
+
+    def test_strict_mode_and_no_windows_fail_safe_to_overflow(self) -> None:
+        strict = co.evaluate_allowance(limits(window(10, 300), None), strict_windows=True)
+        self.assertEqual(strict["reasons"], ["weekly_window_unknown"])
+        with mock.patch.dict(os.environ, {"CODEX_STRICT_WINDOWS": "1"}):
+            self.assertFalse(co.evaluate_allowance(limits(window(10, 300), None))["allowed"])
+        empty = co.evaluate_allowance(limits(None, None), strict_windows=False)
+        self.assertEqual(empty["reasons"], ["fiveHour_window_unknown", "weekly_window_unknown"])
 
     def test_limit_reached_and_backend_denial_overflow(self) -> None:
         reached = co.evaluate_allowance(limits(window(1, 300), window(1, 10080), snapshot={"rateLimitReachedType": "rate_limit_reached"}))

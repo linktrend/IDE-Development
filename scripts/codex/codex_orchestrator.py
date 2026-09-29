@@ -369,8 +369,17 @@ def list_models() -> list[dict[str, Any]]:
 # --- decisions (pure) ---------------------------------------------------------------------
 
 
-def evaluate_allowance(result: dict[str, Any], threshold: int = DEFAULT_THRESHOLD) -> dict[str, Any]:
-    """Codex is allowed only when both the 5-hour and weekly windows are below `threshold`%."""
+def evaluate_allowance(
+    result: dict[str, Any], threshold: int = DEFAULT_THRESHOLD, strict_windows: bool | None = None
+) -> dict[str, Any]:
+    """Codex is allowed only when every reported window (5-hour, weekly) is below `threshold`%.
+
+    The backend omits windows that don't apply to the plan (ChatGPT Pro reported only the weekly
+    window on 2026-09-29). An omitted window doesn't block unless strict mode is on
+    (`--strict-windows` or CODEX_STRICT_WINDOWS=1); no reported window at all always overflows.
+    """
+    if strict_windows is None:
+        strict_windows = os.environ.get("CODEX_STRICT_WINDOWS") == "1"
     snapshot = (result.get("rateLimitsByLimitId") or {}).get("codex") or result.get("rateLimits") or {}
     windows: dict[str, dict[str, Any]] = {}
     for position, default_kind in (("primary", "fiveHour"), ("secondary", "weekly")):
@@ -390,10 +399,13 @@ def evaluate_allowance(result: dict[str, Any], threshold: int = DEFAULT_THRESHOL
             "resetsAt": window.get("resetsAt"),
         }
     reasons = []
+    not_reported = []
     for kind in ("fiveHour", "weekly"):
         window = windows.get(kind)
         used = (window or {}).get("usedPercent")
-        if window is None or not isinstance(used, (int, float)):
+        if window is None and windows and not strict_windows:
+            not_reported.append(kind)
+        elif window is None or not isinstance(used, (int, float)):
             reasons.append(f"{kind}_window_unknown")
         elif used >= threshold:
             reasons.append(f"{kind}_used_{used}pct")
@@ -405,6 +417,8 @@ def evaluate_allowance(result: dict[str, Any], threshold: int = DEFAULT_THRESHOL
         "allowed": not reasons,
         "threshold": threshold,
         "windows": windows,
+        "notReported": not_reported,
+        "strictWindows": strict_windows,
         "reasons": reasons,
         "planType": snapshot.get("planType"),
     }
@@ -766,7 +780,9 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ("auth-status", "auth-restore", "auth-save", "login", "liveness"):
         sub.add_parser(name)
     for name in ("allowance", "gate"):
-        sub.add_parser(name).add_argument("--threshold", type=int, default=DEFAULT_THRESHOLD)
+        checker = sub.add_parser(name)
+        checker.add_argument("--threshold", type=int, default=DEFAULT_THRESHOLD)
+        checker.add_argument("--strict-windows", action="store_true", help="treat an unreported window as blocking")
     models = sub.add_parser("models")
     models.add_argument("--tier", choices=sorted(TIERS), action="append")
     run = sub.add_parser("run")
@@ -828,6 +844,8 @@ def dispatch(args: argparse.Namespace) -> tuple[int, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if getattr(args, "strict_windows", False):
+        os.environ["CODEX_STRICT_WINDOWS"] = "1"
     try:
         code, payload = dispatch(args)
     except (ToolError, AppServerError, OSError) as exc:
