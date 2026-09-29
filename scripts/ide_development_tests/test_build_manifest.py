@@ -28,10 +28,15 @@ class BuildManifestPackagingTests(unittest.TestCase):
         missing = REQUIRED_DOCTRINE - names
         self.assertFalse(missing, f"CONTENT_DOCTRINE missing: {sorted(missing)}")
 
-    def test_full_root_workflow_is_packaged_onto_consumer_github(self) -> None:
+    def test_only_kept_v3_workflow_templates_are_packaged(self) -> None:
         destinations = {row["destination"] for row in bm.build_manifest_object()["files"]}
-        self.assertIn(".ide-development/workflows/linktrend-integrator-merge.yml", destinations)
-        self.assertIn(".github/workflows/linktrend-integrator-merge.yml", destinations)
+        workflows = {
+            dest.rsplit("/", 1)[-1]
+            for dest in destinations
+            if dest.startswith(".ide-development/workflows/")
+        }
+        self.assertEqual(workflows, {"branch-source-policy.yml", "linktrend-cleanup-merged.yml"})
+        self.assertFalse(any(dest.startswith(".github/workflows/") for dest in destinations))
 
     def test_content_doctrine_sources_exist(self) -> None:
         for src_rel, dest_rel in bm.CONTENT_DOCTRINE:
@@ -161,7 +166,7 @@ class BuildManifestPackagingTests(unittest.TestCase):
         self.assertEqual(config["compute"]["runner"], "ubuntu-24.04-arm")
         self.assertFalse(config["compute"]["checkpointCI"])
         expected = [
-            ["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"],
+            ["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py"],
             ["python3", "scripts/gitops/secret_scan.py"],
         ]
         self.assertEqual(config["profiles"]["fast"]["commands"], expected)
@@ -175,12 +180,10 @@ class BuildManifestPackagingTests(unittest.TestCase):
             "core/managed-core/migrations/external-cleanup-plan.json", sources
         )
         self.assertNotIn("scripts/gitops/resolve_automation_token.sh", sources)
-        self.assertIn("scripts/gitops/packager_coordinator.py", sources)
         self.assertIn("scripts/gitops/independent_review_convergence.py", sources)
         self.assertIn("scripts/gitops/secret_scan.py", sources)
         self.assertIn("scripts/gitops/secret_scan_migrate.py", sources)
         self.assertIn("scripts/gitops/repository_ci_contract.py", sources)
-        self.assertNotIn("scripts/gitops/packager_discover.py", sources)
 
         forbidden = (
             "openclaw_prime",
@@ -356,7 +359,6 @@ class BuildManifestPackagingTests(unittest.TestCase):
             "core/managed-core/schemas/transition-receipt.schema.json",
             "scripts/gitops/mutation_guard.py",
             "scripts/gitops/portfolio_control_loop.py",
-            "scripts/gitops/receipt_loop_detector.py",
             "scripts/gitops/runtime_preflight.py",
         ):
             self.assertIn(rel, sources)

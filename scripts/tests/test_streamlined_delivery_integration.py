@@ -29,9 +29,7 @@ class StreamlinedDeliveryIntegrationTests(unittest.TestCase):
             "scripts/gitops/coordinator/config.py",
             "scripts/gitops/coordinator/receipts.py",
             "scripts/gitops/coordinator/state.py",
-            "scripts/gitops/gate_receipt.py",
             "scripts/gitops/phase_integrator.py",
-            "scripts/gitops/promotion_receipt_gate.py",
             "scripts/gitops/ruleset_plan.py",
         }
         self.assertTrue(required.issubset(set(runtime["files"])))

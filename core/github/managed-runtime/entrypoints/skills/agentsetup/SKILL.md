@@ -25,7 +25,6 @@ Do not use for already-open dirty/wrong-branch work — use `agentcomply`.
 - `.cursor/commands/agentsetup.md`
 - `.cursor/skills/agentsetup/SKILL.md` (this file)
 - `scripts/gitops/create_issue_branch.py`
-- `scripts/gitops/completion_gate.py`
 - Managed core (optional deeper doctrine): `.ide-development/`
 
 Do **not** require the IDE Development checkout path.
@@ -34,7 +33,7 @@ Do **not** require the IDE Development checkout path.
 
 - One short-lived `issue/<id>-slug` per governed work package — not forever `dev/*`.
 - **Never ask the human for issue id or slug.** The helper creates/reuses them.
-- Never open a PR yourself. The Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the Phase PR; retained `packager_discover.py` is not that component.
+- Never open a PR yourself. (The v2 Phase Packager is retired in v3 (IDE-22); see the v3 plan.)
 - Never merge your own PR; never promote to staging/main.
 - Ship = checkpoint (commit + push) only.
 
@@ -55,7 +54,7 @@ python3 scripts/gitops/create_issue_branch.py --issue-number N
 ```
 
 3. Confirm on the printed `BRANCH=` / `WORKTREE=` / `ISSUE_NUMBER=`
-4. Remind: no implementer PR; when finished use `completion_gate.py write-evidence` then `review-ready` (normal-token publisher if local privileged publish fails closed; never write `.linktrend/review-ready.json`)
+4. Remind: no implementer PR (the v2 completion gate is retired in v3 (IDE-22); see the v3 plan)
 5. Report branch, issue, and next step in plain English
 
 ## Fail closed

@@ -12,7 +12,6 @@ from pathlib import Path
 
 from scripts.gitops.coordinator.config import ConfigError, load_delivery_config
 from scripts.gitops.coordinator.state import DeliveryState, StateError, transition
-from scripts.gitops.promotion_receipt_gate import evaluate_release_path
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -105,21 +104,6 @@ class W2P3RegressionTests(unittest.TestCase):
         for forbidden in FORBIDDEN_ACTIVE_DOCTRINE:
             self.assertNotIn(forbidden, hosted)
         self.assertTrue(any(forbidden in legacy for forbidden in FORBIDDEN_ACTIVE_DOCTRINE))
-
-    def test_receipt_reuse_and_promotion_do_not_reenter_full_suite(self) -> None:
-        decision = evaluate_release_path({
-            "status": "passed",
-            "testProfile": "release",
-            "fullSuiteInvoked": False,
-        })
-        self.assertTrue(decision.accepted)
-        self.assertEqual(decision.code, "accepted")
-        rejected = evaluate_release_path({
-            "status": "passed",
-            "testProfile": "release",
-            "fullSuiteInvoked": True,
-        })
-        self.assertEqual(rejected.code, "full_suite_reentered")
 
     def test_doctrine_is_hosted_and_mirrored(self) -> None:
         for path in ACTIVE_DOCS:

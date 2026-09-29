@@ -322,21 +322,12 @@ def render(text: str) -> str:
     return (
         text.replace("__LINKTREND_CI_WORKFLOW_NAME__", "CI")
         .replace("__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__", "Branch Source Policy")
-        .replace("__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__", "Cursor Bugbot")
-        .replace("__LINKTREND_REVIEW_GATE_CHECK_NAME__", "Linktrend Review Gate")
-        .replace("__LINKTREND_BUGBOT_CHECK_NAME__", "Linktrend Review Gate")
         .replace("__LINKTREND_UNTRUSTED_RUNS_ON__", untrusted_runner)
         .replace("__LINKTREND_RUNS_ON__", privileged_runner)
     )
 
-pairs = [
-    "linktrend-integrator-merge.yml",
-    "linktrend-review-packager.yml",
-    "linktrend-review-ready-publisher.yml",
-    "linktrend-development-to-staging.yml",
-    "linktrend-staging-to-main.yml",
-    "linktrend-repair-observer.yml",
-]
+pairs = sorted(path.name for path in Path("core/github/managed-workflows").glob("*.yml"))
+assert pairs, "no managed workflow templates"
 for name in pairs:
     managed = Path(f"core/github/managed-workflows/{name}").read_text()
     live = Path(f".github/workflows/{name}").read_text()
@@ -344,24 +335,12 @@ for name in pairs:
         raise SystemExit(f"Managed workflow diverged after render: {name}")
 print("ok")
 PY
-pass "Integrator/packager/promote/observer managed templates match live (after name render)"
+pass "Managed workflow templates match live (after name render)"
 
 if [ -x "scripts/tests/test-managed-runner-routing.sh" ]; then
   bash scripts/tests/test-managed-runner-routing.sh || fail "Managed runner routing test failed"
 else
   fail "Missing scripts/tests/test-managed-runner-routing.sh"
-fi
-
-if [ -x "scripts/tests/test-integrator-bugbot-gate.sh" ]; then
-  bash scripts/tests/test-integrator-bugbot-gate.sh || fail "Integrator Bugbot gate test failed"
-else
-  fail "Missing scripts/tests/test-integrator-bugbot-gate.sh"
-fi
-
-if [ -x "scripts/tests/test-gitops-review-packager.sh" ]; then
-  bash scripts/tests/test-gitops-review-packager.sh || fail "GitOps review-packager redesign test failed"
-else
-  fail "Missing scripts/tests/test-gitops-review-packager.sh"
 fi
 
 if [ -x "scripts/tests/test-gitops-behavioral.sh" ]; then

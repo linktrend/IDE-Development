@@ -20,7 +20,6 @@ from harness.paths import PACKAGE_FIXTURE
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_SOURCES = (
     "scripts/gitops/repository_ci_contract.py",
-    "scripts/gitops/promotion_receipt_gate.py",
     "scripts/gitops/run_delivery_profile.py",
     "core/execution/__init__.py",
     "core/execution/protocol.py",

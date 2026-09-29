@@ -1,5 +1,7 @@
 # Main Approve package / store interface (authoritative)
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 **Status:** Authoritative — IDE Development issue #23 delivers this interface for Lisa
 **Date:** 2026-07-30
 **Timezone:** Asia/Taipei

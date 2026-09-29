@@ -5,6 +5,8 @@ IDE Development source and is not a consumer install target.
 
 ## Normal flow
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 Implementers work on short-lived `issue/*` branches, checkpoint with one
 focused commit, and stop. Accepted issue commits are integrated serially on a
 `phase/*` branch. The Phase Packager/Coordinator

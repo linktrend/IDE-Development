@@ -48,7 +48,7 @@ python3 scripts/gitops/create_issue_branch.py "<task description>" --prefer-work
 ```
 
 3. Confirm `BRANCH=` / `WORKTREE=` / `ISSUE_NUMBER=`
-4. Ship = checkpoint only; finished work uses `completion_gate.py write-evidence` then `review-ready`
+4. Ship = checkpoint only (the v2 completion gate is retired in v3 (IDE-22); see the v3 plan)
 5. Report in plain English
 
 ## Fail closed

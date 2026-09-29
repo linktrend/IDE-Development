@@ -195,7 +195,6 @@ class ChangedPathStatusTests(unittest.TestCase):
 
 def declaration(
     *,
-    candidate_tree: str,
     fixtures: list[dict],
     policy: str = SCANNER_POLICY_VERSION,
 ) -> dict:
@@ -203,7 +202,6 @@ def declaration(
         "schemaVersion": 1,
         "kind": "secret-scan-fixtures",
         "scannerPolicyVersion": policy,
-        "candidateTree": candidate_tree,
         "fixtures": fixtures,
     }
 
@@ -271,10 +269,10 @@ class PackagingContractTests(unittest.TestCase):
             "schemaVersion",
             "kind",
             "scannerPolicyVersion",
-            "candidateTree",
             "fixtures",
         ):
             self.assertIn(required, fixtures["required"])
+        self.assertNotIn("candidateTree", fixtures["required"])
         for required in (
             "schemaVersion",
             "kind",
@@ -304,11 +302,11 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn(live, managed["profiles"]["fast"]["commands"])
         self.assertIn(live, managed["profiles"]["full"]["commands"])
 
-    def test_checked_in_fixture_declaration_binds_current_candidate_tree(self) -> None:
+    def test_checked_in_fixture_declaration_has_no_whole_tree_pin(self) -> None:
         declaration_path = ROOT / ".github/linktrend-secret-scan-fixtures.json"
         payload = json.loads(declaration_path.read_text(encoding="utf-8"))
         self.assertEqual(payload["scannerPolicyVersion"], SCANNER_POLICY_VERSION)
-        self.assertEqual(payload["candidateTree"], candidate_content_tree(ROOT))
+        self.assertNotIn("candidateTree", payload)
 
     def test_doctrine_and_installer_docs_name_fixture_contract(self) -> None:
         contract = (ROOT / "docs/contracts/SECRET-SCAN-FIXTURES.md").read_text(encoding="utf-8")
@@ -335,7 +333,6 @@ class AcU1001SyntheticLiteralTests(unittest.TestCase):
         write_declaration(
             root,
             declaration(
-                candidate_tree=candidate_content_tree(root),
                 fixtures=[
                     fixture(
                         fixture_id="integrity-secret-property",
@@ -380,7 +377,6 @@ class AcU1004ExactScopeTests(unittest.TestCase):
         write_declaration(
             root,
             declaration(
-                candidate_tree=candidate_content_tree(root),
                 fixtures=[
                     fixture(
                         fixture_id="integrity-secret-property",
@@ -416,7 +412,6 @@ class AcU1005FailClosedTests(unittest.TestCase):
         write_declaration(
             root,
             declaration(
-                candidate_tree=candidate_content_tree(root),
                 fixtures=[
                     fixture(
                         fixture_id="integrity-secret-property",
@@ -489,7 +484,6 @@ class AcU1005FailClosedTests(unittest.TestCase):
         write_declaration(
             root,
             declaration(
-                candidate_tree=candidate_content_tree(root),
                 fixtures=[
                     fixture(
                         fixture_id="shared-id",
@@ -581,7 +575,7 @@ class AcU1006RealisticFormatsTests(unittest.TestCase):
                     "production": False,
                 }
             )
-        write_declaration(root, declaration(candidate_tree=candidate_content_tree(root), fixtures=fixtures))
+        write_declaration(root, declaration(fixtures=fixtures))
         commit(root, "attempt realistic approvals")
         result = scan_repository(root)
         self.assertFalse(result["ok"])
@@ -604,7 +598,6 @@ class AcU1007AggregationTests(unittest.TestCase):
         write_declaration(
             root,
             declaration(
-                candidate_tree=candidate_content_tree(root),
                 fixtures=[
                     fixture(
                         fixture_id="good",
@@ -635,14 +628,13 @@ class AcU1007AggregationTests(unittest.TestCase):
 
 
 class AcU1008BindingTests(unittest.TestCase):
-    def test_tree_or_policy_change_invalidates_until_refresh(self) -> None:
+    def _declared_repo(self) -> tuple[Path, dict]:
         tmp, root = init_repo()
         self.addCleanup(tmp.cleanup)
         value = synthetic_value()
         write_tracked(root, "tests/security/test_integrity.py", f'secret = "{value}"\n')
         commit(root, "fixture")
         payload = declaration(
-            candidate_tree=candidate_content_tree(root),
             fixtures=[
                 fixture(
                     fixture_id="integrity-secret-property",
@@ -656,70 +648,52 @@ class AcU1008BindingTests(unittest.TestCase):
         )
         write_declaration(root, payload)
         commit(root, "declare")
+        return root, payload
+
+    def test_unrelated_tree_change_keeps_fixture_approval_but_policy_change_invalidates(self) -> None:
+        root, payload = self._declared_repo()
         write_tracked(root, "README.md", "# changed tree\n")
         commit(root, "unrelated tree change")
-        stale_tree = scan_repository(root)
-        self.assertFalse(stale_tree["ok"])
-        self.assertTrue(any(row["kind"] == KIND_STALE for row in stale_tree["findings"]))
+        unrelated = scan_repository(root)
+        self.assertTrue(unrelated["ok"], unrelated)
+        self.assertEqual(kinds(unrelated), [KIND_APPROVED])
 
         payload["scannerPolicyVersion"] = "secret-scan-policy/not-this"
-        payload["candidateTree"] = candidate_content_tree(root)
         write_declaration(root, payload)
-        commit(root, "refresh tree but wrong policy")
+        commit(root, "wrong policy")
         stale_policy = scan_repository(root)
         self.assertFalse(stale_policy["ok"])
         self.assertTrue(any(row["kind"] == KIND_STALE for row in stale_policy["findings"]))
 
-        payload["scannerPolicyVersion"] = SCANNER_POLICY_VERSION
-        payload["candidateTree"] = candidate_content_tree(root)
-        write_declaration(root, payload)
-        commit(root, "intentional refresh")
-        refreshed = scan_repository(root)
-        self.assertTrue(refreshed["ok"], refreshed)
-        self.assertEqual(kinds(refreshed), [KIND_APPROVED])
+    def test_changed_package_source_needs_no_declaration_refresh(self) -> None:
+        root, _payload = self._declared_repo()
+        write_tracked(root, "core/managed-core/MANIFEST.json", '{"sourceHash":"after"}\n')
+        commit(root, "package source change")
+        result = scan_repository(root)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(kinds(result), [KIND_APPROVED])
 
-    def test_changed_package_source_refreshes_binding_without_oscillation(self) -> None:
-        tmp, root = init_repo()
-        self.addCleanup(tmp.cleanup)
-        value = synthetic_value()
-        package_source = "core/managed-core/MANIFEST.json"
-        write_tracked(root, package_source, '{"sourceHash":"before"}\n')
-        write_tracked(root, "tests/security/test_integrity.py", f'secret = "{value}"\n')
-        commit(root, "package source and fixture")
-        payload = declaration(
-            candidate_tree=candidate_content_tree(root),
-            fixtures=[
-                fixture(
-                    fixture_id="integrity-secret-property",
-                    path="tests/security/test_integrity.py",
-                    line=1,
-                    field="secret",
-                    rule="assignment.secret",
-                    value=value,
-                )
-            ],
+    def test_legacy_candidate_tree_value_is_accepted_and_ignored(self) -> None:
+        root, payload = self._declared_repo()
+        payload["candidateTree"] = "0" * 40
+        write_declaration(root, payload)
+        commit(root, "legacy stale whole-tree pin")
+        result = scan_repository(root)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(kinds(result), [KIND_APPROVED])
+
+    def test_real_unapproved_secret_still_fails_after_unrelated_change(self) -> None:
+        root, _payload = self._declared_repo()
+        write_tracked(root, "README.md", "# changed tree\n")
+        write_tracked(root, "app/settings.py", 'api_token = "ghp_' + ("B" * 36) + '"\n')
+        commit(root, "real credential alongside approved fixture")
+        result = scan_repository(root)
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            any(row["kind"] == KIND_CREDENTIAL and row["path"] == "app/settings.py" for row in result["findings"]),
+            result,
         )
-        write_declaration(root, payload)
-        commit(root, "bind package source")
-
-        write_tracked(root, package_source, '{"sourceHash":"after"}\n')
-        changed_tree = candidate_content_tree(root)
-        self.assertNotEqual(payload["candidateTree"], changed_tree)
-        stale = scan_repository(root)
-        self.assertFalse(stale["ok"])
-        self.assertTrue(any(row["kind"] == KIND_STALE for row in stale["findings"]))
-
-        payload["candidateTree"] = changed_tree
-        write_declaration(root, payload)
-        refreshed_bytes = (root / DECLARATION_REL).read_bytes()
-        payload["candidateTree"] = candidate_content_tree(root)
-        write_declaration(root, payload)
-        self.assertEqual(refreshed_bytes, (root / DECLARATION_REL).read_bytes())
-        commit(root, "refresh final package binding")
-
-        refreshed = scan_repository(root)
-        self.assertTrue(refreshed["ok"], refreshed)
-        self.assertEqual(kinds(refreshed), [KIND_APPROVED])
+        self.assertIn(KIND_APPROVED, kinds(result))
 
 
 class AcU1002NoBlindSpotTests(unittest.TestCase):
@@ -777,7 +751,6 @@ class AcU1009RepositoryScannersTests(unittest.TestCase):
         write_declaration(
             root,
             declaration(
-                candidate_tree=candidate_content_tree(root),
                 fixtures=[
                     fixture(
                         fixture_id="integrity-secret-property",
@@ -918,7 +891,6 @@ class AdversarialRepairTests(unittest.TestCase):
         write_tracked(root, "tests/security/test_integrity.py", f'secret = "{value}"\n')
         commit(root, "fixture")
         payload = declaration(
-            candidate_tree=candidate_content_tree(root),
             fixtures=[
                 fixture(
                     fixture_id="integrity-secret-property",
@@ -1030,7 +1002,6 @@ class AdversarialRepairTests(unittest.TestCase):
         write_tracked(root, "tests/security/test_integrity.py", f'secret = "{synthetic_value()}"\n')
         commit(root, "undeclared")
         extra = declaration(
-            candidate_tree=candidate_content_tree(root),
             fixtures=[
                 fixture(
                     fixture_id="integrity-secret-property",
@@ -1083,7 +1054,6 @@ class AdversarialRepairTests(unittest.TestCase):
         write_tracked(root, "tests/security/test_integrity.py", f'secret = "{value}"\n')
         commit(root, "fixture")
         payload = declaration(
-            candidate_tree=candidate_content_tree(root),
             fixtures=[
                 fixture(
                     fixture_id="integrity-secret-property",
@@ -1109,7 +1079,6 @@ class AdversarialRepairTests(unittest.TestCase):
         write_tracked(root, "tests/security/test_integrity.py", f'secret = "{value}"\n')
         commit(root, "fixture")
         payload = declaration(
-            candidate_tree=candidate_content_tree(root),
             fixtures=[
                 fixture(
                     fixture_id="integrity-secret-property",
@@ -1220,7 +1189,6 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
         write_tracked(root, "unchanged.py", f'token = "{value}"\n')
         commit(root, "baseline source")
         payload = declaration(
-            candidate_tree=candidate_content_tree(root),
             fixtures=[
                 fixture(
                     fixture_id="unchanged-baseline",
@@ -1240,8 +1208,6 @@ class ChangeScopedEvidenceTests(unittest.TestCase):
         self.assertEqual(kinds(baseline_result), [KIND_APPROVED])
 
         write_tracked(root, "changed.py", 'note = "ordinary change"\n')
-        payload["candidateTree"] = candidate_content_tree(root)
-        write_declaration(root, payload)
         candidate, candidate_tree = commit(root, "change unrelated source")
         evidence = {
             "schemaVersion": 1,

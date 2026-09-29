@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import sys
 import unittest
 from pathlib import Path
@@ -13,8 +12,6 @@ if str(ROOT) not in sys.path:
 
 from core.execution.protocol import WAIVED_LEGACY_GATE
 from scripts.gitops import github_auth
-from scripts.gitops.delivery_controller import ControllerError, resolve_production_github
-from scripts.gitops.packager_coordinator import CoordinatorError, resolve_production_adapters
 
 
 class TokenIndependenceTests(unittest.TestCase):
@@ -51,33 +48,3 @@ class TokenIndependenceTests(unittest.TestCase):
         with self.assertRaises(github_auth.GitHubAuthError) as missing:
             github_auth.resolve_phase_api_token({})
         self.assertEqual(missing.exception.code, "missing_github_credentials")
-
-    def test_packager_and_controller_do_not_require_automation_token_source(self) -> None:
-        env_keys = (
-            "AUTOMATION_TOKEN",
-            "AUTOMATION_TOKEN_SOURCE",
-            "GH_TOKEN",
-            "GITHUB_TOKEN",
-            "LINKTREND_BUGBOT_USER_TOKEN",
-            "BUGBOT_USER_TOKEN",
-        )
-        saved = {key: os.environ.pop(key, None) for key in env_keys}
-        try:
-            with self.assertRaises(CoordinatorError) as packager:
-                resolve_production_adapters("owner/name")
-            self.assertEqual(packager.exception.code, "missing_github_credentials")
-            with self.assertRaises(ControllerError) as controller:
-                resolve_production_github("owner/name")
-            self.assertEqual(controller.exception.code, "missing_github_credentials")
-            os.environ["GH_TOKEN"] = "ghs_phase_api"
-            github, _pusher = resolve_production_adapters("owner/name")
-            self.assertEqual(github.automation_token, "ghs_phase_api")
-            self.assertEqual(github.user_token, "ghs_phase_api")
-            live = resolve_production_github("owner/name")
-            self.assertEqual(live.automation_token, "ghs_phase_api")
-        finally:
-            for key, value in saved.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value

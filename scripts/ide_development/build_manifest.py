@@ -85,7 +85,6 @@ LIFECYCLE_CURSOR_RULES = (
 
 REQUIRED_RUNTIME_PACKAGE_SOURCES = (
     "scripts/gitops/repository_ci_contract.py",
-    "scripts/gitops/promotion_receipt_gate.py",
 )
 
 # Preserve the source-relative layout under one managed runtime root so the
@@ -138,8 +137,6 @@ CONTENT_DOCTRINE = (
         "content/doctrine/CODING-EXECUTION-PROTOCOL.md",
     ),
     ("docs/contracts/REPOSITORY-CI-TRIGGER.md", "content/doctrine/REPOSITORY-CI-TRIGGER.md"),
-    ("docs/contracts/LINKTREND-REVIEW-GATE.md", "content/doctrine/LINKTREND-REVIEW-GATE.md"),
-    ("docs/contracts/RECEIPT-SEAL-AND-RECOVERY.md", "content/doctrine/RECEIPT-SEAL-AND-RECOVERY.md"),
     ("docs/contracts/ATOMIC-WORKFLOW-RULESET-MIGRATION.md", "content/doctrine/ATOMIC-WORKFLOW-RULESET-MIGRATION.md"),
     ("docs/adr/0003-autonomous-ship-pull-promote.md", "content/doctrine/0003-autonomous-ship-pull-promote.md"),
     ("docs/adr/0004-portable-managed-core-v2.md", "content/doctrine/0004-portable-managed-core-v2.md"),
@@ -171,17 +168,12 @@ HOSTED_TEST_FILES = (
     "scripts/tests/test_candidate_lifecycle.py",
     "scripts/tests/test_gate_receipts.py",
     "scripts/tests/test_phase_batch_lifecycle.py",
-    "scripts/tests/test_phase_packager_coordinator.py",
     "scripts/tests/test_independent_review_convergence.py",
     "scripts/tests/test_fixture_aware_secret_scan.py",
     "scripts/tests/test_candidate_baseline_resolution.py",
     "scripts/tests/test_generated_output_closure.py",
     "scripts/tests/test_manifest_persistence_recovery.py",
     "scripts/tests/test_repository_ci_trigger_contract.py",
-    "scripts/tests/test_linktrend_review_gate.py",
-    "scripts/tests/test_promotion_receipt_gate.py",
-    "scripts/tests/test_receipt_seal_and_recovery.py",
-    "scripts/tests/test_delivery_controller.py",
     "scripts/tests/test_atomic_workflow_ruleset_migration.py",
 )
 
@@ -475,18 +467,6 @@ def build_entries() -> list[dict[str, Any]]:
             ".ide-development/schemas/gate-receipt.schema.json",
         ),
         (
-            "schemas/phase-record.schema.json",
-            ".ide-development/schemas/phase-record.schema.json",
-        ),
-        (
-            "schemas/phase-handoff.schema.json",
-            ".ide-development/schemas/phase-handoff.schema.json",
-        ),
-        (
-            "schemas/delivery-operation.schema.json",
-            ".ide-development/schemas/delivery-operation.schema.json",
-        ),
-        (
             "schemas/review-session.schema.json",
             ".ide-development/schemas/review-session.schema.json",
         ),
@@ -565,10 +545,6 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "schemas/ci-evidence.schema.json",
             ".ide-development/schemas/ci-evidence.schema.json",
-        ),
-        (
-            "schemas/linktrend-review-gate.schema.json",
-            ".ide-development/schemas/linktrend-review-gate.schema.json",
         ),
         (
             "schemas/managed-core-release.schema.json",
@@ -1043,12 +1019,8 @@ def build_entries() -> list[dict[str, Any]]:
             )
         )
 
-    # Hosted workflow templates are staged under the managed package.  GitHub
-    # Actions reads workflow_dispatch inputs from consumer
-    # `.github/workflows/` on the protected default branch, so the live Full
-    # trigger is also a managed github-root destination.  Other hosted
-    # templates stay package-only and are rendered by workflow sync.
-    full_root_workflow = "linktrend-integrator-merge.yml"
+    # Hosted workflow templates are staged under the managed package and
+    # rendered into consumer `.github/workflows/` by workflow sync.
     for source in _hosted_workflow_files():
         name = Path(source).name
         entries.append(
@@ -1062,25 +1034,6 @@ def build_entries() -> list[dict[str, Any]]:
                 merge="replace",
                 source_hash=_hash_rel(source),
                 notes="Hosted W2-P1 workflow template; materialized by workflow sync.",
-            )
-        )
-        if name != full_root_workflow:
-            continue
-        entries.append(
-            _entry(
-                entry_id=f"github-root-workflow-{_slug(name)}",
-                ownership="managed-core",
-                source=source,
-                destination=f".github/workflows/{name}",
-                mode="0644",
-                platform="github",
-                merge="replace",
-                source_hash=_hash_rel(source),
-                notes=(
-                    "Live GitHub Actions Full trigger on consumer protected defaults. "
-                    "workflow_dispatch inputs are defined by this path, not "
-                    ".ide-development/workflows/."
-                ),
             )
         )
 

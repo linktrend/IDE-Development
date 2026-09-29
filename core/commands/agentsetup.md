@@ -11,7 +11,7 @@ Operational summary:
 - ask Carlos only for missing **task description** and target repo if ambiguous — **never** ask for issue id/slug
 - run `scripts/gitops/create_issue_branch.py` (creates/reuses GitHub issue + `issue/<n>-<slug>` from `origin/development`; prefer worktree when dirty)
 - confirm ready; remind Ship/Pull hard stops (no implementer PR, no merge, no self-review, no staging/main; Ship = checkpoint only)
-- when finished later: `scripts/gitops/completion_gate.py` + review-ready; Packager opens the PR
+- when finished later: push the branch (the v2 completion gate is retired in v3 (IDE-22); see the v3 plan)
 - report branch, issue, repo, and next steps in plain English
 
 House rule: one short-lived `issue/*` per governed work package — not forever `dev/*`. Cloud uses `cursor/*`; `dev/*` rare ad-hoc only.

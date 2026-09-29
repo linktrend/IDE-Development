@@ -46,8 +46,14 @@ One run reports every finding and fixture error together:
 - `fixture_scope_violation`
 
 One-byte changes, stale digests, renamed files, duplicated values, duplicate fixture ids,
-unknown rules, undeclared fixtures, and candidate-tree or scanner-policy drift fail
+unknown rules, undeclared fixtures, and scanner-policy drift fail
 closed until the declaration is intentionally refreshed and reviewed.
+
+The whole-tree `candidateTree` pin was retired in v3 (IDE-22). Fixtures are
+approved individually (path, line, field, rule, digest), so an unrelated change
+never invalidates the declaration. A legacy `candidateTree` value is accepted
+and ignored. `generated_output_closure.py --generate-fixtures` only relocates
+line shifts of unchanged approvals and never adds approvals.
 
 ## Large-fork change-scoped evidence
 

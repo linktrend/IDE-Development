@@ -1097,7 +1097,7 @@ def _generate_secret_scan_fixtures(repo_root: Path) -> int:
             sorted(matches, key=lambda row: int(row["line"])),
         ):
             fixture["line"] = match["line"]
-    payload["candidateTree"] = candidate_source_tree(repo_root)
+    payload.pop("candidateTree", None)
     declaration.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return 0
 

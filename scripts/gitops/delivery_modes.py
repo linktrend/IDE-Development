@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Configurable delivery modes: issue-pr compatibility and Phase integration.
 
-Pure helpers for Packager discover and Phase fixtures. Checkpoint pushes never
+Pure helpers for Phase delivery fixtures. Checkpoint pushes never
 open PRs. Risk-class Issue PR exceptions are explicit under phase-integration.
 """
 
@@ -204,6 +204,53 @@ def load_exception_for_tip(
     return parse_issue_pr_exception(data)
 
 
+def latest_checks_by_name(checks: list[dict[str, Any]]) -> dict[str, str]:
+    """Map check name -> latest state/conclusion (uppercase)."""
+    # Prefer completedAt ordering when present
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for c in checks:
+        name = c.get("name") or ""
+        if not name:
+            continue
+        grouped.setdefault(name, []).append(c)
+
+    out: dict[str, str] = {}
+    for name, rows in grouped.items():
+        rows_sorted = sorted(
+            rows,
+            key=lambda r: r.get("completedAt") or r.get("completed_at") or r.get("startedAt") or r.get("started_at") or "",
+        )
+        last = rows_sorted[-1]
+        state = (
+            last.get("state")
+            or last.get("conclusion")
+            or last.get("status")
+            or "missing"
+        )
+        out[name] = str(state).upper()
+    return out
+
+
+def fast_gate_status(
+    checks: list[dict[str, Any]],
+    required: list[str],
+) -> tuple[str, str]:
+    """Return (status, detail) where status is success|pending|failed|missing."""
+    latest = latest_checks_by_name(checks)
+    req = [r.strip() for r in required if r.strip()]
+    if not req:
+        return "failed", "REQUIRED_CHECKS empty"
+    for name in req:
+        state = latest.get(name, "MISSING")
+        if state in {"PENDING", "QUEUED", "IN_PROGRESS", "EXPECTED"}:
+            return "pending", f"{name}={state}"
+        if state in {"MISSING", ""}:
+            return "missing", f"{name}=missing"
+        if state != "SUCCESS":
+            return "failed", f"{name}={state}"
+    return "success", "all required success"
+
+
 def named_gate_evidence(
     *,
     gate: str,
@@ -214,12 +261,7 @@ def named_gate_evidence(
     stale_event: bool = False,
     allow_neutral: bool = False,
 ) -> dict[str, Any]:
-    """Build fail-closed named-gate evidence for an exact SHA.
-
-    Import of packager_logic.fast_gate_status is local to avoid cycles at import.
-    """
-    from packager_logic import fast_gate_status, latest_checks_by_name
-
+    """Build fail-closed named-gate evidence for an exact SHA."""
     gate_id = (gate or "").strip()
     if gate_id not in NAMED_GATES:
         return {

@@ -36,7 +36,7 @@ Bootstrap a **new agent** onto a short-lived `issue/<id>-<slug>` branch for the 
 - Multi-root: if which repo is being touched is ambiguous, ask (normal ambiguity ask).
 - `cursor/*` for cloud/dashboard agents.
 - `dev/*` rare ad-hoc only.
-- Never merge own PR; never self-review; never touch `staging`/`main`. Bugbot reviews; the delivery controller merges through GitHub protection.
+- Never merge own PR; never self-review; never touch `staging`/`main`.
 - **Do not ask Carlos for issue id or slug.** Use `scripts/gitops/create_issue_branch.py` (creates or reuses the GitHub issue and branch).
 
 ## Use When
@@ -94,9 +94,9 @@ Remind hard stops in plain English:
 - Do **not** merge into `development`
 - Do **not** self-review (Bugbot reviews)
 - Do **not** promote to `staging` or `main`
-- Do **not** open a PR (the Phase Packager/Coordinator `scripts/gitops/packager_coordinator.py` opens the Phase PR; retained `packager_discover.py` is not that component)
+- Do **not** open a PR yourself (the v2 Phase Packager is retired in v3 (IDE-22); see the v3 plan)
 - Ship waves: **checkpoint only** = commit → push → stop (no PR, no Bugbot)
-- When finished: `scripts/gitops/completion_gate.py review-ready` after `mark-review-ready.sh`
+- When finished: push the branch. (The v2 completion gate is retired in v3 (IDE-22); see the v3 plan.)
 
 ### 4. Report
 
@@ -107,7 +107,7 @@ Plain English summary:
 - **Branch:** `issue/<id>-<slug>`
 - **Worktree:** path if used
 - **Base:** latest `origin/development`
-- **Next:** implement; Ship = checkpoint; finish = review-ready (Packager opens PR)
+- **Next:** implement; Ship = checkpoint commit+push
 
 ## Output template
 
@@ -119,7 +119,7 @@ Agent setup ready
 - Worktree: <path|same>
 - Base: origin/development (fetched)
 - Hard stops: no implementer PR, no merge, no self-review, no staging/main
-- Next: do the work; Ship = checkpoint commit+push; finish = completion_gate review-ready
+- Next: do the work; Ship = checkpoint commit+push
 ```
 
 ## Blockers

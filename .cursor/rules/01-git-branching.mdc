@@ -26,6 +26,8 @@ Bootstrap new sessions with `/agentsetup`. Migrate already-open dirty/wrong-bran
 
 ## Promotion flow
 
+Retired in v3 (IDE-22); see the v3 plan. (Delivery controller, receipt promotion and Review Gate described below no longer exist.)
+
 ```
 issue/* or dev/* or cursor/*  →  Phase PR to development
   →  Bugbot / Review Gate  →  delivery controller merges when named gates + receipt pass

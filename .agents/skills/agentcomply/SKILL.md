@@ -49,7 +49,7 @@ python3 scripts/gitops/create_issue_branch.py "<task description>" --prefer-work
 
 4. Move dirty work safely; never force onto protected branches
 5. Push checkpoint only when asked or clearly ready
-6. When finished later: `completion_gate.py write-evidence` then `review-ready`
+6. When finished later: push the branch (the v2 completion gate is retired in v3 (IDE-22); see the v3 plan)
 
 ## Fail closed
 

@@ -62,7 +62,6 @@ RULE_FORMAT_SK = "format.token"
 RULE_FORMAT_DATABASE = "format.database"
 RULE_FORMAT_PEM = "format.private_key"
 RULE_FORMAT_HIGH_ENTROPY = "format.high_entropy"
-RULE_BINDING_TREE = "binding.candidate_tree"
 RULE_BINDING_POLICY = "binding.scanner_policy"
 RULE_UNKNOWN = "declaration.unknown_rule"
 RULE_MALFORMED = "declaration.malformed"
@@ -127,9 +126,10 @@ DATABASE_RE = re.compile(
 PRIVATE_KEY_RE = re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----")
 OID_RE = re.compile(r"^[0-9a-f]{40}$")
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
-ROOT_KEYS = frozenset(
-    {"schemaVersion", "kind", "scannerPolicyVersion", "candidateTree", "fixtures"}
-)
+ROOT_KEYS = frozenset({"schemaVersion", "kind", "scannerPolicyVersion", "fixtures"})
+# Retired whole-tree pin: accepted for backward compatibility and ignored, so an
+# unrelated change can never invalidate individually approved fixtures.
+ROOT_OPTIONAL_KEYS = frozenset({"candidateTree"})
 FIXTURE_REQUIRED = (
     "id",
     "path",
@@ -851,7 +851,7 @@ def _load_json_bytes(raw: bytes) -> Any:
 def _validate_declaration(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise SecretScanError("declaration_malformed", "root must be an object")
-    extra = set(payload) - ROOT_KEYS
+    extra = set(payload) - ROOT_KEYS - ROOT_OPTIONAL_KEYS
     if extra:
         raise SecretScanError("declaration_malformed", f"extra {sorted(extra)}")
     missing = ROOT_KEYS - set(payload)
@@ -863,8 +863,6 @@ def _validate_declaration(payload: Any) -> dict[str, Any]:
         payload["scannerPolicyVersion"]
     ):
         raise SecretScanError("declaration_malformed", "scannerPolicyVersion")
-    if not isinstance(payload.get("candidateTree"), str) or not OID_RE.fullmatch(payload["candidateTree"]):
-        raise SecretScanError("declaration_malformed", "candidateTree")
     fixtures = payload.get("fixtures")
     if not isinstance(fixtures, list):
         raise SecretScanError("declaration_malformed", "fixtures")
@@ -1029,19 +1027,6 @@ def _evaluate_declarations(
                     rule=RULE_BINDING_POLICY,
                     digest=None,
                     detail="scannerPolicyVersion",
-                )
-            )
-        if declaration.get("candidateTree") != content_tree:
-            bindings_valid = False
-            findings.append(
-                _finding(
-                    kind=KIND_STALE,
-                    path=DECLARATION_REL,
-                    line=None,
-                    field=None,
-                    rule=RULE_BINDING_TREE,
-                    digest=None,
-                    detail="candidateTree",
                 )
             )
         for row in fixtures:
