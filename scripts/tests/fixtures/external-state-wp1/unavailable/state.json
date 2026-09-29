@@ -97,26 +97,6 @@
       }
     },
     {
-      "id": 6,
-      "path": ".github/workflows/linktrend-development-to-staging.yml",
-      "name": "linktrend-development-to-staging",
-      "state": "active",
-      "latestConclusion": "success",
-      "permissions": {
-        "contents": "read"
-      }
-    },
-    {
-      "id": 7,
-      "path": ".github/workflows/linktrend-staging-to-main.yml",
-      "name": "linktrend-staging-to-main",
-      "state": "active",
-      "latestConclusion": "success",
-      "permissions": {
-        "contents": "read"
-      }
-    },
-    {
       "id": 8,
       "path": ".github/workflows/linktrend-repair-observer.yml",
       "name": "linktrend-repair-observer",

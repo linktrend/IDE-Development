@@ -41,9 +41,9 @@ OBSOLETE_REQUIRED_CONTEXTS = frozenset(
 
 RULESET_NAMES = {
     "development": "development-autonomous-merge",
-    "staging": "staging-autonomous-promote",
     "main": "main-autonomous-release",
 }
+GOVERNED_BRANCHES = ("development", "main")
 
 REQUIRED_WORKFLOW_FILES = (
     "branch-source-policy.yml",
@@ -173,15 +173,6 @@ def required_checklist() -> list[dict[str, Any]]:
             ),
         },
         {
-            "id": "protection.staging_ruleset",
-            "category": "protection",
-            "required": True,
-            "expected": (
-                f"Active ruleset {RULESET_NAMES['staging']!r} requires "
-                f"{SOURCE_POLICY_CHECK!r} (no Bugbot)"
-            ),
-        },
-        {
             "id": "protection.main_ruleset",
             "category": "protection",
             "required": True,
@@ -195,7 +186,7 @@ def required_checklist() -> list[dict[str, Any]]:
             "category": "protection",
             "required": True,
             "expected": (
-                f"{SOURCE_POLICY_CHECK!r} required on development, staging, and main"
+                f"{SOURCE_POLICY_CHECK!r} required on development and main"
             ),
         },
         {
@@ -1099,9 +1090,9 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                         )
                     )
 
-    # --- protection.development / staging / main ---
+    # --- protection.development / main ---
     if unchecked:
-        for branch in ("development", "staging", "main"):
+        for branch in GOVERNED_BRANCHES:
             name = RULESET_NAMES[branch]
             exp = (
                 f"Active ruleset {name!r} requires "
@@ -1117,7 +1108,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                 if rulesets_cap == "unavailable"
                 else ("forbidden" if rulesets_cap == "forbidden" else "blocked")
             )
-            for branch in ("development", "staging", "main"):
+            for branch in GOVERNED_BRANCHES:
                 name = RULESET_NAMES[branch]
                 exp = (
                     f"Active ruleset {name!r} requires "
@@ -1139,9 +1130,6 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                 _evaluate_ruleset_branch(client, branch="development", require_bugbot=False)
             )
             results.append(
-                _evaluate_ruleset_branch(client, branch="staging", require_bugbot=False)
-            )
-            results.append(
                 _evaluate_ruleset_branch(client, branch="main", require_bugbot=False)
             )
 
@@ -1151,14 +1139,14 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
             _unchecked(
                 "protection.promotion_source_policy",
                 "protection",
-                f"{SOURCE_POLICY_CHECK!r} required on development, staging, and main",
+                f"{SOURCE_POLICY_CHECK!r} required on development and main",
             )
         )
     else:
         missing_branches: list[str] = []
         try:
             rulesets = client.list_rulesets()
-            for branch in ("development", "staging", "main"):
+            for branch in GOVERNED_BRANCHES:
                 name = RULESET_NAMES[branch]
                 match = next(
                     (r for r in rulesets if isinstance(r, dict) and r.get("name") == name),
@@ -1182,7 +1170,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                         category="protection",
                         required=True,
                         expected=(
-                            f"{SOURCE_POLICY_CHECK!r} required on development, staging, and main"
+                            f"{SOURCE_POLICY_CHECK!r} required on development and main"
                         ),
                         observed="incomplete",
                         status="drift",
@@ -1196,11 +1184,11 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                         category="protection",
                         required=True,
                         expected=(
-                            f"{SOURCE_POLICY_CHECK!r} required on development, staging, and main"
+                            f"{SOURCE_POLICY_CHECK!r} required on development and main"
                         ),
                         observed="present_all_branches",
                         status="matched",
-                        detail="source-policy check present on all three governed branches",
+                        detail="source-policy check present on both governed branches",
                     )
                 )
         except AuditError as exc:
@@ -1211,7 +1199,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                     category="protection",
                     required=True,
                     expected=(
-                        f"{SOURCE_POLICY_CHECK!r} required on development, staging, and main"
+                        f"{SOURCE_POLICY_CHECK!r} required on development and main"
                     ),
                     observed=status,
                     status=status,
@@ -1238,7 +1226,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
             rulesets = client.list_rulesets()
             preserved_ok = True
             details: list[str] = []
-            for branch in ("development", "staging", "main"):
+            for branch in GOVERNED_BRANCHES:
                 name = RULESET_NAMES[branch]
                 match = next(
                     (r for r in rulesets if isinstance(r, dict) and r.get("name") == name),

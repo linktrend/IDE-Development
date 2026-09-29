@@ -76,12 +76,11 @@ assert p["summary"]["ready"] is True
 by = {c["id"]: c for c in p["checks"]}
 assert by["github_auth.automation_token_secret"]["status"] in {"ok", "matched"}
 assert by["carlos.user_token_boundary"]["status"] in {"ok", "matched"}
-assert by["protection.staging_ruleset"]["status"] == "ok"
 assert by["protection.main_ruleset"]["status"] == "ok"
 assert by["protection.promotion_source_policy"]["status"] in {"ok", "matched"}
 assert by["protection.repo_specific_checks_preserved"]["status"] in {"ok", "matched"}
 assert by["workflows.required_presence"]["status"] in {"ok", "matched"}
-assert "Consumer Staging Lint" in json.dumps(
+assert "Consumer Release Lint" in json.dumps(
     (p.get("protectionPlan") or {}).get("branches") or {}
 ) or by["protection.repo_specific_checks_preserved"]["status"] in {"ok", "matched"}
 print("verify matched ok")
@@ -143,7 +142,10 @@ from pathlib import Path
 p = json.loads(Path("${TMP}/verify-unavailable.json").read_text())
 by = {c["id"]: c for c in p["checks"]}
 assert by["protection.development_ruleset"]["status"] == "unavailable"
-assert by["protection.staging_ruleset"]["status"] == "unavailable"
+assert {k for k in by if k.endswith("_ruleset")} == {
+    "protection.development_ruleset",
+    "protection.main_ruleset",
+}
 assert by["protection.main_ruleset"]["status"] == "unavailable"
 assert p["summary"]["ready"] is False
 assert p["mutations"] == []

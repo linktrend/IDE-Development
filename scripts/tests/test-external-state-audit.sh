@@ -42,7 +42,6 @@ assert statuses["github_auth.automation_token_secret"] == "unchecked"
 assert statuses["bugbot.user_token_secret"] == "unchecked"
 assert statuses["bugbot.manual_trigger_only"] == "unchecked"
 assert statuses["protection.development_ruleset"] == "unchecked"
-assert statuses["protection.staging_ruleset"] == "unchecked"
 assert statuses["protection.main_ruleset"] == "unchecked"
 assert statuses["protection.allow_auto_merge"] == "unchecked"
 assert statuses["carlos.user_token_boundary"] in {"unchecked", "unknown"}
@@ -73,7 +72,7 @@ import json
 from pathlib import Path
 p = json.loads(Path("${TMP}/unavailable.json").read_text())
 checks = {c["id"]: c for c in p["checks"]}
-for branch in ("development", "staging", "main"):
+for branch in ("development", "main"):
     row = checks[f"protection.{branch}_ruleset"]
     assert row["status"] == "unavailable"
     assert "Linktrend Branch Source Policy" in row["expected"]
