@@ -351,11 +351,9 @@ class V3UpgradeTests(unittest.TestCase):
         self,
     ) -> None:
         consumer = self._consumer()
-        rel = ".ide-development/library/vendor/NOTICE.md"
-        outside = self._move_directory_outside_and_link(
-            consumer, ".ide-development/library/vendor"
-        )
-        victim = outside / "NOTICE.md"
+        rel = "scripts/gitops/delivery_controller.py"
+        outside = self._move_directory_outside_and_link(consumer, "scripts/gitops")
+        victim = outside / "delivery_controller.py"
         expected = victim.read_bytes()
 
         code, plan = _cli("plan", consumer)

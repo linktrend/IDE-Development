@@ -837,7 +837,21 @@ def build_drift_report(
                 )
             )
             continue
-        dest = join_under(target_root, entry.destination)
+        logical_dest = join_under_nofollow(target_root, entry.destination)
+        if path_crosses_symlink_ancestor(target_root, entry.destination):
+            items.append(
+                DriftItem(
+                    DriftKind.UNEXPECTED_SYMLINK,
+                    entry.destination,
+                    "symlink ancestor blocks managed path",
+                )
+            )
+            continue
+        dest = (
+            logical_dest
+            if path_is_symlink(logical_dest)
+            else join_under(target_root, entry.destination)
+        )
         prior_file = prior.files.get(entry.destination) if prior else None
         if path_is_symlink(dest):
             items.append(
