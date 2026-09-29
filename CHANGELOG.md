@@ -1,5 +1,27 @@
 # Changelog
 
+## v3.0.0 — Unreleased (Wave 1)
+
+- IDE Development is the shared development operating System (Program-ready), version v3.0.0
+- One AI orchestrator per repo: a Cursor Project on the cursor-001 account running a frontier model. It plans Phases and Issues, dispatches Issues, packages branches into pull requests into `development`, merges on green CI plus one independent review, and promotes `development` to `main`. Cheap helper subagents do routine jobs
+- Workers: Codex CLI on the orchestrator VM (Luna High everyday, Sol Medium hard; used while more than 25% allowance remains in every reported window) and the cursor-002 account via API (Grok 4.7 Medium everyday, Opus 5.5 Medium hard)
+- Workers use `issue/<PREFIX>-<n>-<slug>` branches, commit and push often, and never open pull requests
+- Checks: fast checks per branch, one Full CI run per pull request, one exact-head review by a different model family (Bugbot optional)
+- Repair ladder: Luna/Grok three times, then Sol/Opus once, then (if the work started on Sol/Opus) the other hard route once, then flag Carlos
+- Ledger: Supabase schema `ide_ledger` in the LiNKplatform project, written only by the orchestrator via RPC. Until it is live, the pilot run log stays in the Project store. IDs `IDE-<n>`. One GitHub Issue per Phase is the readable summary
+- Long-lived branches are `development` and `main` only. Deploys after `main` are automatic GitHub Actions jobs (standard owned by the LiNKops repo), with a health check and rollback
+- Removed: staging
+- Removed: Mac Mini coordinator
+- Removed: Lisa ship/pull waves
+- Removed: Review Ready
+- Removed: completion-gate evidence
+- Removed: review-gate classifier
+- Removed: repair observer
+- Removed: promotion receipts
+- Removed: packager and delivery controller
+- Removed: hand-copied skills (replaced by a pinned LiNKskills sync)
+- Carlos gives intent and answers questions; he does not approve merges or releases
+
 ## v2.1.0 — 2026-08-03 (Issue #81)
 
 - Added governed phase-delivery modes, schemas, readiness reporting, and fail-closed review-ready dispatch
