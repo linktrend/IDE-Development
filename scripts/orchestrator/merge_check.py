@@ -36,6 +36,73 @@ ALLOWED_BASES = ("development", "main")
 VERDICTS = ("APPROVE", "REQUEST_CHANGES")
 
 
+def _mergeability_reasons(
+    pr: Mapping[str, Any],
+    required_rows: Sequence[Mapping[str, Any]],
+    checks: Mapping[str, Mapping[str, Any]],
+    *,
+    required: Sequence[str],
+    allow_skipped: Sequence[str],
+    allow_nonrequired_pending: Sequence[str],
+) -> list[str]:
+    """Fail closed unless GitHub has computed a clean merge.
+
+    ``unstable`` is accepted only when every required check is green and every
+    non-green check is a non-required pending check named in
+    ``allow_nonrequired_pending``.
+    """
+    mergeable = pr.get("mergeable")
+    state = pr.get("mergeable_state")
+    if mergeable is None or state in (None, "unknown"):
+        return ["mergeability not yet computed; retry"]
+    if state == "dirty":
+        return ["PR has merge conflicts with its base"]
+    if state == "blocked":
+        return ["PR mergeable_state is blocked"]
+    if mergeable is not True:
+        return [f"PR is not mergeable (mergeable={mergeable!r}, mergeable_state={state!r})"]
+    if state == "clean":
+        return []
+    if state == "unstable" and _unstable_allowed(
+        required_rows, checks, required=required, allow_skipped=allow_skipped,
+        allow_nonrequired_pending=allow_nonrequired_pending,
+    ):
+        return []
+    if state == "unstable":
+        return [
+            "mergeable_state is unstable; required checks must be green and only listed "
+            "non-required pending checks may be non-green (--allow-nonrequired-pending)"
+        ]
+    return [f"mergeable_state {state!r} is not clean"]
+
+
+def _unstable_allowed(
+    required_rows: Sequence[Mapping[str, Any]],
+    checks: Mapping[str, Mapping[str, Any]],
+    *,
+    required: Sequence[str],
+    allow_skipped: Sequence[str],
+    allow_nonrequired_pending: Sequence[str],
+) -> bool:
+    if not required_rows or not all(row.get("ok") for row in required_rows):
+        return False
+    allowed = set(allow_nonrequired_pending)
+    required_names = set(required)
+    nongreen: list[str] = []
+    for name, check in checks.items():
+        if not check.get("countsAsCheck"):
+            continue
+        conclusion = check.get("conclusion")
+        if conclusion == "success":
+            continue
+        if conclusion == "skipped" and name in allow_skipped and name in required_names:
+            continue
+        nongreen.append(name)
+    if not nongreen:
+        return False
+    return all(name not in required_names and name in allowed and checks[name].get("conclusion") is None for name in nongreen)
+
+
 def _required_gap(name: str, check: Mapping[str, Any] | None, head_sha: str, allowed_apps: Sequence[str]) -> str:
     foreign = (check or {}).get("foreignApps") or []
     if foreign and not (check or {}).get("countsAsCheck"):
@@ -58,6 +125,7 @@ def evaluate(
     required: Sequence[str],
     allow_skipped: Sequence[str] = (),
     allowed_apps: Sequence[str] = DEFAULT_ALLOWED_APPS,
+    allow_nonrequired_pending: Sequence[str] = (),
 ) -> dict[str, Any]:
     head_sha = str((pr.get("head") or {}).get("sha") or "")
     base = str((pr.get("base") or {}).get("ref") or "")
@@ -71,8 +139,6 @@ def evaluate(
         reasons.append(f"review verdict is {review_verdict}, not APPROVE")
     if base not in ALLOWED_BASES:
         reasons.append(f"base {base!r} is not one of {list(ALLOWED_BASES)}")
-    if pr.get("mergeable") is False or pr.get("mergeable_state") == "dirty":
-        reasons.append("PR has merge conflicts with its base")
 
     required_rows = []
     for name in required:
@@ -101,6 +167,17 @@ def evaluate(
         report = c.get("statusReport") or {}
         if report.get("conclusion") in FAILING_CONCLUSIONS:
             reasons.append(f"commit status {name!r} concluded {report['conclusion']}")
+
+    reasons.extend(
+        _mergeability_reasons(
+            pr,
+            required_rows,
+            checks,
+            required=required,
+            allow_skipped=allow_skipped,
+            allow_nonrequired_pending=allow_nonrequired_pending,
+        )
+    )
 
     return {
         "ok": not reasons,
@@ -131,6 +208,12 @@ def _parser() -> argparse.ArgumentParser:
         action="append",
         help="app.slug allowed to satisfy a required check (repeatable; default github-actions)",
     )
+    p.add_argument(
+        "--allow-nonrequired-pending",
+        action="append",
+        default=[],
+        help="non-required pending check that may leave mergeable_state unstable",
+    )
     return p
 
 
@@ -156,6 +239,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         required=required,
         allow_skipped=args.allow_skipped,
         allowed_apps=allowed_apps,
+        allow_nonrequired_pending=args.allow_nonrequired_pending,
     )
     result["repo"] = args.repo
     print(json.dumps(result, indent=2))

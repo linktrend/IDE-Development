@@ -50,6 +50,12 @@ check-runs API often does not include the workflow file; then the app slug is
 the producer check and this gap is accepted. Commit statuses are reported and
 never count as success. A failing status still fails the gate.
 
+Mergeability fails closed: `mergeable` must be true and `mergeable_state` must
+be `clean`. `null` or `unknown` reports `mergeability not yet computed; retry`.
+`unstable` is accepted only with `--allow-nonrequired-pending` when every
+required check is green and the only non-green checks are those listed pending
+checks. The default is `clean` only.
+
 ## 3. Promote to `main`
 
 ```bash

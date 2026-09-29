@@ -350,6 +350,34 @@ class MergeCheckTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("commit status 'Custom' concluded failure", out["reasons"])
 
+    def test_mergeability_fail_closed(self) -> None:
+        cases = (
+            ({"mergeable": None, "mergeable_state": "clean"}, "mergeability not yet computed; retry"),
+            ({"mergeable": True, "mergeable_state": "unknown"}, "mergeability not yet computed; retry"),
+            ({"mergeable": False, "mergeable_state": "dirty"}, "PR has merge conflicts with its base"),
+            ({"mergeable": False, "mergeable_state": "blocked"}, "PR mergeable_state is blocked"),
+            ({"mergeable": True, "mergeable_state": "clean"}, None),
+        )
+        for over, expected in cases:
+            with self.subTest(state=over["mergeable_state"], mergeable=over["mergeable"]):
+                code, out = self._check(FakeApi(self._runs(), self._pull(**over)))
+                if expected is None:
+                    self.assertEqual(code, 0, out)
+                    self.assertEqual(out["reasons"], [])
+                else:
+                    self.assertEqual(code, 1)
+                    self.assertIn(expected, out["reasons"])
+
+    def test_unstable_only_when_listed_nonrequired_pending(self) -> None:
+        runs = self._runs()
+        runs[self.HEAD].append(run("Optional Lint", None, rid=40))
+        pr = self._pull(mergeable=True, mergeable_state="unstable")
+        code, out = self._check(FakeApi(runs, pr))
+        self.assertEqual(code, 1)
+        self.assertTrue(any("unstable" in reason for reason in out["reasons"]))
+        code, out = self._check(FakeApi(runs, pr), "--allow-nonrequired-pending", "Optional Lint")
+        self.assertEqual(code, 0, out)
+
     def test_skipped_only_when_allowed_and_base_checked(self) -> None:
         runs = self._runs(**{"Verify IDE Development": "skipped"})
         code, _ = self._check(FakeApi(runs, self._pull()))
