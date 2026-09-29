@@ -77,3 +77,5 @@ if errors:
     sys.exit(1)
 print(f"PASS: verify-vendored-skills ({len(manifest.get('files', {}))} files)")
 PY
+
+python3 "$ROOT/scripts/sync-linkskills.py" --check

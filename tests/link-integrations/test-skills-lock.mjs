@@ -52,8 +52,9 @@ test('ISS-04 lock inventories 88 active copies and qualifies or retires every un
   assert.equal(lock.uniqueSkillCount, 43)
   assert.equal(lock.qualifiedCount + lock.retiredCount, 43)
   assert.equal(lock.provider.repository, 'linktrend/LiNKskills')
-  assert.equal(lock.provider.commit, 'e3d80fd22a05a4f68207e130c50b772b5acffda4')
-  assert.equal(lock.provider.tree, '69a131b46a73a4ef724694bfe240b1a11652bcc9')
+  assert.equal(lock.provider.commit, '28334c4d409dc74a680bf4e09fa2dab22726e229')
+  assert.equal(lock.provider.tree, '3038dfc1f24c256f9c7547f906a988ce222e2044')
+  assert.match(lock.provider.syncedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
   assert.equal(lock.rollbackCommit, V24_ROLLBACK_COMMIT)
   assert.equal(lock.rollbackTree, V24_ROLLBACK_TREE)
   assert.equal(lock.physicalRemovalAuthorized, false)
@@ -70,6 +71,40 @@ test('ISS-04 lock inventories 88 active copies and qualifies or retires every un
   assert.deepEqual(
     lock.overlapWithLinkskills,
     ['git-safeguard', 'persistent-qa', 'repository-manager', 'skill-template', 'tool-architect'],
+  )
+  const pinnedVersions = {
+    'git-safeguard': '1.1.0',
+    'persistent-qa': '1.0.0',
+    'repository-manager': '1.0.0',
+    'skill-template': '1.2.0',
+    'tool-architect': '1.0.0',
+  }
+  for (const [skillId, version] of Object.entries(pinnedVersions)) {
+    const row = lock.skills.find((item) => item.skillId === skillId)
+    assert.equal(row.authority, 'linkskills')
+    assert.equal(row.version, version)
+    assert.ok(Array.isArray(row.files) && row.files.length > 1)
+    const skillMd = row.files.find((file) => file.path === 'SKILL.md')
+    assert.equal(row.entrypointDigest, skillMd.sha256)
+    assert.match(skillMd.sha256, /^sha256:[a-f0-9]{64}$/)
+  }
+  const adapter = lock.skills.find((item) => item.skillId === 'agentsetup')
+  const retired = lock.skills.find((item) => item.skillId === 'action-queue')
+  assert.equal(adapter.authority, 'required_local_adapter')
+  assert.equal(adapter.version, '1.3.0')
+  assert.equal(adapter.entrypointDigest, 'sha256:932c1c7d28632449432c65bc8ce64461f60866eb2135a68f45bf475dcac63887')
+  assert.equal(adapter.files, undefined)
+  assert.equal(retired.authority, 'none')
+  assert.equal(retired.decision, 'retired')
+  assert.equal(retired.entrypointDigest, 'sha256:32aff5fd66bfe8d724377ded1a278b54258c07c3cb567a1a4369589d499f6ac2')
+  assert.equal(retired.files, undefined)
+  const cursorLock = JSON.parse(readFileSync(join(ROOT, 'core/managed-core/platforms/cursor/skills-lock.json'), 'utf8'))
+  const codexLock = JSON.parse(readFileSync(join(ROOT, 'core/managed-core/platforms/codex/skills-lock.json'), 'utf8'))
+  assert.deepEqual(cursorLock.provider, lock.provider)
+  assert.deepEqual(codexLock.provider, lock.provider)
+  assert.deepEqual(
+    cursorLock.skills.find((item) => item.skillId === 'git-safeguard').files,
+    lock.skills.find((item) => item.skillId === 'git-safeguard').files,
   )
 })
 
@@ -182,7 +217,10 @@ test('ISS-04 loader has no transport, skill execution, or nested install APIs', 
   assert.doesNotMatch(LOADER_SOURCE, /from ['"]node:(http|https|net|child_process|tls)['"]/)
   assert.doesNotMatch(LOADER_SOURCE, /rmSync|rmdirSync|unlinkSync/)
   assert.doesNotMatch(LOADER_SOURCE, /skills_run_start\(/)
-  assert.equal(MANIFEST_SOURCE.includes('core/link-integrations/skills.mjs'), false)
+  assert.equal(LOADER_SOURCE.includes('link-integrations/skills.mjs'), false)
+  const loaderRows = JSON.parse(MANIFEST_SOURCE).files.filter((row) => String(row.destination).endsWith('skills-loader.mjs'))
+  assert.ok(loaderRows.length >= 2)
+  assert.equal(loaderRows.some((row) => String(row.source).endsWith('/skills.mjs')), false)
   assert.equal(existsSync(join(ROOT, 'core/managed-core/platforms/codex/skills-loader.mjs')), true)
   assert.equal(existsSync(join(ROOT, 'core/managed-core/platforms/cursor/skills-loader.mjs')), true)
 })

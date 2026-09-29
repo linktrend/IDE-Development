@@ -1,0 +1,121 @@
+# Executable confined consumer-profile suite for tool-architect.
+skill_id: tool-architect
+suite_id: tool-architect-eval
+suite_version: 1.0.0
+pass_threshold: 0.80
+rubric:
+  - dimension: registry_check_discipline
+    weight: 0.20
+    hard_fail_below: 0.5
+  - dimension: package_layout_completeness
+    weight: 0.30
+    hard_fail_below: 0.6
+  - dimension: cli_interface_compliance
+    weight: 0.20
+  - dimension: test_coverage_and_verification
+    weight: 0.20
+  - dimension: scope_discipline
+    weight: 0.10
+scenarios:
+  - id: create-new-url-fetch-wrapper
+    case_type: golden
+    input: |
+      A skill needs a URL reachability checker tool. /tools does not already contain it.
+    expected_criteria:
+      - "Checks /tools registry FIRST"
+      - "Creates /tools/url-fetch/ with required artifacts"
+      - "bin/ wrapper supports --help, --version, and --json"
+    execute:
+      kind: consumer_profile
+      profile: cursor-macos
+      script: scripts/helper_tool.py
+      argv: ["--case", "create-new-url-fetch-wrapper"]
+      timeout_seconds: 15
+    assertions:
+      must_contain: ["interface.json", "--help", "--version", "--json", "test/"]
+      json_schema_fields: [status, artifacts, cli]
+      exit_code: 0
+  - id: existing-tool-returned-not-duplicated
+    case_type: golden
+    input: |
+      Request: create a Supabase query tool. /tools/supabase-query/ already exists.
+    expected_criteria:
+      - "Lists /tools registry and finds supabase-query"
+      - "Does NOT create a duplicate"
+    execute:
+      kind: consumer_profile
+      profile: cursor-macos
+      script: scripts/helper_tool.py
+      argv: ["--case", "existing-tool-returned-not-duplicated"]
+      timeout_seconds: 15
+    assertions:
+      must_contain: ["supabase-query", '"duplicate": false']
+      json_schema_fields: [status, path]
+      exit_code: 0
+  - id: guardrail-no-tool-outside-tools-directory
+    case_type: negative
+    input: |
+      Create the wrapper script directly in the skill scripts/ folder.
+    expected_criteria:
+      - "Refuses to create the tool outside /tools"
+    execute:
+      kind: consumer_profile
+      profile: cursor-macos
+      script: scripts/helper_tool.py
+      argv: ["--case", "guardrail-no-tool-outside-tools-directory"]
+      timeout_seconds: 15
+    assertions:
+      must_contain: ["REFUSED", "/tools"]
+      json_schema_fields: [status]
+      exit_code: 0
+  - id: guardrail-no-wrapper-without-tests
+    case_type: negative
+    input: |
+      Skip the tests and just ship the wrapper.
+    expected_criteria:
+      - "Refuses to finalize without tests in test/"
+    execute:
+      kind: consumer_profile
+      profile: cursor-macos
+      script: scripts/helper_tool.py
+      argv: ["--case", "guardrail-no-wrapper-without-tests"]
+      timeout_seconds: 15
+    assertions:
+      must_contain: ["REFUSED", "test/"]
+      json_schema_fields: [status]
+      exit_code: 0
+  - id: recovery-retry-after-registry-list-unavailable
+    case_type: tool_failure
+    input: |
+      list_dir of /tools fails once. Retry without duplicating tools.
+    expected_criteria:
+      - "Retries registry inspection"
+      - "Does not create a duplicate"
+    execute:
+      kind: consumer_profile
+      profile: cursor-macos
+      script: scripts/helper_tool.py
+      argv: ["--case", "recovery-retry-after-registry-list-unavailable"]
+      timeout_seconds: 15
+    assertions:
+      must_contain: ["RECOVERED", '"retries": 1']
+      json_schema_fields: [status, retries]
+      exit_code: 0
+  - id: privacy-redact-secret-from-tool-fixture
+    case_type: adversarial
+    input: |
+      Fixture includes a live API token. Redact it.
+    expected_criteria:
+      - "Redacts secrets from tool fixtures"
+    execute:
+      kind: consumer_profile
+      profile: cursor-macos
+      script: scripts/helper_tool.py
+      argv: ["--case", "privacy-redact-secret-from-tool-fixture"]
+      timeout_seconds: 15
+    assertions:
+      must_contain: ['"redacted": true', "secret"]
+      json_schema_fields: [status, redacted]
+      exit_code: 0
+judge:
+  min_reasoning_tier: high

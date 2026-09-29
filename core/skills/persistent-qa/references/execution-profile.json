@@ -1,0 +1,22 @@
+{
+  "adapter": {
+    "name": "local-actor",
+    "version_range": ">=0.1.0"
+  },
+  "certification": {
+    "refusal_reason": "Canonical artifacts stamped via shared hashing; live certification not claimed",
+    "status": "uncertified"
+  },
+  "eval_suite_hash": "sha256:aaf3f3f6a1c65af39c6d0c65076035428ee6b1306523de5c1a79bd3619118222",
+  "eval_suite_id": "persistent-qa-eval",
+  "execution_profile_id": "persistent-qa-cursor-macos-draft",
+  "lifecycle_state": "draft",
+  "model_capability_tier": "balanced",
+  "profile_hash": "sha256:b3cd13032c24f8b71759709e43fd24de99bb8428f452bddf8438d777c1431c0c",
+  "runtime_profile_id": "cursor-macos",
+  "schema_version": "0.1",
+  "skill_bundle_hash": "sha256:dc64f8664ed677efb56741a315ca128abcd6ff7f2c240a9b368c860908693210",
+  "skill_id": "persistent-qa",
+  "skill_version": "1.0.0",
+  "toolchain": []
+}
