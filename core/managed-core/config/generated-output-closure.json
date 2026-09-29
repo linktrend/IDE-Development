@@ -34,17 +34,6 @@
           "control": "recompute"
         },
         {
-          "id": "delivery-lifecycle",
-          "source": "scripts/gitops/coordinator/state.py",
-          "events": {
-            "execution-failed": "transition",
-            "gate-passed": "transition",
-            "merge-development": "transition",
-            "staging-promoted": "transition"
-          },
-          "control": "transition"
-        },
-        {
           "id": "verification-liveness",
           "source": "core/execution/verification_liveness.py",
           "events": {
@@ -64,17 +53,6 @@
             "generator_failure": "finalize_candidate"
           },
         "control": "finalize_candidate"
-      },
-      {
-        "id": "manifest-heartbeat",
-        "source": "core/execution/manifest_persistence.py",
-        "events": {
-          "persisted_undispatched_safe_intent": "run_heartbeat_controller",
-          "expired_lease": "run_heartbeat_controller",
-          "failed_check_repair": "run_heartbeat_controller",
-          "no_action_receipt_invalid": "run_heartbeat_controller"
-        },
-        "control": "run_heartbeat_controller"
       },
       {
         "id": "consumer-rollout",
@@ -106,14 +84,6 @@
             "-m",
             "ide_development.build_manifest",
           "--verify"
-        ]
-      },
-      {
-        "id": "heartbeat-controller-entrypoint",
-        "command": [
-          "python3",
-          "scripts/gitops/heartbeat_controller.py",
-          "--help"
         ]
       }
       ]

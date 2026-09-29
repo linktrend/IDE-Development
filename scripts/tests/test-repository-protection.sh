@@ -37,6 +37,12 @@ assert "Linktrend Review Gate" not in stg
 assert stg[-1] == "Linktrend Branch Source Policy"
 main = rp.managed_baseline("main")
 assert "Linktrend Review Gate" not in main
+assert main == [
+    "Verify IDE Development",
+    "Linktrend Branch Source Policy",
+    "Linktrend Receipt Gate",
+], main
+assert "Linktrend Receipt Gate" not in dev and "Linktrend Receipt Gate" not in stg
 
 u = rp.union_checks(dev, ["Consumer Custom Lint", "Verify IDE Development"], ["Extra"])
 assert u["preserved"] == ["Consumer Custom Lint", "Extra"], u
@@ -90,6 +96,7 @@ assert "Linktrend Review Gate" not in stg
 assert "Linktrend Branch Source Policy" in stg
 main = p["branches"]["main"]["requiredChecks"]["desired"]
 assert "Linktrend Review Gate" not in main
+assert "Linktrend Receipt Gate" in main
 assert p["repoSettings"]["allow_auto_merge"]["after"] is True
 assert "rollback" in p and "snapshot" in p["rollback"]
 assert p["rollback"]["instructions"]

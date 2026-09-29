@@ -38,6 +38,9 @@ DEFAULT_STAGING_GATE = ["Verify IDE Development"]
 DEFAULT_RELEASE_GATE = ["Verify IDE Development"]
 # Active workflow job display name (WP-U05). Obsolete step title must not remain required.
 SOURCE_POLICY_CHECK = "Linktrend Branch Source Policy"
+# v3 main promotion check (linktrend-promote-main.yml). Legacy name, no receipt:
+# the live main ruleset requires this context.
+MAIN_PROMOTION_CHECK = "Linktrend Receipt Gate"
 REVIEW_GATE_CHECK = "Linktrend Review Gate"
 BUGBOT_CHECK = REVIEW_GATE_CHECK  # compatibility name; never a required v2.5.1 gate
 OBSOLETE_MANAGED_CHECKS = frozenset(
@@ -85,7 +88,7 @@ def managed_baseline(
         return _unique_ordered([*gate, SOURCE_POLICY_CHECK])
     if branch == "main":
         gate = release_checks if release_checks else list(DEFAULT_RELEASE_GATE)
-        return _unique_ordered([*gate, SOURCE_POLICY_CHECK])
+        return _unique_ordered([*gate, SOURCE_POLICY_CHECK, MAIN_PROMOTION_CHECK])
     raise ProtectionError(f"ungoverned branch: {branch}")
 
 

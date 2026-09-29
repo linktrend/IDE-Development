@@ -35,7 +35,7 @@ cd "IDE Development"
 
 Use this repository for authoring, packaging, and self-verification — not as a consumer rollout target.
 
-## Mac Mini Setup
+## Local Checkout (optional)
 
 ```bash
 mkdir -p ~/Projects

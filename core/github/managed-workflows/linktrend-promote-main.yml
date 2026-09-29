@@ -1,0 +1,49 @@
+name: Linktrend Receipt Gate
+
+# v3 main promotion check. The context name is legacy: the live main ruleset
+# requires "Linktrend Receipt Gate". No receipt is involved. The check passes only
+# for a promote/main/* head whose tree equals a development commit on which
+# "Verify IDE Development" concluded success (scripts/orchestrator/promotion_check.py).
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  actions: read
+  contents: read
+  checks: read
+  statuses: read
+  pull-requests: read
+
+concurrency:
+  group: linktrend-promote-main-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  promotion-check:
+    name: Linktrend Receipt Gate
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - name: Checkout development
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The checker runs from development, never from the PR head. All branches
+          # and development's first-parent history are needed to find the tree match.
+          ref: development
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Promotion check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_HEAD_FORK: ${{ github.event.pull_request.head.repo.fork }}
+        run: python3 scripts/orchestrator/promotion_check.py

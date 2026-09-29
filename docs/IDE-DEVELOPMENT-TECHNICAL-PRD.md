@@ -355,7 +355,7 @@ Allowed short-lived sources into `development`: `dev/*`, `issue/*`, `feature/*`,
 
 ### Branching doctrine (consumer + this repo)
 
-See `.cursor/rules/01-git-branching.mdc` and `docs/AUTONOMOUS-GIT-OPERATIONS.md`: the delivery controller merges into `development` when Full CI is green and one independent review (a different model family than the author) approves the exact head; the orchestrator then promotes `development` → `main`. Deploy follows the Module 6 deploy policy. Workers never open PRs.
+See `.cursor/rules/01-git-branching.mdc` and `docs/AUTONOMOUS-GIT-OPERATIONS.md` (ADR 0006): the per-repo cloud orchestrator packages worker branches into PRs, merges into `development` when Full CI is green and one independent review (a different model family than the author) approves the exact head, and promotes `development` → `main`. Deploy follows the Module 6 deploy policy. Workers never open PRs.
 
 ---
 
@@ -463,7 +463,7 @@ CI invokes the first three families via `ci.yml` with `CI=true` (skips machine-l
 | WP1 applies live GitHub protections/App/Bugbot | WP1 is plan/verify read-only; IDE live readiness closed in WP2; consumer apply is WP04/Principal-gated |
 | WP2/WP03 still pending merge/promote | WP2 and WP03 complete; v2.1 phase delivery also promoted through PR #82/#85/#86 |
 | Consumer rollout already executed | WP04 prepared / not executed — Principal approval pending |
-| Ship/Pull lists omit `LiNKtrading-codebase` / treat IDE Development as install #1 | Ship/Pull may process IDE Development first as system source; consumer install order starts at `openclaw_prime` and includes `LiNKtrading-codebase` (`docs/GITOPS-CONSUMER-ROLLOUT.md`); real rollout remains deferred until WP04 approval |
+| Orchestrator lists omit `LiNKtrading-codebase` / treat IDE Development as install #1 | The orchestrator may work on IDE Development first as system source; consumer install order starts at `openclaw_prime` and includes `LiNKtrading-codebase` (`docs/GITOPS-CONSUMER-ROLLOUT.md`); real rollout remains deferred until WP04 approval |
 | Six Modules including Living Document / dual PRD | Intent + **single Technical PRD**; Living Document retired |
 | `scripts/verify-stage1.sh` | Renamed/replaced by `scripts/verify-ide-development.sh` |
 | `docs/LINKDEVELOPER-OPERATIONS-MANUAL.md` / `LINKDEVELOPER-STAGE1.md` | Correct names use `IDE-DEVELOPMENT-*` prefix |

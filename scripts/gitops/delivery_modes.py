@@ -140,10 +140,24 @@ def load_delivery_config(
     *,
     env: dict[str, str] | None = None,
 ) -> DeliveryConfig:
-    """Resolve and strictly validate v1/v2 delivery configuration."""
-    from coordinator.config import load_delivery_config as load_runtime_config
+    """Resolve delivery mode and Phase prefix from v1/v2 configuration.
 
-    return load_runtime_config(repo_root, env=env)  # type: ignore[return-value]
+    Environment variables never switch the committed profile.
+    """
+    del env
+    config_path = Path(repo_root) / CONFIG_REL if repo_root is not None else None
+    if config_path is None or not config_path.is_file():
+        return DeliveryConfig(delivery_mode=MODE_PHASE_INTEGRATION)
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"{config_path}: configuration must be a JSON object")
+    mode = payload.get("mode", payload.get("deliveryMode", MODE_PHASE_INTEGRATION))
+    if mode not in {MODE_ISSUE_PR, MODE_PHASE_INTEGRATION}:
+        raise ValueError(f"{config_path}: unsupported delivery mode {mode!r}")
+    prefix = payload.get("phaseBranchPrefix", DEFAULT_PHASE_PREFIX)
+    if not isinstance(prefix, str) or not _PHASE_PREFIX_RE.fullmatch(prefix):
+        raise ValueError(f"{config_path}: invalid phaseBranchPrefix {prefix!r}")
+    return DeliveryConfig(delivery_mode=mode, phase_branch_prefix=prefix)
 
 
 def should_open_pr_for_branch(

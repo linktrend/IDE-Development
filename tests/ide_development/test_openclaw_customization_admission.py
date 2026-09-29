@@ -31,16 +31,12 @@ from ide_development.openclaw_customization_admission import (  # noqa: E402
     _target_identity,
     admit_openclaw_customization,
 )
-from gitops.coordinator.receipts import (  # noqa: E402
-    compute_candidate_identity,
-    create_full_suite_receipt,
-)
 
 PRIME_COMMIT = "a" * 40
 PRIME_TREE = "b" * 40
 UPSTREAM_COMMIT = "c" * 40
 UPSTREAM_TREE = "d" * 40
-CUSTOM_PATH = "linkbots/lisa/ops/contract.md"
+CUSTOM_PATH = "linkbots/agent/ops/contract.md"
 EXACT_PATH = "docs/agent-briefing.md"
 IDE_PATH = ".ide-development/README.md"
 TRANSACTION_PATH = "scripts/gitops/secret_scan.py"
@@ -143,7 +139,7 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
 
         return scan
 
-    def _admit(self, *, scanner=None, baseline=None, capture=None, full_run_receipt=None, package_root=None) -> dict[str, Any]:
+    def _admit(self, *, scanner=None, baseline=None, capture=None, package_root=None) -> dict[str, Any]:
         return admit_openclaw_customization(
             consumer_root=self.consumer,
             package_root=package_root or ROOT,
@@ -151,7 +147,6 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
             scanner=scanner or self._scanner(),
             pre_install_baseline=baseline,
             capture_baseline=(baseline is None if capture is None else capture),
-            full_run_receipt=full_run_receipt,
         )
 
     def _capture_baseline(self, *, scanner=None) -> dict[str, Any]:
@@ -262,25 +257,6 @@ class OpenClawCustomizationAdmissionTests(unittest.TestCase):
     def test_scanner_cannot_supply_its_own_baseline(self) -> None:
         with self.assertRaisesRegex(OpenClawAdmissionError, "scanner-error"):
             self._admit(scanner=self._scanner({"baselineFindings": []}))
-
-    def test_full_receipt_is_passed_through_only_when_github_receipt_is_digest_valid(self) -> None:
-        identity = compute_candidate_identity(
-            self.consumer, [], "full", profile_files=[], workflow_files=[]
-        )
-        receipt = create_full_suite_receipt({
-            "candidateIdentity": identity.to_dict(),
-            "workflowRunId": 123,
-            "workflowRunAttempt": 1,
-            "runnerLabel": "ubuntu-24.04-arm",
-            "startedAt": "2026-08-31T00:00:00Z",
-            "completedAt": "2026-08-31T00:01:00Z",
-            "conclusion": "success",
-            "commandDigest": "sha256:" + "1" * 64,
-            "evidenceDigests": {},
-        }).to_dict()
-        result = self._admit(full_run_receipt=receipt)
-        self.assertEqual(result["fullRunReceiptIdentity"]["workflowRunId"], 123)
-        self.assertEqual(result["fullRunReceiptIdentity"]["candidateIdentity"]["gitTree"], self.target_tree)
 
     def test_finding_outside_scope_is_rejected(self) -> None:
         with self.assertRaisesRegex(OpenClawAdmissionError, "out-of-scope-finding"):

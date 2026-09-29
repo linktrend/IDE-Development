@@ -36,7 +36,8 @@
       "id": "promotion",
       "commands": [],
       "requiredCheckContexts": [
-        "Linktrend Branch Source Policy"
+        "Linktrend Branch Source Policy",
+        "Linktrend Receipt Gate"
       ]
     },
     "trusted-governance": {

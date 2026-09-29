@@ -319,10 +319,11 @@ OUT6="$TMP/mismatch.out"
 set +e
 (
   cd "$REPO6"
-  python3 scripts/gitops/repair_task.py plan-cleanup-completed \
+  python3 scripts/gitops/cleanup_stale_records.py \
     --repo "linktrend/Wrong-Repo" \
+    --file-backend \
     --repair-dir "$REPAIR_DIR" \
-    --apply
+    --apply --i-understand-close-repairs
 ) >"$OUT6" 2>&1
 RC6=$?
 set -e
@@ -333,7 +334,7 @@ AFTER_HASH="$(shasum -a 256 "$REPAIR_DIR/completed-1.json" | awk '{print $1}')"
 set +e
 (
   cd "$REPO6"
-  python3 scripts/gitops/repair_task.py plan-cleanup-completed --repo "" --repair-dir "$REPAIR_DIR" --apply
+  python3 scripts/gitops/cleanup_stale_records.py --repo "" --file-backend --repair-dir "$REPAIR_DIR" --apply --i-understand-close-repairs
 ) >"$TMP/mismatch-empty.out" 2>&1
 RC6b=$?
 set -e
@@ -476,7 +477,7 @@ root = Path(os.environ["TEST_ROOT"])
 sys.path.insert(0, str(root / "scripts" / "gitops"))
 import cleanup_controls  # noqa: F401
 spec = importlib.util.spec_from_file_location(
-    "repair_task", root / "scripts" / "gitops" / "repair_task.py"
+    "cleanup_stale_records", root / "scripts" / "gitops" / "cleanup_stale_records.py"
 )
 rt = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
@@ -488,7 +489,7 @@ assert hasattr(cleanup_controls, "normalize_caller_repo")
 assert hasattr(rt, "main")
 print("ok-imports")
 PY
-pass "cleanup_controls + repair_task import alongside WP01 gitops tree"
+pass "cleanup_controls + cleanup_stale_records import alongside WP01 gitops tree"
 
 echo ""
 echo "ALL PASS: cleanup lineage + WP01 portable-system lineage coexistence"

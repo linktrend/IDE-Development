@@ -83,5 +83,5 @@ Managed GitHub workflow YAML **must** be copied into each consumer (GitHub canno
 
 1. Managed workflows present under `repo/.github/workflows/` (sync output PASS).
 2. Bugbot enabled for the GitHub repo — `core/checklists/BUGBOT-INHERITANCE.md`.
-3. Cursor Automations for Ship/Pull exist on the account — `docs/CURSOR-AUTOMATIONS-SETUP.md`.
+3. The repo has a v3 cloud orchestrator (Cursor Project) — `docs/AUTONOMOUS-GIT-OPERATIONS.md`.
 4. Commit and push the synced workflow files on a work branch → PR → `development`.

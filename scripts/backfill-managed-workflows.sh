@@ -69,5 +69,5 @@ done
 info ""
 info "Backfill complete. Wired consumers synced: $found"
 info "Bugbot: complete core/checklists/BUGBOT-INHERITANCE.md per repo (dashboard step)."
-info "Automations: docs/CURSOR-AUTOMATIONS-SETUP.md (dashboard step)."
+info "Orchestrator: docs/AUTONOMOUS-GIT-OPERATIONS.md (Cursor Project step)."
 exit 0

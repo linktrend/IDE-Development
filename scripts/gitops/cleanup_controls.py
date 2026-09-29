@@ -28,7 +28,7 @@ from urllib.parse import urlsplit
 
 SCHEMA_VERSION = 1
 ISSUE_BRANCH_RE = re.compile(r"^issue/(\d+)(?:-|$)")
-# owner/name — same shape used by repair_task / cleanup_stale_records callers.
+# owner/name — same shape used by cleanup_stale_records callers.
 REPO_SLUG_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 _HERE = Path(__file__).resolve().parent

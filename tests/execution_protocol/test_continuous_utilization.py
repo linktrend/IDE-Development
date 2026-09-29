@@ -43,7 +43,6 @@ EXECUTION_IDENTITY = {
 PACKAGED_RELATIVE = (
     "core/execution/__init__.py",
     "core/execution/lifecycle.py",
-    "core/execution/manifest_persistence.py",
     "core/execution/protocol.py",
     "core/execution/rollout.py",
     "core/execution/scheduler.py",
@@ -53,10 +52,8 @@ PACKAGED_RELATIVE = (
     "core/managed-core/content/doctrine/HOSTED-CAPACITY-SCHEDULER.md",
     "core/managed-core/content/doctrine/CODING-EXECUTION-PROTOCOL.md",
     "core/managed-core/content/config/continuous-utilization.json",
-    "core/managed-core/content/config/manifest-persistence.json",
     "core/managed-core/content/config/transactional-dispatch.json",
     "core/managed-core/schemas/continuous-utilization.schema.json",
-    "core/managed-core/schemas/manifest-persistence.schema.json",
     "core/managed-core/schemas/transactional-dispatch.schema.json",
     "core/managed-core/examples/continuous-utilization.example.json",
 )
@@ -420,7 +417,7 @@ class ExtractedInstallerCleanroomTests(unittest.TestCase):
                 capture_output=True,
             )
             self.assertEqual(probe.returncode, 0, probe.stderr)
-            self.assertEqual(len(copied), 18)
+            self.assertEqual(len(copied), 15)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
