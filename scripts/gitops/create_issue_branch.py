@@ -20,7 +20,8 @@ SAFE_GIT_CONFIG = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false
 LEDGER_ID_RE = re.compile(r"^[A-Z][A-Z0-9]{1,9}-[1-9][0-9]*$")
 # lowercase [a-z0-9-], 1..48, no leading/trailing/doubled hyphen
 SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9]|-[a-z0-9]){0,47}$")
-REF_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
+# Safe branch name: no leading dash, and no characters git would treat as syntax.
+REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -64,6 +65,35 @@ def valid_slug(slug: str) -> bool:
     return bool(slug) and len(slug) <= 48 and SLUG_RE.fullmatch(slug) is not None
 
 
+def valid_ref_name(name: str) -> bool:
+    """Reject values that could be git options or ref syntax before any git call."""
+    if REF_RE.fullmatch(name) is None:
+        return False
+    if ".." in name or "@{" in name:
+        return False
+    if name.endswith("/") or name.endswith(".lock"):
+        return False
+    for part in name.split("/"):
+        if not part or part.startswith(".") or part.endswith(".") or part.endswith(".lock"):
+            return False
+    return True
+
+
+def valid_worktree_path(raw: str) -> bool:
+    """Reject a worktree path that git would parse as an option."""
+    if not raw or raw != raw.strip() or raw.startswith("-"):
+        return False
+    return not any(ord(ch) < 32 for ch in raw)
+
+
+def ref_format_ok(name: str, *, cwd: Path) -> bool:
+    """Confirm a pattern-safe name with git check-ref-format. `name` must not be an option."""
+    proc = git(["check-ref-format", "--branch", name], cwd=cwd, check=False)
+    if proc.returncode != 0:
+        return False
+    return (proc.stdout or "").strip() == name
+
+
 def repo_root(start: Path) -> Path:
     proc = git(["rev-parse", "--show-toplevel"], cwd=start, check=False)
     if proc.returncode != 0:
@@ -72,7 +102,7 @@ def repo_root(start: Path) -> Path:
 
 
 def remote_branch_sha(root: Path, branch: str) -> str | None:
-    proc = git(["ls-remote", "--heads", "origin", branch], cwd=root, check=False)
+    proc = git(["ls-remote", "--heads", "origin", "--", branch], cwd=root, check=False)
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout or "").strip()
         die(f"git ls-remote failed for origin/{branch}: {err or proc.returncode}")
@@ -92,7 +122,7 @@ def local_branch_sha(root: Path, branch: str) -> str | None:
 
 
 def is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
-    proc = git(["merge-base", "--is-ancestor", ancestor, descendant], cwd=root, check=False)
+    proc = git(["merge-base", "--is-ancestor", "--", ancestor, descendant], cwd=root, check=False)
     return proc.returncode == 0
 
 
@@ -135,12 +165,12 @@ def worktree_for_branch(root: Path, branch: str) -> str | None:
 def ensure_local_branch(root: Path, branch: str, tip: str) -> None:
     local = local_branch_sha(root, branch)
     if local is None:
-        git(["branch", branch, tip], cwd=root)
+        git(["branch", branch, "--", tip], cwd=root)
         return
     if local == tip:
         return
     if is_ancestor(root, local, tip):
-        git(["branch", "-f", branch, tip], cwd=root)
+        git(["branch", "-f", branch, "--", tip], cwd=root)
         return
     die(
         f"{branch} at {local} is not a fast-forward of {tip}. "
@@ -152,13 +182,13 @@ def ensure_local_branch(root: Path, branch: str, tip: str) -> None:
 def checkout_branch(root: Path, branch: str, tip: str, *, create: bool) -> Path:
     local = local_branch_sha(root, branch)
     if create or local is None:
-        git(["checkout", "-b", branch, tip], cwd=root)
+        git(["switch", "-c", branch, "--", tip], cwd=root)
         return root
     current = git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=root).stdout.strip()
     if current != branch:
-        git(["checkout", branch], cwd=root)
+        git(["switch", "--", branch], cwd=root)
     if local != tip and is_ancestor(root, local, tip):
-        git(["merge", "--ff-only", tip], cwd=root)
+        git(["merge", "--ff-only", "--", tip], cwd=root)
     return root
 
 
@@ -172,20 +202,20 @@ def use_worktree(root: Path, branch: str, tip: str, worktree: Path, *, create: b
             if not create:
                 local = local_branch_sha(root, branch)
                 if local and local != tip and is_ancestor(root, local, tip):
-                    git(["merge", "--ff-only", tip], cwd=path)
+                    git(["merge", "--ff-only", "--", tip], cwd=path)
             return path
         die(f"worktree path already exists and is not {branch}: {path}")
     if existing:
         die(f"{branch} is already checked out at {existing}; refusing to move it")
     path.parent.mkdir(parents=True, exist_ok=True)
     if create:
-        git(["worktree", "add", "-b", branch, str(path), tip], cwd=root)
+        git(["worktree", "add", "-b", branch, "--", str(path), tip], cwd=root)
     else:
         ensure_local_branch(root, branch, tip)
-        git(["worktree", "add", str(path), branch], cwd=root)
+        git(["worktree", "add", "--", str(path), branch], cwd=root)
         local = local_branch_sha(root, branch)
         if local and local != tip and is_ancestor(root, local, tip):
-            git(["merge", "--ff-only", tip], cwd=path)
+            git(["merge", "--ff-only", "--", tip], cwd=path)
     return path
 
 
@@ -217,7 +247,7 @@ def main(argv: list[str]) -> int:
         )
 
     base = (args.base or "").strip()
-    if REF_RE.fullmatch(base) is None or base.startswith("/") or ".." in base.split("/"):
+    if not valid_ref_name(base):
         die(f"invalid --base {base!r}")
 
     explicit_slug = (args.slug or "").strip()
@@ -235,18 +265,38 @@ def main(argv: list[str]) -> int:
         )
 
     branch = f"issue/{ledger_id}-{slug}"
+    if not valid_ref_name(branch):
+        die(f"invalid branch {branch!r}")
+    if args.worktree is not None and not valid_worktree_path(args.worktree):
+        die(f"invalid --worktree {args.worktree!r}")
+
     start = Path(args.workdir).resolve()
+    if not start.is_dir():
+        die(f"not a git work tree: {start}")
+    # Pattern checks above reject option-like values with no git call.
+    # check-ref-format does not accept `--`, so it runs only after that gate.
+    if not ref_format_ok(base, cwd=start):
+        die(f"invalid --base {base!r}")
+    if not ref_format_ok(branch, cwd=start):
+        die(f"invalid branch {branch!r}")
+
     root = repo_root(start)
 
-    git(["fetch", "origin", base], cwd=root)
-    base_sha = git(["rev-parse", f"origin/{base}"], cwd=root).stdout.strip()
+    git(
+        ["fetch", "origin", "--", f"+refs/heads/{base}:refs/remotes/origin/{base}"],
+        cwd=root,
+    )
+    base_sha = git(
+        ["rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{base}"],
+        cwd=root,
+    ).stdout.strip()
     if not base_sha:
         die(f"origin/{base} has no commit")
 
     remote_sha = remote_branch_sha(root, branch)
     if remote_sha:
         git(
-            ["fetch", "origin", f"+refs/heads/{branch}:refs/remotes/origin/{branch}"],
+            ["fetch", "origin", "--", f"+refs/heads/{branch}:refs/remotes/origin/{branch}"],
             cwd=root,
         )
         remote_sha = local_ref_sha(root, f"refs/remotes/origin/{branch}")
@@ -265,7 +315,7 @@ def main(argv: list[str]) -> int:
 
     pushed = False
     if not args.no_push:
-        git(["push", "--set-upstream", "origin", f"{branch}:{branch}"], cwd=checkout)
+        git(["push", "--set-upstream", "origin", "--", f"{branch}:{branch}"], cwd=checkout)
         pushed = True
 
     payload = {

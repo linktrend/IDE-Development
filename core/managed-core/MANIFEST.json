@@ -3929,7 +3929,7 @@
       "id": "gitops-scripts-gitops-create-issue-branch-py",
       "ownershipClass": "managed",
       "source": "scripts/gitops/create_issue_branch.py",
-      "sourceHash": "sha256:85e27234fce438dfffe838c1ac710f6db42c3f2e8d61a396cf0ade720754f745",
+      "sourceHash": "sha256:277c716b45fce9803c0051dd296ead14cfdc0f73d50409b67ef3064ade2a2644",
       "destination": "scripts/gitops/create_issue_branch.py",
       "mode": "0755",
       "platform": "github",

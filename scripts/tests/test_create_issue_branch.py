@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -49,17 +50,24 @@ class CreateIssueBranchTests(unittest.TestCase):
         hook.chmod(0o755)
         run_git(self.work, "config", "core.hooksPath", str(hooks))
 
-    def invoke(self, *args: str) -> subprocess.CompletedProcess[str]:
-        env = os.environ.copy()
-        env.pop("GIT_DIR", None)
-        env.pop("GIT_WORK_TREE", None)
+    def invoke(self, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+        run_env = os.environ.copy()
+        run_env.pop("GIT_DIR", None)
+        run_env.pop("GIT_WORK_TREE", None)
+        if env:
+            run_env.update(env)
         return subprocess.run(
             ["python3", str(SCRIPT), "--workdir", str(self.work), *args],
             text=True,
             capture_output=True,
-            env=env,
+            env=run_env,
             check=False,
         )
+
+    def remote_refs(self) -> str:
+        return run_git(
+            self.work, "for-each-ref", "--format=%(refname) %(objectname)", "refs/remotes"
+        ).stdout
 
     def test_valid_create_pushes_and_skips_hooks(self) -> None:
         proc = self.invoke("--id", "IDE-42", "--slug", "fix-login")
@@ -156,6 +164,74 @@ class CreateIssueBranchTests(unittest.TestCase):
         wt_head = run_git(wt, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
         self.assertEqual(wt_head, "issue/IDE-9-wt-mode")
         self.assertEqual(run_git(wt, "rev-parse", "HEAD").stdout.strip(), self.base_sha)
+
+    def test_unsafe_base_rejected_with_no_git_and_refs_unchanged(self) -> None:
+        run_git(self.work, "branch", "stale-tip")
+        run_git(self.work, "push", "-q", "origin", "stale-tip")
+        run_git(self.work, "branch", "-D", "stale-tip")
+        # Delete the remote branch without a client push, so the stale
+        # remote-tracking ref remains for a prune to remove.
+        run_git(self.origin, "update-ref", "-d", "refs/heads/stale-tip")
+        before = self.remote_refs()
+        self.assertIn("refs/remotes/origin/stale-tip", before)
+
+        log = Path(self.tmp.name) / "git-calls.log"
+        bindir = Path(self.tmp.name) / "bin"
+        bindir.mkdir()
+        real_git = shutil.which("git")
+        self.assertIsNotNone(real_git)
+        wrapper = bindir / "git"
+        wrapper.write_text(
+            "#!/bin/sh\n"
+            f'printf "%s\\n" "$*" >> "{log}"\n'
+            f'exec "{real_git}" "$@"\n',
+            encoding="utf-8",
+        )
+        wrapper.chmod(0o755)
+        guarded = {"PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}"}
+
+        for bad in ("--prune", "-x", "foo..bar", "main@{1}"):
+            if log.exists():
+                log.unlink()
+            proc = self.invoke(
+                "--id", "IDE-42", "--slug", "fix-login", f"--base={bad}", "--no-push", env=guarded
+            )
+            self.assertNotEqual(proc.returncode, 0, bad)
+            self.assertIn("invalid --base", proc.stderr, bad)
+            self.assertNotIn("{", proc.stdout, bad)
+            self.assertFalse(log.exists(), bad)
+            self.assertEqual(self.remote_refs(), before, bad)
+
+        if log.exists():
+            log.unlink()
+        proc = self.invoke(
+            "--id",
+            "IDE-42",
+            "--slug",
+            "fix-login",
+            "--worktree=--prune",
+            "--no-push",
+            env=guarded,
+        )
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("invalid --worktree", proc.stderr)
+        self.assertFalse(log.exists())
+        self.assertEqual(self.remote_refs(), before)
+
+    def test_custom_base_uses_qualified_remote_ref(self) -> None:
+        run_git(self.work, "checkout", "-q", "-b", "release")
+        (self.work / "README").write_text("rel\n", encoding="utf-8")
+        run_git(self.work, "commit", "-q", "-am", "rel")
+        rel = run_git(self.work, "rev-parse", "HEAD").stdout.strip()
+        run_git(self.work, "push", "-q", "origin", "release")
+        run_git(self.work, "checkout", "-q", "development")
+        proc = self.invoke("--id", "IDE-8", "--slug", "from-release", "--base", "release", "--no-push")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        payload = json.loads(proc.stdout)
+        self.assertEqual(payload["base"], "release")
+        self.assertEqual(payload["baseSha"], rel)
+        head = run_git(self.work, "rev-parse", "HEAD").stdout.strip()
+        self.assertEqual(head, rel)
 
     def test_no_push_does_not_publish(self) -> None:
         proc = self.invoke("--id", "IDE-3", "--slug", "local-only", "--no-push")
