@@ -85,7 +85,7 @@ grep -q 'Tue & Fri 10:00' .cursor/rules/01-git-branching.mdc \
   || fail "branching rule still has staging 08:00"
 pass "branching rule has 10:00 not staging 08:00"
 
-if grep -n 'prefer-incoming' docs/AUTONOMOUS-GIT-OPERATIONS.md docs/contracts/REPAIR-DISPATCHER.md 2>/dev/null \
+if grep -n 'prefer-incoming' docs/AUTONOMOUS-GIT-OPERATIONS.md 2>/dev/null \
   | grep -viE 'No prefer-incoming|no prefer-incoming|Never.*prefer-incoming|Must not|do not|prefer-incoming merges'; then
   fail "active prefer-incoming instruction found"
 fi
@@ -185,43 +185,6 @@ if python3 "$ROOT/scripts/gitops/create_issue_branch.py" --workdir "$TMP/repo" "
   fail "create_issue_branch should fail closed on auth failure"
 fi
 pass "create_issue_branch auth fail closed"
-
-# ---- repair_task: re-upsert does not increment; dispatch-attempt does; 3rd → Issues ----
-export LINKTREND_REPAIR_BACKEND=file
-export LINKTREND_REPAIR_DIR="$TMP/repair"
-mkdir -p "$LINKTREND_REPAIR_DIR"
-# Also set legacy aliases
-export LINKTREND_CONFLICT_BACKEND=file
-export LINKTREND_CONFLICT_DIR="$TMP/repair"
-
-u1="$(python3 "$ROOT/scripts/gitops/repair_task.py" upsert --repo r --failure-type ci_failure \
-  --branch b --check c --head-sha aaa)"
-echo "$u1" | python3 -c 'import json,sys; t=json.load(sys.stdin); assert t["attemptCount"]==0, t'
-u2="$(python3 "$ROOT/scripts/gitops/repair_task.py" upsert --repo r --failure-type ci_failure \
-  --branch b --check c --head-sha bbb)"
-echo "$u2" | python3 -c 'import json,sys; t=json.load(sys.stdin); assert t["attemptCount"]==0, t; assert t["headSha"]=="bbb", t; assert t["failureId"]'
-FID="$(echo "$u2" | python3 -c 'import json,sys; print(json.load(sys.stdin)["failureId"])')"
-# Same identity despite headSha change
-echo "$u1" | python3 -c 'import json,sys; print(json.load(sys.stdin)["failureId"])' | grep -qx "$FID" \
-  || fail "failureId changed when headSha changed"
-
-d1="$(python3 "$ROOT/scripts/gitops/repair_task.py" dispatch-attempt --repo r --id "$FID")"
-echo "$d1" | python3 -c 'import json,sys; t=json.load(sys.stdin); assert t["attemptCount"]==1, t; assert t["repairStatus"]=="dispatched", t'
-d2="$(python3 "$ROOT/scripts/gitops/repair_task.py" dispatch-attempt --repo r --id "$FID")"
-echo "$d2" | python3 -c 'import json,sys; t=json.load(sys.stdin); assert t["attemptCount"]==2, t'
-# Re-upsert must NOT bump
-u3="$(python3 "$ROOT/scripts/gitops/repair_task.py" upsert --repo r --failure-type ci_failure \
-  --branch b --check c --head-sha ccc)"
-echo "$u3" | python3 -c 'import json,sys; t=json.load(sys.stdin); assert t["attemptCount"]==2, t'
-d3="$(python3 "$ROOT/scripts/gitops/repair_task.py" dispatch-attempt --repo r --id "$FID")"
-echo "$d3" | python3 -c 'import json,sys; t=json.load(sys.stdin); assert t["attemptCount"]==3, t; assert t["resolutionState"]=="Issues", t; assert t["lisaDispatchState"]=="exhausted", t'
-# Further dispatch blocked
-set +e
-python3 "$ROOT/scripts/gitops/repair_task.py" dispatch-attempt --repo r --id "$FID" >/tmp/d4.out 2>/tmp/d4.err
-d4ec=$?
-set -e
-[ "$d4ec" -ne 0 ] || fail "dispatch after exhausted should fail"
-pass "repair_task dispatch-attempt increments; re-upsert does not; 3rd → Issues"
 
 # ---- cleanup dry-run safe ----
 bash "$ROOT/scripts/cleanup-merged-branches.sh" --remote --repo-root "$TMP/repo" >/tmp/cleanup.out 2>&1 || true

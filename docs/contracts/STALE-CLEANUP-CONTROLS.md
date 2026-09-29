@@ -16,7 +16,7 @@ Safe, deterministic cleanup controls for stale **IDE Development** PR / worktree
 | Local branch/worktree cleanup | Same script (`--local`) via **Lisa** on operator Mini | Local only; never GitHub Actions |
 | Preserve policy helper | `scripts/gitops/cleanup_controls.py` + `cleanup_preserve.defaults.json` | Shared KEEP decisions |
 | Completed repair inventory | `scripts/gitops/cleanup_stale_records.py` | Dry-run inventory; live close deferred |
-| File-backend resolved JSON | `repair_task.py plan-cleanup-completed` (optional) | Local files only; never GitHub |
+| File-backend resolved JSON | `cleanup_stale_records.py --file-backend` (optional) | Local files only; never GitHub |
 
 Do not invent alternate cleanup entrypoints. Do not edit credentials, App, Bugbot, or branch-protection surfaces under this contract.
 
@@ -63,7 +63,7 @@ Valid explicit `--repo` / env remain authoritative even when both remotes exist.
 
 **Repository-scoped PR evidence (Issue #61):** whenever shell cleanup has resolved a nonempty `CLEANUP_REPO`, every PR evidence query (`gh pr list` used to classify OPEN / MERGED / ABANDONED / NONE for delete eligibility) **MUST** pass `--repo CLEANUP_REPO`. If `CLEANUP_REPO` is empty because repository context is ambiguous or unresolved → **fail closed**: do not query implicit `gh` for PR evidence; no candidate delete (no `WOULD_DELETE` / `DELETED` from implicit context). Issue #59 precedence and ambiguity controls above remain authoritative; Issue #63 empty/invalid explicit `--repo` is a stronger hard fail (exit before evidence).
 
-**Completed-repair linked-PR scope (Issue #63):** `repair_task.py plan-cleanup-completed` and `cleanup_stale_records.py` (file-backend path) **MUST** propagate the caller's `--repo` into `cleanup_controls.plan_completed_repair_cleanup(..., repo=...)`. Linked PR state used to authorize file deletes is therefore repository-scoped; wrong implicit `gh` / remote context must not authorize apply deletes. File-backend remains **local resolved JSON only**; `githubMutation` stays `none` (no GitHub Issue close/delete from this control).
+**Completed-repair linked-PR scope (Issue #63):** `cleanup_stale_records.py` (file-backend path) **MUST** propagate the caller's `--repo` into `cleanup_controls.plan_completed_repair_cleanup(..., repo=...)`. Linked PR state used to authorize file deletes is therefore repository-scoped; wrong implicit `gh` / remote context must not authorize apply deletes. File-backend remains **local resolved JSON only**; `githubMutation` stays `none` (no GitHub Issue close/delete from this control).
 
 Default remains dry-run (no live delete by default). Scope: IDE cleanup policy/runtime only — no consumer changes. Also out of scope: credentials, App/Bugbot config, production branch-protection edits.
 
@@ -128,4 +128,4 @@ The candidates below were the evidence basis for the cleanup plan. They were rec
 - `docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md` — local worktree/branch cleanup; Actions never removes Mini worktrees; Lisa passes explicit `--repo`
 - `docs/contracts/REPAIR-DISPATCHER.md` — durable repair tasks; inventory close policy defers here; Issue #63 `--repo` propagation into plan-cleanup
 - `scripts/cleanup-merged-branches.sh` (`--repo OWNER/NAME` highest precedence) / `.github/workflows/linktrend-cleanup-merged.yml`
-- `scripts/gitops/cleanup_controls.py` / `scripts/gitops/cleanup_stale_records.py` / `scripts/gitops/repair_task.py`
+- `scripts/gitops/cleanup_controls.py` / `scripts/gitops/cleanup_stale_records.py`

@@ -2,10 +2,9 @@
 """Dry-run inventory of stale IDE Development repair records (Issue #51).
 
 Default posture is plan-only. Never closes GitHub Issues, PRs, or branches.
-Live GitHub close remains deferred to Codex/Principal (or repair_task.resolve
-for an exact repaired SHA). File-backend completed-record cleanup is delegated
-to cleanup_controls.plan_completed_repair_cleanup / repair_task
-plan-cleanup-completed.
+Live GitHub close remains deferred to Codex/Principal. File-backend
+completed-record cleanup is delegated to
+cleanup_controls.plan_completed_repair_cleanup (``--file-backend``).
 
 Preserve always: Issues #43/#44/#51, PR #49, repairs tied to OPEN PRs.
 """
@@ -247,7 +246,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--apply",
         action="store_true",
-        help="Refused for GitHub; file-backend uses repair_task plan-cleanup-completed",
+        help="Refused for GitHub; with --file-backend deletes resolved local JSON only",
     )
     ap.add_argument(
         "--i-understand-close-repairs",
@@ -298,8 +297,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.apply:
         print(
             "REFUSED: GitHub repair issue close is not authorized by cleanup_stale_records.py. "
-            "Report candidates to Codex/Principal. "
-            "Exact single-task close remains repair_task.py resolve when policy is unambiguous.",
+            "Report candidates to Codex/Principal.",
             file=sys.stderr,
         )
         report = inventory_github(args.repo, policy=policy)

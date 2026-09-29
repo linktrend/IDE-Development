@@ -14,11 +14,8 @@ required=(
   "codex/AGENTS.md"
   "chatgpt/AGENTS.md"
   "docs/contracts/AGENT-COMPLETION.md"
-  "docs/contracts/REPAIR-DISPATCHER.md"
   "docs/contracts/ACTIONS-COST-CONTROLS.md"
-  "docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md"
   "scripts/gitops/create_issue_branch.py"
-  "scripts/gitops/repair_task.py"
   "scripts/wire-repo.sh"
   "core/github/managed-workflows/linktrend-cleanup-merged.yml"
   "core/github/managed-runtime/MANIFEST.json"
@@ -39,13 +36,13 @@ for f in chatgpt/AGENTS.md codex/AGENTS.md .cursor/rules/02-autonomous-ship-pull
 done
 pass "Platform docs: no implementer Open-PR instruction"
 
-grep -q 'Lisa ACP Repair Dispatcher\|repair task' .cursor/rules/02-autonomous-ship-pull.mdc \
-  || fail "ship-pull rule missing Lisa ACP Repair Dispatcher language"
+grep -q 'repair ladder' .cursor/rules/02-autonomous-ship-pull.mdc \
+  || fail "git operations rule missing orchestrator repair ladder language"
 if grep -nE 'prefer-incoming' .cursor/rules/02-autonomous-ship-pull.mdc docs/AUTONOMOUS-GIT-OPERATIONS.md \
   | grep -viE 'No prefer-incoming|no prefer-incoming|Never.*prefer-incoming|Must not|do not'; then
   fail "active prefer-incoming instruction"
 fi
-pass "Repair dispatcher language; no prefer-incoming instruction"
+pass "Repair ladder language; no prefer-incoming instruction"
 
 # ---- Temp consumer: real wire-repo.sh with non-default CI name ----
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/verify-platform-adoption.XXXXXX")"
