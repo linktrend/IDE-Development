@@ -82,7 +82,7 @@ def codex_home() -> Path:
 
 
 def store_dir() -> Path:
-    return Path(os.environ.get("CODEX_AUTH_STORE") or DEFAULT_STORE)
+    return Path(os.environ.get("CODEX_AUTH_STORE") or DEFAULT_STORE).resolve()
 
 
 def state_dir() -> Path:
@@ -125,7 +125,9 @@ def auth_freshness(data: dict[str, Any] | None) -> dt.datetime:
     if not isinstance(value, str):
         return floor
     try:
-        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        # Codex writes nanosecond fractions; older Pythons only parse up to microseconds.
+        normalized = re.sub(r"(\.\d{6})\d+", r"\1", value.replace("Z", "+00:00"))
+        parsed = dt.datetime.fromisoformat(normalized)
     except ValueError:
         return floor
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
@@ -667,7 +669,7 @@ def run_issue(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
 
 PTEST_PROMPT = (
     "Create a file named PTEST.md at the repository root containing exactly one line: "
-    "'parallel test {label}'. Commit it with the message 'IDE-3: ptest {label}'. Do nothing else."
+    "'parallel test {label}'. Commit it with the message '{issue}: ptest {label}'. Do nothing else."
 )
 
 
@@ -682,18 +684,18 @@ def parallel_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     script = str(Path(__file__).resolve())
     results: dict[str, Any] = {"startedAt": now_iso(), "tier": args.tier, "levels": []}
 
-    def one(n: int, i: int) -> dict[str, Any]:
+    def one(n: int, i: int, issue: str) -> dict[str, Any]:
         label = f"n{n}-{i}"
         prompt_file = prompts / f"{label}.md"
-        prompt_file.write_text(PTEST_PROMPT.format(label=label))
+        prompt_file.write_text(PTEST_PROMPT.format(label=label, issue=issue))
         cmd = [
             sys.executable, script, "run", "--skip-gate", "--no-push",
-            "--repo", str(repo), "--issue", "IDE-3", "--slug", f"ptest-{label}",
+            "--repo", str(repo), "--issue", issue, "--slug", f"ptest-{label}",
             "--tier", args.tier, "--prompt-file", str(prompt_file), "--worktree-root", str(root),
         ]
         start = time.monotonic()
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        entry: dict[str, Any] = {"label": label, "exit": proc.returncode, "wallSec": round(time.monotonic() - start, 1)}
+        entry: dict[str, Any] = {"issue": issue, "label": label, "exit": proc.returncode, "wallSec": round(time.monotonic() - start, 1)}
         with contextlib.suppress(ValueError):
             record = json.loads(proc.stdout)
             entry.update({k: record.get(k) for k in ("codexExit", "newCommits", "durationSec", "runDir", "usage")})
@@ -704,11 +706,14 @@ def parallel_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         return entry
 
     overall = EXIT_CODEX
+    next_issue = args.first_issue
     for n in args.counts:
+        issues = [f"{args.prefix}-{next_issue + k}" for k in range(n)]
+        next_issue += n
         before = evaluate_allowance(read_rate_limits(), args.threshold)
         start = time.monotonic()
         with concurrent.futures.ThreadPoolExecutor(max_workers=n) as pool:
-            runs = list(pool.map(lambda i: one(n, i), range(1, n + 1)))
+            runs = list(pool.map(lambda i: one(n, i, issues[i - 1]), range(1, n + 1)))
         after = evaluate_allowance(read_rate_limits(), args.threshold)
         level = {
             "concurrency": n,
@@ -720,10 +725,10 @@ def parallel_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         }
         results["levels"].append(level)
         if not args.keep:
-            for i in range(1, n + 1):
+            for i, issue in enumerate(issues, start=1):
                 label = f"n{n}-{i}"
-                git("worktree", "remove", "--force", str(root / f"IDE-3-ptest-{label}"), cwd=repo, check=False)
-                git("branch", "-D", f"issue/IDE-3-ptest-{label}", cwd=repo, check=False)
+                git("worktree", "remove", "--force", str(root / f"{issue}-ptest-{label}"), cwd=repo, check=False)
+                git("branch", "-D", f"issue/{issue}-ptest-{label}", cwd=repo, check=False)
         if level["succeeded"] < n or not after["allowed"]:
             overall = EXIT_ATTEMPT_FAILED
             results["stoppedAt"] = n
@@ -784,6 +789,8 @@ def build_parser() -> argparse.ArgumentParser:
     ptest.add_argument("--repo", default=".")
     ptest.add_argument("--worktree-root")
     ptest.add_argument("--threshold", type=int, default=DEFAULT_THRESHOLD)
+    ptest.add_argument("--prefix", default="IDE", help="Ledger ID prefix for throwaway test Issues")
+    ptest.add_argument("--first-issue", type=int, default=10, help="first throwaway Issue number")
     ptest.add_argument("--keep", action="store_true", help="keep test worktrees and local branches")
     return parser
 

@@ -141,6 +141,12 @@ class AuthSyncTests(unittest.TestCase):
         self.assertEqual(co.sync_auth()["action"], "restored")
         self.assertEqual(json.loads(co.read_local())["tokens"]["refresh_token"], "new")
 
+    def test_nanosecond_last_refresh_orders_correctly(self) -> None:
+        older = co.auth_freshness({"last_refresh": "2026-09-29T03:54:04.504051777Z"})
+        newer = co.auth_freshness({"last_refresh": "2026-09-29T03:54:04.504052001Z"})
+        self.assertLess(older, newer)
+        self.assertEqual(older.year, 2026)
+
     def test_nothing_usable(self) -> None:
         co.write_store(b"not json")
         result = co.sync_auth()
