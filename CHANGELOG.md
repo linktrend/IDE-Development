@@ -31,7 +31,7 @@
 ## Unreleased — 2026-08-02 (Issue #72 Lane A)
 
 - Post-WP03 / pre-WP04 documentation truth: WP1–WP03 complete; WP04 consumer rollout prepared / not executed; Issue #72 cleanup in progress
-- Added `docs/CURRENT-STATUS.md` and `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
+- Added `docs/CURRENT-STATUS.md` and `docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
 - Updated Start-here surfaces (README, SETUP, Intent, Technical PRD, Operations Manual, GITOPS-CONSUMER-ROLLOUT)
 
 ## Unreleased — 2026-07-19
