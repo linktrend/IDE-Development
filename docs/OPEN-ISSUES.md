@@ -105,7 +105,7 @@ Branch `issue/GITOPS-01-review-packager-pipeline`. Principal-locked amendment to
 - **Ship = checkpoint only:** commit + push on work branch; no PR; no Bugbot from Ship waves or EOD.
 - **Review Packager:** `linktrend-review-packager.yml` — Tue/Fri **08:00** Asia/Taipei; discover `.linktrend/review-ready.json` where `commitSha == HEAD` → open/ready PR → Bugbot once (`@cursor review` default).
 - **Staging promote:** Tue/Fri **10:00** Asia/Taipei (two hours after Packager); promote only work already on `development`; skip + report if not ready.
-- **Named CI gates:** `core/github/CI-GATE-CONTRACTS.md` (`fast-gate`, `staging-gate`, `release-gate`).
+- **Named CI gates:** `core/github/CI-GATE-CONTRACTS.md` (v3: `development` requires `Linktrend Fast Checks` and `Linktrend Branch Source Policy`; `main` requires `Linktrend Branch Source Policy` and `Linktrend Receipt Gate`; the orchestrator also requires `Verify IDE Development`).
 - **Review-ready contract:** `core/github/REVIEW-READY.md` + `scripts/mark-review-ready.sh`, `validate-review-ready.sh`, `clear-review-ready.sh`.
 - **Managed workflow sync list** includes review-packager; development-to-staging cron `0 2 * * 2,5` UTC.
 - **Doctrine:** `docs/AUTONOMOUS-GIT-OPERATIONS.md` updated; ADR 0003 amendment 2026-07-28.
@@ -161,7 +161,7 @@ Branch `issue/44-add-app-backed-review-ready-publisher-and-produc` (Issue #44). 
 
 **Authoritative docs (this wave):**
 
-- `docs/contracts/AGENT-COMPLETION.md` — fail-closed local gate + App-backed route diagnostics; no readiness file
+- `docs/contracts/AGENT-COMPLETION.md` — v3 worker done (fast checks, push, no pull request, lessons note) and orchestrator acceptance
 - `core/github/REVIEW-READY.md` — publisher authority, dispatch contract, rollback
 - `docs/AUTONOMOUS-GIT-OPERATIONS.md` — Ship/Packager doctrine aligned to App publish path
 - Managed-runtime v2 payloads under `core/github/managed-runtime/` (AGENTS section + gitops bootstrap)

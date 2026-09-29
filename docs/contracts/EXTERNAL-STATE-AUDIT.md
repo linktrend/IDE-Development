@@ -61,7 +61,7 @@ Related contracts:
 
 - Normal automation credential / fail-closed token: `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`
 - Bugbot mention-only: `docs/contracts/BUGBOT-MENTION-ONLY.md`
-- Agent completion / status context: `docs/contracts/AGENT-COMPLETION.md`
+- Agent completion: `docs/contracts/AGENT-COMPLETION.md` (v3 worker done and orchestrator acceptance)
 
 ---
 
