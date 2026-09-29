@@ -31,7 +31,7 @@ Installed managed core: **`.ide-development/`** (versioned package; treat as rea
 ### Lifecycle
 
 - Work on `issue/<n>-<slug>` (or rare `dev/*`) → push checkpoint. The v2 Phase Packager and delivery controller are retired in v3 (IDE-22); see the v3 plan.
-- Promote: `development` → `staging` → `main` via temporary `promote/*` PRs only (controller-owned; main waits for explicit founder approval).
+- Promote: the orchestrator promotes development → main after green CI and independent review.
 
 ### Agent rules
 

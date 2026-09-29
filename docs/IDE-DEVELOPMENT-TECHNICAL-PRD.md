@@ -80,7 +80,7 @@ ConsumerRepo/
 | Runtime | Session-scoped Cursor/Codex | Persistent orchestrator + Program Ledger |
 | Modules | **Six** fixed Modules | **Seven** (`environment_bootstrap` inserted) |
 | Starter Kit | Optional | Mandatory when registry non-empty |
-| Promotion | Principal Release OK at Module 6 | Automatic canary-protected promotion (LAW-06 rewrite) |
+| Promotion | Orchestrator promotes `development` → `main` after green Full CI and an independent exact-head review. Deploy follows the deploy policy. | Automatic canary-protected promotion (LAW-06 rewrite) |
 | Coupling | None at runtime either direction | May *author* using this `.cursor` surface only |
 
 ---
@@ -94,7 +94,7 @@ ConsumerRepo/
 | **core/** | Canonical portable knowledge asset |
 | **.cursor/** | Compatibility / authoring surface in the system repo; physical discovery adapters in consumers |
 | **.ide-development/** | Committed managed core installed inside each consumer |
-| **Program** | Total body of work toward a meaningful outcome; for application builds, drives the fixed six-Module pipeline |
+| **Program** | Total body of work toward a meaningful outcome; for application builds, drives six Modules plus a conditional setup Module |
 | **Module** (application) | One of six fixed lifecycle stages in `APPLICATION-PIPELINE.md` |
 | **Module** (generic) | Major domain area for non-application governed work only |
 | **Phase** | Checkpointed subset of work within a Module |
@@ -103,7 +103,7 @@ ConsumerRepo/
 | **Review** | Independent evaluation of proof + work (`pass` / `fail` / `blocked`) |
 | **Integration** | Incorporation of reviewed work into the active line; required before downstream Issues may depend on it |
 | **PIPELINE-STATE.json** | Durable, repository-resident state machine for an application Program |
-| **Human gate** | Principal approve/reject checkpoint (Module 1 Intent+Technical PRD; Module 6 pre-deploy) |
+| **Human gate** | Principal approve/reject checkpoint (Module 1 Intent+Technical PRD). Merges and releases do not wait for founder approval. GitHub protection changes and live provider mutations still need a recorded approval. |
 | **Hybrid skills** | Vendored gstack (macro) + mattpocock (micro) + local domain skills, routed via `intelligent-routing` |
 | **Route / RouteId** | Named model-routing policy (`default`, `escalation`, …) pinned on a Cursor subagent |
 | **LiNKlibraries** | Canonical shared Component/Template/Asset Library remote |
@@ -120,7 +120,7 @@ ConsumerRepo/
 Intent → Program → Module → Phase → Issue → Proof → Review → Integration → Complete
 ```
 
-### Fixed six-Module application pipeline
+### Application pipeline (six Modules + conditional setup)
 
 Authoritative contract: `core/execution/APPLICATION-PIPELINE.md`.
 
@@ -133,7 +133,7 @@ intake_and_definition
 → shipment
 ```
 
-No application Program may rename, reorder, omit, or insert a seventh top-level Module. Product-specific decomposition belongs inside Modules as Phases and Issues.
+Do not rename, reorder, or omit the six Modules. A conditional `setup` Module runs only for entry mode `from-scratch` (creates the repo, `scripts/setup.sh`, `.cursor/environment.json`, CI, and `development` / `main`). `pick-up-unfinished` and `continue-after-release` skip it and only apply light sanity fixes. Those two modes, and any work started outside the Program, start with an assess-existing-repo step that writes a Ledger (`<PREFIX>-<n>`). Product-specific decomposition belongs inside Modules as Phases and Issues.
 
 #### Module 1 — `intake_and_definition`
 
@@ -157,7 +157,7 @@ Extract candidates → dedup against LiNKlibraries → author/validate → publi
 
 #### Module 6 — `shipment`
 
-Critical verification → SHA256 proof manifest → ship criteria → program-release review → **Principal pre-deploy gate** → terminal `release_ready` or `blocked` (**never deploy from this pipeline**).
+Critical verification → SHA256 proof manifest → ship criteria → program-release review → **deploy policy** → terminal `release_ready` or `blocked`. Reaching `main` starts deploy: automatic when `deploy/target.json` declares the server, or when a post-deploy health check and automatic rollback exist; otherwise the orchestrator waits for Carlos's OK. The file schema is owned by LiNKops. No agent holds server credentials or SSH.
 
 ### Target-repo artifact layout
 
@@ -178,7 +178,7 @@ docs/development/<program-id>/
 
 | Command | Role |
 |---|---|
-| `run-application-pipeline` | Start a fixed six-Module Program |
+| `run-application-pipeline` | Start a Program (six Modules, plus setup when `from-scratch`) |
 | `resume-application-pipeline` | Resume from `PIPELINE-STATE.json` only (no chat memory required) |
 | `plan-program` / `plan-module` / `complete-module` | Artifact-graph planning and recursive Module completion |
 | `execute-issue` / `review-issue` / `integrate-issue` | Issue lifecycle |
@@ -214,7 +214,7 @@ All under `core/execution/` (operative — **not** archived):
 | `CANONICAL-LAWS.md` | 20 durable, tool-independent laws |
 | `MINIMUM-RUNTIME-MODEL.md` | Hierarchy, issue states, dependencies, gates, proof/review/integration/release |
 | `AUTONOMOUS-MODULE-EXECUTION.md` | Recursive Module completion behavior from artifacts alone |
-| `APPLICATION-PIPELINE.md` | Fixed six-Module contract (above) |
+| `APPLICATION-PIPELINE.md` | Six Modules plus conditional setup Module (above) |
 
 ### Issue state model (minimum)
 
@@ -344,9 +344,9 @@ Install: `scripts/install-git-hooks.sh` → sets `core.hooksPath=.githooks`.
 | Workflow | Role |
 |---|---|
 | `ci.yml` | On PR/push to `development`/`staging`/`main`: run `verify-ide-development.sh` + `verify-pipeline-states.sh` |
-| `branch-source-policy.yml` | Enforces allowed PR sources: work branches → `development`; only `development` → `staging`; only `staging` → `main` |
-| `linktrend-development-to-staging.yml` | Tue/Fri 08:00 Asia/Taipei auto `development`→`staging` |
-| `linktrend-staging-to-main.yml` | Mon 08:00 package; merge on Principal Approve dispatch |
+| `branch-source-policy.yml` | Work branches merge to `development`. The orchestrator promotes `development` → `main`. |
+| `linktrend-development-to-staging.yml` | Legacy staging workflow. v3 promotion is `development` → `main` by the orchestrator after green Full CI and independent review. |
+| `linktrend-staging-to-main.yml` | Legacy staging workflow. v3 does not wait for founder approval before `main`. |
 | `linktrend-integrator-merge.yml` | Auto-merge PRs into `development` when checks/reviews allow |
 
 Managed copies live in `core/github/managed-workflows/` and sync via `scripts/sync-managed-workflows.sh` / `wire-repo.sh`. Consumer `ci.yml` is never overwritten by sync.
@@ -355,7 +355,7 @@ Allowed short-lived sources into `development`: `dev/*`, `issue/*`, `feature/*`,
 
 ### Branching doctrine (consumer + this repo)
 
-See `.cursor/rules/01-git-branching.mdc` and `docs/AUTONOMOUS-GIT-OPERATIONS.md`: Bugbot reviews; the delivery controller merges into `development`; the delivery controller auto-promotes `development`→`staging` (Tue/Fri) on receipt identity; Principal Approves `staging`→`main` via Lisa/Telegram (Mon). Module 6 product Release OK remains separate.
+See `.cursor/rules/01-git-branching.mdc` and `docs/AUTONOMOUS-GIT-OPERATIONS.md`: the delivery controller merges into `development` when Full CI is green and one independent review (a different model family than the author) approves the exact head; the orchestrator then promotes `development` → `main`. Deploy follows the Module 6 deploy policy. Workers never open PRs.
 
 ---
 
@@ -385,12 +385,12 @@ Honest gaps (do not treat as “almost done” checkboxes):
 
 1. **Persistent autonomous orchestrator / Program Ledger** — intentionally out of scope here (LiNKdeveloper).
 2. **Telegram / OpenClaw executive routing** — historical Stage 2/3 framing in older manuals is **not** this repo’s roadmap.
-3. **Automatic product promotion / live deploy from Module 6** — Module 6 stops at `release_ready` + Principal gate.
+3. **Founder approval before `main`** — removed in v3. The orchestrator promotes `development` → `main` after green Full CI and independent review. Deploy is automatic with `deploy/target.json`, or with a post-deploy health check and automatic rollback; otherwise Carlos's OK.
 4. **Dedicated Principal web/phone approval UI** — Cursor + terminal/relay only.
 5. **Same-session live verification of all six route model pins** in Cursor Desktop — pins are on disk; runtime parse confirmation still open.
 6. **Embedded legacy factory-folder cleanup in product repos** — deferred until Principal schedules per-repo adoption cleanup (`docs/ARCHIVE-INDEX.md`).
 7. **Dollar-cost accounting dashboard** — not present.
-8. **Mandatory environment bootstrap Module** — deliberately not ported; optional Starter Kit + light git/CI sanity only.
+8. **Setup on every build** — not required. The conditional setup Module runs only for `from-scratch`. Existing repos get light sanity fixes only.
 9. **Claude Code platform support** — explicitly outside current v2 support and roadmap (historical packaging archived under `docs/archive/platform-entrypoints/claude/`).
 10. **Git tag / GitHub Release for v2.1.0** — version is identified in `VERSION`; no tag or release is claimed.
 
@@ -415,7 +415,7 @@ Known past mistake to avoid repeating: earlier audits sometimes claimed hybrid s
 | `core/session/` | Session lifecycle + handoff structure |
 | `core/bootstrap/` | START-HERE, QUICKSTART, session startup/shutdown |
 | `core/workflows/`, `core/checklists/`, `core/prompts/`, `core/agents/` | Workflow, checklist, prompt, and agent-role layers |
-| `core/examples/EXAMPLE-APPLICATION-PIPELINE/` | Fixed six-Module example tree |
+| `core/examples/EXAMPLE-APPLICATION-PIPELINE/` | Six-Module example tree (setup Module is conditional and not in this example) |
 | `core/pilots/` | Operator smoke / pilot artifacts |
 | `core/discovery/`, `core/state/`, `core/system/`, `core/reports/` | Discovery, state, system notes, reports |
 | `.cursor/` | System-repo compatibility runtime (adapters + Cursor rules/MCP) |
@@ -467,7 +467,7 @@ CI invokes the first three families via `ci.yml` with `CI=true` (skips machine-l
 | Six Modules including Living Document / dual PRD | Intent + **single Technical PRD**; Living Document retired |
 | `scripts/verify-stage1.sh` | Renamed/replaced by `scripts/verify-ide-development.sh` |
 | `docs/LINKDEVELOPER-OPERATIONS-MANUAL.md` / `LINKDEVELOPER-STAGE1.md` | Correct names use `IDE-DEVELOPMENT-*` prefix |
-| Module 6 auto-deploys / LAW-06 auto-promotion | Module 6 → `release_ready` + Principal pre-deploy only |
+| Module 6 auto-deploys / LAW-06 auto-promotion | v3: reaching `main` starts deploy per the deploy policy. No founder approval before `main`. |
 | Factory Operations Common Blueprint is live | Archived; product-specific ops belong in product repos |
 | Flat model slugs in route frontmatter | Bracket-param syntax required by Cursor subagent docs |
 | `VERSION` is `v1.2` | `VERSION` is `v2.1.0` (no Git tag/release claimed) |

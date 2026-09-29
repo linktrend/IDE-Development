@@ -14,7 +14,7 @@ Consumer-specific guidance may live **outside** these markers.
 ### Lifecycle
 
 - Work on `issue/<n>-<slug>` (or `dev/*`) → push. The v2 Phase Packager and delivery controller are retired in v3 (IDE-22); see the v3 plan.
-- Promote: `development` → `staging` → `main` via temporary `promote/*` PRs only.
+- Promote: the orchestrator promotes development → main after green CI and independent review.
 
 ### Agent rules
 

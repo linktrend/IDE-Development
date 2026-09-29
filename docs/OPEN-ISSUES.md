@@ -14,7 +14,7 @@ Append-only engineering build log. For “what is true **now**,” prefer [`docs
 
 4. **Persistent autonomous orchestrator in this repo** — deliberately out of scope (belongs to LiNKdeveloper).
 
-5. **Automatic product deploy / LAW-06-style promotion from Module 6** — deliberately not ported; Module 6 ends at `release_ready` + Principal Release OK. **Note (2026-07-24):** Git branch promote (`development`→`staging` auto; `staging`→`main` Principal Telegram Approve) is in scope via ADR 0003 — that is not Module 6 live deploy.
+5. ~~**Automatic product deploy / founder approval before `main`**~~ — **resolved by v3.** No founder approval before `main`. The orchestrator merges into `development` when Full CI is green and one independent review (a different model family than the author) approves the exact head, then promotes `development` → `main`. Reaching `main` starts deploy: automatic when `deploy/target.json` is present, or when a post-deploy health check and automatic rollback exist; otherwise the orchestrator waits for Carlos's OK. The `deploy/target.json` schema is owned by LiNKops. No agent holds server credentials or SSH.
 
 6. **Dollar-cost accounting UI** — not present.
 
