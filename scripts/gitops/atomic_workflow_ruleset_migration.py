@@ -140,9 +140,9 @@ def derive_active_check_contract(
                 "events": ["pull_request:labeled", "workflow_dispatch"],
             },
             "receiptGate": {
-                "workflow": "linktrend-development-to-staging.yml|linktrend-staging-to-main.yml",
+                "workflow": "linktrend-promote-main.yml",
                 "job": RECEIPT_GATE,
-                "events": ["pull_request_target:promotion"],
+                "events": ["pull_request:main"],
             },
         },
         "labels": [dict(FULL_SUITE_LABEL)],

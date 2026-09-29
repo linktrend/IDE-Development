@@ -26,7 +26,9 @@ AGGREGATE_CONTEXT_DEFAULT = "Linktrend Full Suite"
 SOURCE_POLICY_CONTEXT = "Linktrend Branch Source Policy"
 FAST_CONTEXT = "Linktrend Fast Checks"
 FULL_CONTEXT = "Linktrend Full Suite"
-RECEIPT_CONTEXT = "Linktrend Receipt Gate"
+# v3 main promotion check (.github/workflows/linktrend-promote-main.yml). The
+# name is legacy and no receipt is involved; the live main ruleset requires it.
+MAIN_PROMOTION_CONTEXT = "Linktrend Receipt Gate"
 VERIFY_CONTEXT = "Verify IDE Development"
 STALE_CONTEXTS = frozenset(
     {
@@ -131,7 +133,7 @@ def default_contract() -> dict[str, Any]:
                 "commands": [],
                 "requiredCheckContexts": [
                     SOURCE_POLICY_CONTEXT,
-                    RECEIPT_CONTEXT,
+                    MAIN_PROMOTION_CONTEXT,
                 ],
             },
             "trusted-governance": {
@@ -202,6 +204,8 @@ def validate_contract(contract: Mapping[str, Any]) -> dict[str, Any]:
         stale = sorted(set(normalized) & STALE_CONTEXTS)
         if stale:
             raise ContractError("contract_context_stale", f"{name}:{','.join(stale)}")
+        if name == PROFILE_PROMOTION and MAIN_PROMOTION_CONTEXT not in normalized:
+            raise ContractError("contract_promotion_check_missing", MAIN_PROMOTION_CONTEXT)
     components = contract.get("coverageComponents")
     if not isinstance(components, list) or not components:
         raise ContractError("contract_coverage_missing")

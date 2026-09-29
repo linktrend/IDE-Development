@@ -133,7 +133,11 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
         self.assertEqual(self.contract["aggregateContext"], "Linktrend Full Suite")
         self.assertEqual(
             self.contract["profiles"]["promotion"]["requiredCheckContexts"],
-            ["Linktrend Branch Source Policy"],
+            ["Linktrend Branch Source Policy", "Linktrend Receipt Gate"],
+        )
+        self.assertEqual(
+            default_contract()["profiles"]["promotion"]["requiredCheckContexts"],
+            ["Linktrend Branch Source Policy", "Linktrend Receipt Gate"],
         )
         self.assertEqual(
             self.contract["profiles"]["trusted-governance"]["requiredCheckContexts"],
@@ -143,6 +147,10 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
         stale["aggregateContext"] = "Linktrend Repository CI Gate"
         with self.assertRaisesRegex(ContractError, "contract_aggregate_stale"):
             validate_contract(stale)
+        no_promotion_check = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+        no_promotion_check["profiles"]["promotion"]["requiredCheckContexts"] = ["Linktrend Branch Source Policy"]
+        with self.assertRaisesRegex(ContractError, "contract_promotion_check_missing"):
+            validate_contract(no_promotion_check)
 
     def test_expensive_fanout_requires_capacity_and_rejects_duplicates(self) -> None:
         head = _head(7)
