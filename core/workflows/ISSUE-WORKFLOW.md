@@ -17,7 +17,7 @@ This workflow governs:
 
 - `ISSUE.md`
 - `PROOF.md`
-- issue state transitions up to `review_ready`
+- issue state transitions up to `in_review`
 
 It does not perform final review or final integration.
 
@@ -48,7 +48,7 @@ Required artifacts:
 3. Execute within declared scope.
 4. Record outputs, observations, and failures.
 5. Produce or update `PROOF.md`.
-6. Move the issue to `review_ready` when proof is sufficient for review.
+6. Move the issue to `in_review` when proof is sufficient for review.
 
 ## Output Contract
 
@@ -56,7 +56,7 @@ Required outputs:
 
 - executed work or explicit blocker trail
 - proof artifact with evidence mapped to criteria
-- issue state moved to `review_ready` or `blocked`
+- issue state moved to `in_review` or `blocked`
 
 ## Exit Conditions
 
@@ -64,7 +64,7 @@ The workflow exits successfully when:
 
 - proof exists
 - the issue is reviewable
-- the issue has reached `review_ready`
+- the issue has reached `in_review`
 
 The workflow exits unsuccessfully when:
 

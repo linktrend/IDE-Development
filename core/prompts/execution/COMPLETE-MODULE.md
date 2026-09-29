@@ -56,7 +56,7 @@ node .cursor/runtime/validate-application-pipeline.mjs --state <PIPELINE-STATE.j
 ## Must Not Skip
 
 - readiness computation
-- `review_ready` before `done`
+- `in_review` before `done`
 - independent review
 - integration after passing review
 - downstream readiness recomputation

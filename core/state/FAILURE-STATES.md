@@ -29,7 +29,7 @@ Failure appears as:
 Failure appears as:
 
 - `blocked`
-- return from `review_ready` to `in_progress`
+- return from `in_review` to `in_progress`
 
 ### Proof
 

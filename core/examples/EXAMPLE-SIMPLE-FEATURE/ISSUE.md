@@ -48,7 +48,7 @@ optional_fields:
   priority: "medium"
   estimated_effort: "small"
   notes:
-    - "state path used in this example: draft -> planned -> ready -> in_progress -> review_ready -> done"
+    - "state path used in this example: planned -> ready -> in_progress -> in_review -> done"
 ---
 
 # Issue
@@ -86,7 +86,7 @@ The issue must prove that one atomic feature slice can move through execution, p
 ## Acceptance Criteria
 
 - the issue is shown as `ready` because it has no dependencies
-- execution moves to `review_ready` only after proof exists
+- execution moves to `in_review` only after proof exists
 - integration happens only after passing review
 
 ## Dependency Notes
@@ -113,18 +113,18 @@ There are no issue dependencies. Readiness is immediate after planning because s
 
 ## State Semantics
 
-- `draft`: not executable yet
 - `planned`: defined but not ready
 - `blocked`: cannot proceed because a dependency, gate, or decision is unresolved
 - `ready`: dependencies and gates are satisfied
 - `in_progress`: active execution is underway
-- `review_ready`: execution and proof are complete enough for mandatory independent review
+- `in_review`: execution and proof are complete enough for mandatory independent review
 - `done`: proof, review, and integration are complete
+- `cancelled`: withdrawn before `done`; terminal
 
 ## Gate Guidance
 
 - readiness depends on satisfied dependencies and no unresolved blockers
-- issues must pass through `review_ready`; they must not jump directly from `in_progress` to `done`
+- issues must pass through `in_review`; they must not jump directly from `in_progress` to `done`
 - proof must exist before review
 - review must pass before integration
 - integration must complete before downstream issues may rely on this issue

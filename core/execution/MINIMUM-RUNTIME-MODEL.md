@@ -21,7 +21,7 @@ Minimum issue states:
 - `blocked`
 - `ready`
 - `in_progress`
-- `review_ready`
+- `in_review`
 - `done`
 
 `ready` is computed from satisfied dependencies and unmet blockers. `done` requires proof, review, and integration.

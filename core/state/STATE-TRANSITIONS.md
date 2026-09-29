@@ -35,8 +35,8 @@ Allowed:
 - `planned -> active`
 - `active -> blocked`
 - `blocked -> active`
-- `active -> review_ready`
-- `review_ready -> complete`
+- `active -> in_review`
+- `in_review -> complete`
 
 Invalid:
 
@@ -48,26 +48,28 @@ Invalid:
 
 Allowed:
 
-- `draft -> planned`
 - `planned -> ready`
 - `ready -> in_progress`
-- `in_progress -> review_ready`
-- `review_ready -> done`
-- `draft -> blocked`
+- `in_progress -> in_review`
+- `in_review -> done`
 - `planned -> blocked`
 - `ready -> blocked`
 - `in_progress -> blocked`
-- `review_ready -> blocked`
+- `in_review -> blocked`
 - `blocked -> planned`
 - `blocked -> ready`
-- `review_ready -> in_progress`
+- `in_review -> in_progress`
+- any non-`done` state `-> cancelled`
+
+Issue states match the Ledger. `in_review` in older state files is read as
+`in_review` and never written.
 
 Invalid:
 
 - `planned -> done`
 - `ready -> done`
 - `in_progress -> done`
-- any transition that bypasses `review_ready`
+- any transition that bypasses `in_review`
 
 ## Proof Transitions
 
