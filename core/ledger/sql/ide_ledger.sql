@@ -28,6 +28,9 @@ begin
   end if;
 end
 $$;
+-- Normalise a pre-existing role too; ide_ledger.verify.sql rejects any other posture
+-- (elevated attributes or membership in other roles are not silently repaired).
+alter role ide_ledger_orchestrator nologin noinherit;
 
 -- ---------------------------------------------------------------------------
 -- Tables

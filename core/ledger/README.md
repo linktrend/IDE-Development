@@ -31,7 +31,7 @@ database by hand.
 
 - All tables have RLS enabled with no policies and no grants.
 - Every function is `SECURITY DEFINER` with `search_path = ''`.
-- `ide_ledger_orchestrator` (created `NOLOGIN`) has `USAGE` on the schema and `EXECUTE` on the public RPCs only. Functions whose names start with `_` are internal.
+- `ide_ledger_orchestrator` is `NOLOGIN NOINHERIT`, also re-applied to a pre-existing role. Verification rejects `LOGIN`, `INHERIT`, any elevated attribute (superuser, createrole, createdb, replication, bypassrls) and membership in other roles. It has `USAGE` on the schema and `EXECUTE` on the public RPCs only. Functions whose names start with `_` are internal.
 - The login credential is created by the Platform migration flow (for example a login role granted membership in `ide_ledger_orchestrator`) and handed to the orchestrator as a Cursor runtime secret. No password lives in this repo. Workers never get it.
 
 ## RPCs

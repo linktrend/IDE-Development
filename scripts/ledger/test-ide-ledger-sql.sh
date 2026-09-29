@@ -56,4 +56,22 @@ run_psql -At -f "$SQL_DIR/tests/ide_ledger_behaviour.sql"
 run_psql -f "$SQL_DIR/sql/ide_ledger.sql"
 run_psql -At -f "$SQL_DIR/sql/ide_ledger.verify.sql"
 
-echo "PASS: ide_ledger SQL applied twice, verified, behaviour tested, re-applied on data"
+# Role posture: verification must reject each violation; re-applying normalises LOGIN/INHERIT.
+expect_verify_failure() {
+  local label="$1" setup="$2" undo="$3"
+  run_psql -c "$setup"
+  if run_psql -At -f "$SQL_DIR/sql/ide_ledger.verify.sql" >/dev/null 2>&1; then
+    echo "FAIL: verify accepted role posture violation: $label" >&2
+    exit 1
+  fi
+  [ -z "$undo" ] || run_psql -c "$undo"
+}
+expect_verify_failure "LOGIN" "alter role ide_ledger_orchestrator login" ""
+run_psql -f "$SQL_DIR/sql/ide_ledger.sql"
+expect_verify_failure "INHERIT" "alter role ide_ledger_orchestrator inherit" ""
+run_psql -f "$SQL_DIR/sql/ide_ledger.sql"
+expect_verify_failure "CREATEDB" "alter role ide_ledger_orchestrator createdb" "alter role ide_ledger_orchestrator nocreatedb"
+expect_verify_failure "membership" "grant pg_read_all_data to ide_ledger_orchestrator" "revoke pg_read_all_data from ide_ledger_orchestrator"
+run_psql -At -f "$SQL_DIR/sql/ide_ledger.verify.sql"
+
+echo "PASS: ide_ledger SQL applied twice, verified, behaviour tested, re-applied on data, role posture enforced"

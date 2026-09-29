@@ -22,6 +22,23 @@ begin
     raise exception 'ide_ledger_orchestrator has elevated attributes';
   end if;
 
+  if exists (select 1 from pg_roles where rolname = 'ide_ledger_orchestrator' and rolcanlogin) then
+    raise exception 'ide_ledger_orchestrator must be NOLOGIN (logins are separate roles granted membership)';
+  end if;
+
+  if exists (select 1 from pg_roles where rolname = 'ide_ledger_orchestrator' and rolinherit) then
+    raise exception 'ide_ledger_orchestrator must be NOINHERIT';
+  end if;
+
+  select string_agg(g.rolname, ', ') into v_bad
+  from pg_auth_members m
+  join pg_roles r on r.oid = m.member
+  join pg_roles g on g.oid = m.roleid
+  where r.rolname = 'ide_ledger_orchestrator';
+  if v_bad is not null then
+    raise exception 'ide_ledger_orchestrator must not be a member of other roles: %', v_bad;
+  end if;
+
   select string_agg(c.relname, ', ') into v_bad
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'ide_ledger' and c.relkind = 'r' and not c.relrowsecurity;
