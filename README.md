@@ -114,6 +114,6 @@ Protection of `development` and `main` remains required for every installed repo
 
 ## Status
 
-**Version `v3.0.0`.** Wave 0 of the v3 pilot is done. Wave 1 (this documentation and identity pass, and the rest of the v3 cutover) is in progress. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
+**Version `v3.0.0`.** Wave 0 of the v3 pilot is done. Wave 1 content is complete and waits for merge to `development` and promotion to `main`. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
 
 Automated system verification: `scripts/verify-ide-development.sh`.

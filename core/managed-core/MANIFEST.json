@@ -1996,7 +1996,7 @@
       "id": "core-migrations-readme-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/migrations/README.md",
-      "sourceHash": "sha256:a3a6d9f8ae54a7c236dd3f63295267476ff8ad20df5ab8816924d1263ab00f54",
+      "sourceHash": "sha256:2ac3f470a9fd7503ac8fc9d97c6759b8ad9e84376473166f3ad264fd8c0bbea9",
       "destination": ".ide-development/migrations/README.md",
       "mode": "0644",
       "platform": "all",
