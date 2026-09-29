@@ -81,6 +81,7 @@ LIFECYCLE_CURSOR_RULES = (
     "02-autonomous-ship-pull.mdc",
     "03-secrets-security.mdc",
     "05-security-cost-and-side-effects.mdc",
+    "07-orchestrator-helper-routing.mdc",
 )
 
 REQUIRED_RUNTIME_PACKAGE_SOURCES = (
