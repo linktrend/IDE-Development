@@ -652,9 +652,10 @@ def build_plan(
         )
 
     if prior is not None:
-        remove_paths = {a.path for a in plan.actions if a.op == OpKind.REMOVE}
+        # Migration targets were already judged above by exact identity.
+        migration_paths = {mig.path for mig in migration.entries}
         for rel, file_state in sorted(prior.files.items()):
-            if rel in managed_paths or rel in remove_paths:
+            if rel in managed_paths or rel in migration_paths:
                 continue
             if is_under_any(rel, migrate_ancestors):
                 # Prior state under migrating symlink cannot be probed safely.
