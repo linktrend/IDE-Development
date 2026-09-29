@@ -63,7 +63,11 @@ checks. The default is `clean` only.
 python3 scripts/orchestrator/promote_main.py --push      # default: origin/development head
 ```
 
-It requires `Verify IDE Development` success on the development SHA, creates
+It requires `Verify IDE Development` success on the development SHA. That SHA
+must be within the last 200 first-parent commits of `origin/development`
+(`git_local.DEVELOPMENT_FIRST_PARENT_WINDOW`, the same window
+`promotion_check.py` uses). A commit that is only reachable through a merge
+parent is rejected. It creates
 `promote/main/<12-char sha>` from it and merges `origin/main` in (normal merge),
 so the PR is conflict-free and its tree equals the development SHA's tree. Open
 the PR into `main` with the printed `prTitle` / `prBody` and merge it with a
@@ -80,7 +84,8 @@ and `Linktrend Receipt Gate`. The last one is produced by
 `.github/workflows/linktrend-promote-main.yml`, which runs
 `scripts/orchestrator/promotion_check.py` from `development` on every PR into
 `main`: the head must be `promote/main/*` from this repo, its tree must equal a
-commit among the last 200 first-parent commits of `development`, and
+commit among the last 200 first-parent commits of `development` (the same
+`DEVELOPMENT_FIRST_PARENT_WINDOW` `promote_main.py` accepts), and
 `Verify IDE Development` must have succeeded on that commit.
 
 The name is **legacy**: no receipt is involved. It stays because the live `main`

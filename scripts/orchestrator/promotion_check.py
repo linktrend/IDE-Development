@@ -5,8 +5,9 @@ The context name is legacy: the live ``main`` ruleset requires it. No receipt is
 involved. A PR into ``main`` passes only when
 
   (a) its head branch matches ``promote/main/*`` in the base repository (not a fork);
-  (b) some commit D among the last 200 first-parent commits of
-      ``<remote>/development`` has exactly the head's tree; and
+  (b) some commit D among the first-parent commits of ``<remote>/development``
+      inside ``git_local.DEVELOPMENT_FIRST_PARENT_WINDOW`` (the same window
+      ``promote_main.py`` accepts) has exactly the head's tree; and
   (c) ``Verify IDE Development`` concluded success on D.
 
 Inputs (flags override env): ``--head-sha`` / ``PR_HEAD_SHA``, ``--head-ref`` /
@@ -36,16 +37,16 @@ from github_api import GitHubApiError  # noqa: E402
 CONTEXT = "Linktrend Receipt Gate"
 REQUIRED_CHECK = "Verify IDE Development"
 PROMOTE_BRANCH_RE = re.compile(r"^promote/main/[A-Za-z0-9][A-Za-z0-9._-]*$")
-SEARCH_DEPTH = 200
+SEARCH_DEPTH = git_local.DEVELOPMENT_FIRST_PARENT_WINDOW
 
 
 def tree_matches(dev_ref: str, head_tree: str, git_dir: str, depth: int) -> list[str]:
     """Development first-parent commits (newest first) whose tree equals ``head_tree``."""
-    git_local.validate_ref_syntax(dev_ref)
-    if isinstance(depth, bool) or not isinstance(depth, int) or depth < 1:
-        raise GitError("bad_depth", "depth must be a positive integer", depth=depth)
-    log = git_local.out(["log", "--first-parent", f"-n{depth}", "--format=%H %T", dev_ref], git_dir)
-    return [line.split()[0] for line in log.splitlines() if line.split()[1:] == [head_tree]]
+    return [
+        commit
+        for commit, tree in git_local.first_parent_commits(dev_ref, git_dir, depth)
+        if tree == head_tree
+    ]
 
 
 def check(
@@ -125,7 +126,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--head-fork", default=env.get("PR_HEAD_FORK", "false"), choices=("true", "false"))
     p.add_argument("--git-dir", default=".")
     p.add_argument("--remote", default="origin")
-    p.add_argument("--depth", type=int, default=SEARCH_DEPTH)
+    p.add_argument("--depth", type=int, default=git_local.DEVELOPMENT_FIRST_PARENT_WINDOW)
     p.add_argument("--required-check", default=REQUIRED_CHECK)
     return p
 

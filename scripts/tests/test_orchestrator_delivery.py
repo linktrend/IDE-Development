@@ -256,6 +256,31 @@ class PromoteMainTests(unittest.TestCase):
         self.assertIn("missing from development", out["reason"])
         self.assertFalse(out["pushed"])
 
+    def test_second_parent_ancestor_is_not_on_development(self) -> None:
+        dev = self.fx.branch("development", self.main0, {"feature.txt": "v1\n"})
+        side = self.fx.branch("side", self.main0, {"side.txt": "only side\n"})
+        git(self.fx.seed, "checkout", "-q", "-B", "development", dev)
+        git(self.fx.seed, "merge", "-q", "--no-ff", "-m", "merge side", side)
+        git(self.fx.seed, "push", "-q", "origin", "development:refs/heads/development")
+        tip = self.fx.remote_sha("development")
+        code, out = self._promote(FakeApi(green(side)), "--sha", side)
+        self.assertEqual(code, 2)
+        self.assertEqual(out["error"], "not_on_development")
+        self.assertIn("first-parent", out["message"])
+        code, out = self._promote(FakeApi(green(tip)))
+        self.assertEqual(code, 0, out)
+
+    def test_sha_outside_first_parent_window_is_rejected(self) -> None:
+        older = self.fx.branch("development", self.main0, {"feature.txt": "v1\n"})
+        tip = self.fx.branch("development", older, {"feature.txt": "v2\n"})
+        with mock.patch.object(git_local, "DEVELOPMENT_FIRST_PARENT_WINDOW", 1):
+            code, out = self._promote(FakeApi(green(older)), "--sha", older)
+        self.assertEqual(code, 2)
+        self.assertEqual(out["error"], "not_on_development")
+        self.assertIn("last 1 first-parent", out["message"])
+        code, out = self._promote(FakeApi(green(tip)), "--sha", tip)
+        self.assertEqual(code, 0, out)
+
     def test_red_development_sha_exits_1(self) -> None:
         dev = self.fx.branch("development", self.main0, {"feature.txt": "v1\n"})
         code, out = self._promote(FakeApi({dev: [run("Verify IDE Development", "failure")]}))

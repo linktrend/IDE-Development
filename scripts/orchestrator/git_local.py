@@ -16,6 +16,8 @@ from contextlib import contextmanager
 from typing import Any, Iterator, Sequence
 
 REMOTE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+# Shared by promote_main.py and promotion_check.py. Do not duplicate this window.
+DEVELOPMENT_FIRST_PARENT_WINDOW = 200
 
 GIT_ENV_ALLOW = (
     "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LANGUAGE", "TZ", "TMPDIR", "TERM",
@@ -90,6 +92,20 @@ def require_branch(name: str, git_dir: str) -> str:
     if run(["check-ref-format", "--branch", name], git_dir, check=False).returncode != 0:
         raise GitError("bad_ref", "git check-ref-format rejected the branch", ref=name)
     return name
+
+
+def first_parent_commits(ref: str, git_dir: str, depth: int = DEVELOPMENT_FIRST_PARENT_WINDOW) -> list[tuple[str, str]]:
+    """Newest-first ``(sha, tree)`` pairs on the first-parent history of ``ref``."""
+    validate_ref_syntax(ref)
+    if isinstance(depth, bool) or not isinstance(depth, int) or depth < 1:
+        raise GitError("bad_depth", "depth must be a positive integer", depth=depth)
+    log = out(["log", "--first-parent", f"-n{depth}", "--format=%H %T", ref], git_dir)
+    rows: list[tuple[str, str]] = []
+    for line in log.splitlines():
+        parts = line.split()
+        if len(parts) == 2:
+            rows.append((parts[0], parts[1]))
+    return rows
 
 
 def rev(ref: str, git_dir: str) -> str | None:

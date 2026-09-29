@@ -3,8 +3,10 @@
 
     promote_main.py [--sha <development sha>] [--push] [--repo owner/name] [--git-dir .]
 
-The SHA (default: ``<remote>/development`` head) must be on ``development`` and
-``Verify IDE Development`` must have concluded success on it. The branch starts
+The SHA (default: ``<remote>/development`` head) must sit on the first-parent
+history of ``development`` within ``git_local.DEVELOPMENT_FIRST_PARENT_WINDOW``
+(the same window ``promotion_check.py`` searches) and ``Verify IDE Development``
+must have concluded success on it. The branch starts
 at that SHA and gets a normal merge of ``<remote>/main`` (no strategy options), so
 the PR into ``main`` is conflict-free. Its tree must equal the development SHA's
 tree: if it does not, ``main`` carries changes that are missing from
@@ -83,8 +85,14 @@ def promote(
     dev_sha = git_local.rev(sha, git_dir) if sha else dev_head
     if not dev_sha:
         raise GitError("missing_ref", f"commit {sha} not found", sha=sha)
-    if not git_local.is_ancestor(dev_sha, dev_head, git_dir):
-        raise GitError("not_on_development", f"{dev_sha} is not on {remote}/{DEVELOPMENT}", sha=dev_sha)
+    window = git_local.DEVELOPMENT_FIRST_PARENT_WINDOW
+    history = [commit for commit, _tree in git_local.first_parent_commits(f"{remote}/{DEVELOPMENT}", git_dir, window)]
+    if dev_sha not in history:
+        raise GitError(
+            "not_on_development",
+            f"{dev_sha} is not within the last {window} first-parent commits of {remote}/{DEVELOPMENT}",
+            sha=dev_sha,
+        )
     if not repo:
         repo = github_api.repo_from_remote_url(git_local.out(["remote", "get-url", "--", remote], git_dir))
         if not repo:
