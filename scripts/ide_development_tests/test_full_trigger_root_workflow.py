@@ -178,7 +178,9 @@ class FullTriggerRootWorkflowInstallTests(TempRepoTestCase):
         os.chmod(live, 0o644)
         live.write_text(STALE_WORKFLOW, encoding="utf-8")
         os.chmod(live, 0o644)
-        (self.target / ".ide-development" / "installed-state.json").unlink()
+        installed_state = self.target / ".ide-development" / "installed-state.json"
+        os.chmod(installed_state, stat.S_IWRITE | stat.S_IREAD)
+        installed_state.unlink()
         result = run_install_or_update(
             target=self.target, package=self.package, command="install", dry_run=False
         )
