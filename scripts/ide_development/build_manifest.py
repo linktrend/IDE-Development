@@ -135,6 +135,7 @@ CONTENT_DOCTRINE = (
     ),
     ("docs/contracts/REPOSITORY-CI-TRIGGER.md", "content/doctrine/REPOSITORY-CI-TRIGGER.md"),
     ("docs/contracts/ATOMIC-WORKFLOW-RULESET-MIGRATION.md", "content/doctrine/ATOMIC-WORKFLOW-RULESET-MIGRATION.md"),
+    ("docs/contracts/DEPLOY-CALLER.md", "content/doctrine/DEPLOY-CALLER.md"),
     ("docs/adr/0003-autonomous-ship-pull-promote.md", "content/doctrine/0003-autonomous-ship-pull-promote.md"),
     ("docs/adr/0004-portable-managed-core-v2.md", "content/doctrine/0004-portable-managed-core-v2.md"),
     ("docs/adr/0005-streamlined-delivery-coordinator.md", "content/doctrine/0005-streamlined-delivery-coordinator.md"),

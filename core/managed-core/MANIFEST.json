@@ -1510,6 +1510,17 @@
       "mergeStrategy": "replace"
     },
     {
+      "id": "doctrine-deploy-caller-md",
+      "ownershipClass": "managed-core",
+      "source": "core/managed-core/content/doctrine/DEPLOY-CALLER.md",
+      "sourceHash": "sha256:d44761ce6a0a25da87576650072130bdd3e2f2cdeb82d947f4c6a1f32567348e",
+      "destination": ".ide-development/content/doctrine/DEPLOY-CALLER.md",
+      "mode": "0644",
+      "platform": "all",
+      "os": "all",
+      "mergeStrategy": "replace"
+    },
+    {
       "id": "doctrine-generated-output-closure-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/GENERATED-OUTPUT-CLOSURE.md",
@@ -4555,7 +4566,7 @@
       "id": "installer-scripts-ide-development-build-manifest-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/build_manifest.py",
-      "sourceHash": "sha256:e4039401920e4e35f8bb874e76c2b180548a6c8722c6c23a5b53221bfde2153f",
+      "sourceHash": "sha256:c9cebcc8b882919dc5df884bf92cc4b6b8d31f7a7c050d850fa094da3c9b1cf3",
       "destination": "scripts/ide_development/build_manifest.py",
       "mode": "0644",
       "platform": "all",
