@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,7 +24,13 @@ from .managed_write_guard import (
 from .io_atomic import atomic_write_bytes, copy_file_physical, read_file_bytes, remove_file
 from .lock import exclusive_transaction_lock
 from .manifest import Manifest, ManifestEntry
-from .paths import encode_backup_name, git_meta_dir, join_under, join_under_nofollow, path_is_symlink
+from .paths import (
+    encode_backup_name,
+    git_meta_dir,
+    join_under,
+    join_under_nofollow,
+    path_is_symlink,
+)
 from .plan import OpKind, Plan, PlanAction
 from .resolution import UpgradeResolution
 from .state import (
@@ -826,6 +833,63 @@ def _apply_plan_unlocked(
     }
 
 
+def _journal_records_first_install(journal: dict[str, Any]) -> bool:
+    """True when this transaction created installed state (it did not exist before)."""
+    if journal.get("priorInstalledState") is not None:
+        return False
+    backups = journal.get("backups")
+    if not isinstance(backups, list):
+        return False
+    state_path = str(INSTALLED_STATE_REL)
+    saw_state_record = False
+    for record in backups:
+        if not isinstance(record, dict) or record.get("path") != state_path:
+            continue
+        saw_state_record = True
+        if record.get("existed") is not False:
+            return False
+    return saw_state_record
+
+
+def _no_managed_files_remain(target_root: Path) -> bool:
+    """True when ``.ide-development`` has no files and no symlinks at any depth.
+
+    Empty directories are allowed. The directory itself may be absent. A symlink
+    at the managed root, any file, any symlink, or any OSError is not absence.
+    This walks the tree on disk and does not consult the transaction journal.
+    """
+    managed = target_root / MANAGED_CORE_DIR
+    try:
+        try:
+            info = managed.lstat()
+        except FileNotFoundError:
+            return True
+        if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+            return False
+        saw_error = False
+
+        def _onerror(exc: OSError) -> None:
+            nonlocal saw_error
+            saw_error = True
+
+        for dirpath, dirnames, filenames in os.walk(managed, followlinks=False, onerror=_onerror):
+            if saw_error or filenames:
+                return False
+            parent = Path(dirpath)
+            for name in dirnames:
+                child = parent / name
+                try:
+                    if child.is_symlink():
+                        return False
+                except OSError:
+                    return False
+        if saw_error:
+            return False
+    except OSError:
+        return False
+    return True
+
+
 def rollback_last(target_root: Path) -> dict[str, Any]:
     """Restore exact pre-change bytes/modes from the last completed transaction."""
     with exclusive_transaction_lock(target_root):
@@ -873,7 +937,16 @@ def rollback_last(target_root: Path) -> dict[str, Any]:
             finalize_read_only=True,
         ) as lease:
             result = _rollback_last_unlocked(target_root, lease=lease)
-        prove_read_only_state(target_root)
+        # The read-only proof is vacuously true only when the journal claims a
+        # first install and the managed tree on disk has no files or symlinks
+        # left. Any file that remains, including one the journal never listed,
+        # still fails closed.
+        if not (
+            load_installed_state(target_root) is None
+            and _journal_records_first_install(journal)
+            and _no_managed_files_remain(target_root)
+        ):
+            prove_read_only_state(target_root)
         return result
 
 
