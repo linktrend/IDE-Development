@@ -145,6 +145,7 @@ chmod +x "$TMP/bin/gh"
   git update-ref refs/remotes/origin/development HEAD
 )
 export PATH="$TMP/bin:$PATH"
+export GH_REPO="owner/repo"
 if python3 "$ROOT/scripts/gitops/create_issue_branch.py" --workdir "$TMP/repo" "Should Fail" 2>"$TMP/noid.err"; then
   fail "create_issue_branch should fail without a Ledger ID"
 fi
