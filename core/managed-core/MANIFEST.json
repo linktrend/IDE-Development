@@ -2030,7 +2030,7 @@
       "id": "core-migrations-catalog-json",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/migrations/catalog.json",
-      "sourceHash": "sha256:11841e01804ca8a847220abece5c600875ddd43b7cd763327409d28ad7f7ae09",
+      "sourceHash": "sha256:b5921b8ace64435312d8727b53a1cdf51068979bb4cbec7dd95991c8b14cccf5",
       "destination": ".ide-development/migrations/catalog.json",
       "mode": "0644",
       "platform": "all",
