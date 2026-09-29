@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Pin LiNKskills-owned skills into IDE Development.
 
-Stdlib only. ``--write`` shallow-fetches one commit over git (https or a local
-path) and replaces each ``authority: linkskills`` skill with that tree's
-``skills/<id>/`` bytes. ``--check`` stays offline and compares those bytes to
-the lock's per-file sha256 records.
+Stdlib only. ``--write`` shallow-fetches one commit over git (https GitHub
+URL, or a local git directory only with ``--allow-local-repo``) and replaces
+each ``authority: linkskills`` skill with that tree's ``skills/<id>/`` bytes.
+``--check`` stays offline and compares those bytes to the lock's per-file
+sha256 records.
 
 Local edits to synced skills are not allowed. Skills that are not
 ``authority: linkskills`` are left unchanged.
@@ -16,6 +17,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -40,7 +42,10 @@ OPTIONAL_MIRROR_ROOTS = (
     "core/managed-core/platforms/codex/skills",
 )
 SHA_RE = r"^[0-9a-f]{40}$"
-SKILL_ID_RE = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+SKILL_ID_RE = r"^[a-z0-9][a-z0-9-]*$"
+GITHUB_REPO_RE = re.compile(
+    r"^https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+(?:\.git)?$"
+)
 
 
 class SyncError(Exception):
@@ -51,9 +56,40 @@ def _sha256(data: bytes) -> str:
     return "sha256:" + hashlib.sha256(data).hexdigest()
 
 
-def _run_git(args: list[str], *, cwd: Path | None = None) -> str:
+def _git_base(*, allow_local: bool) -> list[str]:
+    cmd = [
+        "git",
+        "-c",
+        "protocol.allow=never",
+        "-c",
+        "protocol.https.allow=always",
+    ]
+    if allow_local:
+        cmd.extend(["-c", "protocol.file.allow=always"])
+    return cmd
+
+
+def git_fetch_command(repo: str, commit: str, dest: Path, *, allow_local: bool) -> list[str]:
+    """Argv for the pin fetch. Validates ``repo`` before any git process starts."""
+    _validate_repo(repo, allow_local=allow_local)
+    _validate_commit(commit)
+    return [
+        *_git_base(allow_local=allow_local),
+        "-C",
+        str(dest),
+        "fetch",
+        "--depth",
+        "1",
+        "--",
+        repo,
+        commit,
+    ]
+
+
+def _run_git(args: list[str], *, allow_local: bool, cwd: Path | None = None) -> str:
+    cmd = [*_git_base(allow_local=allow_local), *args]
     completed = subprocess.run(
-        ["git", *args],
+        cmd,
         cwd=cwd,
         check=False,
         capture_output=True,
@@ -61,7 +97,8 @@ def _run_git(args: list[str], *, cwd: Path | None = None) -> str:
     )
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout or "").strip()
-        raise SyncError(f"git {' '.join(args)} failed: {detail}")
+        shown = " ".join(args)
+        raise SyncError(f"git {shown} failed: {detail}")
     return completed.stdout.strip()
 
 
@@ -126,10 +163,32 @@ def _parse_skills(raw: str | None, default: list[str]) -> list[str]:
     return ids
 
 
-def _validate_skill_id(skill_id: str, allowed: set[str]) -> None:
-    import re
+def _validate_skill_id_format(skill_id: str) -> None:
+    if not re.fullmatch(SKILL_ID_RE, skill_id):
+        raise SyncError(f"invalid skill id: {skill_id}")
 
-    if not re.fullmatch(SKILL_ID_RE, skill_id) or skill_id not in allowed:
+
+def _validate_commit(commit: str) -> str:
+    lowered = commit.lower()
+    if not re.fullmatch(SHA_RE, lowered):
+        raise SyncError(f"commit must be a 40-character sha: {commit}")
+    return lowered
+
+
+def _validate_repo(repo: str, *, allow_local: bool) -> None:
+    if GITHUB_REPO_RE.fullmatch(repo):
+        return
+    if allow_local:
+        path = Path(repo)
+        git_meta = path / ".git"
+        if path.is_absolute() and path.is_dir() and git_meta.exists() and not git_meta.is_symlink():
+            return
+    raise SyncError(f"refusing repo: {repo}")
+
+
+def _validate_skill_id(skill_id: str, allowed: set[str]) -> None:
+    _validate_skill_id_format(skill_id)
+    if skill_id not in allowed:
         raise SyncError(f"unknown skill: {skill_id}")
 
 
@@ -238,21 +297,37 @@ def _mirror_dirs(root: Path, skill_id: str, *, create_required: bool) -> list[Pa
     return [path for path in unique if path.exists() or path.parent.exists()]
 
 
-def _fetch_pin(repo: str, commit: str) -> tuple[tempfile.TemporaryDirectory[str], Path, str]:
-    import re
-
-    if not re.fullmatch(SHA_RE, commit):
-        raise SyncError(f"commit must be a 40-character sha: {commit}")
+def _fetch_pin(
+    repo: str, commit: str, *, allow_local: bool
+) -> tuple[tempfile.TemporaryDirectory[str], Path, str]:
+    # Reject unsafe repo/commit values before any git invocation.
+    _validate_repo(repo, allow_local=allow_local)
+    _validate_commit(commit)
     temp = tempfile.TemporaryDirectory(prefix="linkskills-pin-")
     dest = Path(temp.name)
     try:
-        _run_git(["init", "-q", str(dest)])
-        _run_git(["-C", str(dest), "fetch", "--depth", "1", repo, commit])
-        _run_git(["-C", str(dest), "checkout", "--detach", "--quiet", "FETCH_HEAD"])
-        head = _run_git(["-C", str(dest), "rev-parse", "HEAD"])
+        _run_git(["init", "-q", "--", str(dest)], allow_local=allow_local)
+        completed = subprocess.run(
+            git_fetch_command(repo, commit, dest, allow_local=allow_local),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout or "").strip()
+            raise SyncError(f"git fetch failed: {detail}")
+        _run_git(
+            ["-C", str(dest), "checkout", "--detach", "--quiet", "FETCH_HEAD"],
+            allow_local=allow_local,
+        )
+        # rev-parse echoes tokens after `--` instead of resolving them.
+        head = _run_git(["-C", str(dest), "rev-parse", "HEAD"], allow_local=allow_local)
         if head != commit:
             raise SyncError(f"fetched HEAD {head} is not {commit}")
-        tree = _run_git(["-C", str(dest), "rev-parse", f"{commit}^{{tree}}"])
+        tree = _run_git(
+            ["-C", str(dest), "rev-parse", f"{commit}^{{tree}}"],
+            allow_local=allow_local,
+        )
         if not re.fullmatch(SHA_RE, tree):
             raise SyncError(f"fetched tree is not a sha: {tree}")
     except Exception:
@@ -425,11 +500,19 @@ def _check(root: Path, skill_ids: list[str], lock: dict, *, commit: str | None) 
     return mismatches
 
 
-def _write(root: Path, repo: str, commit: str, skill_ids: list[str], lock: dict) -> None:
+def _write(
+    root: Path,
+    repo: str,
+    commit: str,
+    skill_ids: list[str],
+    lock: dict,
+    *,
+    allow_local: bool,
+) -> None:
     allowed = set(_linkskills_ids(lock))
     for skill_id in skill_ids:
         _validate_skill_id(skill_id, allowed)
-    holder, fetched, tree = _fetch_pin(repo, commit)
+    holder, fetched, tree = _fetch_pin(repo, commit, allow_local=allow_local)
     try:
         _verify_recorded_tree(lock, commit, tree)
         upstream = fetched / "skills"
@@ -469,8 +552,17 @@ def _write(root: Path, repo: str, commit: str, skill_ids: list[str], lock: dict)
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--commit", help="Pinned upstream commit SHA")
-    parser.add_argument("--repo", default=DEFAULT_REPO, help="Upstream git URL or local path")
+    parser.add_argument("--commit", help="Pinned upstream commit SHA (40 hex digits)")
+    parser.add_argument(
+        "--repo",
+        default=DEFAULT_REPO,
+        help="https://github.com/<owner>/<repo> URL (local path requires --allow-local-repo)",
+    )
+    parser.add_argument(
+        "--allow-local-repo",
+        action="store_true",
+        help="Test-only: allow an absolute local git directory as --repo",
+    )
     parser.add_argument(
         "--skills",
         help="Comma-separated skill ids (default: lock entries with authority linkskills)",
@@ -481,6 +573,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        if args.commit is not None:
+            args.commit = _validate_commit(args.commit)
+        if args.skills:
+            for skill_id in _parse_skills(args.skills, []):
+                _validate_skill_id_format(skill_id)
+        if args.write:
+            _validate_repo(args.repo, allow_local=args.allow_local_repo)
         root = _find_root(Path.cwd())
         lock = _load_lock(root / LOCK_RELS[0])
         allowed = _linkskills_ids(lock)
@@ -498,7 +597,14 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if not args.commit:
             raise SyncError("--write requires --commit")
-        _write(root, args.repo, args.commit.lower(), skill_ids, lock)
+        _write(
+            root,
+            args.repo,
+            args.commit,
+            skill_ids,
+            lock,
+            allow_local=args.allow_local_repo,
+        )
         return 0
     except SyncError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
