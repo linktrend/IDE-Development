@@ -13,20 +13,6 @@ from jsonschema import Draft202012Validator
 PROTOCOL_ID = "coding-execution-protocol"
 PROTOCOL_VERSION = "1.0.1"
 AMENDMENT_ID = "V25_BOOTSTRAP_LEAN"
-PORTFOLIO_CONTROL_LOOP_PROTOCOL = "portfolio-control-loop"
-PORTFOLIO_CONTROL_LOOP_VERSION = "1.0"
-PORTFOLIO_LANE_STATES = frozenset(
-    {
-        "PREPARED",
-        "RUNNING",
-        "WAITING_DEPENDENCY",
-        "TERMINAL_ACCEPT",
-        "TERMINAL_REJECT",
-        "INTEGRATING",
-        "COMPLETE",
-        "BLOCKED",
-    }
-)
 CANONICAL_PUBLISHER = None
 WAIVED_LEGACY_GATE = "WAIVED_LEGACY_GATE"
 LEGACY_PUBLISHERS = frozenset(

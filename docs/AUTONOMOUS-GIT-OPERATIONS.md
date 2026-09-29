@@ -17,7 +17,7 @@ orchestrator owns the delivery loop end to end:
 4. merges on green Full CI plus one independent exact-head review;
 5. promotes `development` → `main`.
 
-There are no scheduled ship/pull waves and no local coordinator host. The
+There are no scheduled waves and no local coordinator host. The
 watchdog timer replaces fixed wake-up times: it notices stalled, failed or
 finished workers and moves the loop forward. Any local machine may be off.
 

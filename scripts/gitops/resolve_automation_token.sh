@@ -4,7 +4,7 @@
 #
 # Workflow contract:
 #   1. A repository secret supplies LINKTREND_AUTOMATION_TOKEN.
-#   2. The secret is exposed only to trusted Mac Mini jobs.
+#   2. The secret is exposed only to trusted default-branch jobs.
 #   3. No GitHub App ID or private key is used.
 #
 # When sourced, fail-closed uses `return` so callers can run
