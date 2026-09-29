@@ -1,6 +1,6 @@
 # ADR 0003: Autonomous Ship / Pull / Promote (Inherited via Wire)
 
-**Status:** Accepted (Principal go-ahead 2026-07-24)
+**Status:** Superseded by ADR 0006 (originally Accepted, Principal go-ahead 2026-07-24)
 **Date:** 2026-07-24
 **Timezone:** Asia/Taipei (no DST)
 
