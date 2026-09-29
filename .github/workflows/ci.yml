@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, staging, development]
+    branches: [main, development]
   pull_request:
-    branches: [main, staging, development]
+    branches: [main, development]
 
 permissions:
   contents: read
@@ -14,6 +14,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  fast:
+    # Required status check on the development ruleset; the name is fixed.
+    name: Linktrend Fast Checks
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Install CI Python dependencies
+        run: python3 -m pip install --disable-pip-version-check --no-input "jsonschema==4.26.0"
+
+      - name: Fast profile
+        # Same command runs locally: python3 scripts/gitops/run_delivery_profile.py fast
+        run: python3 scripts/gitops/run_delivery_profile.py fast
+
   verify:
     name: Verify IDE Development
     runs-on: ubuntu-24.04-arm
@@ -36,31 +57,12 @@ jobs:
           git fetch --no-tags origin "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
           git rev-parse --verify "${target_ref}^{commit}"
 
-      - name: Candidate finalization against runtime target baseline
+      - name: Export runtime target baseline
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          baseline_ref="origin/${GITHUB_BASE_REF}"
-          baseline_sha="${{ github.event.pull_request.base.sha }}"
-          python3 scripts/gitops/generated_output_closure.py \
-            --finalize --baseline-sha "${baseline_sha}" --baseline-ref "${baseline_ref}"
-
-      - name: Inject exact runtime baseline into Stage 1 receipt context
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            baseline_ref="origin/${GITHUB_BASE_REF}"
-            baseline_sha="${{ github.event.pull_request.base.sha }}"
-          else
-            baseline_sha="${{ github.event.before }}"
-            baseline_ref="$(python3 scripts/gitops/generated_output_closure.py \
-              --bind-push-baseline \
-              --push-branch "${GITHUB_REF_NAME}" \
-              --push-before "${baseline_sha}" \
-              --push-after "${{ github.event.after }}" | jq -r .baselineRef)"
-          fi
-          printf 'LINKTREND_TARGET_BASELINE_REF=%s\n' "${baseline_ref}" >> "${GITHUB_ENV}"
-          printf 'LINKTREND_TARGET_BASELINE_SHA=%s\n' "${baseline_sha}" >> "${GITHUB_ENV}"
+          printf 'LINKTREND_TARGET_BASELINE_REF=%s\n' "origin/${GITHUB_BASE_REF}" >> "${GITHUB_ENV}"
+          printf 'LINKTREND_TARGET_BASELINE_SHA=%s\n' "${{ github.event.pull_request.base.sha }}" >> "${GITHUB_ENV}"
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4

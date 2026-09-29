@@ -133,7 +133,7 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
         self.assertEqual(self.contract["aggregateContext"], "Linktrend Full Suite")
         self.assertEqual(
             self.contract["profiles"]["promotion"]["requiredCheckContexts"],
-            ["Linktrend Branch Source Policy", "Linktrend Receipt Gate"],
+            ["Linktrend Branch Source Policy"],
         )
         self.assertEqual(
             self.contract["profiles"]["trusted-governance"]["requiredCheckContexts"],

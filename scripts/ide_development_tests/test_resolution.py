@@ -23,12 +23,8 @@ class ResolutionTests(TempRepoTestCase):
     def test_managed_upgrade_allowlist_matches_schema_union(self) -> None:
         expected = {
             ".ide-development/schemas/managed-upgrade-resolution.schema.json",
-            ".ide-development/schemas/phase-handoff.schema.json",
-            ".ide-development/schemas/phase-record.schema.json",
             ".ide-development/schemas/secret-scan-result.schema.json",
             ".ide-development/tests/test_fixture_aware_secret_scan.py",
-            ".ide-development/tests/test_phase_packager_coordinator.py",
-            "scripts/gitops/packager_coordinator.py",
             "scripts/gitops/phase_integrator.py",
             "scripts/gitops/secret_scan.py",
         }
@@ -43,17 +39,13 @@ class ResolutionTests(TempRepoTestCase):
         self.assertEqual(schema["properties"]["conflicts"]["minItems"], 1)
 
     def test_observed_conflicts_may_be_a_nonempty_allowlisted_subset_only(self) -> None:
-        seven_paths = [
-            ".ide-development/schemas/phase-handoff.schema.json",
-            ".ide-development/schemas/phase-record.schema.json",
+        observed_paths = [
             ".ide-development/schemas/secret-scan-result.schema.json",
-            ".ide-development/tests/test_phase_packager_coordinator.py",
-            "scripts/gitops/packager_coordinator.py",
             "scripts/gitops/phase_integrator.py",
             "scripts/gitops/secret_scan.py",
         ]
-        observed = _validate_observed_conflict_paths(seven_paths)
-        self.assertEqual(len(observed), 7)
+        observed = _validate_observed_conflict_paths(observed_paths)
+        self.assertEqual(len(observed), 3)
         self.assertEqual(_validate_observed_conflict_paths(ALLOWED_CONFLICT_PATHS), ALLOWED_CONFLICT_PATHS)
         with self.assertRaises(InvalidPackageError):
             _validate_observed_conflict_paths([])

@@ -10,13 +10,7 @@ TEMPLATE_DIR="${SYSTEM_ROOT}/core/github/managed-workflows"
 
 MANAGED_FILES=(
   "branch-source-policy.yml"
-  "linktrend-review-packager.yml"
-  "linktrend-review-ready-publisher.yml"
-  "linktrend-development-to-staging.yml"
-  "linktrend-staging-to-main.yml"
-  "linktrend-integrator-merge.yml"
   "linktrend-cleanup-merged.yml"
-  "linktrend-repair-observer.yml"
 )
 
 fail() {
@@ -266,70 +260,6 @@ rendered = rendered.replace("__LINKTREND_RUNS_ON__", runner_types[runner_type]["
 if "__LINKTREND_" in rendered:
     raise SystemExit(f"unrendered __LINKTREND_ placeholder remains in {src}")
 
-
-def remove_event_blocks(value: str, prohibited: set[str]) -> str:
-    """Remove event mappings without YAML parsing ``on`` as a boolean."""
-    lines = value.splitlines(keepends=True)
-    output: list[str] = []
-    index = 0
-    while index < len(lines):
-        if lines[index].rstrip("\r\n") != "on:":
-            output.append(lines[index])
-            index += 1
-            continue
-        output.append(lines[index])
-        index += 1
-        while index < len(lines):
-            line = lines[index]
-            if line.strip() and not line.startswith(" "):
-                break
-            match = re.match(r"^  ([A-Za-z0-9_-]+):", line)
-            if not match:
-                output.append(line)
-                index += 1
-                continue
-            event = match.group(1)
-            block: list[str] = [line]
-            index += 1
-            while index < len(lines):
-                candidate = lines[index]
-                if candidate.strip() and not candidate.startswith(" "):
-                    break
-                if re.match(r"^  [A-Za-z0-9_-]+:", candidate):
-                    break
-                block.append(candidate)
-                index += 1
-            if event not in prohibited:
-                output.extend(block)
-    return "".join(output)
-
-
-if profile == "local-coordinator" and src.name in {
-    "linktrend-review-packager.yml",
-    "linktrend-integrator-merge.yml",
-    "linktrend-repair-observer.yml",
-    "linktrend-development-to-staging.yml",
-    "linktrend-staging-to-main.yml",
-}:
-    rendered = remove_event_blocks(
-        rendered, {"schedule", "check_run", "workflow_run", "pull_request_target"}
-    )
-    if src.name == "linktrend-repair-observer.yml" and "\n  workflow_dispatch:" not in rendered:
-        rendered = rendered.replace("on:\n", "on:\n  workflow_dispatch:\n", 1)
-        rendered = rendered.replace(
-            "    if: >\n      (\n",
-            "    if: >\n      github.event_name == 'workflow_dispatch' ||\n      (\n",
-            1,
-        )
-    rendered = (
-        "# Orchestration profile: local-coordinator\n"
-        "# Automatic schedule/check-run/workflow-run/pull-request-target wakes are disabled.\n"
-        "# Manual recovery remains available; the local coordinator publishes these frozen contexts:\n"
-        "# Linktrend Fast Gate | Linktrend Full Suite | Linktrend Phase Ready\n"
-        "# Linktrend Staging Gate | Linktrend Release Gate | Linktrend Coordinator\n"
-        "# Cursor Bugbot remains the provider observation name; required context is Linktrend Review Gate.\n"
-        + rendered
-    )
 out.write_text(rendered, encoding="utf-8")
 PY
 }
