@@ -6,7 +6,11 @@ Historical long-form OPEN-ISSUES entries remain authoritative for older waves; t
 
 ---
 
-## WP1-001 — Work Packet 1 opened (Issue #67) — 2026-08-02
+## Historical (pre-v3)
+
+Entries below predate v3 and keep their original v2 terms.
+
+### WP1-001 — Work Packet 1 opened (Issue #67) — 2026-08-02
 
 **Issue:** #67
 **Branch:** `issue/67-work-packet-1-production-readiness-proof-and-rel`
@@ -27,7 +31,7 @@ Historical long-form OPEN-ISSUES entries remain authoritative for older waves; t
 
 ---
 
-## WP1-002 — Lane F documentation baseline — 2026-08-02
+### WP1-002 — Lane F documentation baseline — 2026-08-02
 
 **Lane:** F (production documentation and operator handoff)
 **Commit policy:** Subagent writes only; lead integrates/commits.
@@ -57,10 +61,10 @@ python3 scripts/ide-development.py release-candidate create|verify
 
 ---
 
-## Template for later WP1 entries
+### Template for later WP1 entries
 
 ```markdown
-## WP1-NNN — <title> — YYYY-MM-DD
+#### WP1-NNN — <title> — YYYY-MM-DD
 
 **Lane / owner:**
 **SHA:**
@@ -71,7 +75,7 @@ python3 scripts/ide-development.py release-candidate create|verify
 **Blockers:**
 ```
 
-## WP1-003 — Integrated checkpoint + three-OS CI green — 2026-08-02
+### WP1-003 — Integrated checkpoint + three-OS CI green — 2026-08-02
 
 **Branch tip before evidence commit:** `d8f117c8cb12eec808ed5c41a2e795764f417349`
 **CI matrix:** run 30728657317 conclusion success on ubuntu/macOS/windows for `d8f117c`
@@ -84,7 +88,7 @@ python3 scripts/ide-development.py release-candidate create|verify
 
 ---
 
-## WP02-001 — Work Packet 02 complete for stated scope (Issue #68) — 2026-08-02
+### WP02-001 — Work Packet 02 complete for stated scope (Issue #68) — 2026-08-02
 
 **Issue:** #68
 **Branch:** `issue/68-work-packet-02-integration-lineage-stale-cleanup`
@@ -102,7 +106,7 @@ Historical (pre-v3): **Proven:** canonical lineage (DEV + WP01 + cleanup + #28 h
 
 ---
 
-## WP03-001 — Work Packet 03 complete (integrate + promote) — 2026-08-02
+### WP03-001 — Work Packet 03 complete (integrate + promote) — 2026-08-02
 
 Historical (pre-v3): **Evidence (verified facts):** PR #69 → `development`, #70 → `staging`, #71 → `main`.
 Historical (pre-v3): **Tree equality:** `origin/development`, `origin/staging`, and `origin/main` share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
@@ -112,7 +116,7 @@ Historical (pre-v3): **Tree equality:** `origin/development`, `origin/staging`, 
 
 ---
 
-## WP04-001 — Work Packet 04 prepared (not executed) — 2026-08-02
+### WP04-001 — Work Packet 04 prepared (not executed) — 2026-08-02
 
 **Packet:** `docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
 **Status:** PREPARED / NOT EXECUTED — Principal approval pending.
@@ -121,7 +125,7 @@ Historical (pre-v3): **Tree equality:** `origin/development`, `origin/staging`, 
 
 ---
 
-## ISSUE72-001 — Pre-launch system-repo cleanup opened (Issue #72) — 2026-08-02
+### ISSUE72-001 — Pre-launch system-repo cleanup opened (Issue #72) — 2026-08-02
 
 **Issue:** #72
 **Branch:** `issue/72-pre-launch-ide-development-codebase-cleanup-arch` (tip starts at `e6301fc` = origin/development merge of #69)
