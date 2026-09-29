@@ -2,7 +2,7 @@
 """Read-only external-state plan / verify / report for normal-token GitOps.
 
 Checks the normal automation credential by name only, Bugbot mention-only,
-Carlos restricted user-token boundary, three-branch protections (union-preserving),
+Carlos restricted user-token boundary, development/main protections (union-preserving),
 promotion-source policy, and required workflow posture/conclusions.
 
 Default is dry-run (no live calls). ``--fixture-dir`` or ``--live`` fill observations.

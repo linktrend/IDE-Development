@@ -20,7 +20,7 @@ make_repo() {
   echo base >"$d/README.md"
   git -C "$d" add README.md
   git -C "$d" commit -q -m "chore: base"
-  git -C "$d" branch staging
+  git -C "$d" branch legacy-hold
   git -C "$d" branch main
 }
 

@@ -36,7 +36,7 @@ ISSUE_PR_RISK_CLASSES = frozenset(
     }
 )
 
-NAMED_GATES = frozenset({"fast-gate", "staging-gate", "release-gate"})
+NAMED_GATES = frozenset({"fast-gate", "release-gate"})
 
 _SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 _ZERO_SHA_RE = re.compile(r"^0{40}$")
@@ -459,7 +459,7 @@ def build_phase_delivery_record(
     if candidate_identity is not None:
         record["candidateIdentity"] = candidate_identity
     if gate_results is not None:
-        record.update({key: value for key, value in gate_results.items() if key in {"fast", "bugbot", "full", "staging", "release"}})
+        record.update({key: value for key, value in gate_results.items() if key in {"fast", "bugbot", "full", "release"}})
     if stop_reason is not None:
         record["stopReason"] = stop_reason
     return record

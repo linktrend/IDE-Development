@@ -117,7 +117,6 @@
     },
     "automaticApproval": {
       "checkpoint": "automatic",
-      "stagingPromote": "automatic-on-receipt-identity",
       "reservedActions": [
         "main_promote",
         "publish_release",
@@ -129,7 +128,7 @@
     },
     "gitAuthority": {
       "workBranchPattern": "issue/<n>-<slug>",
-      "protectedRefs": ["development", "staging", "main"],
+      "protectedRefs": ["development", "main"],
       "implementerMayOpenPr": false,
       "implementerMayMerge": false,
       "nestedSelfInstall": false

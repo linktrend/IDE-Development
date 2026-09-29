@@ -107,7 +107,7 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
     def test_unchanged_promotion_receipt_only_and_changed_fails(self) -> None:
         ok = select_profile(
             event=EVENT_PROMOTION,
-            branch="promote/staging/demo",
+            branch="promote/main/unchanged",
             changed_paths=[],
             contract=self.contract,
             promotion_tree_unchanged=True,
@@ -595,7 +595,7 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
                         "name: Receipt gate",
                         "on:",
                         "  pull_request:",
-                        "    branches: ['promote/staging/**']",
+                        "    branches: ['promote/main/**']",
                         "jobs:",
                         "  verify:",
                         "    runs-on: ubuntu-latest",

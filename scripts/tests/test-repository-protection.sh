@@ -76,7 +76,7 @@ print("unit ok")
 PY
 pass "baseline and union helpers"
 
-# ---- plan covers all three branches; dry-run mutations empty ----
+# ---- plan covers both governed branches; dry-run mutations empty ----
 "$TOOL" plan --repo linktrend/Fixture --fixture-dir "${FX}/rulesets-empty" \
   >"${TMP}/plan-empty.json"
 python3 - <<PY
@@ -681,7 +681,7 @@ print("legacy apply ok")
 PY
 pass "legacy apply-development wrapper preserves CLI and scopes to development"
 
-# ---- contract mentions three branches and dry-run-first ----
+# ---- contract mentions governed branches and dry-run-first ----
 grep -q 'development-autonomous-merge' "${ROOT}/docs/contracts/REPOSITORY-PROTECTION.md"
 python3 - <<'PY'
 import sys

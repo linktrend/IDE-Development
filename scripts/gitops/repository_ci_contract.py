@@ -1102,7 +1102,7 @@ def _has_broad_promotion_trigger(text: str) -> bool:
     has_pr_or_push = bool(re.search(r"(?m)^[ \t]*(pull_request|push)\s*:", text))
     if not has_pr_or_push:
         return False
-    # If branches are limited to development-only without staging/main/promote, ok.
+    # If branches are limited to development-only without main/promote, ok.
     branch_blocks = re.findall(
         r"(?ms)^[ \t]*(?:pull_request|push):\s*\n((?:[ \t]+.*\n)+)",
         text,
@@ -1113,7 +1113,7 @@ def _has_broad_promotion_trigger(text: str) -> bool:
     for block in branch_blocks:
         if "branches:" not in block and "branches-ignore:" not in block:
             return True
-        if re.search(r"staging|main|promote/", block):
+        if re.search(r"main|promote/", block):
             return True
         # branches include only feature/development still fires for PRs into those bases.
         if "pull_request" in text and "branches:" in block:

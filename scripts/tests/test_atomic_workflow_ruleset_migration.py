@@ -6,6 +6,7 @@ import unittest
 
 from scripts.gitops import atomic_workflow_ruleset_migration as mig
 from scripts.gitops import repository_protection as rp
+from scripts.gitops import ruleset_plan
 
 
 class CheckContractTests(unittest.TestCase):
@@ -33,30 +34,38 @@ class CheckContractTests(unittest.TestCase):
         self.assertEqual(
             dev,
             [
-                "Verify IDE Development",
+                "Linktrend Fast Checks",
                 "Linktrend Branch Source Policy",
+                "Verify IDE Development",
             ],
         )
-        for branch in ("staging", "main"):
-            checks = rp.managed_baseline(branch)
-            self.assertIn("Linktrend Branch Source Policy", checks)
-            self.assertNotIn("Enforce allowed PR source branches", checks)
+        main = rp.managed_baseline("main")
+        self.assertEqual(main, ["Linktrend Branch Source Policy", "Linktrend Receipt Gate"])
+        self.assertEqual(mig.GOVERNED_BRANCHES, rp.GOVERNED)
+        contract = mig.derive_active_check_contract(release_id="v3.0.0")
+        self.assertEqual(contract["requiredByBranch"], {"development": dev, "main": main})
+        plan = ruleset_plan.build_plan([])
+        self.assertEqual(
+            {rule["branch"]: rule["requiredStatusChecks"] for rule in plan["rules"]},
+            {"development": dev, "main": main},
+        )
+        self.assertTrue(all(rule["strictUpToDate"] for rule in plan["rules"]))
 
 
-class ThreeBranchRenameTests(unittest.TestCase):
-    def test_rename_migrates_all_three_branches_together(self) -> None:
-        plan = mig.plan_three_branch_rename(
+class GovernedBranchRenameTests(unittest.TestCase):
+    def test_rename_migrates_both_governed_branches_together(self) -> None:
+        plan = mig.plan_governed_branch_rename(
             {
                 "development": [
                     "Linktrend Review Gate",
                     "Verify IDE Development",
                     "Enforce allowed PR source branches",
                 ],
-                "staging": ["Verify IDE Development", "Enforce allowed PR source branches"],
                 "main": ["Verify IDE Development", "Enforce allowed PR source branches"],
             }
         )
         self.assertTrue(plan["complete"])
+        self.assertEqual(set(plan["branches"]), {"development", "main"})
         for branch in mig.GOVERNED_BRANCHES:
             after = plan["branches"][branch]["after"]
             self.assertIn("Linktrend Branch Source Policy", after)
@@ -64,32 +73,29 @@ class ThreeBranchRenameTests(unittest.TestCase):
             self.assertEqual(plan["branches"][branch]["action"], "update")
 
     def test_missing_branch_is_incomplete_not_success(self) -> None:
-        plan = mig.plan_three_branch_rename(
+        plan = mig.plan_governed_branch_rename(
             {
                 "development": ["Enforce allowed PR source branches"],
-                "staging": ["Enforce allowed PR source branches"],
             }
         )
         self.assertFalse(plan["complete"])
         self.assertEqual(plan["code"], mig.MIGRATION_INCOMPLETE)
 
     def test_apply_failure_after_one_branch_rolls_back(self) -> None:
-        plan = mig.plan_three_branch_rename(
+        plan = mig.plan_governed_branch_rename(
             {
                 "development": ["Enforce allowed PR source branches"],
-                "staging": ["Enforce allowed PR source branches"],
                 "main": ["Enforce allowed PR source branches"],
             }
         )
         store: dict[str, list[str]] = {
             "development": ["Enforce allowed PR source branches"],
-            "staging": ["Enforce allowed PR source branches"],
             "main": ["Enforce allowed PR source branches"],
         }
 
         def apply_branch(branch: str, after: list[str]) -> None:
-            if branch == "staging":
-                raise RuntimeError("simulated staging write failure")
+            if branch == "main":
+                raise RuntimeError("simulated main write failure")
             store[branch] = list(after)
 
         def restore_branch(branch: str, before: list[str]) -> None:
@@ -106,7 +112,6 @@ class ThreeBranchRenameTests(unittest.TestCase):
             store,
             {
                 "development": ["Enforce allowed PR source branches"],
-                "staging": ["Enforce allowed PR source branches"],
                 "main": ["Enforce allowed PR source branches"],
             },
         )
@@ -197,7 +202,7 @@ class EvaluatorMigrationTests(unittest.TestCase):
                 "promoterRequiredChecks": "Verify IDE Development,Enforce allowed PR source branches",
                 "repositoryVariables": {
                     "LINKTREND_INTEGRATOR_REQUIRED_CHECKS": "Verify IDE Development,Enforce allowed PR source branches",
-                    "LINKTREND_STAGING_GATE_CHECKS": "Verify IDE Development",
+                    "LINKTREND_RELEASE_GATE_CHECKS": "Verify IDE Development",
                     "OTHER": "keep",
                 },
             }
@@ -337,7 +342,6 @@ class CapabilityPreflightTests(unittest.TestCase):
                 "mechanism": "rulesets",
                 "branches": {
                     "development": {"protected": False},
-                    "staging": {"protected": True},
                     "main": {"protected": True},
                 },
             }
@@ -381,12 +385,10 @@ class InstallationCompletenessTests(unittest.TestCase):
         result = mig.installation_complete(
             branch_required={
                 "development": ["Enforce allowed PR source branches"],
-                "staging": ["Linktrend Branch Source Policy"],
                 "main": ["Linktrend Branch Source Policy"],
             },
             published_by_branch={
                 "development": ["Enforce allowed PR source branches"],
-                "staging": ["Linktrend Branch Source Policy"],
                 "main": ["Linktrend Branch Source Policy"],
             },
             labels=[dict(mig.FULL_SUITE_LABEL)],

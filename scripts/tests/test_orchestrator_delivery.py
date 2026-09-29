@@ -300,9 +300,9 @@ class MergeCheckTests(unittest.TestCase):
         self.assertEqual(code, 1)
         code, out = self._check(FakeApi(runs, self._pull()), "--allow-skipped", "Verify IDE Development")
         self.assertEqual(code, 0, out)
-        code, out = self._check(FakeApi(self._runs(), self._pull(base={"ref": "staging"})))
+        code, out = self._check(FakeApi(self._runs(), self._pull(base={"ref": "release"})))
         self.assertEqual(code, 1)
-        self.assertIn("base 'staging'", out["reasons"][0])
+        self.assertIn("base 'release'", out["reasons"][0])
 
 
 class PromotionCheckTests(unittest.TestCase):

@@ -404,8 +404,8 @@ class AutomaticApprovalTests(unittest.TestCase):
             self.assertTrue(allowed.allowed)
             self.assertFalse(allowed.automatic)
 
-    def test_staging_promote_is_not_an_action(self) -> None:
-        decision = required_approval("staging_promote")
+    def test_unknown_action_fails_closed(self) -> None:
+        decision = required_approval("intermediate_promote")
         self.assertFalse(decision.allowed)
         self.assertFalse(decision.automatic)
         self.assertEqual(decision.reason, "unknown_action")
