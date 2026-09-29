@@ -66,4 +66,4 @@ Then run the checks named in the Issue.
 
 ## Retired
 
-Retired, and not live gates: Review Ready status and its publisher, completion-gate evidence, the review-gate classifier, the repair observer, promotion receipts, the packager, the delivery controller, Lisa, and the intermediate promotion branch between `development` and `main`. The v2 named-gate ids (`fast-gate`, `release-gate`, and their promotion-branch sibling) are not the live required checks.
+Retired, and not live gates: the v2 commit-status publisher and its evidence gate, the v2 review-gate classifier, the repair observer, promotion receipts, the v2 packaging and merge services, the host-based coordinator, and the intermediate promotion branch between `development` and `main`. The v2 named-gate ids (`fast-gate`, `release-gate`, and their promotion-branch sibling) are not the live required checks.

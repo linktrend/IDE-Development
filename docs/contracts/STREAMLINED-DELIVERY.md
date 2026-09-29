@@ -37,4 +37,4 @@ Secret scan stays inside the fast profile. The JSON key `profiles.full` is not t
 
 ## Retired
 
-Retired, and not the live path: Review Ready status and its publisher, completion-gate evidence, the review-gate classifier, the repair observer, promotion receipts, the packager, the delivery controller, Lisa, and the intermediate promotion branch between `development` and `main`.
+Retired, and not the live path: the v2 commit-status publisher and its evidence gate, the v2 review-gate classifier, the repair observer, promotion receipts, the v2 packaging and merge services, the host-based coordinator, and the intermediate promotion branch between `development` and `main`. In v3 the orchestrator packages, merges and promotes; workers build Issues; the Ledger (`ide_ledger`) records state. The v2 records are in `docs/archive/`.

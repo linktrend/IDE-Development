@@ -1,6 +1,6 @@
 # Repository-owned CI trigger contract
 
-**Audience:** Review Packager, Integrator, promotion controllers, installers, CI maintainers.
+**Audience:** the orchestrator (packaging, merge and promotion), installers, CI maintainers.
 **Status:** Binding for IDE Development Update 7 / WP-U07.
 **Schema:** `core/managed-core/schemas/repository-ci-contract.schema.json`
 **Implementation:** `scripts/gitops/repository_ci_contract.py`

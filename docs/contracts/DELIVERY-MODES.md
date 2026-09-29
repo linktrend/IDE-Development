@@ -6,14 +6,11 @@ profile consumed by managed-core. The frozen field meanings are defined in
 
 ## Supported mode
 
-Retired in v3 (IDE-22); see the v3 plan.
-
 `phase-integration` is the approved system profile. Issue branches are
-checkpoint-only. Accepted issue commits are integrated serially into one
-`phase/*` branch by `scripts/gitops/packager_coordinator.py`, and one Phase PR
-carries the combined result into `development`. Retained
-`packager_discover.py` still discovers Review-Ready tips into ordinary draft
-PRs and is not the Phase Packager.
+checkpoint-only: workers push them and never open PRs. The orchestrator
+packages finished Issue branches into one `phase/*` branch
+(`scripts/orchestrator/package.py`), and one Phase PR carries the combined
+result into `development`.
 
 The configuration is `.github/linktrend-delivery-mode.json`:
 
@@ -53,7 +50,7 @@ operator authority.
 
 ## v2.5 Issue checkpoint (`V25_BOOTSTRAP_LEAN`)
 
-Issue checkpoints do not require Review Ready or `AUTOMATION_TOKEN`. Legacy
+Issue checkpoints do not require a commit status or `AUTOMATION_TOKEN`. Legacy
 publisher/status outcomes are `WAIVED_LEGACY_GATE`, never PASS. Phase delivery
 still uses one Phase PR, exact review, conditional Full, and the founder gate
 for `main`. Administrator recovery is a named exact-head exception after

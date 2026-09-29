@@ -127,9 +127,7 @@ Never invent a third mechanism. Document the gap for the Principal; do not force
 
 ---
 
-## Delivery controller / Main Approve compatibility notes
-
-Retired in v3 (IDE-22); see the v3 plan.
+## Orchestrator merge and promotion notes
 
 - Development: required checks must include the active fast-gate and branch-source policy; `allow_auto_merge=true`.
 - Main: merge only via temporary `promote/main/*` PRs after `Linktrend Receipt Gate`; never direct-push.

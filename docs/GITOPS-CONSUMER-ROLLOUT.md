@@ -140,7 +140,7 @@ Existing legitimate repository-specific required checks are preserved and unione
 ### Consumer check-name variables (`LINKTREND_*_CHECKS`)
 
 Managed workflows already read repository variables for named gate check display names.
-Consumers **must** set these so Integrator / Packager / promote / repair-observer match their `ci.yml` job names:
+Consumers **must** set these so the orchestrator's merge and promotion checks match their `ci.yml` job names:
 
 | Variable | Purpose | IDE default |
 |---|---|---|
