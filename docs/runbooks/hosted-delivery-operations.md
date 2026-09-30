@@ -9,8 +9,9 @@ W2-P3 does not perform external mutation.
    exact Phase head.
 2. Open or update the one Phase PR into `development`. Confirm fast checks,
    source policy, and consumer-owned required checks refer to that exact head.
-3. Seal the final candidate head. Confirm the full suite and Bugbot run once
-   for that sealed candidate, with no later commit.
+3. Seal the final candidate head. Confirm the combined `Verify IDE Development`
+   run and applicable platform matrix pass on that exact Phase head. Bugbot is
+   disabled; no separate Full dispatch is required.
 4. Retain the successful full-suite receipt. For main, verify the
    repository, Git tree, dependency, profile, and workflow identities before
    reusing it.
