@@ -4926,7 +4926,7 @@
       "id": "gitops-scripts-tests-test-gitops-phase-delivery-sh",
       "ownershipClass": "managed",
       "source": "scripts/tests/test-gitops-phase-delivery.sh",
-      "sourceHash": "sha256:7b929d14260ba6e54670fe26422ab470cabf5b43a65ef81bff3a03c19e81033c",
+      "sourceHash": "sha256:e9a06157879e815b00a46f7e7cf689558d288edd2e5d4dd93f516b9880240d8d",
       "destination": "scripts/tests/test-gitops-phase-delivery.sh",
       "mode": "0755",
       "platform": "github",
