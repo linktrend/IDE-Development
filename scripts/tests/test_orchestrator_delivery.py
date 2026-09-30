@@ -387,13 +387,19 @@ class PromoteMainTests(unittest.TestCase):
         self.assertFalse(out["pushed"])
 
     def test_second_parent_ancestor_is_not_on_development(self) -> None:
-        side = self.fx.branch("side", self.main0, {"side.txt": "only side\n"})
-        tip = self.fx.remote_sha("development")
+        side = self.fx.branch("side", self.dev, {"side.txt": "only side\n"})
+        git(self.fx.seed, "checkout", "-q", "-B", "development", self.dev)
+        git(self.fx.seed, "merge", "-q", "--no-ff", "-m", "merge side", side)
+        git(self.fx.seed, "push", "-q", "origin", "development:refs/heads/development")
+        base = self.fx.remote_sha("development")
+        phase2, tip = self.fx.merge_phase("wave-2", base, {"next.txt": "phase after side merge\n"})
         code, out = self._promote(self._api(), "--sha", side)
         self.assertEqual(code, 2)
         self.assertEqual(out["error"], "not_on_development")
         self.assertIn("first-parent", out["message"])
-        code, out = self._promote(self._api())
+        code, out = self._promote(
+            phase_api(phase2, tip, phase_ref="phase/wave-2"), "--sha", tip
+        )
         self.assertEqual(code, 0, out)
 
     def test_sha_outside_first_parent_window_is_rejected(self) -> None:
@@ -441,7 +447,16 @@ class MergeCheckTests(unittest.TestCase):
         self.assertTrue(all(row["ok"] for row in out["required"]))
 
     def test_workflow_files_changed_lists_workflow_paths(self) -> None:
-        api = FakeApi(self._runs(), self._pull(), files=[
+        matrix_names = (
+            "Installer matrix (ubuntu-latest)",
+            "Installer matrix (macos-latest)",
+            "Installer matrix (windows-latest)",
+        )
+        runs = self._runs()[self.HEAD] + [
+            run(name, "success", rid=20 + index, head_sha=self.HEAD)
+            for index, name in enumerate(matrix_names)
+        ]
+        api = FakeApi({self.HEAD: runs}, self._pull(), files=[
             {"filename": "README.md"},
             {"filename": ".github/workflows/ci.yml"},
             {"filename": ".github/workflows/branch-source-policy.yml"},

@@ -79,10 +79,13 @@ class GithubWorkflowContractTests(unittest.TestCase):
             "        run: python3 scripts/gitops/run_delivery_profile.py fast",
             jobs["fast"]["lines"],
         )
-        self.assertIsNone(_scalar(jobs["fast"]["lines"], "if", 4))
+        self.assertEqual(
+            _scalar(jobs["fast"]["lines"], "if", 4),
+            "startsWith(github.head_ref, 'phase/')",
+        )
         events = document["on"]
-        self.assertEqual(sorted(events["pull_request"]["branches"]), ["development", "main"])
-        self.assertEqual(sorted(events["push"]["branches"]), ["development", "main"])
+        self.assertEqual(events["pull_request"]["branches"], ["development"])
+        self.assertNotIn("push", events)
         self.assertIsNone(_scalar(events["pull_request"]["lines"], "branches-ignore", 4))
         self.assertIsNone(_scalar(events["pull_request"]["lines"], "paths", 4))
 

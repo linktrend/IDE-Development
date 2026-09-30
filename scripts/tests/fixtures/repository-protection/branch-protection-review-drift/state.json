@@ -90,7 +90,7 @@
         "strict": true,
         "contexts": [
           "Linktrend Branch Source Policy",
-          "Linktrend Receipt Gate"
+          "Linktrend Main Receipt Gate"
         ]
       },
       "enforce_admins": true,
