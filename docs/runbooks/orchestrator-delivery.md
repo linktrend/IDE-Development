@@ -53,7 +53,7 @@ expected workflow file, `head_sha` to equal the commit being checked, and
 `head_repository.full_name` to be this repository (not a fork). Expected files:
 `Verify IDE Development` and `Linktrend Fast Checks` from `.github/workflows/ci.yml`,
 `Linktrend Branch Source Policy` from `.github/workflows/branch-source-policy.yml`,
-and `Linktrend Receipt Gate` from `.github/workflows/linktrend-promote-main.yml`.
+and `Linktrend Main Receipt Gate` from `.github/workflows/linktrend-promote-main.yml`.
 Missing or unresolvable identity, an API error, or any mismatch means that check
 does not count and the gate fails with a reason. There is no path that accepts
 a check when its workflow identity is absent. Commit statuses are reported and
@@ -92,24 +92,22 @@ Exit 3 means `main` has changes that are not on `development` (hotfix or manual
 edit). Land them on `development` first, then promote again. Exit 1 means the
 development SHA is not green yet.
 
-## The `Linktrend Receipt Gate` check
+## The `Linktrend Main Receipt Gate` check
 
-`main` protection requires `Linktrend Branch Source Policy`, `Verify IDE Development`
-and `Linktrend Receipt Gate`. The last one is produced by
+`main` protection requires `Linktrend Branch Source Policy` and
+`Linktrend Main Receipt Gate`. The gate is produced by
 `.github/workflows/linktrend-promote-main.yml`, which runs
 `scripts/orchestrator/promotion_check.py` from `development` on every PR into
-`main`: the head must be `promote/main/*` from this repo, its tree must equal a
-commit among the last 200 first-parent commits of `development` (the same
-`DEVELOPMENT_FIRST_PARENT_WINDOW` `promote_main.py` accepts), and
-`Verify IDE Development` must have succeeded on that commit. That evidence must
-be a workflow run of `.github/workflows/ci.yml` whose `event` is `push` and whose
-`head_branch` is `development`, with the same head SHA and target repository.
-A `pull_request` run, or a push of another branch, does not count: only
-`development`'s own trusted `ci.yml` does.
+`main`: the candidate must be a same-repository `promote/main/*` branch whose
+tree equals a recent first-parent development merge D. D's second parent must
+be the exact `phase/*` PR head H, and H must have the same tree as D. The gate
+requires `Verify IDE Development` from `.github/workflows/ci.yml` on H for a
+same-repository Phase PR into `development`; it links H to D through the merged
+PR's `merge_commit_sha`, not workflow-run pull-request metadata.
 
-The name is **legacy**: no receipt is involved. It stays because the live `main`
-ruleset requires that context. If Carlos renames it in the ruleset, rename the
-workflow and job `name:` (both copies: `.github/workflows/` and
-`core/github/managed-workflows/`) and the context constants in
-`scripts/gitops/repository_ci_contract.py`, `scripts/gitops/repository_protection.py`,
-`.github/linktrend-repository-ci-contract.json` and `promotion_check.py` in the same PR.
+The Verify run's Full inventory is the receipt. Promotion downloads that exact
+run's artifact and asks the existing profile runner to validate repository,
+commit, tree, dependency, profile, and workflow identity against H. A mismatch
+fails closed; unchanged promotion does not rerun Full. The status context is
+named `Linktrend Main Receipt Gate` to distinguish it from the legacy staging
+workflow's `Linktrend Receipt Gate` context.

@@ -24,7 +24,7 @@ SOURCE_POLICY_CHECK = "Linktrend Branch Source Policy"
 REVIEW_GATE_CHECK = "Linktrend Review Gate"
 FAST_CHECKS = "Linktrend Fast Checks"
 FULL_SUITE = "Linktrend Full Suite"
-RECEIPT_GATE = "Linktrend Receipt Gate"
+RECEIPT_GATE = "Linktrend Main Receipt Gate"
 DEFAULT_VERIFY = "Verify IDE Development"
 
 # Obsolete managed contexts that must never remain required or evaluated.
@@ -32,6 +32,7 @@ OBSOLETE_TO_ACTIVE: dict[str, str] = {
     "Enforce allowed PR source branches": SOURCE_POLICY_CHECK,
     "Branch Source Policy": SOURCE_POLICY_CHECK,
     "Linktrend Repository CI Gate": FULL_SUITE,
+    "Linktrend Receipt Gate": RECEIPT_GATE,
 }
 OBSOLETE_REMOVED = frozenset({"Cursor Bugbot", REVIEW_GATE_CHECK, "Linktrend Review Ready"})
 
@@ -54,7 +55,7 @@ CHECK_VAR_NAMES = (
 
 FULL_SUITE_LABEL = {
     "name": "linktrend-full-suite",
-    "description": "Dispatch Linktrend Full Suite on an exact eligible Phase PR head",
+    "description": "Identify a Phase PR with reusable Full verification evidence",
     "color": "0E8A16",
 }
 
@@ -132,9 +133,10 @@ def derive_active_check_contract(
                 "events": ["pull_request:development/phase"],
             },
             "fullSuite": {
-                "workflow": "linktrend-integrator-merge.yml",
-                "job": FULL_SUITE,
-                "events": ["pull_request:labeled", "workflow_dispatch"],
+                "workflow": "ci.yml",
+                "job": verify,
+                "events": ["pull_request:development/phase"],
+                "artifact": "ide-full-suite-inventory",
             },
             "receiptGate": {
                 "workflow": "linktrend-promote-main.yml",
@@ -667,7 +669,7 @@ def evaluate_label_application(
             return {
                 "ok": False,
                 "code": "stale_or_ineligible",
-                "detail": "head not in eligible set for Full dispatch",
+                "detail": "head not in eligible set for Phase verification evidence",
             }
     if pr.get("merged") or pr.get("state") in {"closed", "merged"}:
         return {"ok": False, "code": "stale_or_ineligible", "detail": "PR is not open"}

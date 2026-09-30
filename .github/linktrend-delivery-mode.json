@@ -21,9 +21,8 @@
     "full": {
       "required": true,
       "commands": [
-        ["python3", "scripts/gitops/secret_scan.py"],
-        ["python3", "-m", "unittest", "scripts.tests.test_phase_batch_lifecycle", "scripts.tests.test_fixture_aware_secret_scan", "scripts.tests.test_repository_ci_trigger_contract"],
-        ["bash", "scripts/tests/test-gitops-phase-delivery.sh"]
+        ["bash", "scripts/verify-ide-development.sh"],
+        ["bash", "scripts/verify-pipeline-states.sh"]
       ]
     },
     "release": {
@@ -40,8 +39,5 @@
       "profileDigest",
       "workflowDigest"
     ]
-  },
-  "review": {
-    "bugbot": "final-candidate-only"
   }
 }

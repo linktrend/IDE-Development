@@ -8,10 +8,10 @@
 1. **Issue.** Work starts from an Issue. The Issue names any checks beyond the fast profile.
 2. **Branch.** The worker uses `issue/<n>-<slug>`. Commit and push often. Never open a pull request.
 3. **Fast checks.** Before each push, run `python3 scripts/gitops/run_delivery_profile.py fast`, the same command as CI job `Linktrend Fast Checks`. The fast profile includes fixture-aware secret scanning (`python3 scripts/gitops/secret_scan.py`). Also run the Issue's named checks.
-4. **Package.** The orchestrator packages finished Issue branches into one pull request or several. Every pull request targets `development`.
-5. **Pull request.** Each pull request gets exactly one Full CI run on its head (`Verify IDE Development`) and one independent review of that exact head SHA. The reviewer model is a different family from the author (a GPT model for Grok or Opus work; a Claude or Grok model for Codex work). Bugbot is optional.
-6. **Merge.** Merge when `Linktrend Fast Checks`, `Linktrend Branch Source Policy`, and `Verify IDE Development` are green on the exact reviewed head and the review approves. A new commit needs a new review of the new head; the review record states that it covered at least the delta. `REQUEST_CHANGES` is a failed attempt on the current repair rung.
-7. **Promote.** Promotion to `main` reuses the reviewed `development` result. There is no re-review. Pull requests into `main` require `Linktrend Branch Source Policy` and `Linktrend Receipt Gate`. That gate checks that the promoted tree equals a `development` commit whose Full CI was green.
+4. **Package.** The orchestrator aggregates independently accepted Issue checkpoints into one `phase/*` candidate and opens one Phase PR to `development`. Individual Issue branches do not start GitHub CI or create PRs.
+5. **Phase verification and review.** One combined run executes `Verify IDE Development` and writes its identity-bound Full inventory only after the existing Verify commands succeed. Fast checks run for every Phase head. The Ubuntu, macOS, and Windows installer matrix runs only when installer, workflow, fixture, or dependency inputs change. The shared path classifier governs both merge and promotion eligibility. An independent reviewer approves that exact head SHA. Bugbot is not part of eligibility.
+6. **Merge.** Merge when Fast, Verify, `Linktrend Branch Source Policy`, independent review, and any path-applicable platform checks are green on the exact reviewed head. The development merge commit must retain the Phase head tree; any merge resolution that changes it needs a fresh reviewed Phase candidate.
+7. **Promote.** Promotion to `main` reuses the same Phase run inventory only when repository, head commit, tree, dependencies, profile, and workflow identity still match. The `Linktrend Main Receipt Gate` downloads the artifact from that exact successful Verify run and fails closed on mismatch; it does not rerun Full. There is no second review. Staging is not part of the active delivery path.
 8. **Deploy.** Deploy uses the promoted `main` tree that passed the promotion check.
 
 ## Repair ladder
@@ -28,10 +28,10 @@ When the ladder is exhausted, the orchestrator flags Carlos with a short plain-l
 
 ## CI as it runs today
 
-`ci.yml` runs on push and pull_request to `main` and `development`, on `ubuntu-24.04-arm`.
+`ci.yml` runs on Phase pull requests targeting `development`, on `ubuntu-24.04-arm`. Both Fast and Verify explicitly check out the PR head SHA. Verify has a 45-minute timeout.
 
 - `Linktrend Fast Checks` runs `python3 scripts/gitops/run_delivery_profile.py fast`.
-- `Verify IDE Development` is the Full run: full-history checkout, pull-request baseline export, `CI=true bash scripts/verify-ide-development.sh`, then `bash scripts/verify-pipeline-states.sh`.
+- `Verify IDE Development` runs the existing full-history checkout, pull-request baseline export, `CI=true bash scripts/verify-ide-development.sh`, and `bash scripts/verify-pipeline-states.sh` through the Full profile, then uploads the inventory from that run. Promotion downloads and verifies that artifact by run ID.
 
 Secret scan stays inside the fast profile. The JSON key `profiles.full` is not the CI Full job.
 

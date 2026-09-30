@@ -12,7 +12,7 @@ Templates synced into consumer repos (and IDE Development itself) by:
 |---|---|
 | `branch-source-policy.yml` | Allowed work branches into development; only `promote/main/*` into main |
 | `linktrend-cleanup-merged.yml` | Explicit manual remote cleanup of merged/abandoned branches (no local worktrees) |
-| `linktrend-promote-main.yml` | v3 `main` promotion check, published as the legacy-named `Linktrend Receipt Gate` context: a `promote/main/*` head must have the tree of a green `development` commit (`scripts/orchestrator/promotion_check.py`; runbook `docs/runbooks/orchestrator-delivery.md`) |
+| `linktrend-promote-main.yml` | v3 `main` promotion check, published as the unique `Linktrend Main Receipt Gate` context to avoid collision with the old staging workflow: a `promote/main/*` head must match a development merge tree whose exact Phase PR head has a reusable Full inventory (`scripts/orchestrator/promotion_check.py`; runbook `docs/runbooks/orchestrator-delivery.md`) |
 
 ## Synced only with a deploy target
 
@@ -28,7 +28,7 @@ All other v2 workflow templates were retired in v3 (IDE-22); the orchestrator (`
 
 `linktrend-development-to-staging.yml`, `linktrend-integrator-merge.yml`, `linktrend-repair-observer.yml`, `linktrend-review-gate.yml`, `linktrend-review-packager.yml`, `linktrend-review-ready-publisher.yml`, `linktrend-staging-to-main.yml`. After removal, branch protection must stop requiring their check contexts (`docs/runbooks/v3-upgrade.md`).
 
-`linktrend-promote-main.yml` runs `scripts/orchestrator/promotion_check.py` from the target repo's `development` branch and requires `Verify IDE Development` on the matching commit; a consumer needs both before it relies on this check.
+`linktrend-promote-main.yml` runs `scripts/orchestrator/promotion_check.py` from the target repo's `development` branch and validates the exact Phase Verify run's Full inventory; a consumer needs both before it relies on this check.
 
 ## Trust boundary (all privileged workflows)
 

@@ -1,9 +1,7 @@
-name: Linktrend Receipt Gate
+name: Linktrend Main Receipt Gate
 
-# v3 main promotion check. The context name is legacy: the live main ruleset
-# requires "Linktrend Receipt Gate". No receipt is involved. The check passes only
-# for a promote/main/* head whose tree equals a development commit on which
-# "Verify IDE Development" concluded success (scripts/orchestrator/promotion_check.py).
+# The unique context avoids collision with the retired staging-to-main workflow.
+# The gate reuses the exact Phase Verify run's identity-bound Full inventory.
 on:
   pull_request:
     branches: [main]
@@ -22,7 +20,7 @@ concurrency:
 
 jobs:
   promotion-check:
-    name: Linktrend Receipt Gate
+    name: Linktrend Main Receipt Gate
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     steps:
@@ -41,9 +39,34 @@ jobs:
           python-version: "3.11"
 
       - name: Promotion check
+        id: promotion
         env:
           GH_TOKEN: ${{ github.token }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_HEAD_FORK: ${{ github.event.pull_request.head.repo.fork }}
         run: python3 scripts/orchestrator/promotion_check.py
+
+      - name: Download the exact Phase run inventory
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ide-full-suite-inventory
+          path: evidence
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.promotion.outputs.workflow_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Checkout the verified Phase head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.promotion.outputs.phase_sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify reusable Full inventory identity
+        run: >-
+          python3 scripts/gitops/run_delivery_profile.py full
+          --root candidate
+          --reuse-evidence evidence/full-suite-inventory.json
+          --require-reuse

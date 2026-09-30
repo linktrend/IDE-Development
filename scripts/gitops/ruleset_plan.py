@@ -21,7 +21,7 @@ CONTEXTS = {
         "Linktrend Branch Source Policy",
         "Verify IDE Development",
     ],
-    "main": ["Linktrend Branch Source Policy", "Linktrend Receipt Gate"],
+    "main": ["Linktrend Branch Source Policy", "Linktrend Main Receipt Gate"],
 }
 
 

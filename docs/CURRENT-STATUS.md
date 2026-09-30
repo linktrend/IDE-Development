@@ -5,7 +5,11 @@
 **Package:** **v3.0.0** (Wave 1 content complete; pending merge to `development` and promotion to `main`)
 **Platforms:** Cursor and native Codex. Claude Code is excluded.
 
-This page is the concise current-status surface for v3.
+## 30 September 2026 delivery amendment
+
+This amendment supersedes the historical execution and check policy below. Eric supervises the engineering portfolio; the first project orchestrator is prepared on Server01. Issue checkpoints are combined on a `phase/*` branch for one Phase PR into `development`. GitHub runs Fast and combined Verify, with the installer matrix only for applicable changes. Main promotion reuses the exact Phase inventory. Bugbot and staging delivery are retired; existing divergent staging work is preserved in `archive/staging-20260930`. Live agent testing precedes substantive assignments. LiNKdeveloper is on hold while the IDE Development Program is established.
+
+Current delivery instructions: [orchestrator delivery](runbooks/orchestrator-delivery.md). The 29 September status below is retained as a historical snapshot.
 
 ---
 

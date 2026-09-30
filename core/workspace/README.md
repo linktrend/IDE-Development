@@ -10,7 +10,7 @@ Preferred documents are:
 
 - `WORKSPACE-ADOPTION.md` for the overall model
 - `WORKSPACE-DISCOVERY.md` for repository discovery
-- `REPO-WIRING.md` for consumer repository symlink wiring
+- `REPO-WIRING.md` for physical managed entrypoints and workflow wiring
 - `LEGACY-CLEANUP.md` for safe cleanup and backup rules
 - `WORKSPACE-REPORT.md` for adoption reporting
 
@@ -19,4 +19,4 @@ Workspace adoption is separate from daily session behavior.
 - workspace adoption: one-time installation and wiring
 - session lifecycle: ongoing start-of-day and end-of-day behavior
 
-This layer extends the existing bootstrap, session, packaging, and runtime surface. It does not introduce a new command family.
+This layer extends the existing bootstrap, session, packaging, and runtime surface. It does not introduce a new command family. Current delivery instructions are in `docs/runbooks/hosted-delivery-operations.md`.

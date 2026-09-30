@@ -37,7 +37,7 @@
       "commands": [],
       "requiredCheckContexts": [
         "Linktrend Branch Source Policy",
-        "Linktrend Receipt Gate"
+        "Linktrend Main Receipt Gate"
       ]
     },
     "trusted-governance": {

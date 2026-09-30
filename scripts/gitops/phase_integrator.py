@@ -38,7 +38,7 @@ PHASE_RECORD_REL = Path(".linktrend/phase-delivery-record.json")
 INTEGRATOR_ROLE = "integrator"
 ISSUE_BRANCH_RE = re.compile(r"^issue/([1-9][0-9]{0,8})-(.+)$")
 TERMINAL_PHASE_STATES = frozenset({"main-promoted", "stopped", "blocked", "cancelled"})
-PHASE_GATES = ("fast", "bugbot", "full", "release")
+PHASE_GATES = ("fast", "full", "release")
 
 
 class PhaseLifecycleError(ValueError):
@@ -269,8 +269,8 @@ def invalidate_candidate_gates(record: Mapping[str, Any], *, old_head_sha: str, 
     return result
 
 
-def phase_bugbot_request_allowed(record: Mapping[str, Any], *, live_head_sha: str) -> tuple[bool, str]:
-    """Bugbot is one-shot and only follows the current sealed candidate fast pass."""
+def phase_fast_pass_allowed(record: Mapping[str, Any], *, live_head_sha: str) -> tuple[bool, str]:
+    """The current sealed Phase candidate has its exact Fast pass."""
 
     head = normalize_sha(live_head_sha)
     if not record.get("sealed"):
@@ -283,53 +283,7 @@ def phase_bugbot_request_allowed(record: Mapping[str, Any], *, live_head_sha: st
     fast = record.get("fast") if isinstance(record.get("fast"), Mapping) else {}
     if fast.get("status") != "passed" or normalize_sha(str(fast.get("sha") or head)) != head:
         return False, "fast_gate_not_passed_for_current_seal"
-    bugbot = record.get("bugbot") if isinstance(record.get("bugbot"), Mapping) else {}
-    if bugbot.get("status") in {"requested", "passed"}:
-        return False, "bugbot_already_requested"
     return True, "current_sealed_fast_pass"
-
-
-def phase_full_suite_dispatch_allowed(
-    record: Mapping[str, Any], *, live_head_sha: str, pr_number: int
-) -> tuple[bool, str, dict[str, str] | None]:
-    """Build the only valid Full Suite dispatch for the current sealed head.
-
-    The caller still performs the explicit GitHub dispatch.  Keeping the
-    decision pure makes it testable and prevents a draft or superseded head
-    from waking the expensive workflow.  Bugbot is requested by the Full Suite
-    workflow after the receipt succeeds, so both actions remain final-candidate
-    only without introducing a second trigger path.
-    """
-
-    allowed, detail = phase_bugbot_request_allowed(record, live_head_sha=live_head_sha)
-    if not allowed:
-        return False, detail, None
-    if not isinstance(pr_number, int) or isinstance(pr_number, bool) or pr_number < 1:
-        return False, "invalid_pr_number", None
-    full = record.get("full") if isinstance(record.get("full"), Mapping) else {}
-    if full.get("status") in {"requested", "running", "passed"}:
-        return False, "full_suite_already_requested", None
-    try:
-        prior_attempt = int(full.get("attempt") or 0)
-    except (TypeError, ValueError):
-        return False, "full_suite_attempt_invalid", None
-    if prior_attempt >= 2:
-        return False, "full_suite_attempt_limit", None
-    candidate_id = str(record.get("candidateId") or "").strip()
-    if not re.fullmatch(r"sha256:[0-9a-f]{64}", candidate_id):
-        return False, "candidate_id_missing", None
-    head = normalize_sha(live_head_sha)
-    revision = str(record.get("sealRevision") or record.get("sealedCandidateRevisions") or "")
-    if revision not in {"1", "2"}:
-        return False, "invalid_seal_revision", None
-    return True, "current_sealed_candidate", {
-        "pr_number": str(pr_number),
-        "source_branch": str(record.get("phaseBranch") or ""),
-        "head_sha": head,
-        "candidate_id": candidate_id,
-        "seal_revision": revision,
-        "attempt": str(prior_attempt + 1),
-    }
 
 
 def phase_merge_eligibility(
@@ -342,16 +296,11 @@ def phase_merge_eligibility(
     identity = record.get("candidateIdentity")
     identity_head = normalize_sha(str(identity.get("sourceSha") or "")) if isinstance(identity, Mapping) else ""
     fast = record.get("fast") if isinstance(record.get("fast"), Mapping) else {}
-    bugbot = record.get("bugbot") if isinstance(record.get("bugbot"), Mapping) else {}
     full = record.get("full") if isinstance(record.get("full"), Mapping) else {}
     checks = {
         "currentSeal": sealed and identity_head == head,
         "fastSuccess": fast.get("status") == "passed" and normalize_sha(str(fast.get("sha") or "")) == head,
-        "bugbotSuccess": bugbot.get("status") == "passed" and normalize_sha(str(bugbot.get("sha") or "")) == head,
-        "fullSuccessOrNotRequired": (
-            full.get("status") == "not-required"
-            or (full.get("status") == "passed" and normalize_sha(str(full.get("sha") or "")) == head)
-        ),
+        "fullSuccess": full.get("status") == "passed" and normalize_sha(str(full.get("sha") or "")) == head,
         "noConflict": not conflict,
         "liveHeadUnchanged": normalize_sha(str(record.get("headSha") or "")) == head,
     }
@@ -454,7 +403,6 @@ class PhaseIntegrator:
             "candidateId": None,
             "candidateIdentity": None,
             "fast": {"status": "not-run"},
-            "bugbot": {"status": "not-run"},
             "full": {"status": "not-run"},
             "release": {"status": "not-run"},
             "stopReason": None,
@@ -631,7 +579,7 @@ class PhaseIntegrator:
         if gate not in PHASE_GATES:
             raise PhaseLifecycleError("invalid_gate", gate)
         record[gate] = {"status": status, "sha": head, "detail": detail, **extra}
-        record["namedGateEvidence"] = {"gate": f"{gate}-gate" if gate != "bugbot" else "bugbot", "sha": head, "status": "success" if status in {"passed", "not-required"} else status, "detail": detail, "checks": extra.get("checks", [])}
+        record["namedGateEvidence"] = {"gate": f"{gate}-gate", "sha": head, "status": "success" if status in {"passed", "not-required"} else status, "detail": detail, "checks": extra.get("checks", [])}
         return self._write(record)
 
 
@@ -639,18 +587,14 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["eligible", "bugbot-allowed"])
+    parser.add_argument("command", choices=["eligible"])
     parser.add_argument("record")
     parser.add_argument("head")
     args = parser.parse_args(argv)
     record = json.loads(Path(args.record).read_text(encoding="utf-8"))
-    if args.command == "eligible":
-        result = phase_merge_eligibility(record, live_head_sha=args.head)
-        print(json.dumps(result.to_dict(), sort_keys=True))
-        return 0 if result.eligible else 1
-    ok, detail = phase_bugbot_request_allowed(record, live_head_sha=args.head)
-    print(json.dumps({"eligible": ok, "detail": detail}, sort_keys=True))
-    return 0 if ok else 1
+    result = phase_merge_eligibility(record, live_head_sha=args.head)
+    print(json.dumps(result.to_dict(), sort_keys=True))
+    return 0 if result.eligible else 1
 
 
 if __name__ == "__main__":

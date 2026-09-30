@@ -109,7 +109,7 @@ Branch `issue/GITOPS-01-review-packager-pipeline`. Principal-locked amendment to
 - **Ship = checkpoint only:** commit + push on work branch; no PR; no Bugbot from Ship waves or EOD.
 - **Review Packager:** `linktrend-review-packager.yml` — Tue/Fri **08:00** Asia/Taipei; discover `.linktrend/review-ready.json` where `commitSha == HEAD` → open/ready PR → Bugbot once (`@cursor review` default).
 - **Staging promote:** Tue/Fri **10:00** Asia/Taipei (two hours after Packager); promote only work already on `development`; skip + report if not ready.
-- **Named CI gates:** `core/github/CI-GATE-CONTRACTS.md` (v3: `development` requires `Linktrend Fast Checks` and `Linktrend Branch Source Policy`; `main` requires `Linktrend Branch Source Policy` and `Linktrend Receipt Gate`; the orchestrator also requires `Verify IDE Development`).
+- **Named CI gates:** `core/github/CI-GATE-CONTRACTS.md` (v3: `development` requires `Linktrend Fast Checks` and `Linktrend Branch Source Policy`; `main` requires `Linktrend Branch Source Policy` and `Linktrend Main Receipt Gate`; the orchestrator also requires `Verify IDE Development`).
 - **Review-ready contract:** `core/github/REVIEW-READY.md` + `scripts/mark-review-ready.sh`, `validate-review-ready.sh`, `clear-review-ready.sh`.
 - **Managed workflow sync list** includes review-packager; development-to-staging cron `0 2 * * 2,5` UTC.
 - **Doctrine:** `docs/AUTONOMOUS-GIT-OPERATIONS.md` updated; ADR 0003 amendment 2026-07-28.

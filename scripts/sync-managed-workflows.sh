@@ -280,7 +280,6 @@ required = {
     "fastWorkflowName": str,
     "ciWorkflowName": str,
     "branchPolicyWorkflowName": str,
-    "bugbotCheckName": str,
 }
 for key, typ in required.items():
     if key not in cfg:
@@ -332,9 +331,6 @@ rendered = rendered.replace(
     "__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__",
     str(cfg["branchPolicyWorkflowName"]).strip(),
 )
-review_gate_name = str(cfg.get("reviewGateCheckName") or cfg.get("bugbotCheckName") or "").strip()
-if review_gate_name == "Cursor Bugbot":
-    raise SystemExit("consumer config bugbotCheckName/reviewGateCheckName must not remain Cursor Bugbot")
 rendered = rendered.replace(
     "__LINKTREND_UNTRUSTED_RUNS_ON__", runner_types[runner_type]["untrusted"]
 )
@@ -439,6 +435,6 @@ info "Managed workflow sync: SUCCESS"
 info "Target: $TARGET_REPO"
 info "Synced/updated: $copied"
 info "Already matched: $unchanged"
-info "Next: complete core/checklists/BUGBOT-INHERITANCE.md for this repo"
-info "Next: ensure the repo has a v3 cloud orchestrator (docs/AUTONOMOUS-GIT-OPERATIONS.md)"
+info "Next: follow docs/runbooks/hosted-delivery-operations.md for verified Phase delivery, exact-head evidence, and receipt reuse"
+info "Next: use the designated project orchestrator under Eric and its verified IDE route"
 exit 0

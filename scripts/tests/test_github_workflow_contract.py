@@ -79,10 +79,13 @@ class GithubWorkflowContractTests(unittest.TestCase):
             "        run: python3 scripts/gitops/run_delivery_profile.py fast",
             jobs["fast"]["lines"],
         )
-        self.assertIsNone(_scalar(jobs["fast"]["lines"], "if", 4))
+        self.assertEqual(
+            _scalar(jobs["fast"]["lines"], "if", 4),
+            "startsWith(github.head_ref, 'phase/')",
+        )
         events = document["on"]
-        self.assertEqual(sorted(events["pull_request"]["branches"]), ["development", "main"])
-        self.assertEqual(sorted(events["push"]["branches"]), ["development", "main"])
+        self.assertEqual(events["pull_request"]["branches"], ["development"])
+        self.assertNotIn("push", events)
         self.assertIsNone(_scalar(events["pull_request"]["lines"], "branches-ignore", 4))
         self.assertIsNone(_scalar(events["pull_request"]["lines"], "paths", 4))
 
@@ -132,7 +135,7 @@ class GithubWorkflowContractTests(unittest.TestCase):
                 "Linktrend Branch Source Policy": [
                     "branch-source-policy.yml:branch-source-policy",
                 ],
-                "Linktrend Receipt Gate": ["linktrend-promote-main.yml:promotion-check"],
+                "Linktrend Main Receipt Gate": ["linktrend-promote-main.yml:promotion-check"],
                 "Verify IDE Development": ["ci.yml:verify"],
             },
         )
@@ -146,7 +149,7 @@ class GithubWorkflowContractTests(unittest.TestCase):
         self.assertEqual(pull_request["branches"], ["main"])
         self.assertIn("    types: [opened, synchronize, reopened]", pull_request["lines"])
         job = document["jobs"]["promotion-check"]
-        self.assertEqual(job["name"], "Linktrend Receipt Gate")
+        self.assertEqual(job["name"], "Linktrend Main Receipt Gate")
         text = document["text"]
         self.assertIn(
             "permissions:\n  actions: read\n  contents: read\n  checks: read\n  statuses: read\n  pull-requests: read\n", text

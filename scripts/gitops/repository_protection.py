@@ -40,15 +40,19 @@ FAST_CHECKS = "Linktrend Fast Checks"
 VERIFY_CHECK = "Verify IDE Development"
 # Active workflow job display name (WP-U05). Obsolete step title must not remain required.
 SOURCE_POLICY_CHECK = "Linktrend Branch Source Policy"
-# v3 main promotion check (linktrend-promote-main.yml). Legacy name, no receipt:
-# the live main ruleset requires this context.
-MAIN_PROMOTION_CHECK = "Linktrend Receipt Gate"
+# Active v3 main promotion check uses a unique context. The live ruleset still
+# needs migration from the old staging workflow's context; the gate validates
+# the Phase Full inventory.
+MAIN_PROMOTION_CHECK = "Linktrend Main Receipt Gate"
 REVIEW_GATE_CHECK = "Linktrend Review Gate"
 BUGBOT_CHECK = REVIEW_GATE_CHECK  # compatibility name; never a required v2.5.1 gate
 OBSOLETE_MANAGED_CHECKS = frozenset(
     {"Cursor Bugbot", "Linktrend Review Gate", "Linktrend Review Ready"}
 )
-RENAMED_MANAGED_CHECKS = {"Enforce allowed PR source branches": SOURCE_POLICY_CHECK}
+RENAMED_MANAGED_CHECKS = {
+    "Enforce allowed PR source branches": SOURCE_POLICY_CHECK,
+    "Linktrend Receipt Gate": MAIN_PROMOTION_CHECK,
+}
 
 GOVERNED = ("development", "main")
 
@@ -82,9 +86,9 @@ def managed_baseline(
     release_checks: list[str] | None = None,
 ) -> list[str]:
     if branch == "development":
-        if integrator_checks:
-            return _unique_ordered([*integrator_checks, SOURCE_POLICY_CHECK])
-        return [FAST_CHECKS, SOURCE_POLICY_CHECK, VERIFY_CHECK]
+        return _unique_ordered(
+            [FAST_CHECKS, SOURCE_POLICY_CHECK, VERIFY_CHECK, *(integrator_checks or [])]
+        )
     if branch == "main":
         return _unique_ordered([*(release_checks or []), SOURCE_POLICY_CHECK, MAIN_PROMOTION_CHECK])
     raise ProtectionError(f"ungoverned branch: {branch}")
@@ -821,9 +825,12 @@ def build_plan(
     for branch in branches:
         name = RULESET_NAMES[branch]
         if development_checks_override is not None and branch == "development":
-            # Compatibility path: caller supplied the full active check list.
+            # Preserve caller requirements while always retaining the Phase gates.
             managed = _unique_ordered(
-                [item for item in development_checks_override if item not in OBSOLETE_MANAGED_CHECKS]
+                [
+                    *(item for item in development_checks_override if item not in OBSOLETE_MANAGED_CHECKS),
+                    *managed_baseline("development"),
+                ]
             )
         else:
             managed = managed_baseline(

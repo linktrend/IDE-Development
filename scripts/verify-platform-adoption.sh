@@ -92,8 +92,7 @@ EOF
 chmod +x "$ROOT/scripts/wire-repo.sh"
 bash "$ROOT/scripts/wire-repo.sh" "$CONSUMER" \
   --ci-workflow-name "Consumer CI" \
-  --branch-policy-workflow-name "Branch Source Policy" \
-  --bugbot-check-name "Linktrend Review Gate"
+  --branch-policy-workflow-name "Branch Source Policy"
 
 # Config committed path
 [ -f "${CONSUMER}/.github/linktrend-gitops-consumer.json" ] || fail "missing consumer gitops config"
@@ -101,6 +100,9 @@ grep -q '"ciWorkflowName": "Consumer CI"' "${CONSUMER}/.github/linktrend-gitops-
   || fail "consumer config missing Consumer CI"
 grep -q '"fastWorkflowName": "Linktrend Fast Checks"' "${CONSUMER}/.github/linktrend-gitops-consumer.json" \
   || fail "consumer config missing managed Fast workflow name"
+if grep -Eq '"(bugbotCheckName|reviewGateCheckName|bugbotProviderCheckName)"' "${CONSUMER}/.github/linktrend-gitops-consumer.json"; then
+  fail "fresh consumer config contains retired review metadata"
+fi
 
 # Installed managed workflows are fully rendered
 ls "${CONSUMER}/.github/workflows/"linktrend-*.yml >/dev/null 2>&1 || fail "missing installed managed workflows"

@@ -25,8 +25,21 @@ class CheckContractTests(unittest.TestCase):
         self.assertIn("Linktrend Review Gate", contract["removedManaged"])
         self.assertEqual(contract["aggregateContext"], "Linktrend Full Suite")
         self.assertEqual(
+            contract["emission"]["fullSuite"],
+            {
+                "workflow": "ci.yml",
+                "job": "Verify IDE Development",
+                "events": ["pull_request:development/phase"],
+                "artifact": "ide-full-suite-inventory",
+            },
+        )
+        self.assertEqual(
             contract["obsoleteManaged"]["Linktrend Repository CI Gate"],
             "Linktrend Full Suite",
+        )
+        self.assertEqual(
+            contract["obsoleteManaged"]["Linktrend Receipt Gate"],
+            "Linktrend Main Receipt Gate",
         )
 
     def test_protection_baseline_uses_active_source_policy(self) -> None:
@@ -40,7 +53,7 @@ class CheckContractTests(unittest.TestCase):
             ],
         )
         main = rp.managed_baseline("main")
-        self.assertEqual(main, ["Linktrend Branch Source Policy", "Linktrend Receipt Gate"])
+        self.assertEqual(main, ["Linktrend Branch Source Policy", "Linktrend Main Receipt Gate"])
         self.assertEqual(mig.GOVERNED_BRANCHES, rp.GOVERNED)
         contract = mig.derive_active_check_contract(release_id="v3.0.0")
         self.assertEqual(contract["requiredByBranch"], {"development": dev, "main": main})
@@ -71,6 +84,22 @@ class GovernedBranchRenameTests(unittest.TestCase):
             self.assertIn("Linktrend Branch Source Policy", after)
             self.assertNotIn("Enforce allowed PR source branches", after)
             self.assertEqual(plan["branches"][branch]["action"], "update")
+
+    def test_main_receipt_rename_preserves_repository_owned_checks(self) -> None:
+        plan = mig.plan_governed_branch_rename(
+            {
+                "development": ["Linktrend Fast Checks", "Verify IDE Development"],
+                "main": [
+                    "Linktrend Receipt Gate",
+                    "Linktrend Branch Source Policy",
+                    "Consumer Custom Release Check",
+                ],
+            }
+        )
+        main = plan["branches"]["main"]["after"]
+        self.assertEqual(main.count("Linktrend Main Receipt Gate"), 1)
+        self.assertNotIn("Linktrend Receipt Gate", main)
+        self.assertIn("Consumer Custom Release Check", main)
 
     def test_missing_branch_is_incomplete_not_success(self) -> None:
         plan = mig.plan_governed_branch_rename(

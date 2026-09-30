@@ -37,9 +37,9 @@ main = rp.managed_baseline("main")
 assert "Linktrend Review Gate" not in main
 assert main == [
     "Linktrend Branch Source Policy",
-    "Linktrend Receipt Gate",
+    "Linktrend Main Receipt Gate",
 ], main
-assert "Linktrend Receipt Gate" not in dev
+assert "Linktrend Main Receipt Gate" not in dev
 assert rp.GOVERNED == ("development", "main")
 for retired in rp.RETIRED.values():
     try:
@@ -52,6 +52,16 @@ u = rp.union_checks(dev, ["Consumer Custom Lint", "Verify IDE Development"], ["E
 assert u["preserved"] == ["Consumer Custom Lint", "Extra"], u
 assert "Consumer Custom Lint" in u["desired"]
 assert "Linktrend Review Gate" not in u["desired"]
+
+main_u = rp.union_checks(
+    rp.managed_baseline("main"),
+    ["Linktrend Receipt Gate", "Linktrend Branch Source Policy", "Consumer Custom Release Check"],
+    ["Release Audit"],
+)
+assert main_u["desired"].count("Linktrend Main Receipt Gate") == 1, main_u
+assert "Linktrend Receipt Gate" not in main_u["desired"], main_u
+assert "Consumer Custom Release Check" in main_u["desired"], main_u
+assert "Release Audit" in main_u["desired"], main_u
 
 merged = rp.merge_ruleset_rules(
     [
@@ -96,7 +106,7 @@ assert dev == ["Linktrend Fast Checks", "Linktrend Branch Source Policy", "Verif
 assert "Linktrend Review Gate" not in dev
 main = p["branches"]["main"]["requiredChecks"]["desired"]
 assert "Linktrend Review Gate" not in main
-assert "Linktrend Receipt Gate" in main
+assert "Linktrend Main Receipt Gate" in main
 assert p["repoSettings"]["allow_auto_merge"]["after"] is True
 assert "rollback" in p and "snapshot" in p["rollback"]
 assert p["rollback"]["instructions"]

@@ -31,7 +31,7 @@ v3 has two long-lived branches. Every repository that installs the managed syste
 | Branch | Ruleset name (when rulesets available) | Managed purpose |
 |--------|----------------------------------------|-----------------|
 | `development` | `development-autonomous-merge` | Integration: strict required checks, work-branch source policy, orchestrator auto-merge |
-| `main` | `main-autonomous-release` | Live: promotion-only PR sources (`promote/main/*`) + `Linktrend Receipt Gate` |
+| `main` | `main-autonomous-release` | Live: promotion-only PR sources (`promote/main/*`) + `Linktrend Receipt Gate`; migrate to `Linktrend Main Receipt Gate` to avoid collision with the old staging workflow |
 
 Promotion: `development` → temporary `promote/main/*` branch → PR into `main` → merge → automatic deploy per the deploy policy. There is no other promotion branch or ruleset.
 
@@ -53,7 +53,11 @@ Managed baseline (order stable):
 2. `Linktrend Branch Source Policy`
 3. `Verify IDE Development`
 
-When `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` / `--integrator-checks` is provided it replaces items 1 and 3; `Linktrend Branch Source Policy` is always appended.
+The merge checker adds all three `Installer matrix (...)` checks only when the
+shared changed-path classifier says they apply. Main promotion enforces the
+same conditional requirement against the merged Phase PR's changed files.
+
+When `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` / `--integrator-checks` is provided its checks are added while all Phase gates remain required.
 
 `Cursor Bugbot`, `Linktrend Review Gate`, and `Linktrend Review Ready` are obsolete
 advisory/provider contexts. The v2.5.1 migration removes them from required
@@ -66,7 +70,7 @@ Also set repository setting `allow_auto_merge=true` so the orchestrator may auto
 Managed baseline:
 
 1. `Linktrend Branch Source Policy`
-2. `Linktrend Receipt Gate` — the v3 main promotion check (`.github/workflows/linktrend-promote-main.yml`): the `promote/main/*` head's tree must equal a `development` commit on which `Verify IDE Development` succeeded. The name is legacy (no receipt is involved) and is kept because the live `main` ruleset requires it; see `docs/runbooks/orchestrator-delivery.md`.
+2. `Linktrend Main Receipt Gate` — the v3 main promotion check (`.github/workflows/linktrend-promote-main.yml`): it verifies the exact Phase head's inventory for a development merge commit whose tree matches the promotion candidate. Its unique context avoids collision with the old staging workflow on `main`.
 
 Optional `LINKTREND_RELEASE_GATE_CHECKS` / `--release-checks` are prepended when a consumer needs extra release checks.
 
@@ -130,7 +134,7 @@ Never invent a third mechanism. Document the gap for the Principal; do not force
 ## Orchestrator merge and promotion notes
 
 - Development: required checks must include the active fast-gate and branch-source policy; `allow_auto_merge=true`.
-- Main: merge only via temporary `promote/main/*` PRs after `Linktrend Receipt Gate`; never direct-push.
+- Main: merge only via temporary `promote/main/*` PRs after `Linktrend Main Receipt Gate`; never direct-push.
 - Preserve `bypass_actors` on ruleset update so existing App / operator bypasses are not wiped.
 - Preserve non-check ruleset rules and classic `required_pull_request_reviews` / `restrictions` (and similar) on update.
 - Tools never create GitHub Apps, install tokens, or repository secrets.

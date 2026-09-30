@@ -294,10 +294,16 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("scripts/gitops/secret_scan.py", runtime["files"])
         self.assertIn("scripts/gitops/secret_scan_migrate.py", runtime["files"])
         live = ["python3", "scripts/gitops/secret_scan.py"]
-        fast = json.loads((ROOT / ".github/linktrend-delivery-mode.json").read_text(encoding="utf-8"))
-        self.assertIn(live, fast["profiles"]["fast"]["commands"])
-        self.assertIn(live, fast["profiles"]["full"]["commands"])
-        self.assertIn("test_fixture_aware_secret_scan", json.dumps(fast["profiles"]))
+        consumer_delivery = json.loads(
+            (ROOT / ".github/linktrend-delivery-mode.json").read_text(encoding="utf-8")
+        )
+        self.assertIn(live, consumer_delivery["profiles"]["fast"]["commands"])
+        full_commands = consumer_delivery["profiles"]["full"]["commands"]
+        self.assertIn(["bash", "scripts/verify-ide-development.sh"], full_commands)
+        verify_script = (ROOT / "scripts/verify-ide-development.sh").read_text(encoding="utf-8")
+        self.assertIn("python3 scripts/gitops/run_delivery_profile.py fast", verify_script)
+        self.assertNotIn(live, full_commands)
+        self.assertIn("test_fixture_aware_secret_scan", json.dumps(consumer_delivery["profiles"]))
         managed = json.loads((ROOT / "core/managed-core/config/delivery.json").read_text(encoding="utf-8"))
         self.assertIn(live, managed["profiles"]["fast"]["commands"])
         self.assertIn(live, managed["profiles"]["full"]["commands"])
@@ -315,7 +321,7 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("approved_synthetic_fixture", contract)
         self.assertIn("never auto-approve", contract)
         self.assertIn("duplicate fixture ids", contract)
-        self.assertIn("secret_scan.py", delivery)
+        self.assertIn("fixture-aware secret scanning", delivery.lower())
         self.assertIn("fixture-aware secret scanning", streamlined.lower())
 
 

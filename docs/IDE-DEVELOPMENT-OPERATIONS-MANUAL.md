@@ -34,10 +34,10 @@ Codex uses Luna High for everyday work and Sol Medium for hard work, and only wh
 1. **Idea.** You say what you want, in plain language.
 2. **Plan.** The orchestrator turns that into a Phase and Issues. One GitHub Issue per Phase is the readable summary. Work IDs look like `IDE-<n>`.
 3. **Build.** A worker takes one Issue on a branch named `issue/<PREFIX>-<n>-<slug>`, commits small steps, and pushes often.
-4. **Package.** The orchestrator opens the pull request into `development`. Workers do not.
-5. **Check.** Fast checks run on the branch. The pull request gets one Full CI run and one review of that exact commit by a different model family. Bugbot is optional.
-6. **Merge.** The orchestrator merges into `development` when CI is green and that review has passed.
-7. **Promote.** The orchestrator promotes `development` to `main`. There is no extra human approval before `main`.
+4. **Package.** The orchestrator groups accepted Issue checkpoints into one `phase/*` candidate and opens one pull request into `development`. Workers do not open PRs.
+5. **Check.** The exact Phase head gets Fast checks, the existing combined Verify suite, and one independent review by a different model family. The Ubuntu/macOS/Windows installer matrix runs when installer, workflow, fixture, or dependency paths change. Issue checkpoints do not start CI. Bugbot is not part of delivery eligibility.
+6. **Merge.** The orchestrator merges into `development` when required Phase checks and that review pass, retaining the Phase head tree.
+7. **Promote.** The orchestrator promotes the verified development content to `main`. The gate reuses the exact Phase-run inventory; it does not rerun Full. Staging is not in the active path.
 8. **Deploy.** After `main`, GitHub Actions deploy automatically. The deploy standard lives in the LiNKops repo. Each deploy has a health check and a rollback.
 
 The ledger (`ide_ledger` in the LiNKplatform Supabase project) is the orchestrator’s record of this work. Only the orchestrator writes it, through RPC. Until that ledger is live, the pilot run log stays in the Project store.

@@ -1,15 +1,31 @@
 name: IDE Development Cross-Platform Matrix
 
-# Branch-safe installer matrix for Issue #67 Lane A.
-# Triggers on push to issue/** only — no pull_request / Bugbot coupling.
+# Cross-platform installer matrix for Phase candidates that change installer,
+# workflow, fixture, or environment inputs. The path classifier is shared with
+# merge_check.py and the main promotion gate.
 # Uses standard GitHub-hosted runners exclusively (no self-hosted labels).
 
 on:
-  push:
-    branches:
-      - "issue/**"
-  # Manual re-run for lead checkpoints without opening a PR / Bugbot coupling.
-  workflow_dispatch:
+  pull_request:
+    branches: [development]
+    paths:
+      - ".github/workflows/**"
+      - ".github/linktrend-*"
+      - "core/managed-core/**"
+      - "core/github/managed-workflows/**"
+      - "scripts/ide_development/**"
+      - "scripts/ide_development_tests/**"
+      - "scripts/platform_matrix/**"
+      - "tests/platform_matrix/**"
+      - "scripts/run_cross_platform_matrix.py"
+      - "scripts/wire-repo.sh"
+      - "scripts/sync-managed-workflows.sh"
+      - "**/pyproject.toml"
+      - "**/requirements*.txt"
+      - "**/Pipfile"
+      - "**/Pipfile.lock"
+      - "**/poetry.lock"
+      - "**/uv.lock"
 
 permissions:
   contents: read
@@ -20,8 +36,10 @@ concurrency:
 
 jobs:
   installer-matrix:
+    if: startsWith(github.head_ref, 'phase/')
     name: Installer matrix (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -33,7 +51,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5

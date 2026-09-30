@@ -13,20 +13,19 @@ A worker is done when all of the following are true:
 2. Fast deterministic checks passed before the push. Run `python3 scripts/gitops/run_delivery_profile.py fast` (the command CI job `Linktrend Fast Checks` runs) plus every check the Issue names.
 3. The final reply ends with a short lessons note.
 
-Those local checks do not replace the one Full CI run on the pull request head.
+Those local checks do not replace the combined Phase CI run.
 
 ## Orchestrator acceptance
 
-The orchestrator decides whether a Phase is one pull request or several into `development`.
+The orchestrator packages accepted Issue checkpoints into one Phase pull request to `development`.
 
 Accept a pull request when all of the following hold on the exact head SHA:
 
-1. `Linktrend Fast Checks` and `Linktrend Branch Source Policy` are green.
-2. Exactly one Full CI run, job `Verify IDE Development`, is green on that head.
-3. One independent review of that head approves. The reviewer is a model from a different family than the author (a GPT model for Grok or Opus work; a Claude or Grok model for Codex work). Bugbot is optional.
-4. A commit after that review has a new review of the new head. The review record states that it covered at least the delta.
+1. `Linktrend Fast Checks`, `Linktrend Branch Source Policy`, and `Verify IDE Development` are green on that exact Phase head; all three platform matrix checks are green when the shared changed-path classifier says they apply.
+2. One independent review of that head approves. The reviewer is a model from a different family than the author (a GPT model for Grok or Opus work; a Claude or Grok model for Codex work).
+3. A commit after that review has a new review of the new head. The review record states that it covered at least the delta.
 
-Merge when the required checks and the Full run are green on the exact reviewed head and the review approves. Promotion to `main` reuses that result with no re-review. The `main` gate checks that the promoted tree equals a `development` commit whose Full CI was green.
+Merge when all applicable Phase checks and the independent review are green on the exact reviewed head. The development merge must retain that head's tree. Promotion to `main` reuses the same Phase Verify inventory with no Full rerun or second review.
 
 ## Blocked / flag Carlos
 

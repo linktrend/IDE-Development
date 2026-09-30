@@ -1,7 +1,18 @@
-# Git operations (v3)
+# Historical Git operations doctrine (v3; superseded 2026-09-30)
 
-**Status:** Active system-source doctrine (ADR 0006). This repository is the
-IDE Development source and is not a consumer install target.
+> **Superseded on 2026-09-30.** This document preserves its former body for
+> historical context; it is not active operating guidance. Follow
+> [`docs/runbooks/hosted-delivery-operations.md`](https://github.com/linktrend/IDE-Development/blob/bdf19134a8e0dbd592e84b1fea9d5516b40135b5/docs/runbooks/hosted-delivery-operations.md)
+> for the current setup: issue checkpoints feed one combined Phase PR, the
+> existing Fast and Verify checks produce exact-head evidence, and promotion
+> reuses a matching receipt after independent review. Work is coordinated by
+> the designated project orchestrator under Eric through the verified IDE
+> route. A Cursor Project is not required; the approved plan groups issues into
+> dependency-aware waves.
+
+**Status:** Superseded historical text (ADR 0006). This repository remains the
+IDE Development source and is not a consumer install target. The guidance below
+is retained as the prior operating model only.
 
 ## Model
 
