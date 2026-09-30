@@ -1467,7 +1467,7 @@
       "id": "doctrine-autonomous-git-operations-md",
       "ownershipClass": "managed-core",
       "source": "core/managed-core/content/doctrine/AUTONOMOUS-GIT-OPERATIONS.md",
-      "sourceHash": "sha256:bbc0c4f12da1ff2bf4c3487bace5f27cb0570531f34a9fee8ba303da622662fc",
+      "sourceHash": "sha256:a3e9f9b7640c154687a9f5e06f94bb27e3221ab43d31b56f2c960d5c3ec48235",
       "destination": ".ide-development/content/doctrine/AUTONOMOUS-GIT-OPERATIONS.md",
       "mode": "0644",
       "platform": "all",

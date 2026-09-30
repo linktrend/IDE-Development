@@ -87,6 +87,6 @@ if [ "${#conflicts[@]}" -gt 0 ]; then
   done
   exit 11
 fi
-info "Bugbot: complete core/checklists/BUGBOT-INHERITANCE.md per repo (dashboard step)."
-info "Orchestrator: docs/AUTONOMOUS-GIT-OPERATIONS.md (Cursor Project step)."
+info "Phase delivery: docs/runbooks/hosted-delivery-operations.md (combined Phase PR, exact-head Verify evidence, receipt reuse)."
+info "Orchestrator: designated project orchestrator under Eric and its verified IDE route."
 exit 0

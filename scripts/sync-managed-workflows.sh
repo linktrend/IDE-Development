@@ -435,6 +435,6 @@ info "Managed workflow sync: SUCCESS"
 info "Target: $TARGET_REPO"
 info "Synced/updated: $copied"
 info "Already matched: $unchanged"
-info "Next: complete core/checklists/BUGBOT-INHERITANCE.md for this repo"
-info "Next: ensure the repo has a v3 cloud orchestrator (docs/AUTONOMOUS-GIT-OPERATIONS.md)"
+info "Next: follow docs/runbooks/hosted-delivery-operations.md for verified Phase delivery, exact-head evidence, and receipt reuse"
+info "Next: use the designated project orchestrator under Eric and its verified IDE route"
 exit 0

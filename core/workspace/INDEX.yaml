@@ -89,10 +89,10 @@ entries:
 
   - id: repo-wiring
     path: .cursor/workspace/REPO-WIRING.md
-    purpose: Defines how consumer repositories are wired to the shared runtime surface through .cursor symlinks that resolve back into IDE Development and core.
+    purpose: Defines how consumer repositories receive physical managed .cursor entrypoints and managed GitHub workflows from the IDE Development package.
     when_to_read:
       - when creating or validating consumer repository wiring
-      - when checking symlink integrity and backward compatibility
+      - when checking managed entrypoint and workflow installation
     dependencies:
       - workspace-adoption
       - wire-repo-script
@@ -107,12 +107,12 @@ entries:
     tags:
       - workspace
       - wiring
-      - symlink
+      - managed-files
       - compatibility
 
   - id: wire-repo-script
     path: scripts/wire-repo.sh
-    purpose: Deterministic consumer-repository wiring script. Creates repo/.cursor symlink, backs up conflicting state, verifies required runtime paths, and exits idempotently when already wired.
+    purpose: Deterministic consumer-repository wiring script. Preserves consumer-owned files, installs physical managed .cursor entrypoints and workflows, and verifies the installed paths.
     when_to_read:
       - when a user says "Wire this repo", "Wire this workspace to IDE-Development", "Adopt this repo into the workspace", or similar natural-language wiring requests
       - immediately before executing consumer repository wiring after discovery and legacy cleanup review

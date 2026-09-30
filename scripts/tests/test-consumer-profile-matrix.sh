@@ -19,7 +19,7 @@ for name in "${consumers[@]}"; do
   # validation instead of rewriting a mistakenly tracked test artifact.
   printf '%s\n' '__pycache__/' '*.py[cod]' >>"$repo/.git/info/exclude"
   cat >"$repo/.github/linktrend-gitops-consumer.json" <<JSON
-{"schemaVersion":1,"fastWorkflowName":"Linktrend Fast Checks","ciWorkflowName":"${name} CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Linktrend Review Gate","reviewGateCheckName":"Linktrend Review Gate","bugbotProviderCheckName":"Cursor Bugbot","runnerType":"github-hosted"}
+{"schemaVersion":1,"fastWorkflowName":"Linktrend Fast Checks","ciWorkflowName":"${name} CI","branchPolicyWorkflowName":"Branch Source Policy","runnerType":"github-hosted"}
 JSON
 
   # Exercise the candidate package as an installed consumer, rather than
@@ -98,6 +98,7 @@ root, ci = Path(sys.argv[1]), sys.argv[2]
 config = json.loads((root / ".github/linktrend-gitops-consumer.json").read_text())
 assert config["fastWorkflowName"] == "Linktrend Fast Checks"
 assert config["ciWorkflowName"] == ci and config["runnerType"] == "github-hosted"
+assert not {"bugbotCheckName", "reviewGateCheckName", "bugbotProviderCheckName"}.intersection(config)
 assert not (root / "scripts/tests/test_candidate_lifecycle.py").exists()
 PY
 
@@ -201,9 +202,9 @@ fi
 # The installer must reject explicit bad workflow declarations rather than
 # overwrite them during an upgrade.
 for invalid in \
-  '{"schemaVersion":1,"fastWorkflowName":"","ciWorkflowName":"CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Linktrend Review Gate","reviewGateCheckName":"Linktrend Review Gate","bugbotProviderCheckName":"Cursor Bugbot","runnerType":"github-hosted"}' \
-  '{"schemaVersion":1,"fastWorkflowName":"Other Fast","ciWorkflowName":"CI","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Linktrend Review Gate","reviewGateCheckName":"Linktrend Review Gate","bugbotProviderCheckName":"Cursor Bugbot","runnerType":"github-hosted"}' \
-  '{"schemaVersion":1,"fastWorkflowName":"Linktrend Fast Checks","ciWorkflowName":"","branchPolicyWorkflowName":"Branch Source Policy","bugbotCheckName":"Linktrend Review Gate","reviewGateCheckName":"Linktrend Review Gate","bugbotProviderCheckName":"Cursor Bugbot","runnerType":"github-hosted"}'; do
+  '{"schemaVersion":1,"fastWorkflowName":"","ciWorkflowName":"CI","branchPolicyWorkflowName":"Branch Source Policy","runnerType":"github-hosted"}' \
+  '{"schemaVersion":1,"fastWorkflowName":"Other Fast","ciWorkflowName":"CI","branchPolicyWorkflowName":"Branch Source Policy","runnerType":"github-hosted"}' \
+  '{"schemaVersion":1,"fastWorkflowName":"Linktrend Fast Checks","ciWorkflowName":"","branchPolicyWorkflowName":"Branch Source Policy","runnerType":"github-hosted"}'; do
   invalid_repo="$TMP/invalid-${RANDOM}"; mkdir -p "$invalid_repo/.github"
   git -C "$invalid_repo" init -q -b development
   printf '%s\n' "$invalid" >"$invalid_repo/.github/linktrend-gitops-consumer.json"
