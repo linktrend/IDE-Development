@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
-"""v3 ``main`` promotion check, published as the ``Linktrend Receipt Gate`` context.
+"""v3 ``main`` promotion check, published as ``Linktrend Main Receipt Gate``.
 
-The context name is legacy: the live ``main`` ruleset requires it. No receipt is
-involved. A PR into ``main`` passes only when
-
-  (a) its head branch matches ``promote/main/*`` in the base repository (not a fork);
-  (b) some commit D among the first-parent commits of ``<remote>/development``
-      inside ``git_local.DEVELOPMENT_FIRST_PARENT_WINDOW`` (the same window
-      ``promote_main.py`` accepts) has exactly the head's tree; and
-  (c) ``Verify IDE Development`` concluded success on D, from
-      ``.github/workflows/ci.yml`` running as a ``push`` on ``development``
-      (a pull_request run, another branch, another file, or a fork does not count).
+A candidate passes only when its tree exactly matches a recent development
+first-parent merge D, D's second parent H is the exact Phase PR head, H and D
+have the same tree, and ``Verify IDE Development`` succeeded on H in a same-repo
+``phase/*`` pull request targeting ``development``. The workflow run id is
+returned so the caller can download and verify that run's identity-bound Full
+inventory; no Full suite is rerun during promotion.
 
 Inputs (flags override env): ``--head-sha`` / ``PR_HEAD_SHA``, ``--head-ref`` /
 ``PR_HEAD_REF`` (else ``GITHUB_HEAD_REF``), ``--base-ref`` / ``GITHUB_BASE_REF``,
@@ -30,13 +26,15 @@ from pathlib import Path
 from typing import Any, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import git_local  # noqa: E402
 import github_api  # noqa: E402
 from git_local import GitError  # noqa: E402
 from github_api import GitHubApiError  # noqa: E402
+from scripts.gitops.repository_ci_contract import requires_cross_platform_matrix  # noqa: E402
 
-CONTEXT = "Linktrend Receipt Gate"
+CONTEXT = "Linktrend Main Receipt Gate"
 REQUIRED_CHECK = "Verify IDE Development"
 PROMOTE_BRANCH_RE = re.compile(r"^promote/main/[A-Za-z0-9][A-Za-z0-9._-]*$")
 SEARCH_DEPTH = git_local.DEVELOPMENT_FIRST_PARENT_WINDOW
@@ -49,6 +47,79 @@ def tree_matches(dev_ref: str, head_tree: str, git_dir: str, depth: int) -> list
         for commit, tree in git_local.first_parent_commits(dev_ref, git_dir, depth)
         if tree == head_tree
     ]
+
+
+def phase_evidence_for_development(
+    development_sha: str, *, git_dir: str, repo: str, required_check: str, api: Any
+) -> dict[str, Any]:
+    """Resolve the exact Phase head and successful Verify run for a dev merge."""
+    parents = git_local.out(["show", "-s", "--format=%P", development_sha], git_dir).split()
+    if len(parents) < 2:
+        return {"ok": False, "reason": "development candidate is not a merge commit"}
+    phase_sha = parents[1]
+    development_tree = git_local.tree(development_sha, git_dir)
+    phase_tree = git_local.tree(phase_sha, git_dir)
+    if phase_tree != development_tree:
+        return {
+            "ok": False,
+            "phaseSha": phase_sha,
+            "reason": "development merge tree differs from the reviewed Phase head tree",
+        }
+    observed = github_api.head_checks(
+        api,
+        repo,
+        phase_sha,
+        require_phase_pr_on_development=True,
+    )
+    check = github_api.summarize_check(phase_sha, required_check, observed.get(required_check))
+    matching_pulls = [
+        pull
+        for pull in api.pulls_for_commit(repo, phase_sha)
+        if isinstance(pull, dict)
+        and (pull.get("base") or {}).get("ref") == "development"
+        and ((pull.get("base") or {}).get("repo") or {}).get("full_name") == repo
+        and (pull.get("head") or {}).get("sha") == phase_sha
+        and str((pull.get("head") or {}).get("ref") or "").startswith("phase/")
+        and ((pull.get("head") or {}).get("repo") or {}).get("full_name") == repo
+        and pull.get("merged_at")
+        and pull.get("merge_commit_sha") == development_sha
+        and isinstance(pull.get("number"), int)
+    ]
+    pull_numbers = sorted({int(pull["number"]) for pull in matching_pulls})
+    if len(pull_numbers) != 1:
+        return {
+            "ok": False,
+            "phaseSha": phase_sha,
+            "check": check,
+            "reason": "development merge is not linked to exactly one merged same-repo Phase PR with this head and merge commit",
+        }
+    phase_pr = pull_numbers[0]
+    phase_files = api.pull_files(repo, phase_pr)
+    matrix_required = requires_cross_platform_matrix(
+        [str(item.get("filename") or "") for item in phase_files if isinstance(item, dict)]
+    )
+    matrix_names = (
+        "Installer matrix (ubuntu-latest)",
+        "Installer matrix (macos-latest)",
+        "Installer matrix (windows-latest)",
+    )
+    matrix_checks = (
+        {
+            name: github_api.summarize_check(phase_sha, name, observed.get(name))
+            for name in matrix_names
+        }
+        if matrix_required
+        else {}
+    )
+    return {
+        "ok": check["ok"] and all(value["ok"] for value in matrix_checks.values()),
+        "phaseSha": phase_sha,
+        "phasePr": phase_pr,
+        "matrixRequired": matrix_required,
+        "workflowRunId": check.get("workflowRunId"),
+        "check": check,
+        "matrixChecks": matrix_checks,
+    }
 
 
 def check(
@@ -78,9 +149,11 @@ def check(
         "developmentSha": None,
         "searched": 0,
         "check": None,
+        "phaseEvidenceOk": False,
     }
-    if not PROMOTE_BRANCH_RE.match(head_ref or ""):
-        reasons.append(f"head branch {head_ref!r} is not promote/main/*; only promote/main/* may merge into main")
+    allowed_head = head_ref in {"development"} or head_ref.startswith("phase/") or bool(PROMOTE_BRANCH_RE.match(head_ref or ""))
+    if not allowed_head:
+        reasons.append(f"head branch {head_ref!r} is not development, phase/*, or the controlled promote/main/* bridge")
     if base_ref and base_ref != "main":
         reasons.append(f"base {base_ref!r} is not main")
     if head_fork:
@@ -103,19 +176,32 @@ def check(
     else:
         # Prefer the newest green candidate; report the newest one when none is green.
         for sha in matches:
-            state = github_api.check_succeeded(
-                api, repo, sha, required_check, require_push_on_development=True
+            evidence = phase_evidence_for_development(
+                sha, git_dir=git_dir, repo=repo, required_check=required_check, api=api
             )
-            if state["ok"] or result["check"] is None:
-                result["developmentSha"], result["check"] = sha, state
-            if state["ok"]:
+            if evidence["ok"] or result["check"] is None:
+                result["developmentSha"] = sha
+                result["phaseSha"] = evidence.get("phaseSha")
+                result["workflowRunId"] = evidence.get("workflowRunId")
+                result["check"] = evidence.get("check") or {"ok": False, "reason": evidence.get("reason")}
+                result["matrixChecks"] = evidence.get("matrixChecks", {})
+                result["matrixRequired"] = bool(evidence.get("matrixRequired"))
+                result["phasePr"] = evidence.get("phasePr")
+                result["phaseEvidenceReason"] = evidence.get("reason")
+                result["phaseEvidenceOk"] = bool(evidence["ok"])
+            if evidence["ok"]:
                 break
-        if not result["check"]["ok"]:
-            got = result["check"]["conclusion"]
-            detail = result["check"].get("workflowReason")
-            shown = f"{got}: {detail}" if detail else str(got)
+        if not result["phaseEvidenceOk"]:
+            got = result["check"].get("conclusion")
+            detail = result["check"].get("workflowReason") or result["check"].get("reason")
+            failed_matrix = [
+                name for name, state in result.get("matrixChecks", {}).items() if not state.get("ok")
+            ]
+            shown = result.get("phaseEvidenceReason") or (f"{got}: {detail}" if detail else str(got))
+            if result.get("matrixRequired") and failed_matrix:
+                shown += "; missing/failed Phase matrix checks: " + ", ".join(failed_matrix)
             reasons.append(
-                f"{required_check} has not concluded success on development {result['developmentSha']} "
+                f"{required_check} has not concluded success on the Phase head for development {result['developmentSha']} "
                 f"(got {shown})"
             )
     result["reasons"] = reasons
@@ -160,6 +246,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps({"context": CONTEXT, **exc.as_dict(), "reasons": [str(exc)]}, indent=2))
         return 1
     print(json.dumps(result, indent=2))
+    if result.get("ok") and os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            output.write(f"workflow_run_id={result['workflowRunId']}\n")
+            output.write(f"phase_sha={result['phaseSha']}\n")
     return 0 if result["ok"] else 1
 
 

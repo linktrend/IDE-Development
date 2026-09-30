@@ -15,7 +15,7 @@ import os
 import re
 import sys
 from dataclasses import asdict, dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
 
@@ -25,11 +25,26 @@ MANIFEST_KIND = "ci-component-manifest"
 AGGREGATE_CONTEXT_DEFAULT = "Linktrend Full Suite"
 SOURCE_POLICY_CONTEXT = "Linktrend Branch Source Policy"
 FAST_CONTEXT = "Linktrend Fast Checks"
-FULL_CONTEXT = "Linktrend Full Suite"
-# v3 main promotion check (.github/workflows/linktrend-promote-main.yml). The
-# name is legacy and no receipt is involved; the live main ruleset requires it.
-MAIN_PROMOTION_CONTEXT = "Linktrend Receipt Gate"
+# Active main check context (.github/workflows/linktrend-promote-main.yml) is
+# unique; the live ruleset still needs migration from the old staging context.
+MAIN_PROMOTION_CONTEXT = "Linktrend Main Receipt Gate"
 VERIFY_CONTEXT = "Verify IDE Development"
+PLATFORM_MATRIX_PATH_PREFIXES = (
+    ".github/workflows/",
+    "core/managed-core/",
+    "core/github/managed-workflows/",
+    "scripts/ide_development/",
+    "scripts/ide_development_tests/",
+    "scripts/platform_matrix/",
+    "tests/platform_matrix/",
+)
+PLATFORM_MATRIX_FILES = frozenset(
+    {
+        "scripts/run_cross_platform_matrix.py",
+        "scripts/wire-repo.sh",
+        "scripts/sync-managed-workflows.sh",
+    }
+)
 STALE_CONTEXTS = frozenset(
     {
         "Linktrend Repository CI Gate",
@@ -126,7 +141,7 @@ def default_contract() -> dict[str, Any]:
             "full": {
                 "id": "full",
                 "commands": [],
-                "requiredCheckContexts": [FULL_CONTEXT],
+                "requiredCheckContexts": [VERIFY_CONTEXT],
             },
             "promotion": {
                 "id": "promotion",
@@ -292,6 +307,26 @@ def classify_changed_paths(
         "applicationPaths": application,
         "reason": "classified",
     }
+
+
+def requires_cross_platform_matrix(changed_paths: Sequence[str]) -> bool:
+    """Require OS matrix only for installer, workflow, fixture, or environment changes."""
+    for raw in changed_paths:
+        path = normalize_repo_path(str(raw))
+        name = PurePosixPath(path).name
+        if (
+            path in PLATFORM_MATRIX_FILES
+            or any(path.startswith(prefix) for prefix in PLATFORM_MATRIX_PATH_PREFIXES)
+            or (path.startswith(".github/linktrend-") and path.count("/") == 1)
+            or name == "pyproject.toml"
+            or name == "Pipfile"
+            or name == "Pipfile.lock"
+            or name == "poetry.lock"
+            or name == "uv.lock"
+            or (name.startswith("requirements") and name.endswith(".txt"))
+        ):
+            return True
+    return False
 
 
 @dataclass

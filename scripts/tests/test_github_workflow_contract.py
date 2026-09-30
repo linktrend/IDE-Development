@@ -132,7 +132,7 @@ class GithubWorkflowContractTests(unittest.TestCase):
                 "Linktrend Branch Source Policy": [
                     "branch-source-policy.yml:branch-source-policy",
                 ],
-                "Linktrend Receipt Gate": ["linktrend-promote-main.yml:promotion-check"],
+                "Linktrend Main Receipt Gate": ["linktrend-promote-main.yml:promotion-check"],
                 "Verify IDE Development": ["ci.yml:verify"],
             },
         )
@@ -146,7 +146,7 @@ class GithubWorkflowContractTests(unittest.TestCase):
         self.assertEqual(pull_request["branches"], ["main"])
         self.assertIn("    types: [opened, synchronize, reopened]", pull_request["lines"])
         job = document["jobs"]["promotion-check"]
-        self.assertEqual(job["name"], "Linktrend Receipt Gate")
+        self.assertEqual(job["name"], "Linktrend Main Receipt Gate")
         text = document["text"]
         self.assertIn(
             "permissions:\n  actions: read\n  contents: read\n  checks: read\n  statuses: read\n  pull-requests: read\n", text

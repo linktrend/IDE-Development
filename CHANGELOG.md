@@ -22,7 +22,7 @@ Wave 1 of v3: IDE Development becomes the shared development operating System (P
 
 - Long-lived branches are `development` and `main` only; `staging` is removed from branch logic, gitops modules, schemas, cleanup and protections
 - Pull requests into `development` come from work branches; into `main` only from `promote/main/*`
-- `main` promotion is orchestrator-owned and checked by `Linktrend Receipt Gate` (legacy name): the promoted tree must equal a `development` commit, pushed on `development`, whose `Verify IDE Development` passed
+- `main` promotion is orchestrator-owned and checked by `Linktrend Main Receipt Gate`: the promoted tree must match a development merge whose exact Phase PR head passed Verify and produced the reusable Full inventory
 - Deploys after `main` are automatic GitHub Actions jobs with a health check and rollback; the standard is owned by the LiNKops repo
 
 ### Orchestrator scripts

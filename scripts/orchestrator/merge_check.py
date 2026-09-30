@@ -30,11 +30,18 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import github_api  # noqa: E402
 from github_api import DEFAULT_ALLOWED_APPS, EXPECTED_WORKFLOWS, FAILING_CONCLUSIONS, GitHubApiError  # noqa: E402
+from scripts.gitops.repository_ci_contract import requires_cross_platform_matrix  # noqa: E402
 
 DEFAULT_REQUIRED = ("Linktrend Fast Checks", "Linktrend Branch Source Policy", "Verify IDE Development")
+PLATFORM_MATRIX_CHECKS = (
+    "Installer matrix (ubuntu-latest)",
+    "Installer matrix (macos-latest)",
+    "Installer matrix (windows-latest)",
+)
 ALLOWED_BASES = ("development", "main")
 VERDICTS = ("APPROVE", "REQUEST_CHANGES")
 
@@ -226,7 +233,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    required = args.required or list(DEFAULT_REQUIRED)
+    required = list(args.required or DEFAULT_REQUIRED)
     try:
         github_api.validate_repo(args.repo)
         github_api.validate_sha(args.review_sha)
@@ -235,7 +242,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         head_sha = github_api.validate_sha(str((pr.get("head") or {}).get("sha") or ""))
         allowed_apps = tuple(args.check_app) if args.check_app else DEFAULT_ALLOWED_APPS
         checks = github_api.head_checks(api, args.repo, head_sha, allowed_apps=allowed_apps)
-        changed = github_api.workflow_files_changed(api.pull_files(args.repo, args.pr))
+        changed_files = api.pull_files(args.repo, args.pr)
+        changed = github_api.workflow_files_changed(changed_files)
+        head_ref = str((pr.get("head") or {}).get("ref") or "")
+        base_ref = str((pr.get("base") or {}).get("ref") or "")
+        if (
+            base_ref == "development"
+            and head_ref.startswith("phase/")
+            and requires_cross_platform_matrix(
+                [str(item.get("filename") or "") for item in changed_files if isinstance(item, Mapping)]
+            )
+        ):
+            required.extend(name for name in PLATFORM_MATRIX_CHECKS if name not in required)
     except GitHubApiError as exc:
         print(json.dumps(exc.as_dict(), indent=2))
         return 2

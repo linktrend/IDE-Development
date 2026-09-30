@@ -85,6 +85,15 @@ class RemoteFixture:
         git(self.seed, "push", "-q", "-f", "origin", f"{name}:refs/heads/{name}")
         return sha
 
+    def merge_phase(self, name: str, base: str, files: dict[str, str]) -> tuple[str, str]:
+        phase_ref = f"phase/{name}"
+        phase_sha = self.branch(phase_ref, base, files)
+        git(self.seed, "checkout", "-q", "-B", "development", base)
+        git(self.seed, "merge", "-q", "--no-ff", "--no-edit", phase_ref)
+        development_sha = git(self.seed, "rev-parse", "HEAD")
+        git(self.seed, "push", "-q", "-f", "origin", "development:refs/heads/development")
+        return phase_sha, development_sha
+
     def remote_sha(self, branch: str) -> str:
         return git(self.remote, "rev-parse", f"refs/heads/{branch}")
 
@@ -99,11 +108,13 @@ class FakeApi:
         pull: dict[str, Any] | None = None,
         statuses: dict[str, list[dict[str, Any]]] | None = None,
         files: list[dict[str, Any]] | None = None,
+        commit_pulls: dict[str, list[dict[str, Any]]] | None = None,
     ):
         self.runs = runs or {}
         self._pull = pull or {}
         self.statuses = statuses or {}
         self.files = files or []
+        self.commit_pulls = commit_pulls or {}
         self.fail_actions = False
         self.calls: list[tuple[str, str]] = []
         self._workflows: dict[str, dict[str, Any]] = {}
@@ -115,6 +126,10 @@ class FakeApi:
     def pull_files(self, repo: str, number: int) -> list[dict[str, Any]]:
         self.calls.append(("pull_files", str(number)))
         return list(self.files)
+
+    def pulls_for_commit(self, repo: str, sha: str) -> list[dict[str, Any]]:
+        self.calls.append(("pulls_for_commit", sha))
+        return list(self.commit_pulls.get(sha, []))
 
     def check_runs(self, repo: str, sha: str) -> list[dict[str, Any]]:
         self.calls.append(("check_runs", sha))
@@ -200,6 +215,58 @@ def green(sha: str) -> dict[str, list[dict[str, Any]]]:
     return {sha: [run("Verify IDE Development", "success")]}
 
 
+def phase_api(
+    phase_sha: str,
+    development_sha: str,
+    *,
+    phase_ref: str = "phase/wave-1",
+    verify_conclusion: str = "success",
+    files: list[str] | None = None,
+    matrix: bool = False,
+    event: str = "pull_request",
+    head_branch: str | None = None,
+    include_pr: bool = True,
+) -> FakeApi:
+    checks = [
+        run(
+            "Verify IDE Development",
+            verify_conclusion,
+            event=event,
+            head_branch=head_branch or phase_ref,
+            head_sha=phase_sha,
+        )
+    ]
+    if matrix:
+        checks.extend(
+            run(
+                name,
+                "success",
+                rid=2,
+                head_sha=phase_sha,
+                event="pull_request",
+                head_branch=phase_ref,
+            )
+            for name in (
+                "Installer matrix (ubuntu-latest)",
+                "Installer matrix (macos-latest)",
+                "Installer matrix (windows-latest)",
+            )
+        )
+    pull = {
+        "number": 17,
+        "state": "closed",
+        "merged_at": "2026-09-30T00:00:00Z",
+        "merge_commit_sha": development_sha,
+        "base": {"ref": "development", "repo": {"full_name": REPO}},
+        "head": {"sha": phase_sha, "ref": phase_ref, "repo": {"full_name": REPO}},
+    }
+    return FakeApi(
+        {phase_sha: checks},
+        files=[{"filename": path} for path in (files or [])],
+        commit_pulls={phase_sha: [pull] if include_pr else []},
+    )
+
+
 class PackageTests(unittest.TestCase):
     def setUp(self) -> None:
         self.fx = RemoteFixture()
@@ -271,6 +338,11 @@ class PromoteMainTests(unittest.TestCase):
     def setUp(self) -> None:
         self.fx = RemoteFixture()
         self.main0 = self.fx.remote_sha("main")
+        self.phase, self.dev = self.fx.merge_phase("wave-1", self.main0, {"feature.txt": "v1\n"})
+        git(self.fx.work, "fetch", "-q", "origin")
+
+    def _api(self, *, verify_conclusion: str = "success") -> FakeApi:
+        return phase_api(self.phase, self.dev, verify_conclusion=verify_conclusion)
 
     def tearDown(self) -> None:
         self.fx.cleanup()
@@ -280,10 +352,11 @@ class PromoteMainTests(unittest.TestCase):
             return run_main(promote_main, ["--repo", REPO, "--git-dir", str(self.fx.work), *extra])
 
     def test_happy_path_main_subset_of_development(self) -> None:
-        dev = self.fx.branch("development", self.main0, {"feature.txt": "v1\n"})
-        code, out = self._promote(FakeApi(green(dev)), "--push")
+        dev = self.dev
+        code, out = self._promote(self._api(), "--push")
         self.assertEqual(code, 0, out)
         self.assertEqual(out["developmentSha"], dev)
+        self.assertEqual(out["check"]["phaseSha"], self.phase)
         self.assertEqual(out["promoteBranch"], f"promote/main/{dev[:12]}")
         self.assertEqual(out["headSha"], dev, "main is an ancestor, so no merge commit is needed")
         self.assertEqual(out["tree"], git(self.fx.work, "rev-parse", f"{dev}^{{tree}}"))
@@ -293,54 +366,49 @@ class PromoteMainTests(unittest.TestCase):
         self.assertEqual(out["prTitle"], f"Promote development {dev[:12]} to main")
 
     def test_previous_promotion_merge_on_main_is_merged_in_with_same_tree(self) -> None:
-        dev1 = self.fx.branch("development", self.main0, {"feature.txt": "v1\n"})
+        _, dev1 = self.fx.merge_phase("wave-1", self.main0, {"feature.txt": "v1\n"})
         git(self.fx.seed, "checkout", "-q", "-B", "main", self.main0)
         git(self.fx.seed, "merge", "-q", "--no-ff", "-m", "Merge promote/main/x", dev1)
         git(self.fx.seed, "push", "-q", "origin", "main:refs/heads/main")
-        dev2 = self.fx.branch("development", dev1, {"feature.txt": "v2\n"})
-        code, out = self._promote(FakeApi(green(dev2)))
+        phase2, dev2 = self.fx.merge_phase("wave-2", dev1, {"feature.txt": "v2\n"})
+        code, out = self._promote(phase_api(phase2, dev2, phase_ref="phase/wave-2"))
         self.assertEqual(code, 0, out)
+        self.assertEqual(out["check"]["phaseSha"], phase2)
         self.assertNotEqual(out["headSha"], dev2)
         self.assertEqual(git(self.fx.work, "rev-parse", f"{out['headSha']}^{{tree}}"), out["tree"])
         self.assertFalse(out["pushed"])
 
     def test_main_with_extra_change_exits_3(self) -> None:
-        dev = self.fx.branch("development", self.main0, {"feature.txt": "v1\n"})
         self.fx.branch("main", self.main0, {"hotfix.txt": "only on main\n"})
-        code, out = self._promote(FakeApi(green(dev)), "--push")
+        code, out = self._promote(self._api(), "--push")
         self.assertEqual(code, 3, out)
         self.assertEqual(out["changedFiles"], ["hotfix.txt"])
         self.assertIn("missing from development", out["reason"])
         self.assertFalse(out["pushed"])
 
     def test_second_parent_ancestor_is_not_on_development(self) -> None:
-        dev = self.fx.branch("development", self.main0, {"feature.txt": "v1\n"})
         side = self.fx.branch("side", self.main0, {"side.txt": "only side\n"})
-        git(self.fx.seed, "checkout", "-q", "-B", "development", dev)
-        git(self.fx.seed, "merge", "-q", "--no-ff", "-m", "merge side", side)
-        git(self.fx.seed, "push", "-q", "origin", "development:refs/heads/development")
         tip = self.fx.remote_sha("development")
-        code, out = self._promote(FakeApi(green(side)), "--sha", side)
+        code, out = self._promote(self._api(), "--sha", side)
         self.assertEqual(code, 2)
         self.assertEqual(out["error"], "not_on_development")
         self.assertIn("first-parent", out["message"])
-        code, out = self._promote(FakeApi(green(tip)))
+        code, out = self._promote(self._api())
         self.assertEqual(code, 0, out)
 
     def test_sha_outside_first_parent_window_is_rejected(self) -> None:
-        older = self.fx.branch("development", self.main0, {"feature.txt": "v1\n"})
-        tip = self.fx.branch("development", older, {"feature.txt": "v2\n"})
+        phase1, older = self.fx.merge_phase("wave-1", self.main0, {"feature.txt": "v1\n"})
+        phase2, tip = self.fx.merge_phase("wave-2", older, {"feature.txt": "v2\n"})
         with mock.patch.object(git_local, "DEVELOPMENT_FIRST_PARENT_WINDOW", 1):
-            code, out = self._promote(FakeApi(green(older)), "--sha", older)
+            code, out = self._promote(phase_api(phase1, older), "--sha", older)
         self.assertEqual(code, 2)
         self.assertEqual(out["error"], "not_on_development")
         self.assertIn("last 1 first-parent", out["message"])
-        code, out = self._promote(FakeApi(green(tip)), "--sha", tip)
+        code, out = self._promote(phase_api(phase2, tip, phase_ref="phase/wave-2"), "--sha", tip)
         self.assertEqual(code, 0, out)
 
     def test_red_development_sha_exits_1(self) -> None:
-        dev = self.fx.branch("development", self.main0, {"feature.txt": "v1\n"})
-        code, out = self._promote(FakeApi({dev: [run("Verify IDE Development", "failure")]}))
+        code, out = self._promote(self._api(verify_conclusion="failure"))
         self.assertEqual(code, 1, out)
         self.assertEqual(out["check"]["conclusion"], "failure")
 
@@ -491,11 +559,8 @@ class PromotionCheckTests(unittest.TestCase):
     def setUp(self) -> None:
         self.fx = RemoteFixture()
         main0 = self.fx.remote_sha("main")
-        self.dev = self.fx.branch("development", main0, {"feature.txt": "v1\n"})
-        self.fx.branch("main", main0, {"feature.txt": "v1\n"})
-        # Promote branch: development SHA with main merged in -> same tree, different SHA.
+        self.phase, self.dev = self.fx.merge_phase("wave-1", main0, {"feature.txt": "v1\n"})
         git(self.fx.seed, "checkout", "-q", "-B", "promote/main/x", self.dev)
-        git(self.fx.seed, "merge", "-q", "--no-edit", "main")
         git(self.fx.seed, "push", "-q", "origin", "promote/main/x:refs/heads/promote/main/x")
         self.head = self.fx.remote_sha("promote/main/x")
         self.other = self.fx.branch("issue/IDE-9-z", self.dev, {"other.txt": "x\n"})
@@ -510,40 +575,59 @@ class PromotionCheckTests(unittest.TestCase):
         with mock.patch.object(github_api, "from_env", return_value=api):
             return run_main(promotion_check, argv)
 
+    def _api(self, **kwargs: Any) -> FakeApi:
+        return phase_api(self.phase, self.dev, **kwargs)
+
     def test_tree_match_and_green(self) -> None:
-        self.assertNotEqual(self.head, self.dev)
-        code, out = self._check(FakeApi(green(self.dev)), self.head, "promote/main/x")
+        self.assertEqual(git(self.fx.work, "rev-parse", f"{self.dev}^2"), self.phase)
+        code, out = self._check(self._api(), self.head, "promote/main/x")
         self.assertEqual(code, 0, out)
         self.assertEqual(out["developmentSha"], self.dev)
-        self.assertEqual(out["context"], "Linktrend Receipt Gate")
+        self.assertEqual(out["phaseSha"], self.phase)
+        self.assertEqual(out["phasePr"], 17)
+        self.assertEqual(out["workflowRunId"], "1")
+        self.assertEqual(out["context"], "Linktrend Main Receipt Gate")
         self.assertTrue(out["check"]["ok"])
         self.assertEqual(out["check"]["workflow"], ".github/workflows/ci.yml")
         self.assertIsNone(out["check"]["workflowReason"])
 
-    def test_pull_request_event_is_not_development_evidence(self) -> None:
-        runs = {self.dev: [run("Verify IDE Development", "success", event="pull_request", head_sha=self.dev)]}
-        code, out = self._check(FakeApi(runs), self.head, "promote/main/x")
+    def test_verify_must_come_from_the_phase_pull_request(self) -> None:
+        code, out = self._check(self._api(event="push", head_branch="development"), self.head, "promote/main/x")
         self.assertEqual(code, 1)
         self.assertFalse(out["check"]["ok"])
-        self.assertIn("is not 'push'", out["reasons"][0])
+        self.assertIn("is not 'pull_request'", out["reasons"][0])
 
-    def test_push_on_another_branch_is_not_development_evidence(self) -> None:
-        runs = {self.dev: [run(
-            "Verify IDE Development", "success", event="push", head_branch="feature", head_sha=self.dev,
-        )]}
-        code, out = self._check(FakeApi(runs), self.head, "promote/main/x")
+    def test_verify_must_be_on_a_phase_branch(self) -> None:
+        code, out = self._check(self._api(head_branch="feature"), self.head, "promote/main/x")
         self.assertEqual(code, 1)
-        self.assertIn("is not 'development'", out["reasons"][0])
+        self.assertIn("is not phase/*", out["reasons"][0])
+
+    def test_development_merge_must_link_to_its_exact_merged_phase_pr(self) -> None:
+        api = self._api(include_pr=False)
+        code, out = self._check(api, self.head, "promote/main/x")
+        self.assertEqual(code, 1)
+        self.assertIn("not linked to exactly one merged same-repo Phase PR", out["reasons"][0])
+
+    def test_matrix_is_required_for_installer_paths_and_reused_when_green(self) -> None:
+        changed = ["scripts/ide_development/engine.py"]
+        code, out = self._check(self._api(files=changed), self.head, "promote/main/x")
+        self.assertEqual(code, 1)
+        self.assertTrue(out["matrixRequired"])
+        self.assertEqual(len(out["matrixChecks"]), 3)
+
+        code, out = self._check(self._api(files=changed, matrix=True), self.head, "promote/main/x")
+        self.assertEqual(code, 0, out)
+        self.assertTrue(out["matrixRequired"])
+        self.assertTrue(all(check["ok"] for check in out["matrixChecks"].values()))
 
     def test_tree_match_and_red(self) -> None:
-        code, out = self._check(FakeApi({self.dev: [run("Verify IDE Development", "failure")]}), self.head,
-                                "promote/main/x")
+        code, out = self._check(self._api(verify_conclusion="failure"), self.head, "promote/main/x")
         self.assertEqual(code, 1)
         self.assertEqual(out["developmentSha"], self.dev)
         self.assertIn("has not concluded success", out["reasons"][0])
 
     def test_no_tree_match(self) -> None:
-        api = FakeApi(green(self.dev))
+        api = self._api()
         code, out = self._check(api, self.other, "promote/main/x")
         self.assertEqual(code, 1)
         self.assertIsNone(out["developmentSha"])
@@ -551,12 +635,12 @@ class PromotionCheckTests(unittest.TestCase):
         self.assertEqual(api.calls, [])
 
     def test_wrong_branch_name(self) -> None:
-        code, out = self._check(FakeApi(green(self.dev)), self.head, "issue/IDE-9-z")
+        code, out = self._check(self._api(), self.head, "issue/IDE-9-z")
         self.assertEqual(code, 1)
-        self.assertIn("is not promote/main/*", out["reasons"][0])
+        self.assertIn("not development, phase/*, or the controlled promote/main/* bridge", out["reasons"][0])
 
     def test_fork_head_fails(self) -> None:
-        code, out = self._check(FakeApi(green(self.dev)), self.head, "promote/main/x", "--head-fork", "true")
+        code, out = self._check(self._api(), self.head, "promote/main/x", "--head-fork", "true")
         self.assertEqual(code, 1)
         self.assertIn("fork", out["reasons"][0])
 
@@ -643,7 +727,7 @@ class GithubApiTests(unittest.TestCase):
         self.assertTrue(via_suite["countsAsCheck"])
         self.assertEqual(via_suite["workflow"], expected)
 
-        receipt = "Linktrend Receipt Gate"
+        receipt = "Linktrend Main Receipt Gate"
         receipt_ok = github_api.head_checks(FakeApi({sha: [run(receipt, "success", head_sha=sha)]}), REPO, sha)[receipt]
         self.assertTrue(receipt_ok["countsAsCheck"])
         self.assertEqual(receipt_ok["workflow"], github_api.EXPECTED_WORKFLOWS[receipt])

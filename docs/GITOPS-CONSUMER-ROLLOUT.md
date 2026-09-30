@@ -131,7 +131,7 @@ Every installed consumer must protect:
 | Branch | Purpose |
 |---|---|
 | `development` | Strict required checks: `Linktrend Fast Checks`, `Linktrend Branch Source Policy`, `Verify IDE Development` |
-| `main` | Promotion-only PR sources (`promote/main/*`): `Linktrend Branch Source Policy`, `Linktrend Receipt Gate` |
+| `main` | Promotion-only PR sources (`promote/main/*`): `Linktrend Branch Source Policy`, `Linktrend Main Receipt Gate` |
 
 The GitHub **default branch** remains the repository’s configured default (typically `main`); managed protections still apply to `development` and `main` regardless of which branch is the default branch.
 

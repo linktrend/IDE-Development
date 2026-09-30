@@ -132,12 +132,16 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
     def test_required_contexts_are_emitted_and_stale_context_is_rejected(self) -> None:
         self.assertEqual(self.contract["aggregateContext"], "Linktrend Full Suite")
         self.assertEqual(
+            default_contract()["profiles"]["full"]["requiredCheckContexts"],
+            ["Verify IDE Development"],
+        )
+        self.assertEqual(
             self.contract["profiles"]["promotion"]["requiredCheckContexts"],
-            ["Linktrend Branch Source Policy", "Linktrend Receipt Gate"],
+            ["Linktrend Branch Source Policy", "Linktrend Main Receipt Gate"],
         )
         self.assertEqual(
             default_contract()["profiles"]["promotion"]["requiredCheckContexts"],
-            ["Linktrend Branch Source Policy", "Linktrend Receipt Gate"],
+            ["Linktrend Branch Source Policy", "Linktrend Main Receipt Gate"],
         )
         self.assertEqual(
             self.contract["profiles"]["trusted-governance"]["requiredCheckContexts"],

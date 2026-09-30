@@ -21,8 +21,8 @@ a managed workflow depends on a missing coordination label.
 | Review gate | Removed from required checks; retained provider/review signals are advisory only |
 | Source policy | `Linktrend Branch Source Policy` |
 | Fast | `Linktrend Fast Checks` |
-| Full | `Linktrend Full Suite` |
-| Receipt | `Linktrend Receipt Gate` |
+| Full evidence | `Verify IDE Development` in `ci.yml` writes the reusable `ide-full-suite-inventory` artifact on Phase PRs; it is not a separate check context |
+| Receipt | `Linktrend Main Receipt Gate` |
 
 Obsolete managed names (must be replaced, never preserved as repo-owned):
 
@@ -53,9 +53,9 @@ Failure after one branch update rolls back applied branches or reports
 ## Labels
 
 Derive exact managed labels (name/description/color) from the release contract.
-Create `linktrend-full-suite` before Full dispatch. Wrong-name, conflicting
-metadata, or application to a stale/ineligible PR fails closed and does not
-claim success.
+The active Phase route produces Full evidence automatically in the combined
+Verify run; it does not dispatch per-issue CI. The legacy label remains only as
+migration metadata and does not trigger the active workflow.
 
 ## Evaluator / variable migration
 

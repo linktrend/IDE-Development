@@ -38,7 +38,10 @@ EXPECTED_WORKFLOWS = {
     "Verify IDE Development": ".github/workflows/ci.yml",
     "Linktrend Fast Checks": ".github/workflows/ci.yml",
     "Linktrend Branch Source Policy": ".github/workflows/branch-source-policy.yml",
-    "Linktrend Receipt Gate": ".github/workflows/linktrend-promote-main.yml",
+    "Linktrend Main Receipt Gate": ".github/workflows/linktrend-promote-main.yml",
+    "Installer matrix (ubuntu-latest)": ".github/workflows/ide-development-cross-platform.yml",
+    "Installer matrix (macos-latest)": ".github/workflows/ide-development-cross-platform.yml",
+    "Installer matrix (windows-latest)": ".github/workflows/ide-development-cross-platform.yml",
 }
 _ACTIONS_RUN_ID_RE = re.compile(r"/actions/runs/([1-9]\d*)(?:/job/[1-9]\d*)?(?:[/?#]|$)")
 
@@ -139,6 +142,11 @@ class GitHubApi:
 
     def pull(self, repo: str, number: int) -> dict[str, Any]:
         return self.get(f"/repos/{validate_repo(repo)}/pulls/{int(number)}")
+
+    def pulls_for_commit(self, repo: str, sha: str) -> list[dict[str, Any]]:
+        return self.paginate(
+            f"/repos/{validate_repo(repo)}/commits/{validate_sha(sha)}/pulls"
+        )
 
     def check_runs(self, repo: str, sha: str) -> list[dict[str, Any]]:
         # ``filter=all`` so a later same-name run from another app cannot hide
@@ -267,6 +275,7 @@ def validate_workflow_run(
     sha: str,
     repo: str,
     require_push_on_development: bool = False,
+    require_phase_pr_on_development: bool = False,
 ) -> tuple[bool, str | None, str | None]:
     """Require path, head SHA, and target repository. Return ``(ok, path, reason)``."""
     path = workflow_run.get("path")
@@ -286,6 +295,12 @@ def validate_workflow_run(
             return False, identity, f"workflow run event {workflow_run.get('event')!r} is not 'push'"
         if workflow_run.get("head_branch") != "development":
             return False, identity, f"workflow run head_branch {workflow_run.get('head_branch')!r} is not 'development'"
+    if require_phase_pr_on_development:
+        if workflow_run.get("event") != "pull_request":
+            return False, identity, f"workflow run event {workflow_run.get('event')!r} is not 'pull_request'"
+        branch = workflow_run.get("head_branch")
+        if not isinstance(branch, str) or not branch.startswith("phase/"):
+            return False, identity, f"workflow run head_branch {branch!r} is not phase/*"
     return True, identity, None
 
 
@@ -297,19 +312,29 @@ def assess_check_workflow(
     repo: str | None,
     sha: str,
     require_push_on_development: bool = False,
-) -> tuple[bool, bool, str | None, str | None]:
+    require_phase_pr_on_development: bool = False,
+) -> tuple[bool, bool, str | None, str | None, str | None, list[Any]]:
     """Return ``(ok, exposed, path, reason)`` for one evidence check run."""
     workflow_run, unresolved = resolve_actions_workflow_run(api, repo or "", check_run)
     if workflow_run is None:
-        return False, False, None, unresolved
+        return False, False, None, unresolved, None, []
     ok, path, reason = validate_workflow_run(
         workflow_run,
         expected=expected,
         sha=sha,
         repo=repo or "",
         require_push_on_development=require_push_on_development,
+        require_phase_pr_on_development=require_phase_pr_on_development,
     )
-    return ok, True, path, reason
+    pulls = workflow_run.get("pull_requests")
+    return (
+        ok,
+        True,
+        path,
+        reason,
+        str(workflow_run.get("id") or "") or None,
+        pulls if isinstance(pulls, list) else [],
+    )
 
 
 def workflow_files_changed(files: Iterable[Mapping[str, Any]]) -> list[str]:
@@ -331,6 +356,7 @@ def latest_checks(
     repo: str | None = None,
     sha: str | None = None,
     require_push_on_development: bool = False,
+    require_phase_pr_on_development: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """Latest check run per ``(name, app)``, plus reported commit statuses.
 
@@ -383,13 +409,14 @@ def latest_checks(
             }
         expected = EXPECTED_WORKFLOWS.get(name)
         if chosen is not None:
-            wf_ok, wf_exposed, wf_id, wf_reason = assess_check_workflow(
+            wf_ok, wf_exposed, wf_id, wf_reason, wf_run_id, wf_pulls = assess_check_workflow(
                 chosen,
                 expected,
                 api=api,
                 repo=repo,
                 sha=sha or "",
                 require_push_on_development=require_push_on_development,
+                require_phase_pr_on_development=require_phase_pr_on_development,
             )
             completed = chosen.get("status") == "completed"
             out[name] = {
@@ -401,6 +428,8 @@ def latest_checks(
                 "workflowExposed": wf_exposed,
                 "workflowOk": wf_ok,
                 "workflowReason": wf_reason,
+                "workflowRunId": wf_run_id,
+                "workflowPullRequests": wf_pulls,
                 "url": chosen.get("html_url"),
                 "countsAsCheck": bool(wf_ok and app_slug(chosen) in allowed),
                 "foreignApps": foreign,
@@ -416,6 +445,7 @@ def latest_checks(
                 "workflowExposed": False,
                 "workflowOk": True,
                 "workflowReason": None,
+                "workflowPullRequests": [],
                 "url": status.get("target_url") if status else None,
                 "countsAsCheck": False,
                 "foreignApps": foreign,
@@ -431,6 +461,7 @@ def head_checks(
     *,
     allowed_apps: Sequence[str] = DEFAULT_ALLOWED_APPS,
     require_push_on_development: bool = False,
+    require_phase_pr_on_development: bool = False,
 ) -> dict[str, dict[str, Any]]:
     return latest_checks(
         api.check_runs(repo, sha),
@@ -440,6 +471,7 @@ def head_checks(
         repo=repo,
         sha=sha,
         require_push_on_development=require_push_on_development,
+        require_phase_pr_on_development=require_phase_pr_on_development,
     )
 
 
@@ -451,10 +483,21 @@ def check_succeeded(
     *,
     allowed_apps: Sequence[str] = DEFAULT_ALLOWED_APPS,
     require_push_on_development: bool = False,
+    require_phase_pr_on_development: bool = False,
 ) -> dict[str, Any]:
     check = head_checks(
-        api, repo, sha, allowed_apps=allowed_apps, require_push_on_development=require_push_on_development
+        api,
+        repo,
+        sha,
+        allowed_apps=allowed_apps,
+        require_push_on_development=require_push_on_development,
+        require_phase_pr_on_development=require_phase_pr_on_development,
     ).get(name)
+    return summarize_check(sha, name, check)
+
+
+def summarize_check(sha: str, name: str, check: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Reduce one validated head-check observation to the promotion shape."""
     counts = bool(check and check.get("countsAsCheck"))
     conclusion = check.get("conclusion") if counts else None
     report = (check or {}).get("statusReport") or {}
@@ -470,6 +513,8 @@ def check_succeeded(
         "app": (check or {}).get("app"),
         "workflow": (check or {}).get("workflow"),
         "workflowReason": (check or {}).get("workflowReason"),
+        "workflowRunId": (check or {}).get("workflowRunId"),
+        "workflowPullRequests": (check or {}).get("workflowPullRequests", []),
         "ok": conclusion == "success" and counts and not status_failed,
     }
 

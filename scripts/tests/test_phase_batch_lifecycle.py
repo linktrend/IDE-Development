@@ -21,7 +21,7 @@ from scripts.gitops.phase_integrator import (
     IssueTip,
     PhaseIntegrator,
     PhaseLifecycleError,
-    phase_bugbot_request_allowed,
+    phase_fast_pass_allowed,
     phase_merge_eligibility,
     validate_issue_batch,
 )
@@ -115,13 +115,10 @@ class PhaseBatchLifecycleTests(unittest.TestCase):
         identity = CandidateIdentity("owner/name", head, git(root, "rev-parse", "HEAD^{tree}"), {}, "full")
         record = integrator.seal(head_sha=head, candidate_identity=identity)
         self.assertEqual((record["sealed"], record["sealRevision"]), (True, 1))
-        self.assertEqual(phase_bugbot_request_allowed(record, live_head_sha=head), (False, "fast_gate_not_passed_for_current_seal"))
+        self.assertEqual(phase_fast_pass_allowed(record, live_head_sha=head), (False, "fast_gate_not_passed_for_current_seal"))
         record = integrator.update_gate("fast", status="passed", sha=head)
-        self.assertEqual(phase_bugbot_request_allowed(record, live_head_sha=head), (True, "current_sealed_fast_pass"))
-        record = integrator.update_gate("bugbot", status="requested", sha=head)
-        self.assertEqual(phase_bugbot_request_allowed(record, live_head_sha=head), (False, "bugbot_already_requested"))
-        integrator.update_gate("bugbot", status="passed", sha=head)
-        integrator.update_gate("full", status="not-required", sha=head)
+        self.assertEqual(phase_fast_pass_allowed(record, live_head_sha=head), (True, "current_sealed_fast_pass"))
+        integrator.update_gate("full", status="passed", sha=head)
         final = integrator.load()
         self.assertIsNotNone(final)
         verdict = phase_merge_eligibility(final or {}, live_head_sha=head)

@@ -37,9 +37,9 @@ main = rp.managed_baseline("main")
 assert "Linktrend Review Gate" not in main
 assert main == [
     "Linktrend Branch Source Policy",
-    "Linktrend Receipt Gate",
+    "Linktrend Main Receipt Gate",
 ], main
-assert "Linktrend Receipt Gate" not in dev
+assert "Linktrend Main Receipt Gate" not in dev
 assert rp.GOVERNED == ("development", "main")
 for retired in rp.RETIRED.values():
     try:
@@ -96,7 +96,7 @@ assert dev == ["Linktrend Fast Checks", "Linktrend Branch Source Policy", "Verif
 assert "Linktrend Review Gate" not in dev
 main = p["branches"]["main"]["requiredChecks"]["desired"]
 assert "Linktrend Review Gate" not in main
-assert "Linktrend Receipt Gate" in main
+assert "Linktrend Main Receipt Gate" in main
 assert p["repoSettings"]["allow_auto_merge"]["after"] is True
 assert "rollback" in p and "snapshot" in p["rollback"]
 assert p["rollback"]["instructions"]

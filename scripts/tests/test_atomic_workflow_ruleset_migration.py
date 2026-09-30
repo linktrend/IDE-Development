@@ -25,6 +25,15 @@ class CheckContractTests(unittest.TestCase):
         self.assertIn("Linktrend Review Gate", contract["removedManaged"])
         self.assertEqual(contract["aggregateContext"], "Linktrend Full Suite")
         self.assertEqual(
+            contract["emission"]["fullSuite"],
+            {
+                "workflow": "ci.yml",
+                "job": "Verify IDE Development",
+                "events": ["pull_request:development/phase"],
+                "artifact": "ide-full-suite-inventory",
+            },
+        )
+        self.assertEqual(
             contract["obsoleteManaged"]["Linktrend Repository CI Gate"],
             "Linktrend Full Suite",
         )
@@ -40,7 +49,7 @@ class CheckContractTests(unittest.TestCase):
             ],
         )
         main = rp.managed_baseline("main")
-        self.assertEqual(main, ["Linktrend Branch Source Policy", "Linktrend Receipt Gate"])
+        self.assertEqual(main, ["Linktrend Branch Source Policy", "Linktrend Main Receipt Gate"])
         self.assertEqual(mig.GOVERNED_BRANCHES, rp.GOVERNED)
         contract = mig.derive_active_check_contract(release_id="v3.0.0")
         self.assertEqual(contract["requiredByBranch"], {"development": dev, "main": main})

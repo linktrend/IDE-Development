@@ -6,7 +6,8 @@
 The SHA (default: ``<remote>/development`` head) must sit on the first-parent
 history of ``development`` within ``git_local.DEVELOPMENT_FIRST_PARENT_WINDOW``
 (the same window ``promotion_check.py`` searches) and ``Verify IDE Development``
-must have concluded success on it. The branch starts
+must have concluded success on its exact Phase PR head, whose tree matches the
+development merge commit. The branch starts
 at that SHA and gets a normal merge of ``<remote>/main`` (no strategy options), so
 the PR into ``main`` is conflict-free. Its tree must equal the development SHA's
 tree: if it does not, ``main`` carries changes that are missing from
@@ -28,9 +29,11 @@ from pathlib import Path
 from typing import Any, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import git_local  # noqa: E402
 import github_api  # noqa: E402
+import promotion_check  # noqa: E402
 from git_local import GitError  # noqa: E402
 from github_api import GitHubApiError  # noqa: E402
 
@@ -58,10 +61,10 @@ def pr_text(*, short: str, sha: str, tree: str, main_sha: str, check: dict[str, 
             f"- Development SHA: `{sha}`",
             f"- Tree: `{tree}` (identical to the development SHA)",
             f"- Merged `main` at: `{main_sha}`",
-            f"- `{check['name']}` on the development SHA: {check['conclusion']}"
+            f"- `{check['name']}` on Phase head `{check.get('phaseSha')}`: {check['conclusion']}"
             + (f" ({check['url']})" if check.get("url") else ""),
             "",
-            "Merge with a merge commit (not squash or rebase). `Linktrend Receipt Gate` re-checks the tree and CI.",
+            "Merge with a merge commit (not squash or rebase). `Linktrend Main Receipt Gate` re-checks the tree and Phase evidence.",
         ]
     )
     return title, body
@@ -112,10 +115,26 @@ def promote(
         "mergeMethod": "merge",
     }
 
-    check = github_api.check_succeeded(api, repo, dev_sha, required_check)
+    evidence = promotion_check.phase_evidence_for_development(
+        dev_sha,
+        git_dir=git_dir,
+        repo=repo,
+        required_check=required_check,
+        api=api,
+    )
+    check = evidence.get("check") or {"ok": False, "conclusion": None, "reason": evidence.get("reason")}
+    check["phaseSha"] = evidence.get("phaseSha")
+    check["workflowRunId"] = evidence.get("workflowRunId")
+    check["verifyOk"] = check.get("ok", False)
+    check["matrixChecks"] = evidence.get("matrixChecks", {})
+    check["ok"] = evidence["ok"]
     report["check"] = check
     if not check["ok"]:
-        report["reason"] = f"{required_check} has not concluded success on {dev_sha} (got {check['conclusion']})"
+        failed_matrix = [name for name, state in check["matrixChecks"].items() if not state.get("ok")]
+        detail = check.get("conclusion") or check.get("reason")
+        if failed_matrix:
+            detail = f"{detail}; failed/missing platform checks: {', '.join(failed_matrix)}"
+        report["reason"] = f"{required_check} has not concluded success on the exact Phase head for {dev_sha} (got {detail})"
         return EXIT_NOT_GREEN, report
 
     if f"refs/heads/{branch}" in git_local.checked_out_branches(git_dir):

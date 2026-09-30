@@ -459,7 +459,7 @@ def build_phase_delivery_record(
     if candidate_identity is not None:
         record["candidateIdentity"] = candidate_identity
     if gate_results is not None:
-        record.update({key: value for key, value in gate_results.items() if key in {"fast", "bugbot", "full", "release"}})
+        record.update({key: value for key, value in gate_results.items() if key in {"fast", "full", "release"}})
     if stop_reason is not None:
         record["stopReason"] = stop_reason
     return record
