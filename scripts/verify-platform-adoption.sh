@@ -14,16 +14,10 @@ required=(
   "codex/AGENTS.md"
   "chatgpt/AGENTS.md"
   "docs/contracts/AGENT-COMPLETION.md"
-  "docs/contracts/REPAIR-DISPATCHER.md"
   "docs/contracts/ACTIONS-COST-CONTROLS.md"
-  "docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md"
   "scripts/gitops/create_issue_branch.py"
-  "scripts/gitops/completion_gate.py"
-  "scripts/gitops/repair_task.py"
-  "scripts/gitops/repair_observer.py"
   "scripts/wire-repo.sh"
   "core/github/managed-workflows/linktrend-cleanup-merged.yml"
-  "core/github/managed-workflows/linktrend-repair-observer.yml"
   "core/github/managed-runtime/MANIFEST.json"
   "scripts/sync-managed-runtime.sh"
   "scripts/sync-agents-managed-section.sh"
@@ -36,20 +30,22 @@ done
 pass "Required entrypoints and contracts present"
 
 for f in chatgpt/AGENTS.md codex/AGENTS.md .cursor/rules/02-autonomous-ship-pull.mdc core/commands/agentcomply.md; do
-  grep -q 'Review Ready\|review-ready\|review_ready' "$f" || fail "$f missing Review Ready language"
   if grep -qiE 'Open or update (a )?PR|open a PR targeting development' "$f"; then
     fail "$f still instructs implementer to open PR"
   fi
 done
-pass "Platform docs: Review Ready present; no implementer Open-PR instruction"
+if grep -qiE 'review-ready|Review Ready|completion_gate|Packager|delivery controller' core/commands/agentcomply.md; then
+  fail "agentcomply command still has retired v2 language"
+fi
+pass "Platform docs: agentcomply is v3; no implementer Open-PR instruction"
 
-grep -q 'Lisa ACP Repair Dispatcher\|repair task' .cursor/rules/02-autonomous-ship-pull.mdc \
-  || fail "ship-pull rule missing Lisa ACP Repair Dispatcher language"
+grep -q 'repair ladder' .cursor/rules/02-autonomous-ship-pull.mdc \
+  || fail "git operations rule missing orchestrator repair ladder language"
 if grep -nE 'prefer-incoming' .cursor/rules/02-autonomous-ship-pull.mdc docs/AUTONOMOUS-GIT-OPERATIONS.md \
   | grep -viE 'No prefer-incoming|no prefer-incoming|Never.*prefer-incoming|Must not|do not'; then
   fail "active prefer-incoming instruction"
 fi
-pass "Repair dispatcher language; no prefer-incoming instruction"
+pass "Repair ladder language; no prefer-incoming instruction"
 
 # ---- Temp consumer: real wire-repo.sh with non-default CI name ----
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/verify-platform-adoption.XXXXXX")"
@@ -96,8 +92,7 @@ EOF
 chmod +x "$ROOT/scripts/wire-repo.sh"
 bash "$ROOT/scripts/wire-repo.sh" "$CONSUMER" \
   --ci-workflow-name "Consumer CI" \
-  --branch-policy-workflow-name "Branch Source Policy" \
-  --bugbot-check-name "Linktrend Review Gate"
+  --branch-policy-workflow-name "Branch Source Policy"
 
 # Config committed path
 [ -f "${CONSUMER}/.github/linktrend-gitops-consumer.json" ] || fail "missing consumer gitops config"
@@ -105,21 +100,16 @@ grep -q '"ciWorkflowName": "Consumer CI"' "${CONSUMER}/.github/linktrend-gitops-
   || fail "consumer config missing Consumer CI"
 grep -q '"fastWorkflowName": "Linktrend Fast Checks"' "${CONSUMER}/.github/linktrend-gitops-consumer.json" \
   || fail "consumer config missing managed Fast workflow name"
+if grep -Eq '"(bugbotCheckName|reviewGateCheckName|bugbotProviderCheckName)"' "${CONSUMER}/.github/linktrend-gitops-consumer.json"; then
+  fail "fresh consumer config contains retired review metadata"
+fi
 
-# Rendered observer must contain Consumer CI literally; no placeholders
-OBS="${CONSUMER}/.github/workflows/linktrend-repair-observer.yml"
-[ -f "$OBS" ] || fail "missing installed repair observer"
-grep -q 'Consumer CI' "$OBS" || fail "installed observer missing Consumer CI"
-! grep -q '__LINKTREND_' "$OBS" || fail "installed observer still has placeholders"
-python3 - "$OBS" <<'PY'
-from pathlib import Path
-import sys
-text = Path(sys.argv[1]).read_text()
-assert "Consumer CI" in text
-assert "- Consumer CI" in text
-print("ok")
-PY
-pass "Non-default Consumer CI rendered into installed workflows"
+# Installed managed workflows are fully rendered
+ls "${CONSUMER}/.github/workflows/"linktrend-*.yml >/dev/null 2>&1 || fail "missing installed managed workflows"
+if grep -l '__LINKTREND_' "${CONSUMER}/.github/workflows/"*.yml; then
+  fail "installed workflows still have placeholders"
+fi
+pass "Non-default Consumer CI recorded; installed workflows fully rendered"
 
 # Upgrade an older schema-1 consumer config that predates the receipt-bound
 # Fast key.  The installer/sync boundary may add only the fixed managed Fast
@@ -201,8 +191,7 @@ for rel in \
   ".cursor/commands/agentcomply.md" \
   ".cursor/skills/agentsetup/SKILL.md" \
   ".cursor/skills/agentcomply/SKILL.md" \
-  "scripts/gitops/create_issue_branch.py" \
-  "scripts/gitops/completion_gate.py"; do
+  "scripts/gitops/create_issue_branch.py"; do
   [ -f "${CONSUMER}/${rel}" ] || fail "missing managed entrypoint: $rel"
   [ ! -L "${CONSUMER}/${rel}" ] || fail "entrypoint must be regular file: $rel"
 done

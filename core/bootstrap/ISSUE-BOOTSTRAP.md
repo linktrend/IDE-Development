@@ -39,7 +39,7 @@ Required during and after execution:
 ## Startup Responsibilities
 
 - refuse to start an issue that is not actually ready
-- preserve the mandatory state path through `review_ready`
+- preserve the mandatory state path through `in_review`
 - define proof before claiming completion
 - distinguish missing evidence from blocked work
 

@@ -2,7 +2,7 @@
 """Read-only external-state plan / verify / report for normal-token GitOps.
 
 Checks the normal automation credential by name only, Bugbot mention-only,
-Carlos restricted user-token boundary, three-branch protections (union-preserving),
+Carlos restricted user-token boundary, development/main protections (union-preserving),
 promotion-source policy, and required workflow posture/conclusions.
 
 Default is dry-run (no live calls). ``--fixture-dir`` or ``--live`` fill observations.
@@ -34,32 +34,26 @@ AUTOMATION_TOKEN_SECRET = "LINKTREND_AUTOMATION_TOKEN"
 BUGBOT_USER_TOKEN_SECRET = "LINKTREND_BUGBOT_USER_TOKEN"
 BUGBOT_CHECK_NAME = "Linktrend Review Gate"
 SOURCE_POLICY_CHECK = "Linktrend Branch Source Policy"
-STATUS_CONTEXT = "Linktrend Review Ready"
+# Retired v2 contexts; rulesets must NOT require them.
 OBSOLETE_REQUIRED_CONTEXTS = frozenset(
-    {"Cursor Bugbot", BUGBOT_CHECK_NAME, STATUS_CONTEXT}
+    {"Cursor Bugbot", BUGBOT_CHECK_NAME, "Linktrend Review Ready"}
 )
 
 RULESET_NAMES = {
     "development": "development-autonomous-merge",
-    "staging": "staging-autonomous-promote",
     "main": "main-autonomous-release",
 }
+GOVERNED_BRANCHES = ("development", "main")
 
 REQUIRED_WORKFLOW_FILES = (
     "branch-source-policy.yml",
     "ci.yml",
-    "linktrend-review-ready-publisher.yml",
-    "linktrend-review-packager.yml",
-    "linktrend-integrator-merge.yml",
-    "linktrend-development-to-staging.yml",
-    "linktrend-staging-to-main.yml",
-    "linktrend-repair-observer.yml",
     "linktrend-cleanup-merged.yml",
 )
 
 # Carlos user token may only be used for these operations (contract surface).
 CARLOS_ALLOWED_OPS = (
-    "packager_feature_pr_create",
+    "orchestrator_pr_create",
     "bugbot_mention_comment",
 )
 CARLOS_FORBIDDEN_OPS = (
@@ -165,7 +159,7 @@ def required_checklist() -> list[dict[str, Any]]:
             "category": "carlos",
             "required": True,
             "expected": (
-                "Carlos user token restricted to packager PR create + Bugbot mention; "
+                "Carlos user token restricted to orchestrator PR create + Bugbot mention; "
                 "forbidden for status publish/merge/promote/repair/admin"
             ),
         },
@@ -176,15 +170,6 @@ def required_checklist() -> list[dict[str, Any]]:
             "expected": (
                 f"Active ruleset {RULESET_NAMES['development']!r} requires "
                 f"{SOURCE_POLICY_CHECK!r} without obsolete Bugbot/Review Gate contexts"
-            ),
-        },
-        {
-            "id": "protection.staging_ruleset",
-            "category": "protection",
-            "required": True,
-            "expected": (
-                f"Active ruleset {RULESET_NAMES['staging']!r} requires "
-                f"{SOURCE_POLICY_CHECK!r} (no Bugbot)"
             ),
         },
         {
@@ -201,7 +186,7 @@ def required_checklist() -> list[dict[str, Any]]:
             "category": "protection",
             "required": True,
             "expected": (
-                f"{SOURCE_POLICY_CHECK!r} required on development, staging, and main"
+                f"{SOURCE_POLICY_CHECK!r} required on development and main"
             ),
         },
         {
@@ -242,15 +227,6 @@ def required_checklist() -> list[dict[str, Any]]:
             "category": "workflows",
             "required": True,
             "expected": "Latest relevant workflow conclusions recorded when available",
-        },
-        {
-            "id": "completion.status_context",
-            "category": "completion",
-            "required": True,
-            "expected": (
-                f"Privileged publish context remains {STATUS_CONTEXT!r} "
-                "(normal-token publisher from trusted workflow context only)"
-            ),
         },
     ]
 
@@ -995,7 +971,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                 "carlos.user_token_boundary",
                 "carlos",
                 (
-                    "Carlos user token restricted to packager PR create + Bugbot mention; "
+                    "Carlos user token restricted to orchestrator PR create + Bugbot mention; "
                     "forbidden for status publish/merge/promote/repair/admin"
                 ),
                 observed="unknown",
@@ -1011,7 +987,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                     category="carlos",
                     required=True,
                     expected=(
-                        "Carlos user token restricted to packager PR create + Bugbot mention; "
+                        "Carlos user token restricted to orchestrator PR create + Bugbot mention; "
                         "forbidden for status publish/merge/promote/repair/admin"
                     ),
                     observed="unknown",
@@ -1047,7 +1023,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                         category="carlos",
                         required=True,
                         expected=(
-                            "Carlos user token restricted to packager PR create + Bugbot mention; "
+                            "Carlos user token restricted to orchestrator PR create + Bugbot mention; "
                             "forbidden for status publish/merge/promote/repair/admin"
                         ),
                         observed="boundary_violated",
@@ -1063,7 +1039,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                         category="carlos",
                         required=True,
                         expected=(
-                            "Carlos user token restricted to packager PR create + Bugbot mention; "
+                            "Carlos user token restricted to orchestrator PR create + Bugbot mention; "
                             "forbidden for status publish/merge/promote/repair/admin"
                         ),
                         observed="blocked",
@@ -1081,7 +1057,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                             category="carlos",
                             required=True,
                             expected=(
-                                "Carlos user token restricted to packager PR create + Bugbot mention; "
+                                "Carlos user token restricted to orchestrator PR create + Bugbot mention; "
                                 "forbidden for status publish/merge/promote/repair/admin"
                             ),
                             observed="unexpected_allowed_ops",
@@ -1096,7 +1072,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                             category="carlos",
                             required=True,
                             expected=(
-                                "Carlos user token restricted to packager PR create + Bugbot mention; "
+                                "Carlos user token restricted to orchestrator PR create + Bugbot mention; "
                                 "forbidden for status publish/merge/promote/repair/admin"
                             ),
                             observed="restricted",
@@ -1105,9 +1081,9 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                         )
                     )
 
-    # --- protection.development / staging / main ---
+    # --- protection.development / main ---
     if unchecked:
-        for branch in ("development", "staging", "main"):
+        for branch in GOVERNED_BRANCHES:
             name = RULESET_NAMES[branch]
             exp = (
                 f"Active ruleset {name!r} requires "
@@ -1123,7 +1099,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                 if rulesets_cap == "unavailable"
                 else ("forbidden" if rulesets_cap == "forbidden" else "blocked")
             )
-            for branch in ("development", "staging", "main"):
+            for branch in GOVERNED_BRANCHES:
                 name = RULESET_NAMES[branch]
                 exp = (
                     f"Active ruleset {name!r} requires "
@@ -1145,9 +1121,6 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                 _evaluate_ruleset_branch(client, branch="development", require_bugbot=False)
             )
             results.append(
-                _evaluate_ruleset_branch(client, branch="staging", require_bugbot=False)
-            )
-            results.append(
                 _evaluate_ruleset_branch(client, branch="main", require_bugbot=False)
             )
 
@@ -1157,14 +1130,14 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
             _unchecked(
                 "protection.promotion_source_policy",
                 "protection",
-                f"{SOURCE_POLICY_CHECK!r} required on development, staging, and main",
+                f"{SOURCE_POLICY_CHECK!r} required on development and main",
             )
         )
     else:
         missing_branches: list[str] = []
         try:
             rulesets = client.list_rulesets()
-            for branch in ("development", "staging", "main"):
+            for branch in GOVERNED_BRANCHES:
                 name = RULESET_NAMES[branch]
                 match = next(
                     (r for r in rulesets if isinstance(r, dict) and r.get("name") == name),
@@ -1188,7 +1161,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                         category="protection",
                         required=True,
                         expected=(
-                            f"{SOURCE_POLICY_CHECK!r} required on development, staging, and main"
+                            f"{SOURCE_POLICY_CHECK!r} required on development and main"
                         ),
                         observed="incomplete",
                         status="drift",
@@ -1202,11 +1175,11 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                         category="protection",
                         required=True,
                         expected=(
-                            f"{SOURCE_POLICY_CHECK!r} required on development, staging, and main"
+                            f"{SOURCE_POLICY_CHECK!r} required on development and main"
                         ),
                         observed="present_all_branches",
                         status="matched",
-                        detail="source-policy check present on all three governed branches",
+                        detail="source-policy check present on both governed branches",
                     )
                 )
         except AuditError as exc:
@@ -1217,7 +1190,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                     category="protection",
                     required=True,
                     expected=(
-                        f"{SOURCE_POLICY_CHECK!r} required on development, staging, and main"
+                        f"{SOURCE_POLICY_CHECK!r} required on development and main"
                     ),
                     observed=status,
                     status=status,
@@ -1244,7 +1217,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
             rulesets = client.list_rulesets()
             preserved_ok = True
             details: list[str] = []
-            for branch in ("development", "staging", "main"):
+            for branch in GOVERNED_BRANCHES:
                 name = RULESET_NAMES[branch]
                 match = next(
                     (r for r in rulesets if isinstance(r, dict) and r.get("name") == name),
@@ -1655,25 +1628,6 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                         )
                     )
 
-    # --- completion.status_context ---
-    results.append(
-        _check(
-            check_id="completion.status_context",
-            category="completion",
-            required=True,
-            expected=(
-                f"Privileged publish context remains {STATUS_CONTEXT!r} "
-                "(normal-token publisher from trusted workflow context only)"
-            ),
-            observed=STATUS_CONTEXT,
-            status="ok",
-            detail=(
-                "contract constant; privileged publish must use the normal automation "
-                "credential from protected workflow context only"
-            ),
-        )
-    )
-
     for row in results:
         row["source"] = source
     return results
@@ -1829,7 +1783,6 @@ def build_report(
         "mutations": [],
         "applyRefused": True,
         "source": source,
-        "statusContext": STATUS_CONTEXT,
         "checklist": required_checklist(),
         "checks": checks,
         "summary": summary,

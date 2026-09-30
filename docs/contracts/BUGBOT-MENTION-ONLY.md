@@ -13,16 +13,16 @@ For each repository (starting with `linktrend/IDE-Development`):
 
 Manual triggers remain: comment exactly `@cursor review` or `bugbot run`.
 
-### Packager authorship (Carlos user token)
+### Orchestrator PR authorship (Carlos user token)
 
-GitHub App–authored PRs / comments do **not** reliably wake Bugbot. The Review Packager therefore uses repository secret `LINKTREND_BUGBOT_USER_TOKEN` for **only**:
+GitHub App–authored PRs / comments do **not** reliably wake Bugbot. The orchestrator therefore uses repository secret `LINKTREND_BUGBOT_USER_TOKEN` for **only**:
 
 1. Creating the feature draft PR into `development` (author must be `linktrend`)
 2. Posting the single `@cursor review` + `<!-- linktrend-bugbot-requested: <sha> -->` comment (author must be `linktrend`)
 
 Freeze comments, undraft, readiness, merges, promotion, and repair stay on the GitHub App. Missing user token → `bugbot_user_credentials_blocked` (fail closed; no App substitution).
 
-### Request accounting (packager 2-request limit)
+### Request accounting (2-request limit)
 
 A comment counts toward the normal max of **2** Bugbot requests per PR only when it contains **both**:
 
@@ -62,4 +62,4 @@ Consumer rollout is **blocked** until mention-only is confirmed per repository. 
 
 ## Historical note (PR #19 spend-limit period)
 
-Agents must not post additional `@cursor review` comments on PR #19 while the spending limit is active. Integrator correctly blocks on SHA/marker mismatch; bootstrap merge (if any) is a documented one-time admin exception outside the product workflow. For current rollout gates, see `docs/CURRENT-STATUS.md` and WP04 (`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).
+Agents must not post additional `@cursor review` comments on PR #19 while the spending limit is active. Integrator correctly blocks on SHA/marker mismatch; bootstrap merge (if any) is a documented one-time admin exception outside the product workflow. For current rollout gates, see `docs/CURRENT-STATUS.md` and WP04 (`docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).

@@ -1,0 +1,72 @@
+name: Linktrend Main Receipt Gate
+
+# The unique context avoids collision with the retired staging-to-main workflow.
+# The gate reuses the exact Phase Verify run's identity-bound Full inventory.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  actions: read
+  contents: read
+  checks: read
+  statuses: read
+  pull-requests: read
+
+concurrency:
+  group: linktrend-promote-main-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  promotion-check:
+    name: Linktrend Main Receipt Gate
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - name: Checkout development
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The checker runs from development, never from the PR head. All branches
+          # and development's first-parent history are needed to find the tree match.
+          ref: development
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Promotion check
+        id: promotion
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_HEAD_FORK: ${{ github.event.pull_request.head.repo.fork }}
+        run: python3 scripts/orchestrator/promotion_check.py
+
+      - name: Download the exact Phase run inventory
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ide-full-suite-inventory
+          path: evidence
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.promotion.outputs.workflow_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Checkout the verified Phase head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.promotion.outputs.phase_sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify reusable Full inventory identity
+        run: >-
+          python3 scripts/gitops/run_delivery_profile.py full
+          --root candidate
+          --reuse-evidence evidence/full-suite-inventory.json
+          --require-reuse

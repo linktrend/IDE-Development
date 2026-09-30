@@ -16,7 +16,7 @@ harness: ide
 - `6.2-proof-manifest`
 - `6.3-ship-criteria`
 - `6.4-program-release-review`
-- `6.5-principal-pre-deploy-gate`
+- `6.5-deploy-policy`
 
 ## Required inputs
 
@@ -29,14 +29,13 @@ harness: ide
 - proof-manifest.sha256
 - ship-criteria checklist
 - independent program-release report
-- Principal pre-deploy decision
+- deploy-policy decision (automatic, or waiting for Carlos)
 - terminal release_ready or blocked
 
 ## Stop conditions
 
-- any attempt to deploy
 - missing proof manifest
-- Principal pre-deploy decision missing
+- deploy would run with no `deploy/target.json`, no post-deploy health check plus automatic rollback, and no recorded OK from Carlos
 - validator rejects release_ready
 
 ## Underlying vendored skills composed
@@ -54,5 +53,5 @@ Issue/Module scope and pipeline gates override this composite skill. This compos
 
 - Do not reference the LiNKdeveloper repository at runtime.
 - Before Module transitions, call `node .cursor/runtime/validate-application-pipeline.mjs --state <PIPELINE-STATE.json> --request-transition <module-id>:<target-state>`.
-- MUST NOT deploy. Terminal status is release_ready or blocked. gstack/ship is subordinate to critical proof manifest and Principal pre-deploy gate. Principal Release OK remains mandatory in IDE Development (unlike LiNKdeveloper's automatic canary promotion).
+- Terminal status is release_ready or blocked. Reaching `main` starts an automatic deploy (LiNKops GitHub Actions job: ephemeral Tailscale, deploy, health check, automatic rollback). If the repo has `deploy/target.json`, deploy is automatic with no approval. If it does not, deploy is automatic only when a post-deploy health check and automatic rollback exist; otherwise wait for Carlos's OK. The `deploy/target.json` schema is owned by LiNKops. No agent holds server credentials or SSH. gstack/ship is subordinate to the critical proof manifest and this deploy policy.
 - Contains **no** Cursor Desktop model-routing policy.

@@ -9,7 +9,7 @@ verification (`AC-U05-17`) is deferred to WP-CONSUMERS.
 ## Required outcome
 
 Managed workflow files, coordination labels, readiness evaluator check-name
-contracts, and live `development` / `staging` / `main` rulesets are one
+contracts, and live `development` / `main` rulesets are one
 versioned migration. Installation is incomplete while any protected branch
 requires an obsolete managed check, a check active workflows cannot produce, or
 a managed workflow depends on a missing coordination label.
@@ -21,8 +21,8 @@ a managed workflow depends on a missing coordination label.
 | Review gate | Removed from required checks; retained provider/review signals are advisory only |
 | Source policy | `Linktrend Branch Source Policy` |
 | Fast | `Linktrend Fast Checks` |
-| Full | `Linktrend Full Suite` |
-| Receipt | `Linktrend Receipt Gate` |
+| Full evidence | `Verify IDE Development` in `ci.yml` writes the reusable `ide-full-suite-inventory` artifact on Phase PRs; it is not a separate check context |
+| Receipt | `Linktrend Main Receipt Gate` |
 
 Obsolete managed names (must be replaced, never preserved as repo-owned):
 
@@ -43,9 +43,9 @@ Successful application checks are never proof of native enforcement.
 Reduced-assurance delivery requires recorded founder approval and is reported as
 `reduced_assurance`, never silently relabeled as protected.
 
-## Atomic three-branch apply
+## Atomic governed-branch apply
 
-Rename or replace managed checks on all three governed branches together.
+Rename or replace managed checks on both governed branches together.
 Preserve arbitrary repository-owned required contexts and strict-check settings.
 Failure after one branch update rolls back applied branches or reports
 `migration_incomplete` with no false success.
@@ -53,14 +53,15 @@ Failure after one branch update rolls back applied branches or reports
 ## Labels
 
 Derive exact managed labels (name/description/color) from the release contract.
-Create `linktrend-full-suite` before Full dispatch. Wrong-name, conflicting
-metadata, or application to a stale/ineligible PR fails closed and does not
-claim success.
+The active Phase route produces Full evidence automatically in the combined
+Verify run; it does not dispatch per-issue CI. The legacy label remains only as
+migration metadata and does not trigger the active workflow.
 
 ## Evaluator / variable migration
 
-Integrator, Packager, Promoter, observer, planner defaults and
-`LINKTREND_*_CHECKS` repository variables must use the exact active contract.
+Pre-v3 evaluator check defaults (integrator, promoter, observer, planner and
+similar keys) and `LINKTREND_*_CHECKS` repository variables must use the exact
+active contract.
 Retained obsolete raw names fail closed.
 
 ## Trusted verifier separation

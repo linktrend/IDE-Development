@@ -105,13 +105,13 @@ This issue becomes ready only after AUTH-003 integration.
 - `blocked`: cannot proceed because a dependency, gate, or decision is unresolved
 - `ready`: dependencies and gates are satisfied
 - `in_progress`: active execution is underway
-- `review_ready`: execution and proof are complete enough for mandatory independent review
+- `in_review`: execution and proof are complete enough for mandatory independent review
 - `done`: proof, review, and integration are complete
 
 ## Gate Guidance
 
 - readiness depends on satisfied dependencies and no unresolved blockers
-- issues must pass through `review_ready`; they must not jump directly from `in_progress` to `done`
+- issues must pass through `in_review`; they must not jump directly from `in_progress` to `done`
 - proof must exist before review
 - review must pass before integration
 - integration must complete before downstream issues may rely on this issue

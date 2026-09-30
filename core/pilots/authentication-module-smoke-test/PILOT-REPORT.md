@@ -73,7 +73,7 @@ The key handoff state was meaningful:
 
 - `ready`
 - `in_progress`
-- `review_ready`
+- `in_review`
 - `done`
 
 The pilot especially validated that issues do not jump from `in_progress` to `done`.

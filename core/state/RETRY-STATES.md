@@ -35,7 +35,7 @@ depending on whether execution can resume directly
 
 - `blocked -> planned`
 - `blocked -> ready`
-- `review_ready -> in_progress`
+- `in_review -> in_progress`
 
 ### Proof
 

@@ -50,7 +50,8 @@ class DeliveryProfileRunnerTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         path, commands = runner.load_profile(root, "fast")
         self.assertEqual(path, root / ".github/linktrend-delivery-mode.json")
-        self.assertTrue(any("scripts.tests.test_candidate_lifecycle" in command for command in commands))
+        self.assertTrue(any("scripts.tests.test_fixture_aware_secret_scan" in command for command in commands))
+        self.assertIn(["python3", "scripts/gitops/secret_scan.py"], commands)
 
     def test_local_checkout_head_precedes_merge_ref_environment_sha(self) -> None:
         def fake_git(_root: Path, *args: str) -> str:

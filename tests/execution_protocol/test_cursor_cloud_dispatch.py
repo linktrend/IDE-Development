@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+import os
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+import json
+
+import jsonschema
 
 from core.execution.cursor_cloud_dispatch import (
+    CURSOR_ROUTES,
     CursorCloudDispatchError,
     CursorCloudDispatchRequest,
     DurableCursorCloudIntentStore,
     dispatch_cursor_cloud,
     dispatch_cursor_cloud_sdk,
+    extract_self_reported_model,
     load_cursor_cloud_dispatch_config,
     load_routing_registry,
     supersede_obsolete_prepared_intents,
@@ -19,20 +27,24 @@ from core.execution.cursor_cloud_dispatch import (
 )
 
 
+GROK_PARAMS = {"context": "500k", "reasoning_effort": "medium", "fast": "false"}
+OPUS_PARAMS = {"context": "1m", "effort": "medium", "fast": "false"}
+
 REQUEST = CursorCloudDispatchRequest(
     repository="linktrend/example-app",
     target_remote="https://github.com/linktrend/example-app.git",
     ref="issue/123-example",
     commit="a" * 40,
     tree="b" * 40,
-    model="grok-4.6",
+    model="grok-4.7",
+    route_id="cursor002-grok",
     expected_build_id="example-build-123",
     toolchain={"python": "3.12", "node": "22"},
     setup_receipt_digest="sha256:" + "c" * 64,
-    model_parameters={"effort": "medium", "fast": "false"},
+    model_parameters=GROK_PARAMS,
     governed_setup=True,
 )
-KEY_ENV = {"CURSOR_API_KEY": "x" * 32}
+KEY_ENV = {"CURSOR_002_API_KEY": "x" * 32}
 
 
 class FakeCursorHTTP:
@@ -58,9 +70,6 @@ class FakeCursorHTTP:
             "commit": REQUEST.commit,
             "tree": REQUEST.tree,
             "provider": REQUEST.provider,
-            "model": REQUEST.model,
-            "effort": "medium",
-            "fast": False,
         }
         if self.mismatch:
             values[self.mismatch] = "wrong"
@@ -90,9 +99,6 @@ class FakeCursorSDK:
             "commit": REQUEST.commit,
             "tree": REQUEST.tree,
             "provider": REQUEST.provider,
-            "model": REQUEST.model,
-            "effort": "medium",
-            "fast": False,
         }
 
     def archive_agent(self, agent_id):
@@ -106,11 +112,34 @@ class CursorCloudDispatchTests(unittest.TestCase):
         dispatch_config = load_cursor_cloud_dispatch_config(root)
         registry = load_routing_registry(root)
         self.assertEqual(dispatch_config["directApiRepositoryBinding"], "repos[]")
-        self.assertEqual(dispatch_config["ordinaryDevelopment"]["model"], "grok-4.6")
-        self.assertEqual(dispatch_config["ordinaryDevelopment"]["effort"], "medium")
-        self.assertFalse(dispatch_config["ordinaryDevelopment"]["fast"])
-        self.assertEqual(dispatch_config["lunaFallback"]["provider"], "codex-cli")
+        self.assertEqual(dispatch_config["apiKeyEnvironmentVariable"], "CURSOR_002_API_KEY")
+        self.assertEqual(dispatch_config["modelResolution"], "dispatch-time")
+        self.assertNotIn("model", dispatch_config["readbackFields"])
+        self.assertEqual(dispatch_config["readbackFields"], ["repository", "ref", "commit", "tree", "provider"])
+        self.assertIn("requestedModel", dispatch_config["recordFields"])
+        self.assertIn("selfReportedModel", dispatch_config["recordFields"])
+        self.assertEqual(dispatch_config["routes"]["cursor002-grok"]["family"], "grok-4.7")
+        self.assertEqual(dispatch_config["routes"]["cursor002-grok"]["params"], GROK_PARAMS)
+        self.assertEqual(dispatch_config["routes"]["cursor002-opus"]["family"], "claude-opus-5-5")
+        self.assertEqual(dispatch_config["routes"]["cursor002-opus"]["params"], OPUS_PARAMS)
+        for retired in ("ordinaryDevelopment", "gate0", "lunaFallback"):
+            self.assertNotIn(retired, dispatch_config)
+        self.assertEqual(set(registry["routes"]), {
+            "orchestrator", "codex-luna", "codex-sol", "cursor002-grok", "cursor002-opus",
+        })
+        self.assertEqual(registry["allowance"]["threshold"], 75)
+        self.assertEqual(registry["allowance"]["windows"], ["primary", "secondary"])
+        self.assertEqual(registry["allowance"]["unreportedWindow"], "does-not-block")
+        self.assertFalse(registry["allowance"]["strict"])
+        self.assertEqual(registry["helpers"][0]["model"], "grok-4.7")
+        self.assertEqual(registry["helpers"][1]["model"], "composer-2.5")
+        self.assertTrue(registry["review"]["reviewerMustDifferFromAuthorFamily"])
+        self.assertTrue(registry["review"]["bugbotOptional"])
+        self.assertIn("codex cloud list", registry["signInCheck"]["command"])
         self.assertEqual(registry["programs"], [])
+        self.assertNotIn("model", registry["routes"]["codex-luna"])
+        self.assertEqual(CURSOR_ROUTES["cursor002-grok"]["parameters"], GROK_PARAMS)
+        self.assertEqual(CURSOR_ROUTES["cursor002-opus"]["model"], "claude-opus-5-5")
 
     def test_direct_api_contains_explicit_repos_binding_and_no_environment_selector(self) -> None:
         store = DurableCursorCloudIntentStore()
@@ -129,8 +158,8 @@ class CursorCloudDispatchTests(unittest.TestCase):
         result = dispatch_cursor_cloud_sdk(REQUEST, store, sdk, environment=KEY_ENV)
         self.assertEqual(result.status, "committed")
         self.assertEqual(sdk.calls[0]["repository_bindings"], REQUEST.repository_bindings)
-        self.assertEqual(sdk.calls[0]["model"], "grok-4.6")
-        self.assertEqual(sdk.calls[0]["model_parameters"], {"effort": "medium", "fast": "false"})
+        self.assertEqual(sdk.calls[0]["model"], "grok-4.7")
+        self.assertEqual(sdk.calls[0]["model_parameters"], GROK_PARAMS)
         self.assertEqual(sdk.get_calls, [result.agent_id])
 
     def test_readback_binds_exact_repository_ref_commit_and_tree(self) -> None:
@@ -149,12 +178,14 @@ class CursorCloudDispatchTests(unittest.TestCase):
             "commit": REQUEST.commit,
             "tree": REQUEST.tree,
             "provider": "cursor",
-            "model": "grok-4.6",
-            "effort": "medium",
-            "fast": False,
         }
         validate_cursor_cloud_run_readback(REQUEST, good)
-        for field, value in (("repository", "https://github.com/other/repo"), ("ref", "development"), ("tree", "d" * 40), ("fast", True)):
+        validate_cursor_cloud_run_readback(REQUEST, {**good, "model": "someone-else", "fast": True})
+        for field, value in (
+            ("repository", "https://github.com/other/repo"),
+            ("ref", "development"),
+            ("tree", "d" * 40),
+        ):
             with self.assertRaises(CursorCloudDispatchError):
                 validate_cursor_cloud_run_readback(REQUEST, {**good, field: value})
         with self.assertRaisesRegex(CursorCloudDispatchError, "setup"):
@@ -163,9 +194,14 @@ class CursorCloudDispatchTests(unittest.TestCase):
     def test_unsupported_provider_model_effort_and_fast_fail_before_dispatch(self) -> None:
         cases = (
             {"provider": "codex-cli"},
-            {"model": "grok-4.5"},
-            {"model_parameters": {"effort": "high", "fast": "false"}},
-            {"model_parameters": {"effort": "medium", "fast": "true"}},
+            {"model": "grok-4.6"},
+            {"model": "opus"},
+            {"model": "opus-latest"},
+            {"model_parameters": {"context": "500k", "reasoning_effort": "high", "fast": "false"}},
+            {"model_parameters": {"context": "500k", "reasoning_effort": "medium", "fast": "true"}},
+            {"model_parameters": {**GROK_PARAMS, "extra": "1"}},
+            {"route_id": "cursor002-opus", "model": "grok-4.7", "model_parameters": GROK_PARAMS},
+            {"route_id": "fifth-execution-model"},
         )
         for changes in cases:
             request = CursorCloudDispatchRequest(**{**REQUEST.__dict__, **changes})
@@ -173,6 +209,42 @@ class CursorCloudDispatchTests(unittest.TestCase):
             with self.assertRaises(CursorCloudDispatchError):
                 dispatch_cursor_cloud(request, http.store, http, environment=KEY_ENV)
             self.assertEqual(http.calls, [])
+
+    def test_opus_route_dispatches_with_pinned_params(self) -> None:
+        request = CursorCloudDispatchRequest(
+            **{
+                **REQUEST.__dict__,
+                "route_id": "cursor002-opus",
+                "model": "claude-opus-5-5",
+                "model_parameters": OPUS_PARAMS,
+            }
+        )
+        store = DurableCursorCloudIntentStore()
+        http = FakeCursorHTTP(store)
+        result = dispatch_cursor_cloud(request, store, http, environment=KEY_ENV)
+        self.assertEqual(result.status, "committed")
+        self.assertEqual(http.calls[0][2]["model"], "claude-opus-5-5")
+        self.assertEqual(http.calls[0][2]["modelParameters"], OPUS_PARAMS)
+        intent = store.read(result.idempotency_key)
+        self.assertEqual(intent["requestedModel"], "claude-opus-5-5")
+        self.assertEqual(intent["requestedParams"], OPUS_PARAMS)
+
+    def test_self_report_is_taken_from_the_worker_line_not_the_api(self) -> None:
+        self.assertIsNone(extract_self_reported_model("finished without a report"))
+        self.assertEqual(
+            extract_self_reported_model("notes\nMODEL-SELF-REPORT: grok-4.7\n"),
+            "grok-4.7",
+        )
+
+    def test_schema_rejects_a_fifth_execution_model(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        registry = json.loads((root / "core/managed-core/content/config/routing-registry.json").read_text())
+        schema = json.loads((root / "core/managed-core/schemas/routing-registry.schema.json").read_text())
+        jsonschema.validate(registry, schema)
+        extra = json.loads(json.dumps(registry))
+        extra["routes"]["cursor002-fifth"] = extra["routes"]["cursor002-grok"]
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate(extra, schema)
 
     def test_old_saved_environment_fields_are_not_accepted_as_routing(self) -> None:
         with self.assertRaisesRegex(CursorCloudDispatchError, "saved environment"):
@@ -191,8 +263,14 @@ class CursorCloudDispatchTests(unittest.TestCase):
 
     def test_missing_api_key_is_not_replaced_by_cli_login(self) -> None:
         http = FakeCursorHTTP(DurableCursorCloudIntentStore())
-        with self.assertRaisesRegex(CursorCloudDispatchError, "CLI login"):
-            dispatch_cursor_cloud(REQUEST, http.store, http, cursor_cli_authenticated=True)
+        with patch.dict(
+            os.environ,
+            {"CURSOR_002_API_KEY": "", "CURSOR_API_KEY": "y" * 32},
+            clear=False,
+        ):
+            os.environ.pop("CURSOR_002_API_KEY", None)
+            with self.assertRaisesRegex(CursorCloudDispatchError, "CLI login"):
+                dispatch_cursor_cloud(REQUEST, http.store, http, cursor_cli_authenticated=True)
         self.assertEqual(http.calls, [])
 
     def test_prepared_intent_precedes_api_and_duplicate_is_suppressed(self) -> None:

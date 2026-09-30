@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared allowlist for short-lived work branches (Packager + branch-source-policy).
+# Shared allowlist for short-lived work branches and branch-source policy.
 # Sourced by other scripts. Do not execute directly for side effects.
 
 # Allowed PR heads into development (must stay in sync with
@@ -65,20 +65,20 @@ is_allowed_work_branch() {
   esac
 }
 
-# Temporary promotion branches (staging target).
-is_staging_promote_branch() {
-  local name="${1:-}"
-  case "${name}" in
-    promote/staging/*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-# Temporary promotion branches (main target).
+# Temporary promotion branches into main.
 is_main_promote_branch() {
   local name="${1:-}"
   case "${name}" in
     promote/main/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Retired prefixes still removed when merged/abandoned PR evidence matches.
+is_legacy_cleanup_branch() {
+  local name="${1:-}"
+  case "${name}" in
+    g1/*|release-baseline/*) return 0 ;;
     *) return 1 ;;
   esac
 }

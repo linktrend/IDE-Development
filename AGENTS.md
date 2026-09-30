@@ -19,30 +19,36 @@ It is **not** a consumer rollout entry and must **not** receive a nested
 
 This section is maintained by LiNKtrend install/sync tooling. Repository-owned guidance may live **outside** these markers.
 
-Installed managed core: **`.ide-development/`** (versioned package; treat as read-only except via the official installer).
-
 ### Session entrypoints
 
-- **New coding session:** follow **agentsetup** — create/reuse the GitHub issue and `issue/<n>-<slug>` via `python3 scripts/gitops/create_issue_branch.py`. Never ask humans for issue id/slug.
-- **Already-open / wrong branch:** follow **agentcomply** — migrate dirty work onto the correct `issue/*` branch for this repo.
-- **Codex / ChatGPT Work Agents:** use this root `AGENTS.md` managed section and physical `.agents/skills/<name>/SKILL.md`. Do **not** require `.cursor` to be loaded.
-- **Cursor:** use physical `.cursor/commands/agentsetup.md` / `agentcomply.md` and `.cursor/skills/`.
+- New session: follow agentsetup. Already-open or wrong branch: follow agentcomply.
+- Work IDs are Ledger IDs (`<PREFIX>-<n>`, for example `IDE-33`). The branch is `issue/<PREFIX>-<n>-<slug>`, given by the orchestrator; `scripts/gitops/create_issue_branch.py` is the branch helper. Never ask a human for an ID or slug.
 
 ### Lifecycle
 
-- Work on `issue/<n>-<slug>` (or rare `dev/*`) → push checkpoint → Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the draft Phase PR → delivery controller (`scripts/gitops/delivery_controller.py`) merges to `development` through GitHub protection. Retained `packager_discover.py` is not the Phase Packager. Review Ready does not itself trigger a merge.
-- Promote: `development` → `staging` → `main` via temporary `promote/*` PRs only (controller-owned; main waits for explicit founder approval).
+1. A worker commits and pushes its `issue/*` checkpoint. Issue branches do not open PRs or start GitHub CI; workers run local focused checks.
+2. The orchestrator combines accepted checkpoints on one `phase/*` branch and opens one Phase PR into `development` (`scripts/orchestrator/package.py`).
+3. That Phase PR gets one combined CI run (`Linktrend Fast Checks`, `Verify IDE Development`, and platform matrix only when its path classifier applies) plus one independent exact-head review (`scripts/orchestrator/merge_check.py`). Merge only when all applicable evidence covers the same Phase head and the development merge preserves its tree.
+4. The orchestrator promotes through a temporary `promote/main/*` pull request into `main` (`scripts/orchestrator/promote_main.py`, checked by `Linktrend Main Receipt Gate`). The gate reuses the matching Phase Verify inventory; it does not rerun Full.
+5. After `main`, deploy is automatic (`Linktrend Deploy`, when the repo declares `deploy/target.json`).
 
-### Agent rules
+Long-lived branches are `development` and `main` only.
 
-- Ship = checkpoint (commit + push). Packager opens PRs. Max 3 ordinary repairs.
-- Completion: `python3 scripts/gitops/completion_gate.py` (`checkpoint` | `review-ready` | `blocked` | `status` | `write-evidence`).
-- Finished work: run appropriate tests/checks, auto-repair ordinary failures (≤3 cycles), `write-evidence`, then `review-ready`.
-- `review-ready` validates evidence then publishes **Linktrend Review Ready** only via the privileged normal-token path (or fails closed with normal-token dispatch diagnostics). Do not call `mark-review-ready.sh` as a pre-gate publisher.
-- If completion cannot pass, call `completion_gate.py blocked`.
-- Hard stops: no implementer PR, no self-merge, no self-review, no staging/main promotion, no prefer-incoming.
+### Workers
 
-### Deeper doctrine
+- Commit small and push often. Never open pull requests.
+- Run the local fast profile before handoff: `python3 scripts/gitops/run_delivery_profile.py fast`. GitHub CI runs once on the combined Phase PR, not on each Issue.
+- Consumer workflow names come from `.github/linktrend-gitops-consumer.json`.
+- End with a lessons note.
 
-When needed, open files under `.ide-development/` (and local `docs/` / `scripts/` already installed). Prefer progressive disclosure; do not scan the entire package.
+### Orchestrator
+
+- Repair ladder: Luna/Grok ×3, then Sol/Opus ×1, then the other of Sol/Opus ×1, then flag Carlos. Recorded with `scripts/orchestrator/runlog.py` and watched by `scripts/orchestrator/watchdog.py`.
+- Cheap-helper rule: keep planning, judgement reviews, decisions and talking to Carlos on the frontier model; hand routine lookups, summaries and mechanical checks to a cheap helper subagent.
+
+### Hard stops
+
+- No self-review.
+- No prefer-incoming.
+- Never bypass branch protection.
 <!-- END LINKTREND-IDE-MANAGED -->

@@ -25,13 +25,7 @@ class StreamlinedDeliveryIntegrationTests(unittest.TestCase):
             (bm.REPO_ROOT / "core/github/managed-runtime/MANIFEST.json").read_text()
         )
         required = {
-            "scripts/gitops/coordinator/__init__.py",
-            "scripts/gitops/coordinator/config.py",
-            "scripts/gitops/coordinator/receipts.py",
-            "scripts/gitops/coordinator/state.py",
-            "scripts/gitops/gate_receipt.py",
             "scripts/gitops/phase_integrator.py",
-            "scripts/gitops/promotion_receipt_gate.py",
             "scripts/gitops/ruleset_plan.py",
         }
         self.assertTrue(required.issubset(set(runtime["files"])))
@@ -50,7 +44,6 @@ class StreamlinedDeliveryIntegrationTests(unittest.TestCase):
         self.assertTrue(all(not Path(path).is_absolute() for path in paths))
         self.assertTrue(all(".." not in Path(path).parts for path in paths))
         self.assertIn("core/managed-core/MANIFEST.json", paths)
-        self.assertIn("scripts/gitops/coordinator/config.py", paths)
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ The problem IDE Development solves is: **give every LiNKtrend product repository
 
 | Role | Relationship to IDE Development |
 |---|---|
-| **Principal (Carlos)** | Sole human authority. Approves Intent + Technical PRD at Module 1 of an application Program, holds Module 6 pre-deploy / Release OK, and reviews briefings when repair budgets exhaust. Does not write code or manage day-to-day execution. |
+| **Principal (Carlos)** | Sole human authority. Approves Intent + Technical PRD at Module 1 of an application Program, and reviews briefings when repair budgets exhaust. Does not approve merges or releases. GitHub protection changes and live provider mutations still need a recorded approval. Does not write code or manage day-to-day execution. |
 | **LiNKtrend studio (agent roles)** | Planners, executors, reviewers, and Integrators operate under this repo’s Laws, pipeline validator, and gates when a product repo is wired to this runtime. |
 | **Downstream product repositories** | Consumers. They install this system via the portable installer (`scripts/ide-development.py`) as a committed `.ide-development/` tree plus physical Cursor/Codex adapters. Once installed, they hold the product code; this repo holds the shared how-to-build operating system. |
 | **LiNKdeveloper (separate Program)** | Sibling, not a runtime dependency. LiNKdeveloper is the VPS-hosted autonomous application factory. It may be *authored* using this system’s guidance like any other product, but it does not depend on IDE Development at runtime. Process-shape parity exists; mechanical runtime parity does not. |
@@ -39,12 +39,12 @@ This repository is “done enough for daily use” when:
 
 1. **`core/` is the canonical knowledge asset**; `core/managed-core/` is the portable package source; this system repo’s `.cursor/` remains a compatibility authoring surface. Consumers receive physical managed files under `.ide-development/` and physical discovery adapters — not a symlink back to this checkout.
 2. Product repos can be **installed or updated** with `scripts/ide-development.py` (`install` / `update` / `plan` / `drift` / `verify` / `version` / `rollback`, plus `release-candidate create|verify` for packaging proof) and then consume the same rules, skills, commands, templates, and execution doctrine. Real consumer mutation remains Principal-gated (WP04 prepared / not executed); WP1 proved disposable/RC installs only.
-3. The **fixed six-Module application pipeline** is defined, templated, validated fail-closed (`validate-application-pipeline.mjs`), and enforced by local git hooks when `PIPELINE-STATE.json` is present.
+3. The application pipeline (six Modules plus a conditional setup Module for from-scratch builds) is defined, templated, validated fail-closed (`validate-application-pipeline.mjs`), and enforced by local git hooks when `PIPELINE-STATE.json` is present.
 4. **Hybrid skills are physically vendored and hash-verified** (gstack + mattpocock), with command entrypoints under `core/commands/hybrid-*.md` — not stubs and not sibling-path dependencies.
 5. **Six model-routing subagents** exist under `.cursor/agents/route-*.md` with Cursor bracket-param model pins, ported from LiNKdeveloper’s router criteria.
 6. **Verification passes:** `scripts/verify-ide-development.sh` (and the scripts it invokes) exit 0.
 
-That is **not** the same as: a persistent VPS factory orchestrator, or live product deployment without Module 6 Principal Release OK. **Git** ship/pull/promote (Bugbot review, Integrator merge into `development`, scheduled `development`→`staging`, Principal Telegram Approve for `staging`→`main`) **is** in scope for this system and is inherited by wired repos — see `docs/AUTONOMOUS-GIT-OPERATIONS.md` and ADR 0003.
+That is **not** the same as a persistent VPS factory orchestrator. **Git** delivery by the per-repo cloud orchestrator (PRs into `development`, merge when Full CI is green and one independent review — a different model family than the author — approves the exact head, promotion to `main`) **is** in scope for this system and is inherited by wired repos. Deploy follows the deploy policy (`deploy/target.json`, or a post-deploy health check plus automatic rollback; otherwise Carlos's OK). See `docs/AUTONOMOUS-GIT-OPERATIONS.md` and ADR 0006.
 
 ---
 
@@ -72,15 +72,15 @@ That is **not** the same as: a persistent VPS factory orchestrator, or live prod
 |---|---|
 | Be the autonomous VPS factory | That is **LiNKdeveloper**. This repo stays human-assisted / session-scoped. |
 | Persist a Program Ledger / poll loop | No Postgres Ledger, no unattended crash recovery, no heartbeat. State lives in repo artifacts + `PIPELINE-STATE.json`. |
-| Mandatory Starter Kit / environment_bootstrap Module | LiNKdeveloper has seven Modules including `environment_bootstrap`. IDE Development has **six** Modules; Starter Kit is optional; light git/CI sanity is not a seventh Module. |
-| Automatic **product live deploy** without Principal | Module 6 ends at `release_ready` with **Principal pre-deploy / Release OK**. Git branch promote is separate (ADR 0003). |
+| Mandatory Starter Kit on every build | A conditional setup Module runs only for `from-scratch` (repo, `scripts/setup.sh`, `.cursor/environment.json`, CI, `development` and `main`). Pick-up and continue-after-release skip it and only do light sanity fixes. Starter Kit stays optional. |
+| Deploy with no health check and no target | Reaching `main` starts deploy. Automatic when `deploy/target.json` is present, or when a post-deploy health check and automatic rollback exist. Otherwise the orchestrator waits for Carlos's OK. The file schema is owned by LiNKops. No agent holds server credentials or SSH. |
 | Own product-specific factory operations | Website/automation/content factory ops belong in each product’s own specification — not in this shared core. |
 | Decide which venture to build | Intent comes from the Principal / studio strategy. |
 | Ship a Principal phone/web approval dashboard | Operator surface is Cursor + this Operations Manual. |
 | Depend on LiNKdeveloper at runtime | Independence is intentional. Route criteria are *ported*, not live-imported. |
 | Claude Code as a supported runtime | **Excluded.** Outside current v2 support and roadmap. Historical packaging archived under `docs/archive/platform-entrypoints/claude/`; no new Claude entrypoints. |
 | Nested self-install into this repository | IDE Development is system source / self-verification only — not a consumer rollout target. |
-| Real consumer rollout before WP04 Principal approval | Deferred. Inventory + order live in `docs/GITOPS-CONSUMER-ROLLOUT.md`; each consumer needs separate Principal approval. WP04 packet is prepared / not executed (`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`). |
+| Real consumer rollout before WP04 Principal approval | Deferred. Inventory + order live in `docs/GITOPS-CONSUMER-ROLLOUT.md`; each consumer needs separate Principal approval. WP04 packet is prepared / not executed (`docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`). |
 | Git tag / GitHub Release as part of WP1 | WP1 may build a release-candidate **archive** for proof; tag/Release publication remains separately approval-gated (not claimed by WP03 tree promotion alone). |
 
 ---
@@ -96,7 +96,7 @@ Full law text lives in `core/execution/CANONICAL-LAWS.md` (20 laws). Spirit for 
 5. **Quality gates stop progression** — fail-closed validator; no warn-only mode for application pipeline transitions (Law 16).
 6. **Progressive disclosure** — read only what the current unit needs (Law 19).
 7. **Tool-independent doctrine** — Laws live in artifacts so Cursor/Codex/future tools can share them (Law 20).
-8. **Human gates where judgment must stay human** — Module 1 Intent + Technical PRD approval; Module 6 Principal Release OK.
+8. **Human gates where judgment must stay human** — Module 1 Intent + Technical PRD approval; recorded approval for GitHub protection changes and live provider mutations. Merges and releases do not wait for founder approval.
 
 ---
 
@@ -125,7 +125,7 @@ Full law text lives in `core/execution/CANONICAL-LAWS.md` (20 laws). Spirit for 
 | `docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md` | Exhaustive technical reference for how the system works. |
 | `docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md` | Plain-English handbook for the Principal. |
 | `docs/GITOPS-CONSUMER-ROLLOUT.md` | Consumer inventory; rollout = WP04 (approval pending / not executed). |
-| `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md` | WP04 prepared packet — no mutation until Principal approval. |
+| `docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md` | WP04 prepared packet — no mutation until Principal approval. |
 | `docs/HYBRID-SKILLS-REGISTRY.md` | Live operational map of gstack/mattpocock commands (kept because verify + command entrypoints cite it). |
 | `core/execution/*` | Operative doctrine (Laws, runtime model, autonomous module behavior, application pipeline). **Not archived.** |
 | `docs/ARCHIVE-INDEX.md` + `docs/archive/` | Retired systems and superseded descriptive docs. |
@@ -135,4 +135,4 @@ Full law text lives in `core/execution/CANONICAL-LAWS.md` (20 laws). Spirit for 
 
 ## 8. One-sentence Intent
 
-**IDE Development is LiNKtrend’s shared, human-assisted Application Factory operating system: a versioned portable managed core that installs into product repos as physical files so every consumer shares one doctrine, one six-Module pipeline, vendored hybrid skills, pinned model routes, and fail-closed gates — so the Principal approves Intent and release while agents execute the rest session-by-session in Cursor/Codex.**
+**IDE Development is LiNKtrend’s shared Application Factory operating system: a versioned portable managed core that installs into product repos as physical files so every consumer shares one doctrine, one pipeline (six Modules plus a conditional setup Module), vendored hybrid skills, pinned model routes, and fail-closed gates — so the Principal approves Intent while the orchestrator promotes `development` → `main` after green CI and independent review.**

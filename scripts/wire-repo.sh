@@ -23,7 +23,7 @@ canonicalize() {
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") <consumer-repo-path> [--ci-workflow-name NAME] [--branch-policy-workflow-name NAME] [--bugbot-check-name NAME] [--runner-type TYPE]
+Usage: $(basename "$0") <consumer-repo-path> [--ci-workflow-name NAME] [--branch-policy-workflow-name NAME] [--runner-type TYPE]
 
 Wires managed GitOps into a consumer repository:
   - requires/creates .github/linktrend-gitops-consumer.json
@@ -40,7 +40,6 @@ EOF
 TARGET_INPUT=""
 CI_NAME=""
 BRANCH_POLICY_NAME=""
-BUGBOT_NAME=""
 RUNNER_TYPE="github-hosted"
 RUNNER_TYPE_SET=0
 
@@ -53,9 +52,6 @@ while [ $# -gt 0 ]; do
     --branch-policy-workflow-name)
       [ $# -ge 2 ] || fail "--branch-policy-workflow-name requires a value"
       BRANCH_POLICY_NAME="$2"; shift 2 ;;
-    --bugbot-check-name)
-      [ $# -ge 2 ] || fail "--bugbot-check-name requires a value"
-      BUGBOT_NAME="$2"; shift 2 ;;
     --runner-type)
       [ $# -ge 2 ] || fail "--runner-type requires a value"
       RUNNER_TYPE="$2"; RUNNER_TYPE_SET=1; shift 2 ;;
@@ -87,24 +83,20 @@ if [ ! -f "$CONFIG_PATH" ]; then
   if [ -z "$CI_NAME" ] || [ -z "$BRANCH_POLICY_NAME" ]; then
     fail "Missing $CONFIG_PATH. Create it or pass --ci-workflow-name and --branch-policy-workflow-name (fail closed)."
   fi
-  BUGBOT_NAME="${BUGBOT_NAME:-Linktrend Review Gate}"
-  python3 - "$CONFIG_PATH" "$CI_NAME" "$BRANCH_POLICY_NAME" "$BUGBOT_NAME" "$RUNNER_TYPE" <<'PY'
+  python3 - "$CONFIG_PATH" "$CI_NAME" "$BRANCH_POLICY_NAME" "$RUNNER_TYPE" <<'PY'
 import json, sys
 from pathlib import Path
-path, ci, branch, bugbot, runner_type = sys.argv[1:6]
+path, ci, branch, runner_type = sys.argv[1:5]
 Path(path).write_text(json.dumps({
     "schemaVersion": 1,
     "fastWorkflowName": "Linktrend Fast Checks",
     "ciWorkflowName": ci,
     "branchPolicyWorkflowName": branch,
-    "bugbotCheckName": bugbot,
-    "reviewGateCheckName": bugbot,
-    "bugbotProviderCheckName": "Cursor Bugbot",
     "runnerType": runner_type,
 }, indent=2) + "\n", encoding="utf-8")
 print(f"PASS: wrote consumer config {path}")
 PY
-elif [ -n "$CI_NAME" ] || [ -n "$BRANCH_POLICY_NAME" ] || [ -n "$BUGBOT_NAME" ] || [ "$RUNNER_TYPE_SET" -eq 1 ]; then
+elif [ -n "$CI_NAME" ] || [ -n "$BRANCH_POLICY_NAME" ] || [ "$RUNNER_TYPE_SET" -eq 1 ]; then
   fail "Config already exists at $CONFIG_PATH; refuse to overwrite with CLI flags. Edit the JSON instead."
 fi
 
@@ -161,7 +153,7 @@ info "Consumer: $TARGET_REPO"
 info "Cursor: physical managed entrypoints under .cursor/ (not a symlink to IDE Development)"
 info "Config: $CONFIG_PATH"
 info "Managed workflows + runtime + agentsetup/agentcomply + AGENTS section: synced"
-info "Next: complete Bugbot checklist — core/checklists/BUGBOT-INHERITANCE.md"
-info "Next: Cursor Automations — docs/CURSOR-AUTOMATIONS-SETUP.md"
+info "Next: follow docs/runbooks/hosted-delivery-operations.md for verified Phase delivery, exact-head evidence, and receipt reuse"
+info "Next: use the designated project orchestrator under Eric and its verified IDE route"
 info "Next: commit .github/linktrend-gitops-consumer.json and managed .cursor entrypoints"
 exit 0

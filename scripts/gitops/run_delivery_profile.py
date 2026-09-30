@@ -504,6 +504,11 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--inventory-json", type=Path)
     parser.add_argument("--reuse-evidence", type=Path)
+    parser.add_argument(
+        "--require-reuse",
+        action="store_true",
+        help="fail closed when --reuse-evidence is absent, invalid, or has a different identity",
+    )
     parser.add_argument("--changed", action="append", default=[])
     parser.add_argument("--repository")
     parser.add_argument("--head")
@@ -513,6 +518,8 @@ def main() -> int:
     parser.add_argument("--workflow-digest")
     parser.add_argument("--preflight", action="store_true", help="run the declared runtime preflight before profile commands")
     args = parser.parse_args()
+    if args.require_reuse and not args.reuse_evidence:
+        parser.error("--require-reuse requires --reuse-evidence")
     root = args.root.resolve()
     config_path, commands = load_profile(root, args.profile)
     identity = build_identity(
@@ -537,6 +544,9 @@ def main() -> int:
             inventory["reuse"] = reuse
             print(json.dumps(inventory, sort_keys=True))
             return 0
+        if args.require_reuse:
+            print(json.dumps({"ok": False, "reused": False, "reuse": reuse}, sort_keys=True))
+            return 1
     inventory = run_profile(
         root,
         args.profile,

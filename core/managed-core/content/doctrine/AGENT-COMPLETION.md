@@ -1,81 +1,41 @@
 # Agent Completion Contract
 
-**Status:** Active. Amended `V25_BOOTSTRAP_LEAN` 2026-08-20.
-**Date:** 2026-08-01
-**Owner:** IDE Development (GitOps)
+**Status:** Active v3 (IDE-28).
+**Owner:** IDE Development
 
-## Purpose
+What finished means for a worker on one Issue, and for the orchestrator accepting a pull request.
 
-Define how Implementers finish a work session without opening PRs or claiming hosted/production proof they do not have.
+## Worker done
 
-## Authority (`V25_BOOTSTRAP_LEAN`)
+A worker is done when all of the following are true:
 
-A v2.5 **Issue checkpoint** is accepted when all of the following are present:
+1. The work is on `issue/<n>-<slug>`, committed, and pushed. Commit and push often. Never open a pull request.
+2. Fast deterministic checks passed before the push. Run `python3 scripts/gitops/run_delivery_profile.py fast` (the command CI job `Linktrend Fast Checks` runs) plus every check the Issue names.
+3. The final reply ends with a short lessons note.
 
-1. exact pushed commit and tree
-2. scoped diff
-3. focused tests
-4. one provider-independent narrow review bound to the exact commit and tree
-5. manifest evidence
+Those local checks do not replace the combined Phase CI run.
 
-Review Ready publication, `AUTOMATION_TOKEN`, an Issue PR, hosted completion status, and legacy publisher status are **nonrequirements**. They must not block checkpoint acceptance.
+## Orchestrator acceptance
 
-`python3 scripts/gitops/completion_gate.py checkpoint` is the implementer entrypoint. `review-ready` remains a compatibility mode that **never publishes** and classifies the legacy publisher as **`WAIVED_LEGACY_GATE`** (never PASS, never an implementation failure). That waived outcome must never bypass substantive proof, security, exact identity, scope, review, or rollback.
+The orchestrator packages accepted Issue checkpoints into one Phase pull request to `development`.
 
-There is **no** `.linktrend/review-ready.json` readiness file. Do not create, discover, or consult that path. Local proof must never be represented as hosted or production proof. When hosted validation needs out-of-tree evidence, pass an explicit immutable evidence payload (`--evidence-json`) bound to the exact SHA/tree.
+Accept a pull request when all of the following hold on the exact head SHA:
 
-## Modes (`scripts/gitops/completion_gate.py`)
+1. `Linktrend Fast Checks`, `Linktrend Branch Source Policy`, and `Verify IDE Development` are green on that exact Phase head; all three platform matrix checks are green when the shared changed-path classifier says they apply.
+2. One independent review of that head approves. The reviewer is a model from a different family than the author (a GPT model for Grok or Opus work; a Claude or Grok model for Codex work).
+3. A commit after that review has a new review of the new head. The review record states that it covered at least the delta.
 
-| Mode | Meaning | Exit |
-|---|---|---|
-| `checkpoint` | Save point, or v2.5 Issue-checkpoint acceptance when lean evidence is present | `0` ok, `78` incomplete |
-| `review-ready` | Validate evidence, then waive legacy Review Ready publication (`WAIVED_LEGACY_GATE`, never PASS) | `0` waived, `78` incomplete |
-| `blocked` | Write durable blocker JSON | `2` blocked |
-| `status` | Report current completion state | `0` ok |
-| `write-evidence` | Write schema-versioned completion / lean checkpoint evidence for current `HEAD` | `0` ok |
+Merge when all applicable Phase checks and the independent review are green on the exact reviewed head. The development merge must retain that head's tree. Promotion to `main` reuses the same Phase Verify inventory with no Full rerun or second review.
 
-Without an explicit `--evidence-file` or `COMPLETION_EVIDENCE_FILE`, evidence is
-written under the repository git-common-dir, keyed by branch and exact `HEAD`.
-It is never written into the tracked candidate tree. Explicit legacy evidence
-paths remain readable for compatibility, but new checkpoints must not create
-self-referential `.linktrend/completion-evidence.json` changes.
+## Blocked / flag Carlos
 
-Exit codes: `0` ok, `78` incomplete, `2` blocked, `1` failed.
+Review `REQUEST_CHANGES` and CI failures both count as failed attempts on the current repair rung. Until a live ledger exists, `scripts/orchestrator/runlog.py` records the rung in `repair_rung` (`0`, `1`, or `2`). `scripts/orchestrator/watchdog.py` recommends the next rung.
 
-## States
+1. Rung 0: a Luna (Codex) or Grok (cursor-002) worker, up to 3 attempts.
+2. Rung 1: a stronger model (Sol or Opus), one attempt.
+3. Rung 2: when the Issue started on Sol or Opus, the other of those two, one attempt.
+4. The orchestrator then flags Carlos with a short plain-language question.
 
-- `checkpointed_unfinished`
-- `checkpoint_accepted`
-- `waived_legacy_gate`
-- `blocked`
-- `failed`
+## Retired
 
-## v2.5 Issue checkpoint requirements
-
-1. `HEAD` resolves to a SHA and matching git tree.
-2. Working tree is clean; branch is not `development`, `staging`, `main`, or detached.
-3. `HEAD == origin/<branch>` after fetch (exact pushed identity).
-4. Machine-readable evidence bound to that exact SHA/tree covering scoped diff, focused tests, one provider-independent narrow review, and manifest evidence.
-5. No GitHub token, Review Ready status, Issue PR, or hosted completion status is required.
-
-Bare `--tests-ok`, `COMPLETION_TESTS_OK=1`, and arbitrary text in `COMPLETION_EVIDENCE` are not sufficient.
-
-## Phase delivery (not Issue checkpoint)
-
-One Phase PR into `development`, exact review, conditional Full, and the founder gate for `main` remain the protected delivery path. The delivery controller merges through GitHub protection. Administrator recovery is a named exception after replacement proof: freeze the exact Phase head, snapshot protections, prefer `gh pr merge --admin --match-head-commit`, apply a minimum temporary exception only if needed, merge only that exact authorized head, restore immediately, read back, and record obsolete publisher/status as waived not passed.
-
-## Hard rules
-
-- Implementers **never** open or update PRs. The Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the Phase PR. Retained `packager_discover.py` is not that component.
-- Ship waves = checkpoint only.
-- Do **not** attempt the Review Ready publisher or a hosted publisher fallback from implementer sessions.
-- Do **not** create or use `.linktrend/review-ready.json`.
-- Never represent local proof as hosted/production proof.
-
-## Related
-
-- `docs/AUTONOMOUS-GIT-OPERATIONS.md`
-- `core/execution/CODING-EXECUTION-PROTOCOL.md`
-- `core/contracts/EXECUTION-CONTROL-CONTRACT.md`
-- `scripts/gitops/issue_checkpoint.py`
-- `scripts/gitops/administrator_recovery.py`
+Retired, and not part of this contract: the v2 commit-status publisher and its evidence gate, the v2 review-gate classifier, the repair observer, promotion receipts, the v2 packaging and merge services, the host-based coordinator, and the intermediate promotion branch between `development` and `main`. In v3 the orchestrator packages, merges and promotes; workers build Issues; the Ledger (`ide_ledger`) records state. The v2 records are in `docs/archive/`.

@@ -15,7 +15,7 @@
         "kind": "known_bytes",
         "name": "obsolete-sparse-gitops-note-v1.md"
       },
-      "scripts/gitops/completion_gate.py": {
+      "scripts/gitops/consumer_local_gate.py": {
         "kind": "text",
         "content": "# consumer-synced sparse runtime placeholder\nprint('sparse')\n"
       }
@@ -30,7 +30,7 @@
     ],
     "preserve": [
       ".github/linktrend-gitops-consumer.json",
-      "scripts/gitops/completion_gate.py"
+      "scripts/gitops/consumer_local_gate.py"
     ],
     "removals": [
       ".ide-development-upgrade-notes/obsolete-sparse-gitops-note-v1.md"

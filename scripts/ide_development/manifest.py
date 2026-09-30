@@ -416,7 +416,8 @@ def load_migration_catalog(
         raise InvalidPackageError("migration catalog entries must be an array")
     entries: list[MigrationEntry] = []
     seen_identities: set[str] = set()
-    seen_paths: set[str] = set()
+    # A path may carry several reviewed hashes (one per published release).
+    seen_path_hashes: set[tuple[str, str]] = set()
     for index, item in enumerate(items):
         row = _require_mapping(item, f"entries[{index}]")
         identity = _require_str(row, "identity")
@@ -425,14 +426,14 @@ def load_migration_catalog(
         action = _require_str(row, "action")
         if identity in seen_identities:
             raise InvalidPackageError(f"Duplicate migration identity: {identity}")
-        if path_rel in seen_paths:
-            raise InvalidPackageError(f"Duplicate migration path: {path_rel}")
+        if (path_rel, content_hash) in seen_path_hashes:
+            raise InvalidPackageError(f"Duplicate migration path and hash: {path_rel}")
         if action != "remove":
             raise InvalidPackageError(f"Unsupported migration action: {action}")
         if not content_hash.startswith("sha256:") or len(content_hash) != len("sha256:") + 64:
             raise InvalidPackageError(f"Invalid contentHash for migration {identity}")
         seen_identities.add(identity)
-        seen_paths.add(path_rel)
+        seen_path_hashes.add((path_rel, content_hash))
         entries.append(
             MigrationEntry(
                 identity=identity,

@@ -34,7 +34,7 @@ assert p["dryRun"] is True
 assert p["mode"] == "report"
 assert p["mutations"] == []
 assert p["source"] == "dry-run"
-assert p["statusContext"] == "Linktrend Review Ready"
+assert "statusContext" not in p
 assert p["summary"]["ready"] is False
 statuses = {c["id"]: c["status"] for c in p["checks"]}
 checks = {c["id"]: c for c in p["checks"]}
@@ -42,12 +42,11 @@ assert statuses["github_auth.automation_token_secret"] == "unchecked"
 assert statuses["bugbot.user_token_secret"] == "unchecked"
 assert statuses["bugbot.manual_trigger_only"] == "unchecked"
 assert statuses["protection.development_ruleset"] == "unchecked"
-assert statuses["protection.staging_ruleset"] == "unchecked"
 assert statuses["protection.main_ruleset"] == "unchecked"
 assert statuses["protection.allow_auto_merge"] == "unchecked"
 assert statuses["carlos.user_token_boundary"] in {"unchecked", "unknown"}
 assert statuses["workflows.required_presence"] in {"unchecked", "unknown"}
-assert statuses["completion.status_context"] == "ok"
+assert "completion.status_context" not in statuses
 development_expected = checks["protection.development_ruleset"]["expected"]
 assert "Linktrend Branch Source Policy" in development_expected
 for obsolete in ("Cursor Bugbot", "Linktrend Review Gate", "Linktrend Review Ready"):
@@ -73,7 +72,7 @@ import json
 from pathlib import Path
 p = json.loads(Path("${TMP}/unavailable.json").read_text())
 checks = {c["id"]: c for c in p["checks"]}
-for branch in ("development", "staging", "main"):
+for branch in ("development", "main"):
     row = checks[f"protection.{branch}_ruleset"]
     assert row["status"] == "unavailable"
     assert "Linktrend Branch Source Policy" in row["expected"]
@@ -255,7 +254,6 @@ grep -q 'Never' "$CONTRACT" || fail "contract missing Never prohibition language
 grep -q 'LINKTREND_AUTOMATION_TOKEN' "$CONTRACT" || fail "contract missing automation token name"
 grep -q 'manualTriggerOnly' "$CONTRACT" || fail "contract missing manualTriggerOnly"
 grep -q 'development-autonomous-merge' "$CONTRACT" || fail "contract missing ruleset name"
-grep -q 'Linktrend Review Ready' "$CONTRACT" || fail "contract missing status context"
 grep -q 'mutations' "$CONTRACT" || fail "contract missing mutations empty guarantee"
 pass "contract documents automation/Bugbot/protection audit surface"
 

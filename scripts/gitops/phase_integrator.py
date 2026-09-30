@@ -16,11 +16,10 @@ import re
 import subprocess
 import tempfile
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping
 
 try:  # Prefer the package path so unittest and CLI share one class identity.
-    from scripts.gitops.coordinator.state import CandidateIdentity
     from scripts.gitops.delivery_modes import (
         DEFAULT_PHASE_PREFIX,
         MODE_PHASE_INTEGRATION,
@@ -28,7 +27,6 @@ try:  # Prefer the package path so unittest and CLI share one class identity.
         normalize_sha,
     )
 except ModuleNotFoundError:  # pragma: no cover - exercised by package-style tests
-    from coordinator.state import CandidateIdentity
     from delivery_modes import (
         DEFAULT_PHASE_PREFIX,
         MODE_PHASE_INTEGRATION,
@@ -40,6 +38,7 @@ PHASE_RECORD_REL = Path(".linktrend/phase-delivery-record.json")
 INTEGRATOR_ROLE = "integrator"
 ISSUE_BRANCH_RE = re.compile(r"^issue/([1-9][0-9]{0,8})-(.+)$")
 TERMINAL_PHASE_STATES = frozenset({"main-promoted", "stopped", "blocked", "cancelled"})
+PHASE_GATES = ("fast", "full", "release")
 
 
 class PhaseLifecycleError(ValueError):
@@ -52,6 +51,58 @@ class PhaseLifecycleError(ValueError):
 
     def to_dict(self) -> dict[str, str]:
         return {"code": self.code, "detail": self.detail}
+
+
+def _strict_sha(value: Any, *, field_name: str) -> str:
+    if not isinstance(value, str) or len(value) != 40 or any(c not in "0123456789abcdef" for c in value):
+        raise PhaseLifecycleError("invalid_sha", f"{field_name} must be 40 lowercase hexadecimal characters")
+    return value
+
+
+@dataclass(frozen=True)
+class CandidateIdentity:
+    repository: str
+    source_sha: str
+    git_tree_sha: str
+    dependency_digests: Mapping[str, str]
+    test_profile: str
+
+    def __post_init__(self) -> None:
+        if not self.repository or "/" not in self.repository:
+            raise PhaseLifecycleError("invalid_repository", "repository must be owner/name")
+        _strict_sha(self.source_sha, field_name="sourceSha")
+        _strict_sha(self.git_tree_sha, field_name="gitTreeSha")
+        if self.test_profile not in {"fast", "full", "release"}:
+            raise PhaseLifecycleError("invalid_test_profile", "testProfile must be fast, full, or release")
+        if not isinstance(self.dependency_digests, Mapping):
+            raise PhaseLifecycleError("invalid_dependency_digests", "dependencyDigests must be an object")
+        for path, digest in self.dependency_digests.items():
+            if not isinstance(path, str) or not path or PurePosixPath(path).is_absolute() or path.startswith("../"):
+                raise PhaseLifecycleError("invalid_dependency_path", "dependency digest path must be relative")
+            if not isinstance(digest, str) or len(digest) != 71 or not digest.startswith("sha256:") or any(c not in "0123456789abcdef" for c in digest[7:]):
+                raise PhaseLifecycleError("invalid_dependency_digest", f"invalid digest for {path}")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "repository": self.repository,
+            "sourceSha": self.source_sha,
+            "gitTreeSha": self.git_tree_sha,
+            "dependencyDigests": {key: self.dependency_digests[key] for key in sorted(self.dependency_digests)},
+            "testProfile": self.test_profile,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "CandidateIdentity":
+        if set(payload) != {"repository", "sourceSha", "gitTreeSha", "dependencyDigests", "testProfile"}:
+            raise PhaseLifecycleError("invalid_candidate_identity", "candidate identity fields are incomplete or unknown")
+        return cls(
+            repository=payload["repository"], source_sha=payload["sourceSha"],
+            git_tree_sha=payload["gitTreeSha"], dependency_digests=dict(payload["dependencyDigests"]),
+            test_profile=payload["testProfile"],
+        )
+
+    def canonical(self) -> str:
+        return json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"))
 
 
 @dataclass(frozen=True)
@@ -206,7 +257,7 @@ def invalidate_candidate_gates(record: Mapping[str, Any], *, old_head_sha: str, 
     result["sealedSha"] = None
     result["sealRevision"] = result.get("sealRevision", result.get("sealedCandidateRevisions", 0))
     result["invalidatedFromSha"] = normalize_sha(old_head_sha)
-    for gate in ("fast", "bugbot", "full", "staging", "release"):
+    for gate in PHASE_GATES:
         result[gate] = {"status": "invalidated", "detail": "phase_head_changed"}
     result["namedGateEvidence"] = {
         "gate": "fast-gate",
@@ -218,8 +269,8 @@ def invalidate_candidate_gates(record: Mapping[str, Any], *, old_head_sha: str, 
     return result
 
 
-def phase_bugbot_request_allowed(record: Mapping[str, Any], *, live_head_sha: str) -> tuple[bool, str]:
-    """Bugbot is one-shot and only follows the current sealed candidate fast pass."""
+def phase_fast_pass_allowed(record: Mapping[str, Any], *, live_head_sha: str) -> tuple[bool, str]:
+    """The current sealed Phase candidate has its exact Fast pass."""
 
     head = normalize_sha(live_head_sha)
     if not record.get("sealed"):
@@ -232,53 +283,7 @@ def phase_bugbot_request_allowed(record: Mapping[str, Any], *, live_head_sha: st
     fast = record.get("fast") if isinstance(record.get("fast"), Mapping) else {}
     if fast.get("status") != "passed" or normalize_sha(str(fast.get("sha") or head)) != head:
         return False, "fast_gate_not_passed_for_current_seal"
-    bugbot = record.get("bugbot") if isinstance(record.get("bugbot"), Mapping) else {}
-    if bugbot.get("status") in {"requested", "passed"}:
-        return False, "bugbot_already_requested"
     return True, "current_sealed_fast_pass"
-
-
-def phase_full_suite_dispatch_allowed(
-    record: Mapping[str, Any], *, live_head_sha: str, pr_number: int
-) -> tuple[bool, str, dict[str, str] | None]:
-    """Build the only valid Full Suite dispatch for the current sealed head.
-
-    The caller still performs the explicit GitHub dispatch.  Keeping the
-    decision pure makes it testable and prevents a draft or superseded head
-    from waking the expensive workflow.  Bugbot is requested by the Full Suite
-    workflow after the receipt succeeds, so both actions remain final-candidate
-    only without introducing a second trigger path.
-    """
-
-    allowed, detail = phase_bugbot_request_allowed(record, live_head_sha=live_head_sha)
-    if not allowed:
-        return False, detail, None
-    if not isinstance(pr_number, int) or isinstance(pr_number, bool) or pr_number < 1:
-        return False, "invalid_pr_number", None
-    full = record.get("full") if isinstance(record.get("full"), Mapping) else {}
-    if full.get("status") in {"requested", "running", "passed"}:
-        return False, "full_suite_already_requested", None
-    try:
-        prior_attempt = int(full.get("attempt") or 0)
-    except (TypeError, ValueError):
-        return False, "full_suite_attempt_invalid", None
-    if prior_attempt >= 2:
-        return False, "full_suite_attempt_limit", None
-    candidate_id = str(record.get("candidateId") or "").strip()
-    if not re.fullmatch(r"sha256:[0-9a-f]{64}", candidate_id):
-        return False, "candidate_id_missing", None
-    head = normalize_sha(live_head_sha)
-    revision = str(record.get("sealRevision") or record.get("sealedCandidateRevisions") or "")
-    if revision not in {"1", "2"}:
-        return False, "invalid_seal_revision", None
-    return True, "current_sealed_candidate", {
-        "pr_number": str(pr_number),
-        "source_branch": str(record.get("phaseBranch") or ""),
-        "head_sha": head,
-        "candidate_id": candidate_id,
-        "seal_revision": revision,
-        "attempt": str(prior_attempt + 1),
-    }
 
 
 def phase_merge_eligibility(
@@ -291,16 +296,11 @@ def phase_merge_eligibility(
     identity = record.get("candidateIdentity")
     identity_head = normalize_sha(str(identity.get("sourceSha") or "")) if isinstance(identity, Mapping) else ""
     fast = record.get("fast") if isinstance(record.get("fast"), Mapping) else {}
-    bugbot = record.get("bugbot") if isinstance(record.get("bugbot"), Mapping) else {}
     full = record.get("full") if isinstance(record.get("full"), Mapping) else {}
     checks = {
         "currentSeal": sealed and identity_head == head,
         "fastSuccess": fast.get("status") == "passed" and normalize_sha(str(fast.get("sha") or "")) == head,
-        "bugbotSuccess": bugbot.get("status") == "passed" and normalize_sha(str(bugbot.get("sha") or "")) == head,
-        "fullSuccessOrNotRequired": (
-            full.get("status") == "not-required"
-            or (full.get("status") == "passed" and normalize_sha(str(full.get("sha") or "")) == head)
-        ),
+        "fullSuccess": full.get("status") == "passed" and normalize_sha(str(full.get("sha") or "")) == head,
         "noConflict": not conflict,
         "liveHeadUnchanged": normalize_sha(str(record.get("headSha") or "")) == head,
     }
@@ -403,9 +403,7 @@ class PhaseIntegrator:
             "candidateId": None,
             "candidateIdentity": None,
             "fast": {"status": "not-run"},
-            "bugbot": {"status": "not-run"},
             "full": {"status": "not-run"},
-            "staging": {"status": "not-run"},
             "release": {"status": "not-run"},
             "stopReason": None,
         }
@@ -578,53 +576,25 @@ class PhaseIntegrator:
         head = normalize_sha(str(record.get("sealedSha") or ""))
         if normalize_sha(sha) != head:
             raise PhaseLifecycleError("stale_candidate_gate", "gate result is not for current sealed head")
-        if gate not in {"fast", "bugbot", "full", "staging", "release"}:
+        if gate not in PHASE_GATES:
             raise PhaseLifecycleError("invalid_gate", gate)
         record[gate] = {"status": status, "sha": head, "detail": detail, **extra}
-        record["namedGateEvidence"] = {"gate": f"{gate}-gate" if gate != "bugbot" else "bugbot", "sha": head, "status": "success" if status in {"passed", "not-required"} else status, "detail": detail, "checks": extra.get("checks", [])}
+        record["namedGateEvidence"] = {"gate": f"{gate}-gate", "sha": head, "status": "success" if status in {"passed", "not-required"} else status, "detail": detail, "checks": extra.get("checks", [])}
         return self._write(record)
 
 
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
-    try:
-        from scripts.gitops.receipt_seal import phase_merge_eligibility_with_receipt
-    except ModuleNotFoundError:  # pragma: no cover - direct script execution
-        from receipt_seal import phase_merge_eligibility_with_receipt
-
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["eligible", "bugbot-allowed"])
+    parser.add_argument("command", choices=["eligible"])
     parser.add_argument("record")
     parser.add_argument("head")
-    parser.add_argument(
-        "--receipt",
-        default="",
-        help="path to retained FullSuiteReceipt JSON required for eligible (AC-U06)",
-    )
-    parser.add_argument("--expected-tree", default="", help="live candidate tree SHA for receipt binding")
     args = parser.parse_args(argv)
     record = json.loads(Path(args.record).read_text(encoding="utf-8"))
-    if args.command == "eligible":
-        receipt_payload = None
-        if args.receipt:
-            receipt_payload = json.loads(Path(args.receipt).read_text(encoding="utf-8"))
-        elif isinstance(record.get("retainedReceipt"), Mapping):
-            receipt_payload = record.get("retainedReceipt")
-        result = phase_merge_eligibility_with_receipt(
-            record,
-            live_head_sha=args.head,
-            retained_receipt=receipt_payload if isinstance(receipt_payload, Mapping) else None,
-            expected_tree=args.expected_tree or None,
-        )
-    else:
-        ok, detail = phase_bugbot_request_allowed(record, live_head_sha=args.head)
-        result = {"eligible": ok, "detail": detail}
-    print(json.dumps(result.to_dict() if hasattr(result, "to_dict") else result, sort_keys=True))
-    # Compare via attribute/mapping — avoid isinstance(MergeEligibility) which fails when
-    # this file is executed as __main__ while receipt_seal imported phase_integrator as a module.
-    eligible = result["eligible"] if isinstance(result, Mapping) else bool(result.eligible)
-    return 0 if eligible else 1
+    result = phase_merge_eligibility(record, live_head_sha=args.head)
+    print(json.dumps(result.to_dict(), sort_keys=True))
+    return 0 if result.eligible else 1
 
 
 if __name__ == "__main__":

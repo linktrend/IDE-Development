@@ -1,6 +1,6 @@
 # Review Issue
 
-Use when an issue has reached `review_ready` and needs independent evaluation.
+Use when an issue has reached `in_review` and needs independent evaluation.
 
 Operational summary:
 

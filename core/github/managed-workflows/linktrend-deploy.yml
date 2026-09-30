@@ -1,0 +1,31 @@
+name: Linktrend Deploy
+
+# Thin caller for the LiNKops deploy standard (docs/contracts/DEPLOY-CALLER.md).
+# Synced only into repositories that declare deploy/target.json; without that
+# file this workflow is never installed. LiNKops owns the reusable workflow and
+# the deploy/target.json schema. Interface status: proposed; LiNKops confirms it
+# in its Wave 2.3.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Tailscale access uses OAuth client secrets, not GitHub OIDC, so no id-token
+# grant. Add `id-token: write` only if the LiNKops interface moves to OIDC.
+permissions:
+  contents: read
+
+concurrency:
+  group: linktrend-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Linktrend Deploy
+    uses: linktrend/LiNKops/.github/workflows/deploy.yml@v1
+    with:
+      target-file: deploy/target.json
+      sha: ${{ github.sha }}
+    secrets:
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}

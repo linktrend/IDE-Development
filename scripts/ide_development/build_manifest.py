@@ -81,11 +81,11 @@ LIFECYCLE_CURSOR_RULES = (
     "02-autonomous-ship-pull.mdc",
     "03-secrets-security.mdc",
     "05-security-cost-and-side-effects.mdc",
+    "07-orchestrator-helper-routing.mdc",
 )
 
 REQUIRED_RUNTIME_PACKAGE_SOURCES = (
     "scripts/gitops/repository_ci_contract.py",
-    "scripts/gitops/promotion_receipt_gate.py",
 )
 
 # Preserve the source-relative layout under one managed runtime root so the
@@ -123,11 +123,8 @@ CONTENT_DOCTRINE = (
     ("docs/contracts/REPOSITORY-PROTECTION.md", "content/doctrine/REPOSITORY-PROTECTION.md"),
     ("docs/contracts/STREAMLINED-DELIVERY.md", "content/doctrine/STREAMLINED-DELIVERY.md"),
     ("docs/contracts/SECRET-SCAN-FIXTURES.md", "content/doctrine/SECRET-SCAN-FIXTURES.md"),
+    ("docs/contracts/OPENCLAW-CUSTOMIZATION-ADMISSION.md", "content/doctrine/OPENCLAW-CUSTOMIZATION-ADMISSION.md"),
     ("core/contracts/GENERATED-OUTPUT-CLOSURE.md", "content/doctrine/GENERATED-OUTPUT-CLOSURE.md"),
-    (
-        "core/contracts/MANIFEST-PERSISTENCE-RECOVERY.md",
-        "content/doctrine/MANIFEST-PERSISTENCE-RECOVERY.md",
-    ),
     (
         "core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md",
         "content/doctrine/PKT08-REVISION-60-FINAL-CONTROLS.md",
@@ -137,9 +134,8 @@ CONTENT_DOCTRINE = (
         "content/doctrine/CODING-EXECUTION-PROTOCOL.md",
     ),
     ("docs/contracts/REPOSITORY-CI-TRIGGER.md", "content/doctrine/REPOSITORY-CI-TRIGGER.md"),
-    ("docs/contracts/LINKTREND-REVIEW-GATE.md", "content/doctrine/LINKTREND-REVIEW-GATE.md"),
-    ("docs/contracts/RECEIPT-SEAL-AND-RECOVERY.md", "content/doctrine/RECEIPT-SEAL-AND-RECOVERY.md"),
     ("docs/contracts/ATOMIC-WORKFLOW-RULESET-MIGRATION.md", "content/doctrine/ATOMIC-WORKFLOW-RULESET-MIGRATION.md"),
+    ("docs/contracts/DEPLOY-CALLER.md", "content/doctrine/DEPLOY-CALLER.md"),
     ("docs/adr/0003-autonomous-ship-pull-promote.md", "content/doctrine/0003-autonomous-ship-pull-promote.md"),
     ("docs/adr/0004-portable-managed-core-v2.md", "content/doctrine/0004-portable-managed-core-v2.md"),
     ("docs/adr/0005-streamlined-delivery-coordinator.md", "content/doctrine/0005-streamlined-delivery-coordinator.md"),
@@ -147,12 +143,11 @@ CONTENT_DOCTRINE = (
 )
 
 # W2-P2 package payloads are intentionally explicit.  Workflow and test files
-# are discovered only when W2-P1 has supplied a hosted replacement; the legacy
-# Mac/App templates remain source history but must never become installable.
+# are discovered only when W2-P1 has supplied a hosted replacement; legacy
+# private-runner/App templates must never become installable.
 HOSTED_WORKFLOW_REJECT_MARKERS = (
     "self-hosted",
     "macos",
-    "mac mini",
     "linktrend-private-macos",
     "linktrend-privileged",
     "linktrend-ci-isolated",
@@ -167,20 +162,12 @@ HOSTED_WORKFLOW_REJECT_MARKERS = (
 )
 
 HOSTED_TEST_FILES = (
-    "scripts/tests/test_candidate_lifecycle.py",
-    "scripts/tests/test_gate_receipts.py",
     "scripts/tests/test_phase_batch_lifecycle.py",
-    "scripts/tests/test_phase_packager_coordinator.py",
     "scripts/tests/test_independent_review_convergence.py",
     "scripts/tests/test_fixture_aware_secret_scan.py",
     "scripts/tests/test_candidate_baseline_resolution.py",
     "scripts/tests/test_generated_output_closure.py",
-    "scripts/tests/test_manifest_persistence_recovery.py",
     "scripts/tests/test_repository_ci_trigger_contract.py",
-    "scripts/tests/test_linktrend_review_gate.py",
-    "scripts/tests/test_promotion_receipt_gate.py",
-    "scripts/tests/test_receipt_seal_and_recovery.py",
-    "scripts/tests/test_delivery_controller.py",
     "scripts/tests/test_atomic_workflow_ruleset_migration.py",
 )
 
@@ -404,10 +391,6 @@ def build_entries() -> list[dict[str, Any]]:
         ("content/README.md", ".ide-development/content/README.md"),
         ("config/delivery.json", ".ide-development/config/delivery.json"),
         (
-            "content/config/portfolio-control-loop.json",
-            ".ide-development/content/config/portfolio-control-loop.json",
-        ),
-        (
             "content/config/routing-registry.json",
             ".ide-development/content/config/routing-registry.json",
         ),
@@ -418,10 +401,6 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "content/config/generated-output-closure.consumer.json",
             ".ide-development/config/generated-output-closure.json",
-        ),
-        (
-            "content/config/manifest-persistence.json",
-            ".ide-development/content/config/manifest-persistence.json",
         ),
         (
             "content/config/transactional-dispatch.json",
@@ -474,18 +453,6 @@ def build_entries() -> list[dict[str, Any]]:
             ".ide-development/schemas/gate-receipt.schema.json",
         ),
         (
-            "schemas/phase-record.schema.json",
-            ".ide-development/schemas/phase-record.schema.json",
-        ),
-        (
-            "schemas/phase-handoff.schema.json",
-            ".ide-development/schemas/phase-handoff.schema.json",
-        ),
-        (
-            "schemas/delivery-operation.schema.json",
-            ".ide-development/schemas/delivery-operation.schema.json",
-        ),
-        (
             "schemas/review-session.schema.json",
             ".ide-development/schemas/review-session.schema.json",
         ),
@@ -502,20 +469,12 @@ def build_entries() -> list[dict[str, Any]]:
             ".ide-development/schemas/generated-output-closure.schema.json",
         ),
         (
-            "schemas/manifest-persistence.schema.json",
-            ".ide-development/schemas/manifest-persistence.schema.json",
-        ),
-        (
             "schemas/transactional-dispatch.schema.json",
             ".ide-development/schemas/transactional-dispatch.schema.json",
         ),
         (
             "schemas/mutation-declaration.schema.json",
             ".ide-development/schemas/mutation-declaration.schema.json",
-        ),
-        (
-            "schemas/portfolio-control-loop.schema.json",
-            ".ide-development/schemas/portfolio-control-loop.schema.json",
         ),
         (
             "schemas/provider-consumer-handoff.schema.json",
@@ -528,10 +487,6 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "schemas/toolchain-manifest.schema.json",
             ".ide-development/schemas/toolchain-manifest.schema.json",
-        ),
-        (
-            "schemas/transition-receipt.schema.json",
-            ".ide-development/schemas/transition-receipt.schema.json",
         ),
         (
             "schemas/secret-scan-result.schema.json",
@@ -550,6 +505,10 @@ def build_entries() -> list[dict[str, Any]]:
             ".ide-development/schemas/openclaw-customization-admission.schema.json",
         ),
         (
+            "schemas/same-version-repair.schema.json",
+            ".ide-development/schemas/same-version-repair.schema.json",
+        ),
+        (
             "schemas/repository-ci-contract.schema.json",
             ".ide-development/schemas/repository-ci-contract.schema.json",
         ),
@@ -560,10 +519,6 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "schemas/ci-evidence.schema.json",
             ".ide-development/schemas/ci-evidence.schema.json",
-        ),
-        (
-            "schemas/linktrend-review-gate.schema.json",
-            ".ide-development/schemas/linktrend-review-gate.schema.json",
         ),
         (
             "schemas/managed-core-release.schema.json",
@@ -636,10 +591,6 @@ def build_entries() -> list[dict[str, Any]]:
         (
             "core/execution/verification_liveness.py",
             ".ide-development/execution/verification_liveness.py",
-        ),
-        (
-            "core/execution/manifest_persistence.py",
-            ".ide-development/execution/manifest_persistence.py",
         ),
         (
             "core/execution/transactional_dispatch.py",
@@ -1038,9 +989,8 @@ def build_entries() -> list[dict[str, Any]]:
             )
         )
 
-    # Hosted workflow templates are staged under the managed package.  The
-    # W2-P1 branch supplies the files; legacy templates are filtered above and
-    # are never copied into consumer .github/workflows by this package.
+    # Hosted workflow templates are staged under the managed package and
+    # rendered into consumer `.github/workflows/` by workflow sync.
     for source in _hosted_workflow_files():
         name = Path(source).name
         entries.append(
@@ -1324,6 +1274,48 @@ def _doctrine_sync_errors() -> list[str]:
     return errors
 
 
+# Managed runtime text and every copy that must stay byte-identical to it.
+RUNTIME_TEXT_TWINS = (
+    (
+        "core/github/managed-runtime/AGENTS.managed-section.md",
+        ("core/managed-core/platforms/codex/AGENTS.managed-section.md",),
+    ),
+    (
+        "core/github/managed-runtime/cursor-gitops-bootstrap.mdc",
+        (
+            "core/managed-core/platforms/cursor/rules/cursor-gitops-bootstrap.mdc",
+            ".cursor/rules/cursor-gitops-bootstrap.mdc",
+        ),
+    ),
+    (
+        "core/github/managed-runtime/entrypoints/rules/linktrend-git-branching.mdc",
+        ("core/managed-core/platforms/cursor/rules/linktrend-git-branching.mdc",),
+    ),
+)
+
+
+def _runtime_text_errors() -> list[str]:
+    """Managed runtime copies, and the root AGENTS.md block, match their sources."""
+    errors: list[str] = []
+    for source_rel, copies in RUNTIME_TEXT_TWINS:
+        source = REPO_ROOT / source_rel
+        if not source.is_file():
+            errors.append(f"managed runtime source missing: {source_rel}")
+            continue
+        for copy_rel in copies:
+            copy = REPO_ROOT / copy_rel
+            if not copy.is_file() or copy.read_bytes() != source.read_bytes():
+                errors.append(f"managed runtime copy drift: {source_rel} → {copy_rel}")
+    section = (REPO_ROOT / RUNTIME_TEXT_TWINS[0][0]).read_text(encoding="utf-8").strip()
+    agents = REPO_ROOT / "AGENTS.md"
+    text = agents.read_text(encoding="utf-8") if agents.is_file() else ""
+    start = text.find(DEFAULT_MARKER_BEGIN)
+    end = text.find(DEFAULT_MARKER_END)
+    if start < 0 or end < start or text[start : end + len(DEFAULT_MARKER_END)] != section:
+        errors.append("AGENTS.md managed block drifted from AGENTS.managed-section.md")
+    return errors
+
+
 def verify_manifest(path: Path | None = None) -> list[str]:
     """Read-only verify: compare on-disk MANIFEST hashes to source files.
 
@@ -1337,6 +1329,7 @@ def verify_manifest(path: Path | None = None) -> list[str]:
     errors.extend(_version_alignment_errors())
     errors.extend(_doctrine_sync_errors())
     errors.extend(_library_mapping_errors())
+    errors.extend(_runtime_text_errors())
     if not target.is_file():
         errors.append("MANIFEST.json missing")
         return errors

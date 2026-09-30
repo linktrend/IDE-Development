@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/linktrend/IDE-Development/core/contracts/RUN-LOG-RECORD.schema.json",
+  "title": "IDE Development run-log record (one per Issue attempt)",
+  "description": "Written by scripts/orchestrator/runlog.py. Fields mirror ide_ledger.run so the pilot file log can be replayed into the Ledger.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "run_key", "issue", "attempt", "executor", "requested_model", "reasoning_effort",
+    "self_reported_model", "repair_rung", "branch", "external_ref", "result", "head_sha",
+    "failure_summary", "cost_usd", "started_at", "updated_at", "ended_at"
+  ],
+  "properties": {
+    "schema": { "const": "ide-runlog/v1" },
+    "run_key": { "type": "string", "minLength": 8, "maxLength": 80 },
+    "issue": { "type": "string", "pattern": "^[A-Z][A-Z0-9]{1,9}-[1-9][0-9]*$" },
+    "attempt": { "type": "integer", "minimum": 1, "maximum": 999 },
+    "executor": { "enum": ["codex-cli", "cursor-002", "cursor-001-subagent", "orchestrator", "other"] },
+    "requested_model": { "type": "string", "minLength": 1 },
+    "reasoning_effort": { "type": ["string", "null"] },
+    "self_reported_model": { "type": ["string", "null"] },
+    "repair_rung": { "type": "integer", "minimum": 0, "maximum": 3 },
+    "branch": { "type": ["string", "null"] },
+    "external_ref": { "type": ["string", "null"] },
+    "result": { "enum": ["running", "success", "failure", "stalled", "cancelled"] },
+    "head_sha": { "type": ["string", "null"], "pattern": "^[0-9a-f]{7,40}$" },
+    "failure_summary": { "type": ["string", "null"] },
+    "cost_usd": { "type": ["number", "null"], "minimum": 0 },
+    "started_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "ended_at": { "type": ["string", "null"], "format": "date-time" }
+  },
+  "if": { "properties": { "result": { "const": "running" } } },
+  "then": { "properties": { "ended_at": { "type": "null" } } },
+  "else": { "properties": { "ended_at": { "type": "string" } } }
+}

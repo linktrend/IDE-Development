@@ -4,6 +4,12 @@ ISS-04: unique skill authority is the immutable LiNKskills lock in
 `core/link-integrations/skills-lock.json`. Physical copies remain until
 Codex/Cursor dual-app proof; do not treat local trees as provider substitutes.
 
+Five skills are pinned byte-for-byte from LiNKskills: `git-safeguard`,
+`persistent-qa`, `repository-manager`, `skill-template`, and `tool-architect`.
+Their `SKILL.md` frontmatter is the upstream document (`version`,
+`usage_trigger`, and related fields). Readers must not require IDE-local
+`status:` or `source_adapted_from:` on those five files.
+
 Use this file to route into local domain skills and hybrid macro/micro skills.
 
 ## Rules

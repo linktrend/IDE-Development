@@ -32,7 +32,7 @@ Rules:
 
 - `IDE Development` is the system repository
 - every other repository is a consumer repository
-- the shared runtime surface comes from `IDE Development/.cursor`
+- selected managed agent entrypoints are installed as physical files under each consumer's `.cursor`
 - the canonical knowledge asset remains `IDE Development/core`
 
 ## One-Time Nature
@@ -49,19 +49,9 @@ After adoption is complete, normal work should continue through the existing ses
 
 ## Installation Model
 
-Workspace adoption is intentionally symlink-based.
+Workspace adoption uses the package-backed wiring script. With `IDE Development` present in the workspace, run `./scripts/wire-repo.sh <consumer-repo-path>` after discovery and legacy cleanup review. The script preserves consumer-owned files and installs managed `.cursor` entrypoints as regular files; it does not require consumers to resolve a symlink to the system repository.
 
-It does not require a separate installer script when:
-
-- the `IDE Development` repository is present inside the workspace
-- consumer repositories can resolve `.cursor` to `../IDE Development/.cursor`
-- `.cursor/README.md`, `.cursor/commands/INDEX.yaml`, and `.cursor/templates/INDEX.yaml` are reachable from the consumer repository
-
-The system is designed this way because Cursor and Codex consume repository-visible instructions and files. The installable unit is the visible workspace structure, not a background service.
-
-Repo wiring itself is script-backed. Run `./scripts/wire-repo.sh <consumer-repo-path>` from `IDE Development` after discovery and legacy cleanup review. The script is idempotent and reports pass/fail results agents should interpret rather than improvising symlink commands.
-
-Wiring installs **two layers**: (A) `.cursor` symlink for agent doctrine, and (B) managed `.github/workflows` for ship/pull/promote robots. Bugbot and Cursor Automations are dashboard steps listed after wire — see `docs/AUTONOMOUS-GIT-OPERATIONS.md`.
+Wiring installs **two layers**: (A) physical managed `.cursor` rules, commands, and skills, and (B) managed `.github/workflows` used by the designated project orchestrator under Eric. Follow `docs/runbooks/hosted-delivery-operations.md` for the verified Phase delivery and review route.
 
 ## Adoption Sequence
 
@@ -76,18 +66,15 @@ Wiring installs **two layers**: (A) `.cursor` symlink for agent doctrine, and (B
 5. preserve anything uncertain
 6. if safe, create backups of replaceable legacy material
 7. remove only clearly obsolete shared-system artifacts
-8. wire each approved consumer repository with `./scripts/wire-repo.sh <consumer-repo-path>` (preferred) or the manual symlink procedure in `REPO-WIRING.md` when judgment is required first
-9. confirm the script reports success, or manually verify:
-   - `repo/.cursor`
-   - `IDE Development/.cursor`
-   - `IDE Development/core`
+8. wire each approved consumer repository with `./scripts/wire-repo.sh <consumer-repo-path>` after legacy cleanup review
+9. confirm the script reports success and managed `.cursor` entrypoints/workflows are physical regular files in the consumer repository
 10. produce an adoption report
 
 ## Natural-Language Trigger Rule
 
 Natural-language workspace adoption requests should route into `.cursor/workspace/INDEX.yaml`.
 
-For each consumer repository approved for wiring, agents should invoke `./scripts/wire-repo.sh <path>` and report the script output. Do not create symlinks by hand when the script path applies.
+For each consumer repository approved for wiring, agents should invoke `./scripts/wire-repo.sh <path>` and report the script output. Do not copy managed entrypoints or create symlinks by hand when the script path applies.
 
 No separate command family should be created.
 

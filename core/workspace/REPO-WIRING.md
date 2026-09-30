@@ -17,32 +17,24 @@ From inside `IDE Development`, pass an absolute or relative path to the consumer
 The script:
 
 - verifies the target is a directory and is not the system repository itself
-- detects an already-correct symlink and exits cleanly (idempotent)
-- backs up an existing `.cursor` directory or mismatched symlink to `.cursor-backup-<timestamp>/`
-- creates `repo/.cursor` as a relative symlink to `IDE Development/.cursor` (**Layer A** — agent behavior)
+- preserves an existing physical `.cursor` tree and its consumer-owned files
+- moves an existing `.cursor` symlink to a timestamped backup before creating a physical directory
+- syncs managed Cursor rules, commands, and skills as regular files under `repo/.cursor` (**Layer A** — agent behavior)
 - syncs managed GitHub workflows from `core/github/managed-workflows/` into `repo/.github/workflows/` (**Layer B** — robots; never overwrites `ci.yml`)
 - verifies required runtime paths are reachable from the consumer repository
-- prints next steps for Bugbot enablement and Cursor Automations
+- prints next steps for verified Phase delivery and the designated project orchestrator under Eric
 
-Agents receiving natural-language wiring requests should run this script and report its pass/fail output rather than improvising symlink commands by hand.
+Agents receiving natural-language wiring requests should run this script and report its pass/fail output rather than improvising copy or symlink commands by hand.
 
-Autonomous Git ops doctrine: `docs/AUTONOMOUS-GIT-OPERATIONS.md`. Backfill existing wired repos: `./scripts/backfill-managed-workflows.sh`.
+Current delivery and orchestration instructions: `docs/runbooks/hosted-delivery-operations.md`. Backfill existing wired repos: `./scripts/backfill-managed-workflows.sh`.
 
 ## Manual Fallback
 
-Use manual wiring only when judgment is required first — for example, when an existing `.cursor` contains mixed repository-specific rules and shared-system copies that must be inspected per `LEGACY-CLEANUP.md` before replacement.
-
-For each consumer repository:
-
-- create `repo/.cursor` as a symbolic link to `../IDE Development/.cursor`
-
-This preserves the existing runtime surface while keeping `IDE Development/core` as canonical storage through the packaging chain.
+Use manual inspection only when judgment is required first — for example, when an existing `.cursor` contains mixed repository-specific rules and shared-system copies that must be inspected per `LEGACY-CLEANUP.md`. Preserve consumer-owned files, then use the wiring script to install the managed files physically.
 
 ## Resolution Chain
 
-Expected resolution:
-
-`repo/.cursor` -> `../IDE Development/.cursor` -> `../IDE Development/core`
+The package manifest resolves canonical content from `IDE Development/core` and installs the selected managed entrypoints as regular files under `repo/.cursor`.
 
 ## Preconditions
 
@@ -57,12 +49,10 @@ Before wiring:
 
 After wiring, verify:
 
-- `repo/.cursor` exists
-- the symlink resolves correctly
-- `.cursor/README.md` is accessible from the consumer repository
-- `.cursor/execution/INDEX.yaml` is accessible from the consumer repository
-- `.cursor/templates/INDEX.yaml` is accessible from the consumer repository
-- `.cursor/commands/INDEX.yaml` is accessible from the consumer repository
+- `repo/.cursor` is a physical directory, not a symlink
+- `.cursor/rules/cursor-gitops-bootstrap.mdc` and `.cursor/rules/linktrend-git-branching.mdc` exist as regular files
+- `.cursor/commands/agentsetup.md`, `.cursor/commands/agentcomply.md`, and their managed skills exist as regular files
+- managed workflow files are present under `repo/.github/workflows/`
 
 ## Backward Compatibility Rule
 
@@ -73,15 +63,15 @@ The consumer repository should not need to know that:
 - `IDE Development/.cursor` is itself an adapter
 - `IDE Development/core` is canonical storage
 
-## Duplicate Copy Rule
+## Managed File Rule
 
-Do not create duplicate content copies of `.cursor` / `core` inside consumer repositories when a symlink is sufficient and safe.
+Do not hand-copy managed `.cursor` entrypoints. Use the wiring script so the package manifest controls their physical contents and consumer-owned files remain intact.
 
-Managed GitHub workflow YAML **must** be copied into each consumer (GitHub cannot follow the `.cursor` symlink). Prefer `scripts/sync-managed-workflows.sh` over hand copies.
+Managed GitHub workflow YAML **must** be copied into each consumer. Prefer `scripts/sync-managed-workflows.sh` over hand copies.
 
 ## Post-wire checklist (Layer B completion)
 
 1. Managed workflows present under `repo/.github/workflows/` (sync output PASS).
-2. Bugbot enabled for the GitHub repo — `core/checklists/BUGBOT-INHERITANCE.md`.
-3. Cursor Automations for Ship/Pull exist on the account — `docs/CURSOR-AUTOMATIONS-SETUP.md`.
-4. Commit and push the synced workflow files on a work branch → PR → `development`.
+2. Use the combined Phase delivery flow in `docs/runbooks/hosted-delivery-operations.md`; require exact-head Verify evidence and independent review.
+3. Use the designated project orchestrator under Eric and its verified IDE route, as documented in the hosted delivery runbook.
+4. Merge the Phase PR to `development` only after required checks and review pass.

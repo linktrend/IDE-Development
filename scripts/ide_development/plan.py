@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -9,12 +10,22 @@ from typing import Any
 
 from .hashing import modes_match, normalize_mode, sha256_bytes, sha256_file
 from .managed_write_guard import is_read_only_mode, read_only_mode
-from .manifest import Manifest, ManifestEntry, MigrationCatalog
+from .manifest import Manifest, ManifestEntry, MigrationCatalog, MigrationEntry
 from .markers import extract_marker_block, render_marker_file
 from .errors import ConflictError
 from .paths import join_under, join_under_nofollow, path_is_symlink
 from .state import InstalledState
 from .symlink_migrate import detect_cursor_symlink, is_under_any, path_crosses_symlink_ancestor
+
+# GitHub Actions reads workflow_dispatch inputs from the protected-default
+# copy at this path. The packaged template under .ide-development/workflows/
+# is not a live Actions definition.
+FULL_ROOT_WORKFLOW_REL = ".github/workflows/linktrend-integrator-merge.yml"
+REQUIRED_FULL_DISPATCH_INPUTS = (
+    "dependency_digest",
+    "target_baseline_sha",
+    "target_baseline_ref",
+)
 
 
 class OpKind(str, Enum):
@@ -39,6 +50,38 @@ class DriftKind(str, Enum):
     REPOSITORY_OWNED_EXTENSION = "repository_owned_extension"
     CANDIDATE_CENTRAL_IDE_IMPROVEMENT = "candidate_central_ide_improvement"
     OBSOLETE_RESIDUE = "obsolete_residue"
+
+
+def migrations_by_path(migration: MigrationCatalog) -> dict[str, list[MigrationEntry]]:
+    """Reviewed removal identities grouped by path, in catalog order."""
+    grouped: dict[str, list[MigrationEntry]] = {}
+    for entry in migration.entries:
+        grouped.setdefault(entry.path, []).append(entry)
+    return grouped
+
+
+def required_full_dispatch_inputs_present(text: str) -> bool:
+    """True when the Full workflow_dispatch contract names all recovery inputs."""
+    return all(
+        re.search(rf"(?m)^      {re.escape(name)}:\s*$", text)
+        for name in REQUIRED_FULL_DISPATCH_INPUTS
+    )
+
+
+def is_full_suite_workflow_document(text: str) -> bool:
+    """True when *text* is the managed Full Suite workflow, not a namesake file."""
+    return (
+        "name: Linktrend Full Suite" in text
+        and "workflow_dispatch:" in text
+        and "linktrend-full-suite" in text
+    )
+
+
+def is_stale_full_root_workflow(text: str) -> bool:
+    """True when a Full Suite document is missing the v2.5.2 dispatch inputs."""
+    return is_full_suite_workflow_document(text) and not required_full_dispatch_inputs_present(
+        text
+    )
 
 
 class ConflictKind(str, Enum):
@@ -340,9 +383,19 @@ def _classify_existing(
     # replace
     if prior_file is None:
         if actual_hash == entry.source_hash:
-            if not modes_match(actual_mode, entry.mode):
+            if not modes_match(actual_mode, read_only_mode(entry.mode)):
                 return OpKind.REPLACE, None, None, "adopt matching content; fix read-only mode", "managed_upgrade"
             return OpKind.NOOP, None, None, "matching unmanaged content", "match"
+        if _should_adopt_stale_full_root_workflow(
+            package_root=package_root, dest=dest, entry=entry
+        ):
+            return (
+                OpKind.REPLACE,
+                None,
+                None,
+                "adopt stale Full trigger root workflow",
+                "obsolete_residue",
+            )
         return (
             None,
             ConflictItem(
@@ -385,6 +438,27 @@ def _classify_existing(
         )
 
     return OpKind.REPLACE, None, None, "update managed content", "managed_upgrade"
+
+
+def _should_adopt_stale_full_root_workflow(
+    *,
+    package_root: Path,
+    dest: Path,
+    entry: ManifestEntry,
+) -> bool:
+    """Replace an unmanaged stale Full trigger without weakening unknown-content."""
+    if entry.destination != FULL_ROOT_WORKFLOW_REL:
+        return False
+    if entry.merge_strategy != "replace":
+        return False
+    try:
+        current = dest.read_text(encoding="utf-8")
+        desired = (package_root / entry.source).read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return False
+    if not is_stale_full_root_workflow(current):
+        return False
+    return required_full_dispatch_inputs_present(desired)
 
 
 def _plan_as_missing_under_migrate(
@@ -515,32 +589,50 @@ def build_plan(
             )
         )
 
-    for mig in migration.entries:
-        if mig.path in managed_paths:
+    for mig_path, candidates in migrations_by_path(migration).items():
+        mig = candidates[0]
+        if mig_path in managed_paths:
             continue
-        if is_under_any(mig.path, migrate_ancestors):
+        if is_under_any(mig_path, migrate_ancestors):
             # Obsolete paths under migrating symlink are absent in-repo; no-op.
             plan.actions.append(
                 PlanAction(
                     op=OpKind.NOOP,
-                    path=mig.path,
+                    path=mig_path,
                     entry_id=mig.identity,
                     reason="migration target absent (under migrating symlink)",
                     classification="match",
                 )
             )
             continue
-        dest = dest_for(mig.path)
+        dest = dest_for(mig_path)
+        if path_crosses_symlink_ancestor(target_root, mig_path):
+            plan.conflicts.append(
+                ConflictItem(
+                    ConflictKind.SYMLINK,
+                    mig_path,
+                    "migration path crosses a non-migratable symlink ancestor",
+                )
+            )
+            if command in {"drift", "verify"}:
+                plan.drift.append(
+                    DriftItem(
+                        DriftKind.UNEXPECTED_SYMLINK,
+                        mig_path,
+                        "symlink ancestor blocks migration path",
+                    )
+                )
+            continue
         if path_is_symlink(dest):
             plan.conflicts.append(
-                ConflictItem(ConflictKind.SYMLINK, mig.path, "migration target is symlink")
+                ConflictItem(ConflictKind.SYMLINK, mig_path, "migration target is symlink")
             )
             continue
         if not dest.exists():
             plan.actions.append(
                 PlanAction(
                     op=OpKind.NOOP,
-                    path=mig.path,
+                    path=mig_path,
                     entry_id=mig.identity,
                     reason="migration target absent",
                     classification="match",
@@ -549,23 +641,26 @@ def build_plan(
             continue
         if not dest.is_file():
             plan.conflicts.append(
-                ConflictItem(ConflictKind.NOT_A_FILE, mig.path, "migration target not a file")
+                ConflictItem(ConflictKind.NOT_A_FILE, mig_path, "migration target not a file")
             )
             continue
         actual = sha256_file(dest)
-        if actual != mig.content_hash:
+        matched = next((c for c in candidates if c.content_hash == actual), None)
+        if matched is None:
             plan.conflicts.append(
                 ConflictItem(
                     ConflictKind.UNKNOWN_CONTENT,
-                    mig.path,
-                    "migration hash mismatch; refusing removal",
+                    mig_path,
+                    "retired managed file was modified locally (hash differs from every "
+                    f"released version of {mig_path}); refusing removal. Keep your "
+                    "changes elsewhere, then delete the file or restore the released bytes",
                 )
             )
             if command in {"drift", "verify"}:
                 plan.drift.append(
                     DriftItem(
                         DriftKind.MODIFIED,
-                        mig.path,
+                        mig_path,
                         "migration identity mismatch",
                         expected_hash=mig.content_hash,
                         actual_hash=actual,
@@ -575,18 +670,19 @@ def build_plan(
         plan.actions.append(
             PlanAction(
                 op=OpKind.REMOVE,
-                path=mig.path,
-                entry_id=mig.identity,
-                reason=f"migration remove exact match ({mig.identity})",
-                source_hash=mig.content_hash,
+                path=mig_path,
+                entry_id=matched.identity,
+                reason=f"migration remove exact match ({matched.identity})",
+                source_hash=matched.content_hash,
                 classification="supersede_exact",
             )
         )
 
     if prior is not None:
-        remove_paths = {a.path for a in plan.actions if a.op == OpKind.REMOVE}
+        # Migration targets were already judged above by exact identity.
+        migration_paths = {mig.path for mig in migration.entries}
         for rel, file_state in sorted(prior.files.items()):
-            if rel in managed_paths or rel in remove_paths:
+            if rel in managed_paths or rel in migration_paths:
                 continue
             if is_under_any(rel, migrate_ancestors):
                 # Prior state under migrating symlink cannot be probed safely.
@@ -741,7 +837,21 @@ def build_drift_report(
                 )
             )
             continue
-        dest = join_under(target_root, entry.destination)
+        logical_dest = join_under_nofollow(target_root, entry.destination)
+        if path_crosses_symlink_ancestor(target_root, entry.destination):
+            items.append(
+                DriftItem(
+                    DriftKind.UNEXPECTED_SYMLINK,
+                    entry.destination,
+                    "symlink ancestor blocks managed path",
+                )
+            )
+            continue
+        dest = (
+            logical_dest
+            if path_is_symlink(logical_dest)
+            else join_under(target_root, entry.destination)
+        )
         prior_file = prior.files.get(entry.destination) if prior else None
         if path_is_symlink(dest):
             items.append(
@@ -898,27 +1008,35 @@ def build_drift_report(
 
     if migration is not None:
         active_paths = {entry.destination for entry in manifest.active_entries()}
-        for obsolete in migration.entries:
-            if obsolete.path in active_paths:
+        for obsolete_path, candidates in migrations_by_path(migration).items():
+            if obsolete_path in active_paths:
                 continue
-            dest = join_under_nofollow(target_root, obsolete.path)
-            if path_is_symlink(dest):
+            dest = join_under_nofollow(target_root, obsolete_path)
+            if path_crosses_symlink_ancestor(target_root, obsolete_path):
+                items.append(
+                    DriftItem(
+                        DriftKind.UNEXPECTED_SYMLINK,
+                        obsolete_path,
+                        "symlink ancestor blocks migration path",
+                    )
+                )
+            elif path_is_symlink(dest):
                 items.append(
                     DriftItem(
                         DriftKind.UNKNOWN_COLLISION,
-                        obsolete.path,
+                        obsolete_path,
                         "obsolete residue is a symlink",
                     )
                 )
             elif dest.is_file():
                 actual = sha256_file(dest)
-                if actual == obsolete.content_hash:
+                if any(c.content_hash == actual for c in candidates):
                     items.append(
                         DriftItem(
                             DriftKind.OBSOLETE_RESIDUE,
-                            obsolete.path,
+                            obsolete_path,
                             "exact obsolete managed residue is removable in a transaction",
-                            expected_hash=obsolete.content_hash,
+                            expected_hash=actual,
                             actual_hash=actual,
                         )
                     )
@@ -926,9 +1044,9 @@ def build_drift_report(
                     items.append(
                         DriftItem(
                             DriftKind.MODIFIED,
-                            obsolete.path,
+                            obsolete_path,
                             "obsolete residue differs from its reviewed identity",
-                            expected_hash=obsolete.content_hash,
+                            expected_hash=candidates[0].content_hash,
                             actual_hash=actual,
                         )
                     )

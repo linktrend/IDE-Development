@@ -7,9 +7,14 @@
     "allow_auto_merge": true
   },
   "rulesets": [
-    {"id": 1, "name": "development-autonomous-merge"},
-    {"id": 2, "name": "staging-autonomous-promote"},
-    {"id": 3, "name": "main-autonomous-release"}
+    {
+      "id": 1,
+      "name": "development-autonomous-merge"
+    },
+    {
+      "id": 3,
+      "name": "main-autonomous-release"
+    }
   ],
   "ruleset_details": {
     "1": {
@@ -18,30 +23,12 @@
       "target": "branch",
       "enforcement": "active",
       "conditions": {
-        "ref_name": {"include": ["refs/heads/development"], "exclude": []}
-      },
-      "rules": [
-        {
-          "type": "required_status_checks",
-          "parameters": {
-            "strict_required_status_checks_policy": true,
-            "do_not_enforce_on_create": false,
-            "required_status_checks": [
-              {"context": "Verify IDE Development"},
-              {"context": "Linktrend Branch Source Policy"}
-            ]
-          }
+        "ref_name": {
+          "include": [
+            "refs/heads/development"
+          ],
+          "exclude": []
         }
-      ],
-      "bypass_actors": []
-    },
-    "2": {
-      "id": 2,
-      "name": "staging-autonomous-promote",
-      "target": "branch",
-      "enforcement": "active",
-      "conditions": {
-        "ref_name": {"include": ["refs/heads/staging"], "exclude": []}
       },
       "rules": [
         {
@@ -50,8 +37,15 @@
             "strict_required_status_checks_policy": true,
             "do_not_enforce_on_create": false,
             "required_status_checks": [
-              {"context": "Verify IDE Development"},
-              {"context": "Linktrend Branch Source Policy"}
+              {
+                "context": "Linktrend Fast Checks"
+              },
+              {
+                "context": "Linktrend Branch Source Policy"
+              },
+              {
+                "context": "Verify IDE Development"
+              }
             ]
           }
         }
@@ -64,7 +58,12 @@
       "target": "branch",
       "enforcement": "active",
       "conditions": {
-        "ref_name": {"include": ["refs/heads/main"], "exclude": []}
+        "ref_name": {
+          "include": [
+            "refs/heads/main"
+          ],
+          "exclude": []
+        }
       },
       "rules": [
         {
@@ -73,8 +72,12 @@
             "strict_required_status_checks_policy": true,
             "do_not_enforce_on_create": false,
             "required_status_checks": [
-              {"context": "Verify IDE Development"},
-              {"context": "Linktrend Branch Source Policy"}
+              {
+                "context": "Linktrend Branch Source Policy"
+              },
+              {
+                "context": "Linktrend Main Receipt Gate"
+              }
             ]
           }
         }

@@ -176,4 +176,4 @@ Exact archive layout and entrypoint path are defined by Lane D packaging output;
 - **WP2:** Lineage + IDE Development live readiness (checkpoint).
 - **WP03:** Integrated/promoted the v2.0 line.
 - **Issue #81:** v2.1 phase delivery promoted through PR #82/#85/#86.
-- **WP04:** Consumer rollout — prepared / **not executed**; Principal approval required (`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).
+- **WP04:** Consumer rollout — prepared / **not executed**; Principal approval required (`docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`).

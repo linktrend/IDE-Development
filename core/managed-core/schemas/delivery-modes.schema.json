@@ -26,7 +26,7 @@
     },
     "namedGateId": {
       "type": "string",
-      "enum": ["fast-gate", "staging-gate", "release-gate"]
+      "enum": ["fast-gate", "release-gate"]
     },
     "gateStatus": {
       "type": "string",
@@ -118,7 +118,7 @@
       "required": [
         "schemaVersion", "deliveryMode", "phaseBranchPrefix", "orchestrationMode",
         "fastTargetSeconds", "maxAttemptsPerCandidate", "maxSealedCandidateRevisions",
-        "maxFastJobs", "maxHeavyJobs", "stagingPromotion", "mainPromotion",
+        "maxFastJobs", "maxHeavyJobs", "mainPromotion",
         "testProfiles", "dependencyFiles", "resourceLimits"
       ],
       "properties": {
@@ -137,7 +137,6 @@
         "maxSealedCandidateRevisions": { "type": "integer", "const": 2 },
         "maxFastJobs": { "type": "integer", "enum": [1, 2] },
         "maxHeavyJobs": { "type": "integer", "const": 1 },
-        "stagingPromotion": { "type": "string", "enum": ["automatic", "principal-approval"] },
         "mainPromotion": { "type": "string", "enum": ["automatic", "principal-approval"] },
         "testProfiles": { "$ref": "#/$defs/testProfiles" },
         "dependencyFiles": {
@@ -203,15 +202,16 @@
     },
     "hostedIdentity": {
       "type": "array",
-      "minItems": 5,
-      "maxItems": 5,
+      "minItems": 6,
+      "maxItems": 6,
       "uniqueItems": true,
       "items": {
         "type": "string",
-        "enum": ["repository", "gitTree", "dependencyDigest", "profileDigest", "workflowDigest"]
+        "enum": ["repository", "headCommit", "gitTree", "dependencyDigest", "profileDigest", "workflowDigest"]
       },
       "allOf": [
         { "contains": { "const": "repository" } },
+        { "contains": { "const": "headCommit" } },
         { "contains": { "const": "gitTree" } },
         { "contains": { "const": "dependencyDigest" } },
         { "contains": { "const": "profileDigest" } },
@@ -225,6 +225,11 @@
       "properties": {
         "schemaVersion": { "type": "integer", "const": 2 },
         "mode": { "$ref": "#/$defs/deliveryModeId" },
+        "phaseBranchPrefix": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+/$",
+          "default": "phase/"
+        },
         "compute": {
           "type": "object",
           "additionalProperties": false,

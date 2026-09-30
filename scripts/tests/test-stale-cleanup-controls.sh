@@ -20,7 +20,7 @@ make_repo() {
   echo base >"$d/README.md"
   git -C "$d" add README.md
   git -C "$d" commit -q -m "chore: base"
-  git -C "$d" branch staging
+  git -C "$d" branch legacy-hold
   git -C "$d" branch main
 }
 
@@ -144,7 +144,7 @@ mkdir -p "$REPO3/.linktrend"
 cat >"$REPO3/.linktrend/cleanup-preserve.json" <<'EOF'
 {"schemaVersion":1,"issueNumbers":[44],"prNumbers":[],"branches":[]}
 EOF
-git -C "$REPO3" checkout -q -b issue/44-add-app-backed-review-ready-publisher-and-produc
+git -C "$REPO3" checkout -q -b issue/44-add-app-backed-ledger-writer-and-production-ch
 echo z >"$REPO3/z.txt" && git -C "$REPO3" add z.txt && git -C "$REPO3" commit -q -m "preserve me"
 PRESERVE_HEAD="$(git -C "$REPO3" rev-parse HEAD)"
 git -C "$REPO3" checkout -q development
@@ -155,7 +155,7 @@ if [[ "\$*" == *"pr view"* ]]; then
   echo '{"number":49,"state":"CLOSED","headRefName":"issue/43-x"}'
   exit 0
 fi
-if [[ "\$*" == *"--head issue/44-add-app-backed-review-ready-publisher-and-produc"* ]]; then
+if [[ "\$*" == *"--head issue/44-add-app-backed-ledger-writer-and-production-ch"* ]]; then
   echo '[{"number":45,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${PRESERVE_HEAD}"}]'
   exit 0
 fi
@@ -164,7 +164,7 @@ EOF
 chmod +x "$TMP/bin/gh"
 
 PATH="$TMP/bin:$PATH" with_cleanup_repo bash -c "cd \"$REPO3\" && bash scripts/cleanup-merged-branches.sh --local" >"$TMP/pres.out"
-grep -q 'KEEP:.*issue/44-add-app-backed-review-ready-publisher-and-produc' "$TMP/pres.out" \
+grep -q 'KEEP:.*issue/44-add-app-backed-ledger-writer-and-production-ch' "$TMP/pres.out" \
   || fail "preserve issue/44 must KEEP: $(cat "$TMP/pres.out")"
 grep -qi 'preserve' "$TMP/pres.out" \
   || fail "preserve reason missing: $(cat "$TMP/pres.out")"
@@ -177,11 +177,11 @@ pass "explicit preserve overlay issue/44-* → KEEP"
 REPO4="$TMP/eligible"
 make_repo "$REPO4"
 seed_cleanup "$REPO4"
-git -C "$REPO4" checkout -q -b issue/GITOPS-01-review-packager-pipeline
+git -C "$REPO4" checkout -q -b issue/GITOPS-01-orchestrator-pipeline
 echo e >"$REPO4/e.txt" && git -C "$REPO4" add e.txt && git -C "$REPO4" commit -q -m "eligible"
 ELIG_HEAD="$(git -C "$REPO4" rev-parse HEAD)"
 git -C "$REPO4" checkout -q development
-git -C "$REPO4" update-ref "refs/remotes/origin/issue/GITOPS-01-review-packager-pipeline" "$ELIG_HEAD"
+git -C "$REPO4" update-ref "refs/remotes/origin/issue/GITOPS-01-orchestrator-pipeline" "$ELIG_HEAD"
 
 cat >"$TMP/bin/gh" <<EOF
 #!/usr/bin/env bash
@@ -189,7 +189,7 @@ if [[ "\$*" == *"pr view"* ]]; then
   echo '{"number":49,"state":"CLOSED","headRefName":"issue/43-x"}'
   exit 0
 fi
-if [[ "\$*" == *"--head issue/GITOPS-01-review-packager-pipeline"* ]]; then
+if [[ "\$*" == *"--head issue/GITOPS-01-orchestrator-pipeline"* ]]; then
   echo '[{"number":9,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${ELIG_HEAD}"}]'
   exit 0
 fi
@@ -198,7 +198,7 @@ EOF
 chmod +x "$TMP/bin/gh"
 
 PATH="$TMP/bin:$PATH" with_cleanup_repo bash -c "cd \"$REPO4\" && bash scripts/cleanup-merged-branches.sh --remote" >"$TMP/elig.out"
-grep -q 'WOULD_DELETE_REMOTE: issue/GITOPS-01-review-packager-pipeline' "$TMP/elig.out" \
+grep -q 'WOULD_DELETE_REMOTE: issue/GITOPS-01-orchestrator-pipeline' "$TMP/elig.out" \
   || fail "eligible merged branch should WOULD_DELETE: $(cat "$TMP/elig.out")"
 grep -qv '^DELETED_' "$TMP/elig.out" || fail "dry-run must not DELETE eligible case"
 pass "eligible merged → WOULD_DELETE dry-run only"
@@ -325,7 +325,7 @@ cat >"$REPAIR_DIR/preserve44.json" <<'EOF'
   "failureType": "merge_conflict",
   "resolutionState": "resolved",
   "repairStatus": "resolved",
-  "branch": "issue/44-add-app-backed-review-ready-publisher-and-produc",
+  "branch": "issue/44-add-app-backed-ledger-writer-and-production-ch",
   "prNumber": "45",
   "repository": "linktrend/IDE-Development",
   "updatedAt": "2026-01-01T00:00:00Z"
@@ -351,7 +351,7 @@ cat >"$REPAIR_DIR/eligible.json" <<'EOF'
   "failureType": "merge_conflict",
   "resolutionState": "resolved",
   "repairStatus": "resolved",
-  "branch": "issue/GITOPS-01-review-packager-pipeline",
+  "branch": "issue/GITOPS-01-orchestrator-pipeline",
   "prNumber": "88",
   "repository": "linktrend/IDE-Development",
   "updatedAt": "2026-01-01T00:00:00Z"
@@ -365,11 +365,11 @@ if [[ "$*" == *"pr view 77"* ]]; then
   exit 0
 fi
 if [[ "$*" == *"pr view 88"* ]]; then
-  echo '{"number":88,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","headRefName":"issue/GITOPS-01-review-packager-pipeline"}'
+  echo '{"number":88,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","headRefName":"issue/GITOPS-01-orchestrator-pipeline"}'
   exit 0
 fi
 if [[ "$*" == *"pr view 45"* ]]; then
-  echo '{"number":45,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","headRefName":"issue/44-add-app-backed-review-ready-publisher-and-produc"}'
+  echo '{"number":45,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","headRefName":"issue/44-add-app-backed-ledger-writer-and-production-ch"}'
   exit 0
 fi
 if [[ "$*" == *"pr view"* ]]; then
@@ -382,7 +382,7 @@ chmod +x "$TMP/bin/gh"
 
 PLAN7="$(
   PATH="$TMP/bin:$PATH" \
-  LINKTREND_CLEANUP_PRESERVE=issue/44-add-app-backed-review-ready-publisher-and-produc \
+  LINKTREND_CLEANUP_PRESERVE=issue/44-add-app-backed-ledger-writer-and-production-ch \
   python3 "$ROOT/scripts/gitops/cleanup_controls.py" plan-completed-repairs \
     --repo linktrend/IDE-Development \
     --repair-dir "$REPAIR_DIR"
@@ -410,7 +410,7 @@ pass "plan-completed-repairs: preserve + open-PR KEEP; eligible WOULD_DELETE"
 
 APPLY7="$(
   PATH="$TMP/bin:$PATH" \
-  LINKTREND_CLEANUP_PRESERVE=issue/44-add-app-backed-review-ready-publisher-and-produc \
+  LINKTREND_CLEANUP_PRESERVE=issue/44-add-app-backed-ledger-writer-and-production-ch \
   python3 "$ROOT/scripts/gitops/cleanup_controls.py" plan-completed-repairs \
     --repo linktrend/IDE-Development \
     --repair-dir "$REPAIR_DIR" --apply
@@ -440,7 +440,7 @@ pass "apply-completed-repairs: preserve/open-PR kept; eligible DELETED"
 # ============================================================================
 # 6b) Shell dry-run: defaults:false must not KEEP issue/44 via preserve (needs Task B)
 # ============================================================================
-git -C "$REPO6" checkout -q -b issue/44-add-app-backed-review-ready-publisher-and-produc
+git -C "$REPO6" checkout -q -b issue/44-add-app-backed-ledger-writer-and-production-ch
 echo df >"$REPO6/df.txt" && git -C "$REPO6" add df.txt && git -C "$REPO6" commit -q -m "defaults false eligible"
 DF_HEAD="$(git -C "$REPO6" rev-parse HEAD)"
 git -C "$REPO6" checkout -q development
@@ -451,7 +451,7 @@ if [[ "\$*" == *"pr view"* ]]; then
   echo '{"number":49,"state":"CLOSED","headRefName":"issue/43-x"}'
   exit 0
 fi
-if [[ "\$*" == *"--head issue/44-add-app-backed-review-ready-publisher-and-produc"* ]]; then
+if [[ "\$*" == *"--head issue/44-add-app-backed-ledger-writer-and-production-ch"* ]]; then
   echo '[{"number":45,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","labels":[],"headRefOid":"${DF_HEAD}"}]'
   exit 0
 fi
@@ -460,12 +460,12 @@ EOF
 chmod +x "$TMP/bin/gh"
 
 PATH="$TMP/bin:$PATH" with_cleanup_repo bash -c "cd \"$REPO6\" && bash scripts/cleanup-merged-branches.sh --local" >"$TMP/df.out"
-if grep -q 'KEEP:.*issue/44-add-app-backed-review-ready-publisher-and-produc' "$TMP/df.out"; then
+if grep -q 'KEEP:.*issue/44-add-app-backed-ledger-writer-and-production-ch' "$TMP/df.out"; then
   if grep -qi 'preserve' "$TMP/df.out"; then
     fail "defaults:false must not KEEP issue/44 via preserve: $(cat "$TMP/df.out")"
   fi
 fi
-grep -q 'WOULD_DELETE.*issue/44-add-app-backed-review-ready-publisher-and-produc' "$TMP/df.out" \
+grep -q 'WOULD_DELETE.*issue/44-add-app-backed-ledger-writer-and-production-ch' "$TMP/df.out" \
   || fail "defaults:false + MERGED issue/44 should WOULD_DELETE: $(cat "$TMP/df.out")"
 grep -qv '^DELETED_' "$TMP/df.out" || fail "dry-run must not DELETE defaults:false case"
 pass "shell dry-run: defaults:false → issue/44 WOULD_DELETE (not preserve KEEP)"
@@ -1555,79 +1555,6 @@ run_invalid_repo_case "empty-owner" "/IDE-Development"
 run_invalid_repo_case "empty-name" "linktrend/"
 pass "shell: empty/invalid explicit --repo → FAIL, no implicit gh, no WOULD_DELETE"
 
-# --- 14c) repair_task plan-cleanup-completed: caller --repo scopes all PR queries ---
-# Contract: plan-cleanup-completed --repo must reach every gh pr view used for
-# file-backend authorization. Row repository empty/wrong must not drive evidence.
-# Fake gh returns MERGED only for --repo linktrend/IDE-Development; bare/wrong → OPEN
-# so implicit context cannot authorize WOULD_DELETE_FILE.
-REPAIR63C="$TMP/repair63-scoped"
-mkdir -p "$REPAIR63C"
-cat >"$REPAIR63C/eligible63.json" <<'EOF'
-{
-  "failureId": "eligible6300000001",
-  "failureType": "merge_conflict",
-  "resolutionState": "resolved",
-  "repairStatus": "resolved",
-  "branch": "issue/63-repair-scoped-eligible",
-  "prNumber": "6303",
-  "repository": "",
-  "updatedAt": "2026-01-01T00:00:00Z"
-}
-EOF
-
-: >"$TMP/gh-argv-63c.log"
-cat >"$TMP/bin/gh" <<EOF
-#!/usr/bin/env bash
-printf '%s\n' "\$*" >>"$TMP/gh-argv-63c.log"
-if [[ "\$*" == *"pr view 6303"* ]]; then
-  if [[ "\$*" == *"--repo linktrend/IDE-Development"* ]]; then
-    echo '{"number":6303,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","headRefName":"issue/63-repair-scoped-eligible"}'
-    exit 0
-  fi
-  # Implicit / wrong-repo → OPEN so trap cannot authorize delete
-  echo '{"number":6303,"state":"OPEN","mergedAt":null,"headRefName":"issue/63-repair-scoped-eligible"}'
-  exit 0
-fi
-if [[ "\$*" == *"pr view"* ]]; then
-  echo '{"number":0,"state":"OPEN","headRefName":""}'
-  exit 0
-fi
-echo '[]'
-EOF
-chmod +x "$TMP/bin/gh"
-
-PLAN63C="$(
-  PATH="$TMP/bin:$PATH" \
-  LINKTREND_REPAIR_BACKEND=file \
-  env -u GITHUB_REPOSITORY -u GH_REPO \
-  python3 "$ROOT/scripts/gitops/repair_task.py" plan-cleanup-completed \
-    --repo linktrend/IDE-Development \
-    --repair-dir "$REPAIR63C"
-)"
-echo "$PLAN63C" | python3 -c '
-import json,sys
-p=json.load(sys.stdin)
-by={a.get("failureId"):a for a in (p.get("actions") or [])}
-assert "eligible6300000001" in by, p
-a=by["eligible6300000001"]
-dec=str(a.get("decision") or "")
-assert "WOULD_DELETE_FILE" in dec.upper(), a
-assert a.get("authorized") is True, a
-assert "KEEP" not in dec.upper() or "DELETE" in dec.upper(), a
-'
-python3 -c '
-import sys
-from pathlib import Path
-log = Path(sys.argv[1]).read_text(encoding="utf-8")
-views = [l for l in log.splitlines() if "pr view 6303" in l]
-assert views, f"expected gh pr view 6303; log={log!r}"
-for l in views:
-    assert "--repo linktrend/IDE-Development" in l, f"repair_task must pass caller --repo: {l!r}"
-bare = [l for l in views if "--repo " not in l]
-assert not bare, f"no bare pr view allowed: {bare!r}"
-' "$TMP/gh-argv-63c.log"
-pass "repair_task plan-cleanup-completed: --repo scopes pr view → WOULD_DELETE_FILE"
-
 # --- 14d) cleanup_stale_records --file-backend: caller --repo scopes PR queries ---
 REPAIR63D="$TMP/repair63-stale-scoped"
 mkdir -p "$REPAIR63D"
@@ -1734,7 +1661,7 @@ EOF
 chmod +x "$TMP/bin/gh"
 
 # Simulate missing propagation: call plan_completed_repair_cleanup with empty repo
-# (same failure mode as repair_task before Issue #63 fix). Apply must not delete.
+# (same failure mode as the file-backend CLI before Issue #63 fix). Apply must not delete.
 mkdir -p "$TMP/issue63e-policy"
 cat >"$TMP/issue63e-policy/cleanup-preserve.json" <<'EOF'
 {"schemaVersion":1,"defaults":false,"issueNumbers":[],"preservePrNumbers":[],"branches":[]}
@@ -1771,9 +1698,9 @@ assert "WOULD_DELETE_FILE" not in dec, a
 assert Path(a["path"]).is_file(), "implicit trap must not delete file on apply"
 '
 # Also: bare pr view (no --repo) must not be the authorizing path when callers
-# correctly pass --repo. Re-run via repair_task apply — after fix, scoped MERGED
-# may delete; before fix, implicit MERGED must not be trusted. Assert gh log for
-# repair_task always includes --repo when plan-cleanup-completed is invoked with it.
+# correctly pass --repo. Re-run via cleanup_stale_records apply — scoped MERGED
+# may delete; implicit MERGED must not be trusted. Assert gh log always includes
+# --repo when the file-backend apply is invoked with it.
 : >"$TMP/gh-argv-63e2.log"
 cat >"$TMP/bin/gh" <<EOF
 #!/usr/bin/env bash
@@ -1808,10 +1735,11 @@ APPLY63E2="$(
   PATH="$TMP/bin:$PATH" \
   LINKTREND_REPAIR_BACKEND=file \
   env -u GITHUB_REPOSITORY -u GH_REPO \
-  python3 "$ROOT/scripts/gitops/repair_task.py" plan-cleanup-completed \
+  python3 "$ROOT/scripts/gitops/cleanup_stale_records.py" \
     --repo linktrend/IDE-Development \
+    --file-backend \
     --repair-dir "$REPAIR63E" \
-    --apply
+    --apply --i-understand-close-repairs
 )"
 echo "$APPLY63E2" | python3 -c '
 import json,sys

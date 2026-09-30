@@ -14,7 +14,7 @@ Append-only engineering build log. For “what is true **now**,” prefer [`docs
 
 4. **Persistent autonomous orchestrator in this repo** — deliberately out of scope (belongs to LiNKdeveloper).
 
-5. **Automatic product deploy / LAW-06-style promotion from Module 6** — deliberately not ported; Module 6 ends at `release_ready` + Principal Release OK. **Note (2026-07-24):** Git branch promote (`development`→`staging` auto; `staging`→`main` Principal Telegram Approve) is in scope via ADR 0003 — that is not Module 6 live deploy.
+5. ~~**Automatic product deploy / founder approval before `main`**~~ — **resolved by v3.** No founder approval before `main`. The orchestrator merges into `development` when Full CI is green and one independent review (a different model family than the author) approves the exact head, then promotes `development` → `main`. Reaching `main` starts deploy: automatic when `deploy/target.json` is present, or when a post-deploy health check and automatic rollback exist; otherwise the orchestrator waits for Carlos's OK. The `deploy/target.json` schema is owned by LiNKops. No agent holds server credentials or SSH.
 
 6. **Dollar-cost accounting UI** — not present.
 
@@ -24,7 +24,11 @@ Append-only engineering build log. For “what is true **now**,” prefer [`docs
 
 ---
 
-## 8. Documentation cleanup — four source-of-truth documents, legacy docs archived, OPEN-ISSUES created — 2026-07-19
+## Historical (pre-v3)
+
+Closed entries below predate v3 and keep their original v2 terms. They are history, not current doctrine.
+
+### 8. Documentation cleanup — four source-of-truth documents, legacy docs archived, OPEN-ISSUES created — 2026-07-19
 
 Following the same playbook as LiNKdeveloper OPEN-ISSUES item #43 (2026-07-18), performed the Principal-requested documentation source-of-truth cleanup for **IDE Development** (`linktrend/IDE-Development`).
 
@@ -68,7 +72,7 @@ Following the same playbook as LiNKdeveloper OPEN-ISSUES item #43 (2026-07-18), 
 
 ---
 
-## 9. Retire hybrid-skills refresh script and sibling gstack/skills clones — 2026-07-23
+### 9. Retire hybrid-skills refresh script and sibling gstack/skills clones — 2026-07-23
 
 Principal decision: vendored hybrid skills inside this repo are authoritative and already adapted; do not refresh from upstream sibling clones.
 
@@ -82,7 +86,7 @@ Principal decision: vendored hybrid skills inside this repo are authoritative an
 
 ---
 
-## 10. Autonomous ship / pull / promote + wire inheritance (Layer A+B) — 2026-07-24
+### 10. Autonomous ship / pull / promote + wire inheritance (Layer A+B) — 2026-07-24
 
 Principal go-ahead: system lives in IDE Development; wired repos inherit agent doctrine (`.cursor` symlink) and managed GitHub workflows (sync on wire/backfill); IDE Development itself in scope; Bugbot as Reviewer; Lisa Telegram for one-line status + main Approve.
 
@@ -94,7 +98,9 @@ Principal go-ahead: system lives in IDE Development; wired repos inherit agent d
 
 ---
 
-## 11. GITOPS-01 Review Packager redesign — 2026-07-28
+### 11. GITOPS-01 Review Packager redesign — 2026-07-28
+
+Retired in v3 (IDE-22); see the v3 plan.
 
 Branch `issue/GITOPS-01-review-packager-pipeline`. Principal-locked amendment to ADR 0003 (Review Packager + promotion window).
 
@@ -103,7 +109,7 @@ Branch `issue/GITOPS-01-review-packager-pipeline`. Principal-locked amendment to
 - **Ship = checkpoint only:** commit + push on work branch; no PR; no Bugbot from Ship waves or EOD.
 - **Review Packager:** `linktrend-review-packager.yml` — Tue/Fri **08:00** Asia/Taipei; discover `.linktrend/review-ready.json` where `commitSha == HEAD` → open/ready PR → Bugbot once (`@cursor review` default).
 - **Staging promote:** Tue/Fri **10:00** Asia/Taipei (two hours after Packager); promote only work already on `development`; skip + report if not ready.
-- **Named CI gates:** `core/github/CI-GATE-CONTRACTS.md` (`fast-gate`, `staging-gate`, `release-gate`).
+- **Named CI gates:** `core/github/CI-GATE-CONTRACTS.md` (v3: `development` requires `Linktrend Fast Checks` and `Linktrend Branch Source Policy`; `main` requires `Linktrend Branch Source Policy` and `Linktrend Main Receipt Gate`; the orchestrator also requires `Verify IDE Development`).
 - **Review-ready contract:** `core/github/REVIEW-READY.md` + `scripts/mark-review-ready.sh`, `validate-review-ready.sh`, `clear-review-ready.sh`.
 - **Managed workflow sync list** includes review-packager; development-to-staging cron `0 2 * * 2,5` UTC.
 - **Doctrine:** `docs/AUTONOMOUS-GIT-OPERATIONS.md` updated; ADR 0003 amendment 2026-07-28.
@@ -119,7 +125,7 @@ Branch `issue/GITOPS-01-review-packager-pipeline`. Principal-locked amendment to
 
 **Authoritative clock (Asia/Taipei):** Ship 05, Pull 07, Ship 16, Pull 18; Packager Tue/Fri 08:00; Staging Tue/Fri 10:00; Main package Mon 08:00; digest + Approve Mon 08:30.
 
-### Correction — 2026-07-28 (review-ready mechanism)
+#### Correction — 2026-07-28 (review-ready mechanism)
 
 The bullet above that mentions discovering `.linktrend/review-ready.json` is **obsolete** and must not be followed.
 
@@ -134,7 +140,7 @@ The bullet above that mentions discovering `.linktrend/review-ready.json` is **o
 
 ---
 
-## 12. GitOps lifecycle repair control — 2026-07-30
+### 12. GitOps lifecycle repair control — 2026-07-30
 
 Branch `issue/23-gitops-lifecycle-repair-control`.
 
@@ -149,7 +155,9 @@ See ADR 0003 amendment 2026-07-30 and `docs/contracts/*`.
 
 ---
 
-## 13. App-backed Review Ready publisher + production completion bridge — 2026-08-01
+### 13. App-backed Review Ready publisher + production completion bridge — 2026-08-01
+
+Retired in v3 (IDE-22); see the v3 plan.
 
 Branch `issue/44-add-app-backed-review-ready-publisher-and-produc` (Issue #44). Wave 2 work packet: `docs/archive/work-packets/2026-08-01-wave-2-app-backed-completion.md`.
 
@@ -157,7 +165,7 @@ Branch `issue/44-add-app-backed-review-ready-publisher-and-produc` (Issue #44). 
 
 **Authoritative docs (this wave):**
 
-- `docs/contracts/AGENT-COMPLETION.md` — fail-closed local gate + App-backed route diagnostics; no readiness file
+- `docs/contracts/AGENT-COMPLETION.md` — v3 worker done (fast checks, push, no pull request, lessons note) and orchestrator acceptance
 - `core/github/REVIEW-READY.md` — publisher authority, dispatch contract, rollback
 - `docs/AUTONOMOUS-GIT-OPERATIONS.md` — Ship/Packager doctrine aligned to App publish path
 - Managed-runtime v2 payloads under `core/github/managed-runtime/` (AGENTS section + gitops bootstrap)
@@ -174,14 +182,14 @@ Branch `issue/44-add-app-backed-review-ready-publisher-and-produc` (Issue #44). 
 
 ---
 
-## 14. Reconcile approved stale IDE Development PRs / worktrees — 2026-08-01
+### 14. Reconcile approved stale IDE Development PRs / worktrees — 2026-08-01
 
 Branch `issue/51-reconcile-approved-stale-ide-development-prs-wor` (Issue #51).
 
 **Goal:** Document safe deterministic stale-cleanup controls for IDE Development remote branches, Lisa-local worktrees, open-PR deferrals, and completed-repair inventory dry-run — without auto-closing open PRs or touching preserve-listed issues/PRs/protected branches.
 
 **Authoritative contract:** `docs/contracts/STALE-CLEANUP-CONTROLS.md` (cross-links `LISA-LOCAL-CLEANUP-HANDOFF.md`, `REPAIR-DISPATCHER.md`).
-## 15. Work Packet 1 — production-readiness proof and release candidate (Issue #67) — 2026-08-02
+### 15. Work Packet 1 — production-readiness proof and release candidate (Issue #67) — 2026-08-02
 
 **SUPERSEDED for current status (see item #17 + `docs/CURRENT-STATUS.md`):** WP1 complete; WP2 ≠ integration/publication (that was WP03); do not treat Issue #67 / this branch pointer as active.
 
@@ -197,7 +205,7 @@ Branch `issue/51-reconcile-approved-stale-ide-development-prs-wor` (Issue #51).
 **Consumer rollout:** Deferred and separately Principal-gated — see `docs/GITOPS-CONSUMER-ROLLOUT.md`. (**Historical wording at writing:** “Work Packet 2 is the integration/publication stage” — **obsolete**; integration/promote was WP03; consumer rollout is WP04 prepared / not executed. See item #17.)
 
 **CLI at Lane F documentation time:** `plan|install|update|drift|verify|version|rollback|release-candidate` (`create` / `verify`). Default RC output: `build/release-candidate/`.
-## 16. Work Packet 02 — integration lineage, stale cleanup, and live readiness (Issue #68)
+### 16. Work Packet 02 — integration lineage, stale cleanup, and live readiness (Issue #68)
 
 - **Opened:** 2026-08-02
 - **Branch:** `issue/68-work-packet-02-integration-lineage-stale-cleanup`
@@ -209,11 +217,11 @@ Branch `issue/51-reconcile-approved-stale-ide-development-prs-wor` (Issue #51).
 
 ---
 
-## 17. Work Packet 03 complete + Issue #72 pre-launch cleanup — 2026-08-02
+### 17. Work Packet 03 complete + Issue #72 pre-launch cleanup — 2026-08-02
 
 **WP03 (complete):** PR #69 → `development`, #70 → `staging`, #71 → `main`. `origin/development`, `origin/staging`, and `origin/main` share content tree `43b1333ae21f43a34c3bdcccb2aac96f3d6e007f`.
 
-**WP04 (prepared / not executed):** Consumer rollout packet at `docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`. Principal approval still pending. **No consumer mutation authorized.**
+**WP04 (prepared / not executed):** Consumer rollout packet at `docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`. Principal approval still pending. **No consumer mutation authorized.**
 
 **Issue #72 (in progress):** Pre-launch system-repo cleanup on branch `issue/72-pre-launch-ide-development-codebase-cleanup-arch` (tip starts at `e6301fc`). Concise status surface: `docs/CURRENT-STATUS.md`.
 

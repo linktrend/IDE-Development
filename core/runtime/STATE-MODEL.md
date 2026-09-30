@@ -6,23 +6,21 @@ This document defines the runtime state model for executable work, especially is
 
 ## Issue Lifecycle
 
-Minimum issue states:
+Issue states (identical to the Ledger, `core/ledger/sql/ide_ledger.sql`):
 
-- `draft`
 - `planned`
-- `blocked`
 - `ready`
 - `in_progress`
-- `review_ready`
+- `blocked`
+- `in_review`
 - `done`
+- `cancelled`
 
-These states are normative for runtime behavior.
+These states are normative for runtime behavior. Readers accept the pre-v3
+value `review_ready` as an alias of `in_review`; writers always write
+`in_review`.
 
 ## State Meanings
-
-### `draft`
-
-The issue exists but is not yet defined well enough to be considered planned work.
 
 ### `planned`
 
@@ -55,14 +53,14 @@ Readiness is computed, not manually granted.
 
 The issue is actively being executed by a human or AI resource.
 
-### `review_ready`
+### `in_review`
 
 Execution work has been completed far enough that:
 
 - proof exists
 - the issue can be evaluated independently
 
-This is the mandatory handoff state between execution and review.
+This is the mandatory handoff state between execution and the independent review.
 
 ### `done`
 
@@ -72,29 +70,31 @@ The issue is complete only when:
 - review passes
 - integration succeeds
 
+### `cancelled`
+
+The issue was withdrawn before `done`. It is terminal and keeps its history.
+
 ## Allowed Transitions
 
 Primary forward path:
 
-- `draft -> planned`
 - `planned -> ready`
 - `ready -> in_progress`
-- `in_progress -> review_ready`
-- `review_ready -> done`
+- `in_progress -> in_review`
+- `in_review -> done`
 
 Blocking transitions:
 
-- `draft -> blocked`
 - `planned -> blocked`
 - `ready -> blocked`
 - `in_progress -> blocked`
-- `review_ready -> blocked`
+- `in_review -> blocked`
 
 Recovery transitions:
 
 - `blocked -> planned`
 - `blocked -> ready`
-- `review_ready -> in_progress`
+- `in_review -> in_progress`
 
 The recovery path chosen depends on what failed.
 
@@ -105,7 +105,7 @@ The runtime does not introduce a separate `failed` state.
 Instead, failure is represented through:
 
 - `blocked` when work cannot continue
-- return from `review_ready` to `in_progress` when rework is required
+- return from `in_review` to `in_progress` when rework is required
 - explicit failure evidence in proof, review, and blocker records
 
 ## Retry Behavior

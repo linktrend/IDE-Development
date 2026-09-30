@@ -28,15 +28,9 @@ Define the operational behavior for natural-language session end and close-out r
 9. if suspicious staged content is found, stop and ask
 10. otherwise generate a meaningful commit message
 11. commit staged work
-12. push the active branch (**checkpoint only** — do not open a PR; do not request Bugbot; do not mark review-ready unless the issue is actually finished)
-13. optional unfinished path: `python3 scripts/gitops/completion_gate.py checkpoint`
-14. finished path only:
-    - write machine-readable evidence with `python3 scripts/gitops/completion_gate.py write-evidence`
-    - then run `python3 scripts/gitops/completion_gate.py review-ready`
-    - the gate validates first and **only then** publishes **Linktrend Review Ready**
-    - do **not** require Review Ready to already be set before calling the gate
-    - do **not** call `mark-review-ready.sh` as a pre-gate publisher
-15. finish only after the repository is in a resumable state
+12. push the active branch (**checkpoint only** — do not open a PR; do not request Bugbot)
+13. worker finished-state follows `docs/contracts/AGENT-COMPLETION.md` (fast checks before push, commit and push, no pull request, short lessons note)
+14. finish only after the repository is in a resumable state
 
 ## Commit Message Rule
 
@@ -86,4 +80,4 @@ Minimum outputs:
 - use `.cursor/bootstrap/SESSION-SHUTDOWN.md` for shutdown responsibilities
 - preserve active artifact truth rather than relying on chat memory
 - use the handoff report as a continuity layer above execution artifacts, not in place of them
-- completion contract: `docs/contracts/AGENT-COMPLETION.md`
+- completion contract: `docs/contracts/AGENT-COMPLETION.md` (v3 worker done, orchestrator acceptance, flag Carlos)

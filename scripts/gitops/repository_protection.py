@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Managed repository protection planner / verifier / applier.
 
-External-state tool for development, staging, and main protections.
+External-state tool for the v3 ``development`` and ``main`` protections.
 Default mode is plan (no mutation). Apply requires an explicit --apply flag.
 
 Live GitHub calls are skipped when --fixture-dir is set (tests / offline).
@@ -29,23 +29,32 @@ EXIT_REFUSED = 5
 
 RULESET_NAMES = {
     "development": "development-autonomous-merge",
-    "staging": "staging-autonomous-promote",
     "main": "main-autonomous-release",
 }
+RETIRED = {"branch": "staging", "ruleset": "staging-autonomous-promote"}  # Historical (pre-v3) protection; never created or updated
+RETIRED_ACTION_NOTE = (
+    f"delete (admin action, after the {RETIRED['branch']} branch is retired per repo in rollout)"
+)
 
-DEFAULT_FAST_GATE = ["Verify IDE Development"]
-DEFAULT_STAGING_GATE = ["Verify IDE Development"]
-DEFAULT_RELEASE_GATE = ["Verify IDE Development"]
+FAST_CHECKS = "Linktrend Fast Checks"
+VERIFY_CHECK = "Verify IDE Development"
 # Active workflow job display name (WP-U05). Obsolete step title must not remain required.
 SOURCE_POLICY_CHECK = "Linktrend Branch Source Policy"
+# Active v3 main promotion check uses a unique context. The live ruleset still
+# needs migration from the old staging workflow's context; the gate validates
+# the Phase Full inventory.
+MAIN_PROMOTION_CHECK = "Linktrend Main Receipt Gate"
 REVIEW_GATE_CHECK = "Linktrend Review Gate"
 BUGBOT_CHECK = REVIEW_GATE_CHECK  # compatibility name; never a required v2.5.1 gate
 OBSOLETE_MANAGED_CHECKS = frozenset(
     {"Cursor Bugbot", "Linktrend Review Gate", "Linktrend Review Ready"}
 )
-RENAMED_MANAGED_CHECKS = {"Enforce allowed PR source branches": SOURCE_POLICY_CHECK}
+RENAMED_MANAGED_CHECKS = {
+    "Enforce allowed PR source branches": SOURCE_POLICY_CHECK,
+    "Linktrend Receipt Gate": MAIN_PROMOTION_CHECK,
+}
 
-GOVERNED = ("development", "staging", "main")
+GOVERNED = ("development", "main")
 
 
 class ProtectionError(Exception):
@@ -74,18 +83,14 @@ def managed_baseline(
     branch: str,
     *,
     integrator_checks: list[str] | None = None,
-    staging_checks: list[str] | None = None,
     release_checks: list[str] | None = None,
 ) -> list[str]:
     if branch == "development":
-        fast = integrator_checks if integrator_checks else list(DEFAULT_FAST_GATE)
-        return _unique_ordered([*fast, SOURCE_POLICY_CHECK])
-    if branch == "staging":
-        gate = staging_checks if staging_checks else list(DEFAULT_STAGING_GATE)
-        return _unique_ordered([*gate, SOURCE_POLICY_CHECK])
+        return _unique_ordered(
+            [FAST_CHECKS, SOURCE_POLICY_CHECK, VERIFY_CHECK, *(integrator_checks or [])]
+        )
     if branch == "main":
-        gate = release_checks if release_checks else list(DEFAULT_RELEASE_GATE)
-        return _unique_ordered([*gate, SOURCE_POLICY_CHECK])
+        return _unique_ordered([*(release_checks or []), SOURCE_POLICY_CHECK, MAIN_PROMOTION_CHECK])
     raise ProtectionError(f"ungoverned branch: {branch}")
 
 
@@ -443,6 +448,44 @@ def classic_protection_body(
     return body
 
 
+def ruleset_scope_drift(existing: dict[str, Any] | None, branch: str) -> str:
+    """Return why a ruleset misses the governed branch target, refs, or strict policy.
+
+    Desired scope is ``target: branch``, ``include`` exactly ``refs/heads/<branch>``,
+    ``exclude`` exactly ``[]``, and ``strict_required_status_checks_policy: true``
+    on every required-status-checks rule. A same-named ruleset aimed at another
+    ref is drift, not a match.
+    """
+    if not isinstance(existing, dict):
+        return ""
+    reasons: list[str] = []
+    if existing.get("target") != "branch":
+        reasons.append(f"target={existing.get('target')!r}")
+    conditions = existing.get("conditions")
+    ref_name = conditions.get("ref_name") if isinstance(conditions, dict) else None
+    if not isinstance(ref_name, dict):
+        reasons.append("conditions.ref_name missing")
+    else:
+        include = ref_name.get("include")
+        exclude = ref_name.get("exclude")
+        desired_include = [f"refs/heads/{branch}"]
+        if include != desired_include:
+            reasons.append(f"include={include!r}")
+        if exclude != []:
+            reasons.append(f"exclude={exclude!r}")
+    strict_values: list[Any] = []
+    for rule in existing.get("rules") or []:
+        if not isinstance(rule, dict) or rule.get("type") != STATUS_CHECK_RULE_TYPE:
+            continue
+        params = rule.get("parameters") if isinstance(rule.get("parameters"), dict) else {}
+        strict_values.append(params.get("strict_required_status_checks_policy"))
+    if not strict_values or any(value is not True for value in strict_values):
+        reasons.append("strict_required_status_checks_policy is not true")
+    if not reasons:
+        return ""
+    return "ruleset target/conditions/strict drift: " + "; ".join(reasons)
+
+
 def extract_ruleset_checks(ruleset: dict[str, Any] | None) -> list[str]:
     if not ruleset:
         return []
@@ -766,7 +809,6 @@ def build_plan(
     *,
     branches: tuple[str, ...] = GOVERNED,
     integrator_checks: list[str] | None = None,
-    staging_checks: list[str] | None = None,
     release_checks: list[str] | None = None,
     extra_checks: dict[str, list[str]] | None = None,
     development_checks_override: list[str] | None = None,
@@ -783,15 +825,17 @@ def build_plan(
     for branch in branches:
         name = RULESET_NAMES[branch]
         if development_checks_override is not None and branch == "development":
-            # Compatibility path: caller supplied the full active check list.
+            # Preserve caller requirements while always retaining the Phase gates.
             managed = _unique_ordered(
-                [item for item in development_checks_override if item not in OBSOLETE_MANAGED_CHECKS]
+                [
+                    *(item for item in development_checks_override if item not in OBSOLETE_MANAGED_CHECKS),
+                    *managed_baseline("development"),
+                ]
             )
         else:
             managed = managed_baseline(
                 branch,
                 integrator_checks=integrator_checks,
-                staging_checks=staging_checks,
                 release_checks=release_checks,
             )
 
@@ -817,15 +861,19 @@ def build_plan(
                 "bypassActors": bypass,
                 "body": existing,
             }
+            scope_drift = ruleset_scope_drift(existing, branch) if existing else ""
             if existing is None:
                 action = "create"
             elif (
                 existing_checks == union["desired"]
-                and (existing or {}).get("enforcement", "active") == "active"
+                and existing.get("enforcement", "active") == "active"
+                and not scope_drift
             ):
                 action = "noop"
             else:
                 action = "update"
+                if scope_drift:
+                    action_reason = scope_drift
             after = {
                 "exists": True,
                 "id": before["id"],
@@ -894,9 +942,23 @@ def build_plan(
             "before": before,
             "after": after,
         }
-        if mechanism == "branch_protection" and action_reason:
+        if action_reason and mechanism in ("branch_protection", "rulesets"):
             branch_entry["actionReason"] = action_reason
         branch_plans[branch] = branch_entry
+
+    retired: list[dict[str, Any]] = []
+    if mechanism == "rulesets":
+        for item in capability.get("rulesetSummaries") or []:
+            if item.get("name") == RETIRED["ruleset"]:
+                retired.append(
+                    {
+                        "rulesetName": RETIRED["ruleset"],
+                        "id": item.get("id"),
+                        "action": "delete",
+                        "owner": "admin",
+                        "note": RETIRED_ACTION_NOTE,
+                    }
+                )
 
     allow_action = "noop" if allow_before else "update"
     if "development" not in branches:
@@ -913,6 +975,7 @@ def build_plan(
             "branchProtectionError": capability.get("branchProtectionError", ""),
         },
         "branches": branch_plans,
+        "retired": retired,
         "repoSettings": {
             "allow_auto_merge": {
                 "before": allow_before,
@@ -953,6 +1016,16 @@ def verify_plan(plan: dict[str, Any]) -> tuple[bool, list[str]]:
         action = detail.get("action")
         if action not in ("noop",):
             problems.append(f"{branch}: action={action} (not matched)")
+        # Ruleset path: fail closed when the named ruleset does not target this
+        # branch, even if required checks and enforcement already match.
+        if mechanism == "rulesets":
+            before_body = (detail.get("before") or {}).get("body")
+            if isinstance(before_body, dict):
+                drift = ruleset_scope_drift(before_body, str(branch))
+                if drift:
+                    msg = f"{branch}: {drift}"
+                    if msg not in problems:
+                        problems.append(msg)
         # Classic path: fail closed on review/restriction (and related) drift even when
         # required check contexts already match and action was misclassified as noop.
         if mechanism == "branch_protection":
@@ -1015,7 +1088,7 @@ def apply_plan(client: GitHubClient, plan: dict[str, Any]) -> list[dict[str, Any
     mutations: list[dict[str, Any]] = []
     applied_branches: list[str] = []
     branch_details = plan.get("branches") or {}
-    # Stable three-branch order — never claim success with only development updated.
+    # Stable governed-branch order — never claim success with only development updated.
     ordered = [b for b in GOVERNED if b in branch_details] + [
         b for b in branch_details if b not in GOVERNED
     ]
@@ -1112,17 +1185,12 @@ def resolve_check_overrides(args: argparse.Namespace) -> dict[str, Any]:
         args.integrator_checks
         or os.environ.get("LINKTREND_INTEGRATOR_REQUIRED_CHECKS")
     ) or None
-    staging = _split_checks(
-        args.staging_checks
-        or os.environ.get("LINKTREND_STAGING_GATE_CHECKS")
-    ) or None
     release = _split_checks(
         args.release_checks
         or os.environ.get("LINKTREND_RELEASE_GATE_CHECKS")
     ) or None
     return {
         "integrator_checks": integrator,
-        "staging_checks": staging,
         "release_checks": release,
     }
 
@@ -1135,7 +1203,7 @@ def build_client(args: argparse.Namespace) -> GitHubClient:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Plan / verify / apply managed protections for development, staging, and main."
+        description="Plan / verify / apply managed protections for development and main."
     )
     parser.add_argument(
         "mode",
@@ -1145,11 +1213,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--repo", default=os.environ.get("GH_REPO", "linktrend/IDE-Development"))
     parser.add_argument(
         "--branches",
-        default="development,staging,main",
-        help="Comma-separated governed branches (default: all three)",
+        default="development,main",
+        help="Comma-separated governed branches (default: development,main)",
     )
     parser.add_argument("--integrator-checks", default=None, help="Comma-separated fast-gate checks")
-    parser.add_argument("--staging-checks", default=None, help="Comma-separated staging-gate checks")
     parser.add_argument("--release-checks", default=None, help="Comma-separated release-gate checks")
     parser.add_argument(
         "--extra-checks",
@@ -1242,7 +1309,6 @@ def main(argv: list[str] | None = None) -> int:
             client,
             branches=branches,
             integrator_checks=overrides["integrator_checks"],
-            staging_checks=overrides["staging_checks"],
             release_checks=overrides["release_checks"],
             extra_checks=extras,
             development_checks_override=args.development_checks,
@@ -1279,8 +1345,7 @@ def main(argv: list[str] | None = None) -> int:
                 client,
                 branches=branches,
                 integrator_checks=overrides["integrator_checks"],
-                staging_checks=overrides["staging_checks"],
-                release_checks=overrides["release_checks"],
+                    release_checks=overrides["release_checks"],
                 extra_checks=extras,
                 development_checks_override=args.development_checks,
             )

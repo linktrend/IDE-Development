@@ -17,12 +17,23 @@
         "url": "https://api.github.com/repos/linktrend/Fixture/branches/development/protection/required_status_checks",
         "strict": true,
         "contexts": [
-          "Verify IDE Development",
-          "Linktrend Branch Source Policy"
+          "Linktrend Fast Checks",
+          "Linktrend Branch Source Policy",
+          "Verify IDE Development"
         ],
         "checks": [
-          {"context": "Verify IDE Development", "app_id": -1},
-          {"context": "Linktrend Branch Source Policy", "app_id": -1}
+          {
+            "context": "Linktrend Fast Checks",
+            "app_id": -1
+          },
+          {
+            "context": "Linktrend Branch Source Policy",
+            "app_id": -1
+          },
+          {
+            "context": "Verify IDE Development",
+            "app_id": -1
+          }
         ]
       },
       "enforce_admins": {
@@ -74,26 +85,12 @@
         "enabled": false
       }
     },
-    "staging": {
-      "required_status_checks": {
-        "strict": true,
-        "contexts": [
-          "Verify IDE Development",
-          "Linktrend Branch Source Policy"
-        ]
-      },
-      "enforce_admins": true,
-      "required_pull_request_reviews": null,
-      "restrictions": null,
-      "allow_force_pushes": false,
-      "allow_deletions": false
-    },
     "main": {
       "required_status_checks": {
         "strict": true,
         "contexts": [
-          "Verify IDE Development",
-          "Linktrend Branch Source Policy"
+          "Linktrend Branch Source Policy",
+          "Linktrend Main Receipt Gate"
         ]
       },
       "enforce_admins": true,

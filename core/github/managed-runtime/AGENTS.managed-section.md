@@ -1,46 +1,38 @@
 <!-- BEGIN LINKTREND-IDE-MANAGED -->
-## LiNKtrend IDE-managed GitOps (do not edit between markers)
+## LiNKtrend IDE-managed development system (do not edit between markers)
 
-This section is maintained by LiNKtrend wire/sync tooling (do not edit between markers).
-Consumer-specific guidance may live **outside** these markers.
+This section is maintained by LiNKtrend install/sync tooling. Repository-owned guidance may live **outside** these markers.
 
-### Session entrypoints (all platforms)
+### Session entrypoints
 
-- **New coding session:** follow agentsetup — create/reuse the GitHub issue and `issue/<n>-<slug>` automatically via `python3 scripts/gitops/create_issue_branch.py`. Never ask humans for issue id/slug.
-- **Already-open / wrong branch:** follow agentcomply — migrate dirty work onto the correct `issue/*` branch for this repo.
-- Cursor: `/agentsetup` and `/agentcomply` map to `.cursor/commands/agentsetup.md` and `.cursor/commands/agentcomply.md` (skills under `.cursor/skills/`).
-- Codex / ChatGPT Work Agents: use this root `AGENTS.md` managed section plus the same scripts; do not require the IDE Development checkout path.
+- New session: follow agentsetup. Already-open or wrong branch: follow agentcomply.
+- Work IDs are Ledger IDs (`<PREFIX>-<n>`, for example `IDE-33`). The branch is `issue/<PREFIX>-<n>-<slug>`, given by the orchestrator; `scripts/gitops/create_issue_branch.py` is the branch helper. Never ask a human for an ID or slug.
 
 ### Lifecycle
 
-- Work on `issue/<n>-<slug>` (or `dev/*`) → push → Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the draft Phase PR → delivery controller (`scripts/gitops/delivery_controller.py`) merges to `development` through GitHub protection. Retained `packager_discover.py` is not the Phase Packager. Review Ready does not itself trigger a merge.
-- Promote: `development` → `staging` → `main` via temporary `promote/*` PRs only.
+1. A worker commits and pushes its `issue/*` checkpoint. Issue branches do not open PRs or start GitHub CI; workers run local focused checks.
+2. The orchestrator combines accepted checkpoints on one `phase/*` branch and opens one Phase PR into `development` (`scripts/orchestrator/package.py`).
+3. That Phase PR gets one combined CI run (`Linktrend Fast Checks`, `Verify IDE Development`, and platform matrix only when its path classifier applies) plus one independent exact-head review (`scripts/orchestrator/merge_check.py`). Merge only when all applicable evidence covers the same Phase head and the development merge preserves its tree.
+4. The orchestrator promotes through a temporary `promote/main/*` pull request into `main` (`scripts/orchestrator/promote_main.py`, checked by `Linktrend Main Receipt Gate`). The gate reuses the matching Phase Verify inventory; it does not rerun Full.
+5. After `main`, deploy is automatic (`Linktrend Deploy`, when the repo declares `deploy/target.json`).
 
-### Agent rules
+Long-lived branches are `development` and `main` only.
 
-- Ship = checkpoint (commit+push). The Phase Packager/Coordinator opens Phase PRs. Max 3 ordinary repairs.
-- Completion: `python3 scripts/gitops/completion_gate.py` (checkpoint | review-ready | blocked | status | write-evidence).
-- Finished work runs appropriate tests/checks, auto-repairs ordinary failures with at most 3 bounded repair cycles, writes machine-readable evidence with `completion_gate.py write-evidence`, then calls `completion_gate.py review-ready`.
-- `review-ready` is the authoritative fail-closed gate. Production publish and withdraw use the trusted `linktrend-review-ready-publisher` workflow with scoped built-in `GITHUB_TOKEN` permissions, `LINKTREND_TRUSTED_REVIEW_READY_PUBLISHER=1` on the publish/withdraw step, and documented `AUTOMATION_TOKEN` forwarding (aliases `GH_TOKEN` / `GITHUB_TOKEN`; `AUTOMATION_TOKEN` precedes). Custom App/PAT automation is retired. Do not call `mark-review-ready.sh` as a pre-gate publisher; it is only a compatibility wrapper that requires evidence and delegates to the gate.
-- Do **not** create or use `.linktrend/review-ready.json` (commit status only — see `core/github/REVIEW-READY.md`).
-- If completion cannot pass, call `completion_gate.py blocked`. `.linktrend/completion-blocker.json` is only a **local cache**. The durable cross-machine record is the GitHub repair issue created/updated by the gate (when authenticated repo resolution succeeds). Do not claim durable registration if the command reports `durableRecord=false`.
-- Repair tasks: `python3 scripts/gitops/repair_task.py` (upsert | dispatch-attempt | resolve | list).
-- No prefer-incoming. No Cursor spawn claims from GitHub Actions.
+### Workers
 
-### Consumer workflow / check configuration
+- Commit small and push often. Never open pull requests.
+- Run the local fast profile before handoff: `python3 scripts/gitops/run_delivery_profile.py fast`. GitHub CI runs once on the combined Phase PR, not on each Issue.
+- Consumer workflow names come from `.github/linktrend-gitops-consumer.json`.
+- End with a lessons note.
 
-Static `workflow_run.workflows` names are rendered at install time from the committed consumer config:
+### Orchestrator
 
-`.github/linktrend-gitops-consumer.json`
+- Repair ladder: Luna/Grok ×3, then Sol/Opus ×1, then the other of Sol/Opus ×1, then flag Carlos. Recorded with `scripts/orchestrator/runlog.py` and watched by `scripts/orchestrator/watchdog.py`.
+- Cheap-helper rule: keep planning, judgement reviews, decisions and talking to Carlos on the frontier model; hand routine lookups, summaries and mechanical checks to a cheap helper subagent.
 
-Fields: `fastWorkflowName`, `ciWorkflowName`, `branchPolicyWorkflowName`, `bugbotCheckName`, and optional `runnerType` (`github-hosted`; retired self-hosted profiles are rejected). Both workflow names are exact display names that must run on the same Phase PR head.
+### Hard stops
 
-Repository Actions **variables** still configure required **check/job display names** for gates:
-
-- `LINKTREND_INTEGRATOR_REQUIRED_CHECKS`
-- `LINKTREND_STAGING_GATE_CHECKS` / `LINKTREND_RELEASE_GATE_CHECKS`
-
-Do not confuse the two: workflow wake names come from the JSON config; gate check names come from Actions variables.
-
-See `docs/GITOPS-CONSUMER-ROLLOUT.md` when present in the system repo.
+- No self-review.
+- No prefer-incoming.
+- Never bypass branch protection.
 <!-- END LINKTREND-IDE-MANAGED -->

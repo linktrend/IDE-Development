@@ -4,54 +4,193 @@
   "title": "IDE Development versioned routing registry",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "registryId", "status", "routes", "programs"],
+  "required": [
+    "schemaVersion", "registryId", "status", "routes", "allowance",
+    "helpers", "review", "signInCheck", "programs"
+  ],
   "properties": {
-    "schemaVersion": {"type": "integer", "const": 1},
+    "schemaVersion": {"type": "integer", "const": 2},
     "registryId": {"type": "string", "const": "ide-development-routing"},
     "status": {"type": "string", "const": "active-policy-candidate"},
-    "routes": {
-      "type": "object", "additionalProperties": false,
-      "required": ["gate-0", "ordinary-development", "luna-fallback"],
-      "properties": {
-        "gate-0": {"$ref": "#/$defs/gateRoute"},
-        "ordinary-development": {"$ref": "#/$defs/ordinaryRoute"},
-        "luna-fallback": {"$ref": "#/$defs/fallbackRoute"}
-      }
-    },
+    "routes": {"$ref": "#/$defs/routes"},
+    "allowance": {"$ref": "#/$defs/allowance"},
+    "helpers": {"$ref": "#/$defs/helpers"},
+    "review": {"$ref": "#/$defs/review"},
+    "signInCheck": {"$ref": "#/$defs/signInCheck"},
     "programs": {"type": "array", "items": {"$ref": "#/$defs/program"}}
   },
   "$defs": {
-    "gateRoute": {
-      "type": "object", "additionalProperties": false,
-      "required": ["provider", "model", "effort", "fast", "execution", "principalInstructionRequired"],
+    "routes": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 5,
+      "required": ["orchestrator", "codex-luna", "codex-sol", "cursor002-grok", "cursor002-opus"],
       "properties": {
-        "provider": {"const": "codex-cli"}, "model": {"const": "gpt-5.6-luna"},
-        "effort": {"const": "high"}, "fast": {"const": false},
-        "execution": {"const": "codex-cli"}, "principalInstructionRequired": {"const": false}
+        "orchestrator": {"$ref": "#/$defs/orchestratorRoute"},
+        "codex-luna": {"$ref": "#/$defs/codexLunaRoute"},
+        "codex-sol": {"$ref": "#/$defs/codexSolRoute"},
+        "cursor002-grok": {"$ref": "#/$defs/cursorGrokRoute"},
+        "cursor002-opus": {"$ref": "#/$defs/cursorOpusRoute"}
       }
     },
-    "ordinaryRoute": {
-      "type": "object", "additionalProperties": false,
-      "required": ["provider", "model", "effort", "fast", "execution", "fallbackRoute", "principalInstructionRequired"],
+    "orchestratorRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["account", "surface", "cardinality", "modelClass", "codesIssues"],
       "properties": {
-        "provider": {"const": "cursor"}, "model": {"const": "grok-4.6"},
-        "effort": {"const": "medium"}, "fast": {"const": false},
-        "execution": {"const": "direct-sdk"}, "fallbackRoute": {"const": "luna-fallback"},
-        "principalInstructionRequired": {"const": false}
+        "account": {"const": "cursor-001"},
+        "surface": {"const": "cursor-project"},
+        "cardinality": {"const": "one-per-repo"},
+        "modelClass": {"const": "frontier"},
+        "codesIssues": {"const": false}
       }
     },
-    "fallbackRoute": {
-      "type": "object", "additionalProperties": false,
-      "required": ["provider", "model", "effort", "fast", "execution", "principalInstructionRequired", "concurrentDisjointPacketsAllowed"],
+    "codexLunaRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "tier", "effort", "modelResolution", "resolutionSource", "class", "order"],
       "properties": {
-        "provider": {"const": "codex-cli"}, "model": {"const": "gpt-5.6-luna"},
-        "effort": {"const": "high"}, "fast": {"const": false},
-        "execution": {"const": "codex-cli"}, "principalInstructionRequired": {"const": true},
-        "concurrentDisjointPacketsAllowed": {"const": true}
+        "provider": {"const": "codex-cli"},
+        "tier": {"const": "luna"},
+        "effort": {"const": "high"},
+        "modelResolution": {"const": "dispatch-time"},
+        "resolutionSource": {"const": "app-server model/list"},
+        "class": {"const": "everyday"},
+        "order": {"const": 1}
+      }
+    },
+    "codexSolRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "tier", "effort", "modelResolution", "resolutionSource", "class", "order"],
+      "properties": {
+        "provider": {"const": "codex-cli"},
+        "tier": {"const": "sol"},
+        "effort": {"const": "medium"},
+        "modelResolution": {"const": "dispatch-time"},
+        "resolutionSource": {"const": "app-server model/list"},
+        "class": {"const": "hard"},
+        "order": {"const": 2}
+      }
+    },
+    "cursorGrokRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider", "account", "endpoint", "family", "params",
+        "modelResolution", "resolutionSource", "class", "order"
+      ],
+      "properties": {
+        "provider": {"const": "cursor-api"},
+        "account": {"const": "cursor-002"},
+        "endpoint": {"const": "POST https://api.cursor.com/v1/agents"},
+        "family": {"const": "grok-4.7"},
+        "params": {"$ref": "#/$defs/grokParams"},
+        "modelResolution": {"const": "dispatch-time"},
+        "resolutionSource": {"const": "GET /v1/models"},
+        "class": {"const": "everyday-overflow"},
+        "order": {"const": 3}
+      }
+    },
+    "cursorOpusRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider", "account", "endpoint", "family", "params", "forbiddenAliases",
+        "modelResolution", "resolutionSource", "class", "order"
+      ],
+      "properties": {
+        "provider": {"const": "cursor-api"},
+        "account": {"const": "cursor-002"},
+        "endpoint": {"const": "POST https://api.cursor.com/v1/agents"},
+        "family": {"const": "claude-opus-5-5"},
+        "params": {"$ref": "#/$defs/opusParams"},
+        "forbiddenAliases": {"const": ["opus", "opus-latest"]},
+        "modelResolution": {"const": "dispatch-time"},
+        "resolutionSource": {"const": "GET /v1/models"},
+        "class": {"const": "hard-overflow"},
+        "order": {"const": 4}
+      }
+    },
+    "grokParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context", "reasoning_effort", "fast"],
+      "properties": {
+        "context": {"const": "500k"},
+        "reasoning_effort": {"const": "medium"},
+        "fast": {"const": "false"}
+      }
+    },
+    "opusParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context", "effort", "fast"],
+      "properties": {
+        "context": {"const": "1m"},
+        "effort": {"const": "medium"},
+        "fast": {"const": "false"}
+      }
+    },
+    "allowance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["threshold", "windows", "unreportedWindow", "noneReported", "strict"],
+      "properties": {
+        "threshold": {"const": 75},
+        "windows": {"const": ["primary", "secondary"]},
+        "unreportedWindow": {"const": "does-not-block"},
+        "noneReported": {"const": "overflow-to-cursor-002"},
+        "strict": {"const": false}
+      }
+    },
+    "helpers": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "effort"],
+          "properties": {
+            "model": {"const": "grok-4.7"},
+            "effort": {"const": "medium"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model"],
+          "properties": {
+            "model": {"const": "composer-2.5"}
+          }
+        }
+      ],
+      "items": false
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewerMustDifferFromAuthorFamily", "bugbotOptional"],
+      "properties": {
+        "reviewerMustDifferFromAuthorFamily": {"const": true},
+        "bugbotOptional": {"const": true}
+      }
+    },
+    "signInCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "wrapper", "onLoggedOut"],
+      "properties": {
+        "command": {"const": "codex cloud list --json --limit 1"},
+        "wrapper": {"const": "python3 scripts/codex/codex_orchestrator.py gate"},
+        "onLoggedOut": {"const": "stop-and-ask-carlos-for-device-code-sign-in"}
       }
     },
     "program": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": ["programId", "repositories", "crossRepositoryAllowed"],
       "properties": {
         "programId": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
@@ -60,7 +199,8 @@
       }
     },
     "repository": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": ["repository", "url"],
       "properties": {
         "repository": {"type": "string", "pattern": "^[^/\\s]+/[^/\\s]+$"},

@@ -1,12 +1,12 @@
 # ADR 0003: Autonomous Ship / Pull / Promote (Inherited via Wire)
 
-**Status:** Accepted (Principal go-ahead 2026-07-24)
+**Status:** Superseded by ADR 0006 (originally Accepted, Principal go-ahead 2026-07-24)
 **Date:** 2026-07-24
 **Timezone:** Asia/Taipei (no DST)
 
 ## Context
 
-Agents were not consistently committing, pushing, or opening PRs into `development`. Review and merge into `development` lacked a deterministic Reviewer/Integrator path. Git promotion docs still said Principal-only for `staging` and `main`, which blocked an autonomous studio loop. Wiring a consumer to IDE Development only symlinked `.cursor` and did not install GitHub robots or Bugbot expectations.
+Historical (pre-v3): Agents were not consistently committing, pushing, or opening PRs into `development`. Review and merge into `development` lacked a deterministic Reviewer/Integrator path. Git promotion docs still said Principal-only for `staging` and `main`, which blocked an autonomous studio loop. Wiring a consumer to IDE Development only symlinked `.cursor` and did not install GitHub robots or Bugbot expectations.
 
 ## Decision
 
@@ -21,7 +21,7 @@ Agents were not consistently committing, pushing, or opening PRs into `developme
    - **Fix agent** — always a short-lived **Cloud** agent on the same branch; max **3** attempts; then stop and surface `Issues`.
    - **Integrator** — merge-only automation into `development` when CI green + Bugbot pass.
    - **Promoter** — GitHub Actions schedules.
-   - **Lisa** — **primary Ship/Pull clock** (Option A): cron on Mini spawns Cursor ACP shipper/puller; Telegram one-line checkpoint status; Principal **Approve** for `staging`→`main` via Telegram.
+   - Historical (pre-v3): **Lisa** — **primary Ship/Pull clock** (Option A): cron on Mini spawns Cursor ACP shipper/puller; Telegram one-line checkpoint status; Principal **Approve** for `staging`→`main` via Telegram.
 5. **Calendar (Asia/Taipei)** — wave names are **clock times** (not A/B letters):
 
    | Event | Time |
@@ -30,8 +30,8 @@ Agents were not consistently committing, pushing, or opening PRs into `developme
    | Pull 07 | 07:00 |
    | Ship 16 | 16:00 |
    | Pull 18 | 18:00 |
-   | `development`→`staging` | Tue & Fri 08:00 auto |
-   | `staging`→`main` | Mon 08:00 package; Principal Approve 08:30 via Lisa morning digest (Telegram reply) |
+Historical (pre-v3):    | `development`→`staging` | Tue & Fri 08:00 auto |
+Historical (pre-v3):    | `staging`→`main` | Mon 08:00 package; Principal Approve 08:30 via Lisa morning digest (Telegram reply) |
 
 6. **Worktrees:** allowed; max **12**; max **20 GB**; delete after merge or abandon.
 7. **Module 6 product Release OK / live deploy** remains Principal-gated. This ADR changes **Git branch promotion**, not product deploy authority.
@@ -90,14 +90,16 @@ Principal locked:
 
 ## Amendment — 2026-07-28 (Review Packager + promotion window)
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 Principal locked (IDE Development redesign):
 
 1. **Ship = checkpoint only:** commit + push on `issue/*`. No PR. No Bugbot. EOD ~17:00 is also checkpoint-only.
 2. **`review_ready`:** branch-local `.linktrend/review-ready.json` with `commitSha == HEAD`. Later commits invalidate.
 3. **Review Packager:** Tuesday & Friday **08:00** Asia/Taipei (`0 0 * * 2,5` UTC). Discover eligible review-ready work → deterministic readiness → open/ready PR → Bugbot once.
-4. **Staging promote:** Tuesday & Friday **10:00** Asia/Taipei (`0 2 * * 2,5` UTC). Promote only work already merged into `development`. If not ready: skip and report why. Never force. No prefer-incoming.
+4. Historical (pre-v3): **Staging promote:** Tuesday & Friday **10:00** Asia/Taipei (`0 2 * * 2,5` UTC). Promote only work already merged into `development`. If not ready: skip and report why. Never force. No prefer-incoming.
 5. **Bugbot:** request command configurable; authoritative default exactly `@cursor review` (with the `@`). Success check remains `Linktrend Review Gate`. Hidden idempotency marker `<!-- linktrend-bugbot-requested: <sha> -->`. Normal max 2 requests per PR (initial + one after consolidated corrections). Request accounting counts only comments that contain an executable trigger (`@cursor review` or `bugbot run`) **plus** that marker; bare historical `cursor review` + marker does **not** consume the limit.
-6. **Named CI gates:** `fast-gate` / `staging-gate` / `release-gate` — never “wait for every visible check.” Missing ≠ success.
+6. Historical (pre-v3): **Named CI gates:** `fast-gate` / `staging-gate` / `release-gate` — never “wait for every visible check.” Missing ≠ success.
 7. **Integrator:** auto-merge only when non-draft → `development`, head SHA = reviewed SHA, fast-gate green, `Linktrend Review Gate` success.
 8. **Review freeze:** do not modify the frozen reviewed branch; continue on another issue branch/worktree.
 9. **Ship 05 / Pull 07** remain authoritative morning wave labels (not 06/08).
@@ -106,6 +108,8 @@ Principal locked (IDE Development redesign):
 ---
 
 ## Amendment — 2026-07-28 (review-ready = commit status; supersedes file marker)
+
+Retired in v3 (IDE-22); see the v3 plan.
 
 **Factual correction** to item 2 of the earlier 2026-07-28 amendment above (that item is obsolete and must not be followed):
 
@@ -124,7 +128,7 @@ Principal locked (IDE Development redesign):
 
 Factual corrections (do not rewrite earlier amendments):
 
-1. **Staging promote** remains Tue & Fri **10:00** Asia/Taipei (not 08:00). Older calendar rows in this ADR that say staging 08:00 are obsolete.
+1. Historical (pre-v3): **Staging promote** remains Tue & Fri **10:00** Asia/Taipei (not 08:00). Older calendar rows in this ADR that say staging 08:00 are obsolete.
 2. **Ship / Implementer:** checkpoint = commit + push only. Implementers do **not** open PRs; Review Packager opens PRs after `Linktrend Review Ready`.
 3. **Repair path:** GitHub records durable repair tasks only. **Lisa ACP Repair Dispatcher** dispatches Cursor ACP repair agents. GitHub never spawns Cursor. Max **3** attempts; no prefer-incoming. Immediate failure types do not auto-repair.
 4. Contracts: `docs/contracts/AGENT-COMPLETION.md`, `docs/contracts/REPAIR-DISPATCHER.md`, `docs/contracts/ACTIONS-COST-CONTROLS.md`, `docs/contracts/LISA-LOCAL-CLEANUP-HANDOFF.md`.
@@ -136,10 +140,12 @@ Principal / WP-01 locked:
 1. **Delivery modes** are configurable and packaged: `issue-pr` (default, preserves existing generic Packager behavior) and `phase-integration` (opt-in). Contract: `docs/contracts/DELIVERY-MODES.md`.
 2. **Phase integration:** frequent Issue checkpoint pushes (no PR); independently accepted exact Issue SHAs included on a `phase/*` branch; Review Packager opens **one** Phase PR into `development` after required accepted SHAs are included.
 3. **Risk exceptions:** Issue-level PRs under `phase-integration` require an explicit risk class (`security`, `authentication`, `database_migration`, `infrastructure`, `major_shared_api`, `unusually_large_scope`, `cross_phase_impact`) via `.linktrend/issue-pr-exception.json`.
-4. **Named gates** remain `fast-gate` / `staging-gate` / `release-gate` on the exact PR head SHA; missing/zero/wrong/stale/skipped-neutral are non-success.
+4. Historical (pre-v3): **Named gates** remain `fast-gate` / `staging-gate` / `release-gate` on the exact PR head SHA; missing/zero/wrong/stale/skipped-neutral are non-success.
 5. **Ship remains checkpoint-only** in both modes.
 
 ## Amendment — 2026-08-17 (Phase Packager/Coordinator)
+
+Retired in v3 (IDE-22); see the v3 plan.
 
 Factual correction for Update 3:
 
@@ -151,11 +157,13 @@ Factual correction for Update 3:
 
 ## Amendment — 2026-08-18 (Delivery controller)
 
+Retired in v3 (IDE-22); see the v3 plan.
+
 Factual correction for Update 2:
 
-1. **Delivery controller** is `scripts/gitops/delivery_controller.py`. Any authorized agent or operator may invoke it. It accepts an exact `phase/*` PR handoff, verifies development eligibility, merges through GitHub protection, promotes staging on reusable receipt identity without rerunning Full, prepares main, and completes main only after explicit founder approval.
+1. Historical (pre-v3): **Delivery controller** is `scripts/gitops/delivery_controller.py`. Any authorized agent or operator may invoke it. It accepts an exact `phase/*` PR handoff, verifies development eligibility, merges through GitHub protection, promotes staging on reusable receipt identity without rerunning Full, prepares main, and completes main only after explicit founder approval.
 2. It replaces the nonexistent Integrator merge actor. Review Ready remains a Packager discovery status and does **not** promise a merge trigger by itself.
-3. Workers cannot invoke a self-merge path. The controller never pushes directly to `development`/`staging`/`main`, never bypasses branch protection, and deletes only controller-created `promote/*` branches after successful merges.
+3. Historical (pre-v3): Workers cannot invoke a self-merge path. The controller never pushes directly to `development`/`staging`/`main`, never bypasses branch protection, and deletes only controller-created `promote/*` branches after successful merges.
 4. Behavior is identical regardless of which supported agent invokes the command; agent environment markers are ignored for decisions.
 
 ## Amendment — 2026-08-17 (Independent-review convergence)

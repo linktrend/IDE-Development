@@ -6,10 +6,10 @@ alwaysApply: true
 # LiNKtrend git branching (managed)
 
 - Integration branch: **`development`**
-- Studio default work branch: **`issue/<id>-<slug>`** (one short-lived branch per governed issue)
+- Work branch: **`issue/<PREFIX>-<n>-<slug>`** (one short-lived branch per Ledger work ID, given by the orchestrator)
 - Cloud agents may use `cursor/*`; `dev/*` is rare ad-hoc only
-- Merge into `development` only via Phase Packager/Coordinator → delivery controller (implementers never open/merge that PR)
-- Promotion `development` → `staging` → `main` is delivery-controller/Principal only
+- Only the orchestrator opens and merges pull requests into `development` (Full CI plus one exact-head independent review)
+- Only two long-lived branches: `development` and `main`. Promotion `development` → temporary `promote/main/*` → `main` is orchestrator-only
 
 ## Session entrypoints
 
@@ -19,5 +19,5 @@ alwaysApply: true
 
 ## Hard stops
 
-- No implementer PRs, no self-merge, no self-review, no staging/main promotion from implementer sessions
-- Ship = checkpoint (commit + push) only
+- No worker pull requests, no self-merge, no self-review, no `main` promotion from worker sessions
+- Workers commit and push often; the orchestrator packages

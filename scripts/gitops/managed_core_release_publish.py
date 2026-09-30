@@ -11,7 +11,7 @@ Hard rules:
 - Idempotent retry may continue only when an existing tag (if any) is bound to the
   requested commit and any existing release/assets match the exact
   source/version/manifest/checksum contract; otherwise refuse.
-- Mutating GitHub calls require the trusted Mac Mini automation token.
+- Mutating GitHub calls require the trusted default-branch workflow token.
 """
 
 from __future__ import annotations

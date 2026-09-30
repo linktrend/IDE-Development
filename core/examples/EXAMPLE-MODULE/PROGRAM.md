@@ -72,7 +72,7 @@ Demonstrate the module-oriented user request path: "Complete this module."
 ## Global Constraints
 
 - use `complete-module` as the primary command wrapper
-- show review and integration as mandatory completion gates
+- show review and integration as mandatory gates before completion
 
 ## Program Definition Of Done
 

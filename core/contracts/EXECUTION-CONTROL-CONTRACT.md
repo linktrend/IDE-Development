@@ -92,7 +92,7 @@ Silent retry on the same repository/commit/tree after exhaustion is forbidden (`
 Hosted scheduling is a **deterministic runtime** (`core/execution/scheduler.py`) bound to the packaged continuous-utilization config:
 
 - `hostedConcurrencyAuthority` is `execution-protocol` (not GitHub, paid models, or Fast).
-- Local admission remains capped at `1`. Staged mixed-capacity admission is up to `5 Cursor + 2 Luna` in Stage 1, `10 Cursor + 4 Luna` in Stage 2 after routing/integration verification, and `20 Cursor + 4 Luna` in Stage 3 after another verification. Underfill is `1 Luna` in Stages 1-2 and `2 Luna` in Stage 3. Mac memory and real Cursor capacity remain binding; there is no fixed total-worker cap.
+- Local admission remains capped at `1`. Staged mixed-capacity admission is up to `5 Cursor + 2 Luna` in Stage 1, `10 Cursor + 4 Luna` in Stage 2 after routing/integration verification, and `20 Cursor + 4 Luna` in Stage 3 after another verification. Underfill is `1 Luna` in Stages 1-2 and `2 Luna` in Stage 3. Host memory and real Cursor capacity remain binding; there is no fixed total-worker cap.
 - Every admission report must distinguish provider capacity, spend ceiling, safety limit, dependency/path constraints, admitted workers, issued workers, and running workers.
 - Missing, stale, unauthenticated, or mismatched capacity/spend/safety evidence blocks hosted admission. Evidence must also match the exact account, API-key name, team, and Program Run identity supplied to the scheduler. Before dispatch, every uncompleted PREPARED intent bound to the obsolete fixed-capacity policy is atomically superseded and recomputed under the adaptive authority; completed evidence is preserved.
 - Incomplete snapshots stay `resource_uncertain`. Allocator `busy` / `exhausted` in that state is not `capacity_exhausted`.
@@ -104,23 +104,25 @@ Hosted scheduling is a **deterministic runtime** (`core/execution/scheduler.py`)
 
 ## Automatic approval rules
 
+Branches are `development` and `main` only. Carlos does not approve merges or releases.
+
 | Action | Decision |
 |---|---|
 | `checkpoint`, `issue_commit` | automatic |
-| `staging_promote` | automatic when receipt identity holds (this contract does not evaluate receipts) |
-| `main_promote`, `publish_release`, `deploy_production`, `github_protection_change`, `provider_live_mutation` | founder approval must already be recorded for the exact action |
-| `self_review`, `self_merge`, `prefer_incoming` | forbidden |
+| `main_promote` | automatic when Full CI is green and one independent review approves the exact head. The reviewer is a model from a different family than the author. The orchestrator then promotes `development` → `main` and reuses that result. |
+| `deploy_production` | Reaching `main` starts an automatic deploy (LiNKops GitHub Actions job: join Tailscale ephemerally, deploy, health-check, roll back). Automatic with no approval when the repo declares its target server in `deploy/target.json`. If that file is absent, automatic only when a post-deploy health check and automatic rollback exist; otherwise the orchestrator waits for Carlos's recorded OK. The `deploy/target.json` schema is owned by LiNKops. No agent holds server credentials or SSH. |
+| `publish_release`, `github_protection_change`, `provider_live_mutation` | recorded approval must already exist for the exact action |
+| `self_review`, `self_merge`, `prefer_incoming` | forbidden. The orchestrator merging a worker's reviewed PR is not self-merge. |
 
-Absence of a recorded founder approval is not a request to invent one.
+Absence of a recorded approval is not a request to invent one.
 
 ## Repository and Git authority
 
 - Work branches match `issue/<n>-<slug>`.
-- Protected refs: `development`, `staging`, `main`. Implementers must not push them.
-- Implementers must not open or merge delivery PRs.
+- Protected refs: `development`, `main`. Implementers must not push them.
+- Workers never open or merge delivery PRs.
 - Nested `.ide-development` install into this system repository is forbidden.
-- Packager / packager coordinator opens Phase PRs.
-- Delivery controller merges to `development` through protection.
+- The orchestrator packages and merges. It merges a PR into `development` when Full CI is green and one independent exact-head review approves, then promotes `development` → `main`.
 
 This contract does not change workflow files. It forbids claiming Git authority the workflows have not granted.
 
@@ -134,11 +136,11 @@ A v2.5 Issue checkpoint is accepted when all of the following are present:
 4. one provider-independent narrow review bound to the exact commit and tree
 5. manifest evidence
 
-Review Ready publication and publisher tokens are **not** required and must not block that acceptance.
+No commit status or publisher token is required, and none may block that acceptance.
 
 ## Publisher authority (no singular legacy canonical)
 
-`canonicalForV25` is `none`. No singular legacy publisher is canonical for v2.5, including `linktrend-review-ready-publisher`, `mark-review-ready.sh-as-publisher`, `.linktrend/review-ready.json`, and user-PAT publication.
+`canonicalForV25` is `none`. None of the retired v2 publishers listed in `publisherAuthority.legacyPublishers` (`core/contracts/EXECUTION-MANIFEST.schema.json`) is canonical.
 
 A failed or missing legacy publisher is classified **`WAIVED_LEGACY_GATE`**. That classification is never PASS and never an implementation failure.
 
@@ -170,7 +172,7 @@ Unnamed recovery, recovery without replacement proof, or any other operation is 
 
 When Autowork discovery is callable, it is required. Skipping a callable discovery is a control violation.
 
-When discovery is not callable, the truthful result is an unavailable hold. That hold is not hosted, provider-live, application, consumer, staging, VPS, E2E, or production proof.
+When discovery is not callable, the truthful result is an unavailable hold. That hold is not hosted, provider-live, application, consumer, pre-production, VPS, E2E, or production proof.
 
 ## PKT-08 revision-60 final controls
 

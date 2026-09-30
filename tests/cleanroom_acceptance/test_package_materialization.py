@@ -20,19 +20,14 @@ from harness.paths import PACKAGE_FIXTURE
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_SOURCES = (
     "scripts/gitops/repository_ci_contract.py",
-    "scripts/gitops/promotion_receipt_gate.py",
     "scripts/gitops/run_delivery_profile.py",
     "core/execution/__init__.py",
     "core/execution/protocol.py",
     "core/execution/lifecycle.py",
     "core/execution/scheduler.py",
     "core/execution/verification_liveness.py",
-    "core/execution/manifest_persistence.py",
     "core/execution/transactional_dispatch.py",
     "core/execution/rollout.py",
-    "scripts/gitops/heartbeat_controller.py",
-    "core/managed-core/content/config/manifest-persistence.json",
-    "core/managed-core/schemas/manifest-persistence.schema.json",
     "core/managed-core/content/config/transactional-dispatch.json",
     "core/managed-core/schemas/transactional-dispatch.schema.json",
 )
@@ -44,148 +39,6 @@ APPLICATION_RUNTIME_SOURCES = (
     "core/link-integrations/errors.mjs",
 )
 
-HEARTBEAT_CONTROLLER_SCRIPT = r"""
-import copy
-from datetime import datetime, timedelta, timezone
-
-from core.execution import (
-    DispatchBudget,
-    DurableDispatchIntentStore,
-    LeaseState,
-    persist_manifest,
-    run_heartbeat_controller,
-)
-
-identity = {
-    "repository": "linktrend/IDE-Development",
-    "commit": "a" * 40,
-    "tree": "b" * 40,
-}
-
-class Store:
-    def __init__(self):
-        self.record = None
-    def read(self):
-        return copy.deepcopy(self.record)
-    def compare_and_write(self, expected_revision, expected_digest, payload):
-        current_revision = 0 if self.record is None else self.record["revision"]
-        current_digest = None if self.record is None else self.record["digest"]
-        assert (current_revision, current_digest) == (expected_revision, expected_digest)
-        self.record = {
-            "revision": expected_revision + 1,
-            "digest": payload["digest"],
-            "manifest": copy.deepcopy(payload["manifest"]),
-        }
-
-class Authority:
-    def read_authoritative_state(self, observed_identity):
-        assert observed_identity == identity
-        return {
-            "identity": dict(identity),
-            "cursor": {"status": "REPAIR_REQUESTED"},
-            "github": {},
-            "git": {"head": identity["commit"], "tree": identity["tree"]},
-        }
-
-class FailedAuthority(Authority):
-    def read_authoritative_state(self, observed_identity):
-        assert observed_identity == identity
-        return {
-            "identity": dict(identity),
-            "cursor": {"status": "queued"},
-            "github": {"check": {"conclusion": "FAILURE"}},
-            "git": {"head": identity["commit"], "tree": identity["tree"]},
-        }
-
-class External:
-    def __init__(self):
-        self.calls = 0
-        self.records = {}
-    def dispatch(self, request, key):
-        self.calls += 1
-        record = {"dispatchId": "cleanroom-dispatch-1", "idempotencyKey": key}
-        self.records[key] = record
-        return {"statusCode": 201, **record}
-    def read_by_idempotency_key(self, key):
-        return copy.deepcopy(self.records.get(key))
-
-now = datetime(2026, 8, 21, tzinfo=timezone.utc)
-manifest = {
-    "schemaVersion": 1,
-    "packetId": "PKT-08",
-    "identity": dict(identity),
-    "transitions": [],
-    "orchestrationLease": {
-        "holder": "stale",
-        "nonce": "stale",
-        "expiresAt": (now - timedelta(seconds=1)).isoformat(),
-    },
-    "safeAction": {
-        "id": "cleanroom-action",
-        "safe": True,
-        "action": "run-repair",
-        "payload": {"reason": "failed-check"},
-    },
-}
-store = Store()
-persist_manifest(manifest, store)
-external = External()
-lease = LeaseState(
-    holder="executor",
-    packet_id="PKT-08",
-    repository=identity["repository"],
-    nonce="fresh",
-    expires_at=now + timedelta(minutes=5),
-)
-first = run_heartbeat_controller(
-    store,
-    Authority(),
-    dispatch_store=DurableDispatchIntentStore(),
-    external_dispatch=external,
-    lease=lease,
-    holder="executor",
-    budget=DispatchBudget(30, 4),
-    now=now,
-    no_progress_wakes=2,
-)
-assert first["dispatchPerformed"] is True, first
-assert first["requiredAction"]["kind"] != "DONT_NOTIFY", first
-assert first["receipt"]["readback"] is True, first
-second = run_heartbeat_controller(
-    store,
-    Authority(),
-    dispatch_store=first.get("_dispatchStore", DurableDispatchIntentStore()),
-    external_dispatch=external,
-    lease=lease,
-    holder="executor",
-    budget=DispatchBudget(30, 4),
-    now=now + timedelta(seconds=1),
-    no_progress_wakes=2,
-)
-assert external.calls == 1, external.calls
-assert second["requiredAction"]["kind"] == "DONT_NOTIFY", second
-assert sum(
-    row.get("kind") == "UTILIZATION_GAP"
-    for row in store.read()["manifest"]["transitions"]
-) == 1
-failed_store = Store()
-persist_manifest(
-    {
-        "schemaVersion": 1,
-        "packetId": "PKT-08",
-        "identity": dict(identity),
-        "transitions": [],
-    },
-    failed_store,
-)
-failed = run_heartbeat_controller(failed_store, FailedAuthority())
-assert failed["notify"] is True, failed
-assert failed["requiredAction"]["code"] == "failed_check_repair", failed
-assert failed["requiredAction"]["kind"] != "DONT_NOTIFY", failed
-print("PASS")
-"""
-
-
 class PackageMaterializationTests(unittest.TestCase):
     def test_managed_package_runs_dogfood_closure_and_lean_design_audit(self) -> None:
         with tempfile.TemporaryDirectory(prefix="managed-closure-audit-") as tmp:
@@ -193,7 +46,6 @@ class PackageMaterializationTests(unittest.TestCase):
             package = Path(tmp) / "package"
             audit_sources = (
                 "scripts/gitops/generated_output_closure.py",
-                "scripts/gitops/coordinator/state.py",
                 "scripts/ide-development.py",
                 "scripts/ide_development/build_manifest.py",
                 "core/execution/scheduler.py",
@@ -297,7 +149,6 @@ else:
             extract = Path(tmp) / "extract"
             audit_sources = (
                 "scripts/gitops/generated_output_closure.py",
-                "scripts/gitops/coordinator/state.py",
                 "scripts/ide-development.py",
                 "core/execution/scheduler.py",
                 "core/execution/verification_liveness.py",
@@ -318,7 +169,7 @@ else:
                         "audit_dogfood_improvement_closure; "
                         "result = audit_dogfood_improvement_closure('.'); "
                         "assert result['status'] == 'audited', result; "
-                        "assert result['leanDesign']['mappingCount'] == 6, result; "
+                        "assert result['leanDesign']['mappingCount'] == 4, result; "
                         "print('PASS')"
                     ),
                 ],
@@ -397,32 +248,6 @@ assert scheduler.admitted_ids() == ("heartbeat-action",)
                 check=False,
             )
             self.assertEqual(proc.returncode, 0, proc.stderr)
-
-    def test_managed_and_extracted_packages_invoke_heartbeat_controller(self) -> None:
-        for materializer, label in (
-            (materialize_package_copy, "managed"),
-            (materialize_isolated_rc_extract, "extracted"),
-        ):
-            with self.subTest(package=label), tempfile.TemporaryDirectory(
-                prefix=f"{label}-heartbeat-controller-"
-            ) as tmp:
-                source = Path(tmp) / "source"
-                package = Path(tmp) / label
-                for rel in RUNTIME_SOURCES:
-                    destination = source / rel
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(REPO_ROOT / rel, destination)
-                materializer(package, source=source)
-                proc = subprocess.run(
-                    [sys.executable, "-c", HEARTBEAT_CONTROLLER_SCRIPT],
-                    cwd=package,
-                    env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
-                    text=True,
-                    capture_output=True,
-                    check=False,
-                )
-                self.assertEqual(proc.returncode, 0, proc.stderr)
-                self.assertIn("PASS", proc.stdout)
 
     def test_managed_and_extracted_packages_plan_generic_canary_rollout(self) -> None:
         script = r'''
@@ -571,7 +396,7 @@ print("PASS")
                     f"extracted package lost runtime source {rel}",
                 )
 
-    def test_extracted_package_imports_scheduler_liveness_and_manifest_runtime(self) -> None:
+    def test_extracted_package_imports_scheduler_and_liveness_runtime(self) -> None:
         with tempfile.TemporaryDirectory(prefix="package-execution-runtime-") as tmp:
             package = Path(tmp) / "package"
             materialize_package_copy(package, source=PACKAGE_FIXTURE)
@@ -581,9 +406,8 @@ print("PASS")
                 [
                     sys.executable,
                     "-c",
-                    "from core.execution import manifest_persistence, scheduler, verification_liveness; "
-                    "print(manifest_persistence.MAX_PERSISTENCE_ATTEMPTS, "
-                    "scheduler.__name__, verification_liveness.__name__)",
+                    "from core.execution import scheduler, verification_liveness; "
+                    "print(scheduler.__name__, verification_liveness.__name__)",
                 ],
                 cwd=package,
                 env=env,
@@ -592,111 +416,7 @@ print("PASS")
                 check=False,
             )
             self.assertEqual(proc.returncode, 0, proc.stderr)
-            self.assertIn("3", proc.stdout)
-
-    def test_extracted_package_enforces_manifest_persistence_identity_and_cas_binding(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="package-manifest-persistence-adversarial-") as tmp:
-            source = Path(tmp) / "source"
-            extract = Path(tmp) / "extract"
-            for rel in RUNTIME_SOURCES:
-                destination = source / rel
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(REPO_ROOT / rel, destination)
-
-            materialize_isolated_rc_extract(extract, source=source)
-            proc = subprocess.run(
-                [
-                    sys.executable,
-                    "-c",
-                    """
-import copy
-from core.execution.manifest_persistence import (
-    MANIFEST_PERSISTENCE_FAILURE,
-    ManifestPersistenceError,
-    canonical_manifest_digest,
-    persist_manifest,
-)
-
-identity = {"repository": "linktrend/IDE-Development", "commit": "a" * 40, "tree": "b" * 40}
-
-def make_manifest(*transitions):
-    return {"schemaVersion": 1, "identity": identity, "transitions": list(transitions)}
-
-class Store:
-    def __init__(self):
-        self.record = None
-    def read(self):
-        return copy.deepcopy(self.record)
-    def compare_and_write(self, expected_revision, expected_digest, payload):
-        current_revision = 0 if self.record is None else self.record["revision"]
-        current_digest = None if self.record is None else self.record["digest"]
-        if (current_revision, current_digest) != (expected_revision, expected_digest):
-            raise ManifestPersistenceError("revision_conflict", "stale revision")
-        self.record = {
-            "revision": expected_revision + 1,
-            "digest": payload["digest"],
-            "manifest": copy.deepcopy(payload["manifest"]),
-        }
-        for key in ("updated_at", "transition_event"):
-            if key in payload:
-                self.record[key] = copy.deepcopy(payload[key])
-
-store = Store()
-initial = make_manifest()
-persist_manifest(initial, store)
-store.record["digest"] = "sha256:" + "c" * 64
-try:
-    persist_manifest(initial, store)
-except ManifestPersistenceError as error:
-    assert error.code == MANIFEST_PERSISTENCE_FAILURE
-else:
-    raise AssertionError("tampered canonical digest was accepted")
-
-store = Store()
-first = make_manifest()
-first_updated_at = "2026-08-20T22:00:00+00:00"
-first_digest = canonical_manifest_digest(first)
-persist_manifest(
-    first,
-    store,
-    updated_at=first_updated_at,
-    transition_event={
-        "id": "transition-1",
-        "kind": "manifest_persisted",
-        "revision": 1,
-        "digest": first_digest,
-        "updated_at": first_updated_at,
-    },
-)
-second = make_manifest({"kind": "run", "id": "run-1"})
-second_updated_at = "2026-08-20T22:00:01+00:00"
-second_digest = canonical_manifest_digest(second)
-result = persist_manifest(
-    second,
-    store,
-    updated_at=second_updated_at,
-    transition_event={
-        "id": "transition-2",
-        "kind": "manifest_persisted",
-        "revision": 2,
-        "digest": second_digest,
-        "updated_at": second_updated_at,
-    },
-)
-assert result["revision"] == 2
-assert result["updated_at"] == second_updated_at
-assert result["transition_event"]["digest"] == second_digest
-print("PASS")
-""",
-                ],
-                cwd=extract,
-                env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            self.assertEqual(proc.returncode, 0, proc.stderr)
-            self.assertIn("PASS", proc.stdout)
+            self.assertIn("core.execution.scheduler", proc.stdout)
 
     def test_extracted_package_contains_revision_60_final_controls(self) -> None:
         with tempfile.TemporaryDirectory(prefix="package-final-controls-") as tmp:
@@ -708,7 +428,6 @@ print("PASS")
                 "core/execution/lifecycle.py",
                 "core/execution/scheduler.py",
                 "core/execution/verification_liveness.py",
-                "core/execution/manifest_persistence.py",
                 "core/execution/transactional_dispatch.py",
                 "core/contracts/PKT08-REVISION-60-FINAL-CONTROLS.md",
                 "core/managed-core/content/config/transactional-dispatch.json",

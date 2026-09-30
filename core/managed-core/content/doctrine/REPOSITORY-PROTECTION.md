@@ -26,53 +26,56 @@ GitHub rulesets, classic branch protection, repository settings (`allow_auto_mer
 
 ## Governed branches (required)
 
-Every repository that installs the managed system must protect these three branches:
+v3 has two long-lived branches. Every repository that installs the managed system protects both:
 
 | Branch | Ruleset name (when rulesets available) | Managed purpose |
 |--------|----------------------------------------|-----------------|
-| `development` | `development-autonomous-merge` | Strict required checks, work-branch source policy, delivery-controller auto-merge compatibility |
-| `staging` | `staging-autonomous-promote` | Promotion-only PR sources (`promote/staging/*`) + staging-gate checks |
-| `main` | `main-autonomous-release` | Promotion-only PR sources (`promote/main/*`) + release-gate checks + Main Approve compatibility |
+| `development` | `development-autonomous-merge` | Integration: strict required checks, work-branch source policy, orchestrator auto-merge |
+| `main` | `main-autonomous-release` | Live: promotion-only PR sources (`promote/main/*`) + `Linktrend Receipt Gate`; migrate to `Linktrend Main Receipt Gate` to avoid collision with the old staging workflow |
 
-Promotion-only source policy is enforced by the managed workflow check **`Linktrend Branch Source Policy`** (see `.github/workflows/branch-source-policy.yml`). Protections require that check on all three branches so GitHub cannot merge disallowed heads even if a human clicks merge. The obsolete step title `Enforce allowed PR source branches` must not remain a required context (WP-U05).
+Promotion: `development` → temporary `promote/main/*` branch → PR into `main` → merge → automatic deploy per the deploy policy. There is no other promotion branch or ruleset.
+
+Source policy is enforced by the managed workflow check **`Linktrend Branch Source Policy`** (see `.github/workflows/branch-source-policy.yml`). Protections require that check on both branches so GitHub cannot merge disallowed heads even if a human clicks merge. The obsolete step title `Enforce allowed PR source branches` must not remain a required context (WP-U05).
+
+Historical (pre-v3): the `staging-autonomous-promote` ruleset is retired. The plan lists it under `retired[]` as "delete (admin action, after the branch is retired per repo in rollout)"; `apply` never creates, updates, or deletes it, and `verify` does not fail on it.
 
 ---
 
 ## Managed required-check baselines
 
-Defaults match IDE Development. Consumers override via repository variables / CLI extras; baselines always union with the active source-policy check.
+Defaults match IDE Development. Consumers override via repository variables / CLI extras; baselines always union with the active source-policy check. All required checks are **strict** (branch must be up to date).
 
-### `development` (delivery controller)
+### `development` (orchestrator merge)
 
 Managed baseline (order stable):
 
-1. Fast-gate checks — default `Verify IDE Development`, or `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` when provided
-2. `Linktrend Branch Source Policy` (always present)
+1. `Linktrend Fast Checks`
+2. `Linktrend Branch Source Policy`
+3. `Verify IDE Development`
+
+The merge checker adds all three `Installer matrix (...)` checks only when the
+shared changed-path classifier says they apply. Main promotion enforces the
+same conditional requirement against the merged Phase PR's changed files.
+
+When `LINKTREND_INTEGRATOR_REQUIRED_CHECKS` / `--integrator-checks` is provided its checks are added while all Phase gates remain required.
 
 `Cursor Bugbot`, `Linktrend Review Gate`, and `Linktrend Review Ready` are obsolete
 advisory/provider contexts. The v2.5.1 migration removes them from required
 status checks rather than waiting for credentials or synthetic success states.
 
-Also set repository setting `allow_auto_merge=true` so the delivery controller may auto-merge when gates are green.
+Also set repository setting `allow_auto_merge=true` so the orchestrator may auto-merge when gates are green.
 
-### `staging` (staging-gate)
-
-Managed baseline:
-
-1. Staging-gate checks — default `Verify IDE Development`, or `LINKTREND_STAGING_GATE_CHECKS`
-2. `Linktrend Branch Source Policy`
-
-Do **not** require `Linktrend Review Gate` on staging promotion PRs.
-
-### `main` (release-gate + Main Approve)
+### `main` (promotion)
 
 Managed baseline:
 
-1. Release-gate checks — default `Verify IDE Development`, or `LINKTREND_RELEASE_GATE_CHECKS`
-2. `Linktrend Branch Source Policy`
+1. `Linktrend Branch Source Policy`
+2. `Linktrend Main Receipt Gate` — the v3 main promotion check (`.github/workflows/linktrend-promote-main.yml`): it verifies the exact Phase head's inventory for a development merge commit whose tree matches the promotion candidate. Its unique context avoids collision with the old staging workflow on `main`.
+
+Optional `LINKTREND_RELEASE_GATE_CHECKS` / `--release-checks` are prepended when a consumer needs extra release checks.
 
 Do **not** require `Linktrend Review Gate` on main promotion PRs.
-Do **not** invent extra human-review rules that conflict with Lisa Main Approve (`docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md`). Preserve existing `bypass_actors` on update. Main Approve remains Principal Approve of the sealed package + release-gate success on the promote head.
+Do **not** invent extra human-review rules that conflict with the orchestrator's `development` → `main` promotion (ADR 0006). Preserve existing `bypass_actors` on update.
 
 ---
 
@@ -103,13 +106,14 @@ Fail closed only when the desired set cannot be represented on the available Git
 |------|----------|-------------|
 | `plan` (default) | No | Plan emitted (even if drift exists) |
 | `verify` | No | Current external state matches desired plan |
-| `apply` | Yes (explicit) | Desired state written atomically across governed branches; post-apply verify passes. Mid-apply failure restores archived before-state and reports incomplete (no false success). |
+| `apply` | Yes (explicit) | Desired state written atomically across both governed branches; post-apply verify passes. Mid-apply failure restores archived before-state and reports incomplete (no false success). |
 | `rollback` | Yes (explicit, from snapshot) | Restored to recorded before-state |
 
 Every plan and apply response includes:
 
 - `before` / `after` per governed branch
 - `actions[]` (`create` / `update` / `noop` / `unavailable`)
+- `retired[]` — obsolete rulesets still present; admin deletes them during rollout (never applied by the tool)
 - `rollback.snapshot` sufficient to restore prior ruleset bodies / classic protection payloads / `allow_auto_merge`
 - Human-readable `rollback.instructions`
 
@@ -127,10 +131,10 @@ Never invent a third mechanism. Document the gap for the Principal; do not force
 
 ---
 
-## Delivery controller / Main Approve compatibility notes
+## Orchestrator merge and promotion notes
 
 - Development: required checks must include the active fast-gate and branch-source policy; `allow_auto_merge=true`.
-- Staging / main: merge only via temporary `promote/*` PRs after named gates; never direct-push.
+- Main: merge only via temporary `promote/main/*` PRs after `Linktrend Main Receipt Gate`; never direct-push.
 - Preserve `bypass_actors` on ruleset update so existing App / operator bypasses are not wiped.
 - Preserve non-check ruleset rules and classic `required_pull_request_reviews` / `restrictions` (and similar) on update.
 - Tools never create GitHub Apps, install tokens, or repository secrets.

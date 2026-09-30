@@ -66,9 +66,17 @@ echo "cleanup mode=${MODE} remote=${DO_REMOTE} local=${DO_LOCAL}"
 
 is_protected_permanent() {
   case "$1" in
-    main|staging|development|HEAD) return 0 ;;
+    main|development|HEAD) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+is_cleanup_candidate() {
+  local name="${1:-}"
+  is_allowed_work_branch "$name" && return 0
+  is_main_promote_branch "$name" && return 0
+  is_legacy_cleanup_branch "$name" && return 0
+  return 1
 }
 
 decide() { echo "$1: $2 — $3"; }
@@ -273,7 +281,7 @@ maybe_delete_remote() {
     decide "KEEP" "$branch" "protected"
     return 0
   fi
-  if ! is_allowed_work_branch "$branch" && ! is_staging_promote_branch "$branch" && ! is_main_promote_branch "$branch"; then
+  if ! is_cleanup_candidate "$branch"; then
     decide "KEEP" "$branch" "not a cleanup candidate form"
     return 0
   fi
@@ -331,7 +339,7 @@ maybe_delete_local() {
     decide "KEEP" "local:$branch" "protected"
     return 0
   fi
-  if ! is_allowed_work_branch "$branch" && ! is_staging_promote_branch "$branch" && ! is_main_promote_branch "$branch"; then
+  if ! is_cleanup_candidate "$branch"; then
     decide "KEEP" "local:$branch" "not candidate"
     return 0
   fi

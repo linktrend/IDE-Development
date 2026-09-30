@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,15 +13,35 @@ from typing import Any, Callable
 
 from .constants import INSTALLED_STATE_REL, MANAGED_CORE_DIR
 from .errors import ConflictError, RollbackError
-from .hashing import normalize_mode, sha256_file
-from .managed_write_guard import WriteLease, is_read_only_mode, managed_write_lease, read_only_mode
+from .hashing import mode_int, normalize_mode, sha256_file
+from .managed_write_guard import (
+    READ_ONLY_POLICY,
+    WriteLease,
+    is_read_only_mode,
+    managed_write_lease,
+    read_only_mode,
+)
 from .io_atomic import atomic_write_bytes, copy_file_physical, read_file_bytes, remove_file
 from .lock import exclusive_transaction_lock
 from .manifest import Manifest, ManifestEntry
-from .paths import encode_backup_name, git_meta_dir, join_under, join_under_nofollow, path_is_symlink
+from .paths import (
+    encode_backup_name,
+    git_meta_dir,
+    join_under,
+    join_under_nofollow_checked,
+    join_under_nofollow,
+    path_is_symlink,
+)
 from .plan import OpKind, Plan, PlanAction
 from .resolution import UpgradeResolution
-from .state import FileState, InstalledState, save_installed_state, utc_now
+from .state import (
+    FileState,
+    InstalledState,
+    load_installed_state,
+    prove_read_only_state,
+    save_installed_state,
+    utc_now,
+)
 from .symlink_migrate import (
     apply_migrate_symlink,
     is_under_any,
@@ -106,6 +127,44 @@ def _entry_map(manifest: Manifest) -> dict[str, ManifestEntry]:
     return {e.destination: e for e in manifest.active_entries()}
 
 
+def _managed_lease_paths(
+    *,
+    manifest: Manifest,
+    prior: InstalledState | None,
+    mutating: list[PlanAction],
+    extra: set[str] | None = None,
+) -> set[str]:
+    """Lease every managed destination so closure can strip leftover write bits."""
+    paths = {action.path for action in mutating}
+    paths.update({MANIFEST_DEST, str(INSTALLED_STATE_REL)})
+    if extra:
+        paths.update(path for path in extra if isinstance(path, str) and path)
+    if prior is not None:
+        for rel, file_state in prior.files.items():
+            if file_state.mutability_policy == READ_ONLY_POLICY:
+                paths.add(rel)
+    for entry in manifest.active_entries():
+        if entry.ownership_class != "external-state":
+            paths.add(entry.destination)
+    return paths
+
+
+def _enforce_managed_read_only(
+    target_root: Path, state: InstalledState, *, lease: WriteLease
+) -> None:
+    """Strip write bits from every persisted managed file while the lease is live."""
+    for rel, file_state in state.files.items():
+        if file_state.mutability_policy != READ_ONLY_POLICY:
+            continue
+        path = join_under_nofollow(target_root, rel)
+        if path_is_symlink(path) or not path.is_file():
+            continue
+        _authorize_managed_write(lease, rel)
+        current = path.stat().st_mode & 0o7777
+        if not is_read_only_mode(current):
+            os.chmod(path, mode_int(read_only_mode(current)))
+
+
 def backup_migrate_symlink(target_root: Path, action: PlanAction) -> BackupRecord:
     """Record original symlink target for rollback; never read outside contents."""
     dest = join_under_nofollow(target_root, action.path)
@@ -137,7 +196,11 @@ def backup_migrate_symlink(target_root: Path, action: PlanAction) -> BackupRecor
 
 
 def backup_path(target_root: Path, action: PlanAction) -> BackupRecord:
-    dest = join_under(target_root, action.path)
+    dest = (
+        join_under_nofollow_checked(target_root, action.path)
+        if action.op == OpKind.REMOVE
+        else join_under(target_root, action.path)
+    )
     if path_is_symlink(dest):
         raise ConflictError(
             f"Refusing to backup symlink at {action.path}",
@@ -190,7 +253,7 @@ def write_backup_file(
     _authorize_managed_write(lease, record.path)
     if not record.existed or not record.backup_name:
         return
-    src = join_under(target_root, record.path)
+    src = join_under_nofollow_checked(target_root, record.path)
     dest = backups_dir(tx_dir) / record.backup_name
     dest.parent.mkdir(parents=True, exist_ok=True)
     data = read_file_bytes(src)
@@ -218,11 +281,31 @@ def apply_action(
             expected_target=action.symlink_target,
         )
         return
-    dest = join_under(target_root, action.path)
     if action.op == OpKind.REMOVE:
-        if dest.exists():
-            remove_file(dest)
+        dest = join_under_nofollow_checked(target_root, action.path)
+        if not dest.is_file():
+            raise ConflictError(
+                f"Removal target changed since plan: {action.path}",
+                details={"path": action.path, "expected": action.source_hash},
+            )
+        if not action.source_hash:
+            raise ConflictError(
+                f"Removal action has no planned content hash: {action.path}",
+                details={"path": action.path},
+            )
+        actual = sha256_file(dest)
+        if actual != action.source_hash:
+            raise ConflictError(
+                f"Removal target changed since plan: {action.path}",
+                details={
+                    "path": action.path,
+                    "expected": action.source_hash,
+                    "actual": actual,
+                },
+            )
+        remove_file(dest)
         return
+    dest = join_under(target_root, action.path)
     entry = entries.get(action.path)
     if entry is None:
         raise ConflictError(f"No manifest entry for action path {action.path}")
@@ -266,6 +349,7 @@ def restore_backup(
         dest = join_under_nofollow(target_root, record.path)
         if path_is_symlink(dest) or dest.is_file():
             remove_file(dest)
+            _prune_empty_parents(target_root, dest.parent)
         return
     dest = join_under(target_root, record.path)
     if not record.backup_name:
@@ -275,6 +359,42 @@ def restore_backup(
         raise RollbackError(f"Backup file missing for {record.path}: {blob}")
     data = read_file_bytes(blob)
     atomic_write_bytes(dest, data, mode=record.mode or "0644")
+
+
+def _prune_empty_parents(target_root: Path, directory: Path) -> None:
+    """Remove directories left empty by undoing created files (git keeps none)."""
+    root = target_root.resolve()
+    current = directory
+    while current != root and root in current.parents:
+        if path_is_symlink(current) or not current.is_dir() or any(current.iterdir()):
+            return
+        current.rmdir()
+        current = current.parent
+
+
+def _restore_unmanaged_modes(target_root: Path, journal: dict[str, Any]) -> None:
+    """Undo the lease's read-only finalization for restored non-managed files.
+
+    Migration removals can target files the installer never made read-only
+    (for example retired root workflows); their pre-image mode is exact.
+    """
+    state = load_installed_state(target_root)
+    read_only = {
+        rel
+        for rel, file_state in (state.files.items() if state is not None else ())
+        if file_state.mutability_policy == READ_ONLY_POLICY
+    }
+    read_only.add(str(INSTALLED_STATE_REL))
+    read_only.add(MANIFEST_DEST)
+    for raw in journal.get("backups") or []:
+        if not isinstance(raw, dict):
+            continue
+        record = BackupRecord.from_dict(raw)
+        if not record.existed or record.was_symlink or not record.mode or record.path in read_only:
+            continue
+        dest = join_under_nofollow(target_root, record.path)
+        if dest.is_file() and not path_is_symlink(dest):
+            os.chmod(dest, mode_int(record.mode))
 
 
 def build_next_state(
@@ -298,6 +418,8 @@ def build_next_state(
         if action.op == OpKind.NOOP:
             entry = entries.get(action.path)
             if entry is None:
+                if action.path != MANIFEST_DEST and not join_under(target_root, action.path).exists():
+                    files.pop(action.path, None)
                 continue
             dest = join_under(target_root, action.path)
             if dest.is_file() and not path_is_symlink(dest):
@@ -466,15 +588,20 @@ def apply_plan(
         )
 
     with exclusive_transaction_lock(target_root):
-        lease_paths = {action.path for action in plan.mutating_actions}
-        lease_paths.update({MANIFEST_DEST, ".ide-development/installed-state.json"})
         pending = read_journal(current_tx_dir(target_root))
+        extra: set[str] = set()
         if isinstance(pending, dict):
-            lease_paths.update(
+            extra.update(
                 record.get("path")
                 for record in pending.get("backups") or []
                 if isinstance(record, dict) and isinstance(record.get("path"), str)
             )
+        lease_paths = _managed_lease_paths(
+            manifest=manifest,
+            prior=prior,
+            mutating=plan.mutating_actions,
+            extra=extra,
+        )
         with managed_write_lease(
             target_root=target_root,
             paths=lease_paths,
@@ -485,7 +612,7 @@ def apply_plan(
             make_writable=False,
             finalize_read_only=True,
         ) as lease:
-            return _apply_plan_unlocked(
+            result = _apply_plan_unlocked(
                 target_root=target_root,
                 package_root=package_root,
                 manifest=manifest,
@@ -495,6 +622,8 @@ def apply_plan(
                 post_apply_check=post_apply_check,
                 write_lease=lease,
             )
+        prove_read_only_state(target_root)
+        return result
 
 
 def _apply_plan_unlocked(
@@ -533,6 +662,7 @@ def _apply_plan_unlocked(
             and prior_manifest.content_hash == manifest_hash
             and prior.manifest_hash == manifest_hash
         ):
+            _enforce_managed_read_only(target_root, prior, lease=write_lease)
             return {
                 "transactionId": None,
                 "applied": [],
@@ -567,6 +697,7 @@ def _apply_plan_unlocked(
             merge_strategy="replace",
         )
         _save_installed_state(target_root, next_state, lease=write_lease)
+        _enforce_managed_read_only(target_root, next_state, lease=write_lease)
         return {
             "transactionId": None,
             "applied": [],
@@ -721,6 +852,7 @@ def _apply_plan_unlocked(
             merge_strategy="replace",
         )
         _save_installed_state(target_root, next_state, lease=write_lease)
+        _enforce_managed_read_only(target_root, next_state, lease=write_lease)
 
         post_verification = post_apply_check() if post_apply_check is not None else None
         if post_verification is not None:
@@ -765,6 +897,63 @@ def _apply_plan_unlocked(
     }
 
 
+def _journal_records_first_install(journal: dict[str, Any]) -> bool:
+    """True when this transaction created installed state (it did not exist before)."""
+    if journal.get("priorInstalledState") is not None:
+        return False
+    backups = journal.get("backups")
+    if not isinstance(backups, list):
+        return False
+    state_path = str(INSTALLED_STATE_REL)
+    saw_state_record = False
+    for record in backups:
+        if not isinstance(record, dict) or record.get("path") != state_path:
+            continue
+        saw_state_record = True
+        if record.get("existed") is not False:
+            return False
+    return saw_state_record
+
+
+def _no_managed_files_remain(target_root: Path) -> bool:
+    """True when ``.ide-development`` has no files and no symlinks at any depth.
+
+    Empty directories are allowed. The directory itself may be absent. A symlink
+    at the managed root, any file, any symlink, or any OSError is not absence.
+    This walks the tree on disk and does not consult the transaction journal.
+    """
+    managed = target_root / MANAGED_CORE_DIR
+    try:
+        try:
+            info = managed.lstat()
+        except FileNotFoundError:
+            return True
+        if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+            return False
+        saw_error = False
+
+        def _onerror(exc: OSError) -> None:
+            nonlocal saw_error
+            saw_error = True
+
+        for dirpath, dirnames, filenames in os.walk(managed, followlinks=False, onerror=_onerror):
+            if saw_error or filenames:
+                return False
+            parent = Path(dirpath)
+            for name in dirnames:
+                child = parent / name
+                try:
+                    if child.is_symlink():
+                        return False
+                except OSError:
+                    return False
+        if saw_error:
+            return False
+    except OSError:
+        return False
+    return True
+
+
 def rollback_last(target_root: Path) -> dict[str, Any]:
     """Restore exact pre-change bytes/modes from the last completed transaction."""
     with exclusive_transaction_lock(target_root):
@@ -785,6 +974,18 @@ def rollback_last(target_root: Path) -> dict[str, Any]:
                 if isinstance(record, dict) and isinstance(record.get("path"), str)
             )
         paths.add(".ide-development/installed-state.json")
+        current_state = load_installed_state(target_root)
+        if current_state is not None:
+            paths.update(
+                rel
+                for rel, file_state in current_state.files.items()
+                if file_state.mutability_policy == READ_ONLY_POLICY
+            )
+        prior_state = journal.get("priorInstalledState")
+        if isinstance(prior_state, dict):
+            files = prior_state.get("files") or {}
+            if isinstance(files, dict):
+                paths.update(str(path) for path in files)
         manifest = join_under_nofollow(target_root, MANIFEST_DEST)
         manifest_digest = journal.get("manifestDigest")
         if not isinstance(manifest_digest, str):
@@ -797,9 +998,21 @@ def rollback_last(target_root: Path) -> dict[str, Any]:
             manifest_digest=manifest_digest,
             transaction_id=f"rollback-{journal.get('transactionId') or uuid.uuid4()}",
             make_writable=False,
-            finalize_read_only=False,
+            finalize_read_only=True,
         ) as lease:
-            return _rollback_last_unlocked(target_root, lease=lease)
+            result = _rollback_last_unlocked(target_root, lease=lease)
+        _restore_unmanaged_modes(target_root, journal)
+        # The read-only proof is vacuously true only when the journal claims a
+        # first install and the managed tree on disk has no files or symlinks
+        # left. Any file that remains, including one the journal never listed,
+        # still fails closed.
+        if not (
+            load_installed_state(target_root) is None
+            and _journal_records_first_install(journal)
+            and _no_managed_files_remain(target_root)
+        ):
+            prove_read_only_state(target_root)
+        return result
 
 
 def _rollback_last_unlocked(
@@ -845,6 +1058,12 @@ def _rollback_last_unlocked(
         _save_installed_state(target_root, state, lease=lease)
     elif not backups:
         pass
+
+    restored = load_installed_state(target_root)
+    if restored is not None:
+        if lease is None:
+            raise ConflictError("Managed rollback requires an active lease")
+        _enforce_managed_read_only(target_root, restored, lease=lease)
 
     marker = {
         "rolledBackAt": utc_now(),

@@ -417,7 +417,6 @@ class VerificationLivenessContractTests(unittest.TestCase):
         wanted = {
             "core/execution/__init__.py",
             "core/execution/lifecycle.py",
-            "core/execution/manifest_persistence.py",
             "core/execution/protocol.py",
             "core/execution/rollout.py",
             "core/execution/scheduler.py",
@@ -426,10 +425,8 @@ class VerificationLivenessContractTests(unittest.TestCase):
             "core/execution/verification_liveness.py",
             "core/managed-core/schemas/verification-run.schema.json",
             "core/managed-core/schemas/verification-liveness.schema.json",
-            "core/managed-core/schemas/manifest-persistence.schema.json",
             "core/managed-core/examples/verification-run.example.json",
             "core/managed-core/content/config/verification-liveness.json",
-            "core/managed-core/content/config/manifest-persistence.json",
             "core/managed-core/content/doctrine/VERIFICATION-LIVENESS.md",
             "core/contracts/VERIFICATION-LIVENESS-CONTRACT.md",
             "core/contracts/VERIFICATION-RUN.schema.json",

@@ -10,13 +10,26 @@ TEMPLATE_DIR="${SYSTEM_ROOT}/core/github/managed-workflows"
 
 MANAGED_FILES=(
   "branch-source-policy.yml"
+  "linktrend-cleanup-merged.yml"
+  "linktrend-promote-main.yml"
+)
+
+# Synced only when the target declares a deploy target; a caller for a
+# reusable workflow without a target would fail every push to main.
+DEPLOY_FILE="linktrend-deploy.yml"
+DEPLOY_TARGET_REL="deploy/target.json"
+
+# v2 workflows retired in v3. Removed only when the file still equals a
+# published v2 rendering for this consumer (scripts/ide_development/retired_workflows.py);
+# a locally edited copy is reported as a conflict and kept.
+RETIRED_FILES=(
+  "linktrend-development-to-staging.yml"
+  "linktrend-integrator-merge.yml"
+  "linktrend-repair-observer.yml"
+  "linktrend-review-gate.yml"
   "linktrend-review-packager.yml"
   "linktrend-review-ready-publisher.yml"
-  "linktrend-development-to-staging.yml"
   "linktrend-staging-to-main.yml"
-  "linktrend-integrator-merge.yml"
-  "linktrend-cleanup-merged.yml"
-  "linktrend-repair-observer.yml"
 )
 
 fail() {
@@ -34,6 +47,10 @@ Usage: $(basename "$0") <repo-path> [--config PATH] [--orchestration-mode MODE] 
 
 Copy managed GitHub workflow templates into <repo-path>/.github/workflows/.
 Never overwrites ci.yml. Idempotent when files already match.
+
+linktrend-deploy.yml is synced only when <repo-path>/deploy/target.json exists.
+Retired v2 workflows are removed only when they still match a published v2
+rendering; a locally modified copy is kept and reported (exit 11).
 
 Workflow templates may contain __LINKTREND_* placeholders. They are rendered
 from <repo-path>/.github/linktrend-gitops-consumer.json unless --config is set.
@@ -142,6 +159,70 @@ info "Orchestration profile: $ORCHESTRATION_MODE"
 
 [ -f "$CONFIG_PATH" ] || fail "Consumer config missing: $CONFIG_PATH (create .github/linktrend-gitops-consumer.json or pass --config)"
 
+removal_conflict() {
+  echo "CONFLICT: $1; no managed workflows were removed" >&2
+}
+
+workflow_directory_is_safe() {
+  local github_dir="${TARGET_REPO}/.github"
+  local workflows_dir="${github_dir}/workflows"
+  local physical_dir=""
+
+  if [ -L "$github_dir" ] || [ -L "$workflows_dir" ]; then
+    removal_conflict ".github or .github/workflows is a symlink"
+    return 1
+  fi
+
+  if [ -d "$workflows_dir" ]; then
+    physical_dir="$(cd -P -- "$workflows_dir" && pwd -P)" || {
+      removal_conflict "unable to resolve the physical .github/workflows path"
+      return 1
+    }
+  else
+    physical_dir="$(cd -P -- "$github_dir" && pwd -P)" || {
+      removal_conflict "unable to resolve the physical .github path"
+      return 1
+    }
+  fi
+
+  case "$physical_dir" in
+    "$TARGET_REPO"|"$TARGET_REPO"/*) return 0 ;;
+    *)
+      removal_conflict "physical workflow path is outside target repository"
+      return 1
+      ;;
+  esac
+}
+
+if ! workflow_directory_is_safe; then
+  info ""
+  info "Managed workflow sync: CONFLICT (unsafe workflow destination; no removals attempted)"
+  info "Target: $TARGET_REPO"
+  exit 11
+fi
+
+removal_file_is_safe() {
+  local dest="$1"
+  local file="$2"
+  local physical_parent=""
+
+  if [ -L "$dest" ]; then
+    echo "CONFLICT: ${file} is a symlink; not removed" >&2
+    return 1
+  fi
+  physical_parent="$(cd -P -- "$(dirname -- "$dest")" && pwd -P)" || {
+    echo "CONFLICT: ${file} physical parent cannot be resolved; not removed" >&2
+    return 1
+  }
+  case "$physical_parent" in
+    "$TARGET_REPO"|"$TARGET_REPO"/*) return 0 ;;
+    *)
+      echo "CONFLICT: ${file} physical path is outside target repository; not removed" >&2
+      return 1
+      ;;
+  esac
+}
+
 # ``fastWorkflowName`` became a receipt-bound contract after early consumers
 # had already received the config file.  Normalize only a missing key to the
 # fixed managed Fast workflow name; never infer or overwrite a repository's
@@ -188,7 +269,6 @@ from pathlib import Path
 config_path = Path(sys.argv[1])
 src = Path(sys.argv[2])
 out = Path(sys.argv[3])
-profile = sys.argv[4]
 
 try:
     cfg = json.loads(config_path.read_text(encoding="utf-8"))
@@ -200,7 +280,6 @@ required = {
     "fastWorkflowName": str,
     "ciWorkflowName": str,
     "branchPolicyWorkflowName": str,
-    "bugbotCheckName": str,
 }
 for key, typ in required.items():
     if key not in cfg:
@@ -252,13 +331,6 @@ rendered = rendered.replace(
     "__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__",
     str(cfg["branchPolicyWorkflowName"]).strip(),
 )
-provider_name = str(cfg.get("bugbotProviderCheckName") or "Cursor Bugbot").strip()
-review_gate_name = str(cfg.get("reviewGateCheckName") or cfg.get("bugbotCheckName") or "Linktrend Review Gate").strip()
-if review_gate_name == "Cursor Bugbot":
-    raise SystemExit("consumer config bugbotCheckName/reviewGateCheckName must not remain Cursor Bugbot")
-rendered = rendered.replace("__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__", provider_name)
-rendered = rendered.replace("__LINKTREND_REVIEW_GATE_CHECK_NAME__", review_gate_name)
-rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", review_gate_name)  # legacy alias -> managed gate
 rendered = rendered.replace(
     "__LINKTREND_UNTRUSTED_RUNS_ON__", runner_types[runner_type]["untrusted"]
 )
@@ -266,70 +338,6 @@ rendered = rendered.replace("__LINKTREND_RUNS_ON__", runner_types[runner_type]["
 if "__LINKTREND_" in rendered:
     raise SystemExit(f"unrendered __LINKTREND_ placeholder remains in {src}")
 
-
-def remove_event_blocks(value: str, prohibited: set[str]) -> str:
-    """Remove event mappings without YAML parsing ``on`` as a boolean."""
-    lines = value.splitlines(keepends=True)
-    output: list[str] = []
-    index = 0
-    while index < len(lines):
-        if lines[index].rstrip("\r\n") != "on:":
-            output.append(lines[index])
-            index += 1
-            continue
-        output.append(lines[index])
-        index += 1
-        while index < len(lines):
-            line = lines[index]
-            if line.strip() and not line.startswith(" "):
-                break
-            match = re.match(r"^  ([A-Za-z0-9_-]+):", line)
-            if not match:
-                output.append(line)
-                index += 1
-                continue
-            event = match.group(1)
-            block: list[str] = [line]
-            index += 1
-            while index < len(lines):
-                candidate = lines[index]
-                if candidate.strip() and not candidate.startswith(" "):
-                    break
-                if re.match(r"^  [A-Za-z0-9_-]+:", candidate):
-                    break
-                block.append(candidate)
-                index += 1
-            if event not in prohibited:
-                output.extend(block)
-    return "".join(output)
-
-
-if profile == "local-coordinator" and src.name in {
-    "linktrend-review-packager.yml",
-    "linktrend-integrator-merge.yml",
-    "linktrend-repair-observer.yml",
-    "linktrend-development-to-staging.yml",
-    "linktrend-staging-to-main.yml",
-}:
-    rendered = remove_event_blocks(
-        rendered, {"schedule", "check_run", "workflow_run", "pull_request_target"}
-    )
-    if src.name == "linktrend-repair-observer.yml" and "\n  workflow_dispatch:" not in rendered:
-        rendered = rendered.replace("on:\n", "on:\n  workflow_dispatch:\n", 1)
-        rendered = rendered.replace(
-            "    if: >\n      (\n",
-            "    if: >\n      github.event_name == 'workflow_dispatch' ||\n      (\n",
-            1,
-        )
-    rendered = (
-        "# Orchestration profile: local-coordinator\n"
-        "# Automatic schedule/check-run/workflow-run/pull-request-target wakes are disabled.\n"
-        "# Manual recovery remains available; the local coordinator publishes these frozen contexts:\n"
-        "# Linktrend Fast Gate | Linktrend Full Suite | Linktrend Phase Ready\n"
-        "# Linktrend Staging Gate | Linktrend Release Gate | Linktrend Coordinator\n"
-        "# Cursor Bugbot remains the provider observation name; required context is Linktrend Review Gate.\n"
-        + rendered
-    )
 out.write_text(rendered, encoding="utf-8")
 PY
 }
@@ -337,7 +345,15 @@ PY
 copied=0
 unchanged=0
 
-for file in "${MANAGED_FILES[@]}"; do
+SYNC_FILES=("${MANAGED_FILES[@]}")
+if [ -f "${TARGET_REPO}/${DEPLOY_TARGET_REL}" ]; then
+  info "Deploy target: ${DEPLOY_TARGET_REL} present; syncing ${DEPLOY_FILE}"
+  SYNC_FILES+=("${DEPLOY_FILE}")
+else
+  info "Deploy target: ${DEPLOY_TARGET_REL} absent; ${DEPLOY_FILE} not synced"
+fi
+
+for file in "${SYNC_FILES[@]}"; do
   src="${TEMPLATE_DIR}/${file}"
   dest="${DEST_DIR}/${file}"
   rendered="${TMP_DIR}/${file}"
@@ -364,16 +380,61 @@ for file in "${MANAGED_FILES[@]}"; do
     continue
   fi
 
+  restore_mode=""
+  if [ -f "$dest" ] && [ ! -w "$dest" ]; then
+    restore_mode="$(stat -c '%a' "$dest" 2>/dev/null || stat -f '%OLp' "$dest")"
+    chmod u+w "$dest" || fail "Unable to grant write for read-only managed workflow: $file"
+  fi
   cp "$rendered" "$dest"
+  if [ -n "$restore_mode" ]; then
+    chmod "$restore_mode" "$dest" || fail "Unable to restore read-only mode for $file"
+  fi
   info "PASS: synced $file"
   copied=$((copied + 1))
 done
+
+deploy_conflict=0
+deploy_dest="${DEST_DIR}/${DEPLOY_FILE}"
+if [ ! -f "${TARGET_REPO}/${DEPLOY_TARGET_REL}" ] && [ -f "$deploy_dest" ]; then
+  if ! removal_file_is_safe "$deploy_dest" "$DEPLOY_FILE"; then
+    deploy_conflict=1
+  elif cmp -s "${TEMPLATE_DIR}/${DEPLOY_FILE}" "$deploy_dest"; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+      info "DRY-RUN: would remove ${DEPLOY_FILE} (no ${DEPLOY_TARGET_REL})"
+    else
+      rm -f "$deploy_dest"
+      info "PASS: removed ${DEPLOY_FILE} (no ${DEPLOY_TARGET_REL})"
+    fi
+  else
+    echo "CONFLICT: ${DEPLOY_FILE} is locally modified but ${DEPLOY_TARGET_REL} is absent; not removed" >&2
+    deploy_conflict=1
+  fi
+fi
+
+retired_args=(--target "$TARGET_REPO" --package "$SYSTEM_ROOT")
+if [ "$DRY_RUN" -eq 1 ]; then
+  retired_args+=(--dry-run)
+fi
+retired_status=0
+python3 "${SYSTEM_ROOT}/scripts/ide_development/retired_workflows.py" "${retired_args[@]}" || retired_status=$?
+case "$retired_status" in
+  0) ;;
+  11) ;;
+  *) fail "retired workflow check failed (exit ${retired_status})" ;;
+esac
+
+if [ "$retired_status" -eq 11 ] || [ "$deploy_conflict" -eq 1 ]; then
+  info ""
+  info "Managed workflow sync: CONFLICT (managed files synced; modified retired files kept)"
+  info "Target: $TARGET_REPO"
+  exit 11
+fi
 
 info ""
 info "Managed workflow sync: SUCCESS"
 info "Target: $TARGET_REPO"
 info "Synced/updated: $copied"
 info "Already matched: $unchanged"
-info "Next: complete core/checklists/BUGBOT-INHERITANCE.md for this repo"
-info "Next: ensure Cursor Automations exist (docs/CURSOR-AUTOMATIONS-SETUP.md)"
+info "Next: follow docs/runbooks/hosted-delivery-operations.md for verified Phase delivery, exact-head evidence, and receipt reuse"
+info "Next: use the designated project orchestrator under Eric and its verified IDE route"
 exit 0

@@ -1,0 +1,22 @@
+{
+  "adapter": {
+    "name": "local-actor",
+    "version_range": ">=0.1.0"
+  },
+  "certification": {
+    "refusal_reason": "Canonical artifacts stamped via shared hashing; live certification not claimed",
+    "status": "uncertified"
+  },
+  "eval_suite_hash": "sha256:28f874b52792098866c8df1c23f0013fc73ed98c6f08ebb0cca3949960e8abf5",
+  "eval_suite_id": "git-safeguard-eval",
+  "execution_profile_id": "git-safeguard-cursor-macos-draft",
+  "lifecycle_state": "draft",
+  "model_capability_tier": "balanced",
+  "profile_hash": "sha256:dc2cc37df1f3da6e86f57d5a3230c7e773ed41894e7993f5d52368db6415565e",
+  "runtime_profile_id": "cursor-macos",
+  "schema_version": "0.1",
+  "skill_bundle_hash": "sha256:07d12914d4edab28c3fdd5ed5d33a8eb6f84f3d21e722722a78180a7c8d0a9bb",
+  "skill_id": "git-safeguard",
+  "skill_version": "1.1.0",
+  "toolchain": []
+}

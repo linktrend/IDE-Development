@@ -1,45 +1,39 @@
 ---
-description: LiNKtrend managed bootstrap for installed consumer repos (Ship/Packager/completion/repair).
+description: LiNKtrend v3 orchestrator delivery for workers and the orchestrator.
 alwaysApply: true
 ---
 
-# LiNKtrend managed bootstrap (v2)
+# LiNKtrend managed bootstrap (v3)
 
-Installed managed core: `.ide-development/`.
+## Session entrypoints
 
-## Ship checkpoint
+- New session: follow agentsetup. Already-open or wrong branch: follow agentcomply.
+- Work IDs are Ledger IDs (`<PREFIX>-<n>`, for example `IDE-33`). The branch is `issue/<PREFIX>-<n>-<slug>`, given by the orchestrator; `scripts/gitops/create_issue_branch.py` is the branch helper. Never ask a human for an ID or slug.
 
-- Ship waves are **checkpoint only**: commit + push the work branch.
-- Do **not** open a PR. The Phase Packager/Coordinator (`scripts/gitops/packager_coordinator.py`) opens the Phase PR. Retained `packager_discover.py` is not that component.
-- Do **not** request Bugbot from the implementer session.
-- Do **not** mark review-ready unless the issue is actually finished and evidence exists.
+## Lifecycle
 
-## Packager opens PR
+1. A worker commits and pushes its `issue/*` checkpoint. Issue branches do not open PRs or start GitHub CI; workers run local focused checks.
+2. The orchestrator combines accepted checkpoints on one `phase/*` branch and opens one Phase PR into `development` (`scripts/orchestrator/package.py`).
+3. That Phase PR gets one combined CI run (`Linktrend Fast Checks`, `Verify IDE Development`, and platform matrix only when its path classifier applies) plus one independent exact-head review (`scripts/orchestrator/merge_check.py`). Merge only when all applicable evidence covers the same Phase head and the development merge preserves its tree.
+4. The orchestrator promotes through a temporary `promote/main/*` pull request into `main` (`scripts/orchestrator/promote_main.py`, checked by `Linktrend Main Receipt Gate`). The gate reuses the matching Phase Verify inventory; it does not rerun Full.
+5. After `main`, deploy is automatic (`Linktrend Deploy`, when the repo declares `deploy/target.json`).
 
-- Draft PRs into `development` are opened by the **Phase Packager/Coordinator** (`scripts/gitops/packager_coordinator.py`), not by implementers. Retained `packager_discover.py` is not that component.
-- The **delivery controller** (`scripts/gitops/delivery_controller.py`) merges only when named gates + Linktrend Review Gate succeed on the exact reviewed SHA. Review Ready does not itself trigger a merge.
+Long-lived branches are `development` and `main` only.
 
-## Completion gate
+## Workers
 
-- Use `python3 scripts/gitops/completion_gate.py` for checkpoint / review-ready / blocked / status / write-evidence.
-- Finished work must run appropriate tests/checks and auto-repair ordinary failures with at most **3** bounded repair cycles.
-- Write machine-readable evidence with `python3 scripts/gitops/completion_gate.py write-evidence`, tied to the exact `HEAD` SHA.
-- Call `python3 scripts/gitops/completion_gate.py review-ready` only after validation succeeds. It is fail-closed and authoritative for completion.
-- Production publish **and withdraw** of **Linktrend Review Ready** is the trusted default-branch publisher with built-in `github.token` forwarded as documented `AUTOMATION_TOKEN` (`GH_TOKEN` / `GITHUB_TOKEN` aliases; `AUTOMATION_TOKEN` precedes). When local privileged credentials are unavailable, follow the gate's normal-token route diagnostics and dispatch `linktrend-review-ready-publisher` for this repo's exact `issue/<n>-<slug>` branch or configured `phase/<slug>` tip and immutable SHA (`action=publish` or `action=withdraw`), forwarding `AUTOMATION_TOKEN` without logging it. Never fall back to a user token or ordinary `GITHUB_TOKEN` outside that trusted context. Legacy allowlist branches (`feature/`, `dev/`, …) are not publisher-eligible: migrate to `issue/<n>-<slug>` via `create_issue_branch.py` / `/agentcomply` — the gate fails closed with that remediation and must not invent a doomed dispatch command.
-- Do not call `mark-review-ready.sh` as a pre-gate publisher. It is only a compatibility wrapper that requires evidence and delegates to the gate. `clear-review-ready.sh` fails closed without normal automation credentials and prints the normal-token withdraw route.
-- Do **not** create or use `.linktrend/review-ready.json` (commit status only).
-- If validation or repair cannot complete, call `python3 scripts/gitops/completion_gate.py blocked`.
-  - `.linktrend/completion-blocker.json` is only a **local cache**.
-  - The durable record is the GitHub repair issue (when authenticated repo resolution succeeds).
-  - If the command reports `durableRecord=false`, do **not** claim the blocker was durably registered.
+- Commit small and push often. Never open pull requests.
+- Run the local fast profile before handoff: `python3 scripts/gitops/run_delivery_profile.py fast`. GitHub CI runs once on the combined Phase PR, not on each Issue.
+- Consumer workflow names come from `.github/linktrend-gitops-consumer.json`.
+- End with a lessons note.
 
-## Repair control
+## Orchestrator
 
-- Durable failures are recorded by `scripts/gitops/repair_task.py` (GitHub Issues / file backend).
-- Max **3** ordinary repair attempts (`dispatch-attempt`); then `resolutionState=Issues`.
-- Immediate types (`automation_credentials_blocked`, `usage_limit`, `immediate_*`) → `do_not_dispatch`.
-- GitHub never spawns Cursor. Lisa ACP Repair Dispatcher owns dispatch.
+- Repair ladder: Luna/Grok ×3, then Sol/Opus ×1, then the other of Sol/Opus ×1, then flag Carlos. Recorded with `scripts/orchestrator/runlog.py` and watched by `scripts/orchestrator/watchdog.py`.
+- Cheap-helper rule: keep planning, judgement reviews, decisions and talking to Carlos on the frontier model; hand routine lookups, summaries and mechanical checks to a cheap helper subagent.
 
-## Conflict policy
+## Hard stops
 
-- **No prefer-incoming** merges on conflicts. Repair the named branch / promote candidate deliberately.
+- No self-review.
+- No prefer-incoming.
+- Never bypass branch protection.

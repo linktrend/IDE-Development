@@ -12,20 +12,32 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__ as installer_version
-from .constants import EXIT_CONFLICT, EXIT_DRIFT, EXIT_OK, MANAGED_CORE_DIR
+from .constants import (
+    EXIT_CONFLICT,
+    EXIT_DRIFT,
+    EXIT_OK,
+    MANAGED_CORE_DIR,
+    SAME_VERSION_REPAIR_VERSION,
+)
 from .errors import InstallerError, InvalidPackageError, RollbackError
-from .manifest import Manifest, load_manifest, load_migration_catalog
-from .paths import require_git_repo, resolve_dir, same_path
-from .plan import Plan, build_drift_report, build_plan, meaningful_drift
+from .manifest import Manifest, MigrationCatalog, load_manifest, load_migration_catalog
+from .paths import join_under_nofollow_checked, require_git_repo, resolve_dir, same_path
+from .plan import OpKind, Plan, PlanAction, build_drift_report, build_plan, meaningful_drift
 from .state import load_installed_state
 from .transaction import apply_plan, current_tx_dir, read_journal, recover_interrupted, rollback_last
 from .io_atomic import atomic_write_bytes
 from .hashing import sha256_file
 from .managed_write_guard import export_candidate
 from .resolution import UpgradeResolution, load_and_validate_resolution
+from .retired_workflows import with_retired_workflows
+from .same_version_repair import (
+    OPERATION_ADD,
+    load_and_validate_same_version_repair,
+)
 from .openclaw_customization_admission import (
     BOUNDARY_REL,
     admit_openclaw_customization,
+    _target_identity,
 )
 
 
@@ -84,7 +96,7 @@ def _normalize_consumer_workflow_contract(target_root: Path, *, mutate: bool) ->
     declaration. Explicit blank/wrong values and any missing/blank CI
     declaration fail closed before managed workflows are installed or updated.
     """
-    path = target_root / CONSUMER_CONFIG
+    path = join_under_nofollow_checked(target_root, CONSUMER_CONFIG)
     if not path.is_file():
         return False
     try:
@@ -116,6 +128,11 @@ def _normalize_consumer_workflow_contract(target_root: Path, *, mutate: bool) ->
     if mutate and changed:
         atomic_write_bytes(path, (json.dumps(config, indent=2) + "\n").encode("utf-8"), mode="0644")
     return changed
+
+
+def _migration_catalog(package_root: Path, target_root: Path) -> MigrationCatalog:
+    """Package catalog plus this consumer's retired v2 root-workflow identities."""
+    return with_retired_workflows(load_migration_catalog(package_root), package_root, target_root)
 
 
 class EngineResult:
@@ -177,7 +194,11 @@ def _validate_package_identity(manifest: Manifest, prior: Any | None) -> str:
     digest = sha256_file(manifest.path)
     if prior is None or prior.package_version != manifest.package_version:
         return digest
-    if prior.manifest_hash is not None and prior.manifest_hash != digest:
+    if prior.manifest_hash is None:
+        raise InvalidPackageError(
+            "Installed-state manifestHash is missing; use an exact same-version repair"
+        )
+    if prior.manifest_hash != digest:
         raise InvalidPackageError(
             "Managed package version collision: manifest bytes changed for an installed version",
             details={
@@ -278,7 +299,13 @@ def _load_secret_scan_module(package_root: Path):
     return module
 
 
-def _openclaw_admission(package_root: Path, target_root: Path) -> dict[str, Any] | None:
+def _openclaw_admission(
+    package_root: Path,
+    target_root: Path,
+    *,
+    pre_install_baseline: dict[str, Any] | None = None,
+    capture_baseline: bool = True,
+) -> dict[str, Any] | None:
     """Run scoped admission when the target exposes the OpenClaw boundary."""
     boundary = target_root / BOUNDARY_REL
     if not boundary.exists():
@@ -286,13 +313,21 @@ def _openclaw_admission(package_root: Path, target_root: Path) -> dict[str, Any]
     scanner_module = _load_secret_scan_module(package_root)
 
     def scanner(paths: list[str]) -> dict[str, Any]:
-        return scanner_module.scan_repository(target_root, paths=paths)
+        result = dict(scanner_module.scan_repository(target_root, paths=paths))
+        identity = _target_identity(target_root)
+        if not isinstance(result.get("candidateCommit"), str):
+            result["candidateCommit"] = identity["commit"]
+        if not isinstance(result.get("candidateGitTree"), str):
+            result["candidateGitTree"] = identity["tree"]
+        return result
 
     return admit_openclaw_customization(
         consumer_root=target_root,
         package_root=package_root,
         boundary_path=boundary,
         scanner=scanner,
+        pre_install_baseline=pre_install_baseline,
+        capture_baseline=capture_baseline,
     )
 
 
@@ -341,7 +376,11 @@ def _resolve_authorized_upgrade(
 
 
 def _post_install_verification(
-    *, target_root: Path, package_root: Path, resolution: UpgradeResolution | None
+    *,
+    target_root: Path,
+    package_root: Path,
+    resolution: UpgradeResolution | None,
+    openclaw_admission: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Verify the applied package before its transaction is committed."""
     verify = run_verify(target=target_root, package=package_root)
@@ -355,6 +394,14 @@ def _post_install_verification(
     scan_exit = scan.get("exitCode")
     scan_mode = scan["mode"]
     scan_error_type = scan.get("errorType")
+    customization_admission = None
+    if openclaw_admission is not None:
+        customization_admission = _openclaw_admission(
+            package_root,
+            target_root,
+            pre_install_baseline=openclaw_admission["preInstallBaseline"],
+            capture_baseline=False,
+        )
     receipt_ok = resolution is not None and resolution.verification.get("providerReceipt") and resolution.verification.get("providerTreeRequired") is True and resolution.verification.get("consumerTreeRequired") is True and resolution.verification.get("noUpstreamScanOrMutation") is True
     result = {
         "manifest": "pass" if manifest_ok else "fail",
@@ -362,6 +409,7 @@ def _post_install_verification(
         "closure": "pass" if verify.exit_code == EXIT_OK else "fail",
         "selfScan": "pass" if scan_ok else "fail",
         "cleanroom": "receipt-bound-pass" if receipt_ok else "fail",
+        "customizationAdmission": "pass" if customization_admission is not None else "not-applicable",
         "verifyExitCode": verify.exit_code,
         "selfScanMode": scan_mode,
     }
@@ -369,8 +417,13 @@ def _post_install_verification(
         result["selfScanExitCode"] = scan_exit
     if scan_error_type is not None:
         result["selfScanErrorType"] = scan_error_type
-    if not all(result[key] in {"pass", "receipt-bound-pass"} for key in ("manifest", "managedHashes", "closure", "selfScan", "cleanroom")):
+    required = ("manifest", "managedHashes", "closure", "selfScan", "cleanroom")
+    if customization_admission is not None:
+        required += ("customizationAdmission",)
+    if not all(result[key] in {"pass", "receipt-bound-pass"} for key in required):
         raise InvalidPackageError("Post-install managed upgrade verification failed", details=result)
+    if customization_admission is not None:
+        result["openclawAdmission"] = customization_admission
     return result
 
 
@@ -428,7 +481,7 @@ def run_plan(
     openclaw_admission = _openclaw_admission(package_root, target_root)
     recovery = _maybe_recover(target_root, mutate=False)
     manifest = load_manifest(package_root)
-    migration = load_migration_catalog(package_root)
+    migration = _migration_catalog(package_root, target_root)
     prior = load_installed_state(target_root)
 
     # Planning is deliberately non-mutating.  Report whether an older
@@ -488,7 +541,7 @@ def run_install_or_update(
     openclaw_admission = _openclaw_admission(package_root, target_root)
     recovery = _maybe_recover(target_root, mutate=not dry_run)
     manifest = load_manifest(package_root)
-    migration = load_migration_catalog(package_root)
+    migration = _migration_catalog(package_root, target_root)
 
     prior = load_installed_state(target_root)
     package_manifest_digest = _validate_package_identity(manifest, prior)
@@ -572,15 +625,119 @@ def run_install_or_update(
         resolution=resolution,
         post_apply_check=(
             lambda: _post_install_verification(
-                target_root=target_root, package_root=package_root, resolution=resolution
+                target_root=target_root,
+                package_root=package_root,
+                resolution=resolution,
+                openclaw_admission=openclaw_admission,
             )
-            if resolution is not None
+            if resolution is not None or openclaw_admission is not None
             else {}
         ),
     )
     payload["applied"] = True
     payload["transaction"] = result
     payload["postInstallVerification"] = result.get("postInstallVerification")
+    return EngineResult(exit_code=EXIT_OK, payload=payload)
+
+
+def run_same_version_repair(
+    *,
+    target: Path,
+    package: Path | None = None,
+    repair_manifest: Path | None = None,
+    dry_run: bool = False,
+) -> EngineResult:
+    """Apply only an explicit v2.5.2 source-identity repair.
+
+    This path intentionally does not fall through to install/update planning:
+    a same-version manifest collision is repaired only for the exact managed
+    files named by the signed-by-content receipt.  ``apply_plan`` supplies the
+    ordinary transaction lock, backup journal, rollback, and managed write
+    lease.
+    """
+    if repair_manifest is None:
+        raise InvalidPackageError("same-version repair requires --repair-manifest")
+    package_root, target_root = _prepare(target=target, package=package)
+    manifest = load_manifest(package_root)
+    prior = load_installed_state(target_root)
+    repair = load_and_validate_same_version_repair(
+        repair_manifest,
+        target_root=target_root,
+        package_root=package_root,
+        manifest=manifest,
+        prior=prior,
+    )
+    openclaw_admission = _openclaw_admission(package_root, target_root)
+
+    actions = [
+        PlanAction(
+            op=(
+                OpKind.NOOP
+                if item.noop
+                else OpKind.CREATE
+                if item.operation == OPERATION_ADD
+                else OpKind.REPLACE
+            ),
+            path=item.path,
+            entry_id=next(
+                entry.id for entry in manifest.active_entries() if entry.destination == item.path
+            ),
+            reason="explicit same-version exact-source repair",
+            source_hash=item.source_digest,
+            classification="same_version_source_repair",
+        )
+        for item in repair.paths
+    ]
+    # The manifest is itself a managed destination and must move with the
+    # source identity; installed-state is maintained by the transaction.
+    actions.append(
+        PlanAction(
+            op=OpKind.REPLACE,
+            path=f"{MANAGED_CORE_DIR}/MANIFEST.json",
+            entry_id="package-manifest",
+            reason="record repaired package manifest identity",
+            source_hash=repair.manifest_digest,
+            classification="same_version_source_repair",
+        )
+    )
+    plan = Plan(
+        command="repair",
+        package_version=SAME_VERSION_REPAIR_VERSION,
+        target=str(target_root),
+        dry_run=dry_run,
+        actions=actions,
+    )
+    payload = plan.to_dict()
+    payload.update(
+        {
+            "command": "repair",
+            "installerVersion": installer_version,
+            "sourceIdentity": {
+                "repository": repair.source_repository,
+                "ref": repair.source_ref,
+                "commit": repair.source_commit,
+                "tree": repair.source_tree,
+                "manifestDigest": repair.manifest_digest,
+            },
+            "installedManifestDigest": repair.installed_manifest_digest,
+            "repairManifest": str(repair.receipt_path),
+            "repairManifestDigest": repair.receipt_digest,
+            "openclawAdmission": openclaw_admission,
+        }
+    )
+    if dry_run:
+        payload["applied"] = False
+        return EngineResult(exit_code=EXIT_OK, payload=payload)
+
+    result = apply_plan(
+        target_root=target_root,
+        package_root=package_root,
+        manifest=manifest,
+        plan=plan,
+        prior=prior,
+    )
+    payload["applied"] = True
+    payload["transaction"] = result
     return EngineResult(exit_code=EXIT_OK, payload=payload)
 
 
@@ -592,7 +749,7 @@ def run_drift(
     package_root, target_root = _prepare(target=target, package=package)
     recovery = _maybe_recover(target_root, mutate=False)
     manifest = load_manifest(package_root)
-    migration = load_migration_catalog(package_root)
+    migration = _migration_catalog(package_root, target_root)
     prior = load_installed_state(target_root)
     items = build_drift_report(
         package_root=package_root,
@@ -627,7 +784,7 @@ def run_verify(
     package_root, target_root = _prepare(target=target, package=package)
     recovery = _maybe_recover(target_root, mutate=False)
     manifest = load_manifest(package_root)
-    migration = load_migration_catalog(package_root)
+    migration = _migration_catalog(package_root, target_root)
     prior = load_installed_state(target_root)
     plan = build_plan(
         command="verify",
@@ -679,7 +836,7 @@ def run_version(
         "schemaVersion": 1,
         "command": "version",
         "installerVersion": installer_version,
-        "packageRoot": str(package_root),
+        "packageDir": str(package_root),
     }
     try:
         manifest = load_manifest(package_root)

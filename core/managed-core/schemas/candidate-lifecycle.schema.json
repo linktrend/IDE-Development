@@ -47,7 +47,7 @@
           "type": "string",
           "enum": [
             "sealed-candidate", "fast-checking", "full-checking", "review-checking",
-            "review-complete", "development-eligible", "staging-eligible", "main-eligible",
+            "review-complete", "development-eligible", "main-eligible",
             "infrastructure-retry", "superseded", "code-failed", "stopped-alert", "cancelled"
           ]
         },
@@ -69,7 +69,7 @@
       "enum": [
         "checkpointed", "integrating", "draft-phase-pr", "sealed-candidate",
         "fast-checking", "full-checking", "review-checking", "review-complete", "code-failed",
-        "development-eligible", "staging-eligible", "main-eligible",
+        "development-eligible", "main-eligible",
         "infrastructure-retry", "stopped-alert"
       ]
     },

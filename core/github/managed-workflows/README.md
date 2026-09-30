@@ -10,14 +10,25 @@ Templates synced into consumer repos (and IDE Development itself) by:
 
 | File | Purpose |
 |---|---|
-| `branch-source-policy.yml` | Allowed work branches into development; `promote/*` into staging/main |
-| `linktrend-review-packager.yml` | Discover (Tue/Fri 08:00) + evaluate (`workflow_run` CI / external `check_run` / explicit dispatch) |
-| `linktrend-review-ready-publisher.yml` | Legacy `Linktrend Review Ready` publisher/withdrawer. **v2.5:** non-canonical; outcomes are `WAIVED_LEGACY_GATE`, never PASS, and never Issue-checkpoint or Phase-delivery proof |
-| `linktrend-development-to-staging.yml` | Build (Tue/Fri 10:00) + exact-candidate reevaluate |
-| `linktrend-staging-to-main.yml` | Package / approve-merge (bound SHAs) / observe |
-| `linktrend-integrator-merge.yml` | Merge to development when fast-gate + Bugbot + reviewed SHA |
+| `branch-source-policy.yml` | Allowed work branches into development; only `promote/main/*` into main |
 | `linktrend-cleanup-merged.yml` | Explicit manual remote cleanup of merged/abandoned branches (no local worktrees) |
-| `linktrend-repair-observer.yml` | Bounded repair evidence observer using the scoped built-in workflow token |
+| `linktrend-promote-main.yml` | v3 `main` promotion check, published as the unique `Linktrend Main Receipt Gate` context to avoid collision with the old staging workflow: a `promote/main/*` head must match a development merge tree whose exact Phase PR head has a reusable Full inventory (`scripts/orchestrator/promotion_check.py`; runbook `docs/runbooks/orchestrator-delivery.md`) |
+
+## Synced only with a deploy target
+
+| File | Purpose |
+|---|---|
+| `linktrend-deploy.yml` | `Linktrend Deploy`: on push to `main` (and manual dispatch) calls `linktrend/LiNKops/.github/workflows/deploy.yml@v1` with `target-file: deploy/target.json`, `sha: ${{ github.sha }}` and the explicit `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET` secrets; `contents: read` only. Synced only when the target repo has `deploy/target.json`, and removed (if unmodified) when that file goes away. Interface: `docs/contracts/DEPLOY-CALLER.md` |
+
+IDE Development itself declares no deploy target and has no live copy.
+
+## Retired in v3
+
+All other v2 workflow templates were retired in v3 (IDE-22); the orchestrator (`scripts/orchestrator/`) now packages, merges and promotes. The sync removes these v2 copies from a consumer's `.github/workflows/` only while they still equal a published v2 rendering for that consumer (`scripts/ide_development/retired_workflows.py`, known bytes under `core/managed-core/migrations/known-bytes/retired-workflow-*`); a locally edited copy is kept and reported as a conflict (exit 11). `ide-development.py update` applies the same hash-guarded removal inside its transaction, so `rollback` restores them.
+
+`linktrend-development-to-staging.yml`, `linktrend-integrator-merge.yml`, `linktrend-repair-observer.yml`, `linktrend-review-gate.yml`, `linktrend-review-packager.yml`, `linktrend-review-ready-publisher.yml`, `linktrend-staging-to-main.yml`. After removal, branch protection must stop requiring their check contexts (`docs/runbooks/v3-upgrade.md`).
+
+`linktrend-promote-main.yml` runs `scripts/orchestrator/promotion_check.py` from the target repo's `development` branch and validates the exact Phase Verify run's Full inventory; a consumer needs both before it relies on this check.
 
 ## Trust boundary (all privileged workflows)
 
@@ -30,8 +41,7 @@ Templates synced into consumer repos (and IDE Development itself) by:
 
 ## Contracts
 
-- `core/github/CI-GATE-CONTRACTS.md` (includes consumer `workflow_run` name mapping)
-- `core/github/REVIEW-READY.md` (commit status, not a file in the diff)
+- `core/github/CI-GATE-CONTRACTS.md` (v3 jobs, required check names, local fast command, and the `main` promotion check)
 - `docs/contracts/BUGBOT-MENTION-ONLY.md`
 - `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`
 

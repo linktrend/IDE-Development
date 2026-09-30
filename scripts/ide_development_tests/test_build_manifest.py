@@ -28,6 +28,24 @@ class BuildManifestPackagingTests(unittest.TestCase):
         missing = REQUIRED_DOCTRINE - names
         self.assertFalse(missing, f"CONTENT_DOCTRINE missing: {sorted(missing)}")
 
+    def test_only_kept_v3_workflow_templates_are_packaged(self) -> None:
+        destinations = {row["destination"] for row in bm.build_manifest_object()["files"]}
+        workflows = {
+            dest.rsplit("/", 1)[-1]
+            for dest in destinations
+            if dest.startswith(".ide-development/workflows/")
+        }
+        self.assertEqual(
+            workflows,
+            {
+                "branch-source-policy.yml",
+                "linktrend-cleanup-merged.yml",
+                "linktrend-deploy.yml",
+                "linktrend-promote-main.yml",
+            },
+        )
+        self.assertFalse(any(dest.startswith(".github/workflows/") for dest in destinations))
+
     def test_content_doctrine_sources_exist(self) -> None:
         for src_rel, dest_rel in bm.CONTENT_DOCTRINE:
             self.assertTrue((bm.REPO_ROOT / src_rel).is_file(), src_rel)
@@ -44,9 +62,9 @@ class BuildManifestPackagingTests(unittest.TestCase):
         path = bm.MANIFEST_PATH
         self.assertTrue(path.is_file())
         data = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(data.get("packageVersion"), "2.5.2")
+        self.assertEqual(data.get("packageVersion"), "3.0.0")
         managed = bm.VERSION_PATH.read_text(encoding="utf-8").strip().lstrip("v")
-        self.assertEqual(managed, "2.5.2")
+        self.assertEqual(managed, "3.0.0")
 
     def test_required_cursor_materialization_sources_are_packaged(self) -> None:
         manifest = bm.build_manifest_object()
@@ -156,7 +174,7 @@ class BuildManifestPackagingTests(unittest.TestCase):
         self.assertEqual(config["compute"]["runner"], "ubuntu-24.04-arm")
         self.assertFalse(config["compute"]["checkpointCI"])
         expected = [
-            ["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/gate_receipt.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py", "scripts/gitops/receipt_seal.py"],
+            ["python3", "-m", "py_compile", "scripts/gitops/run_delivery_profile.py", "scripts/gitops/secret_scan.py", "scripts/gitops/repository_ci_contract.py"],
             ["python3", "scripts/gitops/secret_scan.py"],
         ]
         self.assertEqual(config["profiles"]["fast"]["commands"], expected)
@@ -170,12 +188,10 @@ class BuildManifestPackagingTests(unittest.TestCase):
             "core/managed-core/migrations/external-cleanup-plan.json", sources
         )
         self.assertNotIn("scripts/gitops/resolve_automation_token.sh", sources)
-        self.assertIn("scripts/gitops/packager_coordinator.py", sources)
         self.assertIn("scripts/gitops/independent_review_convergence.py", sources)
         self.assertIn("scripts/gitops/secret_scan.py", sources)
         self.assertIn("scripts/gitops/secret_scan_migrate.py", sources)
         self.assertIn("scripts/gitops/repository_ci_contract.py", sources)
-        self.assertNotIn("scripts/gitops/packager_discover.py", sources)
 
         forbidden = (
             "openclaw_prime",
@@ -224,18 +240,14 @@ class BuildManifestPackagingTests(unittest.TestCase):
             },
         )
 
-    def test_pkt08_closure_and_persistence_contracts_are_packaged(self) -> None:
+    def test_pkt08_closure_contracts_are_packaged(self) -> None:
         manifest = bm.build_manifest_object()
         sources = {row["source"] for row in manifest["files"]}
         for rel in (
             "core/managed-core/content/config/generated-output-closure.consumer.json",
-            "core/managed-core/content/config/manifest-persistence.json",
             "core/managed-core/schemas/generated-output-closure.schema.json",
-            "core/managed-core/schemas/manifest-persistence.schema.json",
-            "core/execution/manifest_persistence.py",
             "scripts/gitops/generated_output_closure.py",
             "scripts/tests/test_generated_output_closure.py",
-            "scripts/tests/test_manifest_persistence_recovery.py",
             ".githooks/pre-push",
             "scripts/install-git-hooks.sh",
         ):
@@ -267,40 +279,6 @@ class BuildManifestPackagingTests(unittest.TestCase):
                 "build_manifest.py" in part
                 for row in consumer_closure["outputs"]
                 for part in row["generator"]
-            )
-        )
-
-    def test_pkt08_persistence_adversarial_runtime_is_in_managed_package(self) -> None:
-        manifest = bm.build_manifest_object()
-        rows = [
-            row
-            for row in manifest["files"]
-            if isinstance(row.get("source"), str)
-        ]
-        runtime = next(
-            row
-            for row in rows
-            if row["source"] == "core/execution/manifest_persistence.py"
-            and row["destination"] == ".ide-development/execution/manifest_persistence.py"
-        )
-        self.assertEqual(
-            runtime["destination"],
-            ".ide-development/execution/manifest_persistence.py",
-        )
-        self.assertEqual(
-            runtime["sourceHash"],
-            bm._hash_rel("core/execution/manifest_persistence.py"),
-        )
-        source = (bm.REPO_ROOT / "core/execution/manifest_persistence.py").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("MANIFEST_PERSISTENCE_FAILURE", source)
-        self.assertIn("_validate_transition_event", source)
-        self.assertTrue(
-            any(
-                row["source"] == "scripts/tests/test_manifest_persistence_recovery.py"
-                and row["destination"] == ".ide-development/tests/test_manifest_persistence_recovery.py"
-                for row in rows
             )
         )
 
@@ -339,19 +317,14 @@ class BuildManifestPackagingTests(unittest.TestCase):
         manifest = bm.build_manifest_object()
         sources = {row["source"] for row in manifest["files"]}
         for rel in (
-            "core/managed-core/content/config/portfolio-control-loop.json",
             "core/managed-core/content/config/routing-registry.json",
             "core/managed-core/content/config/toolchain-manifest.json",
             "core/managed-core/schemas/managed-ownership.schema.json",
             "core/managed-core/schemas/mutation-declaration.schema.json",
-            "core/managed-core/schemas/portfolio-control-loop.schema.json",
             "core/managed-core/schemas/provider-consumer-handoff.schema.json",
             "core/managed-core/schemas/routing-registry.schema.json",
             "core/managed-core/schemas/toolchain-manifest.schema.json",
-            "core/managed-core/schemas/transition-receipt.schema.json",
             "scripts/gitops/mutation_guard.py",
-            "scripts/gitops/portfolio_control_loop.py",
-            "scripts/gitops/receipt_loop_detector.py",
             "scripts/gitops/runtime_preflight.py",
         ):
             self.assertIn(rel, sources)

@@ -1,438 +1,341 @@
 #!/usr/bin/env python3
-"""Create or reuse a GitHub issue and checkout issue/<n>-<slug> from origin/development.
+"""Create or reuse issue/<LEDGER-ID>-<slug> from origin/<base>.
 
-Fail closed on auth/create/sync failure — never invent local issue IDs.
-Prints machine-readable KEY=value lines: ISSUE_NUMBER, BRANCH, WORKTREE, SLUG.
-
-Idempotent reuse prefers matching title AND label `linktrend-agentsetup`. When
-repository policy prevents label creation, exact-title reuse remains available
-and issue creation continues without the optional label.
-Rejects closed issues when --issue-number is given.
+The Project orchestrator assigns Ledger IDs. This script never invents one
+and never creates a GitHub Issue.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
-AGENTSETUP_LABEL = "linktrend-agentsetup"
+# Same override cursor002 uses so repo hooks cannot run during branch setup.
+SAFE_GIT_CONFIG = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
+
+LEDGER_ID_RE = re.compile(r"^[A-Z][A-Z0-9]{1,9}-[1-9][0-9]*$")
+# lowercase [a-z0-9-], 1..48, no leading/trailing/doubled hyphen
+SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9]|-[a-z0-9]){0,47}$")
+# Safe branch name: no leading dash, and no characters git would treat as syntax.
+REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 
 
 def die(msg: str, code: int = 1) -> None:
-    print(f"FAIL: {msg}", file=sys.stderr)
+    print(msg, file=sys.stderr)
     raise SystemExit(code)
 
 
-def run(
-    cmd: list[str],
+def git(
+    args: list[str],
     *,
-    cwd: Path | None = None,
+    cwd: Path,
     check: bool = True,
-    capture: bool = True,
 ) -> subprocess.CompletedProcess[str]:
+    cmd = ["git", *SAFE_GIT_CONFIG, *args]
     try:
         return subprocess.run(
             cmd,
-            cwd=str(cwd) if cwd else None,
+            cwd=str(cwd),
             check=check,
             text=True,
-            capture_output=capture,
+            capture_output=True,
         )
-    except FileNotFoundError as e:
-        die(f"required binary missing: {e.filename or cmd[0]}")
-    except subprocess.CalledProcessError as e:
-        err = (e.stderr or e.stdout or "").strip()
-        die(f"command failed ({' '.join(cmd)}): {err or e}")
+    except FileNotFoundError as exc:
+        die(f"required binary missing: {exc.filename or cmd[0]}")
+    except subprocess.CalledProcessError as exc:
+        err = (exc.stderr or exc.stdout or "").strip()
+        die(f"git failed ({' '.join(args)}): {err or exc}")
+    raise AssertionError("unreachable")
 
 
-def kebab_slug(title: str, max_len: int = 48) -> str:
-    s = title.lower()
-    s = re.sub(r"[^a-z0-9]+", "-", s)
-    s = re.sub(r"-+", "-", s).strip("-")
-    if not s:
-        s = "work"
-    if len(s) > max_len:
-        s = s[:max_len].rstrip("-")
-    return s or "work"
+def kebab_slug(text: str, max_len: int = 48) -> str:
+    slug = text.lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", slug)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    if len(slug) > max_len:
+        slug = slug[:max_len].rstrip("-")
+    return slug
 
 
-def resolve_repo(explicit: str | None, workdir: Path) -> str:
-    if explicit:
-        return explicit
-    env = os.environ.get("GH_REPO") or os.environ.get("GITHUB_REPOSITORY")
-    if env:
-        return env
-    try:
-        out = run(
-            ["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
-            cwd=workdir,
-        )
-        slug = (out.stdout or "").strip()
-        if slug:
-            return slug
-    except SystemExit:
-        pass
-    die("cannot resolve repository (pass --repo or set GH_REPO)")
+def valid_slug(slug: str) -> bool:
+    return bool(slug) and len(slug) <= 48 and SLUG_RE.fullmatch(slug) is not None
 
 
-def gh_auth_ok(repo: str) -> None:
-    p = subprocess.run(
-        ["gh", "auth", "status"],
-        text=True,
-        capture_output=True,
-    )
-    if p.returncode != 0:
-        die("gh auth failed — refuse to invent local issue IDs", 1)
-    p2 = subprocess.run(
-        ["gh", "api", f"repos/{repo}", "--jq", ".full_name"],
-        text=True,
-        capture_output=True,
-    )
-    if p2.returncode != 0:
-        die(f"cannot access repo {repo}: {(p2.stderr or '').strip()}", 1)
+def valid_ref_name(name: str) -> bool:
+    """Reject values that could be git options or ref syntax before any git call."""
+    if REF_RE.fullmatch(name) is None:
+        return False
+    if ".." in name or "@{" in name:
+        return False
+    if name.endswith("/") or name.endswith(".lock"):
+        return False
+    for part in name.split("/"):
+        if not part or part.startswith(".") or part.endswith(".") or part.endswith(".lock"):
+            return False
+    return True
 
 
-def ensure_agentsetup_label(repo: str) -> bool:
-    p = subprocess.run(
-        ["gh", "label", "list", "--repo", repo, "--json", "name", "--limit", "100"],
-        text=True,
-        capture_output=True,
-    )
-    names = []
-    if p.returncode == 0:
-        try:
-            names = [r.get("name") for r in json.loads(p.stdout or "[]")]
-        except json.JSONDecodeError:
-            names = []
-    if AGENTSETUP_LABEL in names:
-        return True
-    created = subprocess.run(
-        [
-            "gh",
-            "label",
-            "create",
-            AGENTSETUP_LABEL,
-            "--repo",
-            repo,
-            "--color",
-            "0E8A16",
-            "--description",
-            "LiNKtrend agentsetup issue",
-        ],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    return created.returncode == 0
+def valid_worktree_path(raw: str) -> bool:
+    """Reject a worktree path that git would parse as an option."""
+    if not raw or raw != raw.strip() or raw.startswith("-"):
+        return False
+    return not any(ord(ch) < 32 for ch in raw)
 
 
-def find_open_issue_by_title_and_label(repo: str, title: str) -> int | None:
-    """Reuse only when title matches AND label linktrend-agentsetup is present."""
-    p = subprocess.run(
-        [
-            "gh",
-            "issue",
-            "list",
-            "--repo",
-            repo,
-            "--state",
-            "open",
-            "--label",
-            AGENTSETUP_LABEL,
-            "--limit",
-            "100",
-            "--json",
-            "number,title,labels",
-        ],
-        text=True,
-        capture_output=True,
-    )
-    if p.returncode != 0:
-        die(f"gh issue list failed: {(p.stderr or '').strip()}")
-    for row in json.loads(p.stdout or "[]"):
-        if (row.get("title") or "") != title:
-            continue
-        labels = {
-            lab.get("name")
-            for lab in (row.get("labels") or [])
-            if isinstance(lab, dict)
-        }
-        # --label already filtered; if labels array is present, require membership.
-        if labels and AGENTSETUP_LABEL not in labels:
-            continue
-        return int(row["number"])
+def ref_format_ok(name: str, *, cwd: Path) -> bool:
+    """Confirm a pattern-safe name with git check-ref-format. `name` must not be an option."""
+    proc = git(["check-ref-format", "--branch", name], cwd=cwd, check=False)
+    if proc.returncode != 0:
+        return False
+    return (proc.stdout or "").strip() == name
+
+
+def repo_root(start: Path) -> Path:
+    proc = git(["rev-parse", "--show-toplevel"], cwd=start, check=False)
+    if proc.returncode != 0:
+        die(f"not a git work tree: {start}")
+    return Path((proc.stdout or "").strip()).resolve()
+
+
+def remote_branch_sha(root: Path, branch: str) -> str | None:
+    proc = git(["ls-remote", "--heads", "origin", "--", branch], cwd=root, check=False)
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout or "").strip()
+        die(f"git ls-remote failed for origin/{branch}: {err or proc.returncode}")
+    for line in (proc.stdout or "").splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1] == f"refs/heads/{branch}":
+            return parts[0]
     return None
 
 
-def find_open_issue_by_exact_title(repo: str, title: str) -> int | None:
-    """Fallback idempotency when repository policy forbids label creation."""
-    p = subprocess.run(
-        [
-            "gh", "issue", "list", "--repo", repo, "--state", "open",
-            "--limit", "100", "--json", "number,title",
-        ],
-        text=True,
-        capture_output=True,
-    )
-    if p.returncode != 0:
-        die(f"gh issue list failed: {(p.stderr or '').strip()}")
-    matches = [row for row in json.loads(p.stdout or "[]") if row.get("title") == title]
-    if len(matches) > 1:
-        die(f"multiple open issues have exact title: {title}")
-    return int(matches[0]["number"]) if matches else None
+def local_branch_sha(root: Path, branch: str) -> str | None:
+    proc = git(["rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"], cwd=root, check=False)
+    if proc.returncode != 0:
+        return None
+    sha = (proc.stdout or "").strip()
+    return sha or None
 
 
-def validate_issue(repo: str, number: int) -> str:
-    p = subprocess.run(
-        [
-            "gh",
-            "issue",
-            "view",
-            str(number),
-            "--repo",
-            repo,
-            "--json",
-            "number,title,state",
-        ],
-        text=True,
-        capture_output=True,
-    )
-    if p.returncode != 0:
-        die(f"gh issue view #{number} failed: {(p.stderr or '').strip()}")
-    data = json.loads(p.stdout)
-    if int(data.get("number") or 0) != number:
-        die(f"issue number mismatch for #{number}")
-    state = str(data.get("state") or "").upper()
-    if state == "CLOSED":
-        die(f"issue #{number} is CLOSED — refuse to attach work branch", 1)
-    return str(data.get("title") or f"issue-{number}")
+def is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
+    proc = git(["merge-base", "--is-ancestor", "--", ancestor, descendant], cwd=root, check=False)
+    return proc.returncode == 0
 
 
-def create_issue(repo: str, title: str) -> int:
-    label_available = ensure_agentsetup_label(repo)
-    existing = (
-        find_open_issue_by_title_and_label(repo, title)
-        if label_available
-        else find_open_issue_by_exact_title(repo, title)
-    )
-    if existing is not None:
-        return existing
-    create_args = [
-            "gh",
-            "issue",
-            "create",
-            "--repo",
-            repo,
-            "--title",
-            title,
-            "--body",
-            "Created by create_issue_branch.py",
-        ]
-    if label_available:
-        create_args.extend(["--label", AGENTSETUP_LABEL])
-    p = subprocess.run(
-        create_args,
-        text=True,
-        capture_output=True,
-    )
-    if p.returncode != 0:
-        # A label can disappear or become unavailable between discovery and
-        # creation. Retry once without optional metadata; never invent an id.
-        if label_available and "label" in (p.stderr or "").lower():
-            p = subprocess.run(create_args[:-2], text=True, capture_output=True)
-            label_available = False
-    if p.returncode != 0:
-        die(f"gh issue create failed: {(p.stderr or '').strip()}")
-    url = (p.stdout or "").strip()
-    m = re.search(r"/issues/(\d+)", url)
-    if not m:
-        again = (
-            find_open_issue_by_title_and_label(repo, title)
-            if label_available
-            else find_open_issue_by_exact_title(repo, title)
-        )
-        if again is not None:
-            return again
-        die(f"could not parse issue number from: {url}")
-    return int(m.group(1))
-
-
-def git_dirty(workdir: Path) -> bool:
-    out = run(["git", "status", "--porcelain"], cwd=workdir)
-    return bool((out.stdout or "").strip())
-
-
-def on_development_tip(workdir: Path) -> bool:
-    run(["git", "fetch", "origin", "development"], cwd=workdir)
-    head = run(["git", "rev-parse", "HEAD"], cwd=workdir).stdout.strip()
-    tip = run(["git", "rev-parse", "origin/development"], cwd=workdir).stdout.strip()
-    branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=workdir).stdout.strip()
-    return branch == "development" and head == tip
-
-
-def remote_branch_exists(workdir: Path, branch: str) -> bool:
-    p = subprocess.run(
-        ["git", "ls-remote", "--heads", "origin", branch],
-        cwd=str(workdir),
-        text=True,
-        capture_output=True,
-    )
-    if p.returncode != 0:
-        # Fall back to local remote-tracking ref
-        return (
-            subprocess.run(
-                ["git", "show-ref", "--verify", "--quiet", f"refs/remotes/origin/{branch}"],
-                cwd=str(workdir),
-            ).returncode
-            == 0
-        )
-    return bool((p.stdout or "").strip())
-
-
-def worktree_path_registered(workdir: Path, wt_path: Path) -> bool:
-    p = subprocess.run(
-        ["git", "worktree", "list", "--porcelain"],
-        cwd=str(workdir),
-        text=True,
-        capture_output=True,
-    )
-    if p.returncode != 0:
-        return False
-    target = str(wt_path.resolve())
-    for line in (p.stdout or "").splitlines():
-        if line.startswith("worktree "):
-            listed = line[len("worktree ") :].strip()
-            try:
-                if Path(listed).resolve() == Path(target).resolve():
-                    return True
-            except OSError:
-                if listed == target:
-                    return True
-    return False
-
-
-def ensure_branch(
-    workdir: Path,
-    branch: str,
-    *,
-    prefer_worktree: bool,
-) -> str:
-    """Return worktree path (may equal workdir)."""
-    run(["git", "fetch", "origin", "development"], cwd=workdir)
-    cur = run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=workdir).stdout.strip()
-    if cur == branch:
-        return str(workdir)
-
-    exists_local = (
-        subprocess.run(
-            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
-            cwd=str(workdir),
-        ).returncode
-        == 0
-    )
-    exists_remote = remote_branch_exists(workdir, branch)
-
-    # Collision: remote exists but we would create a divergent local tip — reuse remote.
-    need_wt = prefer_worktree or git_dirty(workdir) or not on_development_tip(workdir)
-    if need_wt:
-        git_dir = run(["git", "rev-parse", "--git-common-dir"], cwd=workdir).stdout.strip()
-        common = Path(git_dir)
-        if not common.is_absolute():
-            common = (workdir / common).resolve()
-        wt_root = common / "linktrend-worktrees"
-        wt_root.mkdir(parents=True, exist_ok=True)
-        wt_path = wt_root / branch.replace("/", "-")
-        if wt_path.exists():
-            if worktree_path_registered(workdir, wt_path):
-                return str(wt_path)
+def resolve_existing_tip(root: Path, branch: str, local: str | None, remote: str | None) -> str:
+    """Pick the existing tip. Fast-forward only. Never reset away unique commits."""
+    if local and remote and local != remote:
+        local_behind = is_ancestor(root, local, remote)
+        remote_behind = is_ancestor(root, remote, local)
+        if not local_behind and not remote_behind:
             die(
-                f"path exists but is not a registered git worktree: {wt_path} "
-                f"(run git worktree list). Refuse to reuse stale directory.",
+                f"{branch} has diverged from origin/{branch} "
+                f"(local {local}, origin {remote}). "
+                "Refusing to reset because that would lose work. "
+                "Ask the Project orchestrator."
             )
-        if exists_local or exists_remote:
-            ref = branch if exists_local else f"origin/{branch}"
-            if exists_remote and not exists_local:
-                subprocess.run(
-                    ["git", "fetch", "origin", f"{branch}:refs/remotes/origin/{branch}"],
-                    cwd=str(workdir),
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                )
-                ref = f"origin/{branch}"
-            run(["git", "worktree", "add", str(wt_path), ref], cwd=workdir)
-        else:
-            run(
-                ["git", "worktree", "add", "-b", branch, str(wt_path), "origin/development"],
-                cwd=workdir,
-            )
-        return str(wt_path)
+        if local_behind:
+            return remote
+        return local
+    if local:
+        return local
+    if remote:
+        return remote
+    die(f"internal error: {branch} has no local or origin tip")
+    raise AssertionError("unreachable")
 
-    if exists_local:
-        run(["git", "checkout", branch], cwd=workdir)
-    elif exists_remote:
-        subprocess.run(
-            ["git", "fetch", "origin", f"{branch}:refs/remotes/origin/{branch}"],
-            cwd=str(workdir),
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        run(["git", "checkout", "-b", branch, f"origin/{branch}"], cwd=workdir)
+
+def worktree_for_branch(root: Path, branch: str) -> str | None:
+    proc = git(["worktree", "list", "--porcelain"], cwd=root, check=False)
+    if proc.returncode != 0:
+        return None
+    current: str | None = None
+    for line in (proc.stdout or "").splitlines():
+        if line.startswith("worktree "):
+            current = line[len("worktree ") :].strip()
+        elif line == f"branch refs/heads/{branch}" and current:
+            return str(Path(current).resolve())
+    return None
+
+
+def ensure_local_branch(root: Path, branch: str, tip: str) -> None:
+    local = local_branch_sha(root, branch)
+    if local is None:
+        git(["branch", branch, "--", tip], cwd=root)
+        return
+    if local == tip:
+        return
+    if is_ancestor(root, local, tip):
+        git(["branch", "-f", branch, "--", tip], cwd=root)
+        return
+    die(
+        f"{branch} at {local} is not a fast-forward of {tip}. "
+        "Refusing to reset because that would lose work. "
+        "Ask the Project orchestrator."
+    )
+
+
+def checkout_branch(root: Path, branch: str, tip: str, *, create: bool) -> Path:
+    local = local_branch_sha(root, branch)
+    if create or local is None:
+        git(["switch", "-c", branch, "--", tip], cwd=root)
+        return root
+    current = git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=root).stdout.strip()
+    if current != branch:
+        git(["switch", "--", branch], cwd=root)
+    if local != tip and is_ancestor(root, local, tip):
+        git(["merge", "--ff-only", "--", tip], cwd=root)
+    return root
+
+
+def use_worktree(root: Path, branch: str, tip: str, worktree: Path, *, create: bool) -> Path:
+    path = worktree.resolve()
+    if path == root:
+        return checkout_branch(root, branch, tip, create=create)
+    existing = worktree_for_branch(root, branch)
+    if path.exists():
+        if existing and Path(existing).resolve() == path:
+            if not create:
+                local = local_branch_sha(root, branch)
+                if local and local != tip and is_ancestor(root, local, tip):
+                    git(["merge", "--ff-only", "--", tip], cwd=path)
+            return path
+        die(f"worktree path already exists and is not {branch}: {path}")
+    if existing:
+        die(f"{branch} is already checked out at {existing}; refusing to move it")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if create:
+        git(["worktree", "add", "-b", branch, "--", str(path), tip], cwd=root)
     else:
-        run(["git", "checkout", "-b", branch, "origin/development"], cwd=workdir)
-    return str(workdir)
+        ensure_local_branch(root, branch, tip)
+        git(["worktree", "add", "--", str(path), branch], cwd=root)
+        local = local_branch_sha(root, branch)
+        if local and local != tip and is_ancestor(root, local, tip):
+            git(["merge", "--ff-only", "--", tip], cwd=path)
+    return path
 
 
 def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("description", nargs="?", default=os.environ.get("TASK_DESCRIPTION", ""))
-    ap.add_argument("--issue-number", type=int, default=None)
-    ap.add_argument("--repo", default=os.environ.get("GH_REPO") or os.environ.get("GITHUB_REPOSITORY"))
-    ap.add_argument("--workdir", default=os.environ.get("GITOPS_WORKDIR") or ".")
-    ap.add_argument(
-        "--prefer-worktree",
-        action="store_true",
-        default=os.environ.get("PREFER_WORKTREE", "").lower() in ("1", "true", "yes"),
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "description",
+        nargs="*",
+        help="free-text description; used to derive the slug when --slug is omitted",
     )
-    args = ap.parse_args(argv)
+    parser.add_argument("--id", default=None, help="Ledger ID from the Project orchestrator, e.g. IDE-42")
+    parser.add_argument("--slug", default=None, help="branch slug [a-z0-9-], max 48 characters")
+    parser.add_argument("--base", default="development", help="base branch on origin (default: development)")
+    parser.add_argument("--worktree", default=None, help="create or reuse the branch in this worktree path")
+    parser.add_argument("--no-push", action="store_true", help="do not push or set upstream")
+    parser.add_argument("--workdir", default=".", help="git working tree to operate on")
+    args = parser.parse_args(argv)
 
-    title = (args.description or "").strip()
-    if not title and not args.issue_number:
-        die("task description required (positional or TASK_DESCRIPTION)")
+    ledger_id = (args.id or "").strip()
+    if not ledger_id:
+        die(
+            "missing --id. Get a Ledger ID from the Project orchestrator. "
+            "Workers must not invent IDs."
+        )
+    if LEDGER_ID_RE.fullmatch(ledger_id) is None:
+        die(
+            f"invalid --id {ledger_id!r}. Get a Ledger ID from the Project orchestrator "
+            "(expected <PREFIX>-<n>, e.g. IDE-42). Workers must not invent IDs."
+        )
 
-    workdir = Path(args.workdir).resolve()
-    if not (workdir / ".git").exists() and not (workdir / ".git").is_file():
-        try:
-            run(["git", "rev-parse", "--show-toplevel"], cwd=workdir)
-        except SystemExit:
-            die(f"not a git workdir: {workdir}")
+    base = (args.base or "").strip()
+    if not valid_ref_name(base):
+        die(f"invalid --base {base!r}")
 
-    repo = resolve_repo(args.repo, workdir)
-    gh_auth_ok(repo)
-
-    if args.issue_number:
-        issue_title = validate_issue(repo, args.issue_number)
-        number = args.issue_number
-        if not title:
-            title = issue_title
+    explicit_slug = (args.slug or "").strip()
+    description = " ".join(args.description).strip()
+    if explicit_slug:
+        slug = explicit_slug
+    elif description:
+        slug = kebab_slug(description)
     else:
-        number = create_issue(repo, title)
+        slug = ""
+    if not valid_slug(slug):
+        die(
+            f"invalid slug {slug!r}. Use lowercase [a-z0-9-], at most 48 characters, "
+            "or pass a description to derive one."
+        )
 
-    slug = kebab_slug(title)
-    branch = f"issue/{number}-{slug}"
-    wt = ensure_branch(workdir, branch, prefer_worktree=args.prefer_worktree)
+    branch = f"issue/{ledger_id}-{slug}"
+    if not valid_ref_name(branch):
+        die(f"invalid branch {branch!r}")
+    if args.worktree is not None and not valid_worktree_path(args.worktree):
+        die(f"invalid --worktree {args.worktree!r}")
 
-    print(f"ISSUE_NUMBER={number}")
-    print(f"BRANCH={branch}")
-    print(f"WORKTREE={wt}")
-    print(f"SLUG={slug}")
+    start = Path(args.workdir).resolve()
+    if not start.is_dir():
+        die(f"not a git work tree: {start}")
+    # Pattern checks above reject option-like values with no git call.
+    # check-ref-format does not accept `--`, so it runs only after that gate.
+    if not ref_format_ok(base, cwd=start):
+        die(f"invalid --base {base!r}")
+    if not ref_format_ok(branch, cwd=start):
+        die(f"invalid branch {branch!r}")
+
+    root = repo_root(start)
+
+    git(
+        ["fetch", "origin", "--", f"+refs/heads/{base}:refs/remotes/origin/{base}"],
+        cwd=root,
+    )
+    base_sha = git(
+        ["rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{base}"],
+        cwd=root,
+    ).stdout.strip()
+    if not base_sha:
+        die(f"origin/{base} has no commit")
+
+    remote_sha = remote_branch_sha(root, branch)
+    if remote_sha:
+        git(
+            ["fetch", "origin", "--", f"+refs/heads/{branch}:refs/remotes/origin/{branch}"],
+            cwd=root,
+        )
+        remote_sha = local_ref_sha(root, f"refs/remotes/origin/{branch}")
+
+    local_sha = local_branch_sha(root, branch)
+    creating = local_sha is None and remote_sha is None
+    if creating:
+        tip = base_sha
+    else:
+        tip = resolve_existing_tip(root, branch, local_sha, remote_sha)
+
+    if args.worktree:
+        checkout = use_worktree(root, branch, tip, Path(args.worktree), create=creating)
+    else:
+        checkout = checkout_branch(root, branch, tip, create=creating)
+
+    pushed = False
+    if not args.no_push:
+        git(["push", "--set-upstream", "origin", "--", f"{branch}:{branch}"], cwd=checkout)
+        pushed = True
+
+    payload = {
+        "id": ledger_id,
+        "branch": branch,
+        "worktree": str(checkout.resolve()),
+        "base": base,
+        "baseSha": base_sha,
+        "pushed": pushed,
+    }
+    print(json.dumps(payload, sort_keys=True))
     return 0
+
+
+def local_ref_sha(root: Path, ref: str) -> str | None:
+    proc = git(["rev-parse", "--verify", "--quiet", ref], cwd=root, check=False)
+    if proc.returncode != 0:
+        return None
+    sha = (proc.stdout or "").strip()
+    return sha or None
 
 
 if __name__ == "__main__":

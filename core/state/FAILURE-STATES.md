@@ -22,14 +22,14 @@ Failure appears as:
 Failure appears as:
 
 - `blocked`
-- inability to reach required review-ready or complete conditions
+- inability to reach required `in_review` or complete conditions
 
 ### Issue
 
 Failure appears as:
 
 - `blocked`
-- return from `review_ready` to `in_progress`
+- return from `in_review` to `in_progress`
 
 ### Proof
 

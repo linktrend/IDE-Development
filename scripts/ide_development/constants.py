@@ -13,8 +13,10 @@ EXIT_INVALID_PACKAGE = 12
 EXIT_ROLLBACK_FAILURE = 13
 
 SCHEMA_VERSION = 1
-INSTALLER_VERSION = "2.5.2"
-PACKAGE_VERSION_TARGET = "2.5.2"
+INSTALLER_VERSION = "3.0.0"
+PACKAGE_VERSION_TARGET = "3.0.0"
+# Older published package that exact same-version repairs are bound to.
+SAME_VERSION_REPAIR_VERSION = "2.5.2"
 PACKAGE_NAME = "ide-development-managed-core"
 
 # Release-candidate packaging (Lane D) — archives under ignored build/
@@ -33,21 +35,17 @@ RC_REQUIRED_SCHEMA_RELS = (
     "core/managed-core/schemas/release-candidate.schema.json",
     "core/managed-core/schemas/release-candidate-checksums.schema.json",
     "core/managed-core/schemas/delivery-modes.schema.json",
-    "core/managed-core/schemas/phase-record.schema.json",
-    "core/managed-core/schemas/phase-handoff.schema.json",
-    "core/managed-core/schemas/delivery-operation.schema.json",
     "core/managed-core/schemas/review-session.schema.json",
     "core/managed-core/schemas/finding-ledger.schema.json",
     "core/managed-core/schemas/secret-scan-fixtures.schema.json",
     "core/managed-core/schemas/secret-scan-result.schema.json",
     "core/managed-core/schemas/change-scoped-secret-scan.schema.json",
     "core/managed-core/schemas/generated-output-closure.schema.json",
-    "core/managed-core/schemas/manifest-persistence.schema.json",
     "core/managed-core/schemas/repository-ci-contract.schema.json",
     "core/managed-core/schemas/ci-component-manifest.schema.json",
     "core/managed-core/schemas/ci-evidence.schema.json",
-    "core/managed-core/schemas/linktrend-review-gate.schema.json",
     "core/managed-core/schemas/managed-core-release.schema.json",
+    "core/managed-core/schemas/same-version-repair.schema.json",
 )
 RC_REQUIRED_TEST_RELS = (
     "scripts/ide_development_tests/test_release_candidate.py",

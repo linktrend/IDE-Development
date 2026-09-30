@@ -32,6 +32,6 @@ None. Proof is concrete and non-vacuous. All acceptance criteria are satisfied:
 
 ## Gate discipline
 
-- Issue reached `review_ready` before this review — confirmed.
+- Issue reached `in_review` before this review — confirmed.
 - Proof artifact precedes review — confirmed.
 - No integration attempted before pass verdict — confirmed.

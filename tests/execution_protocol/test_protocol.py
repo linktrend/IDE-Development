@@ -19,6 +19,7 @@ from core.execution.protocol import (  # noqa: E402
     AMENDMENT_ID,
     CANONICAL_PUBLISHER,
     LEGACY_PUBLISHERS,
+    PROTECTED_REFS,
     PROTOCOL_ID,
     PROTOCOL_VERSION,
     REQUIRED_DISCOVERY_PATHS,
@@ -338,15 +339,79 @@ class AutomaticApprovalTests(unittest.TestCase):
         self.assertTrue(decision.automatic)
         self.assertFalse(decision.founder_required)
 
-    def test_main_promote_requires_recorded_founder(self) -> None:
+    def test_main_promote_is_automatic_on_green_ci_and_independent_review(self) -> None:
         blocked = required_approval("main_promote")
         self.assertFalse(blocked.allowed)
-        self.assertTrue(blocked.founder_required)
-        allowed = required_approval(
+        self.assertFalse(blocked.founder_required)
+        self.assertEqual(blocked.reason, "full_ci_and_independent_review_required")
+        founder_only = required_approval(
             "main_promote",
             recorded_approvals={"main_promote": "founder"},
         )
+        self.assertFalse(founder_only.allowed)
+        ci_only = required_approval("main_promote", full_ci_green=True)
+        self.assertFalse(ci_only.allowed)
+        review_only = required_approval(
+            "main_promote",
+            independent_exact_head_approval=True,
+        )
+        self.assertFalse(review_only.allowed)
+        allowed = required_approval(
+            "main_promote",
+            full_ci_green=True,
+            independent_exact_head_approval=True,
+        )
         self.assertTrue(allowed.allowed)
+        self.assertTrue(allowed.automatic)
+        self.assertFalse(allowed.founder_required)
+        self.assertEqual(allowed.reason, "automatic_on_green_ci_and_independent_review")
+
+    def test_deploy_follows_target_or_health_check_policy(self) -> None:
+        waiting = required_approval("deploy_production")
+        self.assertFalse(waiting.allowed)
+        self.assertTrue(waiting.founder_required)
+        with_ok = required_approval(
+            "deploy_production",
+            recorded_approvals={"deploy_production": "founder"},
+        )
+        self.assertTrue(with_ok.allowed)
+        self.assertFalse(with_ok.automatic)
+        on_target = required_approval("deploy_production", deploy_target_declared=True)
+        self.assertTrue(on_target.allowed)
+        self.assertTrue(on_target.automatic)
+        self.assertFalse(on_target.founder_required)
+        self.assertEqual(on_target.reason, "automatic_on_deploy_target")
+        health_only = required_approval(
+            "deploy_production",
+            post_deploy_health_check=True,
+        )
+        self.assertFalse(health_only.allowed)
+        on_health = required_approval(
+            "deploy_production",
+            post_deploy_health_check=True,
+            automatic_rollback=True,
+        )
+        self.assertTrue(on_health.allowed)
+        self.assertTrue(on_health.automatic)
+        self.assertEqual(on_health.reason, "automatic_on_health_check_and_rollback")
+
+    def test_protection_and_provider_mutation_still_need_recorded_approval(self) -> None:
+        for action in ("github_protection_change", "provider_live_mutation", "publish_release"):
+            blocked = required_approval(action)
+            self.assertFalse(blocked.allowed)
+            self.assertTrue(blocked.founder_required)
+            allowed = required_approval(action, recorded_approvals={action: "founder"})
+            self.assertTrue(allowed.allowed)
+            self.assertFalse(allowed.automatic)
+
+    def test_unknown_action_fails_closed(self) -> None:
+        decision = required_approval("intermediate_promote")
+        self.assertFalse(decision.allowed)
+        self.assertFalse(decision.automatic)
+        self.assertEqual(decision.reason, "unknown_action")
+
+    def test_protected_refs_are_development_and_main(self) -> None:
+        self.assertEqual(PROTECTED_REFS, frozenset({"development", "main"}))
 
     def test_self_review_and_self_merge_are_forbidden(self) -> None:
         self.assertFalse(required_approval("self_review").allowed)
@@ -360,29 +425,26 @@ class GitAuthorityTests(unittest.TestCase):
             git_authority_allows(
                 "push_work_branch",
                 branch="issue/341-pkt-01-iss-01-canonical-coding-execution-protoco",
-                actor="implementer",
+                actor="worker",
             )
         )
         self.assertFalse(
             git_authority_allows(
                 "push_work_branch",
                 branch="development",
-                actor="implementer",
+                actor="worker",
             )
         )
 
-    def test_implementer_cannot_open_or_merge(self) -> None:
-        self.assertFalse(git_authority_allows("open_pr", branch="issue/1-x", actor="implementer"))
-        self.assertTrue(git_authority_allows("open_pr", branch="issue/1-x", actor="packager"))
-        self.assertTrue(
-            git_authority_allows(
-                "merge_to_development",
-                branch="phase/v25",
-                actor="delivery_controller",
-            )
+    def test_worker_cannot_open_or_merge(self) -> None:
+        for action in ("open_pr", "merge_to_development", "promote_to_main"):
+            self.assertFalse(git_authority_allows(action, branch="issue/1-x", actor="worker"))
+            self.assertTrue(git_authority_allows(action, branch="issue/1-x", actor="orchestrator"))
+        self.assertFalse(
+            git_authority_allows("push_work_branch", branch="issue/1-x", actor="orchestrator")
         )
         self.assertFalse(
-            git_authority_allows("nested_self_install", branch="issue/1-x", actor="implementer")
+            git_authority_allows("nested_self_install", branch="issue/1-x", actor="worker")
         )
 
 
@@ -390,7 +452,7 @@ class PublisherAuthorityTests(unittest.TestCase):
     def test_no_singular_legacy_publisher_is_canonical_for_v25(self) -> None:
         self.assertIsNone(CANONICAL_PUBLISHER)
         self.assertEqual(AMENDMENT_ID, "V25_BOOTSTRAP_LEAN")
-        self.assertIn("linktrend-review-ready-publisher", LEGACY_PUBLISHERS)
+        self.assertTrue(LEGACY_PUBLISHERS)
         for name in LEGACY_PUBLISHERS:
             self.assertFalse(publisher_is_canonical(name))
         doctrine = (
@@ -400,29 +462,24 @@ class PublisherAuthorityTests(unittest.TestCase):
         self.assertIn("WAIVED_LEGACY_GATE", doctrine)
 
     def test_failed_or_missing_legacy_publisher_is_waived_not_pass(self) -> None:
-        for state in ("missing", "failed"):
-            result = classify_legacy_publisher_gate(
-                publisher="linktrend-review-ready-publisher",
-                state=state,
-            )
-            self.assertEqual(result.classification, WAIVED_LEGACY_GATE)
-            self.assertFalse(result.is_pass)
-            self.assertFalse(result.is_implementation_failure)
-        success = classify_legacy_publisher_gate(
-            publisher="linktrend-review-ready-publisher",
-            state="success",
-        )
-        self.assertFalse(success.is_pass)
-        self.assertNotEqual(success.classification, WAIVED_LEGACY_GATE)
+        for publisher in LEGACY_PUBLISHERS:
+            for state in ("missing", "failed"):
+                result = classify_legacy_publisher_gate(publisher=publisher, state=state)
+                self.assertEqual(result.classification, WAIVED_LEGACY_GATE)
+                self.assertFalse(result.is_pass)
+                self.assertFalse(result.is_implementation_failure)
+            success = classify_legacy_publisher_gate(publisher=publisher, state="success")
+            self.assertFalse(success.is_pass)
+            self.assertNotEqual(success.classification, WAIVED_LEGACY_GATE)
 
 
 class IssueCheckpointTests(unittest.TestCase):
-    def test_complete_evidence_accepts_without_review_ready_or_token(self) -> None:
+    def test_complete_evidence_accepts_without_token(self) -> None:
         review = {
             "accepted": True,
             "headSha": COMMIT_A,
             "gitTree": TREE_A,
-            "paths": ["scripts/gitops/portfolio_control_loop.py"],
+            "paths": ["scripts/gitops/phase_integrator.py"],
             "reviewer": {"actor": "independent-reviewer", "role": "reviewer"},
             "implementerActor": "implementer",
         }
@@ -434,11 +491,9 @@ class IssueCheckpointTests(unittest.TestCase):
             focused_tests_passed=True,
             independent_narrow_review=review,
             manifest_evidence=True,
-            review_ready=False,
             automation_token_present=False,
         )
         self.assertTrue(decision.accepted)
-        self.assertFalse(decision.requires_review_ready)
         self.assertFalse(decision.requires_token)
         self.assertEqual(decision.reason, "v25_bootstrap_lean_issue_checkpoint")
 

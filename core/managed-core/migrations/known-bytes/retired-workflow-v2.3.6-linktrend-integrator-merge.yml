@@ -1,0 +1,300 @@
+name: Linktrend Full Suite
+run-name: Full Suite PR #${{ github.event.pull_request.number }} @ ${{ github.event.pull_request.head.sha }} r1 a${{ github.run_attempt }}
+
+# Full validation is a trusted, explicit PR-label wake. Candidate code runs in
+# pull_request context with a read-only token; it never runs from a privileged
+# default-branch workflow_dispatch context.
+on:
+  pull_request:
+    branches: [development]
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "phase for a normal sealed candidate; reconciled for a non-promotable no-change canary"
+        required: false
+        default: "phase"
+        type: string
+      expected_commit:
+        description: "Exact reconciled commit for non-promotable canary mode"
+        required: false
+        type: string
+      expected_tree:
+        description: "Exact reconciled Git tree for non-promotable canary mode"
+        required: false
+        type: string
+      package_version:
+        description: "Installed managed package version for non-promotable canary mode"
+        required: false
+        type: string
+      installed_state_digest:
+        description: "Canonical installed-state identity digest for non-promotable canary mode"
+        required: false
+        type: string
+      security_workflow_name:
+        description: "Exact successful security workflow name for reconciled canary mode"
+        required: false
+        type: string
+      pr_number:
+        description: "Existing same-repository Phase PR number for canary-only Full"
+        required: false
+        type: string
+      expected_head:
+        description: "Exact 40-character Phase PR head for canary-only Full"
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.repository }}|${{ github.workflow }}|pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  full:
+    name: Linktrend Full Suite
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.mode != 'reconciled' || github.event.label.name == 'linktrend-full-suite') &&
+      (github.event_name == 'workflow_dispatch' || (startsWith(github.event.pull_request.head.ref, 'phase/') && github.event.pull_request.head.repo.full_name == github.repository))
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    env:
+      PR_NUMBER: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.pull_request.number }}
+      EXPECTED_SOURCE_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || github.event.pull_request.head.ref }}
+      EXPECTED_HEAD: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_head || github.event.pull_request.head.sha }}
+    steps:
+      - name: Capture start time
+        id: clock
+        run: echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact sealed Phase head in unprivileged PR context
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate live head and exact seal
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+          live="$(jq -r .head.sha <<<"${pr}")"
+          live_branch="$(jq -r .head.ref <<<"${pr}")"
+          live_repo="$(jq -r .head.repo.full_name <<<"${pr}")"
+          [[ "${PR_NUMBER}" =~ ^[1-9][0-9]*$ ]] || { echo "full_suite_canary_pr_invalid"; exit 1; }
+          [[ "${EXPECTED_HEAD}" =~ ^[0-9a-f]{40}$ ]] || { echo "full_suite_canary_head_invalid"; exit 1; }
+          case "${live_branch}" in phase/*) ;; *) echo "full_suite_requires_phase_branch=${live_branch}"; exit 1;; esac
+          test "${EXPECTED_SOURCE_BRANCH}" = "${live_branch}" || {
+            echo "full_suite_source_branch_mismatch: expected=${EXPECTED_SOURCE_BRANCH} live=${live_branch}"; exit 1;
+          }
+          test "${live_repo}" = "${GITHUB_REPOSITORY}" || {
+            echo "full_suite_repository_mismatch: expected=${GITHUB_REPOSITORY} live=${live_repo}"; exit 1;
+          }
+          test "${EXPECTED_HEAD}" = "${live}" || {
+            echo "full_suite_dispatch_head_stale: expected=${EXPECTED_HEAD} live=${live}"; exit 1;
+          }
+          actual="$(git rev-parse HEAD)"
+          test "${actual}" = "${live}" || { echo "full_suite_stale_seal: live=${live} actual=${actual}"; exit 1; }
+          python3 scripts/gitops/require_exact_ci_success.py \
+            --repository "${GITHUB_REPOSITORY}" --head "${live}" --config-key fastWorkflowName
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          derived="$(python3 - "${GITHUB_REPOSITORY}" "${live_branch}" "${live}" "${tree}" <<'PY'
+          import hashlib
+          import json
+          import sys
+          repository, branch, head, tree = sys.argv[1:]
+          identity = {
+              "repository": repository,
+              "sourceSha": head,
+              "gitTreeSha": tree,
+              "dependencyDigests": {},
+              "testProfile": "full",
+          }
+          print("sha256:" + hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest())
+          PY
+          )"
+          history_file="$(mktemp)"
+          trap 'rm -f "${history_file}"' EXIT
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/linktrend-integrator-merge.yml/runs?event=pull_request&per_page=100" >"${history_file}"
+          python3 - "${history_file}" "${PR_NUMBER}" "${live}" <<'PY'
+          import json, re, sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              history = json.load(handle)
+          pr_number, current_head = sys.argv[2], sys.argv[3]
+          pattern = re.compile(r"^Full Suite PR #(\d+) @ ([0-9a-f]{40}) r([12]) a([12])$")
+          relevant = []
+          for run in history.get("workflow_runs", []):
+              match = pattern.fullmatch(str(run.get("display_title") or ""))
+              if match and match.group(1) == pr_number:
+                  relevant.append((match.group(2), int(run.get("run_attempt") or 1)))
+          heads = {head for head, _ in relevant} | {current_head}
+          executions = sum(run_attempt for head, run_attempt in relevant if head == current_head)
+          if len(heads) > 2:
+              raise SystemExit("full_suite_sealed_candidate_limit")
+          # Every paid execution counts, whether it is a fresh dispatch or a
+          # GitHub UI rerun of an existing run.  The current run is present in
+          # history before candidate tests begin, so a third execution stops.
+          if executions > 2:
+              raise SystemExit("full_suite_attempt_limit")
+          PY
+          printf 'SOURCE_BRANCH=%s\nEXPECTED_HEAD=%s\nCANDIDATE_ID=%s\n' \
+            "${live_branch}" "${live}" "${derived}" >> "$GITHUB_ENV"
+          echo "exact dispatch-time seal accepted"
+
+      - name: Run full profile
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git diff --check
+          python3 scripts/gitops/run_delivery_profile.py full
+          python3 scripts/gitops/require_exact_ci_success.py \
+            --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_HEAD}"
+
+      - name: Write exact full-suite receipt
+        if: success()
+        env:
+          STARTED: ${{ steps.clock.outputs.started_at }}
+        run: |
+          set -euo pipefail
+          COMPLETED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python3 - "${STARTED}" "${COMPLETED}" <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          import sys
+          # The workflow source checkout is the default branch; receipts must
+          # be generated by the sealed candidate that just passed the suite.
+          sys.path.insert(0, str(Path.cwd()))
+          from scripts.gitops.coordinator.receipts import (
+              canonical_digest,
+              compute_candidate_identity,
+              write_receipt,
+          )
+
+          started, completed = __import__("sys").argv[1:]
+          from scripts.gitops.run_delivery_profile import load_profile
+          config_path, commands = load_profile(Path.cwd(), "full")
+          checks = json.loads(Path(".github/linktrend-gitops-consumer.json").read_text())
+          commands = commands + [
+              ["require-successful-workflow", checks["fastWorkflowName"]],
+              ["require-successful-workflow", checks["ciWorkflowName"]],
+          ]
+          identity = compute_candidate_identity(
+              Path("."),
+              [],
+              "full",
+              profile_files=[str(config_path.relative_to(Path.cwd()))],
+              source_branch=os.environ["SOURCE_BRANCH"],
+          )
+          summary = Path("full-suite-summary.txt")
+          summary.write_text(
+              "workflow=Linktrend Full Suite\n"
+              f"repository={os.environ['GITHUB_REPOSITORY']}\n"
+              f"head={identity.head_commit}\n"
+              "runner=ubuntu-24.04-arm\n",
+              encoding="utf-8",
+          )
+          evidence = {
+              "full-suite-summary.txt": "sha256:" + hashlib.sha256(summary.read_bytes()).hexdigest()
+          }
+          result = {
+              "schemaVersion": 2,
+              "candidateIdentity": identity.to_dict(),
+              "workflowRunId": int(os.environ["GITHUB_RUN_ID"]),
+              "workflowRunAttempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "runnerLabel": "ubuntu-24.04-arm",
+              "startedAt": started,
+              "completedAt": completed,
+              "conclusion": "success",
+              "commandDigest": canonical_digest({"profile": "full", "commands": commands}),
+              "evidenceDigests": evidence,
+          }
+          write_receipt(result, Path("full-suite-receipt.json"))
+          print(json.dumps(result, sort_keys=True))
+          PY
+
+      - name: Upload retained full-suite receipt
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linktrend-full-suite-receipt-${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.pull_request.number }}-${{ github.run_id }}
+          path: |
+            full-suite-receipt.json
+            full-suite-summary.txt
+          retention-days: 30
+
+  bugbot:
+    name: Linktrend Final Candidate Bugbot Request
+    needs: full
+    if: needs.full.result == 'success'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.pull_request.number }}
+    steps:
+      - name: Request Bugbot once for the sealed candidate
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)"
+          marker="<!-- linktrend-bugbot-requested: ${HEAD_SHA} -->"
+          comments="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --jq '.[].body' || true)"
+          if printf '%s\n' "${comments}" | grep -Fq "${marker}"; then
+            echo "final_candidate_bugbot_request_already_recorded"
+            exit 0
+          fi
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            -f body="@cursor review\n${marker}"
+
+  reconciled-canary:
+    name: Linktrend Reconciled Tree Canary
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'reconciled'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify an exact already-installed reconciled tree
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          EXPECTED_TREE: ${{ inputs.expected_tree }}
+          PACKAGE_VERSION: ${{ inputs.package_version }}
+          INSTALLED_STATE_DIGEST: ${{ inputs.installed_state_digest }}
+          SECURITY_WORKFLOW_NAME: ${{ inputs.security_workflow_name }}
+        run: |
+          set -euo pipefail
+          [[ "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || { echo reconciled_canary_commit_invalid; exit 1; }
+          [[ "${EXPECTED_TREE}" =~ ^[0-9a-f]{40}$ ]] || { echo reconciled_canary_tree_invalid; exit 1; }
+          python3 scripts/gitops/require_exact_ci_success.py --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_COMMIT}" --config-key fastWorkflowName
+          python3 scripts/gitops/require_exact_ci_success.py --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_COMMIT}" --config-key ciWorkflowName
+          test -n "${SECURITY_WORKFLOW_NAME}" || { echo reconciled_canary_security_workflow_missing; exit 1; }
+          python3 scripts/gitops/require_exact_ci_success.py --repository "${GITHUB_REPOSITORY}" --head "${EXPECTED_COMMIT}" --workflow-name "${SECURITY_WORKFLOW_NAME}"
+          checks_json="${RUNNER_TEMP}/linktrend-reconciled-checks.json"
+          printf '{"fast":"success","ci":"success","security":"success"}\n' > "${checks_json}"
+          git fetch origin staging main
+          staging_tree="$(git merge-tree --write-tree origin/staging "${EXPECTED_COMMIT}")"
+          main_tree="$(git merge-tree --write-tree origin/main "${EXPECTED_COMMIT}")"
+          python3 scripts/gitops/verify_reconciled_tree.py \
+            --repo . --expected-commit "${EXPECTED_COMMIT}" --expected-tree "${EXPECTED_TREE}" \
+            --package-version "${PACKAGE_VERSION}" --installed-state-digest "${INSTALLED_STATE_DIGEST}" \
+            --checks-json "${checks_json}" --staging-tree "${staging_tree}" --main-tree "${main_tree}"

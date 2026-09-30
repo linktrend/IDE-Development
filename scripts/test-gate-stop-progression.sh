@@ -24,8 +24,9 @@ grep -qi 'refused' "$NEG/INTEGRATION.md" || fail "integration must refuse"
 if grep -Eq 'status:[[:space:]]*done' "$NEG/ISSUE.md"; then
   fail "negative issue must not be done"
 fi
-grep -Eq 'status:[[:space:]]*(in_progress|review_ready)' "$NEG/ISSUE.md" \
-  || fail "negative issue must remain in_progress or review_ready"
+# review_ready is accepted as the pre-v3 alias of in_review.
+grep -Eq 'status:[[:space:]]*(in_progress|in_review|review_ready)' "$NEG/ISSUE.md" \
+  || fail "negative issue must remain in_progress or in_review"
 # 7: dependent blocked
 grep -Eq 'status:[[:space:]]*blocked' "$NEG/dependent-ISSUE.md" || fail "dependent must remain blocked"
 # 8: module gate fail

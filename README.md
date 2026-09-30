@@ -1,30 +1,38 @@
 # IDE Development
 
-IDE Development is LiNKtrend’s shared, human-assisted Application Factory operating system — version **v2.3.0**. It installs a portable managed core into product repositories as committed physical files (`.ide-development/` plus Cursor/Codex discovery adapters) so agents follow one doctrine, one six-Module pipeline, one hybrid skill surface, and fail-closed gates — with the Principal approving Intent and release, not day-to-day coding.
+IDE Development **v3.0.0** is LiNKtrend’s shared development operating **System** (a System now, Program-ready). It installs one shared way of building software into every repo: a managed core at `.ide-development/` plus Cursor and Codex discovery adapters.
 
-It is distinct from **LiNKdeveloper**, the separate VPS-hosted autonomous application-factory Program. LiNKdeveloper may be *authored* using this system’s guidance, but it does not depend on this repo at runtime.
+v3 runs that system with one AI orchestrator per repo. The orchestrator is a Cursor Project on the cursor-001 account, running a frontier model. It plans Phases and Issues, dispatches Issues to workers, packages branches into pull requests into `development`, merges when CI is green and one independent review has passed, and promotes `development` to `main`. Cheap helper subagents do its routine jobs.
 
-**This repository** is the **system source** and internal self-verification target. It is **not** a consumer rollout entry and must not receive a nested installed copy of itself.
+Workers are Codex CLI on the orchestrator VM (Luna High for everyday work, Sol Medium for hard work, used while more than 25% of the allowance remains in every reported window) and the cursor-002 Cursor account via API (Grok 4.7 Medium everyday, Opus 5.5 Medium hard). Workers use `issue/<PREFIX>-<n>-<slug>` branches, commit and push often, and never open pull requests.
 
-**Claude Code is excluded** from current v2 support and roadmap. Do not add Claude entrypoints or treat archived Claude packaging (`docs/archive/platform-entrypoints/claude/`) as an install path.
+Checks are fast checks on each branch, one Full CI run per pull request, and one exact-head review by a different model family (Bugbot is optional). The repair ladder is Luna/Grok three times, then Sol/Opus once, then — if the work started on Sol/Opus — the other hard route once, then flag Carlos.
 
-**Pre-rollout:** WP1 proved the RC on disposable targets; WP2 built canonical lineage + live readiness; WP03 integrated and promoted the v2.0 line; Issue #72 completed the pre-launch cleanup; Issue #81 delivered phase delivery; W3-P1 adds the bounded local coordinator, exact receipts, Phase release evidence, and compatibility profiles; and W4 adds multi-host-capable isolated workers while the current Mac Mini remains the sole enabled production worker. **Consumer rollout remains prepared and not executed** — Principal approval is still required. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md), [`docs/contracts/STREAMLINED-DELIVERY.md`](docs/contracts/STREAMLINED-DELIVERY.md), and [`docs/contracts/MULTI-HOST-COORDINATOR.md`](docs/contracts/MULTI-HOST-COORDINATOR.md).
+The ledger is the Supabase schema `ide_ledger` in the LiNKplatform project. Only the orchestrator writes it, through RPC. Until that ledger is live, the pilot run log stays in the Project store. Work IDs look like `IDE-<n>`. One GitHub Issue per Phase is the readable summary.
 
-## Start here (source of truth)
+Long-lived branches are `development` and `main` only. Deploys after `main` are automatic GitHub Actions jobs. The deploy standard is owned by the LiNKops repo, and each deploy includes a health check and a rollback.
 
-These documents are the current, authoritative description of this repository. If anything elsewhere (including older docs under `docs/archive/`) disagrees with them, **these win**:
+Carlos (the Principal) gives intent and answers questions. He does not approve merges or releases.
 
-- **[`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md)** — concise current status / launch readiness (start here for “what is true now”).
-- **[`docs/IDE-DEVELOPMENT-INTENT.md`](docs/IDE-DEVELOPMENT-INTENT.md)** — why IDE Development exists, who it’s for, scope, and what “done” means.
-- **[`docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md`](docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md)** — exhaustive technical reference: architecture, six-Module pipeline, doctrine, hybrid skills, model routing, hooks/CI, LiNKlibraries, and what is not built yet.
+IDE Development is distinct from **LiNKdeveloper**, the separate autonomous application-factory Program. LiNKdeveloper may be authored using this system, and it does not depend on this repo at runtime.
+
+**This repository** (`linktrend/IDE-Development`) is the **system source** and internal self-verification target. It is not a consumer rollout entry and must not receive a nested installed copy of itself. In other repos the same system is installed under `.ide-development/`.
+
+**Claude Code is excluded** from current support. Do not add Claude entrypoints or treat archived Claude packaging (`docs/archive/platform-entrypoints/claude/`) as an install path.
+
+How a repo’s Cursor Project is set up: [`docs/runbooks/project-setup-checklist.md`](docs/runbooks/project-setup-checklist.md). What is true right now: [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
+
+## Start here
+
+- **[`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md)** — concise current status.
 - **[`docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md`](docs/IDE-DEVELOPMENT-OPERATIONS-MANUAL.md)** — plain-English handbook for the Principal.
-- **[`docs/OPEN-ISSUES.md`](docs/OPEN-ISSUES.md)** — append-only engineering notes and open/deferred items.
-- **[`docs/BUILD-LOG.md`](docs/BUILD-LOG.md)** — active Work Packet build log (starts with WP1).
-- **[`docs/adr/0004-portable-managed-core-v2.md`](docs/adr/0004-portable-managed-core-v2.md)** — portable managed-core v2 decision.
-- **[`docs/GITOPS-CONSUMER-ROLLOUT.md`](docs/GITOPS-CONSUMER-ROLLOUT.md)** — consumer inventory, drift posture, Principal gate; rollout = WP04 (approval pending).
-- **[`docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`](docs/work-packets/2026-08-02-work-packet-04-consumer-rollout.md)** — WP04 packet (prepared / not executed).
+- **[`docs/runbooks/project-setup-checklist.md`](docs/runbooks/project-setup-checklist.md)** — how a repo’s Project is set up.
+- **[`docs/IDE-DEVELOPMENT-INTENT.md`](docs/IDE-DEVELOPMENT-INTENT.md)** — why IDE Development exists, who it is for, and what “done” means.
+- **[`docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md`](docs/IDE-DEVELOPMENT-TECHNICAL-PRD.md)** — technical reference for architecture, doctrine, skills, and checks.
+- **[`SETUP.md`](SETUP.md)** — clone, install, and update.
+- **[`docs/runbooks/release-candidate.md`](docs/runbooks/release-candidate.md)** · **[`docs/runbooks/rollback.md`](docs/runbooks/rollback.md)** · **[`docs/acceptance/acceptance-matrix.md`](docs/acceptance/acceptance-matrix.md)**.
 
-Live operational companions: [`SETUP.md`](SETUP.md) (clone / install / update), [`docs/runbooks/release-candidate.md`](docs/runbooks/release-candidate.md), [`docs/runbooks/rollback.md`](docs/runbooks/rollback.md), [`docs/acceptance/acceptance-matrix.md`](docs/acceptance/acceptance-matrix.md), [`docs/HYBRID-SKILLS-REGISTRY.md`](docs/HYBRID-SKILLS-REGISTRY.md), [`docs/ARCHIVE-INDEX.md`](docs/ARCHIVE-INDEX.md), [`docs/AUTONOMOUS-GIT-OPERATIONS.md`](docs/AUTONOMOUS-GIT-OPERATIONS.md), [`docs/contracts/REPOSITORY-PROTECTION.md`](docs/contracts/REPOSITORY-PROTECTION.md), [`docs/contracts/MANAGED-CORE-V2.md`](docs/contracts/MANAGED-CORE-V2.md), [`docs/contracts/EXTERNAL-STATE-AUDIT.md`](docs/contracts/EXTERNAL-STATE-AUDIT.md).
+Older notes under `docs/archive/` are historical. When they disagree with this README, current status, or the operations manual, those current pages win.
 
 ## What it installs
 
@@ -34,7 +42,7 @@ Live operational companions: [`SETUP.md`](SETUP.md) (clone / install / update), 
 | Cursor discovery | Physical `.cursor/rules`, `.cursor/commands`, `.cursor/skills` |
 | Codex discovery | Root `AGENTS.md` managed block + physical `.agents/skills/<name>/SKILL.md` |
 
-**Precedence:** Shared managed lifecycle rules win when explicitly identified in the package. Legitimate repository-specific technical guidance outside managed ownership/markers is **preserved**. Unknown conflicts and modified obsolete generics **fail closed**. External `.cursor` symlinks are migrated to physical files without reading/writing the external target.
+**Precedence:** Shared managed lifecycle rules win when explicitly identified in the package. Legitimate repository-specific technical guidance outside managed ownership/markers is preserved. Unknown conflicts and modified obsolete generics fail closed. External `.cursor` symlinks are migrated to physical files without reading or writing the external target.
 
 ## One-command install / update
 
@@ -56,7 +64,7 @@ python3 scripts/ide-development.py release-candidate create
 python3 scripts/ide-development.py release-candidate verify --archive /path/to/archive.tar.gz
 ```
 
-Or extract manually and install with `--package` pointed at the extracted package root (**no** dependency on this checkout):
+Or extract manually and install with `--package` pointed at the extracted package root (no dependency on this checkout):
 
 ```bash
 python3 /path/to/extracted-rc/.../ide-development.py install \
@@ -81,9 +89,9 @@ Every mutating operation plans first, is transactional, and records rollback inf
 
 ## External GitHub state
 
-GitHub App credentials, secrets, variables, Bugbot dashboard settings, and live branch protections stay **outside** the package. WP1 proved **read-only plan/verify**; WP2 closed IDE Development live readiness under its packet. **Consumer** settings apply and installs remain Principal-gated (WP04). See [`docs/contracts/EXTERNAL-STATE-AUDIT.md`](docs/contracts/EXTERNAL-STATE-AUDIT.md) and [`docs/contracts/REPOSITORY-PROTECTION.md`](docs/contracts/REPOSITORY-PROTECTION.md).
+GitHub App credentials, secrets, variables, Bugbot dashboard settings, and live branch protections stay outside the package. See [`docs/contracts/EXTERNAL-STATE-AUDIT.md`](docs/contracts/EXTERNAL-STATE-AUDIT.md) and [`docs/contracts/REPOSITORY-PROTECTION.md`](docs/contracts/REPOSITORY-PROTECTION.md).
 
-Protection of `development`, `staging`, and `main` remains required managed-system behavior for every installed repository once apply is separately approved.
+Protection of `development` and `main` remains required for every installed repository.
 
 ## Supported platforms
 
@@ -91,26 +99,21 @@ Protection of `development`, `staging`, and `main` remains required managed-syst
 |---|---|
 | **Cursor** | Supported — physical `.cursor` discovery adapters |
 | **Codex** | Supported — `AGENTS.md` + `.agents/skills` |
-| **Claude Code** | **Excluded** — not in current v2 support or roadmap |
-
-### Host OS evidence (WP1)
-
-WP1 production-readiness proof required **macOS, Ubuntu Linux, and Windows** matrix evidence on the exact checkpoint SHA, with Python and OS versions recorded. Skipped or unavailable runners are blockers, not silent passes. See [`docs/acceptance/acceptance-matrix.md`](docs/acceptance/acceptance-matrix.md).
+| **Claude Code** | **Excluded** — not in current support |
 
 ## Layout
 
-- `core/` — canonical portable knowledge asset (doctrine, skills, commands, templates, library client, …).
-- `core/managed-core/` — package source for the v2 managed core (manifest, schemas, platform adapters).
+- `core/` — canonical portable knowledge asset (doctrine, skills, commands, templates, library client).
+- `core/managed-core/` — package source for the managed core (manifest, schemas, platform adapters).
 - `.cursor/` — Cursor compatibility runtime in **this** system repo (adapters into `core/`, plus Cursor-only `rules/` and `mcp.json`).
 - `scripts/ide-development.py` / `scripts/ide_development/` — portable installer engine.
 - `codex/` — Codex-oriented system entrypoints (consumers also get native root/`.agents` adapters on install).
-- `docs/CURRENT-STATUS.md` · `docs/runbooks/` · `docs/acceptance/` · `docs/BUILD-LOG.md` — operator status and handoff.
+- `chatgpt/` — ChatGPT / work-agent entrypoint.
+- `docs/CURRENT-STATUS.md` · `docs/runbooks/` · `docs/acceptance/` — operator status and handoff.
 - `docs/archive/` — superseded descriptive docs; see `docs/archive/README.md`.
 
 ## Status
 
-**Version `v2.3.0`.** Identified in `VERSION`. This feature release packages streamlined Phase delivery and bounded local coordination. Version identity still does **not** by itself create a Git tag or GitHub Release; Terra owns live publication. See [`docs/contracts/STREAMLINED-DELIVERY.md`](docs/contracts/STREAMLINED-DELIVERY.md) and [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
+**Version `v3.0.0`.** Wave 0 of the v3 pilot is done. Wave 1 content is complete and waits for merge to `development` and promotion to `main`. See [`docs/CURRENT-STATUS.md`](docs/CURRENT-STATUS.md).
 
-Automated Stage 1 / system verification: `scripts/verify-ide-development.sh`. Portable v2 integration harness: `tests/test-portable-v2-integration.sh`.
-
-**Deliberately not claimed here:** persistent autonomous orchestration, Principal phone dashboard, automatic product deploy past Module 6 Release OK, Claude Code support, or **executed** consumer rollout (WP04 approval pending). See Technical PRD §9, Operations Manual “Current status,” and the WP04 packet.
+Automated system verification: `scripts/verify-ide-development.sh`.

@@ -282,7 +282,7 @@ state["technicalPrdAcceptanceCriteria"] = [{"id": "AC-1", "status": "met"}]
 state["gateRepairBudget"] = 3
 state["issues"] = {
   "ISSUE-1": {
-    "status": "review_ready",
+    "status": "in_review",
     "proof": {"status": "present"},
     "review": {"verdict": "pass"},
     "integration": {"status": "integrated"}

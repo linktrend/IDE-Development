@@ -1,0 +1,99 @@
+name: Phase summary
+description: One Issue per Phase. A readable summary; per-Issue detail lives in the Ledger (ide_ledger).
+title: "[Phase IDE/<phase>] <title>"
+labels: ["phase"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The orchestrator opens and maintains this Issue. It is a summary only:
+        the Ledger (`ide_ledger`) is the record of truth for Issue state,
+        owners, Runs, decisions and exceptions. Do not track tasks as
+        checkboxes here; update the Ledger and refresh the table below.
+  - type: input
+    id: phase
+    attributes:
+      label: Phase
+      description: Ledger phase reference, `<prefix>/<phase_key>`.
+      placeholder: IDE/0.5
+    validations:
+      required: true
+  - type: input
+    id: owner
+    attributes:
+      label: Owner
+      description: Ledger owner ID accountable for this Phase.
+      placeholder: project:ide-development
+    validations:
+      required: true
+  - type: dropdown
+    id: state
+    attributes:
+      label: Phase state
+      description: Mirrors `ide_ledger.phase.state`.
+      options:
+        - planned
+        - active
+        - packaged
+        - merged
+        - done
+        - cancelled
+      default: 0
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What this Phase delivers, in plain language, and why.
+    validations:
+      required: true
+  - type: textarea
+    id: ledger-issues
+    attributes:
+      label: Ledger Issues
+      description: |
+        Generated from `ide_ledger.phase_summary(prefix, phase_key)`. One row per Ledger Issue.
+        The branch is always `issue/<id>-<slug>`.
+      value: |
+        | Ledger ID | Title | Owner | State | Depends on | Branch |
+        |---|---|---|---|---|---|
+        | IDE-<n> | | | planned | — | `issue/IDE-<n>-<slug>` |
+    validations:
+      required: true
+  - type: textarea
+    id: waves
+    attributes:
+      label: Waves
+      description: Batches of Ledger Issues that run in parallel, in order.
+      placeholder: |
+        1. IDE-<n>, IDE-<n>
+        2. IDE-<n> (after IDE-<n>)
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance checks
+      description: Observable checks that close the Phase.
+    validations:
+      required: true
+  - type: textarea
+    id: pull-requests
+    attributes:
+      label: Pull requests
+      description: Phase PR(s) into `development`, their Full run and independent review, then the promotion to `main`.
+      placeholder: |
+        - #<pr> → development: Full ✅ / review ✅ (reviewer model ≠ author)
+        - promotion to main: #<pr>
+  - type: textarea
+    id: decisions
+    attributes:
+      label: Decisions and exceptions
+      description: Ledger decision / exception IDs with one-line summaries. Detail stays in the Ledger.
+      placeholder: |
+        - decision #<id>: <summary>
+        - exception #<id> (open|resolved): <summary>
+  - type: textarea
+    id: questions
+    attributes:
+      label: Questions for Carlos
+      description: Open questions only, one at a time, multiple choice with a recommendation.

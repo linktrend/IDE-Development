@@ -13,20 +13,6 @@ from jsonschema import Draft202012Validator
 PROTOCOL_ID = "coding-execution-protocol"
 PROTOCOL_VERSION = "1.0.1"
 AMENDMENT_ID = "V25_BOOTSTRAP_LEAN"
-PORTFOLIO_CONTROL_LOOP_PROTOCOL = "portfolio-control-loop"
-PORTFOLIO_CONTROL_LOOP_VERSION = "1.0"
-PORTFOLIO_LANE_STATES = frozenset(
-    {
-        "PREPARED",
-        "RUNNING",
-        "WAITING_DEPENDENCY",
-        "TERMINAL_ACCEPT",
-        "TERMINAL_REJECT",
-        "INTEGRATING",
-        "COMPLETE",
-        "BLOCKED",
-    }
-)
 CANONICAL_PUBLISHER = None
 WAIVED_LEGACY_GATE = "WAIVED_LEGACY_GATE"
 LEGACY_PUBLISHERS = frozenset(
@@ -130,12 +116,10 @@ ORDINARY_SOURCE_REPAIR_LIMIT = 3
 INFRASTRUCTURE_ATTEMPT_LIMIT = 2
 CODE_FAILURE_RETRY_LIMIT = 0
 
-PROTECTED_REFS = frozenset({"development", "staging", "main"})
+PROTECTED_REFS = frozenset({"development", "main"})
 RESERVED_APPROVAL_ACTIONS = frozenset(
     {
-        "main_promote",
         "publish_release",
-        "deploy_production",
         "github_protection_change",
         "provider_live_mutation",
     }
@@ -262,7 +246,6 @@ class AutoworkDiscoveryDecision:
 @dataclass(frozen=True)
 class IssueCheckpointDecision:
     accepted: bool
-    requires_review_ready: bool
     requires_token: bool
     reason: str
 
@@ -609,22 +592,64 @@ def admit_resources(snapshot: Mapping[str, Any] | None) -> ResourceVerdict:
     return ResourceVerdict(True, "admitted", False)
 
 
+def _recorded_approval(
+    action: str,
+    recorded_approvals: Mapping[str, str] | None,
+) -> ApprovalDecision:
+    approvals = recorded_approvals or {}
+    if approvals.get(action) == "founder":
+        return ApprovalDecision(True, False, True, "founder_recorded")
+    return ApprovalDecision(False, False, True, "founder_required")
+
+
 def required_approval(
     action: str,
     *,
     recorded_approvals: Mapping[str, str] | None = None,
+    full_ci_green: bool = False,
+    independent_exact_head_approval: bool = False,
+    deploy_target_declared: bool = False,
+    post_deploy_health_check: bool = False,
+    automatic_rollback: bool = False,
 ) -> ApprovalDecision:
+    """Decide whether an action may proceed under the v3 approval rules.
+
+    ``independent_exact_head_approval`` means a model from a different family
+    than the author approved that exact head. ``deploy_target_declared`` means
+    the repo has ``deploy/target.json`` (schema owned by LiNKops).
+    """
+
     if action in FORBIDDEN_ACTOR_ACTIONS:
         return ApprovalDecision(False, False, False, "actor_forbidden")
     if action in AUTOMATIC_ACTIONS:
         return ApprovalDecision(True, True, False, "automatic")
-    if action == "staging_promote":
-        return ApprovalDecision(True, True, False, "automatic_on_receipt_identity")
+    if action == "main_promote":
+        if full_ci_green and independent_exact_head_approval:
+            return ApprovalDecision(
+                True,
+                True,
+                False,
+                "automatic_on_green_ci_and_independent_review",
+            )
+        return ApprovalDecision(
+            False,
+            False,
+            False,
+            "full_ci_and_independent_review_required",
+        )
+    if action == "deploy_production":
+        if deploy_target_declared:
+            return ApprovalDecision(True, True, False, "automatic_on_deploy_target")
+        if post_deploy_health_check and automatic_rollback:
+            return ApprovalDecision(
+                True,
+                True,
+                False,
+                "automatic_on_health_check_and_rollback",
+            )
+        return _recorded_approval(action, recorded_approvals)
     if action in RESERVED_APPROVAL_ACTIONS:
-        approvals = recorded_approvals or {}
-        if approvals.get(action) == "founder":
-            return ApprovalDecision(True, False, True, "founder_recorded")
-        return ApprovalDecision(False, False, True, "founder_required")
+        return _recorded_approval(action, recorded_approvals)
     return ApprovalDecision(False, False, True, "unknown_action")
 
 
@@ -639,11 +664,9 @@ def git_authority_allows(
     if action == "push_work_branch":
         if branch in PROTECTED_REFS:
             return False
-        return branch.startswith("issue/") and actor == "implementer"
-    if action == "open_pr":
-        return actor in {"packager", "packager_coordinator"}
-    if action == "merge_to_development":
-        return actor == "delivery_controller"
+        return branch.startswith("issue/") and actor == "worker"
+    if action in {"open_pr", "merge_to_development", "promote_to_main"}:
+        return actor == "orchestrator"
     return False
 
 
@@ -734,31 +757,29 @@ def evaluate_issue_checkpoint(
     focused_tests_passed: bool,
     independent_narrow_review: Mapping[str, Any] | None,
     manifest_evidence: bool,
-    review_ready: bool = False,
     automation_token_present: bool = False,
 ) -> IssueCheckpointDecision:
-    del review_ready, automation_token_present
+    del automation_token_present
     if not pushed or not _is_sha40(commit) or not _is_sha40(tree):
         return IssueCheckpointDecision(
-            False, False, False, "exact_pushed_commit_tree_required"
+            False, False, "exact_pushed_commit_tree_required"
         )
     if not scoped_diff:
-        return IssueCheckpointDecision(False, False, False, "scoped_diff_required")
+        return IssueCheckpointDecision(False, False, "scoped_diff_required")
     if not focused_tests_passed:
-        return IssueCheckpointDecision(False, False, False, "focused_tests_required")
+        return IssueCheckpointDecision(False, False, "focused_tests_required")
     if not valid_independent_narrow_review(
         independent_narrow_review, commit=commit, tree=tree
     ):
         return IssueCheckpointDecision(
-            False, False, False, "independent_narrow_review_required"
+            False, False, "independent_narrow_review_required"
         )
     if not manifest_evidence:
         return IssueCheckpointDecision(
-            False, False, False, "manifest_evidence_required"
+            False, False, "manifest_evidence_required"
         )
     return IssueCheckpointDecision(
         True,
-        False,
         False,
         "v25_bootstrap_lean_issue_checkpoint",
     )

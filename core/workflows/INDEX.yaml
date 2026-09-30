@@ -131,7 +131,7 @@ entries:
     path: .cursor/workflows/REVIEW-WORKFLOW.md
     purpose: Defines the workflow for evaluating proof, issuing review outcomes, and returning work for rework or progression.
     when_to_read:
-      - when work reaches review_ready
+      - when work reaches in_review
       - when performing issue, module, or program review
     dependencies:
       - workflow-model

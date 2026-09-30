@@ -15,10 +15,9 @@ import os
 import re
 import sys
 from dataclasses import asdict, dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
-from scripts.gitops.promotion_receipt_gate import verify_receipt_file, verify_receipt_payload
 
 CONTRACT_REL = ".github/linktrend-repository-ci-contract.json"
 CONTRACT_KIND = "repository-ci-contract"
@@ -26,9 +25,26 @@ MANIFEST_KIND = "ci-component-manifest"
 AGGREGATE_CONTEXT_DEFAULT = "Linktrend Full Suite"
 SOURCE_POLICY_CONTEXT = "Linktrend Branch Source Policy"
 FAST_CONTEXT = "Linktrend Fast Checks"
-FULL_CONTEXT = "Linktrend Full Suite"
-RECEIPT_CONTEXT = "Linktrend Receipt Gate"
+# Active main check context (.github/workflows/linktrend-promote-main.yml) is
+# unique; the live ruleset still needs migration from the old staging context.
+MAIN_PROMOTION_CONTEXT = "Linktrend Main Receipt Gate"
 VERIFY_CONTEXT = "Verify IDE Development"
+PLATFORM_MATRIX_PATH_PREFIXES = (
+    ".github/workflows/",
+    "core/managed-core/",
+    "core/github/managed-workflows/",
+    "scripts/ide_development/",
+    "scripts/ide_development_tests/",
+    "scripts/platform_matrix/",
+    "tests/platform_matrix/",
+)
+PLATFORM_MATRIX_FILES = frozenset(
+    {
+        "scripts/run_cross_platform_matrix.py",
+        "scripts/wire-repo.sh",
+        "scripts/sync-managed-workflows.sh",
+    }
+)
 STALE_CONTEXTS = frozenset(
     {
         "Linktrend Repository CI Gate",
@@ -125,14 +141,14 @@ def default_contract() -> dict[str, Any]:
             "full": {
                 "id": "full",
                 "commands": [],
-                "requiredCheckContexts": [FULL_CONTEXT],
+                "requiredCheckContexts": [VERIFY_CONTEXT],
             },
             "promotion": {
                 "id": "promotion",
                 "commands": [],
                 "requiredCheckContexts": [
                     SOURCE_POLICY_CONTEXT,
-                    RECEIPT_CONTEXT,
+                    MAIN_PROMOTION_CONTEXT,
                 ],
             },
             "trusted-governance": {
@@ -203,6 +219,8 @@ def validate_contract(contract: Mapping[str, Any]) -> dict[str, Any]:
         stale = sorted(set(normalized) & STALE_CONTEXTS)
         if stale:
             raise ContractError("contract_context_stale", f"{name}:{','.join(stale)}")
+        if name == PROFILE_PROMOTION and MAIN_PROMOTION_CONTEXT not in normalized:
+            raise ContractError("contract_promotion_check_missing", MAIN_PROMOTION_CONTEXT)
     components = contract.get("coverageComponents")
     if not isinstance(components, list) or not components:
         raise ContractError("contract_coverage_missing")
@@ -289,6 +307,26 @@ def classify_changed_paths(
         "applicationPaths": application,
         "reason": "classified",
     }
+
+
+def requires_cross_platform_matrix(changed_paths: Sequence[str]) -> bool:
+    """Require OS matrix only for installer, workflow, fixture, or environment changes."""
+    for raw in changed_paths:
+        path = normalize_repo_path(str(raw))
+        name = PurePosixPath(path).name
+        if (
+            path in PLATFORM_MATRIX_FILES
+            or any(path.startswith(prefix) for prefix in PLATFORM_MATRIX_PATH_PREFIXES)
+            or (path.startswith(".github/linktrend-") and path.count("/") == 1)
+            or name == "pyproject.toml"
+            or name == "Pipfile"
+            or name == "Pipfile.lock"
+            or name == "poetry.lock"
+            or name == "uv.lock"
+            or (name.startswith("requirements") and name.endswith(".txt"))
+        ):
+            return True
+    return False
 
 
 @dataclass
@@ -1022,151 +1060,6 @@ def validate_affected_surface_evidence(evidence: Mapping[str, Any]) -> dict[str,
     return {"ok": True, "code": "affected_surface_schema_ok"}
 
 
-def verify_promotion_exact_receipt(
-    *,
-    receipt_path: Path | None = None,
-    receipt: Mapping[str, Any] | None = None,
-    identity: Mapping[str, Any] | None = None,
-    identity_path: Path | None = None,
-    repo_path: Path | None = None,
-    dependencies: Sequence[str] = (),
-    expected_head: str | None = None,
-) -> dict[str, Any]:
-    """Promotion exact-receipt verification via promotion_receipt_gate.
-
-    Missing, stale, and wrong-head receipts fail closed through the existing gate.
-    """
-    if receipt_path is None and receipt is None:
-        return {
-            "ok": False,
-            "code": "promotion_receipt_missing",
-            "accepted": False,
-            "gate": "promotion_receipt_gate",
-        }
-
-    if receipt_path is not None:
-        if not Path(receipt_path).is_file():
-            return {
-                "ok": False,
-                "code": "promotion_receipt_missing",
-                "accepted": False,
-                "gate": "promotion_receipt_gate",
-                "detail": str(receipt_path),
-            }
-        decision = verify_receipt_file(
-            receipt_path,
-            identity_path=identity_path,
-            repo_path=repo_path,
-            dependencies=list(dependencies),
-            profile="full",
-            required_gate="full-gate",
-            workflow_head_commit=expected_head,
-        )
-    elif identity is None and identity_path is None and repo_path is None:
-        return {
-            "ok": False,
-            "code": "promotion_receipt_missing",
-            "accepted": False,
-            "gate": "promotion_receipt_gate",
-            "detail": "identity_missing",
-        }
-    else:
-        assert receipt is not None
-        if identity is None:
-            return {
-                "ok": False,
-                "code": "promotion_receipt_missing",
-                "accepted": False,
-                "gate": "promotion_receipt_gate",
-                "detail": "identity_missing",
-            }
-        decision = verify_receipt_payload(
-            receipt,
-            identity,
-            "full-gate",
-            workflow_head_commit=expected_head,
-        )
-
-    payload = decision.to_dict()
-    code = str(payload.get("code") or "")
-    if expected_head and payload.get("accepted"):
-        receipt_head = None
-        if receipt is not None:
-            identity_obj = receipt.get("candidateIdentity")
-            if isinstance(identity_obj, Mapping):
-                receipt_head = identity_obj.get("headCommit")
-        if identity is not None:
-            receipt_head = receipt_head or identity.get("headCommit")
-        if receipt_head and receipt_head != expected_head:
-            return {
-                "ok": False,
-                "code": "promotion_receipt_wrong_head",
-                "accepted": False,
-                "gate": "promotion_receipt_gate",
-                "detail": f"expected={expected_head}; receipt={receipt_head}",
-            }
-    if not payload.get("accepted"):
-        mapped = code
-        if code in {"invalid_receipt", "identity_missing"}:
-            mapped = "promotion_receipt_missing"
-        elif code in {"stale_head", "workflow_head_mismatch", "superseded_head"}:
-            mapped = "promotion_receipt_stale"
-        elif code in {"tree_mismatch", "head_mismatch"}:
-            mapped = "promotion_receipt_wrong_head"
-        return {
-            "ok": False,
-            "code": mapped,
-            "accepted": False,
-            "gate": "promotion_receipt_gate",
-            "detail": payload.get("detail", ""),
-            "upstreamCode": code,
-        }
-    return {
-        "ok": True,
-        "code": "promotion_receipt_accepted",
-        "accepted": True,
-        "gate": "promotion_receipt_gate",
-        "detail": payload.get("detail", ""),
-        "upstreamCode": code,
-    }
-
-
-def evaluate_promotion_with_receipt(
-    *,
-    contract: Mapping[str, Any],
-    branch: str,
-    promotion_tree_unchanged: bool,
-    receipt_path: Path | None = None,
-    receipt: Mapping[str, Any] | None = None,
-    identity: Mapping[str, Any] | None = None,
-    expected_head: str | None = None,
-    repo_path: Path | None = None,
-    dependencies: Sequence[str] = (),
-) -> dict[str, Any]:
-    """Select the promotion profile then enforce exact receipt via the gate."""
-    decision = select_profile(
-        event=EVENT_PROMOTION,
-        branch=branch,
-        changed_paths=[],
-        contract=contract,
-        promotion_tree_unchanged=promotion_tree_unchanged,
-    )
-    receipt_result = verify_promotion_exact_receipt(
-        receipt_path=receipt_path,
-        receipt=receipt,
-        identity=identity,
-        repo_path=repo_path,
-        dependencies=dependencies,
-        expected_head=expected_head,
-    )
-    return {
-        "profile": decision.to_dict(),
-        "receipt": receipt_result,
-        "ok": decision.profile == PROFILE_PROMOTION and bool(receipt_result.get("ok")),
-        "gate": "promotion_receipt_gate",
-    }
-
-
 def authorize_omission(
     *,
     classifier_digest: str | None,
@@ -1244,7 +1137,7 @@ def _has_broad_promotion_trigger(text: str) -> bool:
     has_pr_or_push = bool(re.search(r"(?m)^[ \t]*(pull_request|push)\s*:", text))
     if not has_pr_or_push:
         return False
-    # If branches are limited to development-only without staging/main/promote, ok.
+    # If branches are limited to development-only without main/promote, ok.
     branch_blocks = re.findall(
         r"(?ms)^[ \t]*(?:pull_request|push):\s*\n((?:[ \t]+.*\n)+)",
         text,
@@ -1255,7 +1148,7 @@ def _has_broad_promotion_trigger(text: str) -> bool:
     for block in branch_blocks:
         if "branches:" not in block and "branches-ignore:" not in block:
             return True
-        if re.search(r"staging|main|promote/", block):
+        if re.search(r"main|promote/", block):
             return True
         # branches include only feature/development still fires for PRs into those bases.
         if "pull_request" in text and "branches:" in block:

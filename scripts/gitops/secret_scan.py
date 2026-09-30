@@ -62,7 +62,6 @@ RULE_FORMAT_SK = "format.token"
 RULE_FORMAT_DATABASE = "format.database"
 RULE_FORMAT_PEM = "format.private_key"
 RULE_FORMAT_HIGH_ENTROPY = "format.high_entropy"
-RULE_BINDING_TREE = "binding.candidate_tree"
 RULE_BINDING_POLICY = "binding.scanner_policy"
 RULE_UNKNOWN = "declaration.unknown_rule"
 RULE_MALFORMED = "declaration.malformed"
@@ -127,9 +126,10 @@ DATABASE_RE = re.compile(
 PRIVATE_KEY_RE = re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----")
 OID_RE = re.compile(r"^[0-9a-f]{40}$")
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
-ROOT_KEYS = frozenset(
-    {"schemaVersion", "kind", "scannerPolicyVersion", "candidateTree", "fixtures"}
-)
+ROOT_KEYS = frozenset({"schemaVersion", "kind", "scannerPolicyVersion", "fixtures"})
+# Retired whole-tree pin: accepted for backward compatibility and ignored, so an
+# unrelated change can never invalidate individually approved fixtures.
+ROOT_OPTIONAL_KEYS = frozenset({"candidateTree"})
 FIXTURE_REQUIRED = (
     "id",
     "path",
@@ -851,7 +851,7 @@ def _load_json_bytes(raw: bytes) -> Any:
 def _validate_declaration(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise SecretScanError("declaration_malformed", "root must be an object")
-    extra = set(payload) - ROOT_KEYS
+    extra = set(payload) - ROOT_KEYS - ROOT_OPTIONAL_KEYS
     if extra:
         raise SecretScanError("declaration_malformed", f"extra {sorted(extra)}")
     missing = ROOT_KEYS - set(payload)
@@ -863,8 +863,6 @@ def _validate_declaration(payload: Any) -> dict[str, Any]:
         payload["scannerPolicyVersion"]
     ):
         raise SecretScanError("declaration_malformed", "scannerPolicyVersion")
-    if not isinstance(payload.get("candidateTree"), str) or not OID_RE.fullmatch(payload["candidateTree"]):
-        raise SecretScanError("declaration_malformed", "candidateTree")
     fixtures = payload.get("fixtures")
     if not isinstance(fixtures, list):
         raise SecretScanError("declaration_malformed", "fixtures")
@@ -957,9 +955,27 @@ def _error_result(exc: SecretScanError, content_tree: str = EMPTY_TREE) -> dict[
 
 
 def make_result(
-    *, content_tree: str, findings: list[dict[str, Any]], scan_mode: str | None = None, **metadata: Any
+    *,
+    content_tree: str,
+    findings: list[dict[str, Any]],
+    scan_mode: str | None = None,
+    inherited_findings: list[dict[str, Any]] | None = None,
+    **metadata: Any,
 ) -> dict[str, Any]:
-    ok = not any(row["kind"] in BLOCKING_KINDS for row in findings)
+    # Inherited findings remain visible for auditability, but they are not
+    # current candidate findings. Only rows discovered in the exact
+    # change-scoped path set may determine the blocking verdict. The caller
+    # supplies the exact baseline rows; no path-wide or kind-wide suppression
+    # is possible here.
+    inherited_keys = {
+        json.dumps(row, sort_keys=True, separators=(",", ":"))
+        for row in (inherited_findings or [])
+    }
+    ok = not any(
+        row["kind"] in BLOCKING_KINDS
+        and json.dumps(row, sort_keys=True, separators=(",", ":")) not in inherited_keys
+        for row in findings
+    )
     result = {
         "schemaVersion": 1,
         "kind": "secret-scan-result",
@@ -968,6 +984,8 @@ def make_result(
         "ok": ok,
         "findings": findings,
     }
+    if inherited_findings:
+        result["inheritedFindings"] = inherited_findings
     if scan_mode is not None:
         result["scanMode"] = scan_mode
     metadata_keys = {
@@ -980,6 +998,7 @@ def make_result(
         "config_digest": "configDigest",
         "scanned_paths": "scannedPaths",
         "inherited_finding_count": "inheritedFindingCount",
+        "inherited_findings": "inheritedFindings",
     }
     result.update(
         {metadata_keys.get(key, key): value for key, value in metadata.items() if value is not None}
@@ -1008,19 +1027,6 @@ def _evaluate_declarations(
                     rule=RULE_BINDING_POLICY,
                     digest=None,
                     detail="scannerPolicyVersion",
-                )
-            )
-        if declaration.get("candidateTree") != content_tree:
-            bindings_valid = False
-            findings.append(
-                _finding(
-                    kind=KIND_STALE,
-                    path=DECLARATION_REL,
-                    line=None,
-                    field=None,
-                    rule=RULE_BINDING_TREE,
-                    digest=None,
-                    detail="candidateTree",
                 )
             )
         for row in fixtures:
@@ -1650,11 +1656,24 @@ def _scan_repository(
     )
     findings.extend(_run_repository_scanners(root))
     if scope is None:
+        if requested_paths is not None:
+            # Path-scoped callers (OpenClaw admission) require HEAD commit/tree.
+            # Full repository scans keep omitting those fields so they cannot
+            # be mistaken for change-scoped or receipt-bound Full evidence.
+            commit, git_tree, repository = _git_identity(root)
+            return make_result(
+                content_tree=content_tree,
+                findings=findings,
+                candidate_commit=commit,
+                candidate_git_tree=git_tree,
+                repository=repository,
+            )
         return make_result(content_tree=content_tree, findings=findings)
     return make_result(
         content_tree=content_tree,
         findings=findings,
         scan_mode="change-scoped",
+        inherited_findings=inherited,
         repository=scope["repository"],
         authoritative_remote_ref=scope["authoritativeRemoteRef"],
         baseline_commit=scope["baselineCommit"],

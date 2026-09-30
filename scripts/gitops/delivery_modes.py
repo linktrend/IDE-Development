@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Configurable delivery modes: issue-pr compatibility and Phase integration.
 
-Pure helpers for Packager discover and Phase fixtures. Checkpoint pushes never
+Pure helpers for Phase delivery fixtures. Checkpoint pushes never
 open PRs. Risk-class Issue PR exceptions are explicit under phase-integration.
 """
 
@@ -36,10 +36,12 @@ ISSUE_PR_RISK_CLASSES = frozenset(
     }
 )
 
-NAMED_GATES = frozenset({"fast-gate", "staging-gate", "release-gate"})
+NAMED_GATES = frozenset({"fast-gate", "release-gate"})
 
 _SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 _ZERO_SHA_RE = re.compile(r"^0{40}$")
+_PHASE_PREFIX_RE = re.compile(r"^[A-Za-z0-9._-]+/$")
+_PHASE_SUFFIX_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 # Test hook: (repo_root, branch, sha) -> exception dict | None
 _EXCEPTION_HOOK: Callable[[Path | None, str, str], dict[str, Any] | None] | None = None
@@ -99,8 +101,13 @@ def checkpoint_opens_pr() -> bool:
 
 
 def is_phase_branch(name: str, prefix: str = DEFAULT_PHASE_PREFIX) -> bool:
+    if not isinstance(name, str) or not isinstance(prefix, str):
+        return False
     p = prefix if prefix.endswith("/") else f"{prefix}/"
-    return bool(name) and name.startswith(p)
+    if not _PHASE_PREFIX_RE.fullmatch(p):
+        return False
+    suffix = name[len(p) :] if name.startswith(p) else ""
+    return bool(_PHASE_SUFFIX_RE.fullmatch(suffix))
 
 
 def is_issue_branch(name: str) -> bool:
@@ -133,10 +140,24 @@ def load_delivery_config(
     *,
     env: dict[str, str] | None = None,
 ) -> DeliveryConfig:
-    """Resolve and strictly validate v1/v2 delivery configuration."""
-    from coordinator.config import load_delivery_config as load_runtime_config
+    """Resolve delivery mode and Phase prefix from v1/v2 configuration.
 
-    return load_runtime_config(repo_root, env=env)  # type: ignore[return-value]
+    Environment variables never switch the committed profile.
+    """
+    del env
+    config_path = Path(repo_root) / CONFIG_REL if repo_root is not None else None
+    if config_path is None or not config_path.is_file():
+        return DeliveryConfig(delivery_mode=MODE_PHASE_INTEGRATION)
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"{config_path}: configuration must be a JSON object")
+    mode = payload.get("mode", payload.get("deliveryMode", MODE_PHASE_INTEGRATION))
+    if mode not in {MODE_ISSUE_PR, MODE_PHASE_INTEGRATION}:
+        raise ValueError(f"{config_path}: unsupported delivery mode {mode!r}")
+    prefix = payload.get("phaseBranchPrefix", DEFAULT_PHASE_PREFIX)
+    if not isinstance(prefix, str) or not _PHASE_PREFIX_RE.fullmatch(prefix):
+        raise ValueError(f"{config_path}: invalid phaseBranchPrefix {prefix!r}")
+    return DeliveryConfig(delivery_mode=mode, phase_branch_prefix=prefix)
 
 
 def should_open_pr_for_branch(
@@ -144,13 +165,13 @@ def should_open_pr_for_branch(
     config: DeliveryConfig,
     *,
     risk_class: str | None = None,
-    review_ready: bool = True,
+    in_review: bool = True,
 ) -> PrOpenDecision:
-    """Decide whether Packager discover may open/ensure a development draft PR.
+    """Decide whether the orchestrator may open/ensure a development draft PR.
 
-    Checkpoints (review_ready=False) never open PRs.
+    Checkpoints (in_review=False: the Issue is not yet in_review) never open PRs.
     """
-    if not review_ready:
+    if not in_review:
         return PrOpenDecision(False, "skipped_not_ready")
     if checkpoint_opens_pr():
         return PrOpenDecision(False, "checkpoint_never_opens_pr")
@@ -197,6 +218,53 @@ def load_exception_for_tip(
     return parse_issue_pr_exception(data)
 
 
+def latest_checks_by_name(checks: list[dict[str, Any]]) -> dict[str, str]:
+    """Map check name -> latest state/conclusion (uppercase)."""
+    # Prefer completedAt ordering when present
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for c in checks:
+        name = c.get("name") or ""
+        if not name:
+            continue
+        grouped.setdefault(name, []).append(c)
+
+    out: dict[str, str] = {}
+    for name, rows in grouped.items():
+        rows_sorted = sorted(
+            rows,
+            key=lambda r: r.get("completedAt") or r.get("completed_at") or r.get("startedAt") or r.get("started_at") or "",
+        )
+        last = rows_sorted[-1]
+        state = (
+            last.get("state")
+            or last.get("conclusion")
+            or last.get("status")
+            or "missing"
+        )
+        out[name] = str(state).upper()
+    return out
+
+
+def fast_gate_status(
+    checks: list[dict[str, Any]],
+    required: list[str],
+) -> tuple[str, str]:
+    """Return (status, detail) where status is success|pending|failed|missing."""
+    latest = latest_checks_by_name(checks)
+    req = [r.strip() for r in required if r.strip()]
+    if not req:
+        return "failed", "REQUIRED_CHECKS empty"
+    for name in req:
+        state = latest.get(name, "MISSING")
+        if state in {"PENDING", "QUEUED", "IN_PROGRESS", "EXPECTED"}:
+            return "pending", f"{name}={state}"
+        if state in {"MISSING", ""}:
+            return "missing", f"{name}=missing"
+        if state != "SUCCESS":
+            return "failed", f"{name}={state}"
+    return "success", "all required success"
+
+
 def named_gate_evidence(
     *,
     gate: str,
@@ -207,12 +275,7 @@ def named_gate_evidence(
     stale_event: bool = False,
     allow_neutral: bool = False,
 ) -> dict[str, Any]:
-    """Build fail-closed named-gate evidence for an exact SHA.
-
-    Import of packager_logic.fast_gate_status is local to avoid cycles at import.
-    """
-    from packager_logic import fast_gate_status, latest_checks_by_name
-
+    """Build fail-closed named-gate evidence for an exact SHA."""
     gate_id = (gate or "").strip()
     if gate_id not in NAMED_GATES:
         return {
@@ -396,7 +459,7 @@ def build_phase_delivery_record(
     if candidate_identity is not None:
         record["candidateIdentity"] = candidate_identity
     if gate_results is not None:
-        record.update({key: value for key, value in gate_results.items() if key in {"fast", "bugbot", "full", "staging", "release"}})
+        record.update({key: value for key, value in gate_results.items() if key in {"fast", "full", "release"}})
     if stop_reason is not None:
         record["stopReason"] = stop_reason
     return record
@@ -531,7 +594,8 @@ def main(argv: list[str] | None = None) -> int:
             str(data.get("branch") or ""),
             cfg,
             risk_class=data.get("riskClass"),
-            review_ready=bool(data.get("reviewReady", True)),
+            # "reviewReady" is the pre-v3 input key, still read as an alias.
+            in_review=bool(data.get("inReview", data.get("reviewReady", True))),
         )
         json.dump(
             {

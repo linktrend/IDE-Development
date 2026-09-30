@@ -34,7 +34,6 @@ from scripts.gitops.repository_ci_contract import (
     digest_text,
     evaluate_aggregate_gate,
     evaluate_cache_advisory,
-    evaluate_promotion_with_receipt,
     expand_reverse_dependencies,
     innermost_diagnostic,
     installer_audit_repository_ci_triggers,
@@ -46,7 +45,6 @@ from scripts.gitops.repository_ci_contract import (
     validate_artifact_file,
     validate_contract,
     validate_coverage_manifest,
-    verify_promotion_exact_receipt,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -109,7 +107,7 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
     def test_unchanged_promotion_receipt_only_and_changed_fails(self) -> None:
         ok = select_profile(
             event=EVENT_PROMOTION,
-            branch="promote/staging/demo",
+            branch="promote/main/unchanged",
             changed_paths=[],
             contract=self.contract,
             promotion_tree_unchanged=True,
@@ -134,8 +132,16 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
     def test_required_contexts_are_emitted_and_stale_context_is_rejected(self) -> None:
         self.assertEqual(self.contract["aggregateContext"], "Linktrend Full Suite")
         self.assertEqual(
+            default_contract()["profiles"]["full"]["requiredCheckContexts"],
+            ["Verify IDE Development"],
+        )
+        self.assertEqual(
             self.contract["profiles"]["promotion"]["requiredCheckContexts"],
-            ["Linktrend Branch Source Policy", "Linktrend Receipt Gate"],
+            ["Linktrend Branch Source Policy", "Linktrend Main Receipt Gate"],
+        )
+        self.assertEqual(
+            default_contract()["profiles"]["promotion"]["requiredCheckContexts"],
+            ["Linktrend Branch Source Policy", "Linktrend Main Receipt Gate"],
         )
         self.assertEqual(
             self.contract["profiles"]["trusted-governance"]["requiredCheckContexts"],
@@ -145,6 +151,10 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
         stale["aggregateContext"] = "Linktrend Repository CI Gate"
         with self.assertRaisesRegex(ContractError, "contract_aggregate_stale"):
             validate_contract(stale)
+        no_promotion_check = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+        no_promotion_check["profiles"]["promotion"]["requiredCheckContexts"] = ["Linktrend Branch Source Policy"]
+        with self.assertRaisesRegex(ContractError, "contract_promotion_check_missing"):
+            validate_contract(no_promotion_check)
 
     def test_expensive_fanout_requires_capacity_and_rejects_duplicates(self) -> None:
         head = _head(7)
@@ -589,7 +599,7 @@ class RepositoryCiTriggerContractTests(unittest.TestCase):
                         "name: Receipt gate",
                         "on:",
                         "  pull_request:",
-                        "    branches: ['promote/staging/**']",
+                        "    branches: ['promote/main/**']",
                         "jobs:",
                         "  verify:",
                         "    runs-on: ubuntu-latest",
@@ -698,96 +708,6 @@ jobs:
             verify_idx = source.index("def run_verify")
             self.assertIn("repositoryCiTriggerAudit=ci_trigger_audit", source[install_idx:verify_idx])
             self.assertIn("repositoryCiTriggerAudit=ci_trigger_audit", source[verify_idx:])
-
-    def test_promotion_exact_receipt_obeys_promotion_receipt_gate(self) -> None:
-        import subprocess
-
-        from scripts.gitops.coordinator import receipts
-
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            repo = root / "repo"
-            repo.mkdir()
-
-            def git(*args: str) -> str:
-                result = subprocess.run(
-                    ["git", *args],
-                    cwd=repo,
-                    text=True,
-                    capture_output=True,
-                    check=True,
-                )
-                return result.stdout.strip()
-
-            git("init", "-q")
-            git("config", "user.email", "u07@example.invalid")
-            git("config", "user.name", "WP-U07")
-            git("remote", "add", "origin", "https://github.com/acme/promotion.git")
-            (repo / "app.txt").write_text("one\n", encoding="utf-8")
-            (repo / "deps.lock").write_text("dep-one\n", encoding="utf-8")
-            git("add", ".")
-            git("commit", "-qm", "initial")
-            identity = receipts.compute_candidate_identity(repo, ["deps.lock"], "full")
-            receipt_payload = {
-                "schemaVersion": 2,
-                "candidateIdentity": identity.to_dict(),
-                "workflowRunId": 401,
-                "workflowRunAttempt": 1,
-                "runnerLabel": "ubuntu-24.04-arm",
-                "startedAt": "2026-08-17T01:00:00Z",
-                "completedAt": "2026-08-17T01:01:00Z",
-                "conclusion": "success",
-                "commandDigest": "sha256:" + ("c" * 64),
-                "evidenceDigests": {"evidence/full.log": "sha256:" + ("b" * 64)},
-            }
-            receipt_path = root / "full-receipt.json"
-            receipts.write_receipt(receipt_payload, receipt_path)
-
-            missing = verify_promotion_exact_receipt(
-                receipt_path=root / "missing.json",
-                repo_path=repo,
-                dependencies=["deps.lock"],
-                expected_head=identity.head_commit,
-            )
-            self.assertFalse(missing["ok"])
-            self.assertEqual(missing["code"], "promotion_receipt_missing")
-            self.assertEqual(missing["gate"], "promotion_receipt_gate")
-
-            stale = verify_promotion_exact_receipt(
-                receipt_path=receipt_path,
-                repo_path=repo,
-                dependencies=["deps.lock"],
-                expected_head=_head(9),
-            )
-            self.assertFalse(stale["ok"])
-            self.assertIn(stale["code"], {"promotion_receipt_stale", "promotion_receipt_wrong_head"})
-            self.assertEqual(stale["gate"], "promotion_receipt_gate")
-
-            wrong = evaluate_promotion_with_receipt(
-                contract=self.contract,
-                branch="promote/staging/demo",
-                promotion_tree_unchanged=True,
-                receipt=receipt_payload,
-                identity=identity.to_dict(),
-                expected_head=_head(8),
-            )
-            self.assertFalse(wrong["ok"])
-            self.assertEqual(wrong["gate"], "promotion_receipt_gate")
-            self.assertFalse(wrong["receipt"]["ok"])
-
-            accepted = evaluate_promotion_with_receipt(
-                contract=self.contract,
-                branch="promote/staging/demo",
-                promotion_tree_unchanged=True,
-                receipt_path=receipt_path,
-                repo_path=repo,
-                dependencies=["deps.lock"],
-                expected_head=identity.head_commit,
-            )
-            self.assertTrue(accepted["ok"])
-            self.assertEqual(accepted["profile"]["profile"], PROFILE_PROMOTION)
-            self.assertEqual(accepted["receipt"]["gate"], "promotion_receipt_gate")
-            self.assertTrue(accepted["receipt"]["ok"])
 
     def test_ci_evidence_schema_accepts_real_producer_outputs(self) -> None:
         """Draft 2020-12 instance validation against packaged ci-evidence schema.
