@@ -49,7 +49,10 @@ BUGBOT_CHECK = REVIEW_GATE_CHECK  # compatibility name; never a required v2.5.1 
 OBSOLETE_MANAGED_CHECKS = frozenset(
     {"Cursor Bugbot", "Linktrend Review Gate", "Linktrend Review Ready"}
 )
-RENAMED_MANAGED_CHECKS = {"Enforce allowed PR source branches": SOURCE_POLICY_CHECK}
+RENAMED_MANAGED_CHECKS = {
+    "Enforce allowed PR source branches": SOURCE_POLICY_CHECK,
+    "Linktrend Receipt Gate": MAIN_PROMOTION_CHECK,
+}
 
 GOVERNED = ("development", "main")
 

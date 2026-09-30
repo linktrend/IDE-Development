@@ -32,6 +32,7 @@ OBSOLETE_TO_ACTIVE: dict[str, str] = {
     "Enforce allowed PR source branches": SOURCE_POLICY_CHECK,
     "Branch Source Policy": SOURCE_POLICY_CHECK,
     "Linktrend Repository CI Gate": FULL_SUITE,
+    "Linktrend Receipt Gate": RECEIPT_GATE,
 }
 OBSOLETE_REMOVED = frozenset({"Cursor Bugbot", REVIEW_GATE_CHECK, "Linktrend Review Ready"})
 
