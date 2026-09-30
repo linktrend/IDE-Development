@@ -2,7 +2,7 @@
 
 > **Superseded on 2026-09-30.** This document preserves its former body for
 > historical context; it is not active operating guidance. Follow
-> [`docs/runbooks/hosted-delivery-operations.md`](runbooks/hosted-delivery-operations.md)
+> [`docs/runbooks/hosted-delivery-operations.md`](https://github.com/linktrend/IDE-Development/blob/main/docs/runbooks/hosted-delivery-operations.md)
 > for the current setup: issue checkpoints feed one combined Phase PR, the
 > existing Fast and Verify checks produce exact-head evidence, and promotion
 > reuses a matching receipt after independent review. Work is coordinated by
