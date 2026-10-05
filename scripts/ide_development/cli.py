@@ -21,6 +21,7 @@ from .engine import (
     run_drift,
     run_install_or_update,
     run_plan,
+    run_protected_preimage_adoption,
     run_rollback,
     run_same_version_repair,
     run_verify,
@@ -128,6 +129,17 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         required=True,
         help="Digest-bound v2.5.2 same-version repair receipt",
+    )
+    adoption = sub.add_parser(
+        "adopt-protected-preimage",
+        parents=[common],
+        help="Reconcile an exact protected commit preimage into installed-state",
+    )
+    adoption.add_argument(
+        "--adoption-manifest",
+        type=Path,
+        required=True,
+        help="Digest-bound protected preimage adoption receipt",
     )
     sub.add_parser(
         "drift",
@@ -271,6 +283,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 target=target,
                 package=package,
                 repair_manifest=args.repair_manifest,
+                dry_run=dry_run,
+            )
+        elif args.command == "adopt-protected-preimage":
+            result = run_protected_preimage_adoption(
+                target=target,
+                package=package,
+                adoption_manifest=args.adoption_manifest,
                 dry_run=dry_run,
             )
         elif args.command == "drift":

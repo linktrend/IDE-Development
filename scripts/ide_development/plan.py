@@ -35,6 +35,7 @@ class OpKind(str, Enum):
     MARKER_UPSERT = "marker_upsert"
     MIGRATE_SYMLINK = "migrate_symlink"
     EXTERNAL_PLAN = "external_plan"
+    ADOPT_PREIMAGE = "adopt_preimage"
     NOOP = "noop"
 
 

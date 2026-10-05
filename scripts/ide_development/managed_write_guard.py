@@ -26,7 +26,9 @@ from .paths import as_posix_rel, encode_backup_name, git_meta_dir, join_under_no
 
 
 _DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
-_OPERATIONS = frozenset({"install", "update", "repair", "rollback", "recover"})
+_OPERATIONS = frozenset(
+    {"install", "update", "repair", "adopt-protected-preimage", "rollback", "recover"}
+)
 _MAX_LEASE_SECONDS = 300.0
 READ_ONLY_POLICY = "read-only"
 PRESERVE_REMOVAL_POLICY = "preserve"

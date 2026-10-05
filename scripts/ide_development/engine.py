@@ -34,6 +34,9 @@ from .same_version_repair import (
     OPERATION_ADD,
     load_and_validate_same_version_repair,
 )
+from .protected_preimage_adoption import (
+    load_and_validate_protected_preimage_adoption,
+)
 from .openclaw_customization_admission import (
     BOUNDARY_REL,
     admit_openclaw_customization,
@@ -729,6 +732,82 @@ def run_same_version_repair(
         payload["applied"] = False
         return EngineResult(exit_code=EXIT_OK, payload=payload)
 
+    result = apply_plan(
+        target_root=target_root,
+        package_root=package_root,
+        manifest=manifest,
+        plan=plan,
+        prior=prior,
+    )
+    payload["applied"] = True
+    payload["transaction"] = result
+    return EngineResult(exit_code=EXIT_OK, payload=payload)
+
+
+def run_protected_preimage_adoption(
+    *,
+    target: Path,
+    package: Path | None = None,
+    adoption_manifest: Path | None = None,
+    dry_run: bool = False,
+) -> EngineResult:
+    """Reconcile one exact protected preimage into installed-state.
+
+    This does not install package bytes.  It only records already-present
+    bytes after the receipt proves their protected commit, tree, Git blob,
+    ancestry, repository, and per-path managed ownership.
+    """
+    if adoption_manifest is None:
+        raise InvalidPackageError("protected preimage adoption requires --adoption-manifest")
+    package_root, target_root = _prepare(target=target, package=package)
+    manifest = load_manifest(package_root)
+    prior = load_installed_state(target_root)
+    adoption = load_and_validate_protected_preimage_adoption(
+        adoption_manifest,
+        target_root=target_root,
+        manifest=manifest,
+        prior=prior,
+    )
+    actions = [
+        PlanAction(
+            op=OpKind.ADOPT_PREIMAGE,
+            path=item.path,
+            entry_id=next(
+                entry.id for entry in manifest.active_entries() if entry.destination == item.path
+            ),
+            reason="adopt exact protected preimage into installed-state",
+            classification="protected_preimage_adoption",
+        )
+        for item in adoption.paths
+    ]
+    plan = Plan(
+        command="adopt-protected-preimage",
+        package_version=SAME_VERSION_REPAIR_VERSION,
+        target=str(target_root),
+        dry_run=dry_run,
+        actions=actions,
+    )
+    payload = plan.to_dict()
+    payload.update(
+        {
+            "command": "adopt-protected-preimage",
+            "installerVersion": installer_version,
+            "adoptionManifest": str(adoption.receipt_path),
+            "adoptionManifestDigest": adoption.receipt_digest,
+            "protectedIdentity": {
+                "repository": adoption.repository,
+                "baseRef": adoption.base_ref,
+                "baseCommit": adoption.base_commit,
+                "commit": adoption.commit,
+                "tree": adoption.tree,
+                "ancestor": adoption.ancestor,
+            },
+            "installedManifestDigest": adoption.installed_manifest_digest,
+        }
+    )
+    if dry_run:
+        payload["applied"] = False
+        return EngineResult(exit_code=EXIT_OK, payload=payload)
     result = apply_plan(
         target_root=target_root,
         package_root=package_root,

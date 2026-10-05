@@ -410,6 +410,29 @@ def build_next_state(
         files.update(prior.files)
     entries = _entry_map(manifest)
     for action in actions:
+        if action.op == OpKind.ADOPT_PREIMAGE:
+            previous = files.get(action.path)
+            entry = entries.get(action.path)
+            dest = join_under(target_root, action.path)
+            if previous is None or entry is None or not dest.is_file() or path_is_symlink(dest):
+                raise ConflictError(
+                    "Protected preimage adoption destination is no longer safe",
+                    details={"path": action.path},
+                )
+            files[action.path] = FileState(
+                id=previous.id,
+                source_hash=previous.source_hash,
+                content_hash=sha256_file(dest),
+                mode=normalize_mode(dest.stat().st_mode & 0o7777),
+                owner=previous.owner,
+                package_version=manifest.package_version,
+                mutability_policy=previous.mutability_policy,
+                removal_policy=previous.removal_policy,
+                ownership_class=previous.ownership_class,
+                platform=previous.platform,
+                merge_strategy=previous.merge_strategy,
+            )
+            continue
         if action.op == OpKind.MIGRATE_SYMLINK:
             continue
         if action.op == OpKind.REMOVE:
@@ -469,8 +492,14 @@ def build_next_state(
             platform=entry.platform,
             merge_strategy=entry.merge_strategy,
         )
-    # Ensure all active manifest paths that exist are recorded
+    # Ensure all active manifest paths that exist are recorded.  Explicit
+    # repair/adoption plans intentionally carry only their declared paths;
+    # never refresh installed-state content hashes for unrelated pre-existing
+    # drift merely because a transaction happened to run.
+    touched_paths = {action.path for action in actions}
     for entry in entries.values():
+        if prior is not None and entry.destination not in touched_paths:
+            continue
         dest = join_under(target_root, entry.destination)
         if dest.is_file() and not path_is_symlink(dest):
             files[entry.destination] = FileState(
@@ -605,7 +634,11 @@ def apply_plan(
         with managed_write_lease(
             target_root=target_root,
             paths=lease_paths,
-            operation=plan.command if plan.command in {"install", "update", "repair"} else "repair",
+            operation=(
+                plan.command
+                if plan.command in {"install", "update", "repair", "adopt-protected-preimage"}
+                else "repair"
+            ),
             package_version=manifest.package_version,
             manifest_digest=sha256_file(manifest.path),
             transaction_id=f"lease-{uuid.uuid4()}",
@@ -802,6 +835,11 @@ def _apply_plan_unlocked(
                         join_under(target_root, MANIFEST_DEST),
                         mode="0444",
                     )
+            elif action.op == OpKind.ADOPT_PREIMAGE:
+                # The receipt already proved the destination bytes. Adoption
+                # records that exact preimage in installed-state; it never
+                # copies package bytes or accepts arbitrary dirty content.
+                _authorize_managed_write(write_lease, action.path)
             else:
                 apply_action(
                     target_root=target_root,
