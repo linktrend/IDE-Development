@@ -28,7 +28,8 @@ KIND = "ide-managed-protected-preimage-adoption"
 SCHEMA_VERSION = 1
 OID = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
-SAFE_REF = re.compile(r"^(?:origin/)?[A-Za-z0-9._/-]+$")
+TRUSTED_PROTECTED_BASE_REF = "origin/development"
+TRUSTED_PROTECTED_REMOTE_REF = "refs/heads/development"
 
 
 @dataclass(frozen=True)
@@ -136,6 +137,33 @@ def _is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
     return result.returncode == 0
 
 
+def _fresh_remote_tip(root: Path) -> str:
+    """Read the protected branch tip from the configured remote, not a local ref."""
+    result = subprocess.run(
+        [
+            "git",
+            "ls-remote",
+            "--exit-code",
+            "--refs",
+            "origin",
+            TRUSTED_PROTECTED_REMOTE_REF,
+        ],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        raise InvalidPackageError(
+            "Protected preimage authoritative remote development ref is unavailable",
+            details={"stderr": result.stderr.strip()},
+        )
+    rows = [line.split() for line in result.stdout.splitlines() if line.strip()]
+    if len(rows) != 1 or len(rows[0]) != 2 or rows[0][1] != TRUSTED_PROTECTED_REMOTE_REF or not OID.fullmatch(rows[0][0]):
+        raise InvalidPackageError("Protected preimage authoritative remote development ref is malformed")
+    return rows[0][0]
+
+
 def _normalize_remote(value: str) -> str:
     remote = value.strip()
     if remote.startswith("git@") and ":" in remote:
@@ -193,8 +221,10 @@ def load_and_validate_protected_preimage_adoption(
     base_ref = protected.get("baseRef")
     if not isinstance(repository, str) or not repository.strip():
         raise InvalidPackageError("Protected preimage protected.repository is required")
-    if not isinstance(base_ref, str) or not SAFE_REF.fullmatch(base_ref):
-        raise InvalidPackageError("Protected preimage protected.baseRef is invalid")
+    if base_ref != TRUSTED_PROTECTED_BASE_REF:
+        raise InvalidPackageError(
+            "Protected preimage protected.baseRef must be the authoritative origin/development ref"
+        )
     remote = _normalize_remote(_git(target_root, "remote", "get-url", "origin"))
     if _normalize_remote(repository) != remote:
         raise InvalidPackageError("Protected preimage repository does not match origin")
@@ -204,7 +234,9 @@ def load_and_validate_protected_preimage_adoption(
     ancestor = _oid(protected.get("ancestor"), "protected.ancestor")
     resolved_base = _git(target_root, "rev-parse", "--verify", f"{base_ref}^{{commit}}")
     if resolved_base != base_commit:
-        raise InvalidPackageError("Protected preimage base ref identity is stale")
+        raise InvalidPackageError("Protected preimage local base ref identity is stale")
+    if _fresh_remote_tip(target_root) != base_commit:
+        raise InvalidPackageError("Protected preimage remote protected base identity is stale")
     if _git(target_root, "rev-parse", "--verify", f"{commit}^{{commit}}") != commit:
         raise InvalidPackageError("Protected preimage commit is unavailable")
     if _git(target_root, "rev-parse", "--verify", f"{commit}^{{tree}}") != tree:

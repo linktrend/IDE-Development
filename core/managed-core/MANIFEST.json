@@ -4720,7 +4720,7 @@
       "id": "installer-scripts-ide-development-protected-preimage-adoption-py",
       "ownershipClass": "managed",
       "source": "scripts/ide_development/protected_preimage_adoption.py",
-      "sourceHash": "sha256:6f832f2366abaa5c79055f8b2b855b2bce286479c6c414ba184087814708454b",
+      "sourceHash": "sha256:50da8b4fc2e054ae1bd51745e8832dadddb2e8b134515d06eedd753ab48caf11",
       "destination": "scripts/ide_development/protected_preimage_adoption.py",
       "mode": "0644",
       "platform": "all",

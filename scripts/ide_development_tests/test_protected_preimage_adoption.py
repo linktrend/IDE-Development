@@ -71,6 +71,20 @@ class ProtectedPreimageAdoptionTests(TempRepoTestCase):
         self._git("commit", "-m", "protected preimage")
         commit = self._git("rev-parse", "HEAD")
         self._git("update-ref", "refs/remotes/origin/development", commit)
+        remote = Path(self._tmp.name) / "origin.git"
+        subprocess.run(["git", "init", "--bare", str(remote)], check=True, capture_output=True)
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(self.target),
+                "push",
+                str(remote),
+                f"{commit}:refs/heads/development",
+            ],
+            check=True,
+            capture_output=True,
+        )
         ancestor = self._git("rev-list", "--parents", "-n", "1", commit).split()[1]
         tree = self._git("rev-parse", "HEAD^{tree}")
         blob = self._git("hash-object", "--no-filters", "--", self.rel)
@@ -82,7 +96,7 @@ class ProtectedPreimageAdoptionTests(TempRepoTestCase):
             "packageVersion": "2.5.2",
             "installedManifestDigest": state.manifest_hash,
             "protected": {
-                "repository": "https://github.com/test/consumer",
+                "repository": str(remote),
                 "baseRef": "origin/development",
                 "baseCommit": commit,
                 "commit": commit,
@@ -99,7 +113,7 @@ class ProtectedPreimageAdoptionTests(TempRepoTestCase):
                 }
             ],
         }
-        self._git("remote", "add", "origin", "https://github.com/test/consumer")
+        self._git("remote", "add", "origin", str(remote))
         # The remote is added after the commit so this helper can also prove
         # that a receipt cannot silently select another repository.
         receipt.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -159,6 +173,36 @@ class ProtectedPreimageAdoptionTests(TempRepoTestCase):
         payload["protected"]["repository"] = "https://github.com/other/repository"
         receipt.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         with self.assertRaisesRegex(InvalidPackageError, "repository does not match origin"):
+            run_protected_preimage_adoption(
+                target=self.target,
+                package=self.package,
+                adoption_manifest=receipt,
+                dry_run=True,
+            )
+
+    def test_head_base_ref_is_rejected(self) -> None:
+        receipt, payload, _before, _commit, _unrelated_before = self._prepare_protected_preimage()
+        payload["protected"]["baseRef"] = "HEAD"
+        receipt.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(InvalidPackageError, "authoritative origin/development"):
+            run_protected_preimage_adoption(
+                target=self.target,
+                package=self.package,
+                adoption_manifest=receipt,
+                dry_run=True,
+            )
+
+    def test_local_tracking_ref_spoof_is_rejected(self) -> None:
+        receipt, payload, _before, commit, _unrelated_before = self._prepare_protected_preimage()
+        self._git("commit", "--allow-empty", "-m", "local spoof")
+        spoof = self._git("rev-parse", "HEAD")
+        self._git("update-ref", "refs/remotes/origin/development", spoof)
+        payload["protected"]["baseCommit"] = spoof
+        payload["protected"]["commit"] = commit
+        payload["protected"]["tree"] = self._git("rev-parse", f"{commit}^{{tree}}")
+        payload["protected"]["ancestor"] = self._git("rev-list", "--parents", "-n", "1", commit).split()[1]
+        receipt.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(InvalidPackageError, "remote protected base identity is stale"):
             run_protected_preimage_adoption(
                 target=self.target,
                 package=self.package,
