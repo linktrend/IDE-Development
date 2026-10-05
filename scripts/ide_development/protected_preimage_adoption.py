@@ -12,6 +12,7 @@ import hashlib
 import json
 import re
 import subprocess
+from urllib.parse import urlsplit
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -164,6 +165,46 @@ def _fresh_remote_tip(root: Path) -> str:
     return rows[0][0]
 
 
+def _fresh_remote_protection(root: Path, repository: str, base_commit: str) -> dict[str, Any]:
+    """Require fresh GitHub branch metadata proving native protection and identity."""
+    parsed = urlsplit(repository)
+    if parsed.scheme != "https" or parsed.netloc.lower() != "github.com":
+        raise InvalidPackageError(
+            "Protected preimage native protection evidence requires a GitHub HTTPS remote"
+        )
+    parts = [part for part in parsed.path.strip("/").split("/") if part]
+    if len(parts) != 2 or parts[1].endswith(".git"):
+        raise InvalidPackageError("Protected preimage GitHub repository identity is invalid")
+    slug = "/".join(parts)
+    result = subprocess.run(
+        ["gh", "api", f"repos/{slug}/branches/development"],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        raise InvalidPackageError(
+            "Protected preimage native branch protection evidence is unavailable",
+            details={"stderr": result.stderr.strip()},
+        )
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise InvalidPackageError("Protected preimage native branch protection evidence is malformed") from exc
+    if (
+        not isinstance(payload, Mapping)
+        or payload.get("name") != "development"
+        or payload.get("protected") is not True
+        or not isinstance(payload.get("commit"), Mapping)
+        or payload["commit"].get("sha") != base_commit
+    ):
+        raise InvalidPackageError(
+            "Protected preimage remote development branch is not freshly protected at the claimed commit"
+        )
+    return dict(payload)
+
+
 def _normalize_remote(value: str) -> str:
     remote = value.strip()
     if remote.startswith("git@") and ":" in remote:
@@ -237,6 +278,7 @@ def load_and_validate_protected_preimage_adoption(
         raise InvalidPackageError("Protected preimage local base ref identity is stale")
     if _fresh_remote_tip(target_root) != base_commit:
         raise InvalidPackageError("Protected preimage remote protected base identity is stale")
+    _fresh_remote_protection(target_root, remote, base_commit)
     if _git(target_root, "rev-parse", "--verify", f"{commit}^{{commit}}") != commit:
         raise InvalidPackageError("Protected preimage commit is unavailable")
     if _git(target_root, "rev-parse", "--verify", f"{commit}^{{tree}}") != tree:

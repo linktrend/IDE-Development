@@ -6,6 +6,7 @@ import json
 import hashlib
 import shutil
 import subprocess
+from unittest.mock import patch
 from pathlib import Path
 
 from ide_development.engine import run_install_or_update, run_protected_preimage_adoption, run_rollback
@@ -13,6 +14,7 @@ from ide_development.errors import InvalidPackageError
 from ide_development.hashing import sha256_file
 from ide_development.managed_write_guard import managed_write_lease
 from ide_development.state import load_installed_state
+import ide_development.protected_preimage_adoption as protected_preimage_adoption
 from ide_development_tests import TempRepoTestCase
 
 
@@ -25,6 +27,16 @@ class ProtectedPreimageAdoptionTests(TempRepoTestCase):
             ["git", *args], cwd=self.target, text=True, capture_output=True, check=True
         )
         return result.stdout.strip()
+
+    def setUp(self) -> None:
+        super().setUp()
+        self._protection_patch = patch.object(
+            protected_preimage_adoption,
+            "_fresh_remote_protection",
+            return_value={"name": "development", "protected": True},
+        )
+        self._protection_patch.start()
+        self.addCleanup(self._protection_patch.stop)
 
     def _prepare_protected_preimage(self) -> tuple[Path, dict[str, object], bytes, str, str]:
         package = Path(self._tmp.name) / "package-2.5.2"
@@ -209,3 +221,25 @@ class ProtectedPreimageAdoptionTests(TempRepoTestCase):
                 adoption_manifest=receipt,
                 dry_run=True,
             )
+
+    def test_unprotected_remote_is_rejected(self) -> None:
+        _receipt, _payload, _before, commit, _unrelated_before = self._prepare_protected_preimage()
+        self._protection_patch.stop()
+        response = subprocess.CompletedProcess(
+            ["gh", "api"],
+            0,
+            stdout=json.dumps(
+                {"name": "development", "protected": False, "commit": {"sha": commit}}
+            ),
+            stderr="",
+        )
+        with patch.object(
+            protected_preimage_adoption.subprocess,
+            "run",
+            return_value=response,
+        ):
+            with self.assertRaisesRegex(InvalidPackageError, "not freshly protected"):
+                protected_preimage_adoption._fresh_remote_protection(
+                    self.target, "https://github.com/test/consumer", commit
+                )
+        self._protection_patch.start()
