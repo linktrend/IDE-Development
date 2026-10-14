@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlunsplit
 
 from scripts.gitops import secret_scan as secret_scan_mod
 from scripts.gitops.secret_scan import (
@@ -545,7 +546,7 @@ class AcU1006RealisticFormatsTests(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         github = "ghp_" + ("A" * 36)
         cloud = "AKIA" + ("B" * 16)
-        database = "postgres://" + "user:SuperSecretPassw0rd@db.example.invalid:5432/app"
+        database = urlunsplit(("postgres", "user:SuperSecretPassw0rd@db.example.invalid:5432", "/app", "", ""))
         pem = "-----BEGIN RSA " + "PRIVATE KEY-----\nMIIEowIBAAKCAQEA" + ("C" * 40) + "\n-----END RSA " + "PRIVATE KEY-----\n"
         entropy = hashlib.sha256(b"live-token").hexdigest() + hashlib.sha256(b"more").hexdigest()
         samples = {
@@ -984,7 +985,7 @@ class AdversarialRepairTests(unittest.TestCase):
         github = "ghp_" + ("D" * 36)
         cloud = "AKIA" + ("A" * 16)
         openai = "sk-" + "proj-abcdefghijklmnopqrstuv"
-        database = "postgres" + "://user:password@example.invalid/database"
+        database = urlunsplit(("postgres", "user:password@example.invalid", "/database", "", ""))
         private_key = "".join(("-----BEGIN RSA ", "PRIVATE KEY-----"))
         entropy = hashlib.sha256(b"six-format-probe").hexdigest()
         write_tracked(root, "github.txt", f'token = "{github}"\n')

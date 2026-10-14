@@ -11,6 +11,7 @@ Repository-owned scanners stay additive and blocking.
 from __future__ import annotations
 
 import argparse
+import ast
 import fnmatch
 import hashlib
 import json
@@ -22,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
+from urllib.parse import parse_qsl, urlsplit
 
 try:
     from scripts.gitops.generated_output_closure import (
@@ -478,8 +480,59 @@ def _shannon(value: str) -> float:
     return -sum((n / length) * math.log2(n / length) for n in counts.values())
 
 
+def _database_credential_material(value: str) -> bool:
+    """Only narrowly proven credential-free PostgreSQL endpoints are references.
+
+    Other database schemes, incomplete templates, encoded userinfo, passwords
+    and unknown query properties retain their previous blocking treatment.
+    """
+    if GITHUB_RE.search(value) or CLOUD_RE.search(value) or TOKEN_RE.search(value) or PRIVATE_KEY_RE.search(value):
+        return True
+    if "`" in value:
+        value, suffix = value.split("`", 1)
+        if suffix.strip(");,]} \t"):
+            return True
+    value = re.sub(r"\$\{[^{}]*\}", "REFERENCE", value)
+    if "${" in value:
+        return True
+    try:
+        parsed = urlsplit(value)
+        query = parse_qsl(parsed.query, keep_blank_values=True)
+        if parsed.scheme.lower() not in {"postgres", "postgresql"}:
+            return True
+        if parsed.password is not None or "%" in (parsed.username or ""):
+            return True
+        username = parsed.username or ""
+        if len(username) >= 40 and _shannon(username) >= 3.5:
+            return True
+        if not parsed.path.startswith("/") or parsed.path == "/":
+            return True
+        if not parsed.hostname and not any(key.lower() == "host" and data for key, data in query):
+            return True
+        if any(key.lower() not in {"host", "currentschema", "sslmode"} for key, _ in query):
+            return True
+        for key, data in query:
+            if GITHUB_RE.search(data) or CLOUD_RE.search(data) or TOKEN_RE.search(data) or PRIVATE_KEY_RE.search(data):
+                return True
+            if len(data) >= 40 and _shannon(data) >= 3.5:
+                return True
+            if key.lower() == "sslmode" and data.lower() not in {"disable", "allow", "prefer", "require", "verify-ca", "verify-full", "reference"}:
+                return True
+        return False
+    except ValueError:
+        return True
+
+
+def _explicit_credential_format(value: str) -> bool:
+    return bool(GITHUB_RE.search(value) or CLOUD_RE.search(value) or TOKEN_RE.search(value)
+                or PRIVATE_KEY_RE.search(value)
+                or any(_database_credential_material(m.group(0)) for m in DATABASE_RE.finditer(value)))
+
+
 def _is_reference_value(value: str) -> bool:
     stripped = value.strip()
+    if DATABASE_RE.fullmatch(stripped) and not _database_credential_material(stripped):
+        return True
     if not stripped or stripped == SYNTHETIC_PREFIX:
         return True
     if stripped.startswith(("(", "[", "{")):
@@ -511,7 +564,7 @@ def _is_reference_value(value: str) -> bool:
 def is_realistic_value(value: str) -> bool:
     if GITHUB_RE.search(value) or CLOUD_RE.search(value) or TOKEN_RE.search(value):
         return True
-    if DATABASE_RE.search(value) or PRIVATE_KEY_RE.search(value):
+    if any(_database_credential_material(m.group(0)) for m in DATABASE_RE.finditer(value)) or PRIVATE_KEY_RE.search(value):
         return True
     if _is_reference_value(value):
         return False
@@ -656,7 +709,100 @@ def _is_code_expression(value: str) -> bool:
     return False
 
 
-def extract_assignments(line: str) -> list[tuple[str, str]]:
+def _source_code_line_starts(text: str) -> set[int]:
+    """First tokens outside JS strings/comments; no evaluation or path exemption."""
+    code: set[int] = set()
+    mode = "code"
+    quote = ""
+    escaped = False
+    line = 1
+    first = True
+    cursor = 0
+    while cursor < len(text):
+        char = text[cursor]
+        following = text[cursor:cursor + 2]
+        if char == "\n":
+            line += 1
+            first = True
+            if mode == "line-comment":
+                mode = "code"
+        elif first and not char.isspace():
+            if mode == "code":
+                code.add(line)
+            first = False
+        if mode == "string":
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                mode = "code"
+        elif mode == "block-comment":
+            if following == "*/":
+                mode = "code"; cursor += 1
+        elif mode == "code":
+            if following == "//":
+                mode = "line-comment"; cursor += 1
+            elif following == "/*":
+                mode = "block-comment"; cursor += 1
+            elif char in {"'", '"', "`"}:
+                mode = "string"; quote = char
+        cursor += 1
+    return code
+
+
+def _generated_hash_fields(text: str) -> dict[int, set[int]]:
+    """Recognize a public namespace prefix joined to a runtime sha256, not a literal token."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return {}
+    found: dict[int, set[int]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
+            continue
+        value = node.value
+        if not (isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add)
+                and isinstance(value.left, ast.Constant) and isinstance(value.left.value, str)
+                and re.fullmatch(r"[a-z][a-z0-9_.:-]{0,31}[-_:.]", value.left.value)
+                and not is_synthetic_value(value.left.value)):
+            continue
+        final = value.right
+        if not (isinstance(final, ast.Call) and isinstance(final.func, ast.Attribute)
+                and final.func.attr == "hexdigest" and not final.args and not final.keywords):
+            continue
+        digest = final.func.value
+        if not (isinstance(digest, ast.Call) and isinstance(digest.func, ast.Attribute)
+                and isinstance(digest.func.value, ast.Name) and digest.func.value.id == "hashlib"
+                and digest.func.attr == "sha256" and len(digest.args) == 1 and not digest.keywords):
+            continue
+        argument = digest.args[0]
+        if not any(isinstance(n, ast.Name) for n in ast.walk(argument)):
+            continue
+        parents = {child: parent for parent in ast.walk(argument) for child in ast.iter_child_nodes(parent)}
+        safe = True
+        for atom in ast.walk(argument):
+            if not isinstance(atom, ast.Constant) or not isinstance(atom.value, str):
+                continue
+            value_text = atom.value
+            if value_text == "utf-8" or re.fullmatch(r"[-_:. /]*", value_text):
+                continue
+            parent = parents.get(atom)
+            lookup = (isinstance(parent, ast.Subscript) and parent.slice is atom) or (
+                isinstance(parent, ast.Call) and isinstance(parent.func, ast.Attribute)
+                and parent.func.attr == "get" and parent.args and parent.args[0] is atom)
+            if lookup and value_text.isidentifier() and not is_synthetic_value(value_text) and not is_realistic_value(value_text):
+                continue
+            safe = False
+            break
+        if not safe:
+            continue
+        target = node.targets[0]
+        found.setdefault(target.lineno, set()).add(target.col_offset)
+    return found
+
+
+def extract_assignments(line: str, *, member_reference: bool = False, generated_offsets: set[int] | None = None) -> list[tuple[str, str]]:
     found: list[tuple[str, str]] = []
     for match in ANY_FIELD_RE.finditer(line):
         raw_field = match.group("field")
@@ -692,6 +838,11 @@ def extract_assignments(line: str) -> list[tuple[str, str]]:
             value, _ = _read_unquoted(line, index)
             if not value:
                 continue
+        if not is_synthetic_value(value) and not _explicit_credential_format(value):
+            if member_reference and not quoted and re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+", value):
+                continue
+            if generated_offsets and match.start() in generated_offsets:
+                continue
         credential_field = _is_credential_field(raw_field)
         generic_reference_field = _is_generic_reference_field(raw_field)
         if not credential_field and not generic_reference_field and not is_synthetic_value(value):
@@ -712,8 +863,11 @@ def extract_assignments(line: str) -> list[tuple[str, str]]:
 
 def scan_text(path: str, text: str) -> list[dict[str, Any]]:
     detections: list[dict[str, Any]] = []
+    generated = _generated_hash_fields(text) if path.endswith(".py") else {}
+    code_lines = _source_code_line_starts(text) if Path(path).suffix in {".js", ".mjs", ".cjs", ".ts"} else set()
     for index, raw_line in enumerate(text.splitlines(), start=1):
-        for field, value in extract_assignments(raw_line):
+        member = index in code_lines and bool(re.fullmatch(r"\s*[A-Za-z_$][A-Za-z0-9_$]*\s*:\s*[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+\s*,?\s*", raw_line))
+        for field, value in extract_assignments(raw_line, member_reference=member, generated_offsets=generated.get(index)):
             if len(value) < MIN_ASSIGNMENT_LEN and not value.startswith(SYNTHETIC_PREFIX):
                 continue
             _add_detection(
@@ -751,7 +905,26 @@ def scan_text(path: str, text: str) -> list[dict[str, Any]]:
                 rule=RULE_FORMAT_SK,
                 value=match.group(0),
             )
+        # Preserve database credentials split across adjacent literal fragments.
+        cursor = 0
+        while cursor < len(raw_line):
+            if raw_line[cursor] not in {"'", '"'}:
+                cursor += 1
+                continue
+            literal = _read_concat_quoted(raw_line, cursor)
+            if literal is None:
+                cursor += 1
+                continue
+            value, end = literal
+            for match in DATABASE_RE.finditer(value):
+                if _database_credential_material(match.group(0)):
+                    _add_detection(detections, path=path, line=index, field="url",
+                                   rule=RULE_FORMAT_DATABASE, value=match.group(0))
+            cursor = max(cursor + 1, end)
         for match in DATABASE_RE.finditer(raw_line):
+            escaped_fragment = match.end() < len(raw_line) and raw_line[match.end()] == "\\"
+            if not escaped_fragment and not _database_credential_material(match.group(0)):
+                continue
             _add_detection(
                 detections,
                 path=path,
