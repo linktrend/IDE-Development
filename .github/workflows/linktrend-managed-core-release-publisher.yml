@@ -64,10 +64,39 @@ jobs:
       inputs.dry_run == true &&
       github.run_attempt == 1
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 15
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
+      - name: Initialize bounded proof receipt before checkout or helper startup
+        shell: bash
+        env:
+          EVIDENCE_DIRECTORY: ${{ runner.temp }}/content-policy-proof-evidence
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 - <<'PY'
+          import json, os, pathlib
+          root=pathlib.Path(os.environ['EVIDENCE_DIRECTORY'])
+          root.mkdir(mode=0o700,parents=True,exist_ok=False)
+          report={
+            'schemaVersion':1,'kind':'content-disposable-same-version-repair-proof',
+            'status':'STARTUP','stage':'startup','failureCode':'proof_startup_failed',
+            'sourceRepository':'linktrend/IDE-Development',
+            'sourceCommit':'6f61bce1ba4ee1d690dc063605387c8842077644',
+            'sourceTree':'7f56c2f7ca893848c66c1e61fac43d1f7155a816',
+            'targetRepository':'linktrend/LiNKcontent','targetBranch':'development',
+            'targetCommit':'1de0143e11583b57017071970ae77aea55fed515',
+            'targetTree':'8ad902f75cdf1ea00ab1d5fc1a44228e6f44e808',
+            'controlCommit':os.environ['GITHUB_SHA'],'workflowCommit':os.environ['GITHUB_WORKFLOW_SHA'],
+            'snapshotSha256Expected':'d1a7da625934b56a11f5a54957e2f18d912527bac9f162f300b68461c9b879bb',
+            'repairManifestSha256Expected':'05fd0cb8e79b789c74e9bad812a8e5f62a882356197e7e82b8f49aa7c4eef86f',
+            'sourceManifestSha256Expected':'815a6c5de11a8ad7dda27e9f7eaad57dd3f2e37487e68c9492b05a7872aee07f',
+            'rawStdoutRetained':False,'rawStderrRetained':False,'liveConsumerChanged':False,
+          }
+          (root/'report.json').write_text(json.dumps(report,sort_keys=True,indent=2)+'\n')
+          PY
+
       - name: Checkout exact control commit without persisted credentials
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -137,6 +166,11 @@ jobs:
           DEADLINE_UTC: ${{ inputs.deadline_utc }}
         run: |
           set -euo pipefail
+          umask 077
+          PRIVATE_OUT="$RUNNER_TEMP/content-proof-stdout.private"
+          PRIVATE_ERR="$RUNNER_TEMP/content-proof-stderr.private"
+          trap 'rm -f "$PRIVATE_OUT" "$PRIVATE_ERR"' EXIT
+          RC=0
           python3 control/.github/controls/content-policy-proof/run-disposable-repair-proof.py \
             --control-root "$GITHUB_WORKSPACE/control/.github/controls/content-policy-proof" \
             --candidate-root "$GITHUB_WORKSPACE/candidate" \
@@ -147,10 +181,98 @@ jobs:
             --content-development-tree 8ad902f75cdf1ea00ab1d5fc1a44228e6f44e808 \
             --expected-control-sha "$EXPECTED_CONTROL_SHA" \
             --deadline-utc "$DEADLINE_UTC" \
-            --artifact "$GITHUB_WORKSPACE/content-proof/content-repair-payload.zip"
+            --artifact "$GITHUB_WORKSPACE/content-proof/content-repair-payload.zip" \
+            --report "$RUNNER_TEMP/content-policy-proof-evidence/report.json" \
+            >"$PRIVATE_OUT" 2>"$PRIVATE_ERR" || RC=$?
+          exit "$RC"
+
+      - name: Close and bound startup, blocked, or successful proof evidence
+        if: always()
+        id: evidence
+        shell: bash
+        env:
+          EVIDENCE_DIRECTORY: ${{ runner.temp }}/content-policy-proof-evidence
+          PROOF_OUTCOME: ${{ steps.proof.outcome }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, math, os, pathlib, re
+          root=pathlib.Path(os.environ['EVIDENCE_DIRECTORY'])
+          root.mkdir(mode=0o700,parents=True,exist_ok=True)
+          path=root/'report.json'
+          fallback={
+            'schemaVersion':1,'kind':'content-disposable-same-version-repair-proof',
+            'status':'BLOCKED','stage':'startup','failureCode':'proof_startup_failed',
+            'sourceCommit':'6f61bce1ba4ee1d690dc063605387c8842077644',
+            'sourceTree':'7f56c2f7ca893848c66c1e61fac43d1f7155a816',
+            'targetCommit':'1de0143e11583b57017071970ae77aea55fed515',
+            'targetTree':'8ad902f75cdf1ea00ab1d5fc1a44228e6f44e808',
+            'controlCommit':os.environ['GITHUB_SHA'],'workflowCommit':os.environ['GITHUB_WORKFLOW_SHA'],
+            'rawStdoutRetained':False,'rawStderrRetained':False,'liveConsumerChanged':False,
+          }
+          success=False
+          try:
+            contract_path=pathlib.Path('control/.github/controls/content-policy-proof/REPORT-CONTRACT.json')
+            contract_bytes=contract_path.read_bytes()
+            if hashlib.sha256(contract_bytes).hexdigest() != '6c36a321ff291f9f4ba5650d5f27e675df875b26ab3b2cfb902ba1002460b115':
+              raise ValueError('contract')
+            contract=json.loads(contract_bytes)
+            if path.is_symlink() or not path.is_file() or path.stat().st_size > 32768:
+              raise ValueError('report_file')
+            value=json.loads(path.read_bytes())
+            if not isinstance(value,dict) or set(value)-set(contract['allowedReportKeys']):
+              raise ValueError('closed_keys')
+            if value.get('schemaVersion') != 1 or value.get('kind') != 'content-disposable-same-version-repair-proof':
+              raise ValueError('identity')
+            if value.get('status') not in contract['statuses'] or value.get('stage') not in contract['stages']:
+              raise ValueError('enum')
+            if 'failureCode' in value and value['failureCode'] not in contract['failureCodes']:
+              raise ValueError('failure_code')
+            for key,item in value.items():
+              if type(item) not in (str,bool,int,float) or (isinstance(item,str) and len(item)>512):
+                raise ValueError('scalar')
+              if type(item) is float and (not math.isfinite(item) or not 0 <= item <= 900):
+                raise ValueError('number')
+            for key in ('rawStdoutRetained','rawStderrRetained','liveConsumerChanged'):
+              if value.get(key) is not False: raise ValueError('scope')
+            for key in ('sourceCommit','sourceTree','targetCommit','targetTree','controlCommit','workflowCommit'):
+              if not isinstance(value.get(key),str) or not re.fullmatch('[0-9a-f]{40}',value[key]):
+                raise ValueError('oid')
+            if value['status']=='STARTUP' or (value['status']=='blocked' and 'failureCode' not in value):
+              value['status']='BLOCKED'
+              value['failureCode']='proof_startup_failed'
+            success=(os.environ['PROOF_OUTCOME']=='success' and value['status']=='PASS_DISPOSABLE_ONLY'
+              and value.get('stage')=='complete' and 'failureCode' not in value
+              and value.get('replacedManagedPathCount')==20 and value.get('changedGitPathCount')==22)
+            if value['status']=='PASS_DISPOSABLE_ONLY' and not success:
+              raise ValueError('success_mismatch')
+          except Exception:
+            value=fallback
+          encoded=(json.dumps(value,sort_keys=True,indent=2)+'\n').encode()
+          if len(encoded)>32768:
+            value=fallback
+            encoded=(json.dumps(value,sort_keys=True,indent=2)+'\n').encode()
+            success=False
+          if path.is_symlink(): path.unlink()
+          path.write_bytes(encoded)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output:
+            output.write('payload_allowed='+('true' if success else 'false')+'\n')
+          print(json.dumps({key:value[key] for key in ('status','stage','failureCode') if key in value},sort_keys=True))
+          if not success: raise SystemExit(1)
+          PY
+
+      - name: Retain only the bounded closed proof report on every outcome
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: content-development-disposable-repair-report
+          path: ${{ runner.temp }}/content-policy-proof-evidence/report.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
 
       - name: Upload the exact repaired Development payload after a successful proof
-        if: steps.proof.outcome == 'success'
+        if: steps.proof.outcome == 'success' && steps.evidence.outputs.payload_allowed == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: content-development-disposable-repair-payload

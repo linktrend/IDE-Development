@@ -33,6 +33,7 @@ SNAPSHOT_GZIP_SHA256 = "d1a7da625934b56a11f5a54957e2f18d912527bac9f162f300b68461
 RECEIPT_SHA256 = "05fd0cb8e79b789c74e9bad812a8e5f62a882356197e7e82b8f49aa7c4eef86f"
 BASELINE_MANIFEST_SHA256 = "249bc5f183623a7f03000e52ad01d113d5abf0d4d5db23343defeaaacb1e973f"
 TARGET_REL = pathlib.Path("content-proof/targets/development")
+REPORT_REL = pathlib.Path("content-policy-proof-evidence/report.json")
 
 
 class ProofFailure(Exception):
@@ -85,6 +86,21 @@ def validate_run_binding(expected_control_sha: str, deadline_utc: str) -> None:
     require(deadline >= dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=15), "proof_deadline_margin_rejected")
 
 
+def emit_report(report: dict[str, object], output: pathlib.Path) -> None:
+    """Persist only the closed metadata contract, including blocked outcomes."""
+    contract = json.loads(pathlib.Path(__file__).with_name("REPORT-CONTRACT.json").read_text())
+    require(set(report) <= set(contract["allowedReportKeys"]), "proof_report_shape_rejected")
+    require(report.get("status") in contract["statuses"], "proof_report_shape_rejected")
+    require(report.get("stage") in contract["stages"], "proof_report_shape_rejected")
+    if "failureCode" in report:
+        require(report["failureCode"] in contract["failureCodes"], "proof_report_shape_rejected")
+    encoded = (json.dumps(report, sort_keys=True, indent=2) + "\n").encode()
+    require(len(encoded) <= 32 * 1024, "proof_report_size_limit")
+    require(not output.is_symlink(), "proof_report_path_rejected")
+    output.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    output.write_bytes(encoded)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--control-root", type=pathlib.Path, required=True)
@@ -97,28 +113,42 @@ def main() -> int:
     parser.add_argument("--expected-control-sha", required=True)
     parser.add_argument("--deadline-utc", required=True)
     parser.add_argument("--artifact", type=pathlib.Path, required=True)
+    parser.add_argument("--report", type=pathlib.Path, required=True)
     args = parser.parse_args()
+    report_path = pathlib.Path(os.environ["RUNNER_TEMP"]) / REPORT_REL
 
     report: dict[str, object] = {
         "schemaVersion": 1,
         "kind": "content-disposable-same-version-repair-proof",
         "status": "blocked",
         "sourceRepository": "linktrend/IDE-Development",
-        "sourceCommit": args.candidate_sha,
-        "sourceTree": args.candidate_tree,
+        "sourceCommit": CANDIDATE_SHA,
+        "sourceTree": CANDIDATE_TREE,
         "targetRepository": "linktrend/LiNKcontent",
         "targetBranch": "development",
-        "targetCommit": args.content_development_sha,
-        "targetTree": args.content_development_tree,
+        "targetCommit": CONTENT_DEV_SHA,
+        "targetTree": CONTENT_DEV_TREE,
         "proofScope": "disposable installer proof only; no live consumer write or promotion",
+        "stage": "run_binding",
+        "controlCommit": os.environ.get("GITHUB_SHA", "")[:40],
+        "workflowCommit": os.environ.get("GITHUB_WORKFLOW_SHA", "")[:40],
+        "snapshotSha256Expected": SNAPSHOT_GZIP_SHA256,
+        "repairManifestSha256Expected": RECEIPT_SHA256,
+        "sourceManifestSha256Expected": SOURCE_MANIFEST_SHA256,
+        "rawStdoutRetained": False,
+        "rawStderrRetained": False,
+        "liveConsumerChanged": False,
     }
     try:
+        require(args.report.resolve(strict=False) == report_path, "proof_report_path_rejected")
+        emit_report(report, report_path)
         validate_run_binding(args.expected_control_sha, args.deadline_utc)
         require(args.candidate_sha == CANDIDATE_SHA, "proof_candidate_sha_rejected")
         require(args.candidate_tree == CANDIDATE_TREE, "proof_candidate_tree_rejected")
         require(args.content_development_sha == CONTENT_DEV_SHA, "proof_content_dev_sha_rejected")
         require(args.content_development_tree == CONTENT_DEV_TREE, "proof_content_dev_tree_rejected")
 
+        report["stage"] = "input_identity"
         candidate = args.candidate_root.resolve(strict=True)
         control = args.control_root.resolve(strict=True)
         snapshot_path = control / "CONTENT-DEVELOPMENT-SNAPSHOT.json.gz"
@@ -134,6 +164,7 @@ def main() -> int:
         require(sha256(source_manifest.read_bytes()) == SOURCE_MANIFEST_SHA256, "proof_source_manifest_rejected")
         require(git(candidate, "status", "--porcelain=v1", "-uall") == "", "proof_source_checkout_dirty")
 
+        report["stage"] = "snapshot_identity"
         snapshot = json.loads(gzip.decompress(snapshot_bytes))
         receipt = json.loads(receipt_bytes)
         require(snapshot["kind"] == "content-dev-exact-managed-preimage", "proof_snapshot_kind_rejected")
@@ -162,6 +193,7 @@ def main() -> int:
         snapshot_files = snapshot["files"]
         require(set(snapshot_files) == set(expected_paths), "proof_snapshot_path_set_rejected")
         receipt_by_path = {row["path"]: row for row in receipt["paths"]}
+        report["stage"] = "preimage_and_source_binding"
         for rel in expected_paths:
             entry = package_entries.get(rel)
             prior = prior_state["files"].get(rel)
@@ -181,6 +213,7 @@ def main() -> int:
         # Seed a disposable repository with the exact managed preimage subset.
         # Its Git commit is intentionally synthetic; target anchor SHA/tree in
         # the report remain the independently captured live Content identity.
+        report["stage"] = "disposable_seed"
         require(not target.exists(), "proof_target_already_exists")
         target.mkdir(parents=True)
         def materialize(rel: str, packed: dict[str, object]) -> None:
@@ -203,6 +236,8 @@ def main() -> int:
         require(seed.returncode == 0, "proof_disposable_target_seed_failed")
         report["syntheticTargetBaseCommit"] = git(target, "rev-parse", "HEAD")
 
+        report["stage"] = "official_installer"
+        emit_report(report, report_path)
         started = time.monotonic()
         cli = candidate / "scripts/ide-development.py"
         result = run([
@@ -220,6 +255,7 @@ def main() -> int:
             raise ProofFailure("proof_installer_json_invalid") from exc
         require(installer.get("command") == "repair" and installer.get("applied") is True, "proof_installer_result_rejected")
 
+        report["stage"] = "post_install_binding"
         installed_manifest = target / ".ide-development/MANIFEST.json"
         installed_state_path = target / ".ide-development/installed-state.json"
         require(sha256(installed_manifest.read_bytes()) == SOURCE_MANIFEST_SHA256, "proof_post_manifest_rejected")
@@ -228,7 +264,9 @@ def main() -> int:
         for rel in expected_paths:
             entry = package_entries[rel]
             actual = (target / rel).read_bytes()
-            require(stat.S_IMODE((target / rel).stat().st_mode) == int(entry["mode"], 8), "proof_post_file_mode_rejected")
+            # Official transaction.apply_action uses read_only_mode(entry.mode).
+            # This checks the actual managed physical mode without rewriting it.
+            require(stat.S_IMODE((target / rel).stat().st_mode) == (int(entry["mode"], 8) & ~0o222), "proof_post_file_mode_rejected")
             row = next_state["files"].get(rel)
             require(sha256(actual) == entry["sourceHash"].removeprefix("sha256:"), "proof_post_file_digest_rejected")
             require(row is not None and row.get("sourceHash") == entry["sourceHash"] and row.get("contentHash") == entry["sourceHash"], "proof_post_state_path_binding_rejected")
@@ -237,6 +275,7 @@ def main() -> int:
             if rel not in protected_rows:
                 require(next_state["files"].get(rel) == before, "proof_non_target_state_row_changed")
 
+        report["stage"] = "exact_output_scope"
         changed_git = set(filter(None, git(target, "diff", "--name-only", "-z", "HEAD", "--").split("\0")))
         expected_git = set(expected_paths) | {".ide-development/MANIFEST.json", ".ide-development/installed-state.json"}
         require(changed_git == expected_git, "proof_disposable_diff_scope_rejected")
@@ -253,21 +292,23 @@ def main() -> int:
         # Package only the exact twenty managed replacements plus the package
         # manifest and installed-state file. The sidecar manifest inventories
         # every payload byte; no snapshot or unrelated target file is included.
+        report["stage"] = "payload_assembly"
         artifact_entries = []
         for rel in sorted(expected_git):
             path = target / rel
             require(path.is_file() and not path.is_symlink(), "proof_artifact_nonregular_file")
             data = path.read_bytes()
             mode = stat.S_IMODE(path.stat().st_mode)
-            expected_mode = int(package_entries[rel]["mode"], 8) if rel in package_entries else 0o644
+            expected_mode = (int(package_entries[rel]["mode"], 8) & ~0o222) if rel in package_entries else 0o444
             require(mode == expected_mode, "proof_artifact_mode_binding_rejected")
             artifact_entries.append({
                 "path": rel,
                 "sha256": "sha256:" + sha256(data),
                 "bytes": len(data),
-                "mode": f"100{mode & 0o777:03o}" if mode in (0o644, 0o755) else "invalid",
+                "mode": "100755" if mode == 0o555 else "100644",
+                "physicalMode": f"{mode:04o}",
             })
-            require(mode in (0o644, 0o755), "proof_artifact_mode_rejected")
+            require(mode in (0o444, 0o555), "proof_artifact_mode_rejected")
         require(len(artifact_entries) == 22, "proof_artifact_file_count_rejected")
         report.update({
             "status": "PASS_DISPOSABLE_ONLY",
@@ -310,14 +351,20 @@ def main() -> int:
                 archive.write(target / rel, arcname=rel)
             archive.writestr("content-repair-artifact-manifest.json", manifest_bytes)
         require(args.artifact.stat().st_size <= 4 * 1024 * 1024, "proof_artifact_size_limit")
+        report["stage"] = "complete"
     except ProofFailure as exc:
         report["status"] = "BLOCKED"
         report["failureCode"] = exc.code
     except Exception:
         report["status"] = "BLOCKED"
         report["failureCode"] = "proof_unexpected_error"
+    try:
+        emit_report(report, report_path)
+    except Exception:
+        print("content_disposable_repair_proof=BLOCKED failureCode=proof_report_write_failed")
+        return 1
     if report["status"] != "PASS_DISPOSABLE_ONLY":
-        print("content_disposable_repair_proof=BLOCKED")
+        print("content_disposable_repair_proof=BLOCKED failureCode=" + str(report["failureCode"]))
         return 1
     print("content_disposable_repair_proof=" + str(report["status"]))
     return 0 if report["status"] == "PASS_DISPOSABLE_ONLY" else 1
