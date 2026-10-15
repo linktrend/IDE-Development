@@ -36,6 +36,11 @@ For one guarded workflow only:
   $(basename "$0") <repo-path> --only-workflow linktrend-integrator-merge.yml \\
     --expected-source-sha256 SHA256 --expected-target-sha256 SHA256 [--dry-run]
 
+For the fixed LiNKpublish overlay only:
+  $(basename "$0") <repo-path> --only-workflow linktrend-integrator-merge.yml \\
+    --source-variant linktrend-publish --expected-source-sha256 SHA256 \\
+    --expected-target-sha256 SHA256 [--dry-run]
+
 Copy managed GitHub workflow templates into <repo-path>/.github/workflows/.
 Never overwrites ci.yml. Idempotent when files already match.
 
@@ -57,6 +62,7 @@ ORCHESTRATION_MODE=""
 ONLY_WORKFLOW=""
 EXPECTED_SOURCE_SHA256=""
 EXPECTED_TARGET_SHA256=""
+SOURCE_VARIANT=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -101,6 +107,11 @@ while [ $# -gt 0 ]; do
       EXPECTED_TARGET_SHA256="$2"
       shift 2
       ;;
+    --source-variant)
+      [ $# -ge 2 ] || fail "--source-variant requires a fixed variant name"
+      SOURCE_VARIANT="$2"
+      shift 2
+      ;;
     *)
       if [ -z "$TARGET_INPUT" ]; then
         TARGET_INPUT="$1"
@@ -127,11 +138,15 @@ DEST_DIR="${TARGET_REPO}/.github/workflows"
 # represented by the consumer's installed MANIFEST. Keep it independent from
 # the broad renderer: no config reads/normalization, profile inference, mkdir,
 # or writes outside the one guarded destination file.
-if [ -n "$ONLY_WORKFLOW" ] || [ -n "$EXPECTED_SOURCE_SHA256" ] || [ -n "$EXPECTED_TARGET_SHA256" ]; then
+if [ -n "$ONLY_WORKFLOW" ] || [ -n "$EXPECTED_SOURCE_SHA256" ] || [ -n "$EXPECTED_TARGET_SHA256" ] || [ -n "$SOURCE_VARIANT" ]; then
   [ "$ONLY_WORKFLOW" = "linktrend-integrator-merge.yml" ] || fail "unsupported --only-workflow (expected linktrend-integrator-merge.yml)"
   [ -z "$CONFIG_INPUT" ] || fail "--config is not supported with --only-workflow"
   [ -z "$ORCHESTRATION_MODE" ] || fail "--orchestration-mode is not supported with --only-workflow"
-  python3 - "$SYSTEM_ROOT" "$TARGET_REPO" "$ONLY_WORKFLOW" "$EXPECTED_SOURCE_SHA256" "$EXPECTED_TARGET_SHA256" "$DRY_RUN" <<'PY'
+  case "$SOURCE_VARIANT" in
+    ""|linktrend-publish) ;;
+    *) fail "unsupported --source-variant: $SOURCE_VARIANT" ;;
+  esac
+  python3 - "$SYSTEM_ROOT" "$TARGET_REPO" "$ONLY_WORKFLOW" "$SOURCE_VARIANT" "$EXPECTED_SOURCE_SHA256" "$EXPECTED_TARGET_SHA256" "$DRY_RUN" <<'PY'
 import hashlib
 import os
 import re
@@ -142,19 +157,35 @@ from pathlib import Path
 
 system_root = Path(sys.argv[1])
 target_root = Path(sys.argv[2])
-name, expected_source, expected_target, dry_run = sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6] == "1"
+name, variant, expected_source, expected_target, dry_run = sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7] == "1"
 if name != "linktrend-integrator-merge.yml":
     raise SystemExit("FAIL: unsupported scoped workflow")
+if variant == "":
+    source = system_root / "core" / "github" / "managed-workflows" / name
+elif variant == "linktrend-publish":
+    source = system_root / "core" / "github" / "managed-workflows" / "repository-overlays" / "linktrend-LiNKpublish" / "Full.yml"
+    if expected_source != "7bb95f1c82f5777572590150f936791002d13fb70bb64252e30fadcc3a4d8d23":
+        raise SystemExit("FAIL: linktrend-publish source SHA-256 must match the reviewed fixed overlay")
+    if expected_target != "5eb82e65c68ae825015beedaeeb1ee7e49ec34677514e55c58ed97ca3b1cb525":
+        raise SystemExit("FAIL: linktrend-publish target SHA-256 must match the reviewed Publish Full preimage")
+else:
+    raise SystemExit("FAIL: unsupported source variant")
 for label, value in (("source", expected_source), ("target", expected_target)):
     if not re.fullmatch(r"[0-9a-f]{64}", value):
         raise SystemExit(f"FAIL: expected {label} SHA-256 must be 64 lowercase hex characters")
 
-source = system_root / "core" / "github" / "managed-workflows" / name
 github_dir = target_root / ".github"
 dest_dir = github_dir / "workflows"
 dest = dest_dir / name
-if any(part.is_symlink() for part in (source.parents[0], source.parents[1], source.parents[2])):
-    raise SystemExit("FAIL: source parents must not be symlinks")
+source_is_within_root = False
+for parent in source.parents:
+    if parent == system_root:
+        source_is_within_root = True
+        break
+    if parent.is_symlink():
+        raise SystemExit("FAIL: source parents must not be symlinks")
+if not source_is_within_root:
+    raise SystemExit("FAIL: scoped source escaped the system source root")
 if source.is_symlink() or not source.is_file():
     raise SystemExit("FAIL: source must be an existing regular non-symlink file")
 if github_dir.is_symlink() or dest_dir.is_symlink() or not github_dir.is_dir() or not dest_dir.is_dir():
@@ -169,13 +200,15 @@ if source_digest != expected_source:
     raise SystemExit(f"FAIL: source SHA-256 mismatch (actual {source_digest})")
 if target_digest != expected_target:
     raise SystemExit(f"FAIL: target SHA-256 mismatch (actual {target_digest})")
+if variant == "" and target_digest == "5eb82e65c68ae825015beedaeeb1ee7e49ec34677514e55c58ed97ca3b1cb525":
+    raise SystemExit("FAIL: this Publish root preimage requires --source-variant linktrend-publish")
 if b"__LINKTREND_" in source_bytes:
     raise SystemExit("FAIL: scoped source contains unresolved consumer placeholders")
 if source_bytes == target_bytes:
-    print(f"PASS: unchanged {name}; source and destination SHA-256 {source_digest}")
+    print(f"PASS: unchanged {name} ({variant or 'generic'}); source and destination SHA-256 {source_digest}")
     raise SystemExit(0)
 if dry_run:
-    print(f"DRY-RUN: would update only {dest} ({target_digest} -> {source_digest})")
+    print(f"DRY-RUN: would update only {dest} from {variant or 'generic'} ({target_digest} -> {source_digest})")
     raise SystemExit(0)
 
 mode = stat.S_IMODE(dest.lstat().st_mode)
@@ -198,7 +231,7 @@ except BaseException:
     except FileNotFoundError:
         pass
     raise
-print(f"PASS: updated only {dest}; SHA-256 {target_digest} -> {source_digest}; mode {mode:04o} preserved")
+print(f"PASS: updated only {dest} from {variant or 'generic'}; SHA-256 {target_digest} -> {source_digest}; mode {mode:04o} preserved")
 PY
   exit $?
 fi
