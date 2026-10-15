@@ -72,8 +72,7 @@
     {"model": "composer-2.5"}
   ],
   "review": {
-    "reviewerMustDifferFromAuthorFamily": true,
-    "bugbotOptional": true
+    "reviewerMustDifferFromAuthorFamily": true
   },
   "signInCheck": {
     "command": "codex cloud list --json --limit 1",

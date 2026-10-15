@@ -53,7 +53,7 @@ Consumer repositories are upgraded in Wave 6.
 
 - **One orchestrator per repo.** A Cursor Project on the cursor-001 account, frontier model. It plans Phases and Issues, dispatches workers, packages branches into pull requests into `development`, merges on green CI plus one independent review, and promotes `development` to `main`. Cheap helper subagents do routine jobs.
 - **Workers.** Codex CLI on the orchestrator VM (Luna High everyday, Sol Medium hard; used while more than 25% of the allowance remains in every reported window) and cursor-002 via API (Grok 4.7 Medium everyday, Opus 5.5 Medium hard). Branches are `issue/<PREFIX>-<n>-<slug>`. Workers commit and push often and never open pull requests.
-- **Checks.** Fast checks on the branch, one Full CI run per pull request, one exact-head review by a different model family (Bugbot optional).
+- **Checks.** Fast checks on the branch, one Full CI run per pull request, one exact-head review by a different model family. Bugbot is retired from the v3 policy; external Cursor provider status is not observable through GitHub API.
 - **Repair ladder.** Luna/Grok three times, then Sol/Opus once, then — if the work started on Sol/Opus — the other hard route once, then flag Carlos.
 - **Branches.** `development` and `main` only. Deploys after `main` are automatic GitHub Actions jobs owned as a standard by the LiNKops repo, with a health check and rollback.
 - **Carlos.** Gives intent and answers questions. He does not approve merges or releases.

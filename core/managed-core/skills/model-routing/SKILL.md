@@ -70,7 +70,8 @@ a new device-code sign-in.
 
 Every PR gets one independent review of the exact head by a model from a
 different family than the author's. A GPT model reviews Grok or Opus work. A
-Claude or Grok model reviews Codex work. Bugbot is optional.
+Claude or Grok model reviews Codex work. Bugbot is retired from v3 policy;
+external provider state cannot be inferred through GitHub API.
 
 ## Repair ladder
 

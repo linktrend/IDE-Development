@@ -1,174 +1,65 @@
-# External-state audit (automation / Bugbot / protection)
+# External-state audit (automation and protection)
 
-**Status:** Active — normal-token GitOps readiness bridge; **consumer** external-state installs remain deferred until their protected rollout PRs are ready.
-**Date:** 2026-08-02
-**Audience:** Operators confirming rollout readiness; Verifier; Implementers (read-only)
-**SOT:** `docs/CURRENT-STATUS.md` · `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md` · `docs/contracts/BUGBOT-MENTION-ONLY.md` · `docs/GITOPS-CONSUMER-ROLLOUT.md` · `docs/archive/work-packets/2026-08-02-work-packet-1-production-readiness.md` · `docs/archive/work-packets/2026-08-02-work-packet-04-consumer-rollout.md`
-**Tooling:** `scripts/gitops/external_state_audit.py` (existing); WP1 Lane C expanded inventory/planner/verifier coverage under owned paths
-**Tests:** `scripts/tests/test-external-state-audit.sh` (+ Lane C fixture matrix when landed)
+**Status:** Active, read-only readiness bridge for GitHub automation and repository protection.
+**Audience:** Operators confirming external state; verifiers and implementers (read-only).
+**Tool:** `scripts/gitops/external_state_audit.py`.
 
----
+## Purpose and limits
 
-## Purpose
+The audit reports observable normal automation credential, GitHub App,
+repository-protection, and workflow state. It does not create Apps, secrets,
+variables, provider settings, rulesets, pull requests, statuses, or promotions.
+Its report always has `mutations: []`; `apply` and mutating HTTP methods are
+refused.
 
-Retired in v3 (IDE-22); see the v3 plan.
+The v3 package has no managed Bugbot invocation or Bugbot eligibility check.
+The audit emits `bugbot.provider_coverage` as `unknown` and
+`unobservable_via_github_api`: GitHub cannot establish Cursor account/dashboard
+provider state. This informational row is not a readiness gate. It does not
+claim Bugbot is disabled, and old fixture values for `bugbot`, legacy secret
+names, or old check-name variables are ignored. The legacy
+[Bugbot retirement notice](BUGBOT-MENTION-ONLY.md) supersedes the historical
+mention-only instructions.
 
-Produce a **read-only, dry-run-default** report of the normal automation credential, Bugbot, and repository-protection state the orchestrator relies on in production.
-
-This tool **reports**. It does **not** create Apps, secrets, variables, Bugbot settings, rulesets, PRs, statuses, or promotions.
-
-### Work Packet 1 boundary (mandatory)
-
-| Mode | WP1 allowed? |
-|---|---|
-| `plan` / dry-run checklist | Yes |
-| `report` / `verify` (fixture or live GET) | Yes — read-only |
-| Live audit of `linktrend/IDE-Development` | Yes — identifiers/posture/conclusions only; **never credentials** |
-| `apply` / mutate / create / delete | **No** — out of WP1 entirely |
-
-Every unverifiable setting must be reported as `unknown` or `blocked`, never assumed compliant. Repository-specific required checks and unrelated protection rules must be preserved in plans (union, do not delete).
-
-Consumer rollout remains deferred; external-state readiness does **not** authorize consumer installs.
-
----
-
-## External-state boundary
-
-| Kind | Examples | Audit behavior |
-|------|----------|----------------|
-| Secrets | `LINKTREND_AUTOMATION_TOKEN`, `LINKTREND_BUGBOT_USER_TOKEN` | Observe Actions secret **names** only; **never** retrieve or print values |
-| Bugbot dashboard | `manualTriggerOnly` | Fixture or operator confirmation; GitHub API cannot prove mention-only |
-| Protections | `development-autonomous-merge` ruleset, `allow_auto_merge` | Read-only ruleset/repo metadata |
-| Process env leaks | Any of the secret env names above | Warn `present_in_process_env` without printing values; refuse emit if a value would leak into JSON |
-
-Git working-tree files are **not** external state. Workflow YAML and local scripts are out of scope for this audit.
-
----
-
-## Required checklist
-
-| ID | Category | Required observation |
-|----|----------|----------------------|
-| `github_auth.automation_token_secret` | github_auth | `LINKTREND_AUTOMATION_TOKEN` secret **name** listed |
-| `bugbot.user_token_secret` | bugbot | `LINKTREND_BUGBOT_USER_TOKEN` secret **name** listed |
-| `bugbot.manual_trigger_only` | bugbot | `manualTriggerOnly=true` (mention-only) |
-| `bugbot.check_name` | bugbot | Check name is `Linktrend Review Gate` (default or matching variable) |
-| `protection.development_ruleset` | protection | Active `development-autonomous-merge` requires `Linktrend Branch Source Policy` and none of the retired v2 contexts (`Cursor Bugbot`, `Linktrend Review Gate`, `Linktrend Review Ready`) |
-| `protection.allow_auto_merge` | protection | `allow_auto_merge=true` |
-
-Related contracts:
-
-- Normal automation credential / fail-closed token: `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`
-- Bugbot mention-only: `docs/contracts/BUGBOT-MENTION-ONLY.md`
-- Agent completion: `docs/contracts/AGENT-COMPLETION.md` (v3 worker done and orchestrator acceptance)
-
----
+The audit still checks for the `LINKTREND_AUTOMATION_TOKEN` Actions secret name
+only; secret values are never retrieved or printed. Secret-like process
+environment values are redacted from output. Repository-specific protection
+rules and required checks must be preserved when comparing desired protection
+state, including the `development-autonomous-merge` ruleset.
 
 ## Modes
 
 | Mode | Mutates? | Live calls? | Exit 0 when |
-|------|----------|-------------|-------------|
-| `report` (default) | **Never** | Only with `--live` or `--fixture-dir` | Report JSON emitted |
-| `verify` | **Never** | Only with `--live` or `--fixture-dir` | Every required check `status=ok` |
+|---|---|---|---|
+| `report` (default) | Never | Only with `--live` or `--fixture-dir` | Report JSON emitted |
+| `plan` | Never | Only with `--live` or `--fixture-dir` | Plan JSON emitted |
+| `verify` | Never | Only with `--live` or `--fixture-dir` | Every required check is ready |
+| `apply` | Never | No | Never; refused with exit 5 |
 
-Default without `--live` / `--fixture-dir` is **dry-run**: emit the checklist with `observed=unchecked` / `status=unchecked`. This is intentional — agents must not probe production settings casually, and tests must not depend on live GitHub.
-
-There is **no** `apply`, `fix`, `create`, or `delete` mode. Any mutating HTTP method is refused (`exit 5`).
-
-**Work Packet 1:** treat “no apply” as a hard process rule even if future tooling adds an apply path — WP1 evidence must show zero mutations.
-
----
+Without `--live` or `--fixture-dir`, the tool emits a dry-run report with
+unchecked observations. Use fixtures for offline checks. Live mode is GET-only.
+A green fixture report is not evidence of production readiness or authorization
+to install consumers or alter settings.
 
 ## CLI
 
 ```bash
-# Default dry-run checklist (no live GitHub calls, no mutations)
-python3 scripts/gitops/external_state_audit.py
 python3 scripts/gitops/external_state_audit.py report --repo linktrend/IDE-Development
-
-# Offline / CI fixtures
 python3 scripts/gitops/external_state_audit.py verify \
-  --repo linktrend/Fixture \
-  --fixture-dir /path/to/fixture
-
-# Operator read-only live GETs (still never mutates; never prints secrets)
-python3 scripts/gitops/external_state_audit.py verify --repo linktrend/IDE-Development --live
+  --repo linktrend/Fixture --fixture-dir /path/to/fixture
+python3 scripts/gitops/external_state_audit.py verify \
+  --repo linktrend/IDE-Development --live
 ```
 
-### Fixture shape (`state.json`)
-
-```json
-{
-  "actions_secret_names": [
-    "LINKTREND_AUTOMATION_TOKEN",
-    "LINKTREND_BUGBOT_USER_TOKEN"
-  ],
-  "bugbot": { "manualTriggerOnly": true, "enabled": true },
-  "rulesets": [
-    { "id": 10, "name": "development-autonomous-merge", "enforcement": "active" }
-  ],
-  "ruleset_details": {
-    "10": {
-      "id": 10,
-      "name": "development-autonomous-merge",
-      "enforcement": "active",
-      "rules": [
-        {
-          "type": "required_status_checks",
-          "parameters": {
-            "required_status_checks": [
-              { "context": "Linktrend Review Gate" },
-              { "context": "Verify IDE Development" },
-              { "context": "Linktrend Branch Source Policy" }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  "repo": { "allow_auto_merge": true }
-}
-```
-
-Never place secret **values** in fixtures. Use `actions_secret_names` (names only).
-
----
-
-## Report schema (`schemaVersion: 1`)
-
-Machine-readable JSON on stdout (optional `--json-output PATH`):
-
-| Field | Meaning |
-|-------|---------|
-| `dryRun` | Always `true` |
-| `mutations` | Always `[]` |
-| `source` | `dry-run` \| `fixture` \| `live` |
-| `checks[]` | Evaluated rows with `id`, `category`, `required`, `expected`, `observed`, `status`, `detail` |
-| `summary.ready` | `true` only when every required check is `ok` |
-| `warnings` | Secret-env presence warnings (names only) |
-
-### Exit codes
-
-| Code | Meaning |
-|------|---------|
-| `0` | `report` emitted, or `verify` ready |
-| `3` | `verify` not ready (missing / drift / unchecked required items) |
-| `5` | Refused (e.g. `--live` with `--fixture-dir`, or mutate attempt) |
-| `1` | Unexpected failure |
-
----
+Fixture `state.json` may contain historical `bugbot` properties, but the audit
+ignores them and does not interpret them as provider evidence. Never place
+secret values in fixtures.
 
 ## Agent and operator prohibitions
 
-1. Do **not** use this tool as a license to create or rotate credentials.
-2. Do **not** print, artifact, or commit secret values, PEMs, or PATs.
-3. Do **not** treat `summary.ready=true` on a fixture as proof of production readiness.
-4. Do **not** change branch protections or Bugbot dashboard settings from an Implementer session — Principal / operator only.
-5. Carlos's restricted user identity must not publish statuses, merge, or promote; those are orchestrator actions.
-6. Work Packet 1 agents must not treat a green verify report as permission to roll out consumers or apply protections — consumer installs/settings apply remain WP04 / Principal-gated (packet prepared; not executed until approval).
-
----
-
-## Change control
-
-Changing checklist IDs, secret/variable names, or ready criteria is a **contract change**: update this file, `scripts/gitops/external_state_audit.py`, and `scripts/tests/test-external-state-audit.sh` together.
+1. Do not use this tool as a license to create or rotate credentials.
+2. Do not print, artifact, or commit secret values, PEMs, or PATs.
+3. Do not treat `summary.ready=true` on a fixture as production readiness.
+4. Do not change branch protections or external Cursor provider settings from an Implementer session; the Principal/operator owns those changes.
+5. Do not use historical Bugbot credentials, checks, mention commands, or configuration as part of v3 automation.
+6. Do not treat a green audit report as permission to roll out consumers or apply protections.

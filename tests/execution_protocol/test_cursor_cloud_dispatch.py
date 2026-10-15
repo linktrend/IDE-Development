@@ -109,6 +109,21 @@ class FakeCursorSDK:
 class CursorCloudDispatchTests(unittest.TestCase):
     def test_configs_are_versioned_and_do_not_invent_repositories(self) -> None:
         root = str(Path(__file__).resolve().parents[2])
+        hosted_delivery = json.loads(
+            (Path(root) / "core/managed-core/config/delivery.json").read_text()
+        )
+        delivery_schema = json.loads(
+            (Path(root) / "core/managed-core/schemas/delivery-modes.schema.json").read_text()
+        )
+        jsonschema.validate(hosted_delivery, delivery_schema)
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate(
+                {
+                    **hosted_delivery,
+                    "review": {"reviewerMustDifferFromAuthorFamily": True, "bugbot": "final-candidate-only"},
+                },
+                delivery_schema,
+            )
         dispatch_config = load_cursor_cloud_dispatch_config(root)
         registry = load_routing_registry(root)
         self.assertEqual(dispatch_config["directApiRepositoryBinding"], "repos[]")
@@ -134,7 +149,38 @@ class CursorCloudDispatchTests(unittest.TestCase):
         self.assertEqual(registry["helpers"][0]["model"], "grok-4.7")
         self.assertEqual(registry["helpers"][1]["model"], "composer-2.5")
         self.assertTrue(registry["review"]["reviewerMustDifferFromAuthorFamily"])
-        self.assertTrue(registry["review"]["bugbotOptional"])
+        self.assertEqual(set(registry["review"]), {"reviewerMustDifferFromAuthorFamily"})
+        routing_schema = json.loads(
+            (Path(root) / "core/managed-core/schemas/routing-registry.schema.json").read_text()
+        )
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate(
+                {**registry, "review": {**registry["review"], "bugbotOptional": True}},
+                routing_schema,
+            )
+        runtime_schema = json.loads(
+            (Path(root) / "core/managed-core/schemas/delivery-runtime.schema.json").read_text()
+        )
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate(
+                {
+                    "schemaVersion": 1,
+                    "repository": "linktrend/example",
+                    "phaseBranch": "phase/test",
+                    "phaseId": "test",
+                    "immutableBaseSha": "a" * 40,
+                    "status": "bugbot-running",
+                    "acceptedIssues": [],
+                    "candidateIdentity": None,
+                    "sealedCandidateRevisions": 0,
+                    "attempts": 0,
+                    "gateResults": {},
+                    "draftPr": None,
+                    "mergeSha": None,
+                    "stopReason": None,
+                },
+                runtime_schema,
+            )
         self.assertIn("codex cloud list", registry["signInCheck"]["command"])
         self.assertEqual(registry["programs"], [])
         self.assertNotIn("model", registry["routes"]["codex-luna"])

@@ -9,7 +9,7 @@ Wave 1 of v3: IDE Development becomes the shared development operating System (P
 - One AI orchestrator per repo: a Cursor Project on the cursor-001 account running a frontier model. It plans Phases and Issues, dispatches Issues, packages branches into pull requests into `development`, merges on green CI plus one independent review, and promotes `development` to `main`. Cheap helper subagents do routine jobs (packaged cheap-helper rule)
 - Workers: Codex CLI on the orchestrator VM (Luna High everyday, Sol Medium hard; used while more than 25% allowance remains in every reported window) and the cursor-002 account via API (Grok 4.7 Medium everyday, Opus 5.5 Medium hard)
 - Workers use `issue/<PREFIX>-<n>-<slug>` branches named from Ledger IDs, commit and push often, run fast checks, end with a lessons note, and never open pull requests
-- Checks: fast checks per branch, one Full CI run per pull request (`Verify IDE Development`), one exact-head review by a different model family (Bugbot optional)
+- Checks: fast checks per branch, one Full CI run per pull request (`Verify IDE Development`), one exact-head review by a different model family; Bugbot retired from v3 policy (external Cursor provider status remains unobservable through GitHub API)
 - Repair ladder: Luna/Grok three times, then Sol/Opus once, then (if the work started on Sol/Opus) the other hard route once, then flag Carlos
 - Ledger: Supabase schema `ide_ledger` in the LiNKplatform project, written only by the orchestrator via RPC. Until it is live, the pilot run log stays in the Project store. IDs `IDE-<n>`. One GitHub Issue per Phase is the readable summary
 - Carlos gives intent and answers questions; he does not approve merges or releases

@@ -81,7 +81,7 @@ For **every** consumer in the table above:
 Also required before broad rollout:
 
 1. Wave 1 changes reach IDE Development’s protected promotion path as required by studio process (**satisfied post-WP03** — tree `43b1333…`).
-2. Bugbot mention-only / cost posture confirmed per repository when Bugbot is used (`docs/contracts/BUGBOT-MENTION-ONLY.md`, `docs/contracts/ACTIONS-COST-CONTROLS.md`).
+2. Bugbot is retired from v3. This package does not invoke it or require a provider setting; GitHub API cannot prove whether Cursor provider settings remain enabled. See the [retirement notice](contracts/BUGBOT-MENTION-ONLY.md).
 3. GitHub App smoke posture understood (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`).
 4. Platform adoption / disposable-repo installer proofs green (`tests/test-portable-v2-integration.sh` and suites it discovers).
 
@@ -148,7 +148,7 @@ Consumers **must** set these so the orchestrator's merge and promotion checks ma
 | `LINKTREND_RELEASE_GATE_CHECKS` | main promote gate | `Verify IDE Development` |
 | `LINKTREND_CI_WORKFLOW_NAME` | `workflow_run` / observer CI name | `CI` |
 | `LINKTREND_BRANCH_POLICY_WORKFLOW_NAME` | branch policy workflow display name | `Branch Source Policy` |
-| `LINKTREND_BUGBOT_CHECK_NAME` / `LINKTREND_REVIEW_GATE_CHECK_NAME` | Managed review gate check name | `Linktrend Review Gate` |
+| Bugbot / review-gate check-name variables | Retired in v3; do not configure or require them | ignored as legacy input |
 
 Note: `workflow_run.workflows` lists in YAML are **static** and must still be substituted when a consumer renames `CI` / `Branch Source Policy`.
 
@@ -193,10 +193,12 @@ Managed workflows contain `__LINKTREND_*` placeholders. Install/sync paths rende
   "schemaVersion": 1,
   "ciWorkflowName": "Consumer CI",
   "branchPolicyWorkflowName": "Branch Source Policy",
-  "bugbotCheckName": "Linktrend Review Gate",
   "runnerType": "github-hosted"
 }
 ```
+
+Legacy `bugbotCheckName` and review-gate aliases may still appear in old
+consumer files for migration recognition; v3 does not use them.
 
 All repositories use the approved GitHub-hosted delivery profile and scalar `ubuntu-24.04-arm` for managed checks. Consumer-owned CI remains consumer-owned and is not overwritten by managed sync.
 

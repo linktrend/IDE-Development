@@ -70,10 +70,7 @@
     },
     "bugbot": {
       "type": "object",
-      "properties": {
-        "manualTriggerOnly": { "type": "boolean" },
-        "enabled": { "type": "boolean" }
-      }
+      "description": "Legacy fixture field ignored by v3 audit; cannot establish Cursor provider/dashboard state."
     },
     "carlos_user_token_boundary": {
       "type": "object",

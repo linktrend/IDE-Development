@@ -100,7 +100,7 @@ from pathlib import Path
 p = json.loads(Path("${TMP}/verify-drifted.json").read_text())
 assert p["summary"]["ready"] is False
 by = {c["id"]: c for c in p["checks"]}
-assert by["bugbot.check_name"]["status"] == "drift"
+assert by["bugbot.provider_coverage"]["status"] == "unknown"
 assert by["protection.development_ruleset"]["status"] == "drift"
 assert by["protection.promotion_source_policy"]["status"] == "drift"
 assert by["protection.allow_auto_merge"]["status"] == "drift"
@@ -176,7 +176,7 @@ from pathlib import Path
 p = json.loads(Path("${TMP}/verify-cred.json").read_text())
 by = {c["id"]: c for c in p["checks"]}
 assert by["github_auth.automation_token_secret"]["status"] == "credential-missing"
-assert by["bugbot.user_token_secret"]["status"] == "credential-missing"
+assert by["bugbot.provider_coverage"]["status"] == "unknown"
 text = Path("${TMP}/verify-cred.json").read_text()
 assert "BEGIN PRIVATE KEY" not in text
 assert "ghs_" not in text

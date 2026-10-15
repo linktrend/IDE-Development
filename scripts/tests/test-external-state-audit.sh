@@ -39,8 +39,8 @@ assert p["summary"]["ready"] is False
 statuses = {c["id"]: c["status"] for c in p["checks"]}
 checks = {c["id"]: c for c in p["checks"]}
 assert statuses["github_auth.automation_token_secret"] == "unchecked"
-assert statuses["bugbot.user_token_secret"] == "unchecked"
-assert statuses["bugbot.manual_trigger_only"] == "unchecked"
+assert statuses["bugbot.provider_coverage"] == "unknown"
+assert checks["bugbot.provider_coverage"]["required"] is False
 assert statuses["protection.development_ruleset"] == "unchecked"
 assert statuses["protection.main_ruleset"] == "unchecked"
 assert statuses["protection.allow_auto_merge"] == "unchecked"
@@ -141,7 +141,11 @@ assert p["summary"]["missing"] == 0
 assert p["summary"]["drift"] == 0
 assert p["summary"]["unchecked"] == 0
 for c in p["checks"]:
-    assert c["status"] in {"ok", "matched"}, c
+    assert c["status"] in {"ok", "matched"} or (
+        c["id"] == "bugbot.provider_coverage"
+        and c["status"] == "unknown"
+        and c["required"] is False
+    ), c
 # Fixture must not have embedded private key material
 text = Path("${READY_FX}/state.json").read_text()
 assert "PRIVATE KEY" not in text
@@ -168,7 +172,7 @@ p = json.loads(Path("${TMP}/missing-out.json").read_text())
 assert p["summary"]["ready"] is False
 by = {c["id"]: c for c in p["checks"]}
 assert by["github_auth.automation_token_secret"]["status"] == "credential-missing"
-assert by["bugbot.user_token_secret"]["status"] == "credential-missing"
+assert by["bugbot.provider_coverage"]["status"] == "unknown"
 assert p["mutations"] == []
 print("missing ok")
 PY
@@ -189,7 +193,7 @@ import json
 from pathlib import Path
 p = json.loads(Path("${TMP}/drift-out.json").read_text())
 by = {c["id"]: c for c in p["checks"]}
-assert by["bugbot.check_name"]["status"] == "drift"
+assert by["bugbot.provider_coverage"]["status"] == "unknown"
 assert by["protection.development_ruleset"]["status"] == "drift"
 assert "Linktrend Branch Source Policy" in by["protection.development_ruleset"]["detail"]
 assert p["mutations"] == []
@@ -226,7 +230,7 @@ assert "ALSO_SHOULD_NEVER_APPEAR" not in text
 p = json.loads(text)
 by = {c["id"]: c for c in p["checks"]}
 assert by["github_auth.automation_token_secret"]["status"] == "ok"
-assert by["bugbot.user_token_secret"]["status"] == "ok"
+assert by["bugbot.provider_coverage"]["status"] == "unknown"
 assert by["github_auth.automation_token_secret"]["observed"] == "name_present"
 print("secret values ignored")
 PY
@@ -252,10 +256,10 @@ pass "secret env presence warns without leaking value"
 grep -q 'dry-run' "$CONTRACT" || fail "contract missing dry-run"
 grep -q 'Never' "$CONTRACT" || fail "contract missing Never prohibition language"
 grep -q 'LINKTREND_AUTOMATION_TOKEN' "$CONTRACT" || fail "contract missing automation token name"
-grep -q 'manualTriggerOnly' "$CONTRACT" || fail "contract missing manualTriggerOnly"
+grep -q 'unobservable_via_github_api' "$PY" || fail "audit missing explicit unknown provider coverage"
 grep -q 'development-autonomous-merge' "$CONTRACT" || fail "contract missing ruleset name"
 grep -q 'mutations' "$CONTRACT" || fail "contract missing mutations empty guarantee"
-pass "contract documents automation/Bugbot/protection audit surface"
+pass "contract documents automation/protection audit and retired provider coverage"
 
 # ---- default argv (no mode) equals report ----
 python3 "$PY" --repo linktrend/Fixture >"${TMP}/default-mode.json"

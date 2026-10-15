@@ -6,7 +6,7 @@ v3 runs that system with one AI orchestrator per repo. The orchestrator is a Cur
 
 Workers are Codex CLI on the orchestrator VM (Luna High for everyday work, Sol Medium for hard work, used while more than 25% of the allowance remains in every reported window) and the cursor-002 Cursor account via API (Grok 4.7 Medium everyday, Opus 5.5 Medium hard). Workers use `issue/<PREFIX>-<n>-<slug>` branches, commit and push often, and never open pull requests.
 
-Checks are fast checks on each branch, one Full CI run per pull request, and one exact-head review by a different model family (Bugbot is optional). The repair ladder is Luna/Grok three times, then Sol/Opus once, then — if the work started on Sol/Opus — the other hard route once, then flag Carlos.
+Checks are fast checks on each branch, one Full CI run per pull request, and one exact-head review by a different model family. Bugbot is retired from v3 policy; external Cursor provider state is not observable through GitHub API. The repair ladder is Luna/Grok three times, then Sol/Opus once, then — if the work started on Sol/Opus — the other hard route once, then flag Carlos.
 
 The ledger is the Supabase schema `ide_ledger` in the LiNKplatform project. Only the orchestrator writes it, through RPC. Until that ledger is live, the pilot run log stays in the Project store. Work IDs look like `IDE-<n>`. One GitHub Issue per Phase is the readable summary.
 

@@ -58,7 +58,7 @@
       "type": "string",
       "enum": [
         "created", "collecting", "draft", "sealed", "candidate-failed",
-        "fast-running", "fast-passed", "bugbot-running", "bugbot-passed",
+        "fast-running", "fast-passed",
         "full-running", "full-passed", "candidate-ready", "merged",
         "release-running", "release-passed", "main-awaiting-approval", "main-promoted", "stopped",
         "blocked", "cancelled"

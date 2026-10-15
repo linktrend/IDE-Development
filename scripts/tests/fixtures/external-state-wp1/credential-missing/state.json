@@ -23,8 +23,7 @@
   },
   "carlos_user_token_boundary": {
     "allowedOps": [
-      "orchestrator_pr_create",
-      "bugbot_mention_comment"
+      "orchestrator_pr_create"
     ],
     "status": "ok"
   },

@@ -1,60 +1,19 @@
-# Bugbot Inheritance Checklist
+# Retired: Bugbot inheritance checklist
 
-Complete for every repo that inherits autonomous Git ops from IDE Development (after wire or backfill).
+This checklist is retained only as historical migration context. It is not an
+installation procedure, repository adoption requirement, reviewer path, or
+current configuration contract. Do not follow the setup, trigger, ruleset, or
+credential instructions that may appear in old references to this file.
 
-**SOT:** `docs/AUTONOMOUS-GIT-OPERATIONS.md` · ADR `docs/adr/0003-autonomous-ship-pull-promote.md`
+Bugbot is retired from v3 IDE Development policy and delivery. The current
+review requirement is one independent exact-head review by a different model
+family. The v3 package does not request or require Cursor Bugbot.
 
-## Why
+No package or GitHub API readback here establishes account-level Cursor
+provider state. Treat that external state as unknown unless the account owner
+checks it through an authoritative provider interface. Do not infer that the
+provider is disabled from absence of a secret, workflow, or required check.
 
-Layer B installs GitHub Actions. **Bugbot is optional.** The required review of a pull request into `development` is one independent review of the exact head SHA by a model from a different family than the author (`docs/contracts/STREAMLINED-DELIVERY.md`). When Bugbot is used, it is enabled on [cursor.com](https://cursor.com) / GitHub integration, not by the symlink alone.
-
-## What “Bugbot pass” means
-
-Bugbot is optional and is not a required merge check. When the orchestrator opts in, provider observation remains **`Cursor Bugbot`** (see [Cursor Bugbot docs](https://cursor.com/docs/bugbot)). Historical conclusions:
-
-| Check conclusion | Meaning | Integrator |
-|---|---|---|
-| `success` | No issues, and no unresolved Bugbot comments from earlier runs | **May merge** |
-| `neutral` | Findings remain (default when Bugbot reports issues), cancelled, or internal error | **Must not merge** |
-| `failure` | Findings and fail-on-unresolved-issues is enabled | **Must not merge** |
-
-Bugbot usually posts **`COMMENTED`** reviews. It does **not** need to GitHub-APPROVE. Integrator keys off the check, not `review.state == approved`.
-
-Optional (if available on the Cursor team): enable **fail on unresolved issues** so findings become `failure` instead of `neutral`. Integrator already treats non-`success` as a block, so this is defense-in-depth for the GitHub merge button / ruleset.
-
-## Checklist (per GitHub repo)
-
-Historical checklist only. Bugbot is optional and is not a merge requirement. Live review and CI rules are in `docs/contracts/STREAMLINED-DELIVERY.md` and `core/github/CI-GATE-CONTRACTS.md`.
-
-1. Confirm repo is under the `linktrend` GitHub org connected to Cursor.
-2. Open Cursor dashboard → **Bugbot** (or Agents / Bugbot settings).
-3. Enable Bugbot for this repository (or org-default that includes it).
-4. Open a test PR into `development` and confirm Bugbot posts a review **and** a `Cursor Bugbot` check.
-5. Apply the development merge ruleset (requires Bugbot + CI checks):
-   ```bash
-   # IDE Development defaults:
-   ./scripts/apply-development-merge-ruleset.sh
-
-   # Consumer with different CI job name(s):
-   ./scripts/apply-development-merge-ruleset.sh linktrend/YourRepo \
-     "Linktrend Review Gate" "Your CI job name" "Linktrend Branch Source Policy"
-   ```
-6. Confirm Integrator workflow is present: `.github/workflows/linktrend-integrator-merge.yml`.
-7. Required check names are in `core/github/CI-GATE-CONTRACTS.md`: pull requests into `development` require `Linktrend Fast Checks` and `Linktrend Branch Source Policy` (the orchestrator also requires `Verify IDE Development`). Bugbot is optional and is not one of those names.
-8. Bugbot is requested by the orchestrator on its Phase PR, not by a workflow. Bugbot request default command is `@cursor review` (configurable; with the `@`); managed success check is `Linktrend Review Gate` (provider check remains `Cursor Bugbot`). The 2-request limit counts only comments with an executable trigger (`@cursor review` or `bugbot run`) **plus** `<!-- linktrend-bugbot-requested: <sha> -->`; bare historical `cursor review` + marker does not count.
-9. Confirm Integrator managed template matches live file after sync (`cmp` in IDE Development verify).
-10. Record completion in the adoption/wire report: `Bugbot: enabled | blocked:<reason>`.
-
-## If Bugbot cannot be enabled
-
-- Do **not** invent a Mini-side Reviewer as the default.
-- Document the blocker for the Principal.
-- Integrator must **not** force-merge without an independent review path.
-
-## Related
-
-- Managed workflows: `core/github/managed-workflows/`
-- Integrator: retired in v3 (IDE-22); see the v3 plan.
-- Ruleset helper: `scripts/apply-development-merge-ruleset.sh`
-- Wire: `scripts/wire-repo.sh`
-- Orchestrator: `docs/AUTONOMOUS-GIT-OPERATIONS.md`
+Historical check names and byte signatures may remain in migration fixtures or
+retirement cleanup code so old repositories can be recognized and removed
+safely. Those references do not authorize restoring the workflow or policy.

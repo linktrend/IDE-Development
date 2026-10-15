@@ -145,13 +145,13 @@ pass "cleanup squash/session/promote/dirty safety (dry-run)"
 # 9) Workflow activation docs; managed workflows have no scheduled wakes
 # ============================================================================
 grep -q 'default branch' "$ROOT/docs/GITOPS-CONSUMER-ROLLOUT.md"
-grep -qi 'mention-only\|manualTriggerOnly' "$ROOT/docs/GITOPS-CONSUMER-ROLLOUT.md" \
-  || grep -qi 'mention-only\|manualTriggerOnly' "$ROOT/docs/contracts/"*.md \
-  || fail "mention-only documentation missing"
+grep -qi 'Bugbot is retired' "$ROOT/docs/GITOPS-CONSUMER-ROLLOUT.md" \
+  || grep -qi 'Bugbot retirement notice' "$ROOT/docs/contracts/BUGBOT-MENTION-ONLY.md" \
+  || fail "Bugbot retirement documentation missing"
 if grep -lE 'cron:|workflow_run:' "$ROOT/core/github/managed-workflows/"*.yml; then
   fail "managed workflows must not wake on schedule/workflow_run"
 fi
-pass "activation + mention-only docs + no scheduled managed wakes"
+pass "activation + retired Bugbot docs + no scheduled managed wakes"
 
 # ============================================================================
 # Credential doctrine: custom App / PAT automation stays retired

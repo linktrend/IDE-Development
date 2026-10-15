@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read-only external-state plan / verify / report for normal-token GitOps.
 
-Checks the normal automation credential by name only, Bugbot mention-only,
+Checks the normal automation credential by name only, retired provider coverage,
 Carlos restricted user-token boundary, development/main protections (union-preserving),
 promotion-source policy, and required workflow posture/conclusions.
 
@@ -31,7 +31,7 @@ EXIT_UNAVAILABLE = 4
 EXIT_REFUSED = 5
 
 AUTOMATION_TOKEN_SECRET = "LINKTREND_AUTOMATION_TOKEN"
-BUGBOT_USER_TOKEN_SECRET = "LINKTREND_BUGBOT_USER_TOKEN"
+LEGACY_BUGBOT_USER_TOKEN_SECRET = "LINKTREND_BUGBOT_USER_TOKEN"
 BUGBOT_CHECK_NAME = "Linktrend Review Gate"
 SOURCE_POLICY_CHECK = "Linktrend Branch Source Policy"
 # Retired v2 contexts; rulesets must NOT require them.
@@ -54,7 +54,6 @@ REQUIRED_WORKFLOW_FILES = (
 # Carlos user token may only be used for these operations (contract surface).
 CARLOS_ALLOWED_OPS = (
     "orchestrator_pr_create",
-    "bugbot_mention_comment",
 )
 CARLOS_FORBIDDEN_OPS = (
     "status_publish",
@@ -71,7 +70,7 @@ CARLOS_FORBIDDEN_OPS = (
 _SECRET_ENV_NAMES = frozenset(
     {
         AUTOMATION_TOKEN_SECRET,
-        BUGBOT_USER_TOKEN_SECRET,
+        LEGACY_BUGBOT_USER_TOKEN_SECRET,
         "LINKTREND_APP_TOKEN",
         "AUTOMATION_TOKEN",
         "BUGBOT_USER_TOKEN",
@@ -108,8 +107,6 @@ def _check(
     status: str,
     detail: str = "",
 ) -> dict[str, Any]:
-    if check_id.startswith("bugbot."):
-        required = False
     return {
         "id": check_id,
         "category": category,
@@ -122,7 +119,7 @@ def _check(
 
 
 def required_checklist() -> list[dict[str, Any]]:
-    """Canonical required external-state items (contract + WP1 surface)."""
+    """Canonical external-state checklist, including informational rows."""
     return [
         {
             "id": "github_auth.automation_token_secret",
@@ -134,32 +131,20 @@ def required_checklist() -> list[dict[str, Any]]:
             ),
         },
         {
-            "id": "bugbot.user_token_secret",
-            "category": "bugbot",
+            "id": "bugbot.provider_coverage",
+            "category": "external_provider",
             "required": False,
             "expected": (
-                f"{BUGBOT_USER_TOKEN_SECRET} Actions secret name present "
-                "(value never read)"
+                "No v3-managed Bugbot invocation; Cursor provider/dashboard coverage "
+                "requires owner-side verification"
             ),
-        },
-        {
-            "id": "bugbot.manual_trigger_only",
-            "category": "bugbot",
-            "required": False,
-            "expected": "Bugbot manualTriggerOnly=true (mention-only)",
-        },
-        {
-            "id": "bugbot.check_name",
-            "category": "bugbot",
-            "required": False,
-            "expected": f"Integrator/ruleset Bugbot check name is {BUGBOT_CHECK_NAME!r}",
         },
         {
             "id": "carlos.user_token_boundary",
             "category": "carlos",
             "required": True,
             "expected": (
-                "Carlos user token restricted to orchestrator PR create + Bugbot mention; "
+                "Carlos user token restricted to orchestrator PR create; "
                 "forbidden for status publish/merge/promote/repair/admin"
             ),
         },
@@ -362,10 +347,6 @@ class ReadOnlyGitHubClient:
             raise AuditError(f"get repo failed: {err or data}")
         return data
 
-    def get_bugbot_repo_settings(self) -> dict[str, Any] | None:
-        """Bugbot settings are not on the GitHub API; live mode leaves unknown."""
-        return None
-
     def get_app_permissions_observation(self) -> dict[str, Any] | None:
         """Live GitHub cannot fully prove App permission matrix; return None → unknown."""
         return None
@@ -504,12 +485,6 @@ class FixtureClient(ReadOnlyGitHubClient):
     def get_repo(self) -> dict[str, Any]:
         return deepcopy(self.state.get("repo") or {})
 
-    def get_bugbot_repo_settings(self) -> dict[str, Any] | None:
-        bugbot = self.state.get("bugbot")
-        if bugbot is None:
-            return None
-        return deepcopy(bugbot) if isinstance(bugbot, dict) else None
-
     def get_app_permissions_observation(self) -> dict[str, Any] | None:
         perms = self.state.get("app_permissions")
         if perms is None:
@@ -573,9 +548,6 @@ class UncheckedClient(ReadOnlyGitHubClient):
 
     def get_repo(self) -> dict[str, Any]:
         return {}
-
-    def get_bugbot_repo_settings(self) -> dict[str, Any] | None:
-        return None
 
     def get_app_permissions_observation(self) -> dict[str, Any] | None:
         return None
@@ -664,17 +636,14 @@ def _evaluate_ruleset_branch(
     client: ReadOnlyGitHubClient,
     *,
     branch: str,
-    require_bugbot: bool,
 ) -> dict[str, Any]:
     """Return evaluation dict for one governed branch ruleset."""
     name = RULESET_NAMES[branch]
     expected_parts = [SOURCE_POLICY_CHECK]
-    if require_bugbot:
-        expected_parts = [BUGBOT_CHECK_NAME, SOURCE_POLICY_CHECK]
     expected = (
         f"Active ruleset {name!r} requires "
-        + " and ".join(repr(p) for p in expected_parts)
-        + ((" (no Bugbot)" if not require_bugbot else ""))
+        + repr(SOURCE_POLICY_CHECK)
+        + " and no obsolete review contexts"
     )
     check_id = f"protection.{branch}_ruleset"
 
@@ -715,7 +684,7 @@ def _evaluate_ruleset_branch(
     checks = _extract_ruleset_checks(detail_rs or match)
     missing_ctx = [c for c in expected_parts if c not in checks]
     stale_contexts = sorted(OBSOLETE_REQUIRED_CONTEXTS.intersection(checks))
-    if require_bugbot is False and stale_contexts:
+    if stale_contexts:
         return _check(
             check_id=check_id,
             category="protection",
@@ -806,163 +775,26 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                 )
             )
 
-    # --- bugbot.user_token_secret ---
-    if unchecked:
-        results.append(
-            _unchecked(
-                "bugbot.user_token_secret",
-                "bugbot",
-                f"{BUGBOT_USER_TOKEN_SECRET} Actions secret name present (value never read)",
-            )
+    # The v3 package has no Bugbot invocation or eligibility setting. GitHub
+    # APIs cannot report Cursor provider/dashboard state, so emit a non-gating
+    # unknown instead of inspecting legacy secrets, variables, or fixtures.
+    results.append(
+        _check(
+            check_id="bugbot.provider_coverage",
+            category="external_provider",
+            required=False,
+            expected=(
+                "No v3-managed Bugbot invocation; Cursor provider/dashboard coverage "
+                "requires owner-side verification"
+            ),
+            observed="unobservable_via_github_api",
+            status="unknown",
+            detail=(
+                "GitHub API and package state cannot establish whether an external Cursor "
+                "provider remains enabled; no provider setting is inferred from absent v3 code"
+            ),
         )
-    else:
-        if not secret_names:
-            secret_names = client.list_actions_secret_names()
-        if BUGBOT_USER_TOKEN_SECRET in secret_names:
-            results.append(
-                _check(
-                    check_id="bugbot.user_token_secret",
-                    category="bugbot",
-                    required=True,
-                    expected=(
-                        f"{BUGBOT_USER_TOKEN_SECRET} Actions secret name present "
-                        "(value never read)"
-                    ),
-                    observed="name_present",
-                    status="ok",
-                    detail="secret name listed; value not retrieved",
-                )
-            )
-        else:
-            results.append(
-                _check(
-                    check_id="bugbot.user_token_secret",
-                    category="bugbot",
-                    required=True,
-                    expected=(
-                        f"{BUGBOT_USER_TOKEN_SECRET} Actions secret name present "
-                        "(value never read)"
-                    ),
-                    observed="missing",
-                    status="credential-missing",
-                    detail=f"{BUGBOT_USER_TOKEN_SECRET} not listed among Actions secret names",
-                )
-            )
-
-    # --- bugbot.manual_trigger_only ---
-    if unchecked:
-        results.append(
-            _unchecked(
-                "bugbot.manual_trigger_only",
-                "bugbot",
-                "Bugbot manualTriggerOnly=true (mention-only)",
-                detail=(
-                    "dry-run default / live GitHub path cannot read Linktrend Review Gate "
-                    "dashboard; supply fixture bugbot.manualTriggerOnly or confirm "
-                    "manually per docs/contracts/BUGBOT-MENTION-ONLY.md"
-                ),
-            )
-        )
-    else:
-        bugbot = client.get_bugbot_repo_settings()
-        if bugbot is None:
-            results.append(
-                _check(
-                    check_id="bugbot.manual_trigger_only",
-                    category="bugbot",
-                    required=True,
-                    expected="Bugbot manualTriggerOnly=true (mention-only)",
-                    observed="unknown",
-                    status="unknown",
-                    detail=(
-                        "Bugbot settings unavailable via GitHub API; fixture or "
-                        "operator confirmation required — never assume compliant"
-                    ),
-                )
-            )
-        else:
-            mto = bugbot.get("manualTriggerOnly")
-            if mto is True:
-                results.append(
-                    _check(
-                        check_id="bugbot.manual_trigger_only",
-                        category="bugbot",
-                        required=True,
-                        expected="Bugbot manualTriggerOnly=true (mention-only)",
-                        observed="true",
-                        status="ok",
-                        detail="manualTriggerOnly=true",
-                    )
-                )
-            else:
-                results.append(
-                    _check(
-                        check_id="bugbot.manual_trigger_only",
-                        category="bugbot",
-                        required=True,
-                        expected="Bugbot manualTriggerOnly=true (mention-only)",
-                        observed=str(mto).lower() if mto is not None else "missing",
-                        status="drift" if mto is False else "missing",
-                        detail="manualTriggerOnly must be true before consumer rollout",
-                    )
-                )
-
-    # --- bugbot.check_name ---
-    if unchecked:
-        results.append(
-            _unchecked(
-                "bugbot.check_name",
-                "bugbot",
-                f"Integrator/ruleset Bugbot check name is {BUGBOT_CHECK_NAME!r}",
-            )
-        )
-    else:
-        if not variables:
-            variables = client.list_actions_variables()
-        override = _find_variable(variables, "LINKTREND_BUGBOT_CHECK_NAME")
-        if override is None:
-            results.append(
-                _check(
-                    check_id="bugbot.check_name",
-                    category="bugbot",
-                    required=True,
-                    expected=f"Integrator/ruleset Bugbot check name is {BUGBOT_CHECK_NAME!r}",
-                    observed="default",
-                    status="ok",
-                    detail=(
-                        f"LINKTREND_BUGBOT_CHECK_NAME unset; default {BUGBOT_CHECK_NAME!r} applies"
-                    ),
-                )
-            )
-        else:
-            value = str(override.get("value") or "").strip()
-            if value == BUGBOT_CHECK_NAME:
-                results.append(
-                    _check(
-                        check_id="bugbot.check_name",
-                        category="bugbot",
-                        required=True,
-                        expected=f"Integrator/ruleset Bugbot check name is {BUGBOT_CHECK_NAME!r}",
-                        observed=value,
-                        status="ok",
-                        detail="LINKTREND_BUGBOT_CHECK_NAME matches contract",
-                    )
-                )
-            else:
-                results.append(
-                    _check(
-                        check_id="bugbot.check_name",
-                        category="bugbot",
-                        required=True,
-                        expected=f"Integrator/ruleset Bugbot check name is {BUGBOT_CHECK_NAME!r}",
-                        observed=value or "empty",
-                        status="drift",
-                        detail=(
-                            "LINKTREND_BUGBOT_CHECK_NAME differs from "
-                            f"{BUGBOT_CHECK_NAME!r}"
-                        ),
-                    )
-                )
+    )
 
     # --- carlos.user_token_boundary ---
     if unchecked:
@@ -971,7 +803,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                 "carlos.user_token_boundary",
                 "carlos",
                 (
-                    "Carlos user token restricted to orchestrator PR create + Bugbot mention; "
+                    "Carlos user token restricted to orchestrator PR create; "
                     "forbidden for status publish/merge/promote/repair/admin"
                 ),
                 observed="unknown",
@@ -987,7 +819,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                     category="carlos",
                     required=True,
                     expected=(
-                        "Carlos user token restricted to orchestrator PR create + Bugbot mention; "
+                        "Carlos user token restricted to orchestrator PR create; "
                         "forbidden for status publish/merge/promote/repair/admin"
                     ),
                     observed="unknown",
@@ -1023,7 +855,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                         category="carlos",
                         required=True,
                         expected=(
-                            "Carlos user token restricted to orchestrator PR create + Bugbot mention; "
+                            "Carlos user token restricted to orchestrator PR create; "
                             "forbidden for status publish/merge/promote/repair/admin"
                         ),
                         observed="boundary_violated",
@@ -1039,7 +871,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                         category="carlos",
                         required=True,
                         expected=(
-                            "Carlos user token restricted to orchestrator PR create + Bugbot mention; "
+                            "Carlos user token restricted to orchestrator PR create; "
                             "forbidden for status publish/merge/promote/repair/admin"
                         ),
                         observed="blocked",
@@ -1057,7 +889,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                             category="carlos",
                             required=True,
                             expected=(
-                                "Carlos user token restricted to orchestrator PR create + Bugbot mention; "
+                                "Carlos user token restricted to orchestrator PR create; "
                                 "forbidden for status publish/merge/promote/repair/admin"
                             ),
                             observed="unexpected_allowed_ops",
@@ -1072,7 +904,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                             category="carlos",
                             required=True,
                             expected=(
-                                "Carlos user token restricted to orchestrator PR create + Bugbot mention; "
+                                "Carlos user token restricted to orchestrator PR create; "
                                 "forbidden for status publish/merge/promote/repair/admin"
                             ),
                             observed="restricted",
@@ -1118,10 +950,10 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                 )
         else:
             results.append(
-                _evaluate_ruleset_branch(client, branch="development", require_bugbot=False)
+                _evaluate_ruleset_branch(client, branch="development")
             )
             results.append(
-                _evaluate_ruleset_branch(client, branch="main", require_bugbot=False)
+                _evaluate_ruleset_branch(client, branch="main")
             )
 
     # --- protection.promotion_source_policy ---
@@ -1793,8 +1625,9 @@ def build_report(
             "Secret checks use Actions secret *names* only; values are never retrieved or printed.",
             "Default dry-run emits the required checklist with unchecked/unknown observations.",
             "Use --fixture-dir for offline tests or --live for operator read-only GitHub GETs.",
+            "External Cursor provider state is unknown via GitHub API; absence of v3 invocation is not proof it is disabled.",
             "Unverifiable settings are unknown/blocked — never assumed compliant.",
-            "Agents must not create Apps, secrets, variables, Bugbot settings, or rulesets.",
+            "Agents must not create Apps, secrets, variables, provider settings, or rulesets.",
         ],
     }
     if mode in {"plan", "verify", "report"}:
@@ -1806,8 +1639,8 @@ def build_report(
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Read-only plan/verify/report of required external automation credential / Bugbot / "
-            "protection / workflow state. Apply is refused."
+            "Read-only plan/verify/report of external automation credential / protection / "
+            "workflow state; external Cursor provider coverage remains unknown. Apply is refused."
         )
     )
     parser.add_argument(

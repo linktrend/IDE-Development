@@ -172,10 +172,9 @@
     "review": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reviewerMustDifferFromAuthorFamily", "bugbotOptional"],
+      "required": ["reviewerMustDifferFromAuthorFamily"],
       "properties": {
-        "reviewerMustDifferFromAuthorFamily": {"const": true},
-        "bugbotOptional": {"const": true}
+        "reviewerMustDifferFromAuthorFamily": {"const": true}
       }
     },
     "signInCheck": {

@@ -268,9 +268,9 @@
         "review": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["bugbot"],
+          "required": ["reviewerMustDifferFromAuthorFamily"],
           "properties": {
-            "bugbot": { "type": "string", "const": "final-candidate-only" }
+            "reviewerMustDifferFromAuthorFamily": { "type": "boolean", "const": true }
           }
         },
         "amendment": { "type": "string", "const": "V25_BOOTSTRAP_LEAN" },
