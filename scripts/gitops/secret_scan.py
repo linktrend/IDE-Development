@@ -656,9 +656,141 @@ def _is_code_expression(value: str) -> bool:
     return False
 
 
+def _normalized_reference_path(value: str) -> bool:
+    """Recognize a literal absolute path, never a value/path expression."""
+    return (
+        value.startswith("/")
+        and re.fullmatch(r"/[A-Za-z0-9_.@+-]+(?:/[A-Za-z0-9_.@+-]+)*", value) is not None
+        and all(part not in {".", ".."} for part in value.split("/")[1:])
+    )
+
+
+def _reference_credential_components(*values: str) -> list[str]:
+    """Keep credential-like ID/path components visible inside typed references.
+
+    Test each complete slash-delimited component, including identifier and
+    service/extension suffixes; do not split an opaque value at '-' or '_'.
+    The explicit entropy check does not inherit expression/ALL_CAPS reference
+    shortcuts. It retains the existing length/entropy/synthetic-prefix limits.
+    """
+    credentials: list[str] = []
+    for value in values:
+        for component in value.split("/"):
+            if component and (
+                is_realistic_value(component)
+                or (
+                    len(component) >= 40
+                    and _shannon(component) >= 3.5
+                    and not component.startswith(SYNTHETIC_PREFIX)
+                )
+            ) and component not in credentials:
+                credentials.append(component)
+    return credentials
+
+
+def _encrypted_credential_references(line: str) -> list[tuple[int, int, str, str]]:
+    """Systemd ID:path bindings are references, not nested `key:` assignments.
+
+    Only the complete, literal directive grammar receives this treatment.
+    Known credential-format searches still inspect every byte of the line.
+    """
+    references: list[tuple[int, int, str, str]] = []
+    for match in re.finditer(
+        r"(?<![^\s'\"])LoadCredentialEncrypted="
+        r"(?P<identifier>[A-Za-z0-9_][A-Za-z0-9_.-]{0,254}):"
+        r"(?P<path>-?/[A-Za-z0-9_.@+/-]+)(?=$|[\s'\",)\]}])",
+        line,
+    ):
+        path = match.group("path").removeprefix("-")
+        if _normalized_reference_path(path):
+            references.append((match.start(), match.end(), match.group("identifier"), path))
+    return references
+
+
+def _manager_credential_reference(field: str, value: str) -> bool:
+    """The typed runtimePrivateKey field can name a manager credential file."""
+    return (
+        field.lower() == "runtimeprivatekey"
+        and _normalized_reference_path(value)
+        and re.fullmatch(
+            r"/run/credentials/[A-Za-z0-9_][A-Za-z0-9_.@-]*\.service/"
+            r"[A-Za-z0-9_][A-Za-z0-9_.-]*",
+            value,
+        ) is not None
+    )
+
+
+def _public_pem_literal_spans(line: str) -> list[tuple[int, int]]:
+    """Exclude only grammar-proven format literals from the marker heuristic.
+
+    A predicate argument must contain only a complete BEGIN marker. A dummy
+    bytes envelope must have exactly three decoded lines and a short lowercase
+    hyphenated label body: every base64-character run is at most 12 characters,
+    and the body contains at least two non-base64 separators. This body cannot
+    be PEM-encoded private-key material. No base64 body, empty/header-only
+    value, concatenation, extra data, arbitrary escape or malformed envelope
+    qualifies. This does not suppress assignment or other format detections.
+    """
+    spans: list[tuple[int, int]] = []
+    cursor = 0
+    while cursor < len(line):
+        if line[cursor] not in {"'", '"'}:
+            cursor += 1
+            continue
+        start = cursor
+        read = _read_quoted(line, start)
+        if read is None:
+            break
+        value, end = read
+        cursor = end
+        raw = line[start + 1 : end - 1]
+        literal_start = start
+        if start and line[start - 1] == "b" and (start < 2 or not (line[start - 2].isalnum() or line[start - 2] == "_")):
+            literal_start -= 1
+        # No raw/f-string prefixes or triple-quoted literals are recognized.
+        if literal_start and (line[literal_start - 1].isalnum() or line[literal_start - 1] in "_'\""):
+            continue
+        if (
+            raw == value
+            and PRIVATE_KEY_RE.fullmatch(value)
+            and re.search(r"\.(?:startswith|endswith)\(\s*$", line[:literal_start])
+            and re.match(r"\s*\)", line[end:])
+        ):
+            spans.append((literal_start, end))
+            continue
+        if literal_start == start or not re.match(r"\s*(?:[,}\]]|$)", line[end:]):
+            continue
+        pieces = raw.split("\\n")
+        if len(pieces) != 3:
+            continue
+        header, body, footer = pieces
+        if (
+            PRIVATE_KEY_RE.fullmatch(header)
+            and footer == header.replace("BEGIN", "END", 1)
+            and len(body) <= 32
+            and re.fullmatch(r"[a-z]{1,12}(?:-[a-z]{1,12}){2,5}", body)
+            and value == "\n".join(pieces)
+            and not is_realistic_value(body)
+        ):
+            spans.append((literal_start, end))
+    return spans
+
+
 def extract_assignments(line: str) -> list[tuple[str, str]]:
     found: list[tuple[str, str]] = []
+    reference_spans: list[tuple[int, int]] = []
+    for start, end, identifier, path in _encrypted_credential_references(line):
+        credentials = _reference_credential_components(identifier, path)
+        if credentials:
+            # Emit components even when the credential ID has no `key:` token
+            # for the original assignment lexer to discover. Do not suppress
+            # any original nested assignment on a credential-bearing binding.
+            found.extend(("key", component) for component in credentials)
+        else:
+            reference_spans.append((start, end))
     for match in ANY_FIELD_RE.finditer(line):
+        if any(start <= match.start() < end for start, end in reference_spans):
+            continue
         raw_field = match.group("field")
         field = raw_field.lower().replace("-", "_")
         index = _skip_ws(line, match.end())
@@ -694,6 +826,12 @@ def extract_assignments(line: str) -> list[tuple[str, str]]:
                 continue
         credential_field = _is_credential_field(raw_field)
         generic_reference_field = _is_generic_reference_field(raw_field)
+        if _manager_credential_reference(raw_field, value):
+            credentials = _reference_credential_components(value)
+            if credentials:
+                found.extend((field, component) for component in credentials)
+            else:
+                continue
         if not credential_field and not generic_reference_field and not is_synthetic_value(value):
             continue
         if generic_reference_field and not is_realistic_value(value) and not is_synthetic_value(value):
@@ -760,7 +898,11 @@ def scan_text(path: str, text: str) -> list[dict[str, Any]]:
                 rule=RULE_FORMAT_DATABASE,
                 value=match.group(0),
             )
-        if PRIVATE_KEY_RE.search(raw_line):
+        public_pem_spans = _public_pem_literal_spans(raw_line)
+        if any(
+            not any(start <= match.start() < end for start, end in public_pem_spans)
+            for match in PRIVATE_KEY_RE.finditer(raw_line)
+        ):
             _add_detection(
                 detections,
                 path=path,
