@@ -41,6 +41,15 @@ For the fixed LiNKpublish overlay only:
     --source-variant linktrend-publish --expected-source-sha256 SHA256 \\
     --expected-target-sha256 SHA256 [--dry-run]
 
+For the fixed OpenClaw overlays only:
+  $(basename "$0") <repo-path> --only-workflow <supported-workflow> \
+    --source-variant linktrend-openclaw --expected-source-sha256 SHA256 \
+    --expected-target-sha256 SHA256 [--dry-run]
+  Supported: linktrend-integrator-merge.yml, linktrend-repair-observer.yml,
+  linktrend-review-gate.yml (fixed retirement marker removes only this file).
+  Each operation is separate and hash guarded; use retained Git preimages
+  for a separately verified scoped restore. No automatic multi-file rollback.
+
 Copy managed GitHub workflow templates into <repo-path>/.github/workflows/.
 Never overwrites ci.yml. Idempotent when files already match.
 
@@ -139,11 +148,14 @@ DEST_DIR="${TARGET_REPO}/.github/workflows"
 # the broad renderer: no config reads/normalization, profile inference, mkdir,
 # or writes outside the one guarded destination file.
 if [ -n "$ONLY_WORKFLOW" ] || [ -n "$EXPECTED_SOURCE_SHA256" ] || [ -n "$EXPECTED_TARGET_SHA256" ] || [ -n "$SOURCE_VARIANT" ]; then
-  [ "$ONLY_WORKFLOW" = "linktrend-integrator-merge.yml" ] || fail "unsupported --only-workflow (expected linktrend-integrator-merge.yml)"
+  case "$ONLY_WORKFLOW" in
+    linktrend-integrator-merge.yml|linktrend-repair-observer.yml|linktrend-review-gate.yml) ;;
+    *) fail "unsupported --only-workflow" ;;
+  esac
   [ -z "$CONFIG_INPUT" ] || fail "--config is not supported with --only-workflow"
   [ -z "$ORCHESTRATION_MODE" ] || fail "--orchestration-mode is not supported with --only-workflow"
   case "$SOURCE_VARIANT" in
-    ""|linktrend-publish) ;;
+    ""|linktrend-publish|linktrend-openclaw) ;;
     *) fail "unsupported --source-variant: $SOURCE_VARIANT" ;;
   esac
   python3 - "$SYSTEM_ROOT" "$TARGET_REPO" "$ONLY_WORKFLOW" "$SOURCE_VARIANT" "$EXPECTED_SOURCE_SHA256" "$EXPECTED_TARGET_SHA256" "$DRY_RUN" <<'PY'
@@ -158,7 +170,8 @@ from pathlib import Path
 system_root = Path(sys.argv[1])
 target_root = Path(sys.argv[2])
 name, variant, expected_source, expected_target, dry_run = sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7] == "1"
-if name != "linktrend-integrator-merge.yml":
+remove_operation = False
+if variant != "linktrend-openclaw" and name != "linktrend-integrator-merge.yml":
     raise SystemExit("FAIL: unsupported scoped workflow")
 if variant == "":
     source = system_root / "core" / "github" / "managed-workflows" / name
@@ -168,6 +181,18 @@ elif variant == "linktrend-publish":
         raise SystemExit("FAIL: linktrend-publish source SHA-256 must match the reviewed fixed overlay")
     if expected_target != "5eb82e65c68ae825015beedaeeb1ee7e49ec34677514e55c58ed97ca3b1cb525":
         raise SystemExit("FAIL: linktrend-publish target SHA-256 must match the reviewed Publish Full preimage")
+elif variant == "linktrend-openclaw":
+    overlays = {
+        "linktrend-integrator-merge.yml": ("Full.yml", "47b8a9b911da549e55c7edea80d45755bc34b757972627155c65fb9568e3e8c7", "f8fe760a115424d27984c042112390c52993971dcb675b8d2b307115093c7a37", False),
+        "linktrend-repair-observer.yml": ("RepairObserver.yml", "76d604485c21f16c2e96d387c53ea7f1f01e35b82bf363369eff553bdcbaee35", "c82a719f88f913cdb4184199d53c82c2849b8d926e110497447a965ad0ae06fa", False),
+        "linktrend-review-gate.yml": ("ReviewGate.removed", "5afc95e4c8ea08acfed9374968a9d8832f00c4db7b4ccd9e91f4e37f14eb1f4b", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", True),
+    }
+    if name not in overlays:
+        raise SystemExit("FAIL: unsupported OpenClaw workflow")
+    source_name, fixed_target, fixed_source, remove_operation = overlays[name]
+    source = system_root / "core" / "github" / "managed-workflows" / "repository-overlays" / "linktrend-openclaw_prime" / source_name
+    if expected_source != fixed_source or expected_target != fixed_target:
+        raise SystemExit("FAIL: linktrend-openclaw digests must match the reviewed fixed overlay and preimage")
 else:
     raise SystemExit("FAIL: unsupported source variant")
 for label, value in (("source", expected_source), ("target", expected_target)):
@@ -202,8 +227,24 @@ if target_digest != expected_target:
     raise SystemExit(f"FAIL: target SHA-256 mismatch (actual {target_digest})")
 if variant == "" and target_digest == "5eb82e65c68ae825015beedaeeb1ee7e49ec34677514e55c58ed97ca3b1cb525":
     raise SystemExit("FAIL: this Publish root preimage requires --source-variant linktrend-publish")
+if variant == "" and target_digest == "47b8a9b911da549e55c7edea80d45755bc34b757972627155c65fb9568e3e8c7":
+    raise SystemExit("FAIL: this OpenClaw root preimage requires --source-variant linktrend-openclaw")
 if b"__LINKTREND_" in source_bytes:
     raise SystemExit("FAIL: scoped source contains unresolved consumer placeholders")
+if remove_operation:
+    if source_bytes:
+        raise SystemExit("FAIL: retired workflow source marker must be empty")
+    if dry_run:
+        print(f"DRY-RUN: would remove only {dest} from {variant} ({target_digest})")
+        raise SystemExit(0)
+    dest.unlink()
+    directory_fd = os.open(dest_dir, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+    print(f"PASS: removed only {dest} from {variant}; preimage SHA-256 {target_digest}")
+    raise SystemExit(0)
 if source_bytes == target_bytes:
     print(f"PASS: unchanged {name} ({variant or 'generic'}); source and destination SHA-256 {source_digest}")
     raise SystemExit(0)
