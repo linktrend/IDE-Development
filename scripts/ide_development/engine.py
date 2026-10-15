@@ -18,7 +18,14 @@ from .manifest import Manifest, load_manifest, load_migration_catalog
 from .paths import require_git_repo, resolve_dir, same_path
 from .plan import OpKind, Plan, PlanAction, build_drift_report, build_plan, meaningful_drift
 from .state import load_installed_state
-from .transaction import apply_plan, current_tx_dir, read_journal, recover_interrupted, rollback_last
+from .transaction import (
+    apply_plan,
+    current_tx_dir,
+    preview_rollback_last,
+    read_journal,
+    recover_interrupted,
+    rollback_last,
+)
 from .io_atomic import atomic_write_bytes
 from .hashing import sha256_file
 from .managed_write_guard import export_candidate
@@ -674,6 +681,8 @@ def run_same_version_repair(
         manifest=manifest,
         plan=plan,
         prior=prior,
+        state_update_scope={item.path for item in repair.paths}
+        | {f"{MANAGED_CORE_DIR}/MANIFEST.json"},
     )
     payload["applied"] = True
     payload["transaction"] = result
@@ -795,10 +804,10 @@ def run_version(
     return EngineResult(exit_code=EXIT_OK, payload=payload)
 
 
-def run_rollback(*, target: Path) -> EngineResult:
+def run_rollback(*, target: Path, dry_run: bool = False) -> EngineResult:
     target_root = require_git_repo(target)
     try:
-        result = rollback_last(target_root)
+        result = preview_rollback_last(target_root) if dry_run else rollback_last(target_root)
     except RollbackError as exc:
         return EngineResult(
             exit_code=exc.exit_code,
@@ -809,6 +818,8 @@ def run_rollback(*, target: Path) -> EngineResult:
                 "error": exc.message,
                 "details": exc.details,
                 "exitCode": exc.exit_code,
+                "dryRun": dry_run,
+                "applied": False,
             },
         )
     return EngineResult(
@@ -817,6 +828,8 @@ def run_rollback(*, target: Path) -> EngineResult:
             "schemaVersion": 1,
             "command": "rollback",
             "ok": True,
+            "dryRun": dry_run,
+            "applied": not dry_run,
             "result": result,
         },
     )
