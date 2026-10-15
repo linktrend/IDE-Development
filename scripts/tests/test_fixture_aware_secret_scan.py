@@ -1611,16 +1611,80 @@ class TypedPublicCredentialReferencePrecisionTests(unittest.TestCase):
         return "Ab9Z" + "mQ2xR7vL4nH6pD3sF8jK5cT0uW1yE9gB2aC4d"
 
     @staticmethod
-    def encrypted_binding(optional: bool = False) -> str:
-        return (
+    def encrypted_binding(
+        optional: bool = False, *, identifier: str | None = None,
+        source_path: str | None = None,
+    ) -> str:
+        binding = (
             "LoadCredentialEncrypted=demo-credential-signing-key:"
             + ("-" if optional else "")
             + "/etc/credstore.encrypted/public-service-manager-binding.cred"
         )
+        if identifier is None and source_path is None:
+            return binding
+        directive, reference = binding.split("=", 1)
+        default_identifier, default_source = reference.split(":", 1)
+        marker = "-" if optional else ""
+        default_source = default_source[len(marker):]
+        return (
+            directive + "="
+            + (default_identifier if identifier is None else identifier)
+            + ":" + marker
+            + (default_source if source_path is None else source_path)
+        )
 
     @staticmethod
-    def manager_path() -> str:
-        return "/run/credentials/demo-credential-delivery.service/demo-signing-key"
+    def manager_path(*, unit_component: str | None = None,
+                     credential_component: str | None = None) -> str:
+        path = "/run/credentials/demo-credential-delivery.service/demo-signing-key"
+        if unit_component is None and credential_component is None:
+            return path
+        manager_root, unit, credential = path.rsplit("/", 2)
+        return "/".join((
+            manager_root, unit if unit_component is None else unit_component,
+            credential if credential_component is None else credential_component,
+        ))
+
+    def reference_case(self, slot: str, component: str, *, optional: bool = False,
+                       source_path: str | None = None,
+                       unit_component: str | None = None) -> str:
+        # Closed semantic slots shared by text and tracked-index regressions.
+        if slot == "manager-unit":
+            return self.manager_path(
+                unit_component=f"{component}.service",
+                credential_component="demo-signing-key",
+            )
+        if slot == "manager-id":
+            return self.manager_path(
+                unit_component=("demo-credential-delivery.service" if unit_component is None
+                                else unit_component),
+                credential_component=f"{component}",
+            )
+        if slot == "binding-id":
+            identifier = component
+            path = "/etc/credstore.encrypted/reference.cred" if source_path is None else source_path
+        elif slot == "binding-id-suffix":
+            identifier = component + "-key"
+            path = "/etc/credstore.encrypted/reference.cred"
+        elif slot == "source-directory":
+            identifier = "demo-signing-key"
+            path = "/".join(("/etc", f"{component}", "reference.cred"))
+        elif slot == "source-basename":
+            identifier = "demo-signing-key"
+            path = "/".join(("/etc", "credstore.encrypted", f"{component}.cred"))
+        else:
+            raise ValueError("Unknown semantic reference slot")
+        return self.encrypted_binding(optional, identifier=identifier, source_path=path)
+
+    def assert_index_reference_rejection(self, result: dict, path: str,
+                                         expected_lines: tuple[int, ...]) -> None:
+        self.assertFalse(bool(result["ok"]), "Opaque reference must fail index scan")
+        locations = {
+            (row["path"], row["line"], row["rule"])
+            for row in result["findings"] if row["kind"] == KIND_CREDENTIAL
+        }
+        for line in expected_lines:
+            self.assertIn((path, line, secret_scan_mod.RULE_FORMAT_HIGH_ENTROPY), locations)
 
     def assert_no_findings(self, text: str) -> None:
         # Do not render matched values/digests in assertion failure messages.
@@ -1808,10 +1872,8 @@ class TypedPublicCredentialReferencePrecisionTests(unittest.TestCase):
     def test_generic_entropy_inside_valid_manager_reference_blocks(self) -> None:
         opaque = self.entropy_value()
         for component in (opaque, opaque.upper(), opaque[:24] + "-_" + opaque[24:]):
-            for value in (
-                f"/run/credentials/{component}.service/demo-signing-key",
-                f"/run/credentials/demo-credential-delivery.service/{component}",
-            ):
+            for slot in ("manager-unit", "manager-id"):
+                value = self.reference_case(slot, component)
                 with self.subTest(shape="opaque-manager-component"):
                     self.assert_rule(
                         f'{{"runtimePrivateKey": "{value}"}}', secret_scan_mod.RULE_FORMAT_HIGH_ENTROPY
@@ -1820,16 +1882,9 @@ class TypedPublicCredentialReferencePrecisionTests(unittest.TestCase):
     def test_generic_entropy_inside_valid_encrypted_binding_blocks(self) -> None:
         opaque = self.entropy_value()
         for component in (opaque, opaque.upper(), opaque[:24] + "-_" + opaque[24:]):
-            for optional in ("", "-"):
-                for identifier, path in (
-                    # No credential-field suffix: rejection of the exemption
-                    # alone would not cause the original lexer to find this.
-                    (component, "/etc/credstore.encrypted/reference.cred"),
-                    (component + "-key", "/etc/credstore.encrypted/reference.cred"),
-                    ("demo-signing-key", f"/etc/{component}/reference.cred"),
-                    ("demo-signing-key", f"/etc/credstore.encrypted/{component}.cred"),
-                ):
-                    binding = f"LoadCredentialEncrypted={identifier}:{optional}{path}"
+            for optional in (False, True):
+                for slot in ("binding-id", "binding-id-suffix", "source-directory", "source-basename"):
+                    binding = self.reference_case(slot, component, optional=optional)
                     for text in (binding, f'self.assertIn("{binding}", unit)'):
                         with self.subTest(shape="opaque-encrypted-reference-component", optional=bool(optional)):
                             self.assert_rule(text, secret_scan_mod.RULE_FORMAT_HIGH_ENTROPY)
@@ -1838,12 +1893,24 @@ class TypedPublicCredentialReferencePrecisionTests(unittest.TestCase):
         tmp, root = init_repo()
         self.addCleanup(tmp.cleanup)
         opaque = self.entropy_value()
-        text = (
-            f"LoadCredentialEncrypted={opaque}:/etc/credstore.encrypted/reference.cred\n"
-            + f'{{"runtimePrivateKey": "/run/credentials/demo-delivery.service/{opaque}"}}\n'
+        binding = self.reference_case(
+            "binding-id", opaque, source_path="/etc/credstore.encrypted/reference.cred",
         )
-        write_tracked(root, "arbitrary/opaque-reference.input", text)
+        value = self.reference_case(
+            "manager-id", opaque, unit_component="demo-delivery.service",
+        )
+        records = (binding + "\n", f'{{"runtimePrivateKey": "{value}"}}\n')
+        path = "arbitrary/opaque-reference.input"
+        for number, record in enumerate(records, 1):
+            with self.subTest(record=number):
+                case_tmp, case_root = init_repo()
+                self.addCleanup(case_tmp.cleanup)
+                write_tracked(case_root, path, record)
+                self.assert_index_reference_rejection(scan_repository(case_root), path, (1,))
+        text = "".join(records)
+        write_tracked(root, path, text)
         result = scan_repository(root)
+        self.assert_index_reference_rejection(result, path, (1, 2))
         self.assertFalse(bool(result["ok"]), "opaque reference components must block")
         rules = {row["rule"] for row in result["findings"] if row["kind"] == KIND_CREDENTIAL}
         self.assertIn(secret_scan_mod.RULE_FORMAT_HIGH_ENTROPY, rules)
