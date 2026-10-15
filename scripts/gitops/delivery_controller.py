@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol
 
 try:
+    from scripts.gitops.independent_review_convergence import NativeReviewerAdapter, validate_candidate_review
     from scripts.gitops.delivery_modes import is_phase_branch, is_valid_sha, normalize_sha
     from scripts.gitops.packager_coordinator import consume_handoff
     from scripts.gitops.promotion_receipt_gate import (
@@ -46,6 +47,7 @@ try:
     from scripts.gitops.github_auth import GitHubAuthError, resolve_phase_api_token
     from scripts.gitops.administrator_recovery import MemoryProtection, recover_phase_merge
 except ModuleNotFoundError:  # pragma: no cover - script-style execution
+    from independent_review_convergence import NativeReviewerAdapter, validate_candidate_review
     from delivery_modes import is_phase_branch, is_valid_sha, normalize_sha  # type: ignore
     from packager_coordinator import consume_handoff  # type: ignore
     from promotion_receipt_gate import (  # type: ignore
@@ -419,6 +421,44 @@ class LiveGitHub:
             "merged": bool(payload.get("merged")),
             "mergeCommitSha": normalize_sha(str(payload.get("merge_commit_sha") or "")),
         }
+
+    def get_review_scope(self, *, repository: str, number: int) -> dict[str, Any]:
+        """Own fresh read-only GitHub evidence for the complete development PR diff.
+
+        Never consume candidate JSON or a claimed base as scope authority.
+        """
+        if repository != self.repository or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+            raise ControllerError("native_review_repository_invalid", repository)
+        if not isinstance(number, int) or isinstance(number, bool) or number < 1:
+            raise ControllerError("native_review_pr_invalid", str(number))
+        payload = self._request("GET", f"https://api.github.com/repos/{repository}/pulls/{number}")
+        if not isinstance(payload, Mapping) or payload.get("number") != number or payload.get("state") != "open" or payload.get("merged") is True:
+            raise ControllerError("native_review_pr_unavailable", "exact open PR required")
+        head, base = payload.get("head"), payload.get("base")
+        if not isinstance(head, Mapping) or not isinstance(base, Mapping):
+            raise ControllerError("native_review_pr_unavailable", "head/base metadata missing")
+        for side in (head, base):
+            repo = side.get("repo")
+            if not isinstance(repo, Mapping) or repo.get("full_name") != repository:
+                raise ControllerError("native_review_repository_mismatch", "same-repository PR required")
+        if base.get("ref") != "development" or not isinstance(head.get("ref"), str) or not head["ref"]:
+            raise ControllerError("native_review_target_invalid", "protected development target required")
+        head_sha, base_sha = str(head.get("sha") or ""), str(base.get("sha") or "")
+        if not is_valid_sha(head_sha) or not is_valid_sha(base_sha):
+            raise ControllerError("native_review_pr_identity_invalid", "exact Git head/base required")
+        branch = self._request("GET", f"https://api.github.com/repos/{repository}/branches/development")
+        if not isinstance(branch, Mapping) or branch.get("name") != "development" or branch.get("protected") is not True:
+            raise ControllerError("native_review_base_unprotected", "protected base readback required")
+        commit = branch.get("commit")
+        if not isinstance(commit, Mapping) or commit.get("sha") != base_sha:
+            raise ControllerError("native_review_base_stale", "PR base differs from current protected target")
+        head_commit = self._request("GET", f"https://api.github.com/repos/{repository}/git/commits/{head_sha}")
+        tree = head_commit.get("tree") if isinstance(head_commit, Mapping) else None
+        if not isinstance(head_commit, Mapping) or head_commit.get("sha") != head_sha or not isinstance(tree, Mapping) or not is_valid_sha(str(tree.get("sha") or "")):
+            raise ControllerError("native_review_head_tree_unavailable", "authenticated exact head tree required")
+        return {"repository": repository, "pullRequest": number, "headSha": head_sha,
+                "gitTree": tree["sha"], "headBranch": head["ref"],
+                "baseBranch": "development", "baseCommit": base_sha}
 
     def merge_pull_request(
         self,
@@ -805,6 +845,7 @@ def verify_development_eligibility(
     candidate_identity: Mapping[str, Any],
     conflict: bool = False,
     rollout: StagedRolloutConfig | None = None,
+    trusted_review_verifier: Any = None,
 ) -> dict[str, Any]:
     """Require exact gates, repo-owned CI, genuine receipt, and an unchanged Phase PR head."""
 
@@ -825,9 +866,6 @@ def verify_development_eligibility(
         live_head=live_head,
         system_checks=config.required_checks,
     )
-    gates = evaluate_development_gates(gate_payload, live_head)
-    if not gates.accepted:
-        raise ControllerError(gates.code, gates.detail)
     receipt_decision = verify_receipt_payload(receipt, candidate_identity, "full-gate")
     if not receipt_decision.accepted:
         raise ControllerError("receipt_rejected", f"{receipt_decision.code}:{receipt_decision.detail}")
@@ -835,6 +873,9 @@ def verify_development_eligibility(
     identity_tree = normalize_sha(str(candidate_identity.get("gitTree") or ""))
     if identity_head != normalize_sha(live_head) or identity_tree != normalize_sha(live_tree):
         raise ControllerError("receipt_identity_mismatch", "candidate identity is not the live PR")
+    gates = evaluate_development_gates(gate_payload, live_head, expected_git_tree=live_tree, repository=repository, trusted_review_verifier=trusted_review_verifier)
+    if not gates.accepted:
+        raise ControllerError(gates.code, gates.detail)
     return {
         "eligible": True,
         "pr": accepted,
@@ -858,11 +899,26 @@ def merge_to_development(
     candidate_tree: str | None = None,
     protected_base_commit: str | None = None,
     rollout: StagedRolloutConfig | None = None,
+    independent_review: Mapping[str, Any] | None = None,
+    trusted_review_verifier: Any = None,
 ) -> dict[str, Any]:
     """Merge through GitHub protection. Never push directly to development."""
 
     config = _rollout_config(rollout)
     require_controller_role(role)
+    review_ok, reason = validate_candidate_review(
+        independent_review, repository=repository, head_sha=normalize_sha(expected_head),
+        git_tree=normalize_sha(candidate_tree or ""), verifier=trusted_review_verifier,
+    )
+    if not review_ok:
+        raise ControllerError(reason, "development merge requires verified independent review")
+    if receipt is None or candidate_identity is None:
+        raise ControllerError("receipt_missing", "development merge requires exact Full evidence")
+    receipt_decision = verify_receipt_payload(receipt, candidate_identity, "full-gate")
+    if not receipt_decision.accepted:
+        raise ControllerError("receipt_rejected", receipt_decision.detail)
+    if candidate_identity.get("headCommit") != normalize_sha(expected_head) or candidate_identity.get("gitTree") != normalize_sha(candidate_tree or ""):
+        raise ControllerError("receipt_identity_mismatch", "receipt is not bound to merge candidate")
     try:
         github.push_protected(repository=repository, branch=config.development_branch, sha=expected_head)
     except ControllerError as exc:
@@ -1312,6 +1368,7 @@ def deliver_phase_to_development(
     record_path: Path | None = None,
     protected_tree: str | None = None,
     rollout: StagedRolloutConfig | None = None,
+    trusted_review_verifier: Any = None,
 ) -> dict[str, Any]:
     """End-to-end development merge for one exact Phase PR."""
 
@@ -1328,6 +1385,7 @@ def deliver_phase_to_development(
         receipt=receipt,
         candidate_identity=candidate_identity,
         conflict=conflict,
+        trusted_review_verifier=trusted_review_verifier,
         rollout=config,
     )
     try:
@@ -1336,6 +1394,8 @@ def deliver_phase_to_development(
             repository=repository,
             pr_number=int(eligibility["pr"]["number"]),
             expected_head=live_head,
+            independent_review=gate_payload.get("independentNarrowReview"),
+            trusted_review_verifier=trusted_review_verifier,
             role=role,
             actor=actor,
             receipt=receipt,
@@ -1423,6 +1483,7 @@ def main(argv: list[str] | None = None) -> int:
             "recover-phase",
         ],
     )
+    parser.add_argument("--native-review-worktree", default="", help="For verify-development: run fresh native read-only independent review on this exact clean checkout")
     parser.add_argument("--repository", default="")
     parser.add_argument("--role", default="operator")
     parser.add_argument("--handoff", default="")
@@ -1474,13 +1535,26 @@ def main(argv: list[str] | None = None) -> int:
                 ],
             )
         elif args.command == "verify-development":
+            gates_payload = load(args.gates_json)
+            review_verifier = None
+            if args.native_review_worktree:
+                reviewer = NativeReviewerAdapter()
+                gates_payload["independentNarrowReview"] = reviewer.review(
+                    workdir=Path(args.native_review_worktree), repository=args.repository,
+                    head_sha=args.live_head, git_tree=args.live_tree,
+                    baseline_sha=str(load(args.handoff)["baseCommit"]),
+                    pr_number=int(load(args.pr_json)["number"]),
+                    implementer_run_id=os.environ.get("CODEX_THREAD_ID", ""),
+                )
+                review_verifier = reviewer.verify_report
             result = verify_development_eligibility(
                 handoff=load(args.handoff),
                 pr=load(args.pr_json),
                 repository=args.repository,
                 live_head=args.live_head,
                 live_tree=args.live_tree,
-                gate_payload=load(args.gates_json),
+                gate_payload=gates_payload,
+                trusted_review_verifier=review_verifier,
                 named_checks=load(args.checks_json),
                 repository_ci=load(args.repository_ci_json),
                 receipt=load(args.receipt),
@@ -1491,17 +1565,26 @@ def main(argv: list[str] | None = None) -> int:
             require_controller_role(args.role)
             github = resolve_production_github(args.repository)
             if args.command == "merge-development":
-                result = merge_to_development(
-                    github=github,
-                    repository=args.repository,
-                    pr_number=args.pr_number,
-                    expected_head=args.expected_head or args.live_head,
-                    role=args.role,
-                    receipt=load(args.receipt) if args.receipt else None,
-                    candidate_identity=load(args.identity_json) if args.identity_json else None,
-                    candidate_tree=args.live_tree or None,
-                    protected_base_commit=args.base_sha or None,
-                    rollout=rollout,
+                gates_payload = load(args.gates_json)
+                handoff_payload = load(args.handoff)
+                review_verifier = None
+                if args.native_review_worktree:
+                    reviewer = NativeReviewerAdapter()
+                    gates_payload["independentNarrowReview"] = reviewer.review(
+                        workdir=Path(args.native_review_worktree), repository=args.repository,
+                        head_sha=args.expected_head or args.live_head, git_tree=args.live_tree,
+                        baseline_sha=str(handoff_payload["baseCommit"]),
+                        pr_number=int(load(args.pr_json)["number"]),
+                        implementer_run_id=os.environ.get("CODEX_THREAD_ID", ""),
+                    )
+                    review_verifier = reviewer.verify_report
+                result = deliver_phase_to_development(
+                    github=github, repository=args.repository, handoff=handoff_payload,
+                    pr=load(args.pr_json), live_head=args.expected_head or args.live_head,
+                    live_tree=args.live_tree, gate_payload=gates_payload,
+                    named_checks=load(args.checks_json), repository_ci=load(args.repository_ci_json),
+                    receipt=load(args.receipt), candidate_identity=load(args.identity_json),
+                    role=args.role, trusted_review_verifier=review_verifier, rollout=rollout,
                 )
             elif args.command == "promote-staging":
                 payload = load(args.promote_json)
@@ -1582,8 +1665,9 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:  # pragma: no cover
                 raise ControllerError("unknown_command", args.command)
-    except ControllerError as exc:
-        payload = {"status": "rejected", **exc.to_dict(), "component": COMPONENT_KIND}
+    except (ControllerError, ValueError, OSError, subprocess.SubprocessError) as exc:
+        detail = exc.to_dict() if isinstance(exc, ControllerError) else {"code": "independent_review_or_input_unavailable", "detail": str(exc)}
+        payload = {"status": "rejected", **detail, "component": COMPONENT_KIND}
         text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
         if args.out:
             Path(args.out).write_text(text, encoding="utf-8")

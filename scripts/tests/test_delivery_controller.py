@@ -96,9 +96,22 @@ def _gates(head: str) -> dict[str, dict[str, str]]:
     return {
         "seal": {"status": "passed", "sha": head},
         "fast": {"status": "passed", "sha": head},
-        "bugbot": {"status": "passed", "sha": head},
+        "independentNarrowReview": trusted_fixture(head, _sha(2))[0],
         "full": {"status": "passed", "sha": head},
     }
+
+
+def trusted_fixture(head="a"*40, tree="b"*40, repository="owner/name"):
+    from scripts.gitops.independent_review_convergence import canonical_review_bytes, review_binding
+    report = {"accepted": True, "headSha": head, "gitTree": tree, "repository": repository,
+              "paths": ["app.py"], "findings": [], "reportText": "Independent exact-candidate fixture.",
+              "reviewerActor": "fresh-native-thread", "implementerActor": "caller-thread",
+              "provenance": {"receiptId": "fresh-native-thread"}}
+    encoded = canonical_review_bytes(report)
+    expected = review_binding(report, repository=repository, head_sha=head, git_tree=tree)
+    def verifier(*, report_bytes, binding):
+        return report_bytes == encoded and binding == expected
+    return report, verifier
 
 
 class DeliveryControllerTests(unittest.TestCase):
@@ -137,6 +150,7 @@ class DeliveryControllerTests(unittest.TestCase):
             receipt=self.receipt,
             candidate_identity=self.identity,
             role="operator",
+            trusted_review_verifier=trusted_fixture(self.head, self.tree)[1],
         )
         defaults.update(kwargs)
         return controller.deliver_phase_to_development(**defaults)
@@ -153,6 +167,7 @@ class DeliveryControllerTests(unittest.TestCase):
             repository_ci=_repository_ci(self.head),
             receipt=self.receipt,
             candidate_identity=self.identity,
+            trusted_review_verifier=trusted_fixture(self.head, self.tree)[1],
         )
         defaults.update(kwargs)
         return controller.verify_development_eligibility(**defaults)
@@ -171,6 +186,45 @@ class DeliveryControllerTests(unittest.TestCase):
         self.assertEqual(result["component"], "delivery_controller")
         self.assertEqual(len(self.github.merges), 1)
         self.assertEqual(self.github.protected_push_attempts[0]["branch"], "development")
+
+    def test_missing_or_unverified_independent_review_blocks_before_merge(self) -> None:
+        no_review = _gates(self.head)
+        no_review.pop("independentNarrowReview")
+        with self.assertRaisesRegex(controller.ControllerError, "independent_review_missing"):
+            self._deliver(gate_payload=no_review)
+        with self.assertRaisesRegex(controller.ControllerError, "independent_review_producer_unavailable"):
+            self._deliver(trusted_review_verifier=None)
+        with self.assertRaisesRegex(controller.ControllerError, "independent_review_missing"):
+            controller.merge_to_development(
+                github=self.github, repository="owner/name", pr_number=11,
+                expected_head=self.head, role="operator", receipt=self.receipt,
+                candidate_identity=self.identity, candidate_tree=self.tree,
+            )
+        self.assertEqual(self.github.merges, [])
+
+    def test_native_review_cli_owns_producer_and_rejects_file_only_claims(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            directory = Path(td)
+            values = {"handoff": self.handoff, "pr": self.pr, "gates": _gates(self.head),
+                      "checks": _named_checks(self.head), "ci": _repository_ci(self.head),
+                      "receipt": self.receipt, "identity": self.identity}
+            for name, value in values.items():
+                (directory / (name + ".json")).write_text(json.dumps(value))
+            argv = ["verify-development", "--repository", "owner/name", "--live-head", self.head,
+                    "--live-tree", self.tree, "--handoff", str(directory / "handoff.json"),
+                    "--pr-json", str(directory / "pr.json"), "--gates-json", str(directory / "gates.json"),
+                    "--checks-json", str(directory / "checks.json"), "--repository-ci-json", str(directory / "ci.json"),
+                    "--receipt", str(directory / "receipt.json"), "--identity-json", str(directory / "identity.json")]
+            with mock.patch.object(controller, "NativeReviewerAdapter") as producer:
+                self.assertEqual(controller.main(argv), 2)
+                producer.assert_not_called()
+                report, verifier = trusted_fixture(self.head, self.tree)
+                producer.return_value.review.return_value = report
+                producer.return_value.verify_report.side_effect = verifier
+                self.assertEqual(controller.main(argv + ["--native-review-worktree", str(directory)]), 0)
+                producer.return_value.review.assert_called_once()
+                self.assertEqual(producer.return_value.review.call_args.kwargs["baseline_sha"], self.handoff["baseCommit"])
+                self.assertEqual(producer.return_value.review.call_args.kwargs["pr_number"], self.pr["number"])
 
     def test_worker_cannot_invoke_self_merge_path(self) -> None:
         with self.assertRaisesRegex(controller.ControllerError, "worker_self_merge_forbidden"):
@@ -457,6 +511,7 @@ class DeliveryControllerTests(unittest.TestCase):
             receipt=self.receipt,
             candidate_identity=self.identity,
             role="operator",
+            trusted_review_verifier=trusted_fixture(self.head, self.tree)[1],
         )
         self.assertEqual(stopped["status"], "stopped")
         self.assertEqual(stopped["code"], "protected_merge_rejected")

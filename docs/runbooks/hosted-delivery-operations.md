@@ -9,7 +9,7 @@ W2-P3 does not perform external mutation.
    exact Phase head.
 2. Open or update the one Phase PR into `development`. Confirm fast checks,
    source policy, and consumer-owned required checks refer to that exact head.
-3. Seal the final candidate head. Confirm the full suite and Bugbot run once
+3. Seal the final candidate head. Confirm the full suite runs once and fresh independent review binds the exact head/tree
    for that sealed candidate, with no later commit.
 4. Retain the successful full-suite receipt. For staging and main, verify the
    repository, Git tree, dependency, profile, and workflow identities before

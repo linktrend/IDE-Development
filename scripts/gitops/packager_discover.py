@@ -166,7 +166,7 @@ def managed_section(sha: str, branch: str) -> str:
         f"## Review Packager (managed)\n\n"
         f"- Candidate tip SHA: `{sha}`\n"
         f"- Branch: `{branch}`\n"
-        f"- Phase: discovery — draft only; Bugbot is requested only after fast-gate "
+        f"- Phase: discovery — draft only; Bugbot is disabled; independent review follows exact-head "
         f"on this exact SHA (evaluate / workflow_run path).\n"
         f"{END}\n"
     )

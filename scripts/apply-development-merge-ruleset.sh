@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Apply a repository ruleset so PRs into development require Bugbot + listed CI checks.
+# Compatibility protection wrapper for genuine CI checks; Bugbot is retired.
 # Integrator then merges only when those gates are green.
 #
 # Compatibility wrapper around scripts/gitops/repository_protection.py
@@ -21,7 +21,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO="${GH_REPO:-linktrend/IDE-Development}"
 CHECKS=(
-  "Linktrend Review Gate"
   "Verify IDE Development"
   "Linktrend Branch Source Policy"
 )
@@ -74,19 +73,14 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-# If caller passed check names without --repo, keep Linktrend Review Gate unless they included it.
-if [ "${CHECKS_SET}" -eq 1 ]; then
-  has_bugbot=0
-  for c in "${CHECKS[@]}"; do
-    if [ "$c" = "Linktrend Review Gate" ]; then
-      has_bugbot=1
-      break
-    fi
-  done
-  if [ "${has_bugbot}" -eq 0 ]; then
-    CHECKS=("Linktrend Review Gate" "${CHECKS[@]}")
-  fi
-fi
+# Retired review contexts cannot become required through legacy overrides.
+for check in "${CHECKS[@]}"; do
+  case "$check" in
+    "Cursor Bugbot"|"Linktrend Review Gate")
+      echo "FAIL: retired review context must be removed through approved protection migration" >&2
+      exit 2 ;;
+  esac
+done
 
 echo "Repo: ${REPO}"
 echo "Ruleset: development-autonomous-merge"

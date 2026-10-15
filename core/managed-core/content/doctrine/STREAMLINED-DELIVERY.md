@@ -24,8 +24,7 @@ pull requests, branch protection, and promotion records.
  reviewer may use the ordinary Cursor SDK route or Principal-authorized Luna,
  with no vendor/model requirement and no self-review. A narrow repair
  invalidates only its changed repair surface; the prior review remains reusable
- for untouched paths. One final combined candidate runs Full and the existing
- Bugbot final-candidate check. Full always binds the canonical PR head (never
+ for untouched paths. One final combined candidate runs Full; Bugbot is disabled. Full always binds the canonical PR head (never
  merge-ref identity). Ordinary Phase merge requires the exact retained Full
  receipt for that head/tree, which staging and main reuse without rerunning.
 5. A successful full-suite receipt is reusable only when repository, Git tree,

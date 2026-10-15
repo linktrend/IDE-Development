@@ -18,7 +18,7 @@ Packager discovery; it does not itself trigger a merge. No implementer opens,
 merges, or promotes a PR.
 
 Checkpoints do not trigger managed CI. The Phase PR runs hosted ARM64 fast
-checks. Only an exact final seal may trigger Bugbot and the full suite. A
+checks. Only an exact final seal may trigger the full suite. Bugbot is disabled. A
 successful receipt is reused for promotion only when all frozen identity
 digests match. Main promotion requires Carlos's explicit approval.
 
@@ -35,6 +35,43 @@ proof. Administrator recovery is a named exact-head exception after replacement
 proof: protection snapshot, `gh pr merge --admin --match-head-commit` first,
 minimum temporary exception only if needed, exact authorized merge, immediate
 restore and readback.
+
+## Disabled paid review and native independent evidence
+
+Canonical policy is `review.bugbot="disabled"`; legacy `final-candidate-only`
+normalizes to disabled and cannot re-enable paid review. No pipeline component
+posts a Bugbot trigger or treats its status, absence, quota, or request marker as
+approval. General Cursor coding and GitHub integrations remain available.
+
+`NativeReviewerAdapter` in `scripts/gitops/independent_review_convergence.py`
+owns a fresh native Codex subprocess with read-only sandbox and approval-never.
+It owns fresh authenticated GETs for the same-repository open PR, protected
+`development` branch and exact head commit/tree. The complete diff starts at
+that current protected base; a supplied handoff base is equality-only diagnostic
+data. Local Git ancestry must prove that base is included. PR/head/tree/branch
+and protected base must remain unchanged after review and on report verification.
+No caller-supplied PR JSON or base flag establishes scope. It also binds
+start/end clean HEAD/tree, fresh runtime thread, exact changed paths and
+structured clean report. Its in-memory result is the producer boundary; copied
+JSON/logs, actor names, requested model names, and prior process output are not
+proof. Effective model attestation is not claimed.
+
+The controller's `verify-development --native-review-worktree <clean-checkout>`
+(and `merge-development` with the same option plus exact receipt/identity and
+baseline inputs) owns this adapter. A trusted in-process orchestrator can run
+one review and pass `adapter.verify_report` with that report to
+`deliver_phase_to_development`; this preserves a single fresh review through
+eligibility and merge. No verifier can be installed by JSON, environment module
+path or an accepted flag. Runtime absence, non-clean/moved candidate, failed or
+incomplete native turn, stale report, self-review, findings or replay block.
+Without the owned producer, candidate review remains unavailable, never green.
+No real native/provider smoke is implied by mocked tests.
+
+Required Fast, application CI, Full receipt and all frozen receipt identities
+remain mandatory. Native review does not create a GitHub approving review or
+satisfy external required-approvals policy. Existing protections retaining
+`Cursor Bugbot` or `Linktrend Review Gate` need separately authorized migration;
+this source change edits no live settings and fabricates no replacement status.
 
 ## Stop conditions
 

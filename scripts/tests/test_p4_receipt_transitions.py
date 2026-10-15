@@ -18,6 +18,7 @@ from scripts.tests.test_delivery_controller import (
     _receipt as controller_receipt,
     _repository_ci,
     _sha as controller_sha,
+    trusted_fixture,
 )
 
 
@@ -193,6 +194,7 @@ class P4TransitionTests(unittest.TestCase):
             live_head=head,
             live_tree=tree,
             gate_payload=_gates(head),
+            trusted_review_verifier=trusted_fixture(head, tree)[1],
             named_checks=_named_checks(head),
             repository_ci=_repository_ci(head),
             receipt=receipt,

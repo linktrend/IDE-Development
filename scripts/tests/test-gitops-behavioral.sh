@@ -124,91 +124,8 @@ pass "v2.5 Review Ready waiver is exact-head and leaves no shared status or file
 # ============================================================================
 # 2) Packager policy: discovery no Bugbot; gate fail/head change zero; success once; idempotent
 # ============================================================================
-python3 - "$ROOT" <<'PY'
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
-from packager_logic import (
-    should_request_bugbot,
-    build_bugbot_comment,
-    marker_for,
-    fast_gate_status,
-    count_bugbot_requests,
-    DEFAULT_BUGBOT_COMMAND,
-)
-
-assert DEFAULT_BUGBOT_COMMAND == "@cursor review"
-sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-ok, reason = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=False)
-assert not ok and reason == "fast_gate_not_green"
-ok, reason = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=True)
-assert ok and reason == "request"
-
-# Generated comment is exactly @cursor review + exact-SHA hidden marker
-body = build_bugbot_comment(DEFAULT_BUGBOT_COMMAND, sha)
-assert body.startswith("@cursor review\n\n")
-assert marker_for(sha) in body
-assert body == f"@cursor review\n\n{marker_for(sha)}\n"
-
-# Genuine request + marker → same-SHA idempotent
-comments = [{"body": body}]
-ok, reason = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
-assert not ok and reason == "skipped_duplicate_marker"
-
-# Historical invalid "cursor review" + marker does NOT consume the limit
-hist = [
-  {"body": "cursor review\n\n" + marker_for("1111111111111111111111111111111111111111")},
-  {"body": "cursor review\n\n" + marker_for("2222222222222222222222222222222222222222")},
-]
-assert count_bugbot_requests(hist) == 0
-ok, reason = should_request_bugbot(comments=hist, head_sha=sha, fast_gate_ok=True)
-assert ok and reason == "request"
-
-# @cursor review + marker counts
-c_at = [{"body": "@cursor review\n\n" + marker_for("1111111111111111111111111111111111111111")}]
-assert count_bugbot_requests(c_at) == 1
-
-# bugbot run + marker counts
-c_run = [{"body": "bugbot run\n\n" + marker_for("2222222222222222222222222222222222222222")}]
-assert count_bugbot_requests(c_run) == 1
-
-# Two genuine requests block a third
-c2 = [
-  {"body": "@cursor review\n\n" + marker_for("1111111111111111111111111111111111111111")},
-  {"body": "bugbot run\n\n" + marker_for("2222222222222222222222222222222222222222")},
-]
-assert count_bugbot_requests(c2) == 2
-ok, reason = should_request_bugbot(comments=c2, head_sha=sha, fast_gate_ok=True)
-assert not ok and reason == "skipped_max_requests"
-
-# Invalid history + one genuine still allows another genuine for a new SHA
-mixed = hist + c_at
-assert count_bugbot_requests(mixed) == 1
-ok, reason = should_request_bugbot(comments=mixed, head_sha=sha, fast_gate_ok=True)
-assert ok and reason == "request"
-
-st,_=fast_gate_status([],["Verify IDE Development"]); assert st=="missing"
-st,_=fast_gate_status([{"name":"Verify IDE Development","state":"FAILURE","completedAt":"t"}],["Verify IDE Development"]); assert st=="failed"
-print("packager policy ok")
-PY
-# evaluate abort on head change is coded — simulate function path
-python3 - "$ROOT" <<'PY'
-from pathlib import Path
-import sys
-text = Path(sys.argv[1], "scripts/gitops/packager_evaluate.py").read_text()
-assert "abort_head_changed_after_gate" in text
-assert "abort_head_changed_before_bugbot" in text
-assert "bugbot_requested" in text
-assert "stale_event_head" in text
-# discovery must not call build_bugbot_comment
-disc = Path(sys.argv[1], "scripts/gitops/packager_discover.py").read_text()
-assert "build_bugbot_comment" not in disc
-assert "--draft" in disc
-assert "linktrend-packager:begin" in disc
-assert "title_preserved" in disc
-print("packager phases ok")
-PY
-pass "Packager discovery without Bugbot; gate/head abort; idempotent request policy"
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest scripts.tests.test_bugbot_retirement -q
+pass "Bugbot disabled across legacy and canonical routes; owned native review remains exact-head"
 
 # Multiple candidates must not share a serial wait in discover
 grep -q 'timeout-minutes: 5' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
@@ -430,16 +347,15 @@ pass "no direct push to staging/main"
 # 9) Workflow activation docs + schedules
 # ============================================================================
 grep -q 'default branch' "$ROOT/docs/GITOPS-CONSUMER-ROLLOUT.md"
-grep -qi 'mention-only\|manualTriggerOnly' "$ROOT/docs/GITOPS-CONSUMER-ROLLOUT.md" \
-  || grep -qi 'mention-only\|manualTriggerOnly' "$ROOT/docs/contracts/"*.md \
-  || fail "mention-only documentation missing"
+grep -qi 'Bugbot is disabled' "$ROOT/docs/GITOPS-CONSUMER-ROLLOUT.md" \
+  || fail "disabled Bugbot policy documentation missing"
 grep -q 'pull_request:' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
 ! grep -q 'workflow_dispatch:' "$ROOT/core/github/managed-workflows/linktrend-development-to-staging.yml"
 ! grep -q 'inputs\.' "$ROOT/core/github/managed-workflows/linktrend-development-to-staging.yml"
 ! grep -q 'cron:' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
 ! grep -q 'cron:' "$ROOT/core/github/managed-workflows/linktrend-development-to-staging.yml"
 ! grep -q 'workflow_run:' "$ROOT/core/github/managed-workflows/linktrend-review-packager.yml"
-pass "activation + mention-only docs + explicit Phase triggers"
+pass "activation + disabled paid review + explicit Phase triggers"
 
 # ============================================================================
 # 10) PR body preservation outside managed section
@@ -514,80 +430,22 @@ pass "exact-candidate promote binding + advancement fail-closed"
 # Exact order: ready → CI done → Branch Source pending → waiting →
 # Branch Source done → wake → Bugbot exactly once
 # ============================================================================
-python3 - "$ROOT" <<'PY'
-import sys
+python3 - "$ROOT" <<'PYCODE'
 from pathlib import Path
-sys.path.insert(0, str(Path(sys.argv[1]) / "scripts" / "gitops"))
-from packager_logic import should_request_bugbot, fast_gate_status, build_bugbot_comment, parse_required_checks
-
-sha = "cccccccccccccccccccccccccccccccccccccccc"
-required = parse_required_checks(
-    "Verify IDE Development,Linktrend Branch Source Policy"
-)
-assert required == ["Verify IDE Development", "Linktrend Branch Source Policy"]
-comma_name = "Install, typecheck, test, build"
-json_required = parse_required_checks(
-    '["Install, typecheck, test, build", "Linktrend Branch Source Policy"]'
-)
-assert json_required == [comma_name, "Linktrend Branch Source Policy"]
-semicolon_required = parse_required_checks(
-    "Install, typecheck, test, build;Linktrend Branch Source Policy"
-)
-assert semicolon_required == [comma_name, "Linktrend Branch Source Policy"]
-assert parse_required_checks('["unterminated"') == []
-assert parse_required_checks('{"not": "a list"}') == [
-    '{"not": "a list"}'
-]
-
-comma_checks = [
-    {"name": comma_name, "state": "SUCCESS", "completedAt": "t1"},
-    {"name": "Linktrend Branch Source Policy", "state": "SUCCESS", "completedAt": "t2"},
-]
-comma_status, comma_detail = fast_gate_status(comma_checks, json_required)
-assert comma_status == "success", (comma_status, comma_detail)
-
-# 1-2) PR/head ready; CI completes; Branch Source Policy still pending
-checks_after_ci = [
-    {"name": "Verify IDE Development", "state": "SUCCESS", "completedAt": "t1"},
-    {"name": "Linktrend Branch Source Policy", "state": "PENDING", "completedAt": ""},
-]
-st, detail = fast_gate_status(checks_after_ci, required)
-assert st == "pending", (st, detail)
-ok, reason = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=(st == "success"))
-assert not ok and reason == "fast_gate_not_green"
-# Evaluation returns waiting — no Bugbot request
-eval1_status = "waiting"
-assert eval1_status == "waiting"
-
-# 5-6) Branch Source Policy then completes → evaluation wakes again
-checks_both = [
-    {"name": "Verify IDE Development", "state": "SUCCESS", "completedAt": "t1"},
-    {"name": "Linktrend Branch Source Policy", "state": "SUCCESS", "completedAt": "t2"},
-]
-st2, _ = fast_gate_status(checks_both, required)
-assert st2 == "success"
-ok2, reason2 = should_request_bugbot(comments=[], head_sha=sha, fast_gate_ok=True)
-assert ok2 and reason2 == "request"
-# Exactly one request
-comments = [{"body": build_bugbot_comment("@cursor review", sha)}]
-ok3, reason3 = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
-assert not ok3 and reason3 == "skipped_duplicate_marker"
-
-# Fast work wakes from the Phase PR; the full suite is an explicit trusted
-# label wake in the same unprivileged PR context. Its exact-head receipt
-# is sufficient; no redundant external review request follows it.
-fast = Path(sys.argv[1], "core/github/managed-workflows/linktrend-review-packager.yml").read_text()
-full = Path(sys.argv[1], "core/github/managed-workflows/linktrend-integrator-merge.yml").read_text()
-assert "pull_request:" in fast and "cancel-in-progress: true" in fast
-assert "types: [labeled]" in full and "linktrend-full-suite" in full
-assert "Linktrend Final Candidate Bugbot Request" not in full
-assert "@cursor review" not in full
-assert "workflow_dispatch:" in full and "pr_number:" in full and "expected_head:" in full
-assert "workflow_run:" not in fast
-assert "vars.LINKTREND_WORKFLOW_RUN" not in fast + full
-print("explicit-wake without redundant external review request scenarios ok")
-PY
-pass "wake path without external phase review request"
+import sys
+root=Path(sys.argv[1]); sys.path.insert(0,str(root/"scripts/gitops"))
+from packager_logic import fast_gate_status, should_request_bugbot
+required=["CI", "Branch Source Policy"]
+assert fast_gate_status([{"name":"CI","state":"SUCCESS"}],required)[0]=="missing"
+checks=[{"name":name,"state":"SUCCESS"} for name in required]
+assert fast_gate_status(checks,required)[0]=="success"
+assert should_request_bugbot(comments=[],head_sha="a"*40,fast_gate_ok=True)==(False,"bugbot_disabled")
+for name in ("linktrend-review-packager.yml","linktrend-integrator-merge.yml"):
+    text=(root/"core/github/managed-workflows"/name).read_text()
+    assert "@cursor review" not in text and "linktrend-bugbot-requested" not in text
+print("genuine Fast checks preserved; no provider review wake")
+PYCODE
+pass "wake path preserves real Fast/Full without paid review request"
 
 # ============================================================================
 # 13) Normal automation credential: repository token accepted; fail closed otherwise
@@ -1216,21 +1074,16 @@ assert "pull_request.number" in ig and "inputs.pr_number" not in ig
 assert "workflow_run" not in ig and "check_run" not in ig
 assert "cancel-in-progress: true" in (root / "core/github/managed-workflows/linktrend-integrator-merge.yml").read_text()
 
-# Production-path idempotency: first request, then reread comments → duplicate skip
-comments = []
-ok, reason = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
-assert ok and reason == "request"
-comments.append({"body": build_bugbot_comment("@cursor review", sha)})
-ok2, reason2 = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_ok=True)
-assert not ok2 and reason2 == "skipped_duplicate_marker"
-assert sum(1 for c in comments if c["body"].startswith("@cursor review")) == 1
-# Invalid historical bare trigger must not count as genuine
-assert sum(1 for c in comments if "cursor review" in c["body"] and not c["body"].lstrip().startswith("@")) == 0
-# Document honesty: cross-run serialization is Actions concurrency; this proves
-# the second serialized evaluator's comment-reread idempotency only.
-print("sha concurrency + serialized idempotency ok")
+# Retired provider requests cannot be re-enabled by a successful gate.
+assert should_request_bugbot(comments=[],head_sha=sha,fast_gate_ok=True)==(False,"bugbot_disabled")
+try:
+    build_bugbot_comment("@cursor review",sha)
+    raise AssertionError("retired trigger constructed")
+except ValueError:
+    pass
+print("SHA concurrency and disabled provider requests checked")
 PY
-pass "uniform SHA concurrency + production-path Bugbot idempotency"
+pass "uniform SHA concurrency + disabled provider request boundary"
 
 # ============================================================================
 # 17) Actual resolver matrix (empty PR arrays, forks, promote roles)

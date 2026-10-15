@@ -25,6 +25,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from independent_review_convergence import validate_candidate_review
+
 from coordinator.receipts import (  # noqa: E402
     CandidateIdentity,
     ReceiptError,
@@ -170,7 +172,7 @@ def verify_receipt_file(
         return Decision(False, str(code), str(exc))
 
 
-def evaluate_development_gates(payload: Mapping[str, Any], expected_head_sha: str) -> Decision:
+def evaluate_development_gates(payload: Mapping[str, Any], expected_head_sha: str, *, expected_git_tree: str = "", repository: str = "", trusted_review_verifier: Any = None) -> Decision:
     """Require exact seal, fast, and full/not-required on one head."""
     head = _sha(expected_head_sha)
     if not head:
@@ -192,7 +194,13 @@ def evaluate_development_gates(payload: Mapping[str, Any], expected_head_sha: st
         observed = _sha(_field(row, "sha", "headSha", "sourceSha"))
         if not observed or observed != head:
             return Decision(False, f"{name}_stale", f"{name} is not bound to the exact sealed head")
-    return Decision(True, "accepted", "exact seal, fast, and full/not-required gates passed")
+    review_ok, reason = validate_candidate_review(
+        payload.get("independentNarrowReview"), repository=repository, head_sha=head,
+        git_tree=expected_git_tree, verifier=trusted_review_verifier,
+    )
+    if not review_ok:
+        return Decision(False, reason, "exact-head independent review is required; Bugbot is disabled")
+    return Decision(True, "accepted", "exact seal, fast, full/not-required and independent review passed")
 
 
 def evaluate_main_approval(

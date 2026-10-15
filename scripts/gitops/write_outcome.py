@@ -39,8 +39,10 @@ def write_outcome(path: Path, status: str, detail: str, **extra: Any) -> dict[st
 
 def commit_status_state(status: str) -> str | None:
     """Map an internal outcome to an honest terminal GitHub commit status."""
-    if status in {"merged", "bugbot_requested", "packaged"}:
+    if status in {"merged", "packaged"}:
         return "success"
+    if status == "bugbot_requested":
+        return None  # retired request acknowledgements are never success proof
     if status == "waiting":
         return "pending"
     if status == "skipped":

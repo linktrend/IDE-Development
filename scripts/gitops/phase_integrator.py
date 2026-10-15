@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 try:  # Prefer the package path so unittest and CLI share one class identity.
+    from scripts.gitops.independent_review_convergence import validate_candidate_review
     from scripts.gitops.coordinator.state import CandidateIdentity
     from scripts.gitops.delivery_modes import (
         DEFAULT_PHASE_PREFIX,
@@ -28,6 +29,7 @@ try:  # Prefer the package path so unittest and CLI share one class identity.
         normalize_sha,
     )
 except ModuleNotFoundError:  # pragma: no cover - exercised by package-style tests
+    from independent_review_convergence import validate_candidate_review
     from coordinator.state import CandidateIdentity
     from delivery_modes import (
         DEFAULT_PHASE_PREFIX,
@@ -206,7 +208,7 @@ def invalidate_candidate_gates(record: Mapping[str, Any], *, old_head_sha: str, 
     result["sealedSha"] = None
     result["sealRevision"] = result.get("sealRevision", result.get("sealedCandidateRevisions", 0))
     result["invalidatedFromSha"] = normalize_sha(old_head_sha)
-    for gate in ("fast", "bugbot", "full", "staging", "release"):
+    for gate in ("fast", "independentNarrowReview", "full", "staging", "release"):
         result[gate] = {"status": "invalidated", "detail": "phase_head_changed"}
     result["namedGateEvidence"] = {
         "gate": "fast-gate",
@@ -219,7 +221,13 @@ def invalidate_candidate_gates(record: Mapping[str, Any], *, old_head_sha: str, 
 
 
 def phase_bugbot_request_allowed(record: Mapping[str, Any], *, live_head_sha: str) -> tuple[bool, str]:
-    """Bugbot is one-shot and only follows the current sealed candidate fast pass."""
+    """Retired compatibility boundary: never authorize a paid bot."""
+    del record, live_head_sha
+    return False, "bugbot_disabled"
+
+
+def _sealed_fast_pass(record: Mapping[str, Any], *, live_head_sha: str) -> tuple[bool, str]:
+    """Full dispatch still requires the genuine current seal and Fast result."""
 
     head = normalize_sha(live_head_sha)
     if not record.get("sealed"):
@@ -232,9 +240,6 @@ def phase_bugbot_request_allowed(record: Mapping[str, Any], *, live_head_sha: st
     fast = record.get("fast") if isinstance(record.get("fast"), Mapping) else {}
     if fast.get("status") != "passed" or normalize_sha(str(fast.get("sha") or head)) != head:
         return False, "fast_gate_not_passed_for_current_seal"
-    bugbot = record.get("bugbot") if isinstance(record.get("bugbot"), Mapping) else {}
-    if bugbot.get("status") in {"requested", "passed"}:
-        return False, "bugbot_already_requested"
     return True, "current_sealed_fast_pass"
 
 
@@ -245,12 +250,11 @@ def phase_full_suite_dispatch_allowed(
 
     The caller still performs the explicit GitHub dispatch.  Keeping the
     decision pure makes it testable and prevents a draft or superseded head
-    from waking the expensive workflow.  Bugbot is requested by the Full Suite
-    workflow after the receipt succeeds, so both actions remain final-candidate
-    only without introducing a second trigger path.
+    from waking the expensive workflow. Bugbot is disabled; independent review
+    remains separate evidence and no paid bot is requested.
     """
 
-    allowed, detail = phase_bugbot_request_allowed(record, live_head_sha=live_head_sha)
+    allowed, detail = _sealed_fast_pass(record, live_head_sha=live_head_sha)
     if not allowed:
         return False, detail, None
     if not isinstance(pr_number, int) or isinstance(pr_number, bool) or pr_number < 1:
@@ -282,7 +286,7 @@ def phase_full_suite_dispatch_allowed(
 
 
 def phase_merge_eligibility(
-    record: Mapping[str, Any], *, live_head_sha: str, conflict: bool = False
+    record: Mapping[str, Any], *, live_head_sha: str, conflict: bool = False, trusted_review_verifier: Any = None
 ) -> MergeEligibility:
     """Check all exact candidate conditions immediately before a Phase merge."""
 
@@ -291,12 +295,16 @@ def phase_merge_eligibility(
     identity = record.get("candidateIdentity")
     identity_head = normalize_sha(str(identity.get("sourceSha") or "")) if isinstance(identity, Mapping) else ""
     fast = record.get("fast") if isinstance(record.get("fast"), Mapping) else {}
-    bugbot = record.get("bugbot") if isinstance(record.get("bugbot"), Mapping) else {}
     full = record.get("full") if isinstance(record.get("full"), Mapping) else {}
+    review_ok, _ = validate_candidate_review(
+        record.get("independentNarrowReview"), repository=str(identity.get("repository") or "") if isinstance(identity, Mapping) else "",
+        head_sha=head, git_tree=str(identity.get("gitTreeSha") or "") if isinstance(identity, Mapping) else "",
+        verifier=trusted_review_verifier,
+    )
     checks = {
         "currentSeal": sealed and identity_head == head,
         "fastSuccess": fast.get("status") == "passed" and normalize_sha(str(fast.get("sha") or "")) == head,
-        "bugbotSuccess": bugbot.get("status") == "passed" and normalize_sha(str(bugbot.get("sha") or "")) == head,
+        "independentReviewVerified": review_ok,
         "fullSuccessOrNotRequired": (
             full.get("status") == "not-required"
             or (full.get("status") == "passed" and normalize_sha(str(full.get("sha") or "")) == head)
@@ -403,7 +411,7 @@ class PhaseIntegrator:
             "candidateId": None,
             "candidateIdentity": None,
             "fast": {"status": "not-run"},
-            "bugbot": {"status": "not-run"},
+            "independentNarrowReview": None,
             "full": {"status": "not-run"},
             "staging": {"status": "not-run"},
             "release": {"status": "not-run"},
@@ -578,10 +586,10 @@ class PhaseIntegrator:
         head = normalize_sha(str(record.get("sealedSha") or ""))
         if normalize_sha(sha) != head:
             raise PhaseLifecycleError("stale_candidate_gate", "gate result is not for current sealed head")
-        if gate not in {"fast", "bugbot", "full", "staging", "release"}:
+        if gate not in {"fast", "full", "staging", "release"}:
             raise PhaseLifecycleError("invalid_gate", gate)
         record[gate] = {"status": status, "sha": head, "detail": detail, **extra}
-        record["namedGateEvidence"] = {"gate": f"{gate}-gate" if gate != "bugbot" else "bugbot", "sha": head, "status": "success" if status in {"passed", "not-required"} else status, "detail": detail, "checks": extra.get("checks", [])}
+        record["namedGateEvidence"] = {"gate": f"{gate}-gate", "sha": head, "status": "success" if status in {"passed", "not-required"} else status, "detail": detail, "checks": extra.get("checks", [])}
         return self._write(record)
 
 

@@ -28,19 +28,17 @@ LIFECYCLE_STATES = frozenset(
 )
 _GATE_TO_RUNNING = {
     "fast-gate": "fast-running",
-    "bugbot": "bugbot-running",
     "full-gate": "full-running",
     "staging-gate": "staging-running",
     "release-gate": "release-running",
 }
 _GATE_TO_PASSED = {
     "fast-gate": "fast-passed",
-    "bugbot": "bugbot-passed",
     "full-gate": "full-passed",
     "staging-gate": "staging-passed",
     "release-gate": "release-passed",
 }
-_GATE_ORDER = ("fast-gate", "bugbot", "full-gate", "staging-gate", "release-gate")
+_GATE_ORDER = ("fast-gate", "full-gate", "staging-gate", "release-gate")
 
 
 class StateError(ValueError):
@@ -345,8 +343,8 @@ def transition(state: DeliveryState, event: str | Mapping[str, Any]) -> Delivery
         if gate not in _GATE_TO_PASSED:
             raise StateError("invalid_gate", "gate-passed requires a known gate")
         required_before = {
-            "fast-gate": {"sealed", "fast-running"}, "bugbot": {"fast-passed", "bugbot-running"},
-            "full-gate": {"bugbot-passed", "full-running", "fast-passed"},
+            "fast-gate": {"sealed", "fast-running"},
+            "full-gate": {"full-running", "fast-passed"},
             "staging-gate": {"merged", "staging-running"},
             "release-gate": {"staging-promoted", "release-running", "staging-passed"},
         }

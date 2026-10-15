@@ -11,12 +11,13 @@ Templates synced into consumer repos (and IDE Development itself) by:
 | File | Purpose |
 |---|---|
 | `branch-source-policy.yml` | Allowed work branches into development; `promote/*` into staging/main |
-| `linktrend-review-packager.yml` | Discover (Tue/Fri 08:00) + evaluate (`workflow_run` CI / external `check_run` / explicit dispatch) |
+| `linktrend-review-packager.yml` | Exact Phase PR Fast checks; no checkpoint push or external review trigger |
 | `linktrend-review-ready-publisher.yml` | Legacy `Linktrend Review Ready` publisher/withdrawer. **v2.5:** non-canonical; outcomes are `WAIVED_LEGACY_GATE`, never PASS, and never Issue-checkpoint or Phase-delivery proof |
 | `linktrend-development-to-staging.yml` | Build (Tue/Fri 10:00) + exact-candidate reevaluate |
 | `linktrend-staging-to-main.yml` | Package / approve-merge (bound SHAs) / observe |
-| `linktrend-integrator-merge.yml` | Merge to development when fast-gate + Bugbot + reviewed SHA |
+| `linktrend-integrator-merge.yml` | Exact sealed Full Suite producer; controller handles protected merge |
 | `linktrend-cleanup-merged.yml` | Explicit manual remote cleanup of merged/abandoned branches (no local worktrees) |
+| `linktrend-review-gate.yml` | Retired Bugbot route; manual failing tombstone, no provider wake or status write |
 | `linktrend-repair-observer.yml` | Bounded repair evidence observer using the scoped built-in workflow token |
 
 ## Trust boundary (all privileged workflows)

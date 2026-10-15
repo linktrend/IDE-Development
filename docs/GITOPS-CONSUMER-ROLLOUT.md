@@ -81,7 +81,7 @@ For **every** consumer in the table above:
 Also required before broad rollout:
 
 1. Wave 1 changes reach IDE Development’s protected promotion path as required by studio process (**satisfied post-WP03** — tree `43b1333…`).
-2. Bugbot mention-only / cost posture confirmed per repository when Bugbot is used (`docs/contracts/BUGBOT-MENTION-ONLY.md`, `docs/contracts/ACTIONS-COST-CONTROLS.md`).
+2. Bugbot is disabled; verify no provider trigger or obsolete Review Gate requirement remains in the approved rollout plan.
 3. GitHub App smoke posture understood (`docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`).
 4. Platform adoption / disposable-repo installer proofs green (`tests/test-portable-v2-integration.sh` and suites it discovers).
 
@@ -130,7 +130,7 @@ Every installed consumer must protect:
 
 | Branch | Purpose |
 |---|---|
-| `development` | Strict required checks, source policy, Bugbot, Integrator compatibility |
+| `development` | Strict genuine checks, source policy, exact-head independent review and receipt identity |
 | `staging` | Promotion-only PR sources + staging gates |
 | `main` | Promotion-only PR sources + release gates + Main Approve compatibility |
 
@@ -197,7 +197,6 @@ Managed workflows contain `__LINKTREND_*` placeholders. Install/sync paths rende
   "schemaVersion": 1,
   "ciWorkflowName": "Consumer CI",
   "branchPolicyWorkflowName": "Branch Source Policy",
-  "bugbotCheckName": "Linktrend Review Gate",
   "runnerType": "github-hosted"
 }
 ```

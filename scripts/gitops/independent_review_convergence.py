@@ -16,6 +16,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import subprocess
 import re
 import time
 import uuid
@@ -1415,6 +1417,150 @@ class MemoryReviewer:
 
     def result(self, lease: ReviewerLease) -> Mapping[str, Any] | None:
         return self.payloads.get(lease.session_id)
+
+
+# Fresh native reviewer producer boundary. Existing report files are not proof.
+EXPECTED_NATIVE_CODEX = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
+NATIVE_CODEX = Path(EXPECTED_NATIVE_CODEX)
+
+
+def canonical_review_bytes(value: Mapping[str, Any]) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def review_binding(report: Mapping[str, Any], *, repository: str, head_sha: str, git_tree: str) -> dict[str, Any]:
+    return {
+        "repository": repository, "headSha": head_sha, "gitTree": git_tree,
+        "paths": report.get("paths"), "scopeBinding": report.get("scopeBinding"),
+        "reviewerActor": report.get("reviewerActor"),
+        "implementerActor": report.get("implementerActor"),
+        "reportSha256": hashlib.sha256(canonical_review_bytes(report)).hexdigest(),
+    }
+
+
+def validate_candidate_review(report: Any, *, repository: str, head_sha: str, git_tree: str, verifier: Any = None) -> tuple[bool, str]:
+    """Reject claimed review unless trusted code verifies its actual producer."""
+    if not isinstance(report, Mapping):
+        return False, "independent_review_missing"
+    if report.get("accepted") is not True or report.get("findings") != []:
+        return False, "independent_review_not_clean"
+    if report.get("headSha") != head_sha or report.get("gitTree") != git_tree or report.get("repository") != repository:
+        return False, "independent_review_identity_mismatch"
+    paths = report.get("paths")
+    if not isinstance(paths, list) or not paths or any(not isinstance(p, str) or not p.strip() for p in paths):
+        return False, "independent_review_scope_missing"
+    reviewer, implementer = report.get("reviewerActor"), report.get("implementerActor")
+    if not isinstance(reviewer, str) or not reviewer or not isinstance(implementer, str) or not implementer or reviewer == implementer:
+        return False, "independent_review_role_separation"
+    if not isinstance(report.get("reportText"), str) or not report["reportText"].strip():
+        return False, "independent_review_report_missing"
+    if not callable(verifier):
+        return False, "independent_review_producer_unavailable"
+    try:
+        if verifier(report_bytes=canonical_review_bytes(report), binding=review_binding(report, repository=repository, head_sha=head_sha, git_tree=git_tree)) is not True:
+            return False, "independent_review_producer_unverified"
+    except Exception:
+        return False, "independent_review_producer_unverified"
+    return True, "independent_review_verified"
+
+
+class NativeReviewerAdapter:
+    """Own a fresh native read-only review and keep its authenticated result in memory.
+
+    This existing native runtime needs no new key, login, SDK or model setting.
+    Direct child output is the producer boundary; files and copied thread IDs
+    cannot populate this store. Requested models are never effective attestation.
+    No resumed thread, candidate-controlled executable or verifier import exists.
+    """
+    def __init__(self) -> None:
+        self._completed: dict[str, tuple[bytes, dict[str, Any]]] = {}
+        self._scopes: dict[str, dict[str, Any]] = {}
+
+    def verify_report(self, *, report_bytes: bytes, binding: Mapping[str, Any]) -> bool:
+        report = json.loads(report_bytes)
+        receipt_id = report.get("provenance", {}).get("receiptId")
+        held = self._completed.get(receipt_id)
+        if held is None or held != (report_bytes, dict(binding)):
+            return False
+        scope = self._scopes[receipt_id]
+        # Recheck owned metadata again at eligibility/merge verification so a
+        # result cannot outlive a moved protected base or PR head/branch.
+        return self._authenticated_scope(scope["repository"], scope["pullRequest"]) == scope
+
+    def _authenticated_scope(self, repository: str, pr_number: int) -> dict[str, Any]:
+        # Fixed production factory owns transport/token resolution. There is no
+        # argument, evidence flag, report file or constructor-injected client.
+        try:
+            from scripts.gitops.delivery_controller import resolve_production_github
+        except ModuleNotFoundError:  # installed script entrypoint
+            from delivery_controller import resolve_production_github
+        return resolve_production_github(repository).get_review_scope(repository=repository, number=pr_number)
+
+    def review(self, *, workdir: Path, repository: str, head_sha: str, git_tree: str,
+               baseline_sha: str, pr_number: int, implementer_run_id: str, timeout_seconds: int = 300) -> dict[str, Any]:
+        if any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{40}", value) for value in (head_sha, git_tree, baseline_sha)):
+            raise ValueError("native_review_git_identity_invalid")
+        caller = os.environ.get("CODEX_THREAD_ID", "")
+        if implementer_run_id != caller:
+            raise ValueError("native_review_caller_metadata_mismatch")
+        implementer = caller or f"orchestrator-pid:{os.getpid()}"
+        if str(NATIVE_CODEX) != EXPECTED_NATIVE_CODEX or not NATIVE_CODEX.is_file():
+            raise ValueError("native_review_runtime_unavailable")
+        workdir = workdir.resolve()
+        def git(*args: str) -> str:
+            return subprocess.check_output(["git", *args], cwd=workdir, text=True).strip()
+        def unchanged() -> bool:
+            return git("rev-parse", "HEAD") == head_sha and git("rev-parse", "HEAD^{tree}") == git_tree and not git("status", "--porcelain")
+        if not unchanged():
+            raise ValueError("native_review_candidate_not_clean_or_exact")
+        scope = self._authenticated_scope(repository, pr_number)
+        if scope["headSha"] != head_sha or scope["gitTree"] != git_tree:
+            raise ValueError("native_review_remote_candidate_mismatch")
+        if baseline_sha != scope["baseCommit"]:
+            raise ValueError("native_review_claimed_base_mismatch")
+        trusted_base = scope["baseCommit"]
+        try:
+            git("merge-base", "--is-ancestor", trusted_base, head_sha)
+        except subprocess.CalledProcessError as exc:
+            raise ValueError("native_review_base_ancestry_unproven") from exc
+        paths = git("diff", "--name-only", "--no-renames", trusted_base, head_sha).splitlines()
+        if not paths:
+            raise ValueError("native_review_scope_empty")
+        prompt = (
+            "Independently review this exact candidate with read-only inspection. "
+            "Do not mutate files, send messages, invoke providers, or approve your own work. "
+            "Check correctness, scope, test proof and exact Git identity. Return ONLY JSON "
+            "with accepted (boolean), headSha, gitTree, paths (exact list below), findings (list), "
+            "and reportText (nonempty reasoning). accepted=true requires zero findings and "
+            "sufficient proof; missing proof means accepted=false. No requested model name is attestation.\n"
+            + json.dumps({"repository": repository, "baselineSha": trusted_base, "headSha": head_sha, "gitTree": git_tree, "paths": paths, "scopeBinding": scope})
+        )
+        argv = [str(NATIVE_CODEX), "exec", "--model", "gpt-6-luna", "-c", 'model_reasoning_effort="high"', "-c", 'approval_policy="never"', "-c", 'sandbox_mode="read-only"', "--json", "-"]
+        completed = subprocess.run(argv, input=prompt, cwd=workdir, text=True, capture_output=True, timeout=timeout_seconds, check=False)
+        if completed.returncode != 0 or not unchanged():
+            raise ValueError("native_review_failed_or_candidate_changed")
+        if self._authenticated_scope(repository, pr_number) != scope:
+            raise ValueError("native_review_remote_scope_changed")
+        events = [json.loads(row) for row in completed.stdout.splitlines() if row.strip()]
+        threads = [e.get("thread_id") for e in events if e.get("type") == "thread.started"]
+        if len(threads) != 1 or not isinstance(threads[0], str) or not threads[0] or threads[0] == implementer or threads[0] in self._completed:
+            raise ValueError("native_review_run_not_independent")
+        if any(e.get("type") in {"turn.failed", "error"} for e in events) or sum(e.get("type") == "turn.started" for e in events) != 1 or sum(e.get("type") == "turn.completed" for e in events) != 1 or events[-1].get("type") != "turn.completed":
+            raise ValueError("native_review_turn_incomplete")
+        messages = [e["item"].get("text", "") for e in events if e.get("type") == "item.completed" and isinstance(e.get("item"), dict) and e["item"].get("type") == "agent_message"]
+        report = json.loads(messages[-1]) if messages else None
+        if not isinstance(report, dict) or report.get("headSha") != head_sha or report.get("gitTree") != git_tree or report.get("paths") != paths:
+            raise ValueError("native_review_output_not_candidate_bound")
+        report = {**report, "repository": repository, "reviewerActor": threads[0], "implementerActor": implementer, "scopeBinding": dict(scope),
+                  "provenance": {"receiptId": threads[0], "producer": "owned-native-codex-process", "exitCode": completed.returncode}}
+        self._scopes[threads[0]] = dict(scope)
+        self._completed[threads[0]] = (canonical_review_bytes(report), review_binding(report, repository=repository, head_sha=head_sha, git_tree=git_tree))
+        ok, reason = validate_candidate_review(report, repository=repository, head_sha=head_sha, git_tree=git_tree, verifier=self.verify_report)
+        if not ok:
+            self._completed.pop(threads[0], None)
+            self._scopes.pop(threads[0], None)
+            raise ValueError(reason)
+        return report
 
 
 def _print_json(payload: Mapping[str, Any]) -> int:

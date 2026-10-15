@@ -11,7 +11,7 @@
 
 ## Purpose
 
-Produce a **read-only, dry-run-default** report of the normal automation credential, Bugbot, and repository-protection state required before `Linktrend Review Ready` publication can be trusted in production.
+Produce a **read-only, dry-run-default** report of the normal automation credential and repository-protection state. Bugbot is disabled and is not queried or required; Review Ready is not completion proof.
 
 This tool **reports**. It does **not** create Apps, secrets, variables, Bugbot settings, rulesets, PRs, statuses, or promotions.
 
@@ -35,7 +35,7 @@ Consumer rollout remains deferred; external-state readiness does **not** authori
 | Kind | Examples | Audit behavior |
 |------|----------|----------------|
 | Secrets | `LINKTREND_AUTOMATION_TOKEN`, `LINKTREND_BUGBOT_USER_TOKEN` | Observe Actions secret **names** only; **never** retrieve or print values |
-| Bugbot dashboard | `manualTriggerOnly` | Fixture or operator confirmation; GitHub API cannot prove mention-only |
+| Bugbot | Disabled policy | Retired and nonrequired; no provider or settings query |
 | Protections | `development-autonomous-merge` ruleset, `allow_auto_merge` | Read-only ruleset/repo metadata |
 | Process env leaks | Any of the secret env names above | Warn `present_in_process_env` without printing values; refuse emit if a value would leak into JSON |
 
@@ -48,17 +48,17 @@ Git working-tree files are **not** external state. Workflow YAML and local scrip
 | ID | Category | Required observation |
 |----|----------|----------------------|
 | `github_auth.automation_token_secret` | github_auth | `LINKTREND_AUTOMATION_TOKEN` secret **name** listed |
-| `bugbot.user_token_secret` | bugbot | `LINKTREND_BUGBOT_USER_TOKEN` secret **name** listed |
-| `bugbot.manual_trigger_only` | bugbot | `manualTriggerOnly=true` (mention-only) |
-| `bugbot.check_name` | bugbot | Check name is `Linktrend Review Gate` (default or matching variable) |
-| `protection.development_ruleset` | protection | Active `development-autonomous-merge` requires `Linktrend Review Gate` and `Linktrend Branch Source Policy` |
+| `bugbot.user_token_secret` | bugbot | Retired/nonrequired; no secret needed for review |
+| `bugbot.manual_trigger_only` | bugbot | Retired/nonrequired; observed policy only, no execution proof |
+| `bugbot.check_name` | bugbot | No required Bugbot or Review Gate context |
+| `protection.development_ruleset` | protection | Active `development-autonomous-merge` requires genuine CI and `Linktrend Branch Source Policy`; obsolete provider contexts require approved migration |
 | `protection.allow_auto_merge` | protection | `allow_auto_merge=true` |
 | `completion.status_context` | completion | Privileged context remains `Linktrend Review Ready` (normal-token publisher from trusted workflow context only) |
 
 Related contracts:
 
 - Normal automation credential / fail-closed token: `docs/contracts/GITHUB-APP-GITOPS-CREDENTIALS.md`
-- Bugbot mention-only: `docs/contracts/BUGBOT-MENTION-ONLY.md`
+- Retired Bugbot activation instructions: `docs/contracts/BUGBOT-MENTION-ONLY.md`
 - Agent completion / status context: `docs/contracts/AGENT-COMPLETION.md`
 
 ---
@@ -102,7 +102,7 @@ python3 scripts/gitops/external_state_audit.py verify --repo linktrend/IDE-Devel
     "LINKTREND_AUTOMATION_TOKEN",
     "LINKTREND_BUGBOT_USER_TOKEN"
   ],
-  "bugbot": { "manualTriggerOnly": true, "enabled": true },
+  "bugbot": { "enabled": false },
   "rulesets": [
     { "id": 10, "name": "development-autonomous-merge", "enforcement": "active" }
   ],
@@ -116,7 +116,6 @@ python3 scripts/gitops/external_state_audit.py verify --repo linktrend/IDE-Devel
           "type": "required_status_checks",
           "parameters": {
             "required_status_checks": [
-              { "context": "Linktrend Review Gate" },
               { "context": "Verify IDE Development" },
               { "context": "Linktrend Branch Source Policy" }
             ]

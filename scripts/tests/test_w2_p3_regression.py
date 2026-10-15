@@ -56,7 +56,7 @@ class W2P3RegressionTests(unittest.TestCase):
         self.assertTrue(hosted.compute.cancel_obsolete)
         self.assertEqual(hosted.compute.max_infrastructure_attempts, 2)
         self.assertEqual(hosted.compute.max_sealed_candidates, 2)
-        self.assertEqual(hosted.review.bugbot, "final-candidate-only")
+        self.assertEqual(hosted.review.bugbot, "disabled")
         with self.assertRaises(ConfigError):
             load_delivery_config(FIXTURES / "w2-p3-legacy-profile.json")
 

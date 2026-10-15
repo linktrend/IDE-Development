@@ -16,8 +16,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 MARKER_PREFIX = "<!-- linktrend-bugbot-requested:"
-DEFAULT_BUGBOT_COMMAND = "@cursor review"
-MAX_BUGBOT_REQUESTS = 2
+DEFAULT_BUGBOT_COMMAND = ""
+MAX_BUGBOT_REQUESTS = 0
 # Packager feature PRs into development must be authored by Carlos (human user).
 REQUIRED_PACKAGER_PR_AUTHOR = "linktrend"
 
@@ -98,22 +98,15 @@ def should_request_bugbot(
     head_sha: str,
     fast_gate_ok: bool,
 ) -> tuple[bool, str]:
-    if not fast_gate_ok:
-        return False, "fast_gate_not_green"
-    needle = marker_for(head_sha)
-    for c in comments:
-        body = c.get("body") or ""
-        # Same-SHA idempotency: only a genuine prior request blocks a duplicate.
-        if needle in body and has_executable_bugbot_trigger(body):
-            return False, "skipped_duplicate_marker"
-    if count_bugbot_requests(comments) >= MAX_BUGBOT_REQUESTS:
-        return False, "skipped_max_requests"
-    return True, "request"
+    # Compatibility API for old callers: policy cannot be re-enabled by a
+    # command/env override, check success, or an empty request history.
+    del comments, head_sha, fast_gate_ok
+    return False, "bugbot_disabled"
 
 
 def build_bugbot_comment(command: str, sha: str) -> str:
-    cmd = (command or DEFAULT_BUGBOT_COMMAND).strip() or DEFAULT_BUGBOT_COMMAND
-    return f"{cmd}\n\n{marker_for(sha)}\n"
+    del command, sha
+    raise ValueError("bugbot_disabled: review-trigger comments are retired")
 
 
 def latest_checks_by_name(checks: list[dict[str, Any]]) -> dict[str, str]:

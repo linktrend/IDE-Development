@@ -3,7 +3,7 @@
 
 Allowed operations:
   - pr_create: Review Packager feature PR creation into development
-  - bugbot_comment: exactly one `@cursor review` + SHA marker comment
+Bugbot comment operations are retired and always rejected.
 
 Never use this token for merge, promote, repair, status/check writes, cleanup,
 or branch pushes. Never print or return token material in logs/outcomes.
@@ -19,7 +19,7 @@ from __future__ import annotations
 import os
 from typing import Mapping
 
-ALLOWED_OPERATIONS = frozenset({"pr_create", "bugbot_comment"})
+ALLOWED_OPERATIONS = frozenset({"pr_create"})
 
 # Secret / resolved names that must never leak into unrelated child processes.
 CARLOS_TOKEN_ENV_KEYS = (

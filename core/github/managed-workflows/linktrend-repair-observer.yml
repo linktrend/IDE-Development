@@ -19,8 +19,6 @@ on:
       - __LINKTREND_CI_WORKFLOW_NAME__
       - __LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__
     types: [completed]
-  check_run:
-    types: [completed]
 
 permissions: {}
 
@@ -41,15 +39,6 @@ jobs:
         (
           github.event.workflow_run.name == '__LINKTREND_CI_WORKFLOW_NAME__' ||
           github.event.workflow_run.name == '__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__'
-        )
-      ) ||
-      (
-        github.event_name == 'check_run' &&
-        github.event.check_run.name == '__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__' &&
-        (
-          github.event.check_run.conclusion == 'failure' ||
-          github.event.check_run.conclusion == 'success' ||
-          github.event.check_run.conclusion == 'neutral'
         )
       )
     runs-on: ubuntu-24.04-arm
@@ -73,8 +62,6 @@ jobs:
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           LINKTREND_CI_WORKFLOW_NAME: __LINKTREND_CI_WORKFLOW_NAME__
           LINKTREND_BRANCH_POLICY_WORKFLOW_NAME: __LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__
-          LINKTREND_BUGBOT_PROVIDER_CHECK_NAME: __LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__
-          LINKTREND_REVIEW_GATE_CHECK_NAME: __LINKTREND_REVIEW_GATE_CHECK_NAME__
         run: |
           set -euo pipefail
           python3 scripts/gitops/repair_observer.py handle-event --event-path "$GITHUB_EVENT_PATH" --repo "$GITHUB_REPOSITORY"

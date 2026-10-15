@@ -167,6 +167,7 @@ HOSTED_WORKFLOW_REJECT_MARKERS = (
 )
 
 HOSTED_TEST_FILES = (
+    "scripts/tests/test_bugbot_retirement.py",
     "scripts/tests/test_candidate_lifecycle.py",
     "scripts/tests/test_gate_receipts.py",
     "scripts/tests/test_phase_batch_lifecycle.py",

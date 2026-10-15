@@ -20,7 +20,7 @@ Phase PRs (`phase/*` → `development`) and Issue PRs use the same gate ids and 
 
 | Gate | Used by | Purpose |
 |------|---------|---------|
-| `fast-gate` | Review Packager (before Bugbot), Integrator (before merge to `development`) | Deterministic PR validation that must pass before human/Bugbot review or auto-merge. |
+| `fast-gate` | Phase Fast checks, Integrator (before merge to `development`) | Deterministic PR validation that must pass before independent review and protected merge. |
 | `staging-gate` | Development → Staging promotion | Validates the promotion candidate before staging advances. |
 | `release-gate` | Staging → Main merge (Approve path) | Validates the exact release SHA before main advances. |
 
@@ -61,13 +61,13 @@ Prior green results on source branches are **not** proof of the combined promoti
 
 ---
 
-## Bugbot success check (separate from gates)
+## Disabled provider review
 
-| Check name | Meaning |
-|------------|---------|
-| `Linktrend Review Gate` | Required Bugbot success conclusion for Integrator auto-merge. |
-
-Bugbot is **not** part of `fast-gate`. Deterministic gates run first; Bugbot is requested only after `fast-gate` is green (or after Review Packager has confirmed deterministic readiness).
+Bugbot is disabled globally. Neither `Cursor Bugbot` nor `Linktrend Review Gate`
+is a delivery requirement, paid trigger, or approval source. A fresh independent
+review must cover the exact head and tree; the owned native producer route is
+specified in `docs/AUTONOMOUS-GIT-OPERATIONS.md`. Existing GitHub approving-review
+requirements remain in force and need genuine approvals.
 
 ---
 
@@ -76,9 +76,9 @@ Bugbot is **not** part of `fast-gate`. Deterministic gates run first; Bugbot is 
 Auto-merge to `development` only when **all** are true:
 
 1. PR is into `development`, non-draft, open.
-2. Head SHA equals the recorded reviewed SHA (Bugbot marker / review-ready association).
+2. Head and tree equal the independently reviewed exact candidate.
 3. `fast-gate` all required checks = success.
-4. `Linktrend Review Gate` = success for that head SHA.
+4. The trusted native reviewer producer verifies its actual clean report; copied JSON and status flags are insufficient.
 5. No `conflict_blocked` / mergeability conflict.
 6. Within conflict-repair budget (see conflict recovery).
 
@@ -104,7 +104,7 @@ When syncing managed workflows into a consumer:
 Optional / informational checks that must **not** block `fast-gate`:
 
 - Docs-only or advisory workflows not listed in the gate tables
-- `Linktrend Review Gate` (separate success check — see Bugbot contract)
+- `Linktrend Review Gate` / `Cursor Bugbot` (retired; no success is fabricated)
 - Unrelated third-party checks not in the gate tables
 
 Missing required checks are **not ready** (missing ≠ success).

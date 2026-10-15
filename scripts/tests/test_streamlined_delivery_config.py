@@ -47,7 +47,7 @@ def hosted_payload() -> dict:
                 "repository", "headCommit", "gitTree", "dependencyDigest", "profileDigest", "workflowDigest"
             ],
         },
-        "review": {"bugbot": "final-candidate-only"},
+        "review": {"bugbot": "disabled"},
     }
 
 

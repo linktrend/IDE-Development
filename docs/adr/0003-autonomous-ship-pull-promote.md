@@ -1,5 +1,13 @@
 # ADR 0003: Autonomous Ship / Pull / Promote (Inherited via Wire)
 
+> **Superseded review policy (issue #500):** Bugbot is disabled globally.
+> The Bugbot-specific decisions and activation/request instructions below are
+> historical and must not be executed. Current independent review and genuine
+> test/receipt policy is `docs/AUTONOMOUS-GIT-OPERATIONS.md`. No provider status
+> or missing provider can approve delivery; live protection changes remain
+> separately authorized.
+
+
 **Status:** Accepted (Principal go-ahead 2026-07-24)
 **Date:** 2026-07-24
 **Timezone:** Asia/Taipei (no DST)

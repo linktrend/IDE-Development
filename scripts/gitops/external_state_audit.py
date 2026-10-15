@@ -60,9 +60,9 @@ REQUIRED_WORKFLOW_FILES = (
 # Carlos user token may only be used for these operations (contract surface).
 CARLOS_ALLOWED_OPS = (
     "packager_feature_pr_create",
-    "bugbot_mention_comment",
 )
 CARLOS_FORBIDDEN_OPS = (
+    "bugbot_mention_comment",
     "status_publish",
     "merge",
     "promote",
@@ -152,20 +152,20 @@ def required_checklist() -> list[dict[str, Any]]:
             "id": "bugbot.manual_trigger_only",
             "category": "bugbot",
             "required": False,
-            "expected": "Bugbot manualTriggerOnly=true (mention-only)",
+            "expected": "Bugbot disabled; no paid review requests",
         },
         {
             "id": "bugbot.check_name",
             "category": "bugbot",
             "required": False,
-            "expected": f"Integrator/ruleset Bugbot check name is {BUGBOT_CHECK_NAME!r}",
+            "expected": "No required Bugbot or Review Gate context",
         },
         {
             "id": "carlos.user_token_boundary",
             "category": "carlos",
             "required": True,
             "expected": (
-                "Carlos user token restricted to packager PR create + Bugbot mention; "
+                "Carlos user token restricted to legacy packager PR create; "
                 "forbidden for status publish/merge/promote/repair/admin"
             ),
         },
@@ -830,163 +830,14 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                 )
             )
 
-    # --- bugbot.user_token_secret ---
-    if unchecked:
-        results.append(
-            _unchecked(
-                "bugbot.user_token_secret",
-                "bugbot",
-                f"{BUGBOT_USER_TOKEN_SECRET} Actions secret name present (value never read)",
-            )
-        )
-    else:
-        if not secret_names:
-            secret_names = client.list_actions_secret_names()
-        if BUGBOT_USER_TOKEN_SECRET in secret_names:
-            results.append(
-                _check(
-                    check_id="bugbot.user_token_secret",
-                    category="bugbot",
-                    required=True,
-                    expected=(
-                        f"{BUGBOT_USER_TOKEN_SECRET} Actions secret name present "
-                        "(value never read)"
-                    ),
-                    observed="name_present",
-                    status="ok",
-                    detail="secret name listed; value not retrieved",
-                )
-            )
-        else:
-            results.append(
-                _check(
-                    check_id="bugbot.user_token_secret",
-                    category="bugbot",
-                    required=True,
-                    expected=(
-                        f"{BUGBOT_USER_TOKEN_SECRET} Actions secret name present "
-                        "(value never read)"
-                    ),
-                    observed="missing",
-                    status="credential-missing",
-                    detail=f"{BUGBOT_USER_TOKEN_SECRET} not listed among Actions secret names",
-                )
-            )
-
-    # --- bugbot.manual_trigger_only ---
-    if unchecked:
-        results.append(
-            _unchecked(
-                "bugbot.manual_trigger_only",
-                "bugbot",
-                "Bugbot manualTriggerOnly=true (mention-only)",
-                detail=(
-                    "dry-run default / live GitHub path cannot read Linktrend Review Gate "
-                    "dashboard; supply fixture bugbot.manualTriggerOnly or confirm "
-                    "manually per docs/contracts/BUGBOT-MENTION-ONLY.md"
-                ),
-            )
-        )
-    else:
-        bugbot = client.get_bugbot_repo_settings()
-        if bugbot is None:
-            results.append(
-                _check(
-                    check_id="bugbot.manual_trigger_only",
-                    category="bugbot",
-                    required=True,
-                    expected="Bugbot manualTriggerOnly=true (mention-only)",
-                    observed="unknown",
-                    status="unknown",
-                    detail=(
-                        "Bugbot settings unavailable via GitHub API; fixture or "
-                        "operator confirmation required — never assume compliant"
-                    ),
-                )
-            )
-        else:
-            mto = bugbot.get("manualTriggerOnly")
-            if mto is True:
-                results.append(
-                    _check(
-                        check_id="bugbot.manual_trigger_only",
-                        category="bugbot",
-                        required=True,
-                        expected="Bugbot manualTriggerOnly=true (mention-only)",
-                        observed="true",
-                        status="ok",
-                        detail="manualTriggerOnly=true",
-                    )
-                )
-            else:
-                results.append(
-                    _check(
-                        check_id="bugbot.manual_trigger_only",
-                        category="bugbot",
-                        required=True,
-                        expected="Bugbot manualTriggerOnly=true (mention-only)",
-                        observed=str(mto).lower() if mto is not None else "missing",
-                        status="drift" if mto is False else "missing",
-                        detail="manualTriggerOnly must be true before consumer rollout",
-                    )
-                )
-
-    # --- bugbot.check_name ---
-    if unchecked:
-        results.append(
-            _unchecked(
-                "bugbot.check_name",
-                "bugbot",
-                f"Integrator/ruleset Bugbot check name is {BUGBOT_CHECK_NAME!r}",
-            )
-        )
-    else:
-        if not variables:
-            variables = client.list_actions_variables()
-        override = _find_variable(variables, "LINKTREND_BUGBOT_CHECK_NAME")
-        if override is None:
-            results.append(
-                _check(
-                    check_id="bugbot.check_name",
-                    category="bugbot",
-                    required=True,
-                    expected=f"Integrator/ruleset Bugbot check name is {BUGBOT_CHECK_NAME!r}",
-                    observed="default",
-                    status="ok",
-                    detail=(
-                        f"LINKTREND_BUGBOT_CHECK_NAME unset; default {BUGBOT_CHECK_NAME!r} applies"
-                    ),
-                )
-            )
-        else:
-            value = str(override.get("value") or "").strip()
-            if value == BUGBOT_CHECK_NAME:
-                results.append(
-                    _check(
-                        check_id="bugbot.check_name",
-                        category="bugbot",
-                        required=True,
-                        expected=f"Integrator/ruleset Bugbot check name is {BUGBOT_CHECK_NAME!r}",
-                        observed=value,
-                        status="ok",
-                        detail="LINKTREND_BUGBOT_CHECK_NAME matches contract",
-                    )
-                )
-            else:
-                results.append(
-                    _check(
-                        check_id="bugbot.check_name",
-                        category="bugbot",
-                        required=True,
-                        expected=f"Integrator/ruleset Bugbot check name is {BUGBOT_CHECK_NAME!r}",
-                        observed=value or "empty",
-                        status="drift",
-                        detail=(
-                            "LINKTREND_BUGBOT_CHECK_NAME differs from "
-                            f"{BUGBOT_CHECK_NAME!r}"
-                        ),
-                    )
-                )
+    # Retired service: report nonrequired policy state without inspecting it.
+    for check_id in ("bugbot.user_token_secret", "bugbot.manual_trigger_only", "bugbot.check_name"):
+        results.append(_check(
+            check_id=check_id, category="bugbot", required=False,
+            expected="disabled; no review requests or success context",
+            observed="disabled_by_policy", status="unchecked",
+            detail="retired service not queried; no provider execution or settings change claimed",
+        ))
 
     # --- carlos.user_token_boundary ---
     if unchecked:
@@ -995,7 +846,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                 "carlos.user_token_boundary",
                 "carlos",
                 (
-                    "Carlos user token restricted to packager PR create + Bugbot mention; "
+                    "Carlos user token restricted to legacy packager PR create; "
                     "forbidden for status publish/merge/promote/repair/admin"
                 ),
                 observed="unknown",
@@ -1011,7 +862,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                     category="carlos",
                     required=True,
                     expected=(
-                        "Carlos user token restricted to packager PR create + Bugbot mention; "
+                        "Carlos user token restricted to legacy packager PR create; "
                         "forbidden for status publish/merge/promote/repair/admin"
                     ),
                     observed="unknown",
@@ -1047,7 +898,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                         category="carlos",
                         required=True,
                         expected=(
-                            "Carlos user token restricted to packager PR create + Bugbot mention; "
+                            "Carlos user token restricted to legacy packager PR create; "
                             "forbidden for status publish/merge/promote/repair/admin"
                         ),
                         observed="boundary_violated",
@@ -1063,7 +914,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                         category="carlos",
                         required=True,
                         expected=(
-                            "Carlos user token restricted to packager PR create + Bugbot mention; "
+                            "Carlos user token restricted to legacy packager PR create; "
                             "forbidden for status publish/merge/promote/repair/admin"
                         ),
                         observed="blocked",
@@ -1081,7 +932,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                             category="carlos",
                             required=True,
                             expected=(
-                                "Carlos user token restricted to packager PR create + Bugbot mention; "
+                                "Carlos user token restricted to legacy packager PR create; "
                                 "forbidden for status publish/merge/promote/repair/admin"
                             ),
                             observed="unexpected_allowed_ops",
@@ -1096,7 +947,7 @@ def evaluate(client: ReadOnlyGitHubClient, *, source: str) -> list[dict[str, Any
                             category="carlos",
                             required=True,
                             expected=(
-                                "Carlos user token restricted to packager PR create + Bugbot mention; "
+                                "Carlos user token restricted to legacy packager PR create; "
                                 "forbidden for status publish/merge/promote/repair/admin"
                             ),
                             observed="restricted",

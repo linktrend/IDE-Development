@@ -26,6 +26,19 @@ def git(repo: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def trusted_fixture(head="a"*40, tree="b"*40, repository="owner/name"):
+    from scripts.gitops.independent_review_convergence import canonical_review_bytes, review_binding
+    report = {"accepted": True, "headSha": head, "gitTree": tree, "repository": repository,
+              "paths": ["app.py"], "findings": [], "reportText": "Independent exact-candidate fixture.",
+              "reviewerActor": "fresh-native-thread", "implementerActor": "caller-thread",
+              "provenance": {"receiptId": "fresh-native-thread"}}
+    encoded = canonical_review_bytes(report)
+    expected = review_binding(report, repository=repository, head_sha=head, git_tree=tree)
+    def verifier(*, report_bytes, binding):
+        return report_bytes == encoded and binding == expected
+    return report, verifier
+
+
 class PromotionReceiptGateTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -137,8 +150,8 @@ class PromotionReceiptGateTests(unittest.TestCase):
         head = "a" * 40
         good = {"status": "passed", "sha": head}
         decision = evaluate_development_gates(
-            {"sealed": good, "fastGate": good, "fullSuite": {"status": "not-required"}},
-            head,
+            {"sealed": good, "fastGate": good, "fullSuite": {"status": "not-required"}, "independentNarrowReview": trusted_fixture(head)[0]},
+            head, expected_git_tree="b"*40, repository="owner/name", trusted_review_verifier=trusted_fixture(head)[1],
         )
         self.assertTrue(decision.accepted)
         self.assertEqual(decision.to_dict()["status"], "PASS")

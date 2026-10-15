@@ -253,43 +253,15 @@ _BOOTSTRAP_SKIP_SURFACES = (
 
 class LinktrendReviewGateTests(unittest.TestCase):
     def test_packaged_surfaces_exist(self) -> None:
-        self.assertTrue(MODULE.is_file())
-        self.assertTrue(SCHEMA.is_file())
-        self.assertTrue(DOCTRINE.is_file())
-        self.assertTrue(WORKFLOW.is_file())
-        self.assertTrue(MANAGED_WORKFLOW.is_file())
-        self.assertIn("needs: full", (ROOT / ".github/workflows/linktrend-integrator-merge.yml").read_text())
-        integrator = (ROOT / ".github/workflows/linktrend-integrator-merge.yml").read_text()
-        self.assertIn("gitTree={identity.git_tree}", integrator)
-        self.assertIn(
-            "ref: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_head || github.event.pull_request.head.sha }}",
-            integrator,
-        )
-        self.assertEqual(
-            integrator,
-            (ROOT / "core/github/managed-workflows/linktrend-integrator-merge.yml").read_text(),
-        )
-        # Default-branch trust boundary: live workflow == managed template bytes.
-        live = WORKFLOW.read_text(encoding="utf-8")
-        self.assertEqual(live, MANAGED_WORKFLOW.read_text(encoding="utf-8"))
-        self.assertIn("on:\n  check_run:", live)
-        self.assertIn("Linktrend Review Gate", live)
-        self.assertIn("advisory_must_not_claim_bugbot_pass", live)
-        self.assertIn("require-full-receipt", live)
-        self.assertNotIn(".gitTree=$t", live)
-        doctrine = DOCTRINE.read_text(encoding="utf-8")
-        packaged = (
-            ROOT / "core/managed-core/content/doctrine/LINKTREND-REVIEW-GATE.md"
-        ).read_text(encoding="utf-8")
-        self.assertEqual(doctrine, packaged)
-        self.assertIn("full_receipt_missing_trusted_check", doctrine)
-        self.assertRegex(doctrine, r"fail-closed producer\s+binding")
-        self.assertIn("unbound name-only Checks fallback", doctrine)
-        self.assertNotIn(
-            "Prefer producer-bound Checks extraction (#329); else provenance-stamped Checks (#330).",
-            doctrine,
-        )
-        self.assertIn("`FULL_RAW`", doctrine)  # named only as the forbidden bypass
+        for path in (MODULE, SCHEMA, DOCTRINE, WORKFLOW, MANAGED_WORKFLOW):
+            self.assertTrue(path.is_file())
+        self.assertEqual(WORKFLOW.read_text(), MANAGED_WORKFLOW.read_text())
+        self.assertIn("Retired", DOCTRINE.read_text())
+        self.assertEqual(DOCTRINE.read_text(), (ROOT / "core/managed-core/content/doctrine/LINKTREND-REVIEW-GATE.md").read_text())
+        full = (ROOT / ".github/workflows/linktrend-integrator-merge.yml").read_text()
+        self.assertIn("run_delivery_profile.py full", full)
+        self.assertNotIn("@cursor review", full)
+
 
     def _classify(self, **kwargs):
         base = dict(
@@ -621,13 +593,13 @@ class LinktrendReviewGateTests(unittest.TestCase):
 
     def test_raw_bugbot_required_contexts_rejected(self) -> None:
         migrated = migrated_required_contexts([RAW_BUGBOT_CONTEXT, "Linktrend Fast Gate"])
-        self.assertEqual(migrated[0], REVIEW_GATE_CONTEXT)
+        self.assertEqual(migrated, ["Linktrend Fast Gate"])
         require_review_gate_on_development(migrated)
         with self.assertRaises(ReviewGateError) as ctx:
             require_no_raw_bugbot_required([RAW_BUGBOT_CONTEXT])
         self.assertEqual(ctx.exception.code, "raw_bugbot_required")
         with self.assertRaises(ReviewGateError):
-            require_review_gate_on_development(["Linktrend Fast Gate"])
+            require_review_gate_on_development([REVIEW_GATE_CONTEXT])
 
     def test_protection_and_consumer_defaults_migrated(self) -> None:
         from scripts.gitops import repository_protection as rp
@@ -639,156 +611,32 @@ class LinktrendReviewGateTests(unittest.TestCase):
         self.assertNotIn(REVIEW_GATE_CONTEXT, plan.CONTEXTS["development"])
         self.assertNotIn(RAW_BUGBOT_CONTEXT, plan.CONTEXTS["development"])
         consumer = json.loads((ROOT / ".github/linktrend-gitops-consumer.json").read_text())
-        self.assertEqual(consumer["bugbotCheckName"], REVIEW_GATE_CONTEXT)
-        self.assertEqual(consumer["reviewGateCheckName"], REVIEW_GATE_CONTEXT)
-        self.assertEqual(consumer["bugbotProviderCheckName"], RAW_BUGBOT_CONTEXT)
+        self.assertNotIn("bugbotCheckName", consumer)
+        self.assertNotIn("reviewGateCheckName", consumer)
+        self.assertNotIn("bugbotProviderCheckName", consumer)
 
     def test_managed_surfaces_reject_raw_bugbot_required_defaults(self) -> None:
+        from scripts.gitops.repository_protection import managed_baseline
+        self.assertNotIn(RAW_BUGBOT_CONTEXT, managed_baseline("development"))
+        self.assertNotIn(REVIEW_GATE_CONTEXT, managed_baseline("development"))
         wire = (ROOT / "scripts/wire-repo.sh").read_text()
-        self.assertIn('BUGBOT_NAME="${BUGBOT_NAME:-Linktrend Review Gate}"', wire)
-        self.assertIn('"bugbotProviderCheckName": "Cursor Bugbot"', wire)
-        verify = (ROOT / "scripts/verify-ide-development.sh").read_text()
-        self.assertIn('__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__", "Cursor Bugbot"', verify)
-        self.assertIn('__LINKTREND_REVIEW_GATE_CHECK_NAME__", "Linktrend Review Gate"', verify)
-        apply = (ROOT / "scripts/apply-development-merge-ruleset.sh").read_text()
-        self.assertIn("Linktrend Review Gate", apply)
-        self.assertNotIn('"Cursor Bugbot"', apply)
-        self.assertNotIn("\n  \"Cursor Bugbot\"\n", apply)
-        coord = (ROOT / "scripts/tests/test_local_coordinator_workflow_profile.sh").read_text()
-        self.assertIn("Linktrend Review Gate", coord)
-        self.assertNotIn('"bugbotCheckName": "Cursor Bugbot"', coord)
+        self.assertNotIn('"bugbotProviderCheckName": "Cursor Bugbot"', wire)
         observer = OBSERVER_TEMPLATE.read_text()
-        self.assertIn("__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__", observer)
-        self.assertIn("__LINKTREND_REVIEW_GATE_CHECK_NAME__", observer)
-        self.assertIn(
-            "github.event.check_run.name == '__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__'",
-            observer,
-        )
-        bootstrap = (ROOT / "core/github/managed-runtime/cursor-gitops-bootstrap.mdc").read_text()
-        self.assertIn("Linktrend Review Gate", bootstrap)
-        self.assertNotIn("named gates + Cursor Bugbot", bootstrap)
-        cursor_bootstrap = (ROOT / ".cursor/rules/cursor-gitops-bootstrap.mdc").read_text()
-        self.assertIn("named gates + Linktrend Review Gate", cursor_bootstrap)
-        self.assertNotIn("named gates + Cursor Bugbot", cursor_bootstrap)
-        external = (ROOT / "docs/contracts/EXTERNAL-STATE-AUDIT.md").read_text()
-        self.assertIn("Linktrend Review Gate", external)
-        self.assertNotIn("`Cursor Bugbot`", external)
-        for rel in (
-            "scripts/tests/test-consumer-profile-matrix.sh",
-            "scripts/tests/test_local_coordinator_workflow_profile.sh",
-            "scripts/tests/test-managed-runner-routing.sh",
-        ):
-            text = (ROOT / rel).read_text()
-            self.assertIn("bugbotProviderCheckName", text)
-            self.assertRegex(
-                text,
-                r'"bugbotProviderCheckName"\s*:\s*"Cursor Bugbot"',
-            )
-            self.assertNotRegex(
-                text,
-                r'"bugbotProviderCheckName"\s*:\s*"Linktrend Review Gate"',
-            )
+        self.assertNotIn("check_run:", observer)
+        self.assertNotIn("LINKTREND_BUGBOT_PROVIDER_CHECK_NAME:", observer)
+
 
     def test_workflow_forbids_heuristic_and_wires_alert_fallback_full(self) -> None:
         for path in (WORKFLOW, MANAGED_WORKFLOW):
             text = path.read_text()
-            self.assertIn("Free-text provider heuristics are forbidden", text)
-            self.assertNotIn("grep -Eq 'quota|rate limit", text)
-            self.assertIn("founder-alert", text)
-            self.assertIn("founder-alert-dedupe", text)
-            self.assertIn("fallback", text)
-            self.assertIn("require-full-receipt", text)
-            self.assertIn("extract-trusted-full-receipt", text)
-            self.assertIn("overlay-retained-full-receipt", text)
-            self.assertIn("linktrend-full-suite-receipt-", text)
-            self.assertIn("full_receipt_artifact_not_unique_or_missing", text)
-            self.assertIn("count-infra-attempts", text)
-            self.assertIn("issues: write", text)
-            self.assertNotIn("contents/.linktrend/", text)
-            # Candidate paths may be named only in ignore notes; never cat/read them.
-            self.assertIn("ignoring_candidate_provider_error_file", text)
-            self.assertIn("ignoring_candidate_full_suite_receipt_file", text)
-            self.assertNotRegex(
-                text,
-                r'cat\s+"\$\{CANDIDATE_DIR\}/\.linktrend/review-gate-provider-error\.json"',
-            )
-            self.assertNotRegex(
-                text,
-                r'cat\s+"\$\{CANDIDATE_DIR\}/\.linktrend/full-suite-receipt\.json"',
-            )
-            self.assertIn("extract-trusted-provider-evidence", text)
-            self.assertIn("extract-trusted-full-receipt", text)
-            self.assertIn("--default-branch", text)
-            self.assertIn("--workflow-runs-json", text)
-            self.assertIn("--workflow-jobs-json", text)
-            self.assertIn("--workflow-file-shas-json", text)
-            self.assertIn("resolve-workflow-file-shas", text)
-            self.assertIn("resolve-workflow-jobs", text)
-            self.assertIn("actions/runs?head_sha=", text)
-            self.assertIn("HOLD: workflow_runs_unreadable", text)
-            self.assertIn("HOLD: workflow_jobs_unreadable", text)
-            self.assertIn("HOLD: workflow_file_shas_unreadable", text)
-            self.assertIn("--provider-evidence-channel", text)
-            self.assertIn("--evidence-channel", text)
-            # Full Suite: fail-closed producer binding only — no unbound name-only fallback.
-            self.assertIn("full_receipt_missing_trusted_check", text)
-            self.assertIn("Fail-closed producer binding", text)
-            self.assertIn(
-                'producer-bound-artifact:${FULL_RUN_ID}:${ARTIFACT_NAME}',
-                text,
-            )
-            self.assertNotIn("FULL_RAW", text)
-            self.assertNotIn('select(.name=="Linktrend Full Suite")', text)
-            self.assertNotIn(
-                'producer-bound-checks:${HEAD_SHA}:Linktrend Full Suite',
-                text,
-            )
-            self.assertNotIn(
-                '--provenance-evidence-ref "checks:${HEAD_SHA}:Linktrend Full Suite"',
-                text,
-            )
-            self.assertNotIn(
-                "Prefer producer-bound Checks extraction (#329); else provenance-stamped Checks (#330).",
-                text,
-            )
-            # U01-R3: never overwrite receipt tree with live TREE.
-            self.assertNotIn(".gitTree=$t", text)
-            self.assertNotIn("gitTree:$t", text)
-            self.assertIn("never overwrite with live TREE", text)
-            # U01-R2: dedupe from issue bodies with fail-closed read.
-            self.assertIn("flatten-issue-bodies", text)
-            self.assertIn("founder_alert_dedupe_unreadable", text)
-            self.assertIn("--paginate --slurp", text)
-            # Slurp payloads must enter via stdin, never argv interpolation.
-            self.assertIn("--slurp-json -", text)
-            self.assertIn("--issue-bodies-json -", text)
-            self.assertIn("--markers-json -", text)
-            self.assertNotIn('--slurp-json "${', text)
-            self.assertNotIn("--slurp-json \"${", text)
-            self.assertNotIn("MARKERS_SLURP", text)
-            self.assertNotIn("ALERT_SLURP", text)
-            # Marker reads must not fail-open to empty arrays.
-            self.assertNotIn("2>/dev/null || echo '[]'", text)
-            self.assertNotIn("|| echo '[]'", text)
-            self.assertIn("flatten-comment-bodies", text)
-            self.assertIn("HOLD: infra_marker_read_failed", text)
-            self.assertIn("set -euo pipefail", text)
-            # Trust boundary: default-branch scripts; candidate is data only.
-            self.assertIn("github.event.repository.default_branch", text)
-            self.assertIn("Checkout trusted default branch only (scripts)", text)
-            self.assertNotIn("ref: ${{ github.event.check_run.head_sha }}", text)
-            # detect-findings may consume event summary/title; never execute candidate scripts.
-            self.assertIn("CHECK_DETAILS", text)
-            self.assertIn("detect-findings", text)
-            self.assertIn("CHECK_ANNOTATIONS_COUNT", text)
-            self.assertIn("--annotations-count", text)
-            self.assertIn('GATE_PY="${TRUSTED_ROOT}/scripts/gitops/linktrend_review_gate.py"', text)
-            self.assertIn('python3 "${GATE_PY}" classify', text)
-            self.assertIn("extract-trusted-provider-evidence", text)
-            self.assertIn("statuses: write", text)
-            # U01-R4: infra marker publication is fail-closed.
-            self.assertIn("infra_attempt_marker_persist_failed", text)
-            self.assertNotIn('-f body="${INFRA_MARKER}" >/dev/null || true', text)
+            self.assertIn("workflow_dispatch:", text)
+            self.assertIn("exit 1", text)
+            self.assertNotIn("check_run:", text)
+            self.assertNotIn("statuses: write", text)
+            self.assertNotIn("pull-requests: write", text)
+            self.assertNotIn("@cursor review", text)
+            self.assertNotIn("gh api", text)
+
 
     def test_pr_cannot_rewrite_classifier_or_self_approve(self) -> None:
         """Negative: PR head must not supply executable classifier scripts."""
@@ -796,16 +644,10 @@ class LinktrendReviewGateTests(unittest.TestCase):
         managed = MANAGED_WORKFLOW.read_text(encoding="utf-8")
         self.assertEqual(live, managed)
         for text in (live, managed):
-            self.assertIn("ref: ${{ github.event.repository.default_branch }}", text)
-            self.assertNotIn("ref: ${{ github.event.check_run.head_sha }}", text)
-            self.assertNotIn("ref: ${{ github.event.pull_request.head.sha }}", text)
-            self.assertNotIn("untrusted-source-data/scripts", text)
-            # Scripts execute from trusted checkout root only.
-            self.assertIn('GATE_PY="${TRUSTED_ROOT}/scripts/gitops/linktrend_review_gate.py"', text)
-            self.assertIn('python3 "${GATE_PY}" classify', text)
-            # Event summary feeds detect-findings only; classifier scripts stay default-branch.
-            self.assertIn("detect-findings", text)
-            self.assertIn("github.event.check_run.output.summary", text)
+            self.assertNotIn("actions/checkout", text)
+            self.assertNotIn("GATE_PY=", text)
+            self.assertNotIn("statuses: write", text)
+            self.assertIn("exit 1", text)
 
         # Missing / neutral / free-text provider hints never become pass.
         self.assertEqual(self._classify(missing=True).outcome, OUTCOME_UNKNOWN)
@@ -2005,28 +1847,10 @@ print("ok")
             live = WORKFLOW.read_text(encoding="utf-8")
             managed = MANAGED_WORKFLOW.read_text(encoding="utf-8")
             self.assertEqual(live, managed)
-            # Privileged write job must not check out candidate head for execution.
-            self.assertNotRegex(
-                live,
-                r"ref:\s*\$\{\{\s*github\.event\.check_run\.head_sha\s*\}\}",
-            )
-            self.assertIn("github.event.repository.default_branch", live)
-            self.assertIn('GATE_PY="${TRUSTED_ROOT}/scripts/gitops/linktrend_review_gate.py"', live)
-            self.assertIn("untrusted data path collapsed into trusted root", live)
-            self.assertIn("ignoring_candidate_provider_error_file", live)
-            self.assertIn("ignoring_candidate_full_suite_receipt_file", live)
-            self.assertIn("authenticate-provider-error", live)
-            self.assertIn("overlay-retained-full-receipt", live)
-            self.assertIn("--provenance-kind github.actions.artifact", live)
-            # Never cat candidate success-evidence files.
-            self.assertNotRegex(
-                live,
-                r'cat\s+"\$\{CANDIDATE_DIR\}/\.linktrend/review-gate-provider-error\.json"',
-            )
-            self.assertNotRegex(
-                live,
-                r'cat\s+"\$\{CANDIDATE_DIR\}/\.linktrend/full-suite-receipt\.json"',
-            )
+            self.assertNotIn("actions/checkout", live)
+            self.assertNotIn("GATE_PY=", live)
+            self.assertNotIn("statuses: write", live)
+            self.assertIn("exit 1", live)
 
             with tempfile.TemporaryDirectory() as tmp:
                 candidate = Path(tmp)

@@ -42,6 +42,6 @@
     ]
   },
   "review": {
-    "bugbot": "final-candidate-only"
+    "bugbot": "disabled"
   }
 }

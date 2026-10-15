@@ -12,6 +12,7 @@ MANAGED_FILES=(
   "branch-source-policy.yml"
   "linktrend-review-packager.yml"
   "linktrend-review-ready-publisher.yml"
+  "linktrend-review-gate.yml"
   "linktrend-development-to-staging.yml"
   "linktrend-staging-to-main.yml"
   "linktrend-integrator-merge.yml"
@@ -200,7 +201,6 @@ required = {
     "fastWorkflowName": str,
     "ciWorkflowName": str,
     "branchPolicyWorkflowName": str,
-    "bugbotCheckName": str,
 }
 for key, typ in required.items():
     if key not in cfg:
@@ -252,13 +252,8 @@ rendered = rendered.replace(
     "__LINKTREND_BRANCH_POLICY_WORKFLOW_NAME__",
     str(cfg["branchPolicyWorkflowName"]).strip(),
 )
-provider_name = str(cfg.get("bugbotProviderCheckName") or "Cursor Bugbot").strip()
-review_gate_name = str(cfg.get("reviewGateCheckName") or cfg.get("bugbotCheckName") or "Linktrend Review Gate").strip()
-if review_gate_name == "Cursor Bugbot":
-    raise SystemExit("consumer config bugbotCheckName/reviewGateCheckName must not remain Cursor Bugbot")
-rendered = rendered.replace("__LINKTREND_BUGBOT_PROVIDER_CHECK_NAME__", provider_name)
-rendered = rendered.replace("__LINKTREND_REVIEW_GATE_CHECK_NAME__", review_gate_name)
-rendered = rendered.replace("__LINKTREND_BUGBOT_CHECK_NAME__", review_gate_name)  # legacy alias -> managed gate
+# Retired review fields are tolerated as legacy data and never rendered.
+
 rendered = rendered.replace(
     "__LINKTREND_UNTRUSTED_RUNS_ON__", runner_types[runner_type]["untrusted"]
 )
@@ -382,6 +377,6 @@ info "Managed workflow sync: SUCCESS"
 info "Target: $TARGET_REPO"
 info "Synced/updated: $copied"
 info "Already matched: $unchanged"
-info "Next: complete core/checklists/BUGBOT-INHERITANCE.md for this repo"
+info "Next: verify genuine checks, exact independent review and sealed receipts; Bugbot is disabled"
 info "Next: ensure Cursor Automations exist (docs/CURSOR-AUTOMATIONS-SETUP.md)"
 exit 0

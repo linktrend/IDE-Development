@@ -19,8 +19,6 @@ on:
       - CI
       - Branch Source Policy
     types: [completed]
-  check_run:
-    types: [completed]
 
 permissions: {}
 
@@ -41,15 +39,6 @@ jobs:
         (
           github.event.workflow_run.name == 'CI' ||
           github.event.workflow_run.name == 'Branch Source Policy'
-        )
-      ) ||
-      (
-        github.event_name == 'check_run' &&
-        github.event.check_run.name == 'Cursor Bugbot' &&
-        (
-          github.event.check_run.conclusion == 'failure' ||
-          github.event.check_run.conclusion == 'success' ||
-          github.event.check_run.conclusion == 'neutral'
         )
       )
     runs-on: ubuntu-24.04-arm
@@ -73,8 +62,6 @@ jobs:
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           LINKTREND_CI_WORKFLOW_NAME: CI
           LINKTREND_BRANCH_POLICY_WORKFLOW_NAME: Branch Source Policy
-          LINKTREND_BUGBOT_PROVIDER_CHECK_NAME: Cursor Bugbot
-          LINKTREND_REVIEW_GATE_CHECK_NAME: Linktrend Review Gate
         run: |
           set -euo pipefail
           python3 scripts/gitops/repair_observer.py handle-event --event-path "$GITHUB_EVENT_PATH" --repo "$GITHUB_REPOSITORY"

@@ -59,6 +59,19 @@ def fixture_repo() -> tuple[Path, str, str, list[str]]:
     return root, base, head, tips
 
 
+def trusted_fixture(head="a"*40, tree="b"*40, repository="owner/name"):
+    from scripts.gitops.independent_review_convergence import canonical_review_bytes, review_binding
+    report = {"accepted": True, "headSha": head, "gitTree": tree, "repository": repository,
+              "paths": ["app.py"], "findings": [], "reportText": "Independent exact-candidate fixture.",
+              "reviewerActor": "fresh-native-thread", "implementerActor": "caller-thread",
+              "provenance": {"receiptId": "fresh-native-thread"}}
+    encoded = canonical_review_bytes(report)
+    expected = review_binding(report, repository=repository, head_sha=head, git_tree=tree)
+    def verifier(*, report_bytes, binding):
+        return report_bytes == encoded and binding == expected
+    return report, verifier
+
+
 class PhaseBatchLifecycleTests(unittest.TestCase):
     def test_integrator_records_exact_acceptance_then_merges_issue_tip(self) -> None:
         tmp = tempfile.TemporaryDirectory()
@@ -115,16 +128,17 @@ class PhaseBatchLifecycleTests(unittest.TestCase):
         identity = CandidateIdentity("owner/name", head, git(root, "rev-parse", "HEAD^{tree}"), {}, "full")
         record = integrator.seal(head_sha=head, candidate_identity=identity)
         self.assertEqual((record["sealed"], record["sealRevision"]), (True, 1))
-        self.assertEqual(phase_bugbot_request_allowed(record, live_head_sha=head), (False, "fast_gate_not_passed_for_current_seal"))
+        self.assertEqual(phase_bugbot_request_allowed(record, live_head_sha=head), (False, "bugbot_disabled"))
         record = integrator.update_gate("fast", status="passed", sha=head)
-        self.assertEqual(phase_bugbot_request_allowed(record, live_head_sha=head), (True, "current_sealed_fast_pass"))
-        record = integrator.update_gate("bugbot", status="requested", sha=head)
-        self.assertEqual(phase_bugbot_request_allowed(record, live_head_sha=head), (False, "bugbot_already_requested"))
-        integrator.update_gate("bugbot", status="passed", sha=head)
+        self.assertEqual(phase_bugbot_request_allowed(record, live_head_sha=head), (False, "bugbot_disabled"))
+        with self.assertRaisesRegex(PhaseLifecycleError, "invalid_gate"):
+            integrator.update_gate("bugbot", status="passed", sha=head)
         integrator.update_gate("full", status="not-required", sha=head)
         final = integrator.load()
         self.assertIsNotNone(final)
-        verdict = phase_merge_eligibility(final or {}, live_head_sha=head)
+        report, verifier = trusted_fixture(head, git(root, "rev-parse", "HEAD^{tree}"))
+        final["independentNarrowReview"] = report
+        verdict = phase_merge_eligibility(final or {}, live_head_sha=head, trusted_review_verifier=verifier)
         self.assertTrue(verdict.eligible, verdict.detail)
 
     def test_negative_batch_validation_and_seal_rules(self) -> None:

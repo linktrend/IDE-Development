@@ -73,8 +73,8 @@ assert 'checks_json="${RUNNER_TEMP}/linktrend-reconciled-checks.json"' in full
 assert '--checks-json "${checks_json}"' in full
 assert "full-suite-receipt.json" in full
 assert "retention-days: 30" in full
-assert "@cursor review" in full
-assert "linktrend-bugbot-requested" in full
+assert "@cursor review" not in full
+assert "linktrend-bugbot-requested" not in full
 assert "phase-delivery-record.json" not in full, "a tracked record cannot seal its own PR head"
 for required in (
     "full_suite_stale_seal",
@@ -98,7 +98,7 @@ assert 'json.load(handle)' in full
 assert 'python3 - "${history}"' not in full
 assert 'if executions > 2:' in full
 assert 'Every paid execution counts' in full
-assert 'pull-requests: write' not in full.split('  bugbot:', 1)[0]
+assert 'pull-requests: write' not in full
 assert 'candidate/' not in full
 assert "run_delivery_profile.py full" in full
 assert 'GITHUB_REPOSITORY" = "linktrend/IDE-Development' not in full

@@ -266,13 +266,10 @@ def require_no_raw_bugbot_required(contexts: Sequence[str]) -> None:
 
 
 def require_review_gate_on_development(contexts: Sequence[str]) -> None:
-    names = {_norm(c) for c in contexts}
-    require_no_raw_bugbot_required(list(names))
-    if REVIEW_GATE_CONTEXT not in names:
-        raise ReviewGateError(
-            "review_gate_missing",
-            f"development required checks must include {REVIEW_GATE_CONTEXT!r}",
-        )
+    # Historical function name: the obsolete context must now be absent.
+    require_no_raw_bugbot_required(contexts)
+    if REVIEW_GATE_CONTEXT in {_norm(c) for c in contexts}:
+        raise ReviewGateError("review_gate_retired", "remove the obsolete Review Gate requirement through approved migration")
 
 
 def reject_undocumented_task_hold(
@@ -1761,11 +1758,13 @@ def gate_commit_status(classification: Classification) -> dict[str, str]:
 
 
 def migrated_required_contexts(contexts: Sequence[str]) -> list[str]:
-    """Replace raw Bugbot required contexts with the managed review gate."""
+    """Remove retired review contexts; never fabricate a replacement success."""
     out: list[str] = []
     seen: set[str] = set()
     for raw in contexts:
-        name = REVIEW_GATE_CONTEXT if _norm(raw) == RAW_BUGBOT_CONTEXT else _norm(raw)
+        name = _norm(raw)
+        if name in {RAW_BUGBOT_CONTEXT, REVIEW_GATE_CONTEXT}:
+            continue
         if not name or name in seen:
             continue
         seen.add(name)

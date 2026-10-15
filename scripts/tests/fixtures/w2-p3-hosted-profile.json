@@ -10,13 +10,35 @@
     "maxSealedCandidates": 2
   },
   "profiles": {
-    "fast": {"commands": [["bash", "scripts/tests/test-w2-p3-regression.sh"]], "timeoutMinutes": 5},
-    "full": {"commands": [], "required": true},
-    "release": {"commands": []}
+    "fast": {
+      "commands": [
+        [
+          "bash",
+          "scripts/tests/test-w2-p3-regression.sh"
+        ]
+      ],
+      "timeoutMinutes": 5
+    },
+    "full": {
+      "commands": [],
+      "required": true
+    },
+    "release": {
+      "commands": []
+    }
   },
   "promotion": {
     "reuseExactReceipt": true,
-    "identity": ["repository", "gitTree", "dependencyDigest", "profileDigest", "workflowDigest"]
+    "identity": [
+      "repository",
+      "headCommit",
+      "gitTree",
+      "dependencyDigest",
+      "profileDigest",
+      "workflowDigest"
+    ]
   },
-  "review": {"bugbot": "final-candidate-only"}
+  "review": {
+    "bugbot": "disabled"
+  }
 }
