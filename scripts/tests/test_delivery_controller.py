@@ -119,7 +119,8 @@ class DeliveryControllerTests(unittest.TestCase):
         }
         self.github = controller.MemoryGitHub(repository="owner/name")
         self.github.prs[11] = dict(self.pr)
-        self.github.refs["development"] = _sha(8)
+        self.github.refs["development"] = self.head
+        self.github.commit_trees[self.head] = self.tree
         self.github.refs["staging"] = _sha(7)
         self.github.refs["main"] = _sha(6)
 
@@ -265,68 +266,44 @@ class DeliveryControllerTests(unittest.TestCase):
                 candidate_identity=self.identity,
             )
 
-    def test_staging_reuses_exact_receipt_without_full_rerun(self) -> None:
-        result = controller.promote_to_staging(
-            github=self.github,
-            repository="owner/name",
-            development_sha=self.head,
-            staging_sha=_sha(7),
-            candidate_sha=self.head,
-            candidate_tree=self.tree,
-            receipt=self.receipt,
-            candidate_identity=self.identity,
-            release_gate={"status": "passed", "testProfile": "release", "fullSuiteInvoked": False},
-            role="operator",
-        )
-        self.assertEqual(result["status"], "merged")
-        self.assertEqual(result["stage"], "staging")
-        self.assertTrue(result["receiptReused"])
-        self.assertFalse(result["fullSuiteRerun"])
-        marker = json.loads(
-            re.search(r"<!-- linktrend-promote:\s*(\{.*?\})\s*-->", self.github.prs[1]["body"]).group(1)
-        )
-        self.assertEqual(marker["fullRunId"], self.receipt["workflowRunId"])
-        with self.assertRaisesRegex(controller.ControllerError, "full_suite_reentered"):
-            controller.promote_to_staging(
-                github=self.github,
-                repository="owner/name",
-                development_sha=self.head,
-                staging_sha=_sha(7),
-                candidate_sha=self.head,
-                candidate_tree=self.tree,
-                receipt=self.receipt,
-                candidate_identity=self.identity,
-                release_gate={"status": "passed", "testProfile": "release"},
-                role="operator",
-                full_suite_invoked=True,
-            )
+    def test_retained_staging_route_never_mutates(self) -> None:
+        refs_before = dict(self.github.refs)
+        for full_requested in (False, True):
+            with self.subTest(full_requested=full_requested), self.assertRaisesRegex(
+                controller.ControllerError, "staging_promotion_disabled"
+            ):
+                controller.promote_to_staging(
+                    github=self.github, repository="owner/name", development_sha=self.head,
+                    staging_sha=_sha(7), candidate_sha=self.head, candidate_tree=self.tree,
+                    receipt=self.receipt, candidate_identity=self.identity,
+                    release_gate={"status": "passed", "testProfile": "release"},
+                    role="operator", full_suite_invoked=full_requested,
+                )
+        self.assertEqual(self.github.refs, refs_before)
+        self.assertEqual(self.github.merges, [])
+        self.assertEqual(list(self.github.prs), [11])
 
-    def test_staged_rollout_uses_configured_stage_names_on_critical_path(self) -> None:
-        rollout = controller.StagedRolloutConfig.from_mapping(
-            {
-                "phaseBranchPrefix": "candidate/",
-                "developmentBranch": "integrated",
-                "stagingBranch": "canary",
-                "mainBranch": "production",
-                "requiredChecks": ["System Fast", "System Full"],
-            }
-        )
-        result = controller.promote_to_staging(
-            github=self.github,
-            repository="owner/name",
-            development_sha=self.head,
-            staging_sha=_sha(7),
-            candidate_sha=self.head,
-            candidate_tree=self.tree,
-            receipt=self.receipt,
+    def test_direct_rollout_uses_configured_branch_names(self) -> None:
+        rollout = controller.StagedRolloutConfig.from_mapping({
+            "phaseBranchPrefix": "candidate/", "developmentBranch": "integrated",
+            "stagingBranch": "retained-canary", "mainBranch": "production",
+            "requiredChecks": ["System Fast", "System Full"],
+        })
+        self.github.refs.update(integrated=self.head, production=_sha(6))
+        result = controller.prepare_main_promotion(
+            github=self.github, repository="owner/name", development_sha=self.head,
+            main_sha=_sha(6), candidate_sha=self.head, receipt=self.receipt,
             candidate_identity=self.identity,
-            release_gate={"status": "passed", "testProfile": "release", "fullSuiteInvoked": False},
-            role="operator",
-            rollout=rollout,
+            release_gate={"status": "passed", "testProfile": "release"},
+            role="program-lead", rollout=rollout,
         )
-        self.assertEqual(result["stage"], "canary")
-        self.assertEqual(result["promoteBranch"], f"promote/canary/{self.head[:12]}")
-        self.assertEqual(self.github.prs[1]["base"], "canary")
+        marker = json.loads(re.search(
+            r"<!-- linktrend-promote:\s*(\{.*?\})\s*-->", self.github.prs[1]["body"]
+        ).group(1))
+        self.assertEqual(result["stage"], "production")
+        self.assertEqual(marker["sourceBranch"], "integrated")
+        self.assertEqual(self.github.prs[1]["base"], "production")
+        self.assertNotIn("retained-canary", self.github.refs)
 
     def test_staged_rollout_rejects_duplicate_stage_identity(self) -> None:
         with self.assertRaisesRegex(ValueError, "duplicate_rollout_branch"):
@@ -335,7 +312,7 @@ class DeliveryControllerTests(unittest.TestCase):
             )
 
     def test_changed_staging_content_is_rejected(self) -> None:
-        with self.assertRaisesRegex(controller.ControllerError, "changed_staging_content"):
+        with self.assertRaisesRegex(controller.ControllerError, "staging_promotion_disabled"):
             controller.promote_to_staging(
                 github=self.github,
                 repository="owner/name",
@@ -353,13 +330,13 @@ class DeliveryControllerTests(unittest.TestCase):
         prepared = controller.prepare_main_promotion(
             github=self.github,
             repository="owner/name",
-            staging_sha=self.head,
+            development_sha=self.head,
             main_sha=_sha(6),
             candidate_sha=self.head,
             receipt=self.receipt,
             candidate_identity=self.identity,
             release_gate={"status": "passed", "testProfile": "release"},
-            role="operator",
+            role="program-lead",
         )
         self.assertEqual(prepared["status"], "waiting_founder_approval")
         self.assertFalse(prepared["founderApprovalInferred"])
@@ -377,7 +354,7 @@ class DeliveryControllerTests(unittest.TestCase):
                 base_sha=_sha(6),
                 approval={},
                 receipt=self.receipt,
-                role="operator",
+                role="program-lead",
             )
 
     def test_promotion_rejects_missing_or_invalid_full_run_id(self) -> None:
@@ -396,13 +373,13 @@ class DeliveryControllerTests(unittest.TestCase):
         prepared = controller.prepare_main_promotion(
             github=self.github,
             repository="owner/name",
-            staging_sha=self.head,
+            development_sha=self.head,
             main_sha=_sha(6),
             candidate_sha=self.head,
             receipt=self.receipt,
             candidate_identity=self.identity,
             release_gate={"status": "passed", "testProfile": "release"},
-            role="operator",
+            role="program-lead",
         )
         with self.assertRaisesRegex(controller.ControllerError, "founder_approval_ambiguous"):
             controller.complete_main_promotion(
@@ -421,7 +398,7 @@ class DeliveryControllerTests(unittest.TestCase):
                     "receiptDigest": receipts.compute_receipt_digest(self.receipt),
                 },
                 receipt=self.receipt,
-                role="operator",
+                role="program-lead",
             )
         with self.assertRaisesRegex(controller.ControllerError, "stale_"):
             controller.complete_main_promotion(
@@ -439,7 +416,7 @@ class DeliveryControllerTests(unittest.TestCase):
                     "receiptDigest": receipts.compute_receipt_digest(self.receipt),
                 },
                 receipt=self.receipt,
-                role="operator",
+                role="program-lead",
             )
 
     def test_protected_merge_rejection_stops_without_direct_push(self) -> None:
@@ -534,7 +511,7 @@ class DeliveryControllerTests(unittest.TestCase):
         prepared = controller.prepare_main_promotion(
             github=self.github,
             repository="owner/name",
-            staging_sha=self.head,
+            development_sha=self.head,
             main_sha=_sha(6),
             candidate_sha=self.head,
             receipt=self.receipt,
@@ -595,8 +572,8 @@ class DeliveryControllerTests(unittest.TestCase):
         with self.assertRaisesRegex(controller.ControllerError, "direct_push_forbidden"):
             live.push_protected(repository="owner/name", branch="development", sha=self.head)
 
-    def test_staging_and_main_require_exact_source_sha_equality(self) -> None:
-        with self.assertRaisesRegex(controller.ControllerError, "promotion_source_mismatch"):
+    def test_staging_disabled_and_main_requires_exact_source_sha(self) -> None:
+        with self.assertRaisesRegex(controller.ControllerError, "staging_promotion_disabled"):
             controller.promote_to_staging(
                 github=self.github,
                 repository="owner/name",
@@ -613,13 +590,13 @@ class DeliveryControllerTests(unittest.TestCase):
             controller.prepare_main_promotion(
                 github=self.github,
                 repository="owner/name",
-                staging_sha=self.head,
+                development_sha=self.head,
                 main_sha=_sha(6),
                 candidate_sha=_sha(88),
                 receipt=self.receipt,
                 candidate_identity=self.identity,
                 release_gate={"status": "passed", "testProfile": "release"},
-                role="operator",
+                role="program-lead",
             )
         with self.assertRaisesRegex(controller.ControllerError, "promotion_source_mismatch"):
             controller.complete_main_promotion(

@@ -54,6 +54,7 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="operation", required=True)
 
     identity = commands.add_parser("identity", help="compute a candidate identity from a Git checkout")
+    identity.add_argument("--source-branch", help="protected source branch for a retained same-tree transition")
     identity.add_argument("--repo", required=True, type=Path, help="Git checkout path")
     identity.add_argument(
         "--dependency", "--dependency-file", dest="dependencies", action="append", default=[],
@@ -68,6 +69,8 @@ def _parser() -> argparse.ArgumentParser:
     write.add_argument("--output", required=True, type=Path)
 
     verify = commands.add_parser("verify", help="verify a receipt against a fresh candidate identity")
+    verify.add_argument("--source-branch", help="protected source branch for a retained same-tree transition")
+    verify.add_argument("--transition-receipt", type=Path)
     verify.add_argument("--receipt", required=True, type=Path)
     verify.add_argument("--identity", type=Path, help="precomputed candidate identity JSON")
     verify.add_argument("--repo", type=Path, help="Git checkout path when --identity is omitted")
@@ -96,6 +99,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.profile,
                     profile_files=resolved_profile_files(args.repo, args.profile_file),
                     workflow_files=args.workflow_file or None,
+                    source_branch=args.source_branch,
                 )
             )
             return 0
@@ -116,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.profile,
                     profile_files=resolved_profile_files(args.repo, args.profile_file),
                     workflow_files=args.workflow_file or None,
+                    source_branch=args.source_branch,
                 )
             verdict = verify_receipt(
                 receipt,
@@ -124,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
                 workflow_run_id=args.workflow_run_id,
                 workflow_run_attempt=args.workflow_run_attempt,
                 workflow_head_commit=args.workflow_head_commit,
+                transition_receipt=load_json(args.transition_receipt) if args.transition_receipt else None,
             )
             _json_output(
                 {

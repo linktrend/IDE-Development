@@ -696,16 +696,16 @@ cat >"$BODY" <<'EOF'
 ## Main promote package (awaiting Principal Approve)
 
 Approve must bind:
-- expected_sha (staging source) = `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
+- expected_sha (development source) = `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
 - expected_main_sha (prior main target) = `bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb`
-- expected_promote_head = `cccccccccccccccccccccccccccccccccccccccc`
+- expected_promote_head = `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
 
-<!-- linktrend-promote: {"schemaVersion":1,"stage":"main","sourceBranch":"staging","targetBranch":"main","sourceSha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","targetSha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","candidateHead":"cccccccccccccccccccccccccccccccccccccccc","promoteBranch":"promote/main/aaaaaaaaaaaa"} -->
+<!-- linktrend-promote: {"schemaVersion":1,"stage":"main","sourceBranch":"development","targetBranch":"main","sourceSha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","targetSha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","candidateHead":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","promoteBranch":"promote/main/aaaaaaaaaaaa"} -->
 EOF
 CHECKS="$TMP/main-approve-checks.json"
 cat >"$CHECKS" <<'EOF'
 [
-  {"name":"Verify IDE Development","state":"SUCCESS"},
+  {"name":"Linktrend Receipt Gate","state":"SUCCESS"},
   {"name":"Linktrend Branch Source Policy","state":"SUCCESS"}
 ]
 EOF
@@ -713,9 +713,9 @@ disc="$(python3 "$ROOT/scripts/gitops/main_approve_package_discover.py" \
   --from-body-file "$BODY" \
   --repository linktrend/IDE-Development \
   --pr-number 99 \
-  --head-sha cccccccccccccccccccccccccccccccccccccccc \
+  --head-sha aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   --head-branch promote/main/aaaaaaaaaaaa \
-  --staging-tip aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  --development-tip aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   --main-tip bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
   --checks-json "$CHECKS" \
   --now 2026-08-03T10:00:00+08:00 \
@@ -738,17 +738,17 @@ assert pkg.get("expired") is False, pkg
 it=d["items"][0]
 assert it["repository"]=="linktrend/IDE-Development"
 assert it["promotionPrNumber"]==99
-assert it["stagingSha"]=="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+assert it["developmentSha"]=="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 assert it["priorMainSha"]=="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-assert it["promotionHeadSha"]=="cccccccccccccccccccccccccccccccccccccccc"
+assert it["promotionHeadSha"]=="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 assert it["gateResult"]=="Clear"
 assert it["gateEvidence"]["requiredChecks"]
 assert "aaaaaaaa" not in it["plainDescription"]
-assert it["workflowInputs"]["expected_main_sha"].startswith("bbb")
+assert it["controllerInputs"]["base_sha"].startswith("bbb")
 assert re.search(r"\b[0-9a-f]{7,40}\b", it["plainDescription"], re.I) is None
 # Lisa-compatible package.items shape
 lit=pkg["items"][0]
-for k in ("index","plainDescription","repository","promotionPrNumber","stagingSha","priorMainSha","promotionHeadSha","gateResult"):
+for k in ("index","plainDescription","repository","promotionPrNumber","developmentSha","priorMainSha","promotionHeadSha","gateResult"):
     assert k in lit, lit
 # Schema fixture structural check (stdlib only)
 schema=json.loads(Path("docs/contracts/fixtures/lisa-main-approve-package.schema.json").read_text())
@@ -764,7 +764,7 @@ python3 "$ROOT/scripts/gitops/main_approve_package_discover.py" \
   --pr-number 99 \
   --head-sha dddddddddddddddddddddddddddddddddddddddd \
   --head-branch promote/main/aaaaaaaaaaaa \
-  --staging-tip aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  --development-tip aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   --main-tip bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
   --checks-json "$CHECKS" \
   --now 2026-08-03T10:00:00+08:00 >/tmp/main-approve-drift.out 2>/tmp/main-approve-drift.err

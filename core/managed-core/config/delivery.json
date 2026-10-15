@@ -40,7 +40,7 @@
     ]
   },
   "review": {
-    "bugbot": "final-candidate-only"
+    "bugbot": "disabled"
   },
   "amendment": "V25_BOOTSTRAP_LEAN",
   "issueCheckpoint": {

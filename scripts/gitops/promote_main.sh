@@ -1,8 +1,21 @@
 #!/usr/bin/env bash
-# Promote staging → main via temporary promote/main/* branch + PR.
-# MODE=package|approve-merge|reevaluate
-# approve-merge REQUIRES EXPECTED_STAGING_SHA, EXPECTED_PROMOTE_HEAD, EXPECTED_MAIN_SHA (prior main tip).
+# Promote development → main via temporary promote/main/* branch + PR.
+# MODE=package|reevaluate; Main merge authority belongs to delivery_controller.py complete-main.
 set -euo pipefail
+MODE="${MODE:-package}"
+case "${MODE}" in
+  package|reevaluate) ;;
+  approve-merge)
+    echo "FAIL: shell approve-merge is disabled; use delivery_controller.py complete-main with exact Principal approval JSON" >&2
+    exit 1
+    ;;
+  *) echo "FAIL: unsupported main promotion MODE=${MODE}" >&2; exit 1 ;;
+esac
+# This is an operational lead lease, not a separate credential or identity.
+case "${LINKTREND_CONTROLLER_ROLE:-}" in
+  program-lead|founder) ;;
+  *) echo "FAIL: designated Program lead role required for main promotion" >&2; exit 1 ;;
+esac
 # Note: gh 403/429 → simple retry 2x with sleep (gh_retry).
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
@@ -14,13 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=work-branch-allowlist.sh
 source "${SCRIPT_DIR}/work-branch-allowlist.sh"
 
-MODE="${MODE:-package}"
 MAIN_PROMOTION_MODE="${MAIN_PROMOTION_MODE:-principal-approval}"
-RELEASE_GATE_CHECKS="${RELEASE_GATE_CHECKS:-Verify IDE Development,Linktrend Branch Source Policy}"
-TIMEZONE_LABEL="${TIMEZONE_LABEL:-Asia/Taipei}"
-EXPECTED_STAGING_SHA="${EXPECTED_STAGING_SHA:-}"
-EXPECTED_PROMOTE_HEAD="${EXPECTED_PROMOTE_HEAD:-}"
-EXPECTED_MAIN_SHA="${EXPECTED_MAIN_SHA:-}"
 PROMOTE_PR_NUMBER="${PROMOTE_PR_NUMBER:-}"
 REPO="${GH_REPO:-${GITHUB_REPOSITORY:-}}"
 TOKEN="${AUTOMATION_TOKEN:-}"
@@ -30,6 +37,7 @@ OUTCOME="${OUTCOME_FILE:-gitops-outcome.json}"
 RECEIPT_GATE="${SCRIPT_DIR}/promotion_receipt_gate.py"
 RECEIPT_PATH="${RECEIPT_PATH:-${LINKTREND_RECEIPT_PATH:-}}"
 RECEIPT_DEPENDENCY_FILES="${RECEIPT_DEPENDENCY_FILES:-}"
+TRANSITION_RECEIPT_PATH="${LINKTREND_TRANSITION_RECEIPT_PATH:-}"
 RECEIPT_IDENTITY_ARGS=()
 RECEIPT_PROFILE_ARGS=()
 COORDINATOR_RECEIPT_ROOT="${LINKTREND_COORDINATOR_RECEIPT_ROOT:-${HOME}/.linktrend/ide-coordinator/receipts}"
@@ -150,13 +158,24 @@ verify_receipt_before_mutation() {
   fi
   receipt_identity_args
   receipt_profile_args "${candidate_repo}"
+  local transition_args=()
+  [ -z "${TRANSITION_RECEIPT_PATH}" ] || transition_args=(--transition-receipt "${TRANSITION_RECEIPT_PATH}")
+  local identity_file
+  identity_file="$(mktemp "${TMPDIR:-/tmp}/main-source-identity.XXXXXX.json")"
+  python3 "${SCRIPT_DIR}/gate_receipt.py" identity --repo "${candidate_repo}" --profile "${profile}" --source-branch development \
+    ${RECEIPT_PROFILE_ARGS[@]+"${RECEIPT_PROFILE_ARGS[@]}"} \
+    ${RECEIPT_IDENTITY_ARGS[@]+"${RECEIPT_IDENTITY_ARGS[@]}"} >"${identity_file}"
+  local verify_result=0
   python3 "${RECEIPT_GATE}" verify \
     --receipt "${RECEIPT_PATH}" \
-    --repo "${candidate_repo}" \
+    --identity "${identity_file}" \
     --profile "${profile}" \
     --gate full-gate \
     ${RECEIPT_PROFILE_ARGS[@]+"${RECEIPT_PROFILE_ARGS[@]}"} \
-    ${RECEIPT_IDENTITY_ARGS[@]+"${RECEIPT_IDENTITY_ARGS[@]}"}
+    ${RECEIPT_IDENTITY_ARGS[@]+"${RECEIPT_IDENTITY_ARGS[@]}"} \
+    ${transition_args[@]+"${transition_args[@]}"} || verify_result=$?
+  rm -f "${identity_file}"
+  return "${verify_result}"
 }
 
 if [ -z "${TOKEN}" ] || [ "${AUTOMATION_TOKEN_SOURCE:-}" != "github_token" ]; then
@@ -165,33 +184,31 @@ if [ -z "${TOKEN}" ] || [ "${AUTOMATION_TOKEN_SOURCE:-}" != "github_token" ]; th
   exit 0
 fi
 
-git fetch origin main staging
+git fetch origin main development
 
-STG_SHA="$(git rev-parse origin/staging)"
+DEV_SHA="$(git rev-parse origin/development)"
 MAIN_SHA="$(git rev-parse origin/main)"
 
 marker_json() {
-  python3 -c 'import json,sys; print(json.dumps({
+  python3 -c 'import json,sys
+value = {
     "schemaVersion": 1,
     "stage": "main",
-    "sourceBranch": "staging",
+    "sourceBranch": "development",
     "targetBranch": "main",
     "sourceSha": sys.argv[1],
     "targetSha": sys.argv[2],
     "candidateHead": sys.argv[3],
     "promoteBranch": sys.argv[4],
     "fullRunId": int(sys.argv[5]),
-  }, separators=(",", ":")))' "$1" "$2" "$3" "$4" "$5"
-}
-
-extract_marker() {
-  python3 -c '
-import json,re,sys
-body=sys.stdin.read()
-m=re.search(r"<!-- linktrend-promote:\s*(\{.*?\})\s*-->", body, re.S)
-if not m: raise SystemExit(1)
-print(m.group(1))
-' <<<"$1"
+  }
+if sys.argv[6]:
+    with open(sys.argv[6], encoding="utf-8") as handle:
+        value["transitionReceipt"] = json.load(handle)
+    value["transitionReceiptDigest"] = value["transitionReceipt"]["receiptDigest"]
+with open(sys.argv[7], encoding="utf-8") as handle:
+    value["candidateIdentity"] = json.load(handle)
+print(json.dumps(value, separators=(",", ":")))' "$1" "$2" "$3" "$4" "$5" "${TRANSITION_RECEIPT_PATH}" "${RECEIPT_IDENTITY_FILE}"
 }
 
 if [ "${MODE}" = "reevaluate" ]; then
@@ -199,22 +216,22 @@ if [ "${MODE}" = "reevaluate" ]; then
     write_out "failed" "reevaluate requires PROMOTE_PR_NUMBER"
     exit 1
   fi
-  write_out "waiting" "main reevaluate observes PR #${PROMOTE_PR_NUMBER}; merge requires approve-merge"
+  write_out "waiting" "main reevaluate observes PR #${PROMOTE_PR_NUMBER}; merge requires delivery_controller.py complete-main with exact Principal approval JSON"
   exit 0
 fi
 
 if [ "${MODE}" = "package" ]; then
-  if git merge-base --is-ancestor origin/staging origin/main; then
-    write_out "skipped" "staging already in main"
+  if git merge-base --is-ancestor origin/development origin/main; then
+    write_out "skipped" "development already in main"
     exit 0
   fi
-  SHORT="$(echo "${STG_SHA}" | cut -c1-12)"
+  SHORT="$(echo "${DEV_SHA}" | cut -c1-12)"
   PROMOTE_BRANCH="promote/main/${SHORT}"
 
   existing_json="$(gh_retry gh pr list --base main --state open \
     --json number,body,headRefName,headRefOid,baseRefName,state,isCrossRepository,headRepository)"
   reuse_json="$(printf '%s\n' "${existing_json}" | python3 "${SCRIPT_DIR}/main_approve_package_reuse.py" \
-    --expected-source "${STG_SHA}" \
+    --expected-source "${DEV_SHA}" \
     --expected-target "${MAIN_SHA}" \
     --expected-branch "${PROMOTE_BRANCH}" \
     --repository "${REPO}")"
@@ -229,9 +246,9 @@ if [ "${MODE}" = "package" ]; then
     python3 "${SCRIPT_DIR}/repair_task.py" upsert \
       --repo "${REPO}" --failure-type promotion_conflict \
       --stage main \
-      --source-branch staging --target-branch main \
-      --branch "staging->main" \
-      --head-sha "${STG_SHA}" --base-sha "${MAIN_SHA}" \
+      --source-branch development --target-branch main \
+      --branch "development->main" \
+      --head-sha "${DEV_SHA}" --base-sha "${MAIN_SHA}" \
       --pr "${reuse_pr:-0}" --status conflict_blocked \
       --next-action "Existing main promote package invalid (${reuse_reason}); close/repair and repackage; do not silently reuse or overwrite." \
       >/dev/null || true
@@ -248,22 +265,13 @@ if [ "${MODE}" = "package" ]; then
     rm -f "${RECEIPT_IDENTITY_FILE}"
   }
   trap cleanup EXIT
-  git worktree add --detach "${WT}" origin/main >/dev/null
-  git -C "${WT}" checkout -B "${PROMOTE_BRANCH}" >/dev/null
-  if ! git -C "${WT}" merge --no-ff origin/staging -m "chore(promote): merge staging ${SHORT} into main candidate"; then
-    git -C "${WT}" merge --abort 2>/dev/null || true
-    python3 "${SCRIPT_DIR}/repair_task.py" upsert \
-      --repo "${REPO}" --failure-type promotion_conflict \
-      --stage main \
-      --source-branch staging --target-branch main \
-      --branch "staging->main" \
-      --head-sha "${STG_SHA}" --base-sha "${MAIN_SHA}" \
-      --status conflict_blocked \
-      --next-action "Repair promote/main/* from main@${MAIN_SHA}." \
-      >/dev/null || true
-    write_out "blocked" "conflict building main candidate"
+  # Preserve the exact accepted Development head; a synthetic merge head
+  # would invalidate headCommit receipt identity even for an equal tree.
+  if ! git merge-base --is-ancestor origin/main origin/development; then
+    write_out "blocked" "main is not an ancestor of accepted Development; integrate normally and obtain exact evidence first"
     exit 0
   fi
+  git worktree add --detach "${WT}" "${DEV_SHA}" >/dev/null
   CANDIDATE="$(git -C "${WT}" rev-parse HEAD)"
   CANDIDATE_TREE="$(git -C "${WT}" rev-parse HEAD^{tree})"
   if [ -z "${RECEIPT_PATH}" ]; then
@@ -272,20 +280,18 @@ if [ "${MODE}" = "package" ]; then
 receipt_identity_args
 receipt_profile_args "${WT}"
 python3 "${SCRIPT_DIR}/gate_receipt.py" identity \
-  --repo "${WT}" --profile full \
+  --repo "${WT}" --profile full --source-branch development \
   ${RECEIPT_PROFILE_ARGS[@]+"${RECEIPT_PROFILE_ARGS[@]}"} \
   ${RECEIPT_IDENTITY_ARGS[@]+"${RECEIPT_IDENTITY_ARGS[@]}"} >"${RECEIPT_IDENTITY_FILE}"
   verify_receipt_before_mutation "${WT}" full || exit 0
   git -C "${WT}" push -u origin "HEAD:refs/heads/${PROMOTE_BRANCH}"
   FULL_RUN_ID="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["workflowRunId"])' "${RECEIPT_PATH}")"
-  MARKER="$(marker_json "${STG_SHA}" "${MAIN_SHA}" "${CANDIDATE}" "${PROMOTE_BRANCH}" "${FULL_RUN_ID}")"
-  RECEIPT_DIGEST="$(python3 - "${RECEIPT_PATH}" <<'PY'
-import hashlib
-import json
+  MARKER="$(marker_json "${DEV_SHA}" "${MAIN_SHA}" "${CANDIDATE}" "${PROMOTE_BRANCH}" "${FULL_RUN_ID}")"
+  RECEIPT_DIGEST="$(python3 - "${RECEIPT_PATH}" "${SCRIPT_DIR}" <<'PY'
 import sys
-value = json.loads(open(sys.argv[1], encoding="utf-8").read())
-payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-print("sha256:" + hashlib.sha256(payload).hexdigest())
+sys.path.insert(0, sys.argv[2])
+from coordinator.receipts import compute_receipt_digest, load_json
+print(compute_receipt_digest(load_json(sys.argv[1])))
 PY
 )"
   MARKER="$(echo "${MARKER}" | jq --arg digest "${RECEIPT_DIGEST}" --arg mode "${MAIN_PROMOTION_MODE}" '. + {receiptDigest:$digest,approvalMode:$mode}')"
@@ -293,7 +299,7 @@ PY
 ## Main promote package (awaiting Principal Approve)
 
 Approve must bind:
-- expected_sha (staging source) = \`${STG_SHA}\`
+- expected_sha (development source) = \`${DEV_SHA}\`
 - expected_main_sha (prior main target) = \`${MAIN_SHA}\`
 - expected_promote_head = \`${CANDIDATE}\`
 
@@ -301,7 +307,7 @@ Approve must bind:
 EOF
 )"
   URL="$(gh_retry gh pr create --base main --head "${PROMOTE_BRANCH}" \
-    --title "chore(promote): staging → main (awaiting Approve ${SHORT})" \
+    --title "chore(promote): development → main (awaiting Approve ${SHORT})" \
     --body "${BODY}")"
   PR="$(gh_retry gh pr view "${URL}" --json number --jq .number)"
   write_out "packaged" "opened main promote PR #${PR} head ${CANDIDATE}"
@@ -309,147 +315,3 @@ EOF
   [ "$(git rev-parse HEAD)" = "${START_SHA}" ]
   exit 0
 fi
-
-if [ "${MODE}" != "approve-merge" ]; then
-  write_out "failed" "unknown MODE=${MODE}"
-  exit 1
-fi
-
-if [ -z "${EXPECTED_STAGING_SHA}" ] || [ -z "${EXPECTED_PROMOTE_HEAD}" ] || [ -z "${EXPECTED_MAIN_SHA}" ]; then
-  write_out "failed" "approve-merge requires both EXPECTED_STAGING_SHA and EXPECTED_PROMOTE_HEAD plus EXPECTED_MAIN_SHA"
-  exit 1
-fi
-
-if [ "${EXPECTED_STAGING_SHA}" != "${STG_SHA}" ]; then
-  write_out "failed" "expected staging ${EXPECTED_STAGING_SHA} != tip ${STG_SHA}"
-  exit 1
-fi
-if [ "${EXPECTED_MAIN_SHA}" != "${MAIN_SHA}" ]; then
-  write_out "failed" "expected main target ${EXPECTED_MAIN_SHA} != tip ${MAIN_SHA} (target advanced)"
-  exit 1
-fi
-
-if [ -z "${PROMOTE_PR_NUMBER}" ]; then
-  # locate by marker
-  PROMOTE_PR_NUMBER="$(gh pr list --base main --state open --json number,body \
-    | python3 -c '
-import json,re,sys
-stg,main=sys.argv[1],sys.argv[2]
-for r in json.load(sys.stdin):
-    m=re.search(r"<!-- linktrend-promote:\s*(\{.*?\})\s*-->", r.get("body") or "", re.S)
-    if not m: continue
-    meta=json.loads(m.group(1))
-    if meta.get("sourceSha")==stg and meta.get("targetSha")==main:
-        print(r["number"]); break
-' "${STG_SHA}" "${MAIN_SHA}" || true)"
-fi
-if [ -z "${PROMOTE_PR_NUMBER}" ]; then
-  write_out "failed" "no open main promote PR for bound SHAs"
-  exit 1
-fi
-
-meta="$(gh pr view "${PROMOTE_PR_NUMBER}" --json number,baseRefName,headRefName,headRefOid,body,state)"
-echo "${meta}" | jq -e '.state=="OPEN" and .baseRefName=="main"' >/dev/null \
-  || { write_out "failed" "PR not open into main"; exit 1; }
-head_branch="$(echo "${meta}" | jq -r .headRefName)"
-head_sha="$(echo "${meta}" | jq -r .headRefOid)"
-body="$(echo "${meta}" | jq -r .body)"
-is_main_promote_branch "${head_branch}" || { write_out "failed" "not promote/main/*"; exit 1; }
-
-if [ "${head_sha}" != "${EXPECTED_PROMOTE_HEAD}" ]; then
-  write_out "failed" "promote head ${head_sha} != expected ${EXPECTED_PROMOTE_HEAD}"
-  exit 1
-fi
-
-marker="$(extract_marker "${body}")" || { write_out "failed" "missing promote marker"; exit 1; }
-echo "${marker}" | jq -e --arg s "${STG_SHA}" --arg m "${MAIN_SHA}" --arg c "${EXPECTED_PROMOTE_HEAD}" \
-  '.sourceSha==$s and .targetSha==$m and .candidateHead==$c' >/dev/null \
-  || { write_out "failed" "marker SHA binding mismatch"; exit 1; }
-
-if [ -z "${CANDIDATE_IDENTITY_PATH:-}" ] || [ ! -f "${CANDIDATE_IDENTITY_PATH}" ]; then
-  IDENTITY_WORKTREE="$(mktemp -d "${TMPDIR:-/tmp}/main-identity.XXXXXX")"
-  IDENTITY_FILE="$(mktemp "${TMPDIR:-/tmp}/main-identity.XXXXXX.json")"
-  git fetch origin "refs/heads/${head_branch}:refs/remotes/origin/${head_branch}"
-  if [ "$(git rev-parse "origin/${head_branch}")" != "${EXPECTED_PROMOTE_HEAD}" ]; then
-    rm -rf "${IDENTITY_WORKTREE}"
-    rm -f "${IDENTITY_FILE}"
-    write_out "failed" "fetched promote branch does not match expected head"
-    exit 1
-  fi
-  git worktree add --detach "${IDENTITY_WORKTREE}" "origin/${head_branch}" >/dev/null
-  receipt_identity_args
-  python3 "${SCRIPT_DIR}/gate_receipt.py" identity \
-    --repo "${IDENTITY_WORKTREE}" --profile full \
-    ${RECEIPT_IDENTITY_ARGS[@]+"${RECEIPT_IDENTITY_ARGS[@]}"} >"${IDENTITY_FILE}"
-  git worktree remove --force "${IDENTITY_WORKTREE}" >/dev/null 2>&1 || rm -rf "${IDENTITY_WORKTREE}"
-  CANDIDATE_IDENTITY_PATH="${IDENTITY_FILE}"
-fi
-if [ -z "${RECEIPT_PATH}" ]; then
-  CANDIDATE_TREE="$(python3 - "${CANDIDATE_IDENTITY_PATH}" <<'PY'
-import json
-import sys
-print(json.load(open(sys.argv[1], encoding="utf-8"))["gitTreeSha"])
-PY
-)"
-  RECEIPT_PATH="${COORDINATOR_RECEIPT_ROOT}/${CANDIDATE_TREE}-full-gate.json"
-fi
-if [ ! -f "${RECEIPT_PATH}" ]; then
-  [ -z "${IDENTITY_FILE:-}" ] || rm -f "${IDENTITY_FILE}"
-  write_out "blocked" "promotion receipt missing; principal approval cannot mutate main"
-  exit 1
-fi
-python3 "${RECEIPT_GATE}" verify \
-  --receipt "${RECEIPT_PATH}" \
-  --identity "${CANDIDATE_IDENTITY_PATH}" \
-  --profile full --gate full-gate || {
-    [ -z "${IDENTITY_FILE:-}" ] || rm -f "${IDENTITY_FILE}"
-    write_out "blocked" "promotion receipt identity does not match main candidate"
-    exit 1
-  }
-[ -z "${IDENTITY_FILE:-}" ] || rm -f "${IDENTITY_FILE}"
-
-marker_receipt="$(echo "${marker}" | jq -r '.receiptDigest // empty')"
-marker_mode="$(echo "${marker}" | jq -r '.approvalMode // "principal-approval"')"
-actual_receipt="$(python3 - "${RECEIPT_PATH}" <<'PY'
-import hashlib
-import json
-import sys
-value = json.loads(open(sys.argv[1], encoding="utf-8").read())
-payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-print("sha256:" + hashlib.sha256(payload).hexdigest())
-PY
-)"
-[ -n "${marker_receipt}" ] && [ "${marker_receipt}" = "${actual_receipt}" ] \
-  || { write_out "failed" "stale main approval receipt binding"; exit 1; }
-[ "${marker_mode}" = "${MAIN_PROMOTION_MODE}" ] \
-  || { write_out "failed" "main approval mode is stale or mismatched"; exit 1; }
-
-if ! python3 "${SCRIPT_DIR}/wait_named_gate.py" \
-    --pr "${PROMOTE_PR_NUMBER}" \
-    --required "${RELEASE_GATE_CHECKS}" \
-    --timeout-seconds "${GATE_WAIT_SECONDS:-300}" \
-    --poll-seconds 15 \
-    --report-file release-gate-wait.json; then
-  write_out "blocked" "release-gate not green"
-  exit 1
-fi
-
-head_now="$(gh pr view "${PROMOTE_PR_NUMBER}" --json headRefOid --jq .headRefOid)"
-if [ "${head_now}" != "${EXPECTED_PROMOTE_HEAD}" ]; then
-  write_out "failed" "head changed during gate wait"
-  exit 1
-fi
-
-git fetch origin main staging
-if [ "$(git rev-parse origin/staging)" != "${EXPECTED_STAGING_SHA}" ] \
-  || [ "$(git rev-parse origin/main)" != "${EXPECTED_MAIN_SHA}" ]; then
-  write_out "failed" "source/target moved during evaluation"
-  exit 1
-fi
-
-if gh_retry gh pr merge "${PROMOTE_PR_NUMBER}" --merge; then
-  write_out "merged" "merged main promote PR #${PROMOTE_PR_NUMBER}"
-  exit 0
-fi
-write_out "failed" "merge failed — no direct push"
-exit 1

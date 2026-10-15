@@ -64,7 +64,7 @@ OPERATION_REL = Path(".linktrend/delivery-operation.json")
 CONTROLLER_STATE_REL = Path("ide-development/delivery-controller")
 PROTECTED_BRANCHES = frozenset({"development", "staging", "main"})
 WORKER_ROLES = frozenset({"worker", "implementer", "issue-worker"})
-CONTROLLER_ROLES = frozenset({"delivery_controller", "operator", "coordinator", "founder"})
+CONTROLLER_ROLES = frozenset({"delivery_controller", "operator", "coordinator", "founder", "program-lead"})
 PROMOTE_STAGING_RE = re.compile(r"^promote/staging/[0-9a-f]{12}$")
 PROMOTE_MAIN_RE = re.compile(r"^promote/main/[0-9a-f]{12}$")
 AGENT_ENV_KEYS = (
@@ -195,6 +195,12 @@ def _receipt_workflow_run_attempt(receipt: Mapping[str, Any]) -> int:
 class GitHubPort(Protocol):
     """Merge/promote adapter. Tests inject ``MemoryGitHub``."""
 
+    def get_ref(self, *, repository: str, branch: str) -> str:
+        ...
+
+    def get_commit_tree(self, *, repository: str, sha: str) -> str:
+        ...
+
     def get_pull_request(self, *, repository: str, number: int) -> dict[str, Any]:
         ...
 
@@ -236,12 +242,29 @@ class MemoryGitHub:
     repository: str
     prs: dict[int, dict[str, Any]] = field(default_factory=dict)
     refs: dict[str, str] = field(default_factory=dict)
+    commit_trees: dict[str, str] = field(default_factory=dict)
     merges: list[dict[str, Any]] = field(default_factory=list)
     deleted_refs: list[str] = field(default_factory=list)
     protected_push_attempts: list[dict[str, str]] = field(default_factory=list)
     merge_rejections: dict[int, str] = field(default_factory=dict)
     next_number: int = 1
     require_admin_bypass: bool = False
+
+    def get_ref(self, *, repository: str, branch: str) -> str:
+        if repository != self.repository:
+            raise ControllerError("wrong_repository", repository)
+        value = normalize_sha(self.refs.get(branch, ""))
+        if not is_valid_sha(value):
+            raise ControllerError("source_ref_missing", branch)
+        return value
+
+    def get_commit_tree(self, *, repository: str, sha: str) -> str:
+        if repository != self.repository:
+            raise ControllerError("wrong_repository", repository)
+        value = normalize_sha(self.commit_trees.get(sha, ""))
+        if not is_valid_sha(value):
+            raise ControllerError("commit_tree_missing", sha)
+        return value
 
     def get_pull_request(self, *, repository: str, number: int) -> dict[str, Any]:
         if repository != self.repository:
@@ -395,6 +418,27 @@ class LiveGitHub:
             return self.transport(method, url, self.automation_token, body)
         return _github_api(method, url, self.automation_token, body)
 
+    def get_ref(self, *, repository: str, branch: str) -> str:
+        if repository != self.repository:
+            raise ControllerError("wrong_repository", repository)
+        from urllib.parse import quote
+        payload = self._request("GET", f"https://api.github.com/repos/{repository}/git/ref/heads/{quote(branch, safe='')}")
+        value = normalize_sha(str((payload.get("object") or {}).get("sha") or "")) if isinstance(payload, Mapping) else ""
+        if not is_valid_sha(value):
+            raise ControllerError("source_ref_missing", branch)
+        return value
+
+    def get_commit_tree(self, *, repository: str, sha: str) -> str:
+        if repository != self.repository:
+            raise ControllerError("wrong_repository", repository)
+        if not is_valid_sha(sha):
+            raise ControllerError("invalid_commit", sha)
+        payload = self._request("GET", f"https://api.github.com/repos/{repository}/git/commits/{sha}")
+        value = normalize_sha(str((payload.get("tree") or {}).get("sha") or "")) if isinstance(payload, Mapping) else ""
+        if not is_valid_sha(value):
+            raise ControllerError("commit_tree_missing", sha)
+        return value
+
     def get_pull_request(self, *, repository: str, number: int) -> dict[str, Any]:
         if repository != self.repository:
             raise ControllerError("wrong_repository", repository)
@@ -406,6 +450,7 @@ class LiveGitHub:
         return {
             "number": int(payload.get("number") or number),
             "url": str(payload.get("html_url") or ""),
+            "body": str(payload.get("body") or ""),
             "isDraft": bool(payload.get("draft")),
             "state": "open" if payload.get("state") == "open" else str(payload.get("state") or ""),
             "head": str(head.get("ref") or ""),
@@ -684,11 +729,18 @@ def require_controller_role(role: str) -> str:
     normalized = str(role or "").strip().lower()
     if normalized in WORKER_ROLES:
         raise ControllerError("worker_self_merge_forbidden", "Worker cannot invoke a self-merge path")
-    if normalized and normalized not in CONTROLLER_ROLES:
-        # Unknown roles are still allowed to invoke commands; boundaries are
-        # enforced by protections and merge APIs, not agent identity.
-        return normalized or "operator"
-    return normalized or "operator"
+    if normalized not in CONTROLLER_ROLES:
+        raise ControllerError("controller_role_required", "A known controller role is required")
+    # This is a role boundary. The exclusive lead writer lease and protected
+    # GitHub approval remain separate; a role string is not an identity token.
+    return normalized
+
+
+def require_lead_role(role: str) -> str:
+    normalized = require_controller_role(role)
+    if normalized not in {"program-lead", "founder"}:
+        raise ControllerError("program_lead_required", "Only the designated Program lead route may promote")
+    return normalized
 
 
 def accept_phase_pr(
@@ -930,100 +982,19 @@ def promote_to_staging(
 ) -> dict[str, Any]:
     """Promote via temporary promote/staging/* PR using exact receipt reuse."""
 
-    config = _rollout_config(rollout)
     require_controller_role(role)
-    require_promotion_source_equality(
-        stage="staging",
-        candidate_sha=candidate_sha,
-        source_sha=development_sha,
+    # Preserve historical refs and receipts; disable the former mutation route.
+    raise ControllerError(
+        "staging_promotion_disabled",
+        "Program promotion is development to main; retained staging history is read-only",
     )
-    if full_suite_invoked or bool(release_gate.get("fullSuiteInvoked")):
-        raise ControllerError("full_suite_reentered", "staging must reuse the matching receipt")
-    release = evaluate_release_path({**dict(release_gate), "fullSuiteInvoked": False})
-    if not release.accepted:
-        raise ControllerError(release.code, release.detail)
-    receipt_decision = verify_receipt_payload(
-        receipt,
-        candidate_identity,
-        "full-gate",
-        transition_receipt=transition_receipt,
-    )
-    if not receipt_decision.accepted:
-        raise ControllerError("receipt_rejected", f"{receipt_decision.code}:{receipt_decision.detail}")
-    identity_tree = normalize_sha(str(candidate_identity.get("gitTree") or ""))
-    if identity_tree != normalize_sha(candidate_tree):
-        raise ControllerError("changed_staging_content", "promotion tree differs from receipt identity")
-    short = normalize_sha(development_sha)[:12]
-    branch = _promotion_branch(config, config.staging_branch, development_sha)
-    marker = {
-        "schemaVersion": 1,
-        "stage": config.staging_branch,
-        "sourceBranch": config.development_branch,
-        "targetBranch": config.staging_branch,
-        "sourceSha": normalize_sha(development_sha),
-        "targetSha": normalize_sha(staging_sha),
-        "candidateHead": normalize_sha(candidate_sha),
-        "promoteBranch": branch,
-        "receiptDigest": compute_receipt_digest(receipt),
-        "fullRunId": _receipt_workflow_run_id(receipt),
-        "fullRunAttempt": _receipt_workflow_run_attempt(receipt),
-    }
-    if transition_receipt is not None:
-        marker["transitionReceiptDigest"] = compute_transition_digest(transition_receipt)
-    body = f"<!-- linktrend-promote: {json.dumps(marker, sort_keys=True)} -->"
-    pr = call_with_infrastructure_retry(
-        lambda: github.create_pull_request(
-            repository=repository,
-            head=branch,
-            base=config.staging_branch,
-            title=f"Promote {config.development_branch} {short} to {config.staging_branch}",
-            body=body,
-            head_sha=candidate_sha,
-        )
-    )
-    merged = call_with_infrastructure_retry(
-        lambda: github.merge_pull_request(
-            repository=repository,
-            number=int(pr["number"]),
-            expected_head=candidate_sha,
-            method="merge",
-            admin=False,
-            match_head_commit=True,
-        )
-    )
-    try:
-        protected_transition = create_transition_receipt(
-            receipt,
-            target_branch=config.staging_branch,
-            target_commit=normalize_sha(str(merged.get("mergeCommitSha") or "")),
-            target_tree=normalize_sha(candidate_tree),
-        ).to_dict()
-    except (ValueError, TypeError) as exc:
-        raise ControllerError("transition_receipt_failed", str(exc)) from exc
-    result = {
-        "status": "merged",
-        "stage": config.staging_branch,
-        "pr": int(pr["number"]),
-        "promoteBranch": branch,
-        "sourceSha": normalize_sha(development_sha),
-        "targetShaBefore": normalize_sha(staging_sha),
-        "candidateHead": normalize_sha(candidate_sha),
-        "candidateTree": normalize_sha(candidate_tree),
-        "mergeCommitSha": normalize_sha(str(merged.get("mergeCommitSha") or "")),
-        "fullSuiteRerun": False,
-        "receiptReused": True,
-        "transitionReceipt": protected_transition,
-        "transitionReceiptDigest": protected_transition["receiptDigest"],
-        "component": COMPONENT_KIND,
-    }
-    return result
 
 
 def prepare_main_promotion(
     *,
     github: GitHubPort,
     repository: str,
-    staging_sha: str,
+    development_sha: str,
     main_sha: str,
     candidate_sha: str,
     receipt: Mapping[str, Any],
@@ -1036,12 +1007,21 @@ def prepare_main_promotion(
     """Open promote/main/* and wait for explicit founder approval."""
 
     config = _rollout_config(rollout)
-    require_controller_role(role)
+    require_lead_role(role)
     require_promotion_source_equality(
         stage="main",
         candidate_sha=candidate_sha,
-        source_sha=staging_sha,
+        source_sha=development_sha,
     )
+    if github.get_ref(repository=repository, branch=config.development_branch) != normalize_sha(development_sha):
+        raise ControllerError("stale_development_source", "Development advanced before packaging")
+    if github.get_ref(repository=repository, branch=config.main_branch) != normalize_sha(main_sha):
+        raise ControllerError("stale_main_target", "Main advanced before packaging")
+    if normalize_sha(str(candidate_identity.get("headCommit") or "")) != normalize_sha(development_sha):
+        raise ControllerError("candidate_identity_mismatch", "Receipt identity head must equal accepted Development")
+    live_tree = github.get_commit_tree(repository=repository, sha=normalize_sha(development_sha))
+    if normalize_sha(str(candidate_identity.get("gitTree") or "")) != live_tree:
+        raise ControllerError("candidate_identity_mismatch", "Receipt identity tree must equal accepted Development tree")
     release = evaluate_release_path({**dict(release_gate), "fullSuiteInvoked": False})
     if not release.accepted:
         raise ControllerError(release.code, release.detail)
@@ -1053,14 +1033,14 @@ def prepare_main_promotion(
     )
     if not receipt_decision.accepted:
         raise ControllerError("receipt_rejected", f"{receipt_decision.code}:{receipt_decision.detail}")
-    short = normalize_sha(staging_sha)[:12]
-    branch = _promotion_branch(config, config.main_branch, staging_sha)
+    short = normalize_sha(development_sha)[:12]
+    branch = _promotion_branch(config, config.main_branch, development_sha)
     marker = {
         "schemaVersion": 1,
         "stage": config.main_branch,
-        "sourceBranch": config.staging_branch,
+        "sourceBranch": config.development_branch,
         "targetBranch": config.main_branch,
-        "sourceSha": normalize_sha(staging_sha),
+        "sourceSha": normalize_sha(development_sha),
         "targetSha": normalize_sha(main_sha),
         "candidateHead": normalize_sha(candidate_sha),
         "promoteBranch": branch,
@@ -1069,8 +1049,10 @@ def prepare_main_promotion(
         "fullRunAttempt": _receipt_workflow_run_attempt(receipt),
         "awaitingFounderApproval": True,
     }
+    marker["candidateIdentity"] = dict(candidate_identity)
     if transition_receipt is not None:
         marker["transitionReceiptDigest"] = compute_transition_digest(transition_receipt)
+        marker["transitionReceipt"] = dict(transition_receipt)
     body = f"<!-- linktrend-promote: {json.dumps(marker, sort_keys=True)} -->"
     pr = call_with_infrastructure_retry(
         lambda: github.create_pull_request(
@@ -1078,7 +1060,7 @@ def prepare_main_promotion(
             head=branch,
             base=config.main_branch,
             title=(
-                f"Promote {config.staging_branch} {short} to {config.main_branch} "
+                f"Promote {config.development_branch} {short} to {config.main_branch} "
                 "(awaiting founder approval)"
             ),
             body=body,
@@ -1090,7 +1072,7 @@ def prepare_main_promotion(
         "stage": config.main_branch,
         "pr": int(pr["number"]),
         "promoteBranch": branch,
-        "sourceSha": normalize_sha(staging_sha),
+        "sourceSha": normalize_sha(development_sha),
         "targetSha": normalize_sha(main_sha),
         "candidateHead": normalize_sha(candidate_sha),
         "receiptDigest": compute_receipt_digest(receipt),
@@ -1118,7 +1100,7 @@ def complete_main_promotion(
     """Merge main only after exact founder approval; reject ambiguous/stale."""
 
     config = _rollout_config(rollout)
-    require_controller_role(role)
+    require_lead_role(role)
     require_promotion_source_equality(
         stage="main",
         candidate_sha=expected_head,
@@ -1143,6 +1125,33 @@ def complete_main_promotion(
     live_head = normalize_sha(str(live.get("headSha") or ""))
     if live_head != normalize_sha(expected_head):
         raise ControllerError("stale_pr_head", live_head)
+    if bool(live.get("isDraft")) or str(live.get("state") or "").lower() != "open":
+        raise ControllerError("main_pr_not_ready", "Main PR must be open and non-draft")
+    if live.get("crossRepository") or live.get("base") != config.main_branch or live.get("head") != _promotion_branch(config, config.main_branch, source_sha):
+        raise ControllerError("wrong_main_promotion_route", "Expected same-repository promote/main PR")
+    try:
+        match = re.search(r"<!-- linktrend-promote:\s*(\{.*?\})\s*-->", str(live.get("body") or ""), re.S)
+        marker = json.loads(match.group(1)) if match else {}
+    except (ValueError, TypeError):
+        marker = {}
+    expected_marker = {
+        "sourceBranch": config.development_branch, "targetBranch": config.main_branch,
+        "sourceSha": normalize_sha(source_sha), "targetSha": normalize_sha(base_sha),
+        "candidateHead": normalize_sha(expected_head), "receiptDigest": compute_receipt_digest(receipt),
+    }
+    if not isinstance(marker, dict) or any(marker.get(key) != value for key, value in expected_marker.items()):
+        raise ControllerError("main_promotion_marker_mismatch", "Exact Development/main/receipt marker required")
+    if github.get_ref(repository=repository, branch=config.development_branch) != normalize_sha(source_sha):
+        raise ControllerError("stale_development_source", "Development advanced after approval")
+    if github.get_ref(repository=repository, branch=config.main_branch) != normalize_sha(base_sha):
+        raise ControllerError("stale_main_target", "Main advanced after approval")
+    identity = marker.get("candidateIdentity")
+    live_tree = github.get_commit_tree(repository=repository, sha=normalize_sha(source_sha))
+    if not isinstance(identity, Mapping) or normalize_sha(str(identity.get("headCommit") or "")) != normalize_sha(source_sha) or normalize_sha(str(identity.get("gitTree") or "")) != live_tree:
+        raise ControllerError("candidate_identity_mismatch", "Main approval must reuse exact live Development identity")
+    decision = verify_receipt_payload(receipt, identity, "full-gate", transition_receipt=marker.get("transitionReceipt"))
+    if not decision.accepted:
+        raise ControllerError("receipt_rejected", f"{decision.code}:{decision.detail}")
     merged = call_with_infrastructure_retry(
         lambda: github.merge_pull_request(
             repository=repository,
@@ -1525,7 +1534,7 @@ def main(argv: list[str] | None = None) -> int:
                 result = prepare_main_promotion(
                     github=github,
                     repository=args.repository,
-                    staging_sha=str(payload["stagingSha"]),
+                    development_sha=str(payload["developmentSha"]),
                     main_sha=str(payload["mainSha"]),
                     candidate_sha=str(payload["candidateSha"]),
                     receipt=load(args.receipt),

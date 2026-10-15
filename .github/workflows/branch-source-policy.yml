@@ -40,10 +40,8 @@ jobs:
               esac
               ;;
             staging)
-              case "${HEAD_BRANCH}" in
-                promote/staging/*) ;;
-                *) echo "Only promote/staging/* temporary branches may be merged into staging."; exit 1 ;;
-              esac
+              echo "Staging promotion is disabled; preserve retained staging history."
+              exit 1
               ;;
             development)
               case "${HEAD_BRANCH}" in

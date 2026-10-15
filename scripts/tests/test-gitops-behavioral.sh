@@ -281,15 +281,13 @@ grep -q -- '--failure-type promotion_conflict' "$ROOT/scripts/gitops/promote_sta
 pass "durable conflict attempts persist and stop at three"
 
 # ============================================================================
-# 5) Main approval requires staging + main + promote head SHAs
+# 5) Protected Main receipt workflow remains required
 # ============================================================================
-grep -q 'requires both EXPECTED_STAGING_SHA and EXPECTED_PROMOTE_HEAD' "$ROOT/scripts/gitops/promote_main.sh"
-grep -q 'EXPECTED_MAIN_SHA' "$ROOT/scripts/gitops/promote_main.sh"
 grep -q 'Linktrend Receipt Gate' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
 grep -q 'github.event.pull_request.head.sha' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
 ! grep -q 'workflow_dispatch:' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
 ! grep -q 'inputs\.' "$ROOT/core/github/managed-workflows/linktrend-staging-to-main.yml"
-pass "main approval requires both expected SHAs"
+pass "protected Main receipt workflow remains required"
 
 # ============================================================================
 # 6) Pull preserves caller checkout; updates clean unfinished; skips frozen
@@ -490,8 +488,6 @@ main = (root / "scripts/gitops/promote_main.sh").read_text()
 assert "target staging advanced" in stg or "targetSha" in stg
 assert "stale event" in stg
 assert "marker candidateHead" in stg
-assert "EXPECTED_MAIN_SHA" in main
-assert "target advanced" in main or "expected main target" in main
 assert "main_approve_package_reuse.py" in main
 assert "requires repackage" in main or "valid for reuse" in main
 # development tip advance must not rebuild an existing exact candidate
@@ -1923,10 +1919,10 @@ schema = json.loads((root / "docs/contracts/fixtures/lisa-main-approve-package.s
 
 SRC = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 MAIN = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-HEAD = "cccccccccccccccccccccccccccccccccccccccc"
+HEAD = SRC
 BRANCH = "promote/main/aaaaaaaaaaaa"
 BODY = f"""## pkg
-<!-- linktrend-promote: {{"schemaVersion":1,"stage":"main","sourceBranch":"staging","targetBranch":"main","sourceSha":"{SRC}","targetSha":"{MAIN}","candidateHead":"{HEAD}","promoteBranch":"{BRANCH}"}} -->
+<!-- linktrend-promote: {{"schemaVersion":1,"stage":"main","sourceBranch":"development","targetBranch":"main","sourceSha":"{SRC}","targetSha":"{MAIN}","candidateHead":"{HEAD}","promoteBranch":"{BRANCH}"}} -->
 """
 
 def run(args, checks=None, body=BODY, extra=None):
@@ -1941,11 +1937,11 @@ def run(args, checks=None, body=BODY, extra=None):
             "--pr-number", "42",
             "--head-sha", HEAD,
             "--head-branch", BRANCH,
-            "--staging-tip", SRC,
+            "--development-tip", SRC,
             "--main-tip", MAIN,
             "--now", "2026-08-03T10:00:00+08:00",
             "--release-gate-checks",
-            "Verify IDE Development,Linktrend Branch Source Policy",
+            "Linktrend Receipt Gate,Linktrend Branch Source Policy",
         ]
         if checks is not None:
             cf = td / "checks.json"
@@ -1962,7 +1958,7 @@ def run(args, checks=None, body=BODY, extra=None):
         return p.returncode, data
 
 ok_checks = [
-    {"name": "Verify IDE Development", "state": "SUCCESS"},
+    {"name": "Linktrend Receipt Gate", "state": "SUCCESS"},
     {"name": "Linktrend Branch Source Policy", "state": "SUCCESS"},
 ]
 
@@ -1978,28 +1974,28 @@ assert lit["gateResult"] in ("Clear", "Issues")
 assert re.search(r"\b[0-9a-f]{7,40}\b", lit["plainDescription"], re.I) is None
 
 # missing gate
-rc, d = run([], checks=[{"name": "Verify IDE Development", "state": "SUCCESS"}])
+rc, d = run([], checks=[{"name": "Linktrend Receipt Gate", "state": "SUCCESS"}])
 assert rc == 0 and d["items"][0]["gateResult"] == "Issues", d
 assert d["items"][0]["gateEvidence"]["status"] == "missing"
 
 # pending gate
 rc, d = run([], checks=[
-    {"name": "Verify IDE Development", "state": "SUCCESS"},
+    {"name": "Linktrend Receipt Gate", "state": "SUCCESS"},
     {"name": "Linktrend Branch Source Policy", "state": "PENDING"},
 ])
 assert d["items"][0]["gateResult"] == "Issues" and d["items"][0]["gateEvidence"]["status"] == "pending"
 
 # failed gate
 rc, d = run([], checks=[
-    {"name": "Verify IDE Development", "state": "FAILURE"},
+    {"name": "Linktrend Receipt Gate", "state": "FAILURE"},
     {"name": "Linktrend Branch Source Policy", "state": "SUCCESS"},
 ])
 assert d["items"][0]["gateResult"] == "Issues" and d["items"][0]["gateEvidence"]["status"] == "failed"
 
-# staging drift
-rc, d = run([], checks=ok_checks, extra=["--staging-tip", "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"])
+# development drift
+rc, d = run([], checks=ok_checks, extra=["--development-tip", "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"])
 assert rc != 0 and d["itemCount"] == 0
-assert any(r.get("reason") == "staging_tip_drift" for r in d["rejected"]), d
+assert any(r.get("reason") == "development_tip_drift" for r in d["rejected"]), d
 
 # main drift
 rc, d = run([], checks=ok_checks, extra=["--main-tip", "ffffffffffffffffffffffffffffffffffffffff"])
@@ -2022,37 +2018,34 @@ assert rc != 0 and any("sha_invalid" in str(r.get("reason")) for r in d["rejecte
 short_body = BODY.replace(SRC, "aaaaaaaaaaaa")
 # short breaks JSON length in marker — use 39 hex
 short = "a" * 39
-short_body = f"""<!-- linktrend-promote: {{"schemaVersion":1,"stage":"main","sourceBranch":"staging","targetBranch":"main","sourceSha":"{short}","targetSha":"{MAIN}","candidateHead":"{HEAD}","promoteBranch":"promote/main/aaaaaaaaaaaa"}} -->"""
+short_body = f"""<!-- linktrend-promote: {{"schemaVersion":1,"stage":"main","sourceBranch":"development","targetBranch":"main","sourceSha":"{short}","targetSha":"{MAIN}","candidateHead":"{HEAD}","promoteBranch":"promote/main/aaaaaaaaaaaa"}} -->"""
 rc, d = run([], checks=ok_checks, body=short_body)
 assert rc != 0 and any(r.get("reason") == "marker_source_sha_invalid" for r in d["rejected"]), d
 
 # wrong stage / source / base / branch
 for field, val, reason in [
-    ("stage", "staging", "marker_stage_not_main"),
-    ("sourceBranch", "development", "marker_source_branch_not_staging"),
-    ("targetBranch", "staging", "marker_target_branch_not_main"),
+    ("stage", "development", "marker_stage_not_main"),
+    ("sourceBranch", "staging", "marker_source_branch_not_development"),
+    ("targetBranch", "development", "marker_target_branch_not_main"),
 ]:
-    body = BODY.replace(f'"{field}":"main"' if field != "sourceBranch" else '"sourceBranch":"staging"',
+    body = BODY.replace(f'"{field}":"main"' if field != "sourceBranch" else '"sourceBranch":"development"',
                         f'"{field}":"{val}"' if field != "sourceBranch" else f'"sourceBranch":"{val}"')
     if field == "stage":
-        body = BODY.replace('"stage":"main"', '"stage":"staging"')
+        body = BODY.replace('"stage":"main"', '"stage":"development"')
     elif field == "sourceBranch":
-        body = BODY.replace('"sourceBranch":"staging"', '"sourceBranch":"development"')
+        body = BODY.replace('"sourceBranch":"development"', '"sourceBranch":"staging"')
     elif field == "targetBranch":
-        body = BODY.replace('"targetBranch":"main"', '"targetBranch":"staging"')
+        body = BODY.replace('"targetBranch":"main"', '"targetBranch":"development"')
     rc, d = run([], checks=ok_checks, body=body)
     assert any(r.get("reason") == reason for r in d["rejected"]), (field, d)
 
-rc, d = run([], checks=ok_checks, extra=["--base-ref", "staging"])
+rc, d = run([], checks=ok_checks, extra=["--base-ref", "development"])
 assert any(r.get("reason") == "base_not_main" for r in d["rejected"]), d
 rc, d = run([], checks=ok_checks, extra=["--head-branch", "promote/main/bbbbbbbbbbbb"])
 assert rc != 0, d
 
 # duplicate packages
-body2 = BODY.replace(HEAD, "dddddddddddddddddddddddddddddddddddddddd").replace(
-    '"candidateHead":"cccccccccccccccccccccccccccccccccccccccc"',
-    '"candidateHead":"dddddddddddddddddddddddddddddddddddddddd"',
-)
+body2 = BODY  # Two same-source PR identities are still ambiguous.
 with tempfile.TemporaryDirectory() as td:
     td = Path(td)
     b1, b2 = td / "b1.md", td / "b2.md"
@@ -2065,17 +2058,17 @@ with tempfile.TemporaryDirectory() as td:
         "--from-body-file", str(b1),
         "--second-body-file", str(b2),
         "--second-pr-number", "43",
-        "--second-head-sha", "dddddddddddddddddddddddddddddddddddddddd",
+        "--second-head-sha", HEAD,
         "--repository", "linktrend/IDE-Development",
         "--pr-number", "42",
         "--head-sha", HEAD,
         "--head-branch", BRANCH,
-        "--staging-tip", SRC,
+        "--development-tip", SRC,
         "--main-tip", MAIN,
         "--checks-json", str(cf),
         "--now", "2026-08-03T10:00:00+08:00",
         "--release-gate-checks",
-        "Verify IDE Development,Linktrend Branch Source Policy",
+        "Linktrend Receipt Gate,Linktrend Branch Source Policy",
     ], capture_output=True, text=True)
     d = json.loads(p.stdout)
     assert d["itemCount"] == 0, d
@@ -2127,7 +2120,7 @@ assert out == {"action": "reuse", "pr": 7}, out
 main_sh = (root / "scripts/gitops/promote_main.sh").read_text()
 assert "main_approve_package_reuse.py" in main_sh
 assert "requires repackage" in main_sh
-assert "Verify IDE Development,Linktrend Branch Source Policy" in main_sh
+assert "Linktrend Receipt Gate,Linktrend Branch Source Policy" in main_sh
 
 print("main approve store behavioral ok")
 PY
@@ -2145,12 +2138,12 @@ root = Path(sys.argv[1])
 disc = root / "scripts/gitops/main_approve_package_discover.py"
 SRC = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 MAIN = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-HEAD = "cccccccccccccccccccccccccccccccccccccccc"
+HEAD = SRC
 BRANCH = "promote/main/aaaaaaaaaaaa"
 REPO = "linktrend/IDE-Development"
 BODY = (
     "## pkg\n"
-    f'<!-- linktrend-promote: {{"schemaVersion":1,"stage":"main","sourceBranch":"staging",'
+    f'<!-- linktrend-promote: {{"schemaVersion":1,"stage":"main","sourceBranch":"development",'
     f'"targetBranch":"main","sourceSha":"{SRC}","targetSha":"{MAIN}",'
     f'"candidateHead":"{HEAD}","promoteBranch":"{BRANCH}"}} -->\n'
 )
@@ -2177,9 +2170,9 @@ LOG="${FAKE_GH_LOG:-/dev/null}"
 printf '%s\n' "$*" >>"$LOG"
 ARGS=("$@")
 
-ok_checks='[{"name":"Verify IDE Development","state":"SUCCESS"},{"name":"Linktrend Branch Source Policy","state":"SUCCESS"}]'
-pending_checks='[{"name":"Verify IDE Development","state":"SUCCESS"},{"name":"Linktrend Branch Source Policy","state":"PENDING"}]'
-failed_checks='[{"name":"Verify IDE Development","state":"FAILURE"},{"name":"Linktrend Branch Source Policy","state":"SUCCESS"}]'
+ok_checks='[{"name":"Linktrend Receipt Gate","state":"SUCCESS"},{"name":"Linktrend Branch Source Policy","state":"SUCCESS"}]'
+pending_checks='[{"name":"Linktrend Receipt Gate","state":"SUCCESS"},{"name":"Linktrend Branch Source Policy","state":"PENDING"}]'
+failed_checks='[{"name":"Linktrend Receipt Gate","state":"FAILURE"},{"name":"Linktrend Branch Source Policy","state":"SUCCESS"}]'
 
 if [[ "${1:-}" == "pr" && "${2:-}" == "checks" ]]; then
   COUNT_FILE="${FAKE_GH_CHECKS_COUNT:-}"
@@ -2240,7 +2233,7 @@ if [[ "${1:-}" == "api" ]]; then
         exit 0
         ;;
       value)
-        printf '%s\n' "Verify IDE Development,Linktrend Branch Source Policy"
+        printf '%s\n' "Linktrend Receipt Gate,Linktrend Branch Source Policy"
         exit 0
         ;;
       auth)
@@ -2257,7 +2250,7 @@ if [[ "${1:-}" == "api" ]]; then
         ;;
     esac
   fi
-  if [[ "$path" == *"/git/ref/heads/staging"* ]]; then
+  if [[ "$path" == *"/git/ref/heads/development"* ]]; then
     printf '%s\n' "__SRC__"
     exit 0
   fi
@@ -2304,7 +2297,7 @@ def run_live(*, checks_mode: str, var_mode: str = "absent", extra_env=None):
                 str(disc),
                 "--repo",
                 REPO,
-                "--staging-tip",
+                "--development-tip",
                 SRC,
                 "--main-tip",
                 MAIN,

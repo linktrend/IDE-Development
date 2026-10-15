@@ -73,15 +73,13 @@ assert 'checks_json="${RUNNER_TEMP}/linktrend-reconciled-checks.json"' in full
 assert '--checks-json "${checks_json}"' in full
 assert "full-suite-receipt.json" in full
 assert "retention-days: 30" in full
-assert "@cursor review" in full
-assert "linktrend-bugbot-requested" in full
+assert "@cursor review" not in full
+assert "linktrend-bugbot-requested" not in full
 assert "phase-delivery-record.json" not in full, "a tracked record cannot seal its own PR head"
 for required in (
     "full_suite_stale_seal",
     "full_suite_source_branch_target_invalid",
     "base.ref == 'development'",
-    "base.ref == 'staging'",
-    "startsWith(github.event.pull_request.head.ref, 'promote/staging/')",
     "full_suite_repository_mismatch",
     "--config-key fastWorkflowName",
     "exact dispatch-time seal accepted",
@@ -91,6 +89,11 @@ for required in (
     "display_title",
 ):
     assert required in full, required
+assert "base.ref == 'staging'" not in full, "retired staging Full route restored"
+assert "promote/staging/" not in full, "retired staging Full route restored"
+assert '"${live_branch}:${live_base}"' in full
+assert 'phase/*:development)' in full
+assert 'promote/staging/*:staging)' not in full
 assert 'sum(run_attempt for head, run_attempt in relevant if head == current_head)' in full
 assert 'history_file="$(mktemp)"' in full
 assert 'gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/linktrend-integrator-merge.yml/runs?event=pull_request&per_page=100" >"${history_file}"' in full
@@ -98,7 +101,7 @@ assert 'json.load(handle)' in full
 assert 'python3 - "${history}"' not in full
 assert 'if executions > 2:' in full
 assert 'Every paid execution counts' in full
-assert 'pull-requests: write' not in full.split('  bugbot:', 1)[0]
+assert 'pull-requests: write' not in full
 assert 'candidate/' not in full
 assert "run_delivery_profile.py full" in full
 assert 'GITHUB_REPOSITORY" = "linktrend/IDE-Development' not in full
@@ -247,10 +250,7 @@ python3 - <<'PY'
 """Promotion and receipt CLI must bind the resolved source-or-consumer profile."""
 from pathlib import Path
 
-for relative in (
-    "scripts/gitops/promote_staging.sh",
-    "scripts/gitops/promote_main.sh",
-):
+for relative in ("scripts/gitops/promote_main.sh",):
     text = Path(relative).read_text(encoding="utf-8")
     assert "receipt_profile_args()" in text, relative
     assert 'RECEIPT_PROFILE_ARGS=()' in text, relative
@@ -281,7 +281,7 @@ python3 - <<'PY'
 from pathlib import Path
 import re
 
-for relative in ("scripts/gitops/promote_staging.sh", "scripts/gitops/promote_main.sh"):
+for relative in ("scripts/gitops/promote_main.sh",):
     text = Path(relative).read_text(encoding="utf-8")
     assert "RECEIPT_IDENTITY_ARGS=()" in text, relative
     assert '"${RECEIPT_IDENTITY_ARGS[@]}"' not in text.replace('${RECEIPT_IDENTITY_ARGS[@]+"${RECEIPT_IDENTITY_ARGS[@]}"}', ''), relative
@@ -290,5 +290,9 @@ for relative in ("scripts/gitops/promote_staging.sh", "scripts/gitops/promote_ma
     assert match, f"missing receipt_identity_args in {relative}"
     body = match.group(1)
     assert re.search(r'done <<< "\$\{raw\}"\s+return 0\s*$', body), relative
-print("PASS: empty receipt dependency list returns success in both promotion scripts")
+staging = Path("scripts/gitops/promote_staging.sh").read_text(encoding="utf-8")
+assert "staging promotion disabled" in staging
+assert "exit 1" in staging
+assert "git push" not in staging and "gh pr" not in staging
+print("PASS: empty dependency list succeeds in main promotion; staging remains disabled")
 PY

@@ -6,7 +6,7 @@ run-name: Full Suite PR #${{ github.event.pull_request.number }} @ ${{ github.ev
 # default-branch workflow_dispatch context.
 on:
   pull_request:
-    branches: [development, staging]
+    branches: [development]
     types: [labeled]
   workflow_dispatch:
     inputs:
@@ -73,8 +73,7 @@ jobs:
       ((github.event_name == 'workflow_dispatch' && inputs.mode != 'reconciled' && inputs.mode != 'recovery') || github.event.label.name == 'linktrend-full-suite') &&
       (github.event_name == 'workflow_dispatch' || (
         github.event.pull_request.head.repo.full_name == github.repository &&
-        ((github.event.pull_request.base.ref == 'development' && startsWith(github.event.pull_request.head.ref, 'phase/')) ||
-         (github.event.pull_request.base.ref == 'staging' && startsWith(github.event.pull_request.head.ref, 'promote/staging/')))
+        ((github.event.pull_request.base.ref == 'development' && startsWith(github.event.pull_request.head.ref, 'phase/')))
       ))
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
@@ -143,7 +142,7 @@ jobs:
           [[ "${EXPECTED_HEAD}" =~ ^[0-9a-f]{40}$ ]] || { echo "full_suite_canary_head_invalid"; exit 1; }
           live_base="$(jq -r .base.ref <<<"${pr}")"
           case "${live_branch}:${live_base}" in
-            phase/*:development|promote/staging/*:staging) ;;
+            phase/*:development) ;;
             *) echo "full_suite_source_branch_target_invalid=${live_branch}->${live_base}"; exit 1 ;;
           esac
           test "${EXPECTED_SOURCE_BRANCH}" = "${live_branch}" || {

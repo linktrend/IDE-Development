@@ -40,7 +40,7 @@ PROMOTE_BRANCH_RE = re.compile(r"^promote/main/([0-9a-f]{12})$")
 CONTRACT = "docs/contracts/LISA-MAIN-APPROVE-DISPATCH.md"
 STORE = "github_promote_pr_marker"
 TZ = ZoneInfo("Asia/Taipei")
-DEFAULT_RELEASE_GATE_CHECKS = "Verify IDE Development,Linktrend Branch Source Policy"
+DEFAULT_RELEASE_GATE_CHECKS = "Linktrend Receipt Gate,Linktrend Branch Source Policy"
 
 
 def emit(payload: dict[str, Any]) -> None:
@@ -109,8 +109,8 @@ def parse_marker(body: str) -> tuple[dict[str, Any] | None, str]:
         return None, "marker_schema_unsupported"
     if meta.get("stage") != "main":
         return None, "marker_stage_not_main"
-    if meta.get("sourceBranch") != "staging":
-        return None, "marker_source_branch_not_staging"
+    if meta.get("sourceBranch") != "development":
+        return None, "marker_source_branch_not_development"
     if meta.get("targetBranch") != "main":
         return None, "marker_target_branch_not_main"
     source = normalize_sha(meta.get("sourceSha"))
@@ -122,6 +122,8 @@ def parse_marker(body: str) -> tuple[dict[str, Any] | None, str]:
         return None, "marker_target_sha_invalid"
     if not candidate:
         return None, "marker_candidate_sha_invalid"
+    if candidate != source:
+        return None, "marker_candidate_not_development_source"
     branch = str(meta.get("promoteBranch") or "").strip()
     bm = PROMOTE_BRANCH_RE.match(branch)
     if not bm:
@@ -132,7 +134,7 @@ def parse_marker(body: str) -> tuple[dict[str, Any] | None, str]:
         **meta,
         "schemaVersion": 1,
         "stage": "main",
-        "sourceBranch": "staging",
+        "sourceBranch": "development",
         "targetBranch": "main",
         "sourceSha": source,
         "targetSha": target,
@@ -145,7 +147,7 @@ def parse_marker(body: str) -> tuple[dict[str, Any] | None, str]:
 def plain_description(repository: str) -> str:
     # Carlos-facing: no SHAs / no hex tip fragments.
     _ = repository
-    return "staging to main promote package"
+    return "development to main promote package"
 
 
 def asia_taipei_monday(now: datetime) -> datetime:
@@ -164,7 +166,7 @@ def package_id(monday_date: str, items: list[dict[str, Any]]) -> str:
     material = []
     for it in items:
         material.append(
-            f"{it['repository']}|{it['promotionPrNumber']}|{it['stagingSha']}|"
+            f"{it['repository']}|{it['promotionPrNumber']}|{it['developmentSha']}|"
             f"{it['priorMainSha']}|{it['promotionHeadSha']}|{it['gateResult']}"
         )
     digest = hashlib.sha256("\n".join(material).encode("utf-8")).hexdigest()[:16]
@@ -321,7 +323,7 @@ def validate_candidate(
     *,
     repository: str,
     pr: dict[str, Any],
-    staging_tip: str | None,
+    development_tip: str | None,
     main_tip: str | None,
     required_checks: list[str],
     checks: list[dict[str, Any]] | None,
@@ -395,15 +397,15 @@ def validate_candidate(
             liveHead=head_sha,
         )
 
-    if staging_tip is None:
-        return reject("staging_tip_unresolved")
+    if development_tip is None:
+        return reject("development_tip_unresolved")
     if main_tip is None:
         return reject("main_tip_unresolved")
-    if meta["sourceSha"] != staging_tip:
+    if meta["sourceSha"] != development_tip:
         return reject(
-            "staging_tip_drift",
+            "development_tip_drift",
             markerSource=meta["sourceSha"],
-            liveStaging=staging_tip,
+            liveDevelopment=development_tip,
         )
     if meta["targetSha"] != main_tip:
         return reject(
@@ -430,22 +432,23 @@ def validate_candidate(
         "plainDescription": plain_description(repository),
         "repository": repository,
         "promotionPrNumber": pr_number,
-        "stagingSha": meta["sourceSha"],
+        "developmentSha": meta["sourceSha"],
         "priorMainSha": meta["targetSha"],
         "promotionHeadSha": meta["candidateHead"],
         "gateResult": gate_result,
         "promoteBranch": meta["promoteBranch"],
         "marker": meta,
         "gateEvidence": gate_evidence,
-        "workflowInputs": {
-            "action": "approve-merge",
-            "expected_sha": meta["sourceSha"],
-            "expected_main_sha": meta["targetSha"],
-            "expected_promote_head": meta["candidateHead"],
-            "promote_pr_number": str(pr_number),
+        "controllerInputs": {
+            "command": "complete-main",
+            "role": "program-lead",
+            "source_sha": meta["sourceSha"],
+            "base_sha": meta["targetSha"],
+            "expected_head": meta["candidateHead"],
+            "pr_number": str(pr_number),
         },
         "freshness": {
-            "stagingTip": staging_tip,
+            "developmentTip": development_tip,
             "mainTip": main_tip,
             "verifiedAt": now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         },
@@ -517,7 +520,7 @@ def build_package(
                 "plainDescription": it["plainDescription"],
                 "repository": it["repository"],
                 "promotionPrNumber": it["promotionPrNumber"],
-                "stagingSha": it["stagingSha"],
+                "developmentSha": it["developmentSha"],
                 "priorMainSha": it["priorMainSha"],
                 "promotionHeadSha": it["promotionHeadSha"],
                 "gateResult": it["gateResult"],
@@ -533,15 +536,14 @@ def build_package(
         "repositories": repos,
         "package": pkg,
         "itemCount": len(final_items),
-        "items": final_items,  # full rows incl. workflowInputs/gateEvidence for dispatch
+        "items": final_items,  # full rows incl. controllerInputs/gateEvidence for dispatch
         "rejected": rejected,
         "approveMergeTemplate": (
-            "gh workflow run linktrend-staging-to-main.yml "
-            "--repo <owner/repo> "
-            "-f action=approve-merge "
-            "-f expected_sha=<stagingSha> "
-            "-f expected_main_sha=<priorMainSha> "
-            "-f expected_promote_head=<promotionHeadSha>"
+            "python3 scripts/gitops/delivery_controller.py complete-main "
+            "--repository <owner/repo> --role program-lead "
+            "--pr-number <promotionPrNumber> --source-sha <developmentSha> "
+            "--base-sha <priorMainSha> --expected-head <promotionHeadSha> "
+            "--approval-json <exact-Principal-approval.json> --receipt <retained-full-receipt.json>"
         ),
         "expiryPolicy": (
             "claimExpiresAt is 23:59:59 Asia/Taipei on mondayDate "
@@ -563,7 +565,7 @@ def reread_before_dispatch(
     *,
     repository: str,
     item: dict[str, Any],
-    staging_tip: str | None,
+    development_tip: str | None,
     main_tip: str | None,
     required_checks: list[str],
     now: datetime,
@@ -639,14 +641,14 @@ def reread_before_dispatch(
 
     # Marker bindings must still match the previously sealed item SHAs.
     if (
-        meta["sourceSha"] != item["stagingSha"]
+        meta["sourceSha"] != item["developmentSha"]
         or meta["targetSha"] != item["priorMainSha"]
         or meta["candidateHead"] != item["promotionHeadSha"]
     ):
         return reject(
             "marker_binding_changed_on_reread",
             prior={
-                "stagingSha": item["stagingSha"],
+                "developmentSha": item["developmentSha"],
                 "priorMainSha": item["priorMainSha"],
                 "promotionHeadSha": item["promotionHeadSha"],
             },
@@ -658,11 +660,11 @@ def reread_before_dispatch(
         )
 
     head = normalize_sha(live.get("headRefOid"))
-    if staging_tip != meta["sourceSha"]:
+    if development_tip != meta["sourceSha"]:
         return reject(
-            "staging_tip_drift_on_reread",
+            "development_tip_drift_on_reread",
             markerSource=meta["sourceSha"],
-            liveStaging=staging_tip,
+            liveDevelopment=development_tip,
         )
     if main_tip != meta["targetSha"]:
         return reject(
@@ -688,7 +690,7 @@ def reread_before_dispatch(
 
     item = {
         **item,
-        "stagingSha": meta["sourceSha"],
+        "developmentSha": meta["sourceSha"],
         "priorMainSha": meta["targetSha"],
         "promotionHeadSha": meta["candidateHead"],
         "promoteBranch": meta["promoteBranch"],
@@ -696,16 +698,17 @@ def reread_before_dispatch(
         "gateResult": gate_result,  # pending/failed → Issues; do not seal Clear
         "gateEvidence": gate_evidence,
         "freshness": {
-            "stagingTip": staging_tip,
+            "developmentTip": development_tip,
             "mainTip": main_tip,
             "verifiedAt": now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         },
-        "workflowInputs": {
-            "action": "approve-merge",
-            "expected_sha": meta["sourceSha"],
-            "expected_main_sha": meta["targetSha"],
-            "expected_promote_head": meta["candidateHead"],
-            "promote_pr_number": str(pr_num),
+        "controllerInputs": {
+            "command": "complete-main",
+            "role": "program-lead",
+            "source_sha": meta["sourceSha"],
+            "base_sha": meta["targetSha"],
+            "expected_head": meta["candidateHead"],
+            "pr_number": str(pr_num),
         },
     }
     _ = marker
@@ -750,7 +753,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--is-cross-repository", action="store_true")
     ap.add_argument("--base-ref", default="main")
     ap.add_argument("--pr-state", default="OPEN")
-    ap.add_argument("--staging-tip", default="", help="Fixture/live override remote staging tip")
+    ap.add_argument("--development-tip", default="", help="Fixture/live override remote development tip")
     ap.add_argument("--main-tip", default="", help="Fixture/live override remote main tip")
     ap.add_argument("--checks-json", default="", help="Fixture: path to gh pr checks JSON array")
     ap.add_argument("--release-gate-checks", default="", help="Override release-gate check names")
@@ -794,7 +797,7 @@ def main(argv: list[str] | None = None) -> int:
         repo: str,
         pr: dict[str, Any],
         *,
-        staging_tip: str | None,
+        development_tip: str | None,
         main_tip: str | None,
         checks: list[dict[str, Any]] | None,
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
@@ -804,7 +807,7 @@ def main(argv: list[str] | None = None) -> int:
         return validate_candidate(
             repository=repo,
             pr=pr,
-            staging_tip=staging_tip,
+            development_tip=development_tip,
             main_tip=main_tip,
             required_checks=required,
             checks=checks,
@@ -821,7 +824,7 @@ def main(argv: list[str] | None = None) -> int:
             pass
         head_sha = normalize_sha(args.head_sha) or (meta or {}).get("candidateHead") or ""
         head_branch = args.head_branch or (meta or {}).get("promoteBranch") or ""
-        staging_tip = normalize_sha(args.staging_tip) or (meta or {}).get("sourceSha")
+        development_tip = normalize_sha(args.development_tip) or (meta or {}).get("sourceSha")
         main_tip = normalize_sha(args.main_tip) or (meta or {}).get("targetSha")
         checks: list[dict[str, Any]] | None = None
         if args.checks_json:
@@ -845,7 +848,7 @@ def main(argv: list[str] | None = None) -> int:
         }
         items: list[dict[str, Any]] = []
         rejected: list[dict[str, Any]] = []
-        item, rej = process_pr_dict(repo, pr, staging_tip=staging_tip, main_tip=main_tip, checks=checks)
+        item, rej = process_pr_dict(repo, pr, development_tip=development_tip, main_tip=main_tip, checks=checks)
         if item:
             items.append(item)
         if rej:
@@ -867,7 +870,7 @@ def main(argv: list[str] | None = None) -> int:
                 "headRepositoryNameWithOwner": repo,
             }
             item2, rej2 = process_pr_dict(
-                repo, pr2, staging_tip=staging_tip, main_tip=main_tip, checks=checks
+                repo, pr2, development_tip=development_tip, main_tip=main_tip, checks=checks
             )
             if item2:
                 items.append(item2)
@@ -928,7 +931,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
         try:
-            staging_tip = normalize_sha(args.staging_tip) or remote_tip(repo, "staging")
+            development_tip = normalize_sha(args.development_tip) or remote_tip(repo, "development")
             main_tip = normalize_sha(args.main_tip) or remote_tip(repo, "main")
             prs = list_open_promote_prs(repo)
         except subprocess.CalledProcessError as exc:
@@ -958,7 +961,7 @@ def main(argv: list[str] | None = None) -> int:
                 if login and name:
                     pr["headRepositoryNameWithOwner"] = f"{login}/{name}"
             item, rej = process_pr_dict(
-                repo, pr, staging_tip=staging_tip, main_tip=main_tip, checks=None
+                repo, pr, development_tip=development_tip, main_tip=main_tip, checks=None
             )
             if item:
                 repo_items.append(item)
@@ -966,13 +969,13 @@ def main(argv: list[str] | None = None) -> int:
                 all_rejected.append(rej)
 
         # Re-read tips/heads/gates before sealing approval-dispatch inputs.
-        live_stg = normalize_sha(args.staging_tip) or remote_tip(repo, "staging")
+        live_stg = normalize_sha(args.development_tip) or remote_tip(repo, "development")
         live_main = normalize_sha(args.main_tip) or remote_tip(repo, "main")
         for it in repo_items:
             sealed, rej = reread_before_dispatch(
                 repository=repo,
                 item=it,
-                staging_tip=live_stg,
+                development_tip=live_stg,
                 main_tip=live_main,
                 required_checks=required_checks,
                 now=now,

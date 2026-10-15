@@ -140,7 +140,7 @@ class PromotionConfig:
 
 @dataclass(frozen=True)
 class ReviewConfig:
-    bugbot: str = "final-candidate-only"
+    bugbot: str = "disabled"
 
     def to_dict(self) -> dict[str, Any]:
         return {"bugbot": self.bugbot}
@@ -199,7 +199,7 @@ class DeliveryConfig:
 
     @property
     def staging_promotion(self) -> str:
-        return "automatic"
+        return "disabled"
 
     @property
     def main_promotion(self) -> str:
@@ -442,12 +442,13 @@ def _promotion(value: Any) -> PromotionConfig:
 
 def _review(value: Any) -> ReviewConfig:
     raw = _object(value, path="review", fields={"bugbot"})
-    if raw["bugbot"] != "final-candidate-only":
+    if raw["bugbot"] not in {"disabled", "final-candidate-only"}:
         _fail(
             "invalid_review_policy",
-            "bugbot must be final-candidate-only",
+            "bugbot must be disabled; legacy final-candidate-only is normalized to disabled",
             "review.bugbot",
         )
+    # Legacy policy is a migration input only. It cannot re-enable a paid bot.
     return ReviewConfig()
 
 

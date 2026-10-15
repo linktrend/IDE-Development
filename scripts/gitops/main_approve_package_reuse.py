@@ -47,8 +47,8 @@ def parse_marker(body: str) -> tuple[dict[str, Any] | None, str]:
         return None, "marker_schema_unsupported"
     if meta.get("stage") != "main":
         return None, "marker_stage_not_main"
-    if meta.get("sourceBranch") != "staging":
-        return None, "marker_source_branch_not_staging"
+    if meta.get("sourceBranch") != "development":
+        return None, "marker_source_branch_not_development"
     if meta.get("targetBranch") != "main":
         return None, "marker_target_branch_not_main"
     source = normalize_sha(meta.get("sourceSha"))
@@ -60,6 +60,8 @@ def parse_marker(body: str) -> tuple[dict[str, Any] | None, str]:
         return None, "marker_target_sha_invalid"
     if not candidate:
         return None, "marker_candidate_sha_invalid"
+    if candidate != source:
+        return None, "marker_candidate_not_development_source"
     branch = str(meta.get("promoteBranch") or "").strip()
     bm = PROMOTE_BRANCH_RE.match(branch)
     if not bm:
@@ -69,7 +71,7 @@ def parse_marker(body: str) -> tuple[dict[str, Any] | None, str]:
     return {
         "schemaVersion": 1,
         "stage": "main",
-        "sourceBranch": "staging",
+        "sourceBranch": "development",
         "targetBranch": "main",
         "sourceSha": source,
         "targetSha": target,

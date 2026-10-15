@@ -24,7 +24,7 @@
           "plainDescription",
           "repository",
           "promotionPrNumber",
-          "stagingSha",
+          "developmentSha",
           "priorMainSha",
           "promotionHeadSha",
           "gateResult"
@@ -35,7 +35,7 @@
           "plainDescription": { "type": "string", "minLength": 1 },
           "repository": { "type": "string", "pattern": "^[^/]+/[^/]+$" },
           "promotionPrNumber": { "type": "integer", "minimum": 1 },
-          "stagingSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+          "developmentSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
           "priorMainSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
           "promotionHeadSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
           "gateResult": { "type": "string", "enum": ["Clear", "Issues"] }

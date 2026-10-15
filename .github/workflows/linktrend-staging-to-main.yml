@@ -1,7 +1,7 @@
 name: Linktrend Main Receipt Gate
 
-# Main promotion has the same short identity gate as staging.  Principal/Terra
-# performs the actual protected-branch operation outside this workflow.
+# Direct Development-to-main promotion reuses its exact accepted receipt.
+# The designated Program lead performs the protected operation after Principal approval.
 on:
   pull_request_target: # zizmor: ignore[dangerous-triggers] trusted default-branch workflow; candidate is data only and candidate code is never executed
     branches: [main]
@@ -53,12 +53,24 @@ jobs:
           test -n "${PR_NUMBER}" || { echo "receipt_gate_pr_number_missing"; exit 1; }
           pr_body="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .body)"
           export PR_BODY="${pr_body}"
+          export DEVELOPMENT_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/development" --jq .object.sha)"
           coordinates="$(python3 - <<'PY'
           import json, os, re
           match = re.search(r"<!-- linktrend-promote:\s*(\{.*?\})\s*-->", os.environ.get("PR_BODY", ""), re.S)
           if not match:
               raise SystemExit("receipt_gate_promotion_marker_missing")
           marker = json.loads(match.group(1))
+          if (marker.get("stage") != "main" or marker.get("targetBranch") != "main"
+              or marker.get("sourceBranch") != "development"
+              or marker.get("sourceSha") != os.environ.get("DEVELOPMENT_SHA")
+              or marker.get("candidateHead") != os.environ.get("HEAD_SHA")):
+              raise SystemExit("receipt_gate_development_identity_mismatch")
+          transition = marker.get("transitionReceipt")
+          if transition is not None:
+              if not isinstance(transition, dict):
+                  raise SystemExit("receipt_gate_transition_invalid")
+              with open("transition-receipt.json", "w", encoding="utf-8") as handle:
+                  json.dump(transition, handle, sort_keys=True)
           run_id = str(marker.get("fullRunId") or "").strip()
           artifact = ""
           if not run_id.isdigit() or int(run_id) < 1:
@@ -105,7 +117,11 @@ jobs:
         run: |
           set -euo pipefail
           candidate_dir="$(cat candidate-dir.txt)"
+          transition_args=()
+          if [ -f transition-receipt.json ]; then transition_args=(--transition-receipt transition-receipt.json); fi
           python3 "$GITHUB_WORKSPACE/scripts/gitops/gate_receipt.py" verify \
+            --source-branch development \
+            "${transition_args[@]}" \
             --receipt receipt-artifact/full-suite-receipt.json \
             --repo "${candidate_dir}" \
             --profile full \
