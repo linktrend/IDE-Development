@@ -32,6 +32,10 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") <repo-path> [--config PATH] [--orchestration-mode MODE] [--dry-run]
 
+For one guarded workflow only:
+  $(basename "$0") <repo-path> --only-workflow linktrend-integrator-merge.yml \\
+    --expected-source-sha256 SHA256 --expected-target-sha256 SHA256 [--dry-run]
+
 Copy managed GitHub workflow templates into <repo-path>/.github/workflows/.
 Never overwrites ci.yml. Idempotent when files already match.
 
@@ -50,6 +54,9 @@ DRY_RUN=0
 TARGET_INPUT=""
 CONFIG_INPUT=""
 ORCHESTRATION_MODE=""
+ONLY_WORKFLOW=""
+EXPECTED_SOURCE_SHA256=""
+EXPECTED_TARGET_SHA256=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -79,6 +86,21 @@ while [ $# -gt 0 ]; do
       ORCHESTRATION_MODE="${1#--orchestration-mode=}"
       shift
       ;;
+    --only-workflow)
+      [ $# -ge 2 ] || fail "--only-workflow requires a filename"
+      ONLY_WORKFLOW="$2"
+      shift 2
+      ;;
+    --expected-source-sha256)
+      [ $# -ge 2 ] || fail "--expected-source-sha256 requires a SHA-256 digest"
+      EXPECTED_SOURCE_SHA256="$2"
+      shift 2
+      ;;
+    --expected-target-sha256)
+      [ $# -ge 2 ] || fail "--expected-target-sha256 requires a SHA-256 digest"
+      EXPECTED_TARGET_SHA256="$2"
+      shift 2
+      ;;
     *)
       if [ -z "$TARGET_INPUT" ]; then
         TARGET_INPUT="$1"
@@ -100,6 +122,87 @@ fi
 
 TARGET_REPO="$(cd "$TARGET_INPUT" && pwd -P)"
 DEST_DIR="${TARGET_REPO}/.github/workflows"
+
+# A narrowly authorized materialization path for workflows that are not
+# represented by the consumer's installed MANIFEST. Keep it independent from
+# the broad renderer: no config reads/normalization, profile inference, mkdir,
+# or writes outside the one guarded destination file.
+if [ -n "$ONLY_WORKFLOW" ] || [ -n "$EXPECTED_SOURCE_SHA256" ] || [ -n "$EXPECTED_TARGET_SHA256" ]; then
+  [ "$ONLY_WORKFLOW" = "linktrend-integrator-merge.yml" ] || fail "unsupported --only-workflow (expected linktrend-integrator-merge.yml)"
+  [ -z "$CONFIG_INPUT" ] || fail "--config is not supported with --only-workflow"
+  [ -z "$ORCHESTRATION_MODE" ] || fail "--orchestration-mode is not supported with --only-workflow"
+  python3 - "$SYSTEM_ROOT" "$TARGET_REPO" "$ONLY_WORKFLOW" "$EXPECTED_SOURCE_SHA256" "$EXPECTED_TARGET_SHA256" "$DRY_RUN" <<'PY'
+import hashlib
+import os
+import re
+import stat
+import sys
+import tempfile
+from pathlib import Path
+
+system_root = Path(sys.argv[1])
+target_root = Path(sys.argv[2])
+name, expected_source, expected_target, dry_run = sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6] == "1"
+if name != "linktrend-integrator-merge.yml":
+    raise SystemExit("FAIL: unsupported scoped workflow")
+for label, value in (("source", expected_source), ("target", expected_target)):
+    if not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise SystemExit(f"FAIL: expected {label} SHA-256 must be 64 lowercase hex characters")
+
+source = system_root / "core" / "github" / "managed-workflows" / name
+github_dir = target_root / ".github"
+dest_dir = github_dir / "workflows"
+dest = dest_dir / name
+if any(part.is_symlink() for part in (source.parents[0], source.parents[1], source.parents[2])):
+    raise SystemExit("FAIL: source parents must not be symlinks")
+if source.is_symlink() or not source.is_file():
+    raise SystemExit("FAIL: source must be an existing regular non-symlink file")
+if github_dir.is_symlink() or dest_dir.is_symlink() or not github_dir.is_dir() or not dest_dir.is_dir():
+    raise SystemExit("FAIL: destination parents must be existing regular directories, not symlinks")
+if dest.is_symlink() or not dest.is_file():
+    raise SystemExit("FAIL: destination must be an existing regular non-symlink file")
+source_bytes = source.read_bytes()
+target_bytes = dest.read_bytes()
+source_digest = hashlib.sha256(source_bytes).hexdigest()
+target_digest = hashlib.sha256(target_bytes).hexdigest()
+if source_digest != expected_source:
+    raise SystemExit(f"FAIL: source SHA-256 mismatch (actual {source_digest})")
+if target_digest != expected_target:
+    raise SystemExit(f"FAIL: target SHA-256 mismatch (actual {target_digest})")
+if b"__LINKTREND_" in source_bytes:
+    raise SystemExit("FAIL: scoped source contains unresolved consumer placeholders")
+if source_bytes == target_bytes:
+    print(f"PASS: unchanged {name}; source and destination SHA-256 {source_digest}")
+    raise SystemExit(0)
+if dry_run:
+    print(f"DRY-RUN: would update only {dest} ({target_digest} -> {source_digest})")
+    raise SystemExit(0)
+
+mode = stat.S_IMODE(dest.lstat().st_mode)
+fd, temporary_name = tempfile.mkstemp(prefix=f".{name}.", suffix=".tmp", dir=dest_dir)
+try:
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(source_bytes)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.chmod(temporary_name, mode, follow_symlinks=False)
+    os.replace(temporary_name, dest)
+    directory_fd = os.open(dest_dir, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+except BaseException:
+    try:
+        os.unlink(temporary_name)
+    except FileNotFoundError:
+        pass
+    raise
+print(f"PASS: updated only {dest}; SHA-256 {target_digest} -> {source_digest}; mode {mode:04o} preserved")
+PY
+  exit $?
+fi
+
 if [ -n "$CONFIG_INPUT" ]; then
   [ -f "$CONFIG_INPUT" ] || fail "Consumer config missing: $CONFIG_INPUT"
   CONFIG_PATH="$(cd "$(dirname "$CONFIG_INPUT")" && pwd -P)/$(basename "$CONFIG_INPUT")"
