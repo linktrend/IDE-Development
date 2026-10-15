@@ -14,7 +14,7 @@ SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from ide_development.engine import run_install_or_update, run_same_version_repair  # noqa: E402
+from ide_development.engine import run_install_or_update, run_same_version_repair, run_verify  # noqa: E402
 from ide_development.errors import ConflictError, InvalidPackageError  # noqa: E402
 from ide_development.hashing import sha256_file  # noqa: E402
 from ide_development.manifest import load_manifest  # noqa: E402
@@ -104,6 +104,22 @@ class SameVersionRepairTests(TempRepoTestCase):
         old = self._package("old-package")
         self.assertEqual(run_install_or_update(target=self.target, package=old, command="install").exit_code, 0)
 
+        # Existing unrelated drift is evidence to preserve, not something the
+        # narrow repair may adopt into installed-state.
+        prior = load_installed_state(self.target)
+        assert prior is not None
+        unrelated = [
+            ".cursor/rules/sample-rule.mdc",
+            ".ide-development/assets/file-with-spaces.txt",
+        ]
+        before_records = {path: prior.files[path].to_dict() for path in unrelated}
+        before_disk = {}
+        for path in unrelated:
+            dest = self.target / path
+            dest.chmod(0o600)
+            dest.write_bytes(dest.read_bytes() + b"\nunrelated local edit\n")
+            before_disk[path] = (dest.read_bytes(), dest.stat().st_mode & 0o7777)
+
         new = self._package("new-package")
         source = new / "core/managed-core/files/CORE.txt"
         source.write_text("repaired source bytes\n", encoding="utf-8")
@@ -127,6 +143,22 @@ class SameVersionRepairTests(TempRepoTestCase):
         )
         self.assertEqual(result.payload["sourceIdentity"]["tree"], self._identity(new)[1])
         self.assertEqual(result.payload["transaction"]["packageVersion"], "2.5.2")
+        after = load_installed_state(self.target)
+        assert after is not None
+        self.assertEqual(
+            {path: after.files[path].to_dict() for path in unrelated}, before_records
+        )
+        self.assertEqual(
+            {
+                path: ((self.target / path).read_bytes(), (self.target / path).stat().st_mode & 0o7777)
+                for path in unrelated
+            },
+            before_disk,
+        )
+        verification = run_verify(target=self.target, package=new)
+        self.assertNotEqual(verification.exit_code, 0, verification.payload)
+        conflicts = verification.payload.get("conflicts", [])
+        self.assertGreaterEqual(len(conflicts), 2, verification.payload)
 
     def test_repair_rejects_stale_source_and_unmanaged_paths(self) -> None:
         old = self._package("old-package")

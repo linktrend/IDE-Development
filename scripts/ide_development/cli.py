@@ -280,7 +280,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "version":
             result = run_version(target=target if target_arg else None, package=package)
         elif args.command == "rollback":
-            result = run_rollback(target=target)
+            result = run_rollback(target=target, dry_run=dry_run)
         else:  # pragma: no cover
             parser.error(f"Unknown command: {args.command}")
             return EXIT_ERROR

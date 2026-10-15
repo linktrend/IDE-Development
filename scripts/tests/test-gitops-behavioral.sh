@@ -574,18 +574,20 @@ ok3, reason3 = should_request_bugbot(comments=comments, head_sha=sha, fast_gate_
 assert not ok3 and reason3 == "skipped_duplicate_marker"
 
 # Fast work wakes from the Phase PR; the full suite is an explicit trusted
-# label wake in the same unprivileged PR context and requests Bugbot only after
-# its exact-head full receipt succeeds.
+# label wake in the same unprivileged PR context. Its exact-head receipt
+# is sufficient; no redundant external review request follows it.
 fast = Path(sys.argv[1], "core/github/managed-workflows/linktrend-review-packager.yml").read_text()
 full = Path(sys.argv[1], "core/github/managed-workflows/linktrend-integrator-merge.yml").read_text()
 assert "pull_request:" in fast and "cancel-in-progress: true" in fast
-assert "types: [labeled]" in full and "linktrend-full-suite" in full and "Linktrend Final Candidate Bugbot Request" in full
+assert "types: [labeled]" in full and "linktrend-full-suite" in full
+assert "Linktrend Final Candidate Bugbot Request" not in full
+assert "@cursor review" not in full
 assert "workflow_dispatch:" in full and "pr_number:" in full and "expected_head:" in full
 assert "workflow_run:" not in fast
 assert "vars.LINKTREND_WORKFLOW_RUN" not in fast + full
-print("explicit-wake+final-bugbot scenarios ok")
+print("explicit-wake without redundant external review request scenarios ok")
 PY
-pass "wake path + Bugbot request scenarios"
+pass "wake path without external phase review request"
 
 # ============================================================================
 # 13) Normal automation credential: repository token accepted; fail closed otherwise
@@ -1049,9 +1051,9 @@ assert "pull_request:" in fast
 assert "cancel-in-progress: true" in fast
 assert "contents: read" in fast
 assert "types: [labeled]" in full and "workflow_dispatch:" in full
-assert "contents: read" in full and "pull-requests: write" in full
+assert "contents: read" in full and "pull-requests: write" not in full
 assert "github.token" in full
-assert "@cursor review" in full
+assert "@cursor review" not in full
 for promotion in (staging, main):
     assert "Linktrend Receipt Gate" in promotion
     assert "github.token" in promotion

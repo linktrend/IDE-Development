@@ -284,6 +284,7 @@ def build_next_state(
     target_root: Path,
     actions: list[PlanAction],
     transaction_id: str | None = None,
+    state_update_scope: set[str] | frozenset[str] | None = None,
 ) -> InstalledState:
     files: dict[str, FileState] = {}
     if prior is not None:
@@ -349,6 +350,8 @@ def build_next_state(
         )
     # Ensure all active manifest paths that exist are recorded
     for entry in entries.values():
+        if state_update_scope is not None and entry.destination not in state_update_scope:
+            continue
         dest = join_under(target_root, entry.destination)
         if dest.is_file() and not path_is_symlink(dest):
             files[entry.destination] = FileState(
@@ -458,6 +461,7 @@ def apply_plan(
     prior: InstalledState | None,
     resolution: UpgradeResolution | None = None,
     post_apply_check: Callable[[], dict[str, Any]] | None = None,
+    state_update_scope: set[str] | frozenset[str] | None = None,
 ) -> dict[str, Any]:
     if plan.has_conflicts:
         raise ConflictError(
@@ -493,6 +497,7 @@ def apply_plan(
                 prior=prior,
                 resolution=resolution,
                 post_apply_check=post_apply_check,
+                state_update_scope=state_update_scope,
                 write_lease=lease,
             )
 
@@ -506,6 +511,7 @@ def _apply_plan_unlocked(
     prior: InstalledState | None,
     resolution: UpgradeResolution | None = None,
     post_apply_check: Callable[[], dict[str, Any]] | None = None,
+    state_update_scope: set[str] | frozenset[str] | None = None,
     write_lease: WriteLease | None = None,
 ) -> dict[str, Any]:
     # Recover any interrupted transaction before starting a new one
@@ -703,6 +709,7 @@ def _apply_plan_unlocked(
             target_root=target_root,
             actions=plan.actions,
             transaction_id=tx_id,
+            state_update_scope=state_update_scope,
         )
         # Record MANIFEST.json in installed-state
         next_state.files[MANIFEST_DEST] = FileState(
@@ -800,6 +807,42 @@ def rollback_last(target_root: Path) -> dict[str, Any]:
             finalize_read_only=False,
         ) as lease:
             return _rollback_last_unlocked(target_root, lease=lease)
+
+
+def preview_rollback_last(target_root: Path) -> dict[str, Any]:
+    """Describe rollback without locking, recovery, or changing repository state."""
+    current = current_tx_dir(target_root)
+    if current.exists():
+        raise RollbackError(
+            "Rollback preview is blocked by a pending transaction; no recovery was attempted",
+            details={"path": str(current), "pendingTransaction": True},
+        )
+    last = last_tx_dir(target_root)
+    journal = read_journal(last)
+    if journal is None:
+        raise RollbackError("No completed transaction available to preview")
+    if journal.get("phase") != PHASE_COMPLETE:
+        raise RollbackError("Last transaction journal is not complete")
+    backups = [BackupRecord.from_dict(x) for x in journal.get("backups") or []]
+    for record in backups:
+        if record.existed:
+            if record.was_symlink:
+                if record.symlink_target is None:
+                    raise RollbackError(f"Missing symlink target for {record.path}")
+                continue
+            if not record.backup_name:
+                raise RollbackError(f"Missing backup blob for {record.path}")
+            blob = backups_dir(last) / record.backup_name
+            if not blob.is_file() or path_is_symlink(blob):
+                raise RollbackError(f"Backup file missing for {record.path}: {blob}")
+            if record.content_hash and sha256_file(blob) != record.content_hash:
+                raise RollbackError(f"Backup file digest mismatch for {record.path}: {blob}")
+    return {
+        "transactionId": journal.get("transactionId"),
+        "restored": [record.path for record in backups],
+        "preview": True,
+        "applied": False,
+    }
 
 
 def _rollback_last_unlocked(
