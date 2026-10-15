@@ -285,32 +285,6 @@ jobs:
             full-suite-summary.txt
           retention-days: 30
 
-  bugbot:
-    name: Linktrend Final Candidate Bugbot Request
-    needs: full
-    if: needs.full.result == 'success'
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      pull-requests: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      PR_NUMBER: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.pull_request.number }}
-    steps:
-      - name: Request Bugbot once for the sealed candidate
-        run: |
-          set -euo pipefail
-          HEAD_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)"
-          marker="<!-- linktrend-bugbot-requested: ${HEAD_SHA} -->"
-          comments="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --jq '.[].body' || true)"
-          if printf '%s\n' "${comments}" | grep -Fq "${marker}"; then
-            echo "final_candidate_bugbot_request_already_recorded"
-            exit 0
-          fi
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-            -f body="@cursor review\n${marker}"
-
   reconciled-canary:
     name: Linktrend Reconciled Tree Canary
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'reconciled'
